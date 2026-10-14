@@ -6,7 +6,7 @@ import { AuditAction } from '@shared/enums'
 import { DEFAULT_CUSTODY_CONFIG, parseCustodyConfig, parseShiftConfig, SETTING_KEYS, type CustodyConfig, type ShiftConfig, type ShiftTemplate } from '@shared/receipt'
 import { toJalaliDate, jalaliStartOfDay, jalaliEndOfDay, isValidJalaliDate, toLatinDigits } from '@shared/jalali'
 import { observationOf, systemAbsenceZero } from '@shared/custodyPeriod'
-import { pendingCustodyReference } from '@shared/custodyReference'
+import { pendingCustodyReference, CUSTODY_REFERENCE_LEGACY_VERSION } from '@shared/custodyReference'
 import { recordBlueSnapshot, referenceFromBlueSnapshot } from './CustodyBlueSnapshotService'
 import { shiftService } from './ShiftService'
 import { recordCashMovement } from './CashMovementService'
@@ -953,7 +953,10 @@ function custodyAuditExportTime(value: unknown): string | null {
 }
 
 function custodyAuditExportRows(report: any): CustodyAuditExportCell[][] {
-  const rows: CustodyAuditExportCell[][] = []
+  const rows: CustodyAuditExportCell[][] = [[
+    'دامنهٔ شواهد اپراتور', null, null, null, null, null, null, 'فقط سند مستقل ثبت‌شده',
+    'اپراتور فاکتورهای قدیمی فاقد سند مستقل قابل اثبات نیست؛ مسئول مالی فاکتور یا کشو، اپراتور POS فرض نمی‌شود. نبود ردیف در این صفحه به معنی نبود فروش نیست.'
+  ]]
   for (const row of report.segments ?? []) rows.push([
     'بخش حضانت', custodyAuditExportTime(row.startedAt), `نشست ${row.shiftId}`, row.custodianName ?? '—', null, null, null,
     row.endKind ?? 'باز', `برنامهٔ snapshot: ${row.scheduleTitleSnapshot ?? 'بدون برنامه'}${row.endedAt ? ` · پایان: ${custodyAuditExportTime(row.endedAt)}` : ''}`
@@ -988,13 +991,13 @@ function custodyAuditExportRows(report: any): CustodyAuditExportCell[][] {
         owner, custodyAuditExportAmount(blue.countedAmount), custodyAuditExportAmount(blue.originalReferenceAmount),
         custodyAuditExportAmount(blue.originalRawDifference),
         blue.originalReferenceAmount == null ? 'PENDING_RECONCILIATION' : 'AVAILABLE',
-        `بازه ${blue.referenceFromDay ?? '—'} تا ${blue.referenceToDay ?? '—'} · منشأ ${blue.countOrigin ?? 'نامعلوم'} · احراز ${blue.initialAuthMethod ?? 'نامعلوم'} · بخش معلوم ${custodyAuditExportAmount(blue.knownSubtotal) ?? 'نامعلوم'} · پرداخت مبهم ${custodyAuditExportAmount(blue.ambiguousLegacyCredit) ?? 'نامعلوم'} · اختلاف تازه ${custodyAuditExportAmount(blue.originalFreshDifference) ?? 'نامعلوم'}`
+        `بازه ${blue.referenceFromDay ?? '—'} تا ${blue.referenceToDay ?? '—'} · نسخه ${blue.calculationVersion ?? 'نامعلوم'} · منشأ ${blue.countOrigin ?? 'نامعلوم'} · احراز ${blue.initialAuthMethod ?? 'نامعلوم'} · بخش معلوم ${custodyAuditExportAmount(blue.knownSubtotal) ?? 'نامعلوم'} · مقصد نامشخص ${blue.calculationVersion === CUSTODY_REFERENCE_LEGACY_VERSION ? 'در نسخهٔ قدیمی ثبت نمی‌شد' : custodyAuditExportAmount(blue.destinationUnknownReceived) ?? 'نامعلوم'} · پرداخت مبهم ${custodyAuditExportAmount(blue.ambiguousLegacyCredit) ?? 'نامعلوم'} · اختلاف تازه ${custodyAuditExportAmount(blue.originalFreshDifference) ?? 'نامعلوم'}`
       ])
       if (blue.decision) rows.push([
         'تصمیم افزایشی مرجع آبی', custodyAuditExportTime(blue.decision.at), `تحویل ${row.id} / سند ${blue.incomingSnapshotId ?? '—'}`,
         blue.decision.managerName ?? `مدیر ${blue.decision.managerUserId}`,
         null, custodyAuditExportAmount(blue.referenceAmount), custodyAuditExportAmount(blue.rawDifference),
-        'RESOLVED', `${blue.decision.kind} · سند ${blue.decision.evidenceReference} · روز ${blue.decision.evidenceDay} · اختلاف تازه ${custodyAuditExportAmount(blue.freshDifference) ?? 'نامعلوم'} · ${blue.decision.reason}`
+        'RESOLVED', `${blue.decision.kind} · سند ${blue.decision.evidenceReference} · روز ${blue.decision.evidenceDay}${blue.decision.destinationKind ? ` · مقصد نامشخص ${blue.decision.destinationKind} · سند ${blue.decision.destinationEvidenceReference} · روز ${blue.decision.destinationEvidenceDay}` : ''} · اختلاف تازه ${custodyAuditExportAmount(blue.freshDifference) ?? 'نامعلوم'} · ${blue.decision.reason}`
       ])
     }
   }
@@ -1005,14 +1008,14 @@ function custodyAuditExportRows(report: any): CustodyAuditExportCell[][] {
       row.actorName ?? `کارمند ${row.actorUserId}`,
       custodyAuditExportAmount(row.countedAmount), custodyAuditExportAmount(row.originalReferenceAmount),
       custodyAuditExportAmount(row.originalRawDifference), row.originalReferenceStatus,
-      `بازه ${row.referenceFromDay} تا ${row.referenceToDay} · منشأ ${row.countOrigin} · احراز ${row.authMethod} · بخش معلوم ${custodyAuditExportAmount(row.knownSubtotal) ?? 'نامعلوم'} · پرداخت مبهم ${custodyAuditExportAmount(row.ambiguousLegacyCredit) ?? 'نامعلوم'} · اختلاف تازه ${custodyAuditExportAmount(row.originalFreshDifference) ?? 'نامعلوم'}`
+      `بازه ${row.referenceFromDay} تا ${row.referenceToDay} · نسخه ${row.calculationVersion} · منشأ ${row.countOrigin} · احراز ${row.authMethod} · بخش معلوم ${custodyAuditExportAmount(row.knownSubtotal) ?? 'نامعلوم'} · مقصد نامشخص ${row.calculationVersion === CUSTODY_REFERENCE_LEGACY_VERSION ? 'در نسخهٔ قدیمی ثبت نمی‌شد' : custodyAuditExportAmount(row.destinationUnknownReceived) ?? 'نامعلوم'} · پرداخت مبهم ${custodyAuditExportAmount(row.ambiguousLegacyCredit) ?? 'نامعلوم'} · اختلاف تازه ${custodyAuditExportAmount(row.originalFreshDifference) ?? 'نامعلوم'}`
     ])
     if (row.decision) rows.push([
       'تصمیم افزایشی مرز آبی', custodyAuditExportTime(row.decision.at),
       `نشست ${row.shiftId} / سند ${row.snapshotId}`,
       row.decision.managerName ?? `مدیر ${row.decision.managerUserId}`,
       null, custodyAuditExportAmount(row.referenceAmount), custodyAuditExportAmount(row.rawDifference),
-      'RESOLVED', `${row.decision.kind} · سند ${row.decision.evidenceReference} · روز ${row.decision.evidenceDay} · اختلاف تازه ${custodyAuditExportAmount(row.freshDifference) ?? 'نامعلوم'} · ${row.decision.reason}`
+      'RESOLVED', `${row.decision.kind} · سند ${row.decision.evidenceReference} · روز ${row.decision.evidenceDay}${row.decision.destinationKind ? ` · مقصد نامشخص ${row.decision.destinationKind} · سند ${row.decision.destinationEvidenceReference} · روز ${row.decision.destinationEvidenceDay}` : ''} · اختلاف تازه ${custodyAuditExportAmount(row.freshDifference) ?? 'نامعلوم'} · ${row.decision.reason}`
     ])
   }
   for (const row of report.saleOperators ?? []) rows.push([
@@ -1536,6 +1539,7 @@ export const custodyService = {
           snapshotId: row.id, shiftId: row.shiftId, role: row.role, at: row.at,
           actorUserId: row.actorUserId, actorName: userName.get(row.actorUserId) ?? null,
           countOrigin: row.countOrigin, authMethod: row.authMethod,
+          calculationVersion: row.calculationVersion,
           countedAmount: amount(row.humanAmount),
           originalReferenceStatus: row.referenceStatus,
           originalReferenceAmount: amount(row.referenceAmount),
@@ -1545,12 +1549,16 @@ export const custodyService = {
           referenceFromDay: row.referenceFromDay, referenceToDay: row.referenceToDay,
           referenceAmount: decision ? amount(decision.effectiveReferenceAmount) : amount(row.referenceAmount),
           knownSubtotal: amount(row.knownSubtotal),
+          destinationUnknownReceived: row.calculationVersion === CUSTODY_REFERENCE_LEGACY_VERSION ? null : amount(row.destinationUnknownReceived),
           ambiguousLegacyCredit: amount(row.ambiguousLegacyCredit),
           rawDifference: decision ? amount(decision.resolvedRawDifference) : amount(row.rawDifference),
           freshDifference: decision ? amount(decision.resolvedFreshDifference) : amount(row.freshDifference),
           freshStatus: decision ? decision.freshStatus : row.freshStatus,
           decision: decision ? { id: decision.id, kind: decision.decisionKind,
             managerUserId: decision.managerUserId, managerName: userName.get(decision.managerUserId) ?? null,
+            destinationKind: decision.destinationDecisionKind ?? null,
+            destinationEvidenceDay: decision.destinationEvidenceDay ?? null,
+            destinationEvidenceReference: decision.destinationEvidenceReference ?? null,
             evidenceDay: decision.evidenceDay, evidenceReference: decision.evidenceReference,
             reason: decision.reason, at: decision.at } : null
         }
@@ -1565,8 +1573,10 @@ export const custodyService = {
           id: snapshot.id, at: snapshot.at, role: snapshot.role,
           actorUserId: snapshot.actorUserId, authMethod: snapshot.authMethod,
           countOrigin: snapshot.countOrigin, humanAmount: amount(snapshot.humanAmount),
+          calculationVersion: snapshot.calculationVersion,
           referenceStatus: snapshot.referenceStatus, referenceAmount: amount(snapshot.referenceAmount),
-          knownSubtotal: amount(snapshot.knownSubtotal), ambiguousLegacyCredit: amount(snapshot.ambiguousLegacyCredit),
+          knownSubtotal: amount(snapshot.knownSubtotal), destinationUnknownReceived: snapshot.calculationVersion === CUSTODY_REFERENCE_LEGACY_VERSION ? null : amount(snapshot.destinationUnknownReceived),
+          ambiguousLegacyCredit: amount(snapshot.ambiguousLegacyCredit),
           rawDifference: amount(snapshot.rawDifference), freshDifference: amount(snapshot.freshDifference)
         } : null
         const blue = isBlue ? {
@@ -1575,12 +1585,14 @@ export const custodyService = {
           status: decision ? 'RESOLVED' : frozen?.referenceStatus ?? 'AWAITING_COUNT',
           snapshotId: frozen?.id ?? null, incomingSnapshotId: pair?.IN?.id ?? null,
           snapshotAt: frozen?.at ?? null,
+          calculationVersion: frozen?.calculationVersion ?? null,
           referenceFromDay: frozen?.referenceFromDay ?? null,
           referenceToDay: frozen?.referenceToDay ?? null,
           countOrigin: frozen?.countOrigin ?? null,
           countedAmount: amount(frozen?.humanAmount),
           originalReferenceAmount: amount(frozen?.referenceAmount),
           knownSubtotal: amount(frozen?.knownSubtotal),
+          destinationUnknownReceived: frozen?.calculationVersion === CUSTODY_REFERENCE_LEGACY_VERSION ? null : amount(frozen?.destinationUnknownReceived),
           ambiguousLegacyCredit: amount(frozen?.ambiguousLegacyCredit),
           originalRawDifference: amount(frozen?.rawDifference),
           originalFreshDifference: amount(frozen?.freshDifference),
@@ -1589,6 +1601,9 @@ export const custodyService = {
           freshDifference: decision ? amount(decision.resolvedFreshDifference) : amount(frozen?.freshDifference),
           decision: decision ? { id: decision.id, kind: decision.decisionKind,
             managerUserId: decision.managerUserId, managerName: userName.get(decision.managerUserId) ?? null,
+            destinationKind: decision.destinationDecisionKind ?? null,
+            destinationEvidenceDay: decision.destinationEvidenceDay ?? null,
+            destinationEvidenceReference: decision.destinationEvidenceReference ?? null,
             evidenceDay: decision.evidenceDay, evidenceReference: decision.evidenceReference,
             reason: decision.reason, at: decision.at } : null
         } : null
@@ -3045,6 +3060,7 @@ export const custodyService = {
       return { stale: false as const, handoverId, state: 'RECEIVER_COUNTED' as const,
         referenceStatus: incoming.referenceStatus, referenceAmount: incoming.referenceAmount == null ? null : Number(incoming.referenceAmount),
         knownSubtotal: incoming.knownSubtotal == null ? null : Number(incoming.knownSubtotal),
+        destinationUnknownReceived: incoming.destinationUnknownReceived == null ? null : Number(incoming.destinationUnknownReceived),
         ambiguousLegacyCredit: incoming.ambiguousLegacyCredit == null ? null : Number(incoming.ambiguousLegacyCredit),
         rawDifference: incoming.rawDifference == null ? null : Number(incoming.rawDifference),
         freshDifference: incoming.freshDifference == null ? null : Number(incoming.freshDifference) }
@@ -3563,7 +3579,7 @@ export const custodyService = {
   /** Manager-only case list for aggregate drawer + POS discrepancies.  The
    * rows are deliberately separate from the legacy cash-only custody report so
    * historical counts retain their original accounting meaning. */
-  async discrepancyReport(input: { from?: unknown; to?: unknown; status?: unknown; take?: unknown; skip?: unknown; managerSession?: boolean } = {}) {
+  async discrepancyReport(input: { from?: unknown; to?: unknown; status?: unknown; take?: unknown; skip?: unknown; bootstrapTake?: unknown; bootstrapSkip?: unknown; managerSession?: boolean } = {}) {
     if (input.managerSession !== true) throw new BusinessError('گزارش مغایرت فقط با نشست دوم مدیر قابل مشاهده است.', 'MANAGER_SESSION_REQUIRED')
     assertManagerSession('دیدن پرونده‌های مغایرت کشو و کارت‌خوان')
     const { from, to, fromJalali, toJalali } = custodyJalaliRange(input)
@@ -3572,6 +3588,11 @@ export const custodyService = {
     const statusWhere = requestedStatus === 'ALL' ? {} : { status: requestedStatus }
     const take = Math.min(200, Math.max(1, Math.round(Number(input.take ?? 50)) || 50))
     const skip = Math.min(50_000, Math.max(0, Math.trunc(Number(input.skip ?? 0)) || 0))
+    /** Cases and neutral adoptions have different identities/meaning. Neither
+     * offset should silently advance the other stream. Legacy callers still
+     * get their first 200 adoption rows when no explicit window is supplied. */
+    const bootstrapTake = Math.min(200, Math.max(1, Math.round(Number(input.bootstrapTake ?? 200)) || 200))
+    const bootstrapSkip = Math.min(50_000, Math.max(0, Math.trunc(Number(input.bootstrapSkip ?? 0)) || 0))
     const stores: any = prisma as any
     const where = { detectedAt: { gte: from, lte: to }, ...statusWhere }
     const [rowsPlusOne, openSummary, closedSummary, allSummary, shortageSummary, overageSummary] = await Promise.all([
@@ -3596,7 +3617,7 @@ export const custodyService = {
     const boundaryIds = rows.map((row: any) => row.boundaryId).filter((id: any) => Number.isSafeInteger(id))
     const [caseBoundaries, adoptionRowsPlusOne] = await Promise.all([
       boundaryIds.length ? stores.custodyAggregateBoundary.findMany({ where: { id: { in: boundaryIds } } }) : Promise.resolve([]),
-      stores.custodyAggregateBoundary.findMany({ where: { baselineSource: 'ADOPTION', at: { gte: from, lte: to } }, orderBy: [{ at: 'desc' }, { id: 'desc' }], take: 201 })
+      stores.custodyAggregateBoundary.findMany({ where: { baselineSource: 'ADOPTION', at: { gte: from, lte: to } }, orderBy: [{ at: 'desc' }, { id: 'desc' }], skip: bootstrapSkip, take: bootstrapTake + 1 })
     ])
     const boundaryById = new Map((caseBoundaries as any[]).map((row: any) => [row.id, row]))
     const boundaryDetail = (row: any) => row ? {
@@ -3613,7 +3634,7 @@ export const custodyService = {
       calculationVersion: row.calculationVersion,
       at: row.at
     } : null
-    const adoptionRows = (adoptionRowsPlusOne as any[]).slice(0, 200)
+    const adoptionRows = (adoptionRowsPlusOne as any[]).slice(0, bootstrapTake)
     const userIds = new Set<number>()
     for (const row of adoptionRows) if (row.countedByUserId) userIds.add(row.countedByUserId)
     for (const row of caseBoundaries as any[]) if (row.countedByUserId) userIds.add(row.countedByUserId)
@@ -3640,7 +3661,8 @@ export const custodyService = {
         overages: difference(overageSummary)
       },
       bootstrapBoundaries: {
-        hasMore: adoptionRowsPlusOne.length > 200,
+        page: { skip: bootstrapSkip, take: bootstrapTake, hasMore: adoptionRowsPlusOne.length > bootstrapTake },
+        hasMore: adoptionRowsPlusOne.length > bootstrapTake,
         rows: adoptionRows.map((row: any) => ({
           ...boundaryDetail(row),
           fromShiftId: row.fromShiftId ?? null,
@@ -3685,7 +3707,7 @@ export const custodyService = {
 
   /** Main-generated export for the same Jalali-filtered, manager-authorized
    * discrepancy page. Renderer supplies only scope, never financial rows. */
-  async exportDiscrepancyReport(input: { from?: unknown; to?: unknown; status?: unknown; take?: unknown; skip?: unknown; managerSession?: boolean } = {}) {
+  async exportDiscrepancyReport(input: { from?: unknown; to?: unknown; status?: unknown; take?: unknown; skip?: unknown; bootstrapTake?: unknown; bootstrapSkip?: unknown; managerSession?: boolean } = {}) {
     const report: any = await this.discrepancyReport({ ...input, take: Math.min(200, Math.max(1, Number(input.take ?? 200) || 200)), managerSession: true })
     const { exportTableFile } = await import('./ExportService')
     const rows = report.cases.map((row: any) => [
@@ -3703,14 +3725,28 @@ export const custodyService = {
       row.currentReviewResult ?? '',
       row.reviews.map((review: any) => `${review.action}: ${review.note}`).join(' | ')
     ])
+    /** An ADOPTION_BASELINE is a real blind observation, but deliberately has
+     * neither a prior reference nor a discrepancy case. Include it as a
+     * separate neutral row; NEVER turn its internally equal expected/observed
+     * placeholders into a claimed manager reference or a zero fresh delta. */
+    for (const boundary of report.bootstrapBoundaries.rows) rows.push([
+      `افتتاح خنثی #${boundary.id}`,
+      boundary.operationalDay,
+      boundary.boundaryKind,
+      boundary.fromShiftId ?? '—',
+      boundary.toShiftId ?? '—',
+      'بدون پرونده (افتتاح خنثی)',
+      '', '', String(boundary.observedOperationalTotal), '', '', '',
+      `ADOPTION · بدون مبنای قبلی؛ اختلاف تازه نامعلوم · شمارش‌کننده ${boundary.countedByName ?? boundary.countedByUserId} · احراز ${boundary.authMethod} · نسخه ${boundary.calculationVersion}`
+    ])
     const result = await exportTableFile({
       fileName: 'گزارش-مغایرت-کشو-کارتخوان',
       sheetName: 'مغایرت حضانت',
-      title: `گزارش مغایرت کشو و کارت‌خوان · ${report.from} تا ${report.to} · وضعیت ${report.status}`,
+      title: `گزارش مغایرت کشو و کارت‌خوان + مرزهای افتتاح خنثی · ${report.from} تا ${report.to} · وضعیت پرونده‌ها ${report.status} · صفحه پرونده ${report.page.skip}، صفحه افتتاح ${report.bootstrapBoundaries.page.skip} · ${report.page.hasMore || report.bootstrapBoundaries.hasMore ? 'این صفحه تمام سوابق نیست؛ صفحه‌های بعد را جدا بگیرید' : 'پایان شواهد بازه'}`,
       headers: ['شناسه', 'روز عملیاتی', 'نوع مرز', 'شیفت قبلی', 'شیفت بعدی', 'وضعیت', 'نظری مدیر', 'انتظار عملیاتی', 'شمارش کور', 'اختلاف تازه', 'اختلاف نظری کل', 'نتیجه فعلی', 'سابقه بازبینی'],
       rows
     })
-    await audit(prisma, { action: 'CUSTODY_DISCREPANCY_EXPORT', entity: 'CustodyDiscrepancyReport', userId: null, after: JSON.stringify({ outcome: result.canceled ? 'CANCELED' : 'SAVED', from: report.from, to: report.to, status: report.status, rows: result.rows }), note: 'خروجی پرونده‌های مغایرت با نشست مشترک مدیر؛ بدون انتساب هویت فردی مدیر' })
+    await audit(prisma, { action: 'CUSTODY_DISCREPANCY_EXPORT', entity: 'CustodyDiscrepancyReport', userId: null, after: JSON.stringify({ outcome: result.canceled ? 'CANCELED' : 'SAVED', from: report.from, to: report.to, status: report.status, rows: result.rows, caseRows: report.cases.length, neutralAdoptions: report.bootstrapBoundaries.rows.length, caseSkip: report.page.skip, adoptionSkip: report.bootstrapBoundaries.page.skip, hasMoreCases: report.page.hasMore, hasMoreAdoptions: report.bootstrapBoundaries.hasMore }), note: 'خروجی پرونده‌ها و مرزهای افتتاح خنثی با نشست مشترک مدیر؛ بدون انتساب هویت فردی مدیر' })
     return result
   },
 

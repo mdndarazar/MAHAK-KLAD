@@ -1,5 +1,5 @@
 import { BusinessError } from '../errors'
-import { CUSTODY_REFERENCE_VERSION, type CustodyReference } from '@shared/custodyReference'
+import { CUSTODY_REFERENCE_VERSION, CUSTODY_REFERENCE_LEGACY_VERSION, type CustodyReference } from '@shared/custodyReference'
 import { observationOf, systemAbsenceZero, reconcileCustodyPeriod, type CustodyObservation } from '@shared/custodyPeriod'
 import { isValidJalaliDate } from '@shared/jalali'
 
@@ -10,14 +10,17 @@ function safeMoney(raw: unknown): number | null {
   return n
 }
 export function referenceFromBlueSnapshot(row: any): CustodyReference {
-  if (row.calculationVersion !== CUSTODY_REFERENCE_VERSION)
+  if (row.calculationVersion !== CUSTODY_REFERENCE_VERSION && row.calculationVersion !== CUSTODY_REFERENCE_LEGACY_VERSION)
     throw new BusinessError('نسخهٔ سند مرجع تحویل با نسخهٔ برنامه متفاوت است.', 'BLUE_VERSION_MISMATCH')
   return {
     status: row.referenceStatus,
     referenceAmount: safeMoney(row.referenceAmount),
     knownSubtotal: safeMoney(row.knownSubtotal),
+    // V1 never measured this component; even a default 0 in an intermediate
+    // database means "not recorded", not proof of no unknown-destination cash.
+    destinationUnknownReceived: row.calculationVersion === CUSTODY_REFERENCE_LEGACY_VERSION ? null : safeMoney(row.destinationUnknownReceived),
     ambiguousLegacyCredit: safeMoney(row.ambiguousLegacyCredit),
-    calculationVersion: CUSTODY_REFERENCE_VERSION,
+    calculationVersion: row.calculationVersion,
     sourceScope: row.sourceScope ?? undefined,
     sourceHash: row.sourceHash ?? undefined,
     warnings: []
@@ -32,8 +35,8 @@ export function countFromBlueSnapshot(row: any): CustodyObservation {
   if (count.origin !== row.countOrigin) throw new BusinessError('منشأ شمارش واقعی با مبلغ ثبت‌شده سازگار نیست.', 'BLUE_COUNT_INVALID')
   return count
 }
-export function blueScopeKey(row: { referenceFromDay: string; referenceToDay: string; scopeKind: string }) {
-  return `${row.referenceFromDay}:${row.referenceToDay}:${row.scopeKind}`
+export function blueScopeKey(row: { referenceFromDay: string; referenceToDay: string; scopeKind: string; calculationVersion: string }) {
+  return `${row.referenceFromDay}:${row.referenceToDay}:${row.scopeKind}:${row.calculationVersion}`
 }
 
 /** One transactional, append-only observation of the SAME report scope/version
@@ -70,7 +73,7 @@ export async function recordBlueSnapshot(tx: any, input: {
   if (!Number.isSafeInteger(input.financialRevision) || input.financialRevision < 0 ||
       !Number.isSafeInteger(input.epochAtCount) || input.epochAtCount < 0)
     throw new BusinessError('نسخهٔ مالی سند شمارش نامعتبر است.', 'BLUE_REVISION_INVALID')
-  const scopeKey = blueScopeKey(input)
+  const scopeKey = blueScopeKey({ ...input, calculationVersion: reference.calculationVersion })
   const result = reconcileCustodyPeriod({
     start: input.prior ? {
       count: countFromBlueSnapshot(input.prior),
@@ -91,6 +94,7 @@ export async function recordBlueSnapshot(tx: any, input: {
     referenceStatus: reference.status,
     referenceAmount: toBigInt(reference.referenceAmount),
     knownSubtotal: toBigInt(reference.knownSubtotal),
+    destinationUnknownReceived: toBigInt(reference.destinationUnknownReceived),
     ambiguousLegacyCredit: toBigInt(reference.ambiguousLegacyCredit),
     calculationVersion: CUSTODY_REFERENCE_VERSION,
     sourceScope: reference.sourceScope ?? null,

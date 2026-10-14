@@ -293,7 +293,10 @@ export const DrawerVsPosSplit: React.FC<DrawerVsPosSplitProps> = ({
               {custodyReference.ambiguousLegacyCredit != null && custodyReference.ambiguousLegacyCredit > 0 && (
                 <span>پرداخت اعتباری قدیمی با منشأ نامعلوم: <b dir="ltr">{money(custodyReference.ambiguousLegacyCredit)}</b> ریال</span>
               )}
-              <span className="text-sm text-amber-900">تا روشن‌شدن منشأ، هیچ مغایرت قطعی از این مبلغ ساخته نمی‌شود.</span>
+              {custodyReference.destinationUnknownReceived != null && custodyReference.destinationUnknownReceived > 0 && (
+                <span>وجه با مقصد نامشخص، خارج از بخش معلوم: <b dir="ltr">{money(custodyReference.destinationUnknownReceived)}</b> ریال</span>
+              )}
+              <span className="text-sm text-amber-900">تا روشن‌شدن منشأ، هیچ مغایرت قطعی از این مبلغ ساخته نمی‌شود؛ فروش ادامه دارد.</span>
             </>
           ) : (
             <>

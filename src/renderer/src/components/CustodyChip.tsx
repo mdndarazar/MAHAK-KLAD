@@ -36,6 +36,7 @@ type BlueCountPreview = {
   referenceStatus: 'AVAILABLE' | 'PENDING_RECONCILIATION'
   referenceAmount: number | null
   knownSubtotal: number | null
+  destinationUnknownReceived: number | null
   ambiguousLegacyCredit: number | null
   rawDifference: number | null
   freshDifference: number | null
@@ -245,7 +246,7 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
             {view === 'confirmBlue' && status.pendingHandover?.blueReference && status.pendingHandover.status === 'RECEIVER_COUNTED' ? <div className="space-y-3">
               <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm leading-6" role="status">
                 <b>شمارش مستقل ثبت شد؛ مسئولیت هنوز جابه‌جا نشده است.</b>
-                {blueCountPreview?.referenceStatus === 'PENDING_RECONCILIATION' ? <p>مرجع و اختلاف قطعی در انتظار تطبیق است. بخش معلوم: {blueCountPreview.knownSubtotal == null ? 'نامعلوم' : money(blueCountPreview.knownSubtotal)} ریال · پرداخت قدیمی مبهم: {blueCountPreview.ambiguousLegacyCredit == null ? 'نامعلوم' : money(blueCountPreview.ambiguousLegacyCredit)} ریال.</p> : blueCountPreview ? <p>مرجع گزارش: {blueCountPreview.referenceAmount == null ? 'نامعلوم' : money(blueCountPreview.referenceAmount)} ریال · اختلاف خام: {blueCountPreview.rawDifference == null ? 'نامعلوم' : money(blueCountPreview.rawDifference)} ریال · اختلاف تازه: {blueCountPreview.freshDifference == null ? 'نامعلوم' : money(blueCountPreview.freshDifference)} ریال.</p> : <p>برای دیدن جزئیات مدیر به گزارش شواهد رجوع می‌کند؛ شمارش ثبت‌شده پس از بازکردن دوبارهٔ فرم نمایش داده نمی‌شود.</p>}
+                {blueCountPreview?.referenceStatus === 'PENDING_RECONCILIATION' ? <p>مرجع و اختلاف قطعی در انتظار تطبیق است. بخش معلوم: {blueCountPreview.knownSubtotal == null ? 'نامعلوم' : money(blueCountPreview.knownSubtotal)} ریال · پرداخت قدیمی مبهم: {blueCountPreview.ambiguousLegacyCredit == null ? 'نامعلوم' : money(blueCountPreview.ambiguousLegacyCredit)} ریال · دریافتی با مقصد نامشخص: {blueCountPreview.destinationUnknownReceived == null ? 'نامعلوم' : money(blueCountPreview.destinationUnknownReceived)} ریال. شمارش و فروش ادامه دارند.</p> : blueCountPreview ? <p>مرجع گزارش: {blueCountPreview.referenceAmount == null ? 'نامعلوم' : money(blueCountPreview.referenceAmount)} ریال · اختلاف خام: {blueCountPreview.rawDifference == null ? 'نامعلوم' : money(blueCountPreview.rawDifference)} ریال · اختلاف تازه: {blueCountPreview.freshDifference == null ? 'نامعلوم' : money(blueCountPreview.freshDifference)} ریال.</p> : <p>برای دیدن جزئیات مدیر به گزارش شواهد رجوع می‌کند؛ شمارش ثبت‌شده پس از بازکردن دوبارهٔ فرم نمایش داده نمی‌شود.</p>}
                 <p>اختلاف یا وضعیت در انتظار، اتهام نیست و نیازمند تأیید قبلی مدیر نیست. اگر در این فاصله فروش شود، شمارش‌های تازه لازم خواهد شد.</p>
               </div>
               <PasswordOnly label={`فقط ${nameOf(status.pendingHandover.selectedRecipientUserId)} با PIN شخصی خود انتقال مسئولیت را جداگانه تأیید می‌کند؛ هیچ مبلغی دوباره از فرم فرستاده نمی‌شود.`} password={password} setPassword={setPassword} busy={busy} onBack={() => reset()} submit="تأیید نهایی و تحویل مسئولیت" onSubmit={() => run(() => call(CH.custodyHandoverConfirmBlue, { handoverId: status.pendingHandover?.id, password }))} />

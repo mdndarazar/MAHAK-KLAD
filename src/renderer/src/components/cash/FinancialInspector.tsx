@@ -411,7 +411,7 @@ export default function FinancialInspector({
                   {referenceVerdictSnapshot?.status === 'PENDING_RECONCILIATION' ? (
                     <div className="rounded border border-amber-300 bg-amber-50 p-3 text-amber-950">
                       <b>عدد مرجع: در انتظار تطبیق</b>
-                      <p>بخش معلوم: {referenceVerdictSnapshot.knownSubtotal == null ? 'نامعلوم' : money(referenceVerdictSnapshot.knownSubtotal)} ریال · پرداخت قدیمی مبهم: {referenceVerdictSnapshot.ambiguousLegacyCredit == null ? 'نامعلوم' : money(referenceVerdictSnapshot.ambiguousLegacyCredit)} ریال</p>
+                      <p>بخش معلوم: {referenceVerdictSnapshot.knownSubtotal == null ? 'نامعلوم' : money(referenceVerdictSnapshot.knownSubtotal)} ریال · پرداخت قدیمی مبهم: {referenceVerdictSnapshot.ambiguousLegacyCredit == null ? 'نامعلوم' : money(referenceVerdictSnapshot.ambiguousLegacyCredit)} ریال · وجه با مقصد نامشخص: {referenceVerdictSnapshot.destinationUnknownReceived == null ? 'نامعلوم' : money(referenceVerdictSnapshot.destinationUnknownReceived)} ریال</p>
                       <p>تا تعیین تکلیف سند، اختلاف صندوق نامعلوم است؛ این بخش معلوم جایگزین مرجع قطعی نیست.</p>
                     </div>
                   ) : amountCard('عدد مرجع فعلی گزارش', referenceSnapshot, 'receivedTotal − بازپرداخت نقد/کارت؛ منشأ ترکیبی دارد و لزوماً شمارش فیزیکی نیست.', () => go({ type: 'formula', focus: 'overview' }), 'sky')}

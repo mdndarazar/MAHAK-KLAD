@@ -1269,7 +1269,7 @@ export default function SalesReports() {
       label:
         `کنترل کارت‌خوان و صندوق — نقدی ${money(t.cashTotal)} · کارت ${money(summary.cardTotal)} · ` +
         (report.custodyReference?.status === 'PENDING_RECONCILIATION'
-          ? `مرجع قطعی در انتظار تطبیق است؛ بخش معلوم ${report.custodyReference.knownSubtotal == null ? 'نامعلوم' : money(report.custodyReference.knownSubtotal)} ریال، پرداخت اعتباری قدیمیِ مبهم ${report.custodyReference.ambiguousLegacyCredit == null ? 'نامعلوم' : money(report.custodyReference.ambiguousLegacyCredit)} ریال.`
+          ? `مرجع قطعی در انتظار تطبیق است؛ بخش معلوم ${report.custodyReference.knownSubtotal == null ? 'نامعلوم' : money(report.custodyReference.knownSubtotal)} ریال، پرداخت اعتباری قدیمیِ مبهم ${report.custodyReference.ambiguousLegacyCredit == null ? 'نامعلوم' : money(report.custodyReference.ambiguousLegacyCredit)} ریال، وجه با مقصد نامشخص ${report.custodyReference.destinationUnknownReceived == null ? 'نامعلوم' : money(report.custodyReference.destinationUnknownReceived)} ریال.`
           : `اعتباری ${money(t.creditTotal)} ⇒ ${money(summary.realCash)} ریال مرجع گزارش برای صندوق و کارت‌خوان.`) +
         // کار الف: این دو عدد عمداً بیرون از «باید در صندوق و کارت‌خوان باشد» گزارش می‌شوند
         (summary.managerTotal > 0

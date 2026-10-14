@@ -2289,6 +2289,9 @@ model CustodyBlueSnapshot {
   referenceStatus          String
   referenceAmount          BigInt?
   knownSubtotal            BigInt?
+  /// Separate from old CREDIT/null: unknown destination may be drawer, POS or manager account.
+  /// NULL on frozen V1 evidence means the destination was not measured; V2 writes 0 explicitly.
+  destinationUnknownReceived BigInt?
   ambiguousLegacyCredit    BigInt?
   calculationVersion       String
   sourceScope              String?
@@ -2319,12 +2322,17 @@ model CustodyBlueResolution {
   snapshot                CustodyBlueSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
   managerUserId           Int
   authMethod              String
-  /// RECEIVED_CASH | RECEIVED_CARD | NOT_RECEIVED
+  /// Legacy CREDIT/null: RECEIVED_CASH | RECEIVED_CARD | NOT_RECEIVED | NO_LEGACY_CREDIT.
   decisionKind            String
   evidenceDay             String
   evidenceReference       String
   reason                  String
   ambiguousAmount         BigInt
+  /// Independent UNKNOWN-destination proof. Nullable for pre-upgrade decisions.
+  destinationDecisionKind String?
+  destinationAmbiguousAmount BigInt?
+  destinationEvidenceDay  String?
+  destinationEvidenceReference String?
   effectiveReferenceAmount BigInt
   resolvedRawDifference   BigInt?
   resolvedFreshDifference BigInt?
@@ -2341,6 +2349,11 @@ model CustodyResolution {
   shiftId               Int      @unique
   status                String   @default("OPEN")
   nightExpectedCash     BigInt?
+  /// Historical auto-timeout columns: already added by 20271019190000 migration.
+  /// Keep them nullable in the model; no old row or migration is rewritten.
+  expectedCard          BigInt?
+  effectiveAt           DateTime?
+  detectedAt            DateTime?
   nightEvidenceCountId  Int?
   morningWitnessCountId Int?
   provisionalDifference BigInt?

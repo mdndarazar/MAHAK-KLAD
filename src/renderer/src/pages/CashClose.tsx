@@ -39,6 +39,7 @@ import {
 import { usePendingRestock, pendingToneBox } from '../hooks/usePendingRestock'
 import { PENDING_RESTOCK_EXPLAINER, PENDING_RESTOCK_LABEL } from '@shared/pendingRestock'
 import { useManagerSession } from '../hooks/useManagerSession'
+import { CustodyBlueEvidence, type BlueBoundaryView, type BlueHandoverView } from '../components/CustodyBlueEvidence'
 
 /**
  * ===================== بستن صندوق (پایان شیفت) =====================
@@ -113,21 +114,17 @@ type CustodyTimeline = {
     scheduleKind: 'CANONICAL' | 'LEGACY' | 'UNSCHEDULED'
     endKind: string | null
   }>
-  handovers: Array<{
-    id: number
-    status: string
+  handovers: Array<BlueHandoverView & {
     startedAt: string
     finishedAt: string | null
     fromShiftId: number
     toShiftId: number | null
-    fromUser: string | null
-    selectedRecipient: string | null
-    finalCustodian: string | null
-    expectedAtStart: number | bigint
+    expectedAtStart: number | bigint | null
     countedAtStart: number | bigint
-    differenceCash: number | bigint
+    differenceCash: number | bigint | null
     resolutionKind: string | null
   }>
+  blueBoundaries: BlueBoundaryView[]
   saleOperators: Array<{
     id: number
     at: string
@@ -574,29 +571,15 @@ export default function CashClose() {
    * نیستند و اگر این کانال خطا بدهد، فقط همین هشدار دیده نمی‌شود.
    */
   const pending = usePendingRestock()
-  const custodySegments = useMemo(() => {
-    const all = custodyTimeline?.segments ?? []
-    return shift ? all.filter((segment) => segment.shiftId === shift.id) : all.slice(0, 8)
-  }, [custodyTimeline, shift])
-  const custodyHandovers = useMemo(() => {
-    const all = custodyTimeline?.handovers ?? []
-    return shift ? all.filter((handover) => handover.fromShiftId === shift.id || handover.toShiftId === shift.id) : all.slice(0, 8)
-  }, [custodyTimeline, shift])
-  const custodySaleOperators = useMemo(() => {
-    const all = custodyTimeline?.saleOperators ?? []
-    return shift ? all.filter((row) => row.custodyShiftId === shift.id) : all.slice(0, 12)
-  }, [custodyTimeline, shift])
-  /** Terminal reconciliation evidence is read-only. It deliberately uses the
-   * stored count/resolution/disposition rows, never renderer recomputation. */
-  const custodyTerminalCounts = useMemo(() => {
-    /** A newly-opened morning segment must not hide the prior night's terminal
-     * record. Opening count is intentionally omitted here; the report shows
-     * recent terminal/reconciliation evidence across segments. */
-    const all = (custodyTimeline?.counts ?? []).filter((row) => row.kind !== 'OPENING')
-    return all.slice(0, 12)
-  }, [custodyTimeline])
-  const custodyResolutions = useMemo(() => (custodyTimeline?.resolutions ?? []).slice(0, 8), [custodyTimeline])
-  const custodyDispositions = useMemo(() => (custodyTimeline?.dispositions ?? []).slice(0, 12), [custodyTimeline])
+  /** Main already limits each evidence stream to the selected report page and
+   * exposes per-stream hasMore. Never hide a second, undocumented UI slice or
+   * omit the previous owner's evidence when a current Shift is selected. */
+  const custodySegments = custodyTimeline?.segments ?? []
+  const custodyHandovers = custodyTimeline?.handovers ?? []
+  const custodySaleOperators = custodyTimeline?.saleOperators ?? []
+  const custodyTerminalCounts = custodyTimeline?.counts ?? []
+  const custodyResolutions = custodyTimeline?.resolutions ?? []
+  const custodyDispositions = custodyTimeline?.dispositions ?? []
 
   /**
    * «شمارش دستی» و «موجودی اول» با تأخیر کوتاه به سرور می‌روند تا مغایرت زنده
@@ -987,7 +970,7 @@ export default function CashClose() {
             <button className="btn py-0.5" disabled={busy} onClick={() => void loadCustodyTimeline(0, true)}>تازه‌سازی</button>
             <button className="btn py-0.5 mr-auto" disabled={busy || custodyExportBusy} onClick={() => void exportCustodyTimeline()}>{custodyExportBusy ? 'در حال ساخت خروجی…' : 'خروجی اکسل همین صفحه'}</button>
           </div>
-          {custodyTimeline.coverage ? <div className="flex flex-wrap items-center gap-2 text-xs"><span>{custodyUseSelectedDateRange ? `بازهٔ شمسی ${faDigits(filters.fromJalali)} تا ${faDigits(filters.toJalali)}` : 'بازهٔ ثابت گزارش'} · شروع از ردیف {faDigits(custodyReportSkip + 1)}</span><button className="btn py-0.5" disabled={busy || custodyReportSkip <= 0} onClick={() => void loadCustodyTimeline(Math.max(0, custodyReportSkip - custodyTimeline.coverage.take))}>جدیدتر</button><button className="btn py-0.5" disabled={busy || !custodyTimeline.coverage.hasMoreAny} onClick={() => void loadCustodyTimeline(custodyReportSkip + custodyTimeline.coverage.take)}>قدیمی‌تر</button></div> : null}
+          {custodyTimeline.coverage ? <div className="flex flex-wrap items-center gap-2 text-xs"><span>{custodyUseSelectedDateRange ? `بازهٔ شمسی ${faDigits(filters.fromJalali)} تا ${faDigits(filters.toJalali)}` : 'بازهٔ ثابت گزارش'} · شروع از ردیف {faDigits(custodyReportSkip + 1)}</span><button className="btn py-0.5" disabled={busy || custodyReportSkip <= 0} onClick={() => void loadCustodyTimeline(Math.max(0, custodyReportSkip - (custodyTimeline.coverage?.take ?? 150)))}>جدیدتر</button><button className="btn py-0.5" disabled={busy || !custodyTimeline.coverage.hasMoreAny} onClick={() => void loadCustodyTimeline(custodyReportSkip + (custodyTimeline.coverage?.take ?? 150))}>قدیمی‌تر</button></div> : null}
           {custodyTimeline.coverage?.hasMoreAny ? <div className="rounded border border-amber-400 bg-amber-50 px-2 py-1 text-xs text-amber-950">در یک یا چند بخش، evidence قدیمی‌تر از این صفحه باقی مانده است. برای همان بازهٔ ثابت، «قدیمی‌تر» را بزنید؛ این صفحه به‌تنهایی تاریخچهٔ کامل نیست.</div> : null}
           {custodySegments.length ? <div className="grid lg:grid-cols-2 gap-2">
             {custodySegments.map((segment) => <div key={segment.shiftId} className="rounded border border-indigo-200 bg-white p-2 text-sm leading-6">
@@ -1000,9 +983,10 @@ export default function CashClose() {
           {custodyHandovers.length ? <div className="border-t border-indigo-200 pt-3"><h3 className="font-bold text-sm mb-2">تحویل‌ها</h3><div className="space-y-1 text-sm">
             {custodyHandovers.map((handover) => <div key={handover.id} className="rounded bg-white border border-indigo-100 px-2 py-1">تحویل‌دهنده: <b>{handover.fromUser ?? '—'}</b> · گیرندهٔ انتخابی: {handover.selectedRecipient ?? '—'} · دریافت‌کنندهٔ نهایی: <b>{handover.finalCustodian ?? '—'}</b> · {handover.status}</div>)}
           </div></div> : null}
-          {custodySaleOperators.length ? <div className="border-t border-indigo-200 pt-3"><h3 className="font-bold text-sm mb-1">عملیات POS همان مسئولیت کشو نیست</h3><p className="text-xs text-indigo-800 mb-2">هویت عملیاتی هر فروش جداگانه ثبت می‌شود؛ مسئول مالی/فیزیکی کشو همچنان مسئول همان segment است.</p><div className="space-y-1 text-sm">
-            {custodySaleOperators.map((row) => <div key={row.id} className="rounded bg-white border border-indigo-100 px-2 py-1"><b>{row.receiptNo == null ? `فاکتور ${faDigits(row.invoiceId)}` : `فیش ${faDigits(row.receiptNo)}`}</b> · {custodyOperatorLabel(row)} · مسئول کشو/مالی: <b>{row.custodianName ?? '—'}</b></div>)}
-          </div></div> : null}
+          <CustodyBlueEvidence blueBoundaries={custodyTimeline.blueBoundaries ?? []} handovers={custodyHandovers} />
+          <div className="border-t border-indigo-200 pt-3"><h3 className="font-bold text-sm mb-1">عملیات POS همان مسئولیت کشو نیست</h3><p className="text-xs text-indigo-800 mb-2">در اینجا فقط سند مستقل اپراتورِ ثبت‌شده نمایش داده می‌شود؛ مسئول مالی/فیزیکی کشو همچنان مسئول همان segment است. فاکتورهای قدیمی فاقد سند اپراتور ممکن است در این فهرست نباشند؛ هویت آن اپراتور از نام مسئول کشو یا فاکتور حدس زده نمی‌شود و قابل اثبات نیست.</p>
+            {custodySaleOperators.length ? <div className="space-y-1 text-sm">{custodySaleOperators.map((row) => <div key={row.id} className="rounded bg-white border border-indigo-100 px-2 py-1"><b>{row.receiptNo == null ? `فاکتور ${faDigits(row.invoiceId)}` : `فیش ${faDigits(row.receiptNo)}`}</b> · {custodyOperatorLabel(row)} · مسئول کشو/مالی: <b>{row.custodianName ?? '—'}</b></div>)}</div> : <p className="text-xs text-indigo-900">در این صفحه سند مستقلی برای اپراتور ثبت نشده است؛ این به معنی نبود فروش نیست.</p>}
+          </div>
           {(custodyTerminalCounts.length || custodyResolutions.length || custodyDispositions.length) ? <div className="border-t border-indigo-200 pt-3 space-y-3"><div><h3 className="font-bold text-sm">شواهد نهایی و تطبیق</h3><p className="text-xs text-indigo-800">آخرین اسناد پایان/recovery در همهٔ segmentها نمایش داده می‌شود؛ این داده‌ها append-only سرورند، مبلغ موردانتظار هرگز در Renderer محاسبه نمی‌شود و این بخش هیچ عملیات مالی انجام نمی‌دهد.</p></div>
             {custodyTerminalCounts.length ? <div><h4 className="font-semibold text-sm mb-1">شمارش‌ها</h4><div className="space-y-1 text-sm">{custodyTerminalCounts.map((row) => <div key={row.id} className="rounded bg-white border border-indigo-100 px-2 py-1"><b>{custodyCountKindLabel(row.kind)}</b> · شمارش‌کننده: {row.countedByName ?? '—'} · احراز: {custodyAuthMethodLabel(row.authMethod)} · فیزیکی: <b>{money(row.countedCash)}</b>{row.expectedCash != null ? ` · موردانتظار: ${money(row.expectedCash)}` : ''}{row.differenceCash != null ? ` · اختلاف: ${money(row.differenceCash)}` : ''}{row.note ? <div className="text-slate-600">یادداشت ثبت‌شده: {row.note}</div> : null}</div>)}</div></div> : null}
             {custodyResolutions.length ? <div><h4 className="font-semibold text-sm mb-1">پرونده‌های بازیابی و تعیین‌تکلیف</h4><div className="space-y-1 text-sm">{custodyResolutions.map((row) => <div key={row.id} className="rounded bg-white border border-indigo-100 px-2 py-1"><b>{custodyResolutionEvidenceLabel(row.evidence)}</b> · وضعیت: {custodyResolutionStatusLabel(row.status)}{row.nightExpectedCash != null ? ` · انتظار شب: ${money(row.nightExpectedCash)}` : ''}{row.provisionalDifference != null ? ` · اختلاف: ${money(row.provisionalDifference)}` : ''}<div className="text-slate-600">انتساب اختلاف: {custodyAttributionLabel(row.differenceAttribution)}{row.attributedToName ? ` · شخص منتسب: ${row.attributedToName}` : ''}{row.decisionByName ? ` · تصمیم‌گیرنده: ${row.decisionByName}` : ''}</div>{row.decisionReason ? <div className="text-slate-600">دلیل ثبت‌شده: {row.decisionReason}</div> : null}</div>)}</div></div> : null}

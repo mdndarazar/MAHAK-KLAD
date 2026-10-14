@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { call, CH } from '../lib/api'
 import { money } from '@shared/jalali'
+import { CUSTODY_REFERENCE_VERSION } from '@shared/custodyReference'
 
 const PAGE_SIZE = 100
 
@@ -18,13 +19,14 @@ type BlueRow = {
   calculationVersion: string
   countedAmount: number | null
   knownSubtotal: number | null
+  destinationUnknownReceived: number | null
   ambiguousLegacyCredit: number | null
   originalReferenceAmount: number | null
   status: 'RESOLVED' | 'PENDING_RECONCILIATION'
   referenceAmount: number | null
   rawDifference: number | null
   freshDifference: number | null
-  decision: null | { id: number; kind: string; managerUserId: number; evidenceDay: string; evidenceReference: string; reason: string; at: string }
+  decision: null | { id: number; kind: string; destinationKind: string | null; destinationEvidenceDay: string | null; destinationEvidenceReference: string | null; managerUserId: number; evidenceDay: string; evidenceReference: string; reason: string; at: string }
 }
 
 /** Manager-only UI; Main also requires the current manager session AND the
@@ -40,6 +42,9 @@ export function BlueResolutionPanel({ staff }: { staff: Staff[] }) {
   const [decisionKind, setDecisionKind] = useState('RECEIVED_CASH')
   const [evidenceDay, setEvidenceDay] = useState('')
   const [evidenceReference, setEvidenceReference] = useState('')
+  const [destinationDecisionKind, setDestinationDecisionKind] = useState('RECEIVED_CASH')
+  const [destinationEvidenceDay, setDestinationEvidenceDay] = useState('')
+  const [destinationEvidenceReference, setDestinationEvidenceReference] = useState('')
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -61,6 +66,7 @@ export function BlueResolutionPanel({ staff }: { staff: Staff[] }) {
   const goToPage = (next: number) => {
     setSelected(null)
     setPin('')
+    setEvidenceReference(''); setDestinationEvidenceReference('')
     setRows([])
     setMore(false)
     setError(null)
@@ -78,15 +84,22 @@ export function BlueResolutionPanel({ staff }: { staff: Staff[] }) {
     setError(null)
     try {
       if (!managerId || !pin.trim()) throw new Error('مدیر و PIN شخصی او را وارد کنید.')
+      const hasCredit = Number(selectedRow.ambiguousLegacyCredit) > 0
+      const hasDestination = Number(selectedRow.destinationUnknownReceived) > 0
       await call(CH.custodyBlueResolve, {
         snapshotId: selectedRow.snapshotId, managerUserId: managerId, password: pin,
-        decisionKind, evidenceDay: evidenceDay.trim(), evidenceReference: evidenceReference.trim(),
+        decisionKind: hasCredit ? decisionKind : 'NO_LEGACY_CREDIT',
+        evidenceDay: hasCredit ? evidenceDay.trim() : destinationEvidenceDay.trim(),
+        evidenceReference: hasCredit ? evidenceReference.trim() : destinationEvidenceReference.trim(),
+        destinationDecisionKind: hasDestination ? destinationDecisionKind : undefined,
+        destinationEvidenceDay: hasDestination ? destinationEvidenceDay.trim() : undefined,
+        destinationEvidenceReference: hasDestination ? destinationEvidenceReference.trim() : undefined,
         reason: reason.trim(), idempotencyKey: `blue-manager:${crypto.randomUUID()}`
       })
       setSelected(null)
       setPin('')
       setReason('')
-      setEvidenceReference('')
+      setEvidenceReference(''); setDestinationEvidenceReference('')
       await load()
     } catch (e: any) {
       setError(e?.message ?? 'تصمیم ثبت نشد.')
@@ -106,29 +119,44 @@ export function BlueResolutionPanel({ staff }: { staff: Staff[] }) {
       <button type="button" className="btn-secondary" disabled={busy || page === 0} onClick={() => goToPage(page - 1)}>صفحهٔ جدیدتر</button>
       <button type="button" className="btn-secondary" disabled={busy || !more} onClick={() => goToPage(page + 1)}>صفحهٔ قدیمی‌تر</button>
     </div>
-    {!rows.length ? <p className="text-slate-500">{page === 0 ? 'هنوز سند شمارش، تحویل یا بستن با پرداخت قدیمیِ مبهم ثبت نشده است.' : 'در این صفحه سند تکمیل‌شده‌ای وجود ندارد؛ در صورت وجود، صفحهٔ بعد را ببینید.'}</p> : null}
+    {!rows.length ? <p className="text-slate-500">{page === 0 ? 'هنوز سند شمارش، تحویل یا بستن با مقصد نامشخص یا پرداخت قدیمیِ مبهم ثبت نشده است.' : 'در این صفحه سند تکمیل‌شده‌ای وجود ندارد؛ در صورت وجود، صفحهٔ بعد را ببینید.'}</p> : null}
     <div className="space-y-2">
       {rows.map((row) => <div key={row.snapshotId} className="rounded border border-slate-200 bg-white p-3 leading-7">
         <div className="flex flex-wrap justify-between gap-2"><b>{labelOf(row)} · روز {row.day}</b><span className={row.status === 'RESOLVED' ? 'text-emerald-800' : 'text-amber-900'}>{row.status === 'RESOLVED' ? 'تعیین تکلیف شده' : 'در انتظار تطبیق'}</span></div>
         <p>{row.handoverId != null ? `از ${nameOf(row.fromUserId)} به ${nameOf(row.toUserId)}` : `شمارش شخصی ${nameOf(row.fromUserId)}`} · بازهٔ مرجع: {row.referenceFromDay} تا {row.referenceToDay}</p>
-        <p>شمارش واقعی {row.handoverId != null ? 'گیرنده' : 'صندوق'}: {amountOf(row.countedAmount)} · بخش معلوم: {amountOf(row.knownSubtotal)} · پرداخت قدیمی مبهم: {amountOf(row.ambiguousLegacyCredit)}</p>
+        <p>شمارش واقعی {row.handoverId != null ? 'گیرنده' : 'صندوق'}: {amountOf(row.countedAmount)} · بخش معلوم: {amountOf(row.knownSubtotal)} · پرداخت اعتباری قدیمی مبهم: {amountOf(row.ambiguousLegacyCredit)} · دریافتی با مقصد نامشخص: {row.calculationVersion !== CUSTODY_REFERENCE_VERSION ? 'در نسخهٔ قدیمی ثبت نمی‌شد' : amountOf(row.destinationUnknownReceived)}</p>
         <p>مرجع اولیه: <b>نامعلوم</b> · مرجع پس از تصمیم: <b>{amountOf(row.referenceAmount)}</b> · اختلاف خام پس از تصمیم: <b>{amountOf(row.rawDifference)}</b> · اختلاف تازه: <b>{amountOf(row.freshDifference)}</b></p>
-        {row.decision ? <div className="rounded bg-emerald-50 p-2 mt-1 text-emerald-950">تصمیم #{row.decision.id} با PIN مدیر {nameOf(row.decision.managerUserId)} در روز {row.decision.evidenceDay}: {row.decision.kind} · سند: {row.decision.evidenceReference} · توضیح: {row.decision.reason}</div>
-          : row.ambiguousLegacyCredit == null || row.ambiguousLegacyCredit <= 0 || row.knownSubtotal == null
-            ? <p className="mt-2 rounded bg-amber-100 p-2 text-amber-950">منبع مالی این مرجع هنوز کامل/قابل‌محاسبه نیست. بدون بخش معلوم و پرداخت قدیمیِ مشخص، گزینه‌های «دریافت شد / نشد» قابل‌استفاده نیستند؛ مرجع و اختلاف همچنان نامعلوم می‌مانند.</p>
+        {row.decision ? <div className="rounded bg-emerald-50 p-2 mt-1 text-emerald-950">تصمیم #{row.decision.id} با PIN مدیر {nameOf(row.decision.managerUserId)}:
+          {row.decision.kind !== 'NO_LEGACY_CREDIT' ? <div>اعتبار قدیمی: {row.decision.kind} · روز {row.decision.evidenceDay} · سند: {row.decision.evidenceReference}</div> : null}
+          {row.decision.destinationKind ? <div>مقصد نامشخص: {row.decision.destinationKind} · روز {row.decision.destinationEvidenceDay} · سند: {row.decision.destinationEvidenceReference}</div> : null}
+          <div>توضیح: {row.decision.reason}. تعیین مرجع به‌تنهایی حکم تقصیر نیست.</div>
+        </div>
+          : row.calculationVersion !== CUSTODY_REFERENCE_VERSION
+            ? <p className="mt-2 rounded bg-amber-100 p-2 text-amber-950">مرجع نسخهٔ قدیمی مقصد نامشخص را جدا ثبت نکرده است؛ برای تعیین تکلیف این سند قدیمی بررسی ویژه لازم است، نه تصمیم حدسی. فروش و مسئولیت فعلی ادامه دارند.</p>
+          : row.knownSubtotal == null || row.ambiguousLegacyCredit == null || row.destinationUnknownReceived == null ||
+            (row.ambiguousLegacyCredit <= 0 && row.destinationUnknownReceived <= 0)
+            ? <p className="mt-2 rounded bg-amber-100 p-2 text-amber-950">منبع مالی این مرجع هنوز کامل/قابل‌محاسبه نیست. بدون مبلغ معلوم برای هر جزء مبهم، تصمیم «دریافت شد / نشد» مجاز نیست؛ مرجع و اختلاف همچنان نامعلوم می‌مانند و فروش ادامه دارد.</p>
             : <button className="btn-primary mt-2" disabled={busy} onClick={() => {
-              setSelected(row.snapshotId); setEvidenceDay(row.referenceToDay); setPin(''); setEvidenceReference(''); setReason('')
-            }}>ثبت شاهد و تصمیم با PIN مدیر</button>}
+              setSelected(row.snapshotId); setEvidenceDay(row.referenceToDay); setDestinationEvidenceDay(row.referenceToDay)
+              setPin(''); setEvidenceReference(''); setDestinationEvidenceReference(''); setReason('')
+            }}>ثبت شاهد مستقل برای هر مبلغ مبهم با PIN مدیر</button>}
       </div>)}
     </div>
     {selectedRow && selectedRow.status === 'PENDING_RECONCILIATION' ? <div className="rounded border-2 border-amber-300 bg-amber-50 p-4 space-y-3">
       <h3 className="font-bold">تعیین تکلیف افزایشیِ {labelOf(selectedRow)}</h3>
-      <p>اگر وجه نقد یا کارت‌خوان <b>در همین بازه</b> با سند ثابت شده باشد داخل مرجع می‌آید؛ اگر ثابت شود اصلاً دریافت نشده، خارج می‌ماند. هیچ گزینه‌ای حکم تخلف نیست.</p>
+      <p>برای هر مبلغ مبهمِ مثبت شاهدی جدا در همان بازه لازم است؛ تنها بعد از اثبات همهٔ اجزا مرجع معلوم می‌شود. دریافت در کشو/کارت‌خوان به مرجع اضافه می‌شود؛ وجهی که در فروشگاه دریافت نشده باشد اضافه نمی‌شود. این بررسی به‌تنهایی حکم تخلف یا انتساب اختلاف تازه نیست.</p>
       <label className="block">مدیر تصمیم‌گیرنده<select className="input mt-1 w-full" value={managerId} onChange={(e) => setManagerId(e.target.value ? Number(e.target.value) : '')}><option value="">انتخاب کنید…</option>{managerList.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>
       <label className="block">PIN شخصی همان مدیر<input className="input mt-1 w-full" type="password" value={pin} onChange={(e) => setPin(e.target.value)} autoComplete="current-password" /></label>
-      <label className="block">نتیجهٔ بررسی<select className="input mt-1 w-full" value={decisionKind} onChange={(e) => setDecisionKind(e.target.value)}><option value="RECEIVED_CASH">رسید نقدیِ همین بازه</option><option value="RECEIVED_CARD">رسید کارت‌خوانِ همین بازه</option><option value="NOT_RECEIVED">وجهی دریافت نشده است</option></select></label>
-      <label className="block">روز سند اثبات (داخل همان بازه)<input className="input mt-1 w-full" value={evidenceDay} onChange={(e) => setEvidenceDay(e.target.value)} placeholder={selectedRow.referenceToDay} /></label>
-      <label className="block">شماره/مشخصات سند اثبات<input className="input mt-1 w-full" value={evidenceReference} onChange={(e) => setEvidenceReference(e.target.value)} placeholder="مثلاً شمارهٔ رسید دستگاه یا سند بررسی دریافت‌نشدن" /></label>
+      {selectedRow.ambiguousLegacyCredit != null && selectedRow.ambiguousLegacyCredit > 0 ? <fieldset className="rounded border border-amber-300 bg-white p-2 space-y-2"><legend className="font-bold">پرداخت اعتباری قدیمی مبهم: {amountOf(selectedRow.ambiguousLegacyCredit)}</legend>
+        <label className="block">نتیجهٔ بررسی اعتبار<select className="input mt-1 w-full" value={decisionKind} onChange={(e) => setDecisionKind(e.target.value)}><option value="RECEIVED_CASH">رسید نقدیِ همین بازه</option><option value="RECEIVED_CARD">رسید کارت‌خوانِ همین بازه</option><option value="NOT_RECEIVED">در فروشگاه دریافت نشده است</option></select></label>
+        <label className="block">روز سند اعتبار (داخل بازه)<input className="input mt-1 w-full" value={evidenceDay} onChange={(e) => setEvidenceDay(e.target.value)} placeholder={selectedRow.referenceToDay} /></label>
+        <label className="block">شماره/مشخصات سند اعتبار<input className="input mt-1 w-full" value={evidenceReference} onChange={(e) => setEvidenceReference(e.target.value)} placeholder="رسید اعتبار یا سند اثبات دریافت‌نشدن" /></label>
+      </fieldset> : null}
+      {selectedRow.destinationUnknownReceived != null && selectedRow.destinationUnknownReceived > 0 ? <fieldset className="rounded border border-sky-300 bg-white p-2 space-y-2"><legend className="font-bold">دریافتی با مقصد نامشخص: {amountOf(selectedRow.destinationUnknownReceived)}</legend>
+        <label className="block">نتیجهٔ بررسی مقصد<select className="input mt-1 w-full" value={destinationDecisionKind} onChange={(e) => setDestinationDecisionKind(e.target.value)}><option value="RECEIVED_CASH">به کشوی فروشگاه رسیده است</option><option value="RECEIVED_CARD">به کارت‌خوان فروشگاه رسیده است</option><option value="NOT_RECEIVED">به کشو/کارت‌خوان فروشگاه نرسیده است</option></select></label>
+        <label className="block">روز سند مقصد (داخل بازه)<input className="input mt-1 w-full" value={destinationEvidenceDay} onChange={(e) => setDestinationEvidenceDay(e.target.value)} placeholder={selectedRow.referenceToDay} /></label>
+        <label className="block">شماره/مشخصات سند مقصد<input className="input mt-1 w-full" value={destinationEvidenceReference} onChange={(e) => setDestinationEvidenceReference(e.target.value)} placeholder="رسید کشو/کارت‌خوان، یا سند اثبات خارج‌بودن وجه" /></label>
+      </fieldset> : null}
       <label className="block">توضیح تصمیم (حداقل ۱۰ نویسه)<textarea className="input mt-1 w-full" value={reason} onChange={(e) => setReason(e.target.value)} /></label>
       <div className="flex gap-2"><button className="btn-primary" disabled={busy} onClick={() => void submit()}>{busy ? 'در حال ثبت…' : 'ثبت تصمیم روی همین سند اولیه'}</button><button className="btn-secondary" disabled={busy} onClick={() => { setSelected(null); setPin('') }}>انصراف</button></div>
     </div> : null}

@@ -14,6 +14,7 @@ const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
 const { custodyBlueResolutionService } = await import('../../src/main/services/CustodyBlueResolutionService.ts')
 const { toJalaliDate } = await import('@shared/jalali')
+const { CUSTODY_REFERENCE_VERSION } = await import('@shared/custodyReference')
 const db = harnessClient()
 const seed = makeSeeder(db)
 const manager = seed.user('مدیر شخصی S403')
@@ -45,7 +46,7 @@ function frozenHandover(suffix) {
     countOrigin: 'EXPLICIT_AMOUNT', humanAmount: 501_000_000, arithmeticAmount: 501_000_000,
     referenceFromDay: day, referenceToDay: day, scopeKind: 'TODAY',
     referenceStatus: 'PENDING_RECONCILIATION', referenceAmount: null, knownSubtotal: 500_000_000,
-    ambiguousLegacyCredit: 1_000_000, calculationVersion: 'sales-blue-v1',
+    ambiguousLegacyCredit: 1_000_000, destinationUnknownReceived: 0, calculationVersion: CUSTODY_REFERENCE_VERSION,
     financialRevision: 0, epochAtCount: 2,
     rawDifference: null, freshDifference: null, freshStatus: 'UNKNOWN_REFERENCE_PENDING',
     idempotencyKey: `s403:snapshot:${suffix}`, operationalDay: day
