@@ -235,7 +235,9 @@ export function shapeSaleRow(inv: any, opts: ShapeSaleRowOptions = {}): SaleRepo
      * نرسیده). `destinationUnknown` داخل است تا جمع دریافتیِ ردیف‌های قدیمی
      * مو‌به‌مو همان عدد قبلی بماند.
      */
-    receivedTotal: split.cash + split.card + split.credit + split.other + split.destinationUnknown,
+    // A destination-less historical CREDIT entry is not evidence of money
+    // received. Keep its own credit column, not the drawer/POS receipt column.
+    receivedTotal: split.cash + split.card + split.other + split.destinationUnknown,
     managerAccountTotal: split.managerAccount,
     destinationUnknownTotal: split.destinationUnknown,
     /** فقط برگشت ساده‌ی *داخل بازه* — تعویض اینجا نمی‌آید (بند ۲-۳) */

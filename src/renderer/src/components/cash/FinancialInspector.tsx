@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { faDigits, money } from '@shared/jalali'
 import type { NetToDrawerAlarm, SplitDrawerPosResult } from '@shared/cashExplainer'
+import type { CustodyReference } from '@shared/custodyReference'
 import type {
   FinancialDocumentDetail,
   FinancialDocumentResponse,
@@ -31,6 +32,7 @@ export interface FinancialInspectorProps {
   totals: Partial<SaleReportTotals>
   statements: SaleAccountingStatements | null | undefined
   referenceRealCash: number
+  custodyReference?: CustodyReference
   split: SplitDrawerPosResult
   bridgeAlarm: NetToDrawerAlarm
   initialFocus?: FocusArea
@@ -100,6 +102,7 @@ export default function FinancialInspector({
   totals,
   statements,
   referenceRealCash,
+  custodyReference,
   split,
   bridgeAlarm,
   initialFocus = 'overview',
@@ -115,6 +118,7 @@ export default function FinancialInspector({
   const [totalsSnapshot, setTotalsSnapshot] = useState(totals)
   const [statementsSnapshot, setStatementsSnapshot] = useState(statements ?? null)
   const [referenceSnapshot, setReferenceSnapshot] = useState(referenceRealCash)
+  const [referenceVerdictSnapshot, setReferenceVerdictSnapshot] = useState(custodyReference)
   const [splitSnapshot, setSplitSnapshot] = useState(split)
   const [alarmSnapshot, setAlarmSnapshot] = useState<NetToDrawerAlarm>(bridgeAlarm)
   const [stack, setStack] = useState<Pane[]>([{ type: 'overview' }])
@@ -147,6 +151,7 @@ export default function FinancialInspector({
       setTotalsSnapshot(totals)
       setStatementsSnapshot(statements ?? null)
       setReferenceSnapshot(referenceRealCash)
+      setReferenceVerdictSnapshot(custodyReference)
       setSplitSnapshot(split)
       setAlarmSnapshot(bridgeAlarm)
       // ورود از یک کاشی، بخش جزئیات را نشان می‌دهد اما ریشهٔ ریزبین همچنان
@@ -167,7 +172,7 @@ export default function FinancialInspector({
       setRevealBusy(false)
     }
     wasOpenRef.current = open
-  }, [open, scope, totals, statements, referenceRealCash, split, bridgeAlarm, initialFocus, initialSourceKey])
+  }, [open, scope, totals, statements, referenceRealCash, custodyReference, split, bridgeAlarm, initialFocus, initialSourceKey])
 
   /** خروج مدیر یا انقضای نشست نباید کد revealشده را روی صفحه نگه دارد. */
   useEffect(() => {
@@ -403,7 +408,13 @@ export default function FinancialInspector({
               <section>
                 <h3 className="font-bold text-slate-900 mb-2">لایهٔ ۰ — اعداد مرجع و دامنهٔ هر کدام</h3>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  {amountCard('عدد مرجع فعلی گزارش', referenceSnapshot, 'receivedTotal − بازپرداخت نقد/کارت؛ منشأ ترکیبی دارد و لزوماً شمارش فیزیکی نیست.', () => go({ type: 'formula', focus: 'overview' }), 'sky')}
+                  {referenceVerdictSnapshot?.status === 'PENDING_RECONCILIATION' ? (
+                    <div className="rounded border border-amber-300 bg-amber-50 p-3 text-amber-950">
+                      <b>عدد مرجع: در انتظار تطبیق</b>
+                      <p>بخش معلوم: {referenceVerdictSnapshot.knownSubtotal == null ? 'نامعلوم' : money(referenceVerdictSnapshot.knownSubtotal)} ریال · پرداخت قدیمی مبهم: {referenceVerdictSnapshot.ambiguousLegacyCredit == null ? 'نامعلوم' : money(referenceVerdictSnapshot.ambiguousLegacyCredit)} ریال</p>
+                      <p>تا تعیین تکلیف سند، اختلاف صندوق نامعلوم است؛ این بخش معلوم جایگزین مرجع قطعی نیست.</p>
+                    </div>
+                  ) : amountCard('عدد مرجع فعلی گزارش', referenceSnapshot, 'receivedTotal − بازپرداخت نقد/کارت؛ منشأ ترکیبی دارد و لزوماً شمارش فیزیکی نیست.', () => go({ type: 'formula', focus: 'overview' }), 'sky')}
                   {amountCard('جمع کاشی‌های تفکیکی', splitSnapshot.sum, 'کشو + پوز + سایر؛ مسیرهای غیرنقدی/نامشخص جدا هستند.', () => go({ type: 'formula', focus: 'overview' }), 'emerald')}
                   {amountCard('وجه واقعی در پل تطبیق', bridgeRealCash?.amount ?? 0, bridgeRealCash?.hint || 'منشأ: ردیف رسمی پل تطبیق.', () => go({ type: 'sources', key: 'realCash' }), 'amber')}
                   {amountCard('خالص گردش نقدی صورت‌حساب', cash?.netCashMovement ?? 0, 'شامل بازپرداخت و برداشت/واریز ثبت‌شده؛ با عدد سربرگ یکی نیست.', () => go({ type: 'formula', focus: 'overview' }))}
@@ -420,13 +431,15 @@ export default function FinancialInspector({
                     <button type="button" className={`${BUTTON} bg-purple-50 border border-purple-200 text-right p-2 hover:bg-purple-100`} onClick={() => go({ type: 'formula', focus: 'manager' })}>حساب مدیر: <b dir="ltr">{money(splitSnapshot.managerOutside)}</b></button>
                   </div>
                 </div>
-                <div className={`rounded border p-3 text-sm ${bridgeAlarm === 'BRIDGE_UNBALANCED' ? 'border-rose-300 bg-rose-50 text-rose-950' : bridgeAlarm === 'COMPOSITION_DRIFT' ? 'border-amber-300 bg-amber-50 text-amber-950' : 'border-emerald-300 bg-emerald-50 text-emerald-950'}`}>
+                <div className={`rounded border p-3 text-sm ${bridgeAlarm === 'BRIDGE_UNBALANCED' ? 'border-rose-300 bg-rose-50 text-rose-950' : bridgeAlarm === 'COMPOSITION_DRIFT' || referenceVerdictSnapshot?.status === 'PENDING_RECONCILIATION' ? 'border-amber-300 bg-amber-50 text-amber-950' : 'border-emerald-300 bg-emerald-50 text-emerald-950'}`}>
                   <h3 className="font-bold">وضعیت تطبیق</h3>
                   {bridgeAlarm === 'BRIDGE_UNBALANCED' ? (
                     <>
                       <p className="mt-1">پل حسابداری بسته نیست: {money(Math.abs(statementsSnapshot?.bridge.unexplained ?? 0))} ریال بدون توضیح باقی مانده است.</p>
                       {onOpenBridgeDiag && <button type="button" className={`${BUTTON} mt-2 bg-rose-700 px-3 py-1.5 text-white hover:bg-rose-800`} onClick={() => { onClose(); onOpenBridgeDiag() }}>باز کردن نمای تشخیص پل (رمز تازه لازم است)</button>}
                     </>
+                  ) : referenceVerdictSnapshot?.status === 'PENDING_RECONCILIATION' ? (
+                    <p className="mt-1">مرجع صندوق هنوز معلوم نیست. وضعیت پل یا ترکیب نمایشی آن، مغایرت قطعیِ صندوق را تعیین نمی‌کند.</p>
                   ) : bridgeAlarm === 'COMPOSITION_DRIFT' ? (
                     <p className="mt-1">پل حسابداری تراز است؛ فقط ترکیب اعداد نمایشی با عدد مرجع تفاوت دارد. این وضعیت به‌تنهایی مغایرت حسابداری نیست.</p>
                   ) : (
@@ -495,7 +508,10 @@ export default function FinancialInspector({
 
               {pane.focus === 'overview' && (
                 <section className="rounded border border-amber-200 bg-amber-50 p-3">
-                  <div className="flex items-center justify-between gap-3"><h4 className="font-bold text-amber-950">عدد مرجع سربرگ گزارش</h4><b dir="ltr" className="text-lg text-amber-950">{money(referenceSnapshot)} ریال</b></div>
+                  <div className="flex items-center justify-between gap-3">
+                    <h4 className="font-bold text-amber-950">عدد مرجع سربرگ گزارش</h4>
+                    <b dir="ltr" className="text-lg text-amber-950">{referenceVerdictSnapshot?.status === 'PENDING_RECONCILIATION' ? 'در انتظار تطبیق' : `${money(referenceSnapshot)} ریال`}</b>
+                  </div>
                   <p className="mt-1 text-xs leading-6 text-amber-900">این عدد، تعریف سربرگ گزارش است و با گردش نقدی صورت‌حساب یا «وجه واقعی» پل لزوماً یکسان نیست. هر کدام عمداً معنای جدا دارند.</p>
                 </section>
               )}

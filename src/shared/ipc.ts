@@ -325,11 +325,20 @@ export const IPC = {
   custodyPlanSave: 'custody:plan:save',
   custodyPlanDelete: 'custody:plan:delete',
   custodyHandoverStart: 'custody:handover:start',
+  /** Independent receiver count, then a separate explicit PIN confirmation. */
+  custodyHandoverCountBlue: 'custody:handover:blue-count',
+  custodyHandoverConfirmBlue: 'custody:handover:blue-confirm',
   custodyHandoverAccept: 'custody:handover:accept',
   custodyHandoverCancel: 'custody:handover:cancel',
+  custodyBluePendingList: 'custody:blue:pending-list',
+  custodyBlueResolve: 'custody:blue:resolve',
+  /** بازیابی همیشه‌در‌دسترسِ مدیر؛ فقط PIN شخصی، دلیل و تأیید صریح. */
+  custodyShiftReset: 'custody:shift:reset',
+  /** فهرست پرونده‌های پایان خودکار شیفت قدیمی، فقط در تنظیمات مدیر. */
+  custodyOpenResolutions: 'custody:missed-shifts:manager-list',
   /** پوشش اضطراری با PIN و شمارش فیزیکی کارمند جایگزین. */
   custodyEmergencyCover: 'custody:emergency:cover',
-  /** انتقال استثنایی مسئولیت فقط با مدیر منتخب، رمز مشترک مدیر و شمارش فیزیکی. */
+  /** انتقال استثنایی مسئولیت فقط با PIN شخصی مدیر منتخب و شمارش فیزیکی. */
   custodyMasterOverride: 'custody:master:override',
   custodyFinalClose: 'custody:close:final',
   custodyDispositionConfirm: 'custody:disposition:confirm',

@@ -1,148 +1,104 @@
 /**
- * Master Override is a distinct, manager-owned custody transition. It cannot
- * borrow the normal emergency-cover PIN route or the historical shift-name
- * override report: the Main service must validate a selected active manager,
- * the shared manager password, a physical count, and a mandatory reason.
- *
+ * Master Override is a named MANAGER's own custody PIN + fresh real combined
+ * count, never a shared password or a freeze. Sales between reading the full
+ * blue reference and committing force a fresh count, without transferring
+ * ownership or inventing old-person liability.
  * node --import ./test/harness/register.mjs tests/audit-fixes/fix-s378-master-override-accountability.mjs
  */
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-
-const DIR = mkdtempSync(join(tmpdir(), 'mahak-master-override-s378-'))
-process.env.HARNESS_DIR = DIR
-process.env.HARNESS_DB = join(DIR, 'shop.db')
-
+const dir = mkdtempSync(join(tmpdir(), 'mahak-master-personal-s378-'))
+process.env.HARNESS_DIR = dir
+process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
-const { cashboxService } = await import('../../src/main/services/CashboxService.ts')
-const { CashMovementType } = await import('@shared/enums')
-
+const { salesService } = await import('../../src/main/services/SalesService.ts')
 const db = harnessClient()
 const seed = makeSeeder(db)
-let ok = 0
-let bad = 0
-const eq = (label, got, want) => {
-  if (got === want) { ok++; console.log(`  ✓ ${label}`) }
-  else { bad++; console.log(`  ✗ ${label} — دریافت ${JSON.stringify(got)}، انتظار ${JSON.stringify(want)}`) }
-}
-const rejects = async (label, code, work) => {
-  try { await work(); eq(label, true, false) }
-  catch (error) { eq(label, error?.code, code) }
-}
-
-const manager = seed.user('مدیر منتخب S378')
-const absentCustodian = seed.user('مسئول غایب S378')
-const cashier = seed.user('صندوقدار S378')
-db.$harness.db.prepare('UPDATE "User" SET role=? WHERE id=?').run('CASHIER', absentCustodian)
-db.$harness.db.prepare('UPDATE "User" SET role=? WHERE id=?').run('CASHIER', cashier)
-
-/** The manager's first custody PIN bootstraps through the established shared
- * manager password. Master Override itself later uses that shared password,
- * never this personal PIN as its approval credential. */
+const sql = db.$harness.db
+const manager = seed.user('مدیر شخصی S378')
+const absent = seed.user('مسئول غایب S378')
+const cashier = seed.user('غیرمدیر S378')
+sql.prepare('UPDATE "User" SET role=? WHERE id IN (?,?)').run('CASHIER', absent, cashier)
 await custodyService.setPin({ userId: manager, newPassword: 'Manager378!', currentPassword: '1111' })
 await custodyService.setConfig({ config: { enabled: true }, managerUserId: manager, managerPassword: 'Manager378!' })
-for (const [id, temporary, permanent] of [[absentCustodian, 'Absent378!', 'Absent3784!'], [cashier, 'Cashier378!', 'Cashier3784!']]) {
-  await custodyService.setPin({ userId: id, newPassword: temporary, managerUserId: manager, managerPassword: 'Manager378!', reason: 'راه‌اندازی آزمون Master Override' })
-  await custodyService.setPin({ userId: id, currentPassword: temporary, newPassword: permanent })
+for (const [id, temp, personal] of [[absent, 'Absent378!', 'Absent3784!'], [cashier, 'Cashier378!', 'Cashier3784!']]) {
+  await custodyService.setPin({ userId: id, newPassword: temp, managerUserId: manager, managerPassword: 'Manager378!', reason: 'آزمون مسئولیت شخصی مدیر' })
+  await custodyService.setPin({ userId: id, currentPassword: temp, newPassword: personal })
 }
+let checks = 0
+function eq(label, got, want) {
+  if (got !== want) throw new Error(`${label}: expected ${JSON.stringify(want)}, got ${JSON.stringify(got)}`)
+  checks++; console.log(`  ✓ ${label}`)
+}
+async function rejects(label, code, work) {
+  try { await work() } catch (error) { eq(label, error?.code, code); return }
+  throw new Error(`${label}: unexpectedly accepted`)
+}
+const opened = await custodyService.open({ userId: absent, password: 'Absent3784!', operationalTotal: 1_000 })
+const reason = 'مسئول پیشین غایب است و مدیر با شمارش واقعی مسئولیت را می‌گیرد.'
+await rejects('nonmanager cannot claim master authority even with personal PIN', 'MASTER_OVERRIDE_MANAGER_INVALID',
+  () => custodyService.masterOverride({ managerUserId: cashier, managerPassword: 'Cashier3784!', operationalTotal: 900, reason }))
+await rejects('shared password cannot replace named manager PIN', 'PIN_WRONG',
+  () => custodyService.masterOverride({ managerUserId: manager, managerPassword: '1111', operationalTotal: 900, reason }))
+await rejects('a reason is still mandatory', 'MASTER_OVERRIDE_REASON_REQUIRED',
+  () => custodyService.masterOverride({ managerUserId: manager, managerPassword: 'Manager378!', operationalTotal: 900, reason: 'کوتاه' }))
+await rejects('a new physical count is mandatory', 'CUSTODY_AGGREGATE_COUNT_REQUIRED',
+  () => custodyService.masterOverride({ managerUserId: manager, managerPassword: 'Manager378!', reason }))
+eq('rejected override keeps previous owner', (await custodyService.status()).custodian?.id, absent)
 
-const opened = await custodyService.open({ userId: absentCustodian, password: 'Absent3784!', countedCash: 1000 })
-await rejects('کارمند غیرمدیر حتی با رمز مشترک مدیر نمی‌تواند Master Override شود', 'MASTER_OVERRIDE_MANAGER_INVALID', () => custodyService.masterOverride({ managerUserId: cashier, managerPassword: '1111', countedCash: 900, reason: 'مسئول قبلی غایب است و مدیر باید مسئولیت را تحویل بگیرد.' }))
-await rejects('دلیل کوتاه Master Override پذیرفته نمی‌شود', 'MASTER_OVERRIDE_REASON_REQUIRED', () => custodyService.masterOverride({ managerUserId: manager, managerPassword: '1111', countedCash: 900, reason: 'کم' }))
-eq('درخواست ردشده مسئولیت فعال را تغییر نمی‌دهد', (await custodyService.status()).custodian?.id, absentCustodian)
-
-const reason = 'مسئول قبلی غایب است و مدیر منتخب باید مسئولیت صندوق را فوراً تحویل بگیرد.'
-/** A calculation failure occurs after the durable short freeze. It must restore
- * the prior segment and leave append-only abort evidence, so the same manager
- * can retry the operation instead of stranding the drawer. */
-const originalExpected = cashboxService.expected
-cashboxService.expected = async () => { throw new Error('expected calculation intentionally failed') }
+// Hold the full financial reference read. A sale before commit must remain
+// writable by the old custodian and invalidate the attempted transfer.
+let enterRead
+const reading = new Promise((resolve) => { enterRead = resolve })
+let releaseRead
+const resume = new Promise((resolve) => { releaseRead = resolve })
+const originalReportRows = salesService.reportRows
+salesService.reportRows = async (...args) => { enterRead(); await resume; return originalReportRows(...args) }
+let inFlight
 try {
-  await custodyService.masterOverride({ managerUserId: manager, managerPassword: '1111', countedCash: 900, reason })
-  eq('failure پس از freeze باید خطا دهد', true, false)
-} catch {
-  eq('failure پس از freeze خطای محاسبه را برمی‌گرداند', true, true)
+  inFlight = custodyService.masterOverride({ managerUserId: manager, managerPassword: 'Manager378!', operationalTotal: 900, reason })
+  await reading
+  const writer = await custodyService.actorForFinancialOperation()
+  eq('sale can still begin under prior real owner during manager read', writer.expectedShiftId, opened.shiftId)
+  const revisionBefore = seed.one('SELECT financialRevision FROM "CustodyState" WHERE key=?', 'MAIN').financialRevision
+  const invoice = seed.invoice({ grandTotal: 123, status: 'CREDIT' })
+  sql.prepare('UPDATE "SaleInvoice" SET userId=?, shiftId=?, paidTotal=? WHERE id=?').run(absent, opened.shiftId, 0, invoice.id)
+  eq('sale advances financial revision even when no cash received', seed.one('SELECT financialRevision FROM "CustodyState" WHERE key=?', 'MAIN').financialRevision > revisionBefore, true)
+  releaseRead()
+  await rejects('new sale invalidates old snapshot rather than freezing sales', 'CUSTODY_STALE', () => inFlight)
 } finally {
-  cashboxService.expected = originalExpected
+  releaseRead?.()
+  salesService.reportRows = originalReportRows
 }
-const afterAbort = await custodyService.status()
-eq('abort، prior segment را دوباره فعال می‌کند', afterAbort.state, 'ACTIVE')
-eq('abort، prior custodian را حفظ می‌کند', afterAbort.custodian?.id, absentCustodian)
-eq('abort، رویداد مستقل و append-only دارد', seed.one('SELECT type FROM "CustodyEvent" WHERE shiftId=? ORDER BY id DESC LIMIT 1', opened.shiftId)?.type, 'MASTER_OVERRIDE_ABORTED')
-
-const expectedPreview = await cashboxService.expected({ shiftId: opened.shiftId, countedCash: 900 })
-let enteredFreeze = null
-const entered = new Promise((resolve) => { enteredFreeze = resolve })
-let releaseExpected = null
-const release = new Promise((resolve) => { releaseExpected = resolve })
-cashboxService.expected = async () => { enteredFreeze?.(); return release }
-let override
-try {
-  const overridePromise = custodyService.masterOverride({ managerUserId: manager, managerPassword: '1111', countedCash: 900, reason })
-  await entered
-  await rejects('freeze Master Override، writer مالی prior custodian را رد می‌کند', 'HANDOVER_RECOUNT', () => custodyService.actorForFinancialOperation())
-  const pending = await custodyService.status()
-  eq('freeze وضعیت اختصاصی Master Override را نگه می‌دارد', pending.pendingHandover?.status, 'MASTER_OVERRIDE_RECOUNT')
-  eq('freeze مدیر واقعی را به‌عنوان مسئول بعدی نگه می‌دارد', pending.pendingHandover?.selectedRecipientUserId, manager)
-  releaseExpected?.(expectedPreview)
-  override = await overridePromise
-} finally {
-  cashboxService.expected = originalExpected
-}
-
-eq('اختلاف Master Override از شمارش واقعی مدیر می‌آید', override.differenceCash, -100)
-eq('مسئولیت فعال به مدیر منتخب منتقل می‌شود', (await custodyService.status()).custodian?.id, manager)
-
-const evidence = seed.one('SELECT shiftId, kind, countedCash, expectedCash, differenceCash, countedByUserId, authMethod, note FROM "CustodyCount" WHERE id=(SELECT outCountId FROM "CustodyHandover" WHERE id=?)', override.handoverId)
-eq('شمارش Override به segment مسئول قبلی وصل است', evidence?.shiftId, opened.shiftId)
-eq('نوع evidence Override صریح است', evidence?.kind, 'MASTER_OVERRIDE_COUNT')
-eq('expected ledger جدا از physical count ثبت می‌شود', Number(evidence?.expectedCash), 1000)
-eq('physical count همان شمارش مدیر است', Number(evidence?.countedCash), 900)
-eq('اختلاف روی prior segment ثبت است', Number(evidence?.differenceCash), -100)
-eq('actor شمارش مدیر منتخب است', evidence?.countedByUserId, manager)
-eq('روش احراز evidence رمز مشترک مدیر است', evidence?.authMethod, 'MANAGER_SHARED_PASSWORD')
-eq('دلیل Override append-only کنار count می‌ماند', evidence?.note, reason)
-
-const handover = seed.one('SELECT fromShiftId, fromUserId, selectedRecipientUserId, managerApproverUserId, finalCustodianUserId, status, resolutionKind, resolutionReason, toShiftId, differenceCash FROM "CustodyHandover" WHERE id=?', override.handoverId)
-eq('پرونده Override prior shift را نگه می‌دارد', handover?.fromShiftId, opened.shiftId)
-eq('مسئول قبلی تنها evidence prior custodian است', handover?.fromUserId, absentCustodian)
-eq('مدیر انتخاب‌شده در پرونده با هویت واقعی ثبت است', handover?.selectedRecipientUserId, manager)
-eq('مدیر انتخاب‌شده به‌عنوان approver استثنا هم ثبت می‌شود', handover?.managerApproverUserId, manager)
-eq('پرونده Override کامل می‌شود', handover?.status, 'COMPLETED')
-eq('نوع نتیجه Override متمایز است', handover?.resolutionKind, 'MASTER_OVERRIDE_COMPLETED')
-eq('دلیل Override در پرونده باقی می‌ماند', handover?.resolutionReason, reason)
-eq('مسئول نهایی مدیر منتخب است', handover?.finalCustodianUserId, manager)
-eq('اختلاف پرونده از شمارش واقعی است', Number(handover?.differenceCash), -100)
-
-eq('segment قبلی با endKind Override بسته می‌شود', seed.one('SELECT endKind FROM "CustodyShiftMeta" WHERE shiftId=?', opened.shiftId)?.endKind, 'MASTER_OVERRIDDEN')
-const incomingMeta = seed.one('SELECT custodianUserId, openAuth, countStatus FROM "CustodyShiftMeta" WHERE shiftId=?', override.shiftId)
-eq('metadata segment جدید متعلق به مدیر منتخب است', incomingMeta?.custodianUserId, manager)
-eq('راه احراز segment جدید رمز مشترک مدیر است', incomingMeta?.openAuth, 'MASTER_OVERRIDE_MANAGER_PASSWORD')
-eq('segment جدید شمارش‌شده شروع می‌شود', incomingMeta?.countStatus, 'COUNTED')
-const incomingShift = seed.one('SELECT userId, openedVia FROM "Shift" WHERE id=?', override.shiftId)
-eq('Shift جدید مدیر واقعی را دارد', incomingShift?.userId, manager)
-eq('Shift جدید نوع Master Override دارد', incomingShift?.openedVia, 'MASTER_OVERRIDE')
-eq('opening float segment جدید از شمارش واقعی مدیر است', Number(seed.one('SELECT amount FROM "CashMovement" WHERE shiftId=? AND type=?', override.shiftId, CashMovementType.OPENING_FLOAT)?.amount), 900)
-
-const event = seed.one('SELECT type, shiftId, actorUserId, actorKind, authMethod, payloadJson FROM "CustodyEvent" WHERE handoverId=? ORDER BY id DESC LIMIT 1', override.handoverId)
-eq('رویداد Override تکمیل‌شده متمایز است', event?.type, 'MASTER_OVERRIDE_COMPLETED')
-eq('رویداد به segment prior متصل می‌ماند', event?.shiftId, opened.shiftId)
-eq('actor رویداد مدیر منتخب است', event?.actorUserId, manager)
-eq('actorKind Override صریح است', event?.actorKind, 'MASTER_OVERRIDE_MANAGER')
-eq('رمز مشترک مدیر در audit ثبت می‌شود', event?.authMethod, 'MANAGER_SHARED_PASSWORD')
-const payload = JSON.parse(event?.payloadJson ?? '{}')
-eq('audit prior custodian را بدون جعل actor نگه می‌دارد', payload.priorCustodianUserId, absentCustodian)
-eq('audit دلیل Override را نگه می‌دارد', payload.reason, reason)
-
+eq('failed attempt produced no handover/count', seed.count('CustodyHandover'), 0)
+eq('old owner still owns sales after stale attempt', (await custodyService.actorForFinancialOperation()).expectedShiftId, opened.shiftId)
+eq('sale on credit with no receipt does not add to blue reference', (await custodyService.masterOverride({ managerUserId: manager, managerPassword: 'Manager378!', operationalTotal: 900, reason })).referenceAmount, 0)
+const transferred = await custodyService.status()
+eq('selected manager is actual new custodian', transferred.custodian?.id, manager)
+eq('sales available immediately to manager', (await custodyService.actorForFinancialOperation()).expectedShiftId, transferred.activeShiftId)
+const moved = seed.one('SELECT * FROM "CustodyHandover" ORDER BY id DESC LIMIT 1')
+eq('master is separately marked completed', moved.resolutionKind, 'BLUE_MASTER_OVERRIDE')
+eq('manager id is durable approver and receiver', moved.managerApproverUserId, manager)
+const oldSide = seed.one('SELECT * FROM "CustodyBlueSnapshot" WHERE handoverId=? AND role=?', moved.id, 'OUT')
+const managerSide = seed.one('SELECT * FROM "CustodyBlueSnapshot" WHERE handoverId=? AND role=?', moved.id, 'IN')
+eq('missing custodian has system-only absence origin', oldSide.countOrigin, 'SYSTEM_ABSENCE_ZERO')
+eq('no invented PIN from missing worker', oldSide.authMethod, 'SYSTEM_ABSENCE_ZERO')
+eq('missing worker has no human amount', oldSide.humanAmount, null)
+eq('manager has own real count', Number(managerSide.humanAmount), 900)
+eq('manager personal PIN is the audit method', managerSide.authMethod, 'MANAGER_CUSTODY_PIN')
+eq('manager raw positive 900 against zero reference', Number(managerSide.rawDifference), 900)
+eq('there is no automatic fresh attribution from absence', managerSide.freshDifference, null)
+eq('no invented POS cash float for manager count', seed.count('CashMovement', 'shiftId=? AND type=?', transferred.activeShiftId, 'OPENING_FLOAT'), 0)
+eq('no automatic blame case produced', seed.count('CustodyDiscrepancyCase'), 0)
+const event = seed.one('SELECT type, actorUserId, authMethod FROM "CustodyEvent" WHERE handoverId=? ORDER BY id DESC LIMIT 1', moved.id)
+eq('Master Override event is distinguishable', event.type, 'BLUE_MASTER_OVERRIDE_COMMITTED')
+eq('event actor is named manager', event.actorUserId, manager)
+eq('event PIN provenance belongs to manager', event.authMethod, 'MANAGER_CUSTODY_PIN')
 const chip = readFileSync(new URL('../../src/renderer/src/components/CustodyChip.tsx', import.meta.url), 'utf8')
 const ipc = readFileSync(new URL('../../src/main/ipc/index.ts', import.meta.url), 'utf8')
-const service = readFileSync(new URL('../../src/main/services/CustodyService.ts', import.meta.url), 'utf8')
-eq('UI مسیر IPC مستقل Override و رمز مشترک مدیر را نشان می‌دهد', chip.includes('CH.custodyMasterOverride') && chip.includes('رمز مشترک مدیر'), true)
-eq('Main Override را به سرویس اختصاصی می‌سپارد', ipc.includes('custodyService.masterOverride(p ?? {})'), true)
-eq('سرویس از primitive رمز مشترک مدیر استفاده می‌کند، نه PIN اصلاح شخصی', service.includes("assertManagerPassword(String(input.managerPassword ?? ''), 'Master Override صندوق')") && !service.includes('verifyManagerCorrectionApproval'), true)
-
-console.log(`\n${bad === 0 ? '✓' : '✗'} ${ok} بررسی موفق · ${bad} ناموفق`)
-process.exitCode = bad ? 1 : 0
+eq('UI asks for selected manager personal PIN, not shared secret', chip.includes('PIN شخصی مدیر انتخاب‌شده') && !chip.includes('رمز مشترک مدیر'), true)
+eq('IPC strips old countedCash freeze input', ipc.includes('countedCash: _old') && ipc.includes('custodyService.masterOverride(safe)'), true)
+console.log(`\n✓ ${checks} checks passed`)

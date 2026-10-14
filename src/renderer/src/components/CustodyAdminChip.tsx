@@ -3,6 +3,9 @@ import { createPortal } from 'react-dom'
 import { call, CH } from '../lib/api'
 import { money } from '@shared/jalali'
 import { useManagerSession } from '../hooks/useManagerSession'
+import { BlueResolutionPanel } from './BlueResolutionPanel'
+import { CustodyResetShiftPanel } from './CustodyResetShiftPanel'
+import { CustodyMissedShiftPanel } from './CustodyMissedShiftPanel'
 
 /** This small Settings-only workspace deliberately owns no staff profile fields
  * and has no schedule/ShiftPlan writer. Shift Settings is the canonical place
@@ -15,8 +18,9 @@ type LegacyRecoveryReport = {
   opening: null | { openingShiftId: number; openingCountedCash: number; gapCash: number; reason: string | null; openerName: string | null; at: string }
 }
 type Report = {
-  summary: { handovers: number; unresolvedOpen: number; dispositionPending: number; totalCountDifference: number; legacyRecoveries?: number; legacyRecoveryReviews?: number; legacyRecoveriesAwaitingOpening?: number }
+  summary: { handovers: number; unresolvedOpen: number; dispositionPending: number; totalCountDifference: number; unknownCountDifferences?: number; blueHandoversAwaitingReference?: number; legacyRecoveries?: number; legacyRecoveryReviews?: number; legacyRecoveriesAwaitingOpening?: number }
   counts: Array<{ id: number; at: string; shiftId: number; kind: string; countedCash: number; expectedCash: number | null; differenceCash: number | null; countedByName?: string | null }>
+  blueBoundaries?: Array<{ snapshotId: number; shiftId: number; role: string; at: string; actorName: string | null; countedAmount: number | null; referenceStatus: string; originalReferenceAmount: number | null; referenceAmount: number | null; originalRawDifference: number | null; rawDifference: number | null; freshDifference: number | null; decision: null | { kind: string; evidenceReference: string; reason: string } }>
   legacyRecoveries?: LegacyRecoveryReport[]
   legacyRecoveryReviews?: Array<{ id: number; recoveryId: number; itemId: number | null; decision: string; actorName: string | null; reason: string; createdAt: string }>
 }
@@ -33,24 +37,21 @@ type DiscrepancyReport = {
   }>
 }
 
-type Tab = 'credentials' | 'legacy' | 'report'
+type Tab = 'credentials' | 'legacy' | 'report' | 'blue' | 'reset' | 'missed'
 const asTime = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
 
 /** Entry point is rendered only in Settings > Custody. It is intentionally not
  * a top-bar management control; day-to-day operations remain in CustodyChip. */
 export function CustodyAdminChip() {
   const { isManager } = useManagerSession()
-  const [enabled, setEnabled] = useState(false)
   const [open, setOpen] = useState(false)
-  const reload = useCallback(async () => {
-    try { setEnabled((await call<{ enabled: boolean }>(CH.custodyStatus, {})).enabled) } catch { setEnabled(false) }
-  }, [])
-  useEffect(() => { void reload(); const timer = window.setInterval(() => void reload(), 60_000); return () => window.clearInterval(timer) }, [reload])
-  if (!isManager || !enabled) return null
+  // Recovery must remain reachable from Manager Settings even when the box is
+  // closed or the custody feature is currently off.
+  if (!isManager) return null
   return (
     <div className="contents">
-      <button className="text-xs px-2 py-1 rounded whitespace-nowrap font-bold bg-indigo-700 hover:bg-indigo-800" onClick={() => setOpen(true)}>اعتبارنامه و سوابق حضانت</button>
-      {open ? <CustodyAdminModal onClose={() => { setOpen(false); void reload() }} /> : null}
+      <button className="text-xs px-2 py-1 rounded whitespace-nowrap font-bold bg-indigo-700 hover:bg-indigo-800" onClick={() => setOpen(true)}>ریست شیفت، اعتبارنامه و سوابق حضانت</button>
+      {open ? <CustodyAdminModal onClose={() => setOpen(false)} /> : null}
     </div>
   )
 }
@@ -120,6 +121,9 @@ function CustodyAdminModal({ onClose }: { onClose: () => void }) {
         <div className="flex gap-2 border-b mb-4">
           <button className={`px-3 py-2 ${tab === 'credentials' ? 'border-b-2 border-brand font-bold' : ''}`} onClick={() => setTab('credentials')}>رمز موقت</button>
           <button className={`px-3 py-2 ${tab === 'report' ? 'border-b-2 border-brand font-bold' : ''}`} onClick={() => setTab('report')}>گزارش کنترل</button>
+          <button className={`px-3 py-2 ${tab === 'blue' ? 'border-b-2 border-brand font-bold' : ''}`} onClick={() => setTab('blue')}>مرجع آبی و اسناد در انتظار</button>
+          <button className={`px-3 py-2 ${tab === 'reset' ? 'border-b-2 border-brand font-bold' : ''}`} onClick={() => setTab('reset')}>ریست ایمن شیفت</button>
+          <button className={`px-3 py-2 ${tab === 'missed' ? 'border-b-2 border-brand font-bold' : ''}`} onClick={() => setTab('missed')}>شیفت‌های منقضی مدیر</button>
         </div>
 
         {tab === 'credentials' ? <div className="max-w-xl space-y-3">
@@ -141,6 +145,10 @@ function CustodyAdminModal({ onClose }: { onClose: () => void }) {
             setTemporaryPin(''); setPinReason('')
           })}>صدور رمز موقت</button>
         </div> : null}
+
+        {tab === 'blue' ? <BlueResolutionPanel staff={staff} /> : null}
+        {tab === 'reset' ? <CustodyResetShiftPanel staff={staff} /> : null}
+        {tab === 'missed' ? <CustodyMissedShiftPanel staff={staff} /> : null}
 
         {tab === 'legacy' ? <div className="space-y-3">
           <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
@@ -168,13 +176,14 @@ function CustodyAdminModal({ onClose }: { onClose: () => void }) {
             })}>تهیه گزارش مدیر</button>
           </div>
           {summary ? <>
-            <div className="grid md:grid-cols-4 gap-3 my-4 text-sm"><Info label="تحویل‌ها" value={summary.handovers} /><Info label="شب‌های باز" value={summary.unresolvedOpen} /><Info label="تعیین تکلیف تأییدنشده" value={summary.dispositionPending} /><Info label="جمع اختلاف شمارش" value={money(summary.totalCountDifference)} /><Info label="بازیابی Shift قدیمی" value={summary.legacyRecoveries ?? 0} /><Info label="بازبینی‌های بازیابی" value={summary.legacyRecoveryReviews ?? 0} /></div>
+            <div className="grid md:grid-cols-4 gap-3 my-4 text-sm"><Info label="تحویل‌ها" value={summary.handovers} /><Info label="شب‌های باز" value={summary.unresolvedOpen} /><Info label="تعیین تکلیف تأییدنشده" value={summary.dispositionPending} /><Info label="جمع اختلاف شمارش‌های معلوم" value={money(summary.totalCountDifference)} /><Info label="تحویل آبی با مرجع نامعلوم" value={summary.blueHandoversAwaitingReference ?? 0} /><Info label="شمارش بدون اختلاف معلوم" value={summary.unknownCountDifferences ?? 0} /><Info label="بازیابی Shift قدیمی" value={summary.legacyRecoveries ?? 0} /><Info label="بازبینی‌های بازیابی" value={summary.legacyRecoveryReviews ?? 0} /></div>
             {discrepancies ? <DiscrepancyCasesPanel report={discrepancies} busy={busy} onRefresh={() => void run(loadDiscrepancies)} onPage={(skip) => { setDiscrepancySkip(skip); void run(() => loadDiscrepancies(skip)) }} /> : null}
             {(report?.legacyRecoveries?.length ?? 0) > 0 ? <div className="mt-6 space-y-3"><div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950"><b>بازیابی‌های Shift قدیمی</b><p className="mt-1">شاهدِ بازیابی مالک فروش‌ها، کسری‌ها یا اضافه‌های تاریخی نیست. شمارش بازیابی سند فیزیکی است و فقط شمارش افتتاح جداگانه، مسئولیت segment تازه را شروع می‌کند.</p></div><div className="overflow-auto"><table className="w-full text-sm"><thead><tr><th>زمان</th><th>شاهد</th><th>Shiftهای قدیمی</th><th>شمارش شاهد</th><th>افتتاح مستقل</th><th>مرز/اختلاف</th></tr></thead><tbody>{report?.legacyRecoveries?.map((row) => <tr key={row.id}><td>{new Date(row.createdAt).toLocaleString('fa-IR')}</td><td>{row.witnessName ?? '—'}</td><td>{row.items.map((item) => `#${item.shiftId}${item.legacyUserName ? ` (${item.legacyUserName})` : ''}`).join('، ')}</td><td>{money(row.countedCash)}</td><td>{row.opening ? `Shift #${row.opening.openingShiftId} · ${money(row.opening.openingCountedCash)} · ${row.opening.openerName ?? '—'}` : 'هنوز افتتاح مستقل ثبت نشده'}</td><td>{row.opening ? `${money(row.opening.gapCash)}${row.opening.reason ? ` · ${row.opening.reason}` : ''}` : '—'}</td></tr>)}</tbody></table></div><div className="rounded border bg-slate-50 p-3"><h4 className="font-bold text-sm">ثبت یادداشت بازبینی (افزایشی)</h4><p className="mt-1 text-xs text-slate-600">این یادداشت هیچ مبلغ، مسئولیت، فروش یا Shift قدیمی را تغییر نمی‌دهد.</p><div className="mt-2 grid gap-2 md:grid-cols-[minmax(0,1fr)_2fr_auto]"><select className="input" value={reviewRecoveryId} onChange={(event) => setReviewRecoveryId(event.target.value ? Number(event.target.value) : '')}>{report?.legacyRecoveries?.map((row) => <option key={row.id} value={row.id}>بازیابی #{row.id}</option>)}</select><input className="input" value={reviewReason} onChange={(event) => setReviewReason(event.target.value)} placeholder="یادداشت بازبینی (حداقل ۳ حرف)" /><button className="btn-primary" disabled={busy || !reviewRecoveryId} onClick={() => void run(async () => { if (reviewReason.trim().length < 3) throw new Error('یادداشت بازبینی باید حداقل ۳ حرف باشد.')
                 await call(CH.custodyLegacyRecoveryReview, { recoveryId: reviewRecoveryId, reason: reviewReason.trim(), idempotencyKey: `legacy-review-${crypto.randomUUID()}`, decision: 'NOTE' })
                 const next = await call<Report>(CH.custodyReport, {})
                 setReport(next); setReviewReason('')
               })}>ثبت یادداشت</button></div></div>{(report?.legacyRecoveryReviews?.length ?? 0) > 0 ? <div className="overflow-auto"><h4 className="font-bold text-sm mt-3">آخرین بازبینی‌های ثبت‌شده</h4><table className="w-full text-sm"><thead><tr><th>زمان</th><th>بازیابی</th><th>بازبین</th><th>یادداشت</th></tr></thead><tbody>{report?.legacyRecoveryReviews?.slice(0, 20).map((row) => <tr key={row.id}><td>{new Date(row.createdAt).toLocaleString('fa-IR')}</td><td>#{row.recoveryId}</td><td>{row.actorName ?? 'نشست مدیر'}</td><td>{row.reason}</td></tr>)}</tbody></table></div> : null}</div> : null}
+            {(report?.blueBoundaries?.length ?? 0) > 0 ? <div className="mt-6 rounded border border-sky-200 p-3 text-sm"><h3 className="font-bold">شواهد اولیهٔ آبی در افتتاح و بستن نهایی</h3><p className="my-2 text-slate-600">مبلغ و مرجع اولیه تغییر نمی‌کنند؛ تصمیم بعدی کنار همان سند نشان داده می‌شود. «نامعلوم» با صفر فرق دارد و «حل‌شده» به معنی مقصر بودن نیست.</p><div className="overflow-auto"><table className="w-full"><thead><tr><th>سند / شیفت</th><th>نوع</th><th>شمارش واقعی</th><th>مرجع اولیه</th><th>اختلاف اولیه</th><th>تصمیم افزایشی</th></tr></thead><tbody>{report?.blueBoundaries?.slice(0, 30).map((row) => <tr key={row.snapshotId}><td>#{row.snapshotId} / {row.shiftId} · {row.actorName ?? '—'}</td><td>{row.role === 'FINAL_CLOSE' ? 'بستن نهایی' : row.role === 'OPENING' ? 'افتتاح' : 'بازیابی'}</td><td>{row.countedAmount == null ? 'شمارش واقعی موجود نیست' : money(row.countedAmount)}</td><td>{row.originalReferenceAmount == null ? 'نامعلوم' : money(row.originalReferenceAmount)}</td><td>{row.originalRawDifference == null ? 'نامعلوم' : money(row.originalRawDifference)}</td><td>{row.decision ? `${row.decision.kind} · مرجع ${row.referenceAmount == null ? 'نامعلوم' : money(row.referenceAmount)} · خام ${row.rawDifference == null ? 'نامعلوم' : money(row.rawDifference)} · سند ${row.decision.evidenceReference}` : row.referenceStatus === 'PENDING_RECONCILIATION' ? 'در انتظار تطبیق' : 'بدون تصمیم بعدی'}</td></tr>)}</tbody></table></div></div> : null}
             <h3 className="font-bold mt-6">آخرین شمارش‌ها</h3>
             <div className="overflow-auto"><table className="w-full text-sm"><thead><tr><th>زمان</th><th>شیفت</th><th>نوع</th><th>شمارش</th><th>انتظار</th><th>اختلاف</th><th>ثبت‌کننده</th></tr></thead><tbody>
               {report?.counts.slice(0, 20).map((row) => <tr key={row.id}><td>{new Date(row.at).toLocaleString('fa-IR')}</td><td>{row.shiftId}</td><td>{row.kind}</td><td>{money(row.countedCash)}</td><td>{row.expectedCash == null ? '—' : money(row.expectedCash)}</td><td>{row.differenceCash == null ? '—' : money(row.differenceCash)}</td><td>{row.countedByName ?? '—'}</td></tr>)}

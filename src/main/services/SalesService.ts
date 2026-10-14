@@ -8,6 +8,7 @@ import { custodyService } from './CustodyService'
 import { generateReturnCode, normalizeReturnCode, returnCodeExpiry, DAY_MS } from './ReturnCodeService'
 import { shapeSaleRow, sumTotals, groupByDayShift, paymentLabels, returnedTotalOf } from './reportShape'
 import { buildStatements, cashMovementTotals } from './accountingReport'
+import { calculateCustodyReference, pendingCustodyReference, type CustodyReference } from '@shared/custodyReference'
 import { recordCashMovement } from './CashMovementService'
 import {
   assertManagerPassword,
@@ -5280,6 +5281,8 @@ export const salesService = {
     }
 
     let accounting: SaleAccountingStatements | undefined
+    // Must never inherit a page subtotal if accounting aggregation fails.
+    let custodyReference: CustodyReference = pendingCustodyReference('صورت مالی کامل محاسبه نشد؛ مرجع قطعی برای تحویل صندوق در دسترس نیست.')
     try {
       const built = await buildStatements(
         {
@@ -5329,14 +5332,13 @@ export const salesService = {
        */
       totals.managerAccountTotal = a.cash.managerAccountReceived
       totals.destinationUnknownTotal = a.cash.destinationUnknownReceived
-      /**
-       * «دریافتی فروشگاه»: سهم حساب مدیر **بیرون** است (به صندوق و کارتخوان
-       * نرسیده) و سهم «نامشخصِ» داده‌ی قدیمی **داخل** می‌ماند تا هیچ عدد گزارش
-       * قبلی عوض نشود.
-       */
+      // This is the *whole period*, not the visible 500-row page. A legacy
+      // destination-less CREDIT entry is shown separately and makes a custody
+      // reference pending; it is never silently treated as drawer/POS cash.
+      totals.creditTotal = a.ambiguousLegacyCreditTotal ?? 0
       totals.receivedTotal =
         a.cash.cashReceived + a.cash.cardReceived + a.cash.otherReceived +
-        a.cash.destinationUnknownReceived + totals.creditTotal
+        a.cash.destinationUnknownReceived
       totals.returnedTotal = a.returns.simpleReturns
       totals.exchangeReturnedTotal = a.returns.exchangeReturned
       totals.refundCashTotal = a.returns.cashRefunds + a.returns.exchangeCashRefunds
@@ -5352,6 +5354,26 @@ export const salesService = {
       totals.priorSettlementTotal = a.credit.settledPrior
       totals.netReceivedTotal = totals.receivedTotal - totals.storeCreditIssuedTotal
       totals.legacyRefundCount = a.returns.legacyAssumedCount
+      const scope = JSON.stringify({
+        from: period.from?.toISOString() ?? null, to: period.to?.toISOString() ?? null,
+        filter: Object.fromEntries(Object.entries(filter).filter(([key]) =>
+          !['take', 'skip', 'withDrillDown', 'bridgeSourceKey', 'bridgeSourceSkip', 'bridgeSourceTake'].includes(key)))
+      })
+      const reference = calculateCustodyReference({
+        cashReceived: a.cash.cashReceived,
+        cardReceived: a.cash.cardReceived,
+        otherReceived: a.cash.otherReceived,
+        destinationUnknownReceived: a.cash.destinationUnknownReceived,
+        ambiguousLegacyCredit: totals.creditTotal,
+        refundCash: totals.refundCashTotal,
+        refundCard: totals.refundCardTotal
+      })
+      custodyReference = {
+        ...reference,
+        sourceScope: scope,
+        sourceHash: createHash('sha256').update(JSON.stringify({ scope, reference })).digest('hex')
+      }
+      warnings.push(...reference.warnings)
     } catch (e) {
       // گزارش باید حتی اگر یک صورت نساخته شد، ردیف‌هایش را نشان بدهد
       console.error('[sales] accounting statements failed', e)
@@ -5486,6 +5508,7 @@ export const salesService = {
     return {
       rows: [...rows].sort((a, b) => b.receiptNo - a.receiptNo),
       totals,
+      custodyReference,
       /**
        * ⚠️ گروه‌های «روز → شیفت» از ردیف‌های *همین صفحه* ساخته می‌شوند. برای
        * بازه‌ی بزرگ باید بازه را کوچک‌تر کرد یا `take` را بالا برد؛ هشدار برش

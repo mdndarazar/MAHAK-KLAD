@@ -263,7 +263,12 @@ export const settingsService = {
    * financial writers holding the old epoch fail closed instead of slipping
    * across the policy boundary.
    */
-  async saveCustodySchedulingWorkflow(input: { shift?: unknown; reason?: unknown; userId?: number | null }): Promise<ShiftConfig> {
+  async saveCustodySchedulingWorkflow(input: { shift?: unknown; reason?: unknown; managerUserId?: unknown; managerPassword?: unknown }): Promise<ShiftConfig> {
+    // A shared settings-panel session does not identify an individual manager.
+    // Both an open and a closed drawer require the named manager's own custody
+    // PIN; the IPC also requires the active manager session independently.
+    const { custodyService } = await import('./CustodyService')
+    const manager = await custodyService.verifyPin(input.managerUserId, input.managerPassword, { requireManager: true })
     const submitted = parseShiftConfig(input?.shift)
     const next: ShiftConfig = {
       ...submitted,
@@ -273,6 +278,8 @@ export const settingsService = {
     }
     await assertCanonicalShiftSchedule(next)
     const reason = String(input?.reason ?? '').trim()
+    if (reason.length < 10 || reason.length > 1000)
+      throw new BusinessError('برای ثبت روش حضانت، دلیل مدیر باید بین ۱۰ تا ۱۰۰۰ نویسه باشد.', 'CUSTODY_MODE_SWITCH_REASON')
 
     return prisma.$transaction(async (tx) => {
       const [shiftRow, custodyRow, existingState] = await Promise.all([
@@ -293,9 +300,6 @@ export const settingsService = {
         throw new BusinessError('تا پایان تحویل/بازیابی در جریان، تغییر روش تک‌شیفت یا چندشیفت مجاز نیست.', 'CUSTODY_MODE_SWITCH_PENDING')
       if (hasOpenResponsibility && !state.activeShiftId)
         throw new BusinessError('مسئولیت باز صندوق ناقص است؛ ابتدا بازیابی صندوق را انجام دهید.', 'CUSTODY_INVARIANT_BROKEN')
-      if (hasOpenResponsibility && policyChanged && reason.length < 10)
-        throw new BusinessError('برای تغییر روش حضانت هنگام مسئولیت باز، علت حداقل ۱۰ کاراکتری وارد کنید.', 'CUSTODY_MODE_SWITCH_REASON')
-
       const nextCustody: CustodyConfig = parseCustodyConfig({ ...beforeCustody, mode: next.custodyMode })
       let frozenEpoch: number | null = null
       if (hasOpenResponsibility && policyChanged) {
@@ -311,8 +315,8 @@ export const settingsService = {
         if (frozen.count !== 1) throw new BusinessError('وضعیت صندوق هم‌زمان تغییر کرد؛ دوباره تلاش کنید.', 'CUSTODY_STALE')
         await tx.custodyEvent.create({
           data: {
-            type: 'CUSTODY_MODE_SWITCH_FREEZE', shiftId: activeShift.id, actorUserId: input?.userId ?? null,
-            actorKind: 'MANAGER', authMethod: 'MANAGER_SESSION', epochBefore: state.epoch, epochAfter: frozenEpoch,
+            type: 'CUSTODY_MODE_SWITCH_FREEZE', shiftId: activeShift.id, actorUserId: manager.userId,
+            actorKind: 'MANAGER', authMethod: 'MANAGER_CUSTODY_PIN', epochBefore: state.epoch, epochAfter: frozenEpoch,
             payloadJson: JSON.stringify({ fromMode: beforeMode, toMode: next.custodyMode, reason, preservedCustodianUserId: meta.custodianUserId }),
             operationalDay: toJalaliDate(new Date())
           }
@@ -331,8 +335,8 @@ export const settingsService = {
         if (resumed.count !== 1) throw new BusinessError('بازگرداندن مسئولیت صندوق ناموفق بود؛ هیچ تنظیمی ذخیره نشد.', 'CUSTODY_STALE')
         await tx.custodyEvent.create({
           data: {
-            type: 'CUSTODY_MODE_SWITCH_COMMITTED', shiftId: state.activeShiftId, actorUserId: input?.userId ?? null,
-            actorKind: 'MANAGER', authMethod: 'MANAGER_SESSION', epochBefore: frozenEpoch, epochAfter: resumedEpoch,
+            type: 'CUSTODY_MODE_SWITCH_COMMITTED', shiftId: state.activeShiftId, actorUserId: manager.userId,
+            actorKind: 'MANAGER', authMethod: 'MANAGER_CUSTODY_PIN', epochBefore: frozenEpoch, epochAfter: resumedEpoch,
             payloadJson: JSON.stringify({ fromMode: beforeMode, toMode: next.custodyMode, reason, responsibilityPreserved: true }),
             operationalDay: toJalaliDate(new Date())
           }
@@ -340,10 +344,10 @@ export const settingsService = {
       }
       await tx.auditLog.create({
         data: {
-          action: 'SETTINGS_UPDATE', entity: 'CustodySchedulingWorkflow', userId: input?.userId ?? null,
+          action: 'SETTINGS_UPDATE', entity: 'CustodySchedulingWorkflow', userId: manager.userId,
           before: JSON.stringify({ custodyMode: beforeMode, configured: beforeShift.custodyModeConfigured, primaryUserId: beforeShift.singleShiftCustodianUserId }),
-          after: JSON.stringify({ custodyMode: next.custodyMode, configured: true, primaryUserId: next.singleShiftCustodianUserId, custodyConfigMode: nextCustody.mode }),
-          note: frozenEpoch == null ? 'ثبت روش برنامه‌ریزی حضانت صندوق' : `ثبت روش برنامه‌ریزی حضانت با حفظ مسئولیت باز: ${reason}`
+          after: JSON.stringify({ custodyMode: next.custodyMode, configured: true, primaryUserId: next.singleShiftCustodianUserId, custodyConfigMode: nextCustody.mode, authMethod: 'MANAGER_CUSTODY_PIN' }),
+          note: frozenEpoch == null ? `ثبت روش برنامه‌ریزی حضانت با PIN شخصی مدیر: ${reason}` : `ثبت روش برنامه‌ریزی حضانت با حفظ مسئولیت باز: ${reason}`
         }
       })
       return next

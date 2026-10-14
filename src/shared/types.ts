@@ -1469,6 +1469,8 @@ export interface SaleAccountingStatements {
   cheques: SaleChequeBlock
   storeCredits: SaleStoreCreditBlock
   cash: SaleCashBlock
+  /** Full-scope aggregate; unlike report-row creditTotal it cannot depend on skip/take. */
+  ambiguousLegacyCreditTotal?: number
   bridge: SaleBridgeBlock
   /**
    * جاهایی که یک فیلتر ذاتاً روی یک عدد قابل اعمال نبود.
@@ -1502,6 +1504,8 @@ export type PagedRows<T> = T[] & {
 export interface SaleReportResult {
   rows: SaleReportRow[]
   totals: SaleReportTotals
+  /** Official blue-reference verdict, computed from full financial aggregates. */
+  custodyReference?: import('./custodyReference').CustodyReference
   /** گروه‌بندی روز → شیفت (برای چک‌باکس «جداسازی بر اساس شیفت») */
   groups: SaleReportGroup[]
   /**

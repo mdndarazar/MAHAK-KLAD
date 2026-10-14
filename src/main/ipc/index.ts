@@ -25,6 +25,7 @@ import { variantPurgeService } from '../services/VariantPurgeService'
 import { cashboxService } from '../services/CashboxService'
 import { cashMovementService } from '../services/CashMovementService'
 import { custodyService } from '../services/CustodyService'
+import { custodyBlueResolutionService } from '../services/CustodyBlueResolutionService'
 import { custodyPlanService } from '../services/CustodyPlanService'
 import { fraudService } from '../services/FraudService'
 import { receiptGapReport } from '../services/receiptNo'
@@ -1085,7 +1086,23 @@ export function registerIpcHandlers(): void {
     return custodyService.exportDiscrepancyReport({ ...safe, managerSession: true })
   })
 
-  handle(IPC.custodyOpen, (p) => custodyService.open(p ?? {}))
+  /** New public openings use the combined blue amount. A stale/forged
+   * cash-only field must not turn POS into OPENING_FLOAT or consume the day's
+   * first real count without a blue reference. A genuinely blank OPTIONAL
+   * opening remains count-pending, not a zero attested by a person. The sole
+   * cash-only exception is the explicit, already-completed legacy Shift
+   * recovery: its historical opening link still needs its original count. */
+  handle(IPC.custodyOpen, async (p) => {
+    const { userId, password, operationalTotal, countedCash, note, boundaryReason } = p ?? {}
+    if (operationalTotal != null)
+      return custodyService.open({ userId, password, operationalTotal, note, boundaryReason })
+    if (countedCash == null)
+      return custodyService.open({ userId, password, note, boundaryReason })
+    const current = await custodyService.status()
+    if (!current.legacyOpeningRequired)
+      throw new BusinessError('افتتاح جدید به مجموع کشو و کارت‌خوان نیاز دارد؛ شمارش نقدی قدیمی فقط پس از بازیابی Shift قدیمی پذیرفته می‌شود.', 'CUSTODY_AGGREGATE_COUNT_REQUIRED')
+    return custodyService.open({ userId, password, countedCash, note, boundaryReason })
+  })
   /** Renderer may supply only the worker's own PIN/count acknowledgement and
    * optimistic snapshot. Main recomputes eligibility, legacy rows, expected
    * evidence and all state transitions; manager/session fields are ignored. */
@@ -1118,16 +1135,62 @@ export function registerIpcHandlers(): void {
     const { managerSession: _ignored, managerUserId: _managerId, managerPassword: _managerPassword, ...safe } = p ?? {}
     return custodyPlanService.remove({ ...safe, managerSession: true })
   })
-  handle(IPC.custodyHandoverStart, (p) => custodyService.handoverStart(p ?? {}))
+  // New starts always use the full-day blue reference. Historical PENDING
+  // handovers still use the old accept route; a new blue attempt cannot call it.
+  handle(IPC.custodyHandoverStart, (p) => custodyService.handoverStart({ ...(p ?? {}), blueReference: true }))
+  handle(IPC.custodyHandoverCountBlue, (p) => custodyService.handoverCountBlue(p ?? {}))
+  handle(IPC.custodyHandoverConfirmBlue, (p) => custodyService.handoverConfirmBlue(p ?? {}))
   handle(IPC.custodyHandoverAccept, (p) => custodyService.handoverAccept(p ?? {}))
   handle(IPC.custodyHandoverCancel, (p) => custodyService.handoverCancel(p ?? {}))
-  handle(IPC.custodyEmergencyCover, (p) => custodyService.emergencyCover(p ?? {}))
-  handle(IPC.custodyMasterOverride, (p) => custodyService.masterOverride(p ?? {}))
-  handle(IPC.custodyFinalClose, (p) => custodyService.finalClose(p ?? {}))
+  handle(IPC.custodyBluePendingList, (p) => {
+    assertManagerSession('دیدن پرونده‌های مرجع آبی در انتظار تطبیق')
+    return custodyBlueResolutionService.pendingList({ skip: p?.skip })
+  })
+  handle(IPC.custodyBlueResolve, (p) => {
+    assertManagerSession('تعیین تکلیف سند مرجع آبیِ تحویل')
+    const { snapshotId, managerUserId, password, decisionKind, evidenceDay,
+      evidenceReference, reason, idempotencyKey } = p ?? {}
+    return custodyBlueResolutionService.resolve({ snapshotId, managerUserId, password,
+      decisionKind, evidenceDay, evidenceReference, reason, idempotencyKey })
+  })
+  handle(IPC.custodyShiftReset, (p) => {
+    assertManagerSession('ریست بازیابانهٔ شیفت')
+    const { managerUserId, password, reason, confirmed } = p ?? {}
+    return custodyService.resetShift({ managerUserId, password, reason, confirmed })
+  })
+  handle(IPC.custodyOpenResolutions, () => {
+    assertManagerSession('بازبینی شیفت‌های منقضی در تنظیمات مدیر')
+    return custodyService.openResolutions()
+  })
+  /** Public exception routes must not enter a pre-blue cash-only freeze even
+   * if a renderer forges the old field. The user's own real combined count is
+   * required; previous attempts' count/PIN cannot be replayed. */
+  handle(IPC.custodyEmergencyCover, (p) => {
+    const { countedCash: _old, ...safe } = p ?? {}
+    return custodyService.emergencyCover(safe)
+  })
+  handle(IPC.custodyMasterOverride, (p) => {
+    const { countedCash: _old, ...safe } = p ?? {}
+    return custodyService.masterOverride(safe)
+  })
+  handle(IPC.custodyFinalClose, (p) => {
+    const { countedCash: _old, dispositions: _legacy, ...safe } = p ?? {}
+    return custodyService.finalClose(safe)
+  })
   handle(IPC.custodyDispositionConfirm, (p) => custodyService.confirmDisposition(p ?? {}))
   handle(IPC.custodyDispositionReverse, (p) => custodyService.reverseDisposition(p ?? {}))
-  handle(IPC.custodyUnresolvedResolve, (p) => custodyService.resolveUnresolved(p ?? {}))
-  handle(IPC.custodyUnattendedRecover, (p) => custodyService.recoverUnattended(p ?? {}))
+  handle(IPC.custodyUnresolvedResolve, (p) => {
+    assertManagerSession('بازبینی و تعیین تکلیف شیفت منقضی')
+    const { resolutionId, managerUserId, managerPassword, reason, attribution } = p ?? {}
+    return custodyService.resolveUnresolved({ resolutionId, managerUserId, managerPassword,
+      reason, attribution, countedCash: undefined })
+  })
+  /** The system, not the next employee, already ended the last ACTUAL Shift.
+   * Keep the old channel as a clear failure for older renderer builds; an
+   * employee must NOT register a count on somebody else's expired Shift. */
+  handle(IPC.custodyUnattendedRecover, () => {
+    throw new BusinessError('شیفت پیشین را سیستم بسته است؛ نفر تازه فقط صندوق خود را با شمارش واقعی و PIN شخصی باز می‌کند.', 'RECOVERY_NOT_EMPLOYEE_ACTION')
+  })
 
   // ---- شیفت (جلسه ۱۹: هر رکورد = یک «نشست») ----
   // خواندن/ساخت AUTO session نباید payload renderer را به actor حسابرسی تبدیل
@@ -1425,11 +1488,10 @@ export function registerIpcHandlers(): void {
   handle(IPC.settingsShiftOvertimeMax, async (p) => settingsService.setShiftOvertimeMax(await withOptionalSessionActor(p ?? { minutes: 0 })))
   handle(IPC.settingsCustodySchedulingWorkflow, async (p) => {
     assertManagerSession('تغییر روش برنامه‌ریزی حضانت صندوق')
-    // A panel session proves manager authorization but does not carry a
-    // manager user id.  Do not mislabel the current drawer custodian (or any
-    // renderer-provided id) as the approving manager in this configuration audit.
-    const { userId: _ignored, ...safe } = p ?? {}
-    return settingsService.saveCustodySchedulingWorkflow({ ...safe, userId: null })
+    // The panel session is an independent gate. The named manager and PIN are
+    // verified by the service; never label the drawer custodian as approver.
+    const { userId: _ignored, managerSession: _spoofed, ...safe } = p ?? {}
+    return settingsService.saveCustodySchedulingWorkflow(safe)
   })
   /** بند ۹ — «تاریخ و ساعت رسمی»: افست دستی + بررسی ساعت سیستم (بدون اینترنت) */
   handle(IPC.settingsOfficialTime, () => settingsService.officialTime())

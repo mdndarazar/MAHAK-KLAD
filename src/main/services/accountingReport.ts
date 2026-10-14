@@ -2398,6 +2398,9 @@ export async function buildStatements(
       usedStories: sc.usedStories ?? []
     },
     cash,
+    // CREDIT with no recorded destination is not proof of drawer/POS money.
+    // `paymentStatement` grouped the entire report scope, not its visible page.
+    ambiguousLegacyCreditTotal: pay.totals.credit,
     bridge: {
       rows,
       explainedTotal: bridgeRaw.explainedTotal,

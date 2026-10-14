@@ -1,99 +1,71 @@
 /**
- * A handover may begin a new responsible segment at the receiver's physically
- * counted amount even when it differs from the ledger.  The difference must
- * have a reason and remain attributable to the outgoing segment.
- *
+ * Blue custody: an independently observed difference is evidence, not an
+ * accusation or a reason to freeze sales. Two personal PINs/counts and final
+ * confirmation must still be required. Cancellation keeps the attempt.
  * node --import ./test/harness/register.mjs tests/audit-fixes/fix-s375-handover-discrepancy-accountability.mjs
  */
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-
-const DIR = mkdtempSync(join(tmpdir(), 'mahak-handover-difference-s375-'))
-process.env.HARNESS_DIR = DIR
-process.env.HARNESS_DB = join(DIR, 'shop.db')
-
+const dir = mkdtempSync(join(tmpdir(), 'mahak-handover-difference-s375-'))
+process.env.HARNESS_DIR = dir
+process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
-const { CashMovementType } = await import('@shared/enums')
-
-const db = harnessClient()
-const seed = makeSeeder(db)
+const db = harnessClient(); const seed = makeSeeder(db)
 let ok = 0
-let bad = 0
-const eq = (label, got, want) => {
-  if (got === want) { ok++; console.log(`  ✓ ${label}`) }
-  else { bad++; console.log(`  ✗ ${label} — دریافت ${JSON.stringify(got)}، انتظار ${JSON.stringify(want)}`) }
+const eq = (label, got, expected) => {
+  if (got !== expected) throw new Error(`${label}: expected ${expected}, got ${got}`)
+  ok++; console.log(`  ✓ ${label}`)
 }
-const rejects = async (label, code, work) => {
-  try { await work(); eq(label, true, false) }
+const rejects = async (label, code, action) => {
+  try { await action(); throw new Error(`${label}: unexpectedly succeeded`) }
   catch (error) { eq(label, error?.code, code) }
 }
-
 const manager = seed.user('مدیر S375')
 const giver = seed.user('مسئول پیشین S375')
 const receiver = seed.user('تحویل‌گیرنده S375')
 await custodyService.setPin({ userId: manager, newPassword: 'Manager375!', currentPassword: '1111' })
 await custodyService.setConfig({ config: { enabled: true }, managerUserId: manager, managerPassword: 'Manager375!' })
-for (const [id, temporary, permanent] of [[giver, 'Giver375!', 'Giver3754!'], [receiver, 'Receiver375!', 'Receiver3754!']]) {
-  await custodyService.setPin({ userId: id, newPassword: temporary, managerUserId: manager, managerPassword: 'Manager375!', reason: 'راه‌اندازی آزمون تحویل' })
-  await custodyService.setPin({ userId: id, currentPassword: temporary, newPassword: permanent })
+for (const [id, temporary, personal] of [[giver, 'Giver375!', 'Giver3754!'], [receiver, 'Receiver375!', 'Receiver3754!']]) {
+  await custodyService.setPin({ userId: id, newPassword: temporary, managerUserId: manager, managerPassword: 'Manager375!', reason: 'راه‌اندازی آزمون تحویل مستقل' })
+  await custodyService.setPin({ userId: id, currentPassword: temporary, newPassword: personal })
 }
+const opened = await custodyService.open({ userId: giver, password: 'Giver3754!', operationalTotal: 1000 })
+const started = await custodyService.handoverStart({ password: 'Giver3754!', operationalTotal: 1000, blueReference: true, toUserId: receiver, idempotencyKey: 's375:new-two-count-handover' })
+eq('تحویل در انتظار شمارش مستقل است، نه freeze', (await custodyService.status()).state, 'HANDOVER_PENDING')
+eq('پیش از تأیید، فروش هنوز متعلق به مسئول قبلی است', (await custodyService.actorForFinancialOperation()).expectedShiftId, opened.shiftId)
+const counted = await custodyService.handoverCountBlue({ handoverId: started.id, password: 'Receiver3754!', operationalTotal: 920 })
+eq('شمارش دوم با اختلاف ثبت می‌شود، بدون درخواست دلیل', counted.state, 'RECEIVER_COUNTED')
+eq('اختلاف تازهٔ همین دو شاهد مستقل -۸۰ است', counted.freshDifference, -80)
+eq('فروش تا تأیید همچنان مجاز است', (await custodyService.actorForFinancialOperation()).expectedShiftId, opened.shiftId)
+const out = seed.one('SELECT * FROM "CustodyBlueSnapshot" WHERE handoverId=? AND role=?', started.id, 'OUT')
+const incoming = seed.one('SELECT * FROM "CustodyBlueSnapshot" WHERE handoverId=? AND role=?', started.id, 'IN')
+eq('شاهد خروج بدون بازنویسی نگه داشته شده', Number(out?.humanAmount), 1000)
+eq('شاهد ورود بدون بازنویسی نگه داشته شده', Number(incoming?.humanAmount), 920)
+eq('هر دو یک مرجع مالی یکسان دارند', out?.sourceHash, incoming?.sourceHash)
+eq('شمارش ورودی به شاهد خروج پیوند دارد', incoming?.priorSnapshotId, out?.id)
+eq('actor شاهد ورودی شخص PINدار است', incoming?.actorUserId, receiver)
+eq('احراز شخصیِ شاهد ورودی ثبت شده است', incoming?.authMethod, 'CUSTODY_PIN')
+eq('expected مخفی به شمارش‌گیرنده منتقل نمی‌شود', seed.one('SELECT expectedCash FROM "CustodyCount" WHERE handoverId=? AND kind=?', started.id, 'BLUE_HANDOVER_IN')?.expectedCash, null)
+await rejects('تأیید بدون PIN مستقلِ گیرنده رد می‌شود', 'PIN_WRONG', () => custodyService.handoverConfirmBlue({ handoverId: started.id, password: '' }))
+const accepted = await custodyService.handoverConfirmBlue({ handoverId: started.id, password: 'Receiver3754!' })
+eq('پس از تأیید، گیرنده مسئول واقعی است', (await custodyService.status()).custodian?.id, receiver)
+eq('فروش پس از مرز به نشست گیرنده می‌رود', (await custodyService.actorForFinancialOperation()).expectedShiftId, accepted.shiftId)
+eq('اختلاف خودکار حکم تقصیر نمی‌سازد', seed.count('CustodyDiscrepancyCase'), 0)
+eq('مرجع آبی به کیس aggregate-v2 قدیمی تبدیل نمی‌شود', seed.count('CustodyAggregateBoundary'), 0)
+eq('پول کارت‌خوان OPENING_FLOAT نقدی نمی‌شود', seed.count('CashMovement', 'shiftId=? AND type=?', accepted.shiftId, 'OPENING_FLOAT'), 0)
+eq('سند تحویل همراه با اختلاف قابل پیگیری است', seed.one('SELECT status FROM "CustodyHandover" WHERE id=?', started.id)?.status, 'COMPLETED')
+eq('نشست قدیمی بدون انتساب تخلف بسته شد', seed.one('SELECT endKind FROM "CustodyShiftMeta" WHERE shiftId=?', opened.shiftId)?.endKind, 'BLUE_HANDOVER')
 
-const opened = await custodyService.open({ userId: giver, password: 'Giver3754!', countedCash: 1000 })
-const handover = await custodyService.handoverStart({ password: 'Giver3754!', countedCash: 1000, toUserId: receiver, idempotencyKey: 's375-giver-to-receiver' })
-
-await rejects('تحویل با مغایرت، بدون دلیلِ پایدار رد می‌شود', 'HANDOVER_DIFFERENCE_REASON_REQUIRED', () => custodyService.handoverAccept({ handoverId: handover.id, password: 'Receiver3754!', countedCash: 920 }))
-const frozen = await custodyService.status()
-eq('اختلافِ بدون دلیل، فروش را باز نمی‌کند و state را فریز نگه می‌دارد', frozen.state, 'HANDOVER_RECOUNT')
-eq('در freeze، مسئول segment قبلی فقط برای سابقه دیده می‌شود', frozen.custodian?.id, giver)
-await rejects('بین شمارش کور و دلیل اختلاف، هیچ writer مالی fence نمی‌گیرد', 'HANDOVER_RECOUNT', () => custodyService.actorForFinancialOperation())
-eq('شمارش فریز‌شده برای حسابرسی پاک نمی‌شود', seed.one('SELECT kind FROM "CustodyCount" WHERE handoverId=? ORDER BY id DESC LIMIT 1', handover.id)?.kind, 'HANDOVER_RECOUNT_DIFFERENCE_PENDING')
-
-const reason = 'بیست هزار تومان کسری در شمارش مستقل هنگام تحویل ثبت شد.'
-const accepted = await custodyService.handoverAccept({ handoverId: handover.id, password: 'Receiver3754!', countedCash: 920, differenceReason: reason })
-eq('تحویل با دلیل، اختلاف واقعی را برمی‌گرداند', accepted.differenceCash, -80)
-eq('مسئولیت عملیاتی به تحویل‌گیرنده منتقل می‌شود', (await custodyService.status()).custodian?.id, receiver)
-
-const evidence = seed.one('SELECT shiftId, kind, countedCash, expectedCash, differenceCash, countedByUserId, note FROM "CustodyCount" WHERE handoverId=? ORDER BY id DESC LIMIT 1', handover.id)
-eq('شمارش اختلاف روی segment مسئول پیشین ثبت می‌شود', evidence?.shiftId, opened.shiftId)
-eq('نوع evidence مغایرتِ فریز‌شده را صریح می‌کند', evidence?.kind, 'HANDOVER_RECOUNT_DIFFERENCE_PENDING')
-eq('ledger expected از شمارش فیزیکی جدا می‌ماند', Number(evidence?.expectedCash), 1000)
-eq('شمارش فیزیکی تحویل‌گیرنده نگه داشته می‌شود', Number(evidence?.countedCash), 920)
-eq('اختلاف در evidence ثبت می‌شود', Number(evidence?.differenceCash), -80)
-eq('actor شمارش واقعاً تحویل‌گیرنده است', evidence?.countedByUserId, receiver)
-eq('blind evidence بدون بازنویسی می‌ماند و دلیل در تصمیم handover ثبت می‌شود', evidence?.note, null)
-
-const recorded = seed.one('SELECT fromShiftId, finalCustodianUserId, differenceCash, resolutionKind, resolutionReason, toShiftId FROM "CustodyHandover" WHERE id=?', handover.id)
-eq('handover اختلاف را به‌عنوان نتیجهٔ جدا ثبت می‌کند', Number(recorded?.differenceCash), -80)
-eq('نتیجهٔ تحویل، پذیرش با مغایرت است', recorded?.resolutionKind, 'RECEIVER_ACCEPTED_WITH_DIFFERENCE')
-eq('دلیل در خود پروندهٔ تحویل نگهداری می‌شود', recorded?.resolutionReason, reason)
-eq('مسئول نهایی همان تحویل‌گیرندهٔ PINدار است', recorded?.finalCustodianUserId, receiver)
-eq('segment قبلی پایانِ همراه مغایرت می‌گیرد', seed.one('SELECT endKind FROM "CustodyShiftMeta" WHERE shiftId=?', opened.shiftId)?.endKind, 'HANDED_OVER_WITH_DIFFERENCE')
-eq('segment جدید از شمارش واقعی آغاز می‌شود', Number(seed.one('SELECT amount FROM "CashMovement" WHERE shiftId=? AND type=?', accepted.shiftId, CashMovementType.OPENING_FLOAT)?.amount), 920)
-
-const event = seed.one('SELECT type, shiftId, actorUserId, payloadJson FROM "CustodyEvent" WHERE handoverId=? ORDER BY id DESC LIMIT 1', handover.id)
-eq('رویداد حسابرسی پذیرشِ با مغایرت را متمایز می‌کند', event?.type, 'HANDOVER_ACCEPT_WITH_DIFFERENCE')
-eq('رویداد مغایرت به segment پیشین وصل می‌ماند', event?.shiftId, opened.shiftId)
-eq('رویداد را شخصِ واقعیِ تحویل‌گیرنده امضا کرده است', event?.actorUserId, receiver)
-const payload = JSON.parse(event?.payloadJson ?? '{}')
-eq('رویداد اختلاف را به مسئولیت prior segment منتسب می‌کند', payload.differenceAttributedToUserId, giver)
-eq('رویداد دلیل کامل را نگه می‌دارد', payload.differenceReason, reason)
-
-// Cancellation is the only alternate exit from a durable blind-count freeze.
-const cancelable = await custodyService.handoverStart({ password: 'Receiver3754!', countedCash: 920, toUserId: giver, idempotencyKey: 's375-cancel-frozen' })
-await rejects('مغایرت دوم نیز پیش از دلیل در freeze می‌ماند', 'HANDOVER_DIFFERENCE_REASON_REQUIRED', () => custodyService.handoverAccept({ handoverId: cancelable.id, password: 'Giver3754!', countedCash: 850 }))
-eq('لغوپذیر بودن freeze فروش را باز نمی‌کند', (await custodyService.status()).state, 'HANDOVER_RECOUNT')
-await custodyService.handoverCancel({ handoverId: cancelable.id, password: 'Receiver3754!' })
-eq('لغو با PIN تحویل‌دهنده مسئولیت را فقط به segment قبلی بازمی‌گرداند', (await custodyService.status()).custodian?.id, receiver)
-eq('لغو evidence شمارشِ خروج را پاک نمی‌کند', Number(seed.one('SELECT COUNT(*) AS n FROM "CustodyCount" WHERE shiftId=? AND kind=?', accepted.shiftId, 'HANDOVER_OUT')?.n ?? 0), 1)
-eq('شمارش blind پیش از لغو نیز قابل ممیزی می‌ماند', Number(seed.one('SELECT COUNT(*) AS n FROM "CustodyCount" WHERE handoverId=? AND kind=?', cancelable.id, 'HANDOVER_RECOUNT_DIFFERENCE_PENDING')?.n ?? 0), 1)
-eq('لغو فریز رویداد متمایز append-only دارد', seed.one('SELECT type FROM "CustodyEvent" WHERE handoverId=? ORDER BY id DESC LIMIT 1', cancelable.id)?.type, 'HANDOVER_DIFFERENCE_FROZEN_CANCELED')
-
-const custodyUi = readFileSync(new URL('../../src/renderer/src/components/CustodyChip.tsx', import.meta.url), 'utf8')
-eq('UI دلیل مغایرت را به IPC رسمی می‌فرستد', custodyUi.includes('differenceReason: note.trim() || undefined'), true)
-eq('UI اختلاف فریز‌شده را برای همان شمارش ادامه می‌دهد، نه بازگشایی فروش', custodyUi.includes('normalHandoverDifferencePending') && custodyUi.includes('ثبت دلیل و تکمیل تحویل'), true)
-
-console.log(`\n${bad === 0 ? '✓' : '✗'} ${ok} بررسی موفق · ${bad} ناموفق`)
-process.exitCode = bad ? 1 : 0
+const next = await custodyService.handoverStart({ password: 'Receiver3754!', operationalTotal: 920, blueReference: true, toUserId: giver, idempotencyKey: 's375:cancel-second-count' })
+await custodyService.handoverCountBlue({ handoverId: next.id, password: 'Giver3754!', operationalTotal: 850 })
+eq('اختلاف دوم هم فروش را قفل نمی‌کند', (await custodyService.actorForFinancialOperation()).expectedShiftId, accepted.shiftId)
+await custodyService.handoverCancel({ handoverId: next.id, password: 'Receiver3754!' })
+eq('لغو، مسئول پیشین را بدون بازاستفاده از شمارش دوم نگه می‌دارد', (await custodyService.status()).custodian?.id, receiver)
+eq('دو شاهد تلاش لغوشده همچنان موجودند', seed.count('CustodyBlueSnapshot', 'handoverId=?', next.id), 2)
+eq('تلاش لغو، تحویل تکمیل‌شده به شخص تازه نیست', seed.one('SELECT status FROM "CustodyHandover" WHERE id=?', next.id)?.status, 'CANCELED')
+const ui = readFileSync(new URL('../../src/renderer/src/components/CustodyChip.tsx', import.meta.url), 'utf8')
+eq('رابط کاربر شمارش گیرنده و تأیید او را جدا درخواست می‌کند', ui.includes('CH.custodyHandoverCountBlue') && ui.includes('CH.custodyHandoverConfirmBlue'), true)
+console.log(`\n✓ ${ok} checks passed`)

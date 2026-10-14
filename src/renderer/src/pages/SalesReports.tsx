@@ -61,6 +61,7 @@ import {
 } from '../components/ResizableColumns'
 import { faDigits, money, isValidJalaliDate } from '@shared/jalali'
 import { physicalMoneyInDrawerAndCard, returnCreditAmountOf } from '@shared/accounting'
+import type { CustodyReference } from '@shared/custodyReference'
 import { buildNetToDrawer, splitDrawerPos } from '@shared/cashExplainer'
 import { DrawerVsPosSplit } from '../components/cash/DrawerVsPosSplit'
 import FinancialInspector from '../components/cash/FinancialInspector'
@@ -1267,7 +1268,9 @@ export default function SalesReports() {
     {
       label:
         `کنترل کارت‌خوان و صندوق — نقدی ${money(t.cashTotal)} · کارت ${money(summary.cardTotal)} · ` +
-        `اعتباری ${money(t.creditTotal)} ⇒ ${money(summary.realCash)} ریال باید در صندوق و کارت‌خوان باشد.` +
+        (report.custodyReference?.status === 'PENDING_RECONCILIATION'
+          ? `مرجع قطعی در انتظار تطبیق است؛ بخش معلوم ${report.custodyReference.knownSubtotal == null ? 'نامعلوم' : money(report.custodyReference.knownSubtotal)} ریال، پرداخت اعتباری قدیمیِ مبهم ${report.custodyReference.ambiguousLegacyCredit == null ? 'نامعلوم' : money(report.custodyReference.ambiguousLegacyCredit)} ریال.`
+          : `اعتباری ${money(t.creditTotal)} ⇒ ${money(summary.realCash)} ریال مرجع گزارش برای صندوق و کارت‌خوان.`) +
         // کار الف: این دو عدد عمداً بیرون از «باید در صندوق و کارت‌خوان باشد» گزارش می‌شوند
         (summary.managerTotal > 0
           ? ` · ${MANAGER_ACCOUNT_ROW_LABEL} ${money(summary.managerTotal)} ریال — ${MANAGER_ACCOUNT_ROW_NOTE}.`
@@ -2936,6 +2939,7 @@ export default function SalesReports() {
           managerAccountTotal={t.managerAccountTotal}
           destinationUnknownTotal={t.destinationUnknownTotal}
           realCash={summary.realCash}
+          custodyReference={report.custodyReference}
           nonCash={summary.nonCash}
           creditRefundTotal={summary.creditRefundTotal}
           creditUsedTotal={summary.creditUsedTotal}
@@ -3091,6 +3095,7 @@ function SaleSummaryBlock({
   managerAccountTotal = 0,
   destinationUnknownTotal = 0,
   realCash,
+  custodyReference,
   nonCash,
   creditRefundTotal,
   creditUsedTotal,
@@ -3122,6 +3127,7 @@ function SaleSummaryBlock({
   managerAccountTotal?: number
   destinationUnknownTotal?: number
   realCash: number
+  custodyReference?: CustodyReference
   nonCash: number
   creditRefundTotal: number
   creditUsedTotal: number
@@ -3289,6 +3295,7 @@ function SaleSummaryBlock({
           other={split.other}
           managerOutside={split.managerOutside}
           realCash={realCash}
+          custodyReference={custodyReference}
           cashTotal={cashTotal}
           cardTotal={cardTotal}
           refundCashTotal={refundCashTotal}
@@ -3351,6 +3358,7 @@ function SaleSummaryBlock({
           }}
           statements={statements}
           referenceRealCash={realCash}
+          custodyReference={custodyReference}
           split={split}
           bridgeAlarm={netToDrawer.alarm}
           initialFocus={financialInspectorFocus}

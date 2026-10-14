@@ -2138,6 +2138,10 @@ model CustodyState {
   activeShiftId     Int?
   pendingHandoverId Int?
   epoch             Int      @default(0)
+  /// Monotonic SQLite-triggered revision of financial rows, independent of
+  /// state epoch. A sale between blind counts invalidates that attempt only;
+  /// it never prevents the sale or transfers its owner prematurely.
+  financialRevision Int      @default(0)
   updatedAt         DateTime @updatedAt
 }
 
@@ -2258,8 +2262,78 @@ model CustodyHandover {
   finishedAt              DateTime?
   version                 Int      @default(1)
   operationalDay          String
+  blueSnapshots           CustodyBlueSnapshot[]
 
   @@index([fromShiftId])
+}
+
+/// Immutable, blind count and full-scope blue-reference evidence. Historical
+/// custody aggregates/counts retain their prior cash-only / aggregate meaning.
+/// A null reference or variance means unknown, NEVER a presumed zero.
+model CustodyBlueSnapshot {
+  id                       Int      @id @default(autoincrement())
+  handoverId               Int?
+  handover                 CustodyHandover? @relation(fields: [handoverId], references: [id], onDelete: Restrict)
+  shiftId                  Int
+  /// OUT | IN | OPENING | RECOVERY | FINAL_CLOSE | ...
+  role                     String
+  actorUserId              Int
+  authMethod               String
+  countOrigin              String
+  humanAmount              BigInt?
+  arithmeticAmount         BigInt?
+  referenceFromDay         String
+  referenceToDay           String
+  /// PRIOR_AND_TODAY | TODAY; this is a comparable lineage, not a shifted sum.
+  scopeKind                String
+  referenceStatus          String
+  referenceAmount          BigInt?
+  knownSubtotal            BigInt?
+  ambiguousLegacyCredit    BigInt?
+  calculationVersion       String
+  sourceScope              String?
+  sourceHash               String?
+  financialRevision        Int
+  epochAtCount             Int
+  priorSnapshotId          Int?
+  rawDifference            BigInt?
+  inheritedDifference      BigInt?
+  freshDifference          BigInt?
+  freshStatus              String
+  idempotencyKey           String   @unique
+  operationalDay           String
+  at                       DateTime @default(now())
+  resolutions              CustodyBlueResolution[]
+
+  @@unique([handoverId, role])
+  @@index([shiftId, at])
+  @@index([operationalDay, role, at])
+  @@index([priorSnapshotId])
+}
+
+/// Each manager decision is a NEW row attached to the ORIGINAL snapshot.
+/// It never edits the old blue value, payment, count, day or responsibility.
+model CustodyBlueResolution {
+  id                      Int      @id @default(autoincrement())
+  snapshotId              Int
+  snapshot                CustodyBlueSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
+  managerUserId           Int
+  authMethod              String
+  /// RECEIVED_CASH | RECEIVED_CARD | NOT_RECEIVED
+  decisionKind            String
+  evidenceDay             String
+  evidenceReference       String
+  reason                  String
+  ambiguousAmount         BigInt
+  effectiveReferenceAmount BigInt
+  resolvedRawDifference   BigInt?
+  resolvedFreshDifference BigInt?
+  freshStatus             String
+  idempotencyKey          String   @unique
+  at                      DateTime @default(now())
+
+  @@index([snapshotId, at])
+  @@index([managerUserId, at])
 }
 
 model CustodyResolution {

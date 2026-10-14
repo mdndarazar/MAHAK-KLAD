@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { faDigits, money } from '@shared/jalali'
 import type { NetToDrawerAlarm } from '@shared/cashExplainer'
+import type { CustodyReference } from '@shared/custodyReference'
 
 export interface DrawerVsPosSplitProps {
   drawer: number
@@ -9,6 +10,8 @@ export interface DrawerVsPosSplitProps {
   managerOutside?: number
   /** عدد مرجعِ فعلی گزارش؛ لزوماً معادل شمارش اسکناس کشو نیست. */
   realCash: number
+  /** Pending is not an official zero or a trustworthy blue amount. */
+  custodyReference?: CustodyReference
   cashTotal: number
   cardTotal: number
   refundCashTotal: number
@@ -55,6 +58,7 @@ export const DrawerVsPosSplit: React.FC<DrawerVsPosSplitProps> = ({
   other,
   managerOutside = 0,
   realCash,
+  custodyReference,
   cashTotal,
   cardTotal,
   refundCashTotal,
@@ -282,9 +286,22 @@ export const DrawerVsPosSplit: React.FC<DrawerVsPosSplitProps> = ({
 
       <div className="bg-white/80 border border-sky-300 rounded-lg p-2.5 flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-bold text-slate-900">عدد مرجع فعلی گزارش برای کنترل صندوق و کارت‌خوان:</span>
-          <b className="text-lg font-black text-sky-950" dir="ltr">{money(realCash)}</b>
-          <span className="text-sm font-normal text-slate-600">ریال</span>
+          {custodyReference?.status === 'PENDING_RECONCILIATION' ? (
+            <>
+              <span className="font-bold text-amber-900">عدد مرجع فعلی گزارش: در انتظار تطبیق</span>
+              {custodyReference.knownSubtotal != null && <span>بخش معلوم: <b dir="ltr">{money(custodyReference.knownSubtotal)}</b> ریال</span>}
+              {custodyReference.ambiguousLegacyCredit != null && custodyReference.ambiguousLegacyCredit > 0 && (
+                <span>پرداخت اعتباری قدیمی با منشأ نامعلوم: <b dir="ltr">{money(custodyReference.ambiguousLegacyCredit)}</b> ریال</span>
+              )}
+              <span className="text-sm text-amber-900">تا روشن‌شدن منشأ، هیچ مغایرت قطعی از این مبلغ ساخته نمی‌شود.</span>
+            </>
+          ) : (
+            <>
+              <span className="font-bold text-slate-900">عدد مرجع فعلی گزارش برای کنترل صندوق و کارت‌خوان:</span>
+              <b className="text-lg font-black text-sky-950" dir="ltr">{money(custodyReference?.referenceAmount ?? realCash)}</b>
+              <span className="text-sm font-normal text-slate-600">ریال</span>
+            </>
+          )}
         </div>
 
         {onToggleNonCash && nonCash > 0 && (
@@ -300,7 +317,7 @@ export const DrawerVsPosSplit: React.FC<DrawerVsPosSplitProps> = ({
         )}
       </div>
 
-      {hasDiscrepancy && (
+      {hasDiscrepancy && (custodyReference?.status !== 'PENDING_RECONCILIATION' || discrepancyKind === 'CHAIN_COMPOSITION') && (
         <div className="mt-2 p-2 bg-rose-50 border border-rose-300 rounded text-rose-800 text-xs font-bold flex items-center justify-between gap-2 flex-wrap" role="status">
           <div className="flex items-center gap-1.5">
             <span aria-hidden="true">⚠️</span>
