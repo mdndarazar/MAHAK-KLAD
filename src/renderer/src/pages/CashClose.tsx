@@ -7,7 +7,7 @@ import ReportFilterBar, { todayFilters, toServiceFilter, type ReportFilters } fr
 import ConfirmDialog from '../components/ConfirmDialog'
 import ShiftDetailModal from '../components/ShiftDetailModal'
 import ShiftSessionModal, { type SessionMode } from '../components/ShiftSessionModal'
-import { faDigits, money, isValidJalaliDate, jalaliStartOfDay, jalaliEndOfDay } from '@shared/jalali'
+import { faDigits, money, isValidJalaliDate, jalaliStartOfDay, jalaliEndOfDay, parseRequiredRialAmount } from '@shared/jalali'
 import type { SaleReportResult, SaleReportRow, ShiftInfo } from '@shared/types'
 /**
  * کار الف — سه ستون مقصد پول. هیچ عددی در این صفحه جمع نمی‌شود؛ تنها جای تبدیل
@@ -122,6 +122,7 @@ type CustodyTimeline = {
     expectedAtStart: number | bigint | null
     countedAtStart: number | bigint
     differenceCash: number | bigint | null
+    unbasedAdoption?: boolean
     resolutionKind: string | null
   }>
   blueBoundaries: BlueBoundaryView[]
@@ -282,7 +283,8 @@ export default function CashClose() {
    * می‌آید، چون اگر همین یک تفریق را هم اینجا می‌نوشتیم، می‌شد «فرمول دومِ
    * renderer» که صریحاً ممنوع است.
    */
-  const [expected, setExpected] = useState<any | null>(null)
+  const [expectedResult, setExpected] = useState<any | null>(null)
+  const expectedRequest = useRef(0)
   /** موجودی اول صندوق (اگر کاربر بخواهد همین‌جا واردش کند) */
   const [openingFloat, setOpeningFloat] = useState<string>('')
   // ---- فرم ثبت برداشت / واریز / موجودی اول ----
@@ -472,22 +474,30 @@ export default function CashClose() {
    */
   const loadExpected = useCallback(
     async (countedValue: number | null, openingValue: number | null) => {
-      try {
-        setExpected(
-          await call<any>(CH.cashboxExpected, {
-            shiftId: effectiveShiftId,
-            fromJalali: filters.fromJalali,
-            toJalali: filters.toJalali,
-            countedCash: countedValue,
-            openingFloat: openingValue
-          })
-        )
-      } catch (e: any) {
+      const request = ++expectedRequest.current
+      // Invalid text is neither an omitted count nor an explicit zero. Do not
+      // preview it as null/zero, and ignore an older in-flight preview.
+      if ((counted.trim() && countedValue == null) || (openingFloat.trim() && openingValue == null)) {
         setExpected(null)
-        setErr(e.message)
+        return
+      }
+      try {
+        const result = await call<any>(CH.cashboxExpected, {
+          shiftId: effectiveShiftId,
+          fromJalali: filters.fromJalali,
+          toJalali: filters.toJalali,
+          countedCash: countedValue,
+          openingFloat: openingValue
+        })
+        if (request === expectedRequest.current) setExpected(result)
+      } catch (e: any) {
+        if (request === expectedRequest.current) {
+          setExpected(null)
+          setErr(e.message)
+        }
       }
     },
-    [effectiveShiftId, filters.fromJalali, filters.toJalali]
+    [effectiveShiftId, filters.fromJalali, filters.toJalali, counted, openingFloat]
   )
 
   const load = useCallback(async () => {
@@ -545,8 +555,13 @@ export default function CashClose() {
    * فرمول قبلی برای ردیابی: (t?.cashTotal ?? 0) + (t?.cardTotal ?? 0) + (t?.otherTotal ?? 0) + (t?.creditTotal ?? 0)
    */
   const boxTotal = t?.cashTotal ?? 0
-  const countedNum = counted.trim() === '' ? null : Math.round(Number(counted.replace(/[^0-9-]/g, '')) || 0)
-  const openingFloatNum = openingFloat.trim() === '' ? null : Math.round(Number(openingFloat.replace(/[^0-9]/g, '')) || 0)
+  // Blank count remains optional in the legacy close path. A nonblank invalid
+  // count must never become a fabricated zero (or turn 1.5 into 15).
+  const countedNum = counted.trim() === '' ? null : parseRequiredRialAmount(counted)
+  const openingFloatNum = openingFloat.trim() === '' ? null : parseRequiredRialAmount(openingFloat)
+  const invalidCounted = counted.trim() !== '' && countedNum == null
+  const invalidOpeningFloat = openingFloat.trim() !== '' && openingFloatNum == null
+  const expected = invalidCounted || invalidOpeningFloat ? null : expectedResult
   /**
    * ---- بند ۱۶ — «انتظاری» و «مغایرت»، هر دو از `accounting.ts` ----
    *   expectedCash = موجودی اول + نقد دریافتی + چک پاس‌شده + وصول نسیه‌ی قبل
@@ -591,8 +606,7 @@ export default function CashClose() {
   useEffect(() => {
     const timer = window.setTimeout(() => void loadExpected(countedNum, openingFloatNum), 400)
     return () => window.clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [countedNum, openingFloatNum, effectiveShiftId, filters.fromJalali, filters.toJalali])
+  }, [loadExpected, countedNum, openingFloatNum])
 
   /** ثبت یک گردش نقدی دستی (موجودی اول / واریز / برداشت). */
   const addMovement = async () => {
@@ -619,6 +633,11 @@ export default function CashClose() {
   }
 
   const doClose = async (allowRepeatClose = false) => {
+    if (invalidCounted || invalidOpeningFloat) {
+      setConfirmClose(false)
+      setErr(invalidCounted ? 'شمارش نقدی معتبر نیست؛ عدد صحیحِ صفر یا مثبت وارد کنید یا فیلد را کاملاً خالی بگذارید.' : 'موجودی اول معتبر نیست؛ عدد صحیحِ صفر یا مثبت وارد کنید یا فیلد را کاملاً خالی بگذارید.')
+      return
+    }
     setConfirmClose(false)
     setBusy(true)
     try {
@@ -851,16 +870,14 @@ export default function CashClose() {
                 }
               ]
             : []),
-          { label: 'نقد انتظاری داخل کشو', value: money(expectedCash ?? boxTotal), bold: true },
-          ...(countedNum != null
+          { label: 'نقد انتظاری داخل کشو', value: invalidCounted || invalidOpeningFloat ? '— (ورودی مبلغ نامعتبر)' : money(expectedCash ?? boxTotal), bold: true },
+          ...(countedNum != null && !invalidOpeningFloat
             ? [
                 { label: 'شمارش نقدی کشو', value: money(countedNum) },
-                {
-                  label:
-                    diffState === 'SHORTAGE' ? 'کسری صندوق' : diffState === 'OVERAGE' ? 'اضافه‌ی صندوق' : 'مغایرت',
-                  value: money(diff ?? 0),
-                  bold: true
-                }
+                ...(diff != null ? [{
+                  label: diffState === 'SHORTAGE' ? 'کسری صندوق' : diffState === 'OVERAGE' ? 'اضافه‌ی صندوق' : 'مغایرت',
+                  value: money(diff), bold: true
+                }] : [])
               ]
             : [])
         ]
@@ -983,7 +1000,7 @@ export default function CashClose() {
             </div>)}
           </div> : <p className="text-sm text-slate-600">{shift ? 'برای این نشست، segment حضانت ثبت نشده است.' : 'در بازهٔ اخیر segment حضانتی ثبت نشده است.'}</p>}
           {custodyHandovers.length ? <div className="border-t border-indigo-200 pt-3"><h3 className="font-bold text-sm mb-2">تحویل‌ها</h3><div className="space-y-1 text-sm">
-            {custodyHandovers.map((handover) => <div key={handover.id} className="rounded bg-white border border-indigo-100 px-2 py-1">تحویل‌دهنده: <b>{handover.fromUser ?? '—'}</b> · گیرندهٔ انتخابی: {handover.selectedRecipient ?? '—'} · دریافت‌کنندهٔ نهایی: <b>{handover.finalCustodian ?? '—'}</b> · {handover.status}</div>)}
+            {custodyHandovers.map((handover) => <div key={handover.id} className="rounded bg-white border border-indigo-100 px-2 py-1">تحویل‌دهنده: <b>{handover.fromUser ?? '—'}</b> · گیرندهٔ انتخابی: {handover.selectedRecipient ?? '—'} · دریافت‌کنندهٔ نهایی: <b>{handover.finalCustodian ?? '—'}</b> · {handover.status}{handover.unbasedAdoption ? <div className="text-amber-800">مبنای قبلی نامعلوم؛ شمارش گیرنده آغاز بخش تازه است، نه اثبات اختلاف صفر.</div> : null}</div>)}
           </div></div> : null}
           <CustodyBlueEvidence blueBoundaries={custodyTimeline.blueBoundaries ?? []} handovers={custodyHandovers} />
           <div className="border-t border-indigo-200 pt-3"><h3 className="font-bold text-sm mb-1">عملیات POS همان مسئولیت کشو نیست</h3><p className="text-xs text-indigo-800 mb-2">در اینجا فقط سند مستقل اپراتورِ ثبت‌شده نمایش داده می‌شود؛ مسئول مالی/فیزیکی کشو همچنان مسئول همان segment است. فاکتورهای قدیمی فاقد سند اپراتور ممکن است در این فهرست نباشند؛ هویت آن اپراتور از نام مسئول کشو یا فاکتور حدس زده نمی‌شود و قابل اثبات نیست.</p>
@@ -1406,7 +1423,8 @@ export default function CashClose() {
         </div>
         <label>
           <div className="kbd">موجودی اول صندوق (اگر ثبت نشده)</div>
-          <input className="inp w-40" dir="ltr" value={openingFloat} onChange={(e) => setOpeningFloat(e.target.value)} />
+          <input className="inp w-40" dir="ltr" value={openingFloat} aria-invalid={invalidOpeningFloat} onChange={(e) => setOpeningFloat(e.target.value)} />
+          {invalidOpeningFloat && <div className="text-xs text-rose-700">عدد صحیحِ صفر یا مثبت وارد کنید؛ اعشار و علامت مجاز نیست.</div>}
         </label>
         <div>
           <div className="kbd">نقد انتظاری (فرمول بالا)</div>
@@ -1414,7 +1432,8 @@ export default function CashClose() {
         </div>
         <label>
           <div className="kbd">شمارش نقدی کشو</div>
-          <input className="inp w-40" dir="ltr" value={counted} onChange={(e) => setCounted(e.target.value)} />
+          <input className="inp w-40" dir="ltr" value={counted} aria-invalid={invalidCounted} onChange={(e) => setCounted(e.target.value)} />
+          {invalidCounted && <div className="text-xs text-rose-700">عدد صحیحِ صفر یا مثبت وارد کنید؛ اعشار و علامت مجاز نیست.</div>}
         </label>
         {diff != null && (
           <div>
@@ -1473,8 +1492,8 @@ export default function CashClose() {
         <button
           className="btn btn-primary"
           onClick={() => setConfirmClose(true)}
-          disabled={custodyGoverned !== false || busy || (needsNote && !note.trim())}
-          title={custodyGoverned !== false ? custodyGoverned ? 'در حالت حضانت، بستن نهایی فقط با رمز مسئول در کنترل «صندوق» نوار بالا انجام می‌شود.' : 'تا مشخص شدن وضعیت حضانت، بستن قدیمی صندوق برای ایمنی غیرفعال است.' : needsNote && !note.trim() ? 'اول دلیل مغایرت را در یادداشت بنویسید' : undefined}
+          disabled={custodyGoverned !== false || busy || invalidCounted || invalidOpeningFloat || (needsNote && !note.trim())}
+          title={custodyGoverned !== false ? custodyGoverned ? 'در حالت حضانت، بستن نهایی فقط با رمز مسئول در کنترل «صندوق» نوار بالا انجام می‌شود.' : 'تا مشخص شدن وضعیت حضانت، بستن قدیمی صندوق برای ایمنی غیرفعال است.' : invalidCounted || invalidOpeningFloat ? 'عدد نامعتبر را اصلاح یا فیلد را کاملاً خالی کنید.' : needsNote && !note.trim() ? 'اول دلیل مغایرت را در یادداشت بنویسید' : undefined}
         >
           بستن صندوق
         </button>

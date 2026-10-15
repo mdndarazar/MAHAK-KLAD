@@ -133,19 +133,50 @@ try { await custodyBlueResolutionService.resolve({ ...proofCash, snapshotId: thi
   idempotencyKey: 's430:decision:wrong-day' }) } catch (error) { outOfRangeCode = error?.code }
 eq('destination proof from outside original day is rejected', outOfRangeCode, 'BLUE_EVIDENCE_OUT_OF_SCOPE')
 eq('wrong-day proof did not create decision', seed.count('CustodyBlueResolution', 'snapshotId=?', third.id), 0)
-const bothProof = await custodyBlueResolutionService.resolve({ ...proofCash, snapshotId: third.id,
-  decisionKind: 'NOT_RECEIVED', destinationDecisionKind: 'RECEIVED_CARD',
+// The real renderer sends BOTH proof components through this IPC. Manager
+// session must remain mandatory; Persian/unpadded dates must be compared and
+// stored in the frozen day's canonical form without rewriting the snapshot.
+const electron = await import('electron')
+const handlers = new Map()
+electron.ipcMain.handle = (channel, handler) => handlers.set(channel, handler)
+electron.BrowserWindow.fromWebContents = () => ({ isDestroyed: () => false })
+electron.BrowserWindow.getFocusedWindow = () => null
+electron.BrowserWindow.getAllWindows = () => []
+const sender = { id: 430, isDestroyed: () => false, once: () => {} }
+const { registerIpcHandlers } = await import('../../src/main/ipc/index.ts')
+const { IPC } = await import('@shared/ipc')
+registerIpcHandlers()
+const invoke = (channel, payload) => handlers.get(channel)({ sender }, payload)
+const farsiDay = today.replace(/\d/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)])
+const unpaddedFarsiDay = today.split('/').map((part, index) => index ? String(Number(part)) : part).join('/')
+  .replace(/\d/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)])
+const mixedPayload = { ...proofCash, snapshotId: third.id,
+  decisionKind: 'NOT_RECEIVED', evidenceDay: unpaddedFarsiDay,
+  destinationDecisionKind: 'RECEIVED_CARD', destinationEvidenceDay: farsiDay,
   destinationEvidenceReference: 'POS receipt 430002 from same handover day',
-  reason: 'چک در کارت‌خوان وصول شد؛ اعتبار جداگانه دریافت نشده است', idempotencyKey: 's430:decision:mixed' })
+  reason: 'چک در کارت‌خوان وصول شد؛ اعتبار جداگانه دریافت نشده است', idempotencyKey: 's430:decision:mixed' }
+eq('manager IPC rejects proof before manager-session authentication', (await invoke(IPC.custodyBlueResolve, mixedPayload)).ok, false)
+eq('unauthenticated IPC cannot create a decision', seed.count('CustodyBlueResolution', 'snapshotId=?', third.id), 0)
+eq('manager session is authenticated in Main', (await invoke(IPC.managerVerify, { password: '1111' })).ok, true)
+eq('out-of-scope Persian destination date is rejected over IPC',
+  (await invoke(IPC.custodyBlueResolve, { ...mixedPayload, destinationEvidenceDay: '۱۴۰۰/۰۱/۰۱' })).ok, false)
+eq('rejected IPC proof creates no decision', seed.count('CustodyBlueResolution', 'snapshotId=?', third.id), 0)
+const mixedResponse = await invoke(IPC.custodyBlueResolve, mixedPayload)
+eq('manager IPC forwards both proof components', mixedResponse.ok, true)
+const bothProof = mixedResponse.data
 eq('mixed proof adds only the proved destination receipt', bothProof.referenceAmount, 501_000_000)
 const decisionRow = seed.one('SELECT * FROM "CustodyBlueResolution" WHERE snapshotId=?', third.id)
 eq('decision records separate destination kind', decisionRow.destinationDecisionKind, 'RECEIVED_CARD')
 eq('decision records separate destination amount', Number(decisionRow.destinationAmbiguousAmount), 1_000_000)
 eq('decision records separate destination document', decisionRow.destinationEvidenceReference, 'POS receipt 430002 from same handover day')
+eq('Persian/unpadded credit proof day is stored canonically', decisionRow.evidenceDay, today)
+eq('Persian destination proof day is stored canonically', decisionRow.destinationEvidenceDay, today)
 eq('decision retains credit choice separately', decisionRow.decisionKind, 'NOT_RECEIVED')
+const canonicalReplay = await invoke(IPC.custodyBlueResolve, { ...mixedPayload, evidenceDay: today, destinationEvidenceDay: today })
+eq('same decision replays with either date script', canonicalReplay.ok && canonicalReplay.data.replayed, true)
+eq('mixed decision remains append-only after replay', seed.count('CustodyBlueResolution', 'snapshotId=?', third.id), 1)
 eq('original mixed snapshot is unchanged', seed.one('SELECT referenceAmount FROM "CustodyBlueSnapshot" WHERE id=?', third.id).referenceAmount, null)
 const { notePanelUnlocked } = await import('../../src/main/services/panelSession.ts')
-const electron = await import('electron')
 electron.BrowserWindow.getFocusedWindow = () => null
 electron.BrowserWindow.getAllWindows = () => []
 const path = join(dir, 'destination-proofs.csv')

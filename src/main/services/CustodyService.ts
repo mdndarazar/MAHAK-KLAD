@@ -4,7 +4,7 @@ import { BusinessError } from '../errors'
 import { audit, auditOrThrow } from './AuditService'
 import { AuditAction } from '@shared/enums'
 import { DEFAULT_CUSTODY_CONFIG, parseCustodyConfig, parseShiftConfig, SETTING_KEYS, type CustodyConfig, type ShiftConfig, type ShiftTemplate } from '@shared/receipt'
-import { toJalaliDate, jalaliStartOfDay, jalaliEndOfDay, isValidJalaliDate, toLatinDigits } from '@shared/jalali'
+import { toJalaliDate, jalaliStartOfDay, jalaliEndOfDay, isValidJalaliDate, toLatinDigits, parseRequiredRialAmount } from '@shared/jalali'
 import { observationOf, absenceUncounted, isAbsentUncounted } from '@shared/custodyPeriod'
 import { compareCustodyPeerCounts } from '@shared/custodyPeerCount'
 import { pendingCustodyReference, CUSTODY_REFERENCE_LEGACY_VERSION } from '@shared/custodyReference'
@@ -48,8 +48,8 @@ function asCash(value: unknown, label = 'مبلغ'): number {
    * silently become a cash count. Zero is accepted only when it was explicit. */
   if (value == null || (typeof value === 'string' && !value.trim()) || (typeof value !== 'number' && typeof value !== 'string'))
     throw new BusinessError(`${label} را صریحاً به‌صورت یک عدد صحیحِ صفر یا مثبت وارد کنید.`)
-  const n = typeof value === 'string' ? Number(value.trim()) : value
-  if (!Number.isSafeInteger(n) || n < 0) throw new BusinessError(`${label} باید یک عدد صحیحِ صفر یا مثبت باشد.`)
+  const n = typeof value === 'string' ? parseRequiredRialAmount(value) : value
+  if (n == null || !Number.isSafeInteger(n) || n < 0) throw new BusinessError(`${label} باید یک عدد صحیحِ صفر یا مثبت باشد.`)
   return n
 }
 
@@ -1039,7 +1039,10 @@ function custodyAuditExportRows(report: any): CustodyAuditExportCell[][] {
       row.blue ? outgoingAbsent ? 'پوشش غیبت؛ خروج بدون شمارش' : 'تحویل آبی' : 'تحویل',
       custodyAuditExportTime(row.startedAt), shift, owner,
       custodyAuditExportAmount(row.countedAtStart), custodyAuditExportAmount(row.expectedAtStart),
-      custodyAuditExportAmount(row.differenceCash), row.status ?? null, row.resolutionKind ?? null
+      custodyAuditExportAmount(row.differenceCash), row.status ?? null,
+      row.unbasedAdoption
+        ? `${row.resolutionKind ?? 'تحویل'} · مبنای قبلی نامعلوم؛ شمارش گیرنده مبنای تازه است و اختلاف قابل استنتاج نیست`
+        : row.resolutionKind ?? null
     ])
     if (row.blue) {
       const blue = row.blue
@@ -1648,6 +1651,18 @@ export const custodyService = {
       }),
       handovers: handovers.map((row: any) => {
         const isBlue = blueIds.includes(row.id)
+        /** In a completed pre-blue aggregate handover with no prior baseline,
+         * ADOPT_RECEIVER used the receiver's own count as a neutral starting
+         * point. Its stored expected=count and difference=0 are NOT a measured
+         * reconciliation. Keep the immutable row, but do not show those two
+         * placeholders as financial evidence in the report or its CSV. */
+        const unbasedAdoption = (() => {
+          if (isBlue || row.status !== 'COMPLETED') return false
+          try {
+            const watermark = JSON.parse(String(row.ledgerWatermark ?? '{}'))
+            return watermark.aggregateMode === true && watermark.aggregateBootstrap === 'ADOPT_RECEIVER'
+          } catch { return false }
+        })()
         const pair = blueByHandover.get(row.id)
         const frozen = pair?.IN ?? pair?.OUT
         const decision: any = pair?.IN ? decisionBySnapshot.get(pair.IN.id) : null
@@ -1696,13 +1711,16 @@ export const custodyService = {
           fromUser: userName.get(row.fromUserId) ?? null,
           selectedRecipient: userName.get(row.selectedRecipientUserId) ?? null,
           finalCustodian: row.finalCustodianUserId ? userName.get(row.finalCustodianUserId) ?? null : null,
-          /** Never project the historical 0 placeholders as blue evidence. */
-          expectedAtStart: isBlue ? null : row.expectedAtStart,
+          /** Neither blue's bridge columns nor a neutral aggregate adoption
+           * prove an expected amount/difference. Other legacy handovers retain
+           * their stored, measured comparison unchanged. */
+          expectedAtStart: isBlue || unbasedAdoption ? null : row.expectedAtStart,
           // Outgoing never attested a count on an absence. Old cash-era bridge
           // columns must not present the arriving worker's IN amount as OUT.
           countedAtStart: isBlue && pair?.OUT && isAbsentUncounted(pair.OUT.countOrigin)
             ? null : row.countedAtStart,
-          differenceCash: isBlue ? null : row.differenceCash,
+          differenceCash: isBlue || unbasedAdoption ? null : row.differenceCash,
+          unbasedAdoption,
           resolutionKind: row.resolutionKind, blue }
       }),
       resolutions: resolutions.map((row: any) => ({ id: row.id, shiftId: row.shiftId, status: row.status, evidence: row.evidence, openedAt: row.openedAt, resolvedAt: row.resolvedAt, nightExpectedCash: row.nightExpectedCash, provisionalDifference: row.provisionalDifference, differenceAttribution: row.differenceAttribution, attributedToName: row.attributedToUserId ? userName.get(row.attributedToUserId) ?? null : null, decisionByName: row.decisionByUserId ? userName.get(row.decisionByUserId) ?? null : null, decisionReason: row.decisionReason })),

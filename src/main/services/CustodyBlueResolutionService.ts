@@ -1,7 +1,7 @@
 import { prisma } from '../db/client'
 import { BusinessError } from '../errors'
 import { custodyService } from './CustodyService'
-import { isValidJalaliDate } from '@shared/jalali'
+import { normalizeJalaliYmd } from '@shared/jalaliBuckets'
 import { CUSTODY_REFERENCE_VERSION, CUSTODY_REFERENCE_LEGACY_VERSION, type CustodyReference } from '@shared/custodyReference'
 import { observationOf, systemAbsenceZero, absenceUncounted, isAbsentUncounted, type CustodyObservation } from '@shared/custodyPeriod'
 import { resolvedCustodySnapshot, type CustodyBlueDecision, type CustodyCreditDecision } from '@shared/custodyResolution'
@@ -131,8 +131,12 @@ export const custodyBlueResolutionService = {
       throw new BusinessError('نوع تعیین تکلیف پرداخت مبهم نامعتبر است.')
     if (destinationDecisionKind && !proofKinds.includes(destinationDecisionKind))
       throw new BusinessError('نوع تعیین تکلیف مقصد نامشخص نامعتبر است.', 'BLUE_DESTINATION_DECISION_INVALID')
-    const evidenceDay = String(input.evidenceDay ?? input.destinationEvidenceDay ?? '').trim()
-    if (!isValidJalaliDate(evidenceDay)) throw new BusinessError('تاریخ سند اثبات به شکل شمسی معتبر نیست.')
+    // Compare and persist canonical dates, not raw Persian digits or unpadded
+    // months; the frozen snapshot's scope uses yyyy/MM/dd ASCII dates.
+    const evidenceDay = normalizeJalaliYmd(String(input.evidenceDay ?? input.destinationEvidenceDay ?? ''))
+    if (!evidenceDay) throw new BusinessError('تاریخ سند اثبات به شکل شمسی معتبر نیست.')
+    const destinationEvidenceDayInput = String(input.destinationEvidenceDay ?? '').trim()
+    const canonicalDestinationDay = normalizeJalaliYmd(destinationEvidenceDayInput)
     const evidenceReference = textOf(input.evidenceReference ?? input.destinationEvidenceReference, 'مرجع سند اثبات', 8, 300)
     const reason = textOf(input.reason, 'توضیح تصمیم مدیر', 10, 1000)
     const idempotencyKey = String(input.idempotencyKey ?? '').trim()
@@ -161,10 +165,11 @@ export const custodyBlueResolutionService = {
       const already = await tx.custodyBlueResolution.findFirst({ where: { snapshotId }, orderBy: [{ at: 'desc' }, { id: 'desc' }] })
       if (already) {
         if (already.idempotencyKey === idempotencyKey && already.managerUserId === manager.userId &&
-            already.decisionKind === decisionKind && already.evidenceDay === evidenceDay &&
+            already.decisionKind === decisionKind && normalizeJalaliYmd(already.evidenceDay) === evidenceDay &&
             already.evidenceReference === evidenceReference && already.reason === reason &&
             (already.destinationDecisionKind ?? '') === destinationDecisionKind &&
-            (already.destinationEvidenceDay ?? '') === String(input.destinationEvidenceDay ?? '').trim() &&
+            (normalizeJalaliYmd(already.destinationEvidenceDay) ?? already.destinationEvidenceDay ?? '') ===
+              (canonicalDestinationDay ?? destinationEvidenceDayInput) &&
             (already.destinationEvidenceReference ?? '') === String(input.destinationEvidenceReference ?? '').trim())
           return { id: already.id, snapshotId, status: 'RESOLVED' as const, referenceAmount: rialOf(already.effectiveReferenceAmount, 'مرجع حل‌شده'), rawDifference: rialOf(already.resolvedRawDifference, 'اختلاف خام'), freshDifference: rialOf(already.resolvedFreshDifference, 'اختلاف تازه'), replayed: true }
         throw new BusinessError('این سند قبلاً تعیین تکلیف شده است؛ سند اصلی و تصمیم ثبت‌شده قابل بازنویسی نیستند.', 'BLUE_ALREADY_RESOLVED')
@@ -186,10 +191,10 @@ export const custodyBlueResolutionService = {
         throw new BusinessError('پرداخت اعتباری قدیمی نیز سند مستقل می‌خواهد؛ تصمیم فقط دربارهٔ مقصد کافی نیست.', 'BLUE_CREDIT_UNRESOLVED')
       if ((credit === 0 && decisionKind !== 'NO_LEGACY_CREDIT') || (destination === 0 && destinationDecisionKind))
         throw new BusinessError('برای جزء ناموجود سند نمی‌توان تصمیم تازه ساخت.', 'BLUE_COMPONENT_NOT_AMBIGUOUS')
-      const destinationEvidenceDay = destination > 0 ? String(input.destinationEvidenceDay ?? '').trim() : null
+      const destinationEvidenceDay = destination > 0 ? canonicalDestinationDay : null
       const destinationEvidenceReference = destination > 0
         ? textOf(input.destinationEvidenceReference, 'مرجع سند مقصد نامشخص', 8, 300) : null
-      if (destination > 0 && (!isValidJalaliDate(destinationEvidenceDay!) || destinationEvidenceDay! < snapshot.referenceFromDay || destinationEvidenceDay! > snapshot.referenceToDay))
+      if (destination > 0 && (!destinationEvidenceDay || destinationEvidenceDay < snapshot.referenceFromDay || destinationEvidenceDay > snapshot.referenceToDay))
         throw new BusinessError('روز سند اثبات مقصد نامشخص باید در همان بازهٔ مرجع باشد.', 'BLUE_EVIDENCE_OUT_OF_SCOPE')
       const prior = snapshot.priorSnapshotId == null
         ? null : await tx.custodyBlueSnapshot.findUnique({ where: { id: snapshot.priorSnapshotId } })

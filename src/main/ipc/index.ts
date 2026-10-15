@@ -1184,9 +1184,11 @@ export function registerIpcHandlers(): void {
   handle(IPC.custodyBlueResolve, (p) => {
     assertManagerSession('تعیین تکلیف سند مرجع آبیِ تحویل')
     const { snapshotId, managerUserId, password, decisionKind, evidenceDay,
-      evidenceReference, reason, idempotencyKey } = p ?? {}
+      evidenceReference, destinationDecisionKind, destinationEvidenceDay,
+      destinationEvidenceReference, reason, idempotencyKey } = p ?? {}
     return custodyBlueResolutionService.resolve({ snapshotId, managerUserId, password,
-      decisionKind, evidenceDay, evidenceReference, reason, idempotencyKey })
+      decisionKind, evidenceDay, evidenceReference, destinationDecisionKind,
+      destinationEvidenceDay, destinationEvidenceReference, reason, idempotencyKey })
   })
   handle(IPC.custodyShiftReset, (p) => {
     assertManagerSession('ریست بازیابانهٔ شیفت')
