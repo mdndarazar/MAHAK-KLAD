@@ -4533,6 +4533,14 @@ export const salesService = {
     validateSaleInput(input)
     if (!input.id) throw new BusinessError('فاکتوری برای ویرایش مشخص نشده است')
 
+    /** IPC supplies the live actor/fence from Main, not from renderer fields.
+     * Like create(), a governed service call must not silently omit that fence;
+     * edits on a never-configured legacy installation remain unchanged. */
+    const custodyGoverned = await custodyService.isGoverned()
+    const custodyFence = (input as any).custodyFence
+    if (custodyGoverned && !custodyFence)
+      throw new BusinessError('ویرایش فاکتور حضانت‌دار باید با مسئول فعال صندوق انجام شود؛ صفحه را تازه کنید و دوباره تلاش کنید.', 'CUSTODY_OPERATOR_EVIDENCE_REQUIRED')
+
     /**
      * نشست ۶۳ (S63-2) — تاریخ فاکتور بیرون از تراکنش خوانده می‌شود تا رمز مدیرِ
      * «دوره‌ی بسته» و رمز «اعتبار اضافه‌دریافت بالاتر از سقف» هر دو **قبل از**
@@ -4648,6 +4656,16 @@ export const salesService = {
     }
 
     return prisma.$transaction(async (tx) => {
+      /** The first DB statement must serialize with handover: a fence captured
+       * before A -> B cannot commit an edit after B takes the drawer. Pending
+       * handover is NOT a sales lock: Main issues a fresh outgoing fence there.
+       * This conditional write and every invoice/stock/audit change roll back
+       * together; no persistent custody state is introduced. */
+      if (custodyFence) {
+        const activeShift = await custodyService.assertFenceInTx(tx, custodyFence)
+        if (input.userId !== activeShift.userId || input.shiftId !== activeShift.id)
+          throw new BusinessError('هویت و شیفت ویرایش با مسئول فعال صندوق هم‌خوان نیست؛ صفحه را تازه کنید.', 'CUSTODY_OPERATOR_STALE')
+      }
       const current = await tx.saleInvoice.findUnique({
         where: { id: input.id },
         include: {

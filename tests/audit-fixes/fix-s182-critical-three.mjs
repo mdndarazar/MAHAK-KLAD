@@ -45,8 +45,11 @@ ok('saleUpdate هم همین‌طور',
   !/IPC\.saleUpdate[^\n]*withOptionalSessionActor/.test(IPC))
 ok('saleCreate از withSessionActor استفاده می‌کند',
   /IPC\.saleCreate[^\n]*withSessionActor\(p \?\? \{\}, 'ثبت فاکتور فروش'\)/.test(IPC))
+// The edit handler now validates a Main-issued form witness around actor
+// acquisition; the actor gate remains inside that handler, not on one line.
+const saleUpdateHandler = IPC.slice(IPC.indexOf('handle(IPC.saleUpdate,'), IPC.indexOf('handle(IPC.saleList,'))
 ok('saleUpdate از withSessionActor استفاده می‌کند',
-  /IPC\.saleUpdate[^\n]*withSessionActor\(p \?\? \{\}, 'ویرایش فاکتور فروش'\)/.test(IPC))
+  /withSessionActor\(p \?\? \{\}, 'ویرایش فاکتور فروش'\)/.test(saleUpdateHandler))
 {
   // و خودِ withSessionActor واقعاً throw می‌کند (نه اینکه فقط نام مشابه باشد)
   const body = IPC.slice(IPC.indexOf('async function withSessionActor'), IPC.indexOf('async function withOptionalSessionActor'))

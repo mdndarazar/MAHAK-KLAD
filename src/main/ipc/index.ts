@@ -70,6 +70,7 @@ import {
   panelSessionStatus,
   touchManagerSession,
   runWithPanelSessionOwner,
+  currentPanelSessionOwner,
   applyPanelSessionTtlMinutes,
   CREDIT_READ_PANEL
 } from '../services/panelSession'
@@ -77,6 +78,10 @@ import { PANEL_KEYS } from '@shared/panels'
 import { trendService, stockInsightService, profitService, costEngine, targetService } from '../services/management'
 import { smsService, smsCampaignService, smsOptOutService } from '../services/sms'
 import { BusinessError } from '../errors'
+import {
+  issueSaleEditFormGrant, reserveSaleEditFormGrant, assertSaleEditFormActor,
+  assertNoEffectiveSaleEditReset, finishSaleEditFormGrant, clearSaleEditFormGrants
+} from './saleEditFormGrant'
 
 /**
  * wrapper یکسان همه‌ی کانال‌ها.
@@ -101,6 +106,7 @@ function sessionOwnerOf(event: IpcMainInvokeEvent): number {
     sender.once('destroyed', () => {
       observedIpcSenders.delete(id)
       clearPanelSessionsForOwner(id)
+      clearSaleEditFormGrants(id)
     })
   }
   return id
@@ -619,9 +625,37 @@ export function registerIpcHandlers(): void {
   }
 
   handle(IPC.saleCreate, async (p) => afterSaleThankYou(salesService.create(await withVerifiedSaleOperator(p ?? {}))))
-  handle(IPC.saleUpdate, async (p) => salesService.update(await withSessionActor(p ?? {}, 'ویرایش فاکتور فروش')))
+  handle(IPC.saleUpdate, async (p) => {
+    const owner = currentPanelSessionOwner()
+    // The witness is reserved before any await; it cannot authorize another
+    // window/invoice or be replayed by two concurrent saves. Legacy has none.
+    const grant = reserveSaleEditFormGrant(owner, p?.id, p?.editFormToken)
+    let committed = false
+    try {
+      const actor = await withSessionActor(p ?? {}, 'ویرایش فاکتور فروش')
+      // Main's *current* actor must match the form-open actor. Validating only
+      // before withSessionActor would let a handover mint B's fence for A's form.
+      assertSaleEditFormActor(grant, actor.custodyFence ?? null)
+      await assertNoEffectiveSaleEditReset(grant, actor.custodyFence ?? null)
+      const { editFormToken: _editFormToken, ...input } = actor
+      const result = await salesService.update(input)
+      committed = true // only a committed edit consumes the witness
+      return result
+    } finally {
+      finishSaleEditFormGrant(owner, grant, committed)
+    }
+  })
   handle(IPC.saleList, (p) => salesService.list(p ?? {}))
-  handle(IPC.saleGet, (p) => salesService.get(p.id))
+  handle(IPC.saleGet, async (p) => {
+    if (p?.forEdit !== true) return salesService.get(p.id) // ordinary reads never create grants
+    // Capture the actor BEFORE reading invoice data. If handover happens while
+    // this read is in flight, its A grant will fail under B; reading A's data
+    // first and only then minting a B grant could license a stale snapshot.
+    const fence = await custodyService.actorForFinancialOperation()
+    const invoice = await salesService.get(p.id)
+    if (!invoice || !fence) return invoice // unchanged legacy mode
+    return { ...invoice, editFormToken: issueSaleEditFormGrant(currentPanelSessionOwner(), invoice.id, fence) }
+  })
   // ممیزی S141 (AUDIT-S141-02، AUDIT-D72) — actor برگشت/تعویض/ابطال فقط از نشست باز؛ userId ارسالی renderer
   // نادیده گرفته می‌شود و بی‌نشست باز رد می‌شود (بند ۳ و ۴-۳۰).
   // ManagerGate در renderer یک کنترل بصری است؛ این gate sender-bound همان قفل

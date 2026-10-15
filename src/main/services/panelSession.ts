@@ -83,6 +83,14 @@ export function runWithPanelSessionOwner<T>(owner: number, fn: () => T): T {
   return ownerContext.run(owner, fn)
 }
 
+/** Main-only owner of this IPC request; never accept a renderer-supplied id. */
+export function currentPanelSessionOwner(): number {
+  const owner = ownerContext.getStore()
+  if (owner == null || owner <= 0)
+    throw new BusinessError('پنجرهٔ درخواست معتبر نیست؛ عملیات امنیتی انجام نشد.')
+  return owner
+}
+
 /** فقط برای diagnostics/status؛ session status خودش timer بی‌کاری را تازه نمی‌کند. */
 function alive(key: string, owner: number, touch: boolean): Entry | null {
   const entries = bucket(owner)
