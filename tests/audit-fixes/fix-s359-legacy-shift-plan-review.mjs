@@ -59,9 +59,9 @@ clearPanelSessions(owner)
 
 const ipc = readFileSync(new URL('../../src/main/ipc/index.ts', import.meta.url), 'utf8')
 const channels = readFileSync(new URL('../../src/shared/ipc.ts', import.meta.url), 'utf8')
-const ui = readFileSync(new URL('../../src/renderer/src/pages/Settings.tsx', import.meta.url), 'utf8')
+const ui = readFileSync(new URL('../../src/renderer/src/components/CustodyAdminChip.tsx', import.meta.url), 'utf8')
 eq('IPC review مجزا و بدون writer legacy ثبت شده است', /custodyPlanLegacyReview:\s*'custody:plan:legacy-review'/.test(channels) && /handle\(IPC\.custodyPlanLegacyReview[\s\S]{0,120}reviewLegacy\(\)/.test(ipc), true)
-eq('Shift Settings انتقال را فقط‌خواندنی و بدون تبدیل خودکار نشان می‌دهد', /بررسی فقط‌خواندنی برنامه‌های قدیمی/.test(ui) && /به‌صورت خودکار تبدیل یا حذف نمی‌شود/.test(ui), true)
+eq('بازبینی قدیمی در صفحهٔ مدیر فقط‌خواندنی و بدون تبدیل خودکار است', /حذف یا تبدیل خودکار نشده‌اند/.test(ui) && /ایجاد، ویرایش و حذف برنامهٔ قدیمی از این صفحه عمداً ممکن نیست/.test(ui), true)
 
 console.log(`\n${bad === 0 ? '✓' : '✗'} ${ok} بررسی موفق · ${bad} ناموفق`)
 process.exitCode = bad ? 1 : 0

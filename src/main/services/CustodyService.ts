@@ -489,26 +489,41 @@ async function pendingLegacyOpening(client: Client): Promise<any | null> {
   return recoveries.find((row: any) => !linked.has(row.id)) ?? null
 }
 
-/** One source of truth for ordinary opening eligibility. Recovery verifies this
- * exact policy before it can close historical evidence; it never grants a
- * manager or an unscheduled employee a new drawer bypass. */
-async function openingPlanForActor(client: Client, actor: { userId: number }) {
+/** The roster suggests the ordinary opener; it must not strand the drawer
+ * when that worker is absent. A NO_SESSION cashier/manager can open an OWN,
+ * unscheduled segment only after personal PIN verification by the caller, a
+ * real explicit physical count and a durable reason. Never borrow the missing
+ * worker's plan, PIN, count or prior difference. Recovery uses the same gate
+ * before it closes any legacy-open Shift and rechecks inside its transaction. */
+async function openingPlanForActor(
+  client: Client,
+  actor: { userId: number },
+  exceptionEvidence: { count: number | null; reason: unknown }
+) {
   const [cfg, scheduling] = await Promise.all([configOf(client), shiftSchedulingOf(client)])
   if (!cfg.enabled) throw new BusinessError('ماژول حضانت صندوق هنوز فعال نشده است.')
   const custodyMode = effectiveCustodyMode(cfg, scheduling)
   const canonicalConfigured = scheduling.custodyModeConfigured
     ? custodyMode === 'MULTI_SHIFT'
     : hasCanonicalAssignments(scheduling)
-  if (scheduling.custodyModeConfigured && custodyMode === 'SINGLE_SHIFT' && scheduling.singleShiftCustodianUserId !== actor.userId)
-    throw new BusinessError('در حالت تک‌شیفت فقط مسئول اصلی روزانهٔ ثبت‌شده می‌تواند با رمز شخصی صندوق را تحویل بگیرد.', 'NOT_DAILY_CUSTODIAN')
-  const plan = canonicalConfigured
+  const otherDailyCustodian = scheduling.custodyModeConfigured && custodyMode === 'SINGLE_SHIFT' &&
+    scheduling.singleShiftCustodianUserId !== actor.userId
+  const plan = otherDailyCustodian ? null : canonicalConfigured
     ? canonicalPlanForOpen(scheduling, actor.userId)
     : custodyMode === 'MULTI_SHIFT'
       ? await planForOpen(client, actor.userId)
       : null
-  if (canonicalConfigured && !plan)
-    throw new BusinessError('برای باز کردن صندوق، کارمند باید در شیفت فعالِ همین زمان در تنظیمات شیفت ثبت شده باشد.', 'NO_SCHEDULED_SHIFT')
-  return { cfg, scheduling, plan }
+  const legacyPlanExists = custodyMode === 'MULTI_SHIFT' && !canonicalConfigured && !plan &&
+    !!(await client.shiftPlan.findFirst({ where: { isActive: true }, select: { id: true } }))
+  const blockedBy = otherDailyCustodian ? 'NOT_DAILY_CUSTODIAN'
+    : !plan && (canonicalConfigured || legacyPlanExists) ? 'NO_SCHEDULED_SHIFT' : null
+  if (!blockedBy) return { cfg, scheduling, plan, offSchedule: null }
+  if (exceptionEvidence.count == null || !Number.isSafeInteger(exceptionEvidence.count) || exceptionEvidence.count < 0)
+    throw new BusinessError('برای افتتاح خارج از برنامه، مجموع واقعیِ کشو و کارت‌خوان را صریح وارد کنید؛ صفر فقط با ثبت رقم ۰ پذیرفته است.', 'CUSTODY_UNSCHEDULED_COUNT_REQUIRED')
+  const reason = String(exceptionEvidence.reason ?? '').trim()
+  if (reason.length < 10 || reason.length > 1000)
+    throw new BusinessError('برای افتتاح خارج از برنامه، دلیل روشنِ ۱۰ تا ۱۰۰۰ نویسه‌ای لازم است.', 'CUSTODY_UNSCHEDULED_REASON_REQUIRED')
+  return { cfg, scheduling, plan: null, offSchedule: { blockedBy, mode: custodyMode, reason } }
 }
 
 async function writeEvent(client: Client, input: {
@@ -961,6 +976,17 @@ function custodyAuditExportRows(report: any): CustodyAuditExportCell[][] {
     'بخش حضانت', custodyAuditExportTime(row.startedAt), `نشست ${row.shiftId}`, row.custodianName ?? '—', null, null, null,
     row.endKind ?? 'باز', `برنامهٔ snapshot: ${row.scheduleTitleSnapshot ?? 'بدون برنامه'}${row.endedAt ? ` · پایان: ${custodyAuditExportTime(row.endedAt)}` : ''}`
   ])
+  for (const event of report.events ?? []) {
+    if (event.type !== 'OPEN_UNSCHEDULED' && event.type !== 'LEGACY_RECOVERY_UNSCHEDULED') continue
+    rows.push([
+      event.type === 'OPEN_UNSCHEDULED' ? 'افتتاح خارج از برنامه' : 'شاهد بازیابی خارج از برنامه',
+      custodyAuditExportTime(event.at),
+      event.shiftId ? `نشست ${event.shiftId}` : `بازیابی ${event.legacyRecoveryId ?? '—'}`,
+      event.actorName ?? `کارمند ${event.actorUserId ?? '—'}`,
+      null, null, null, 'PIN شخصی · مسئولیت قبلی منتقل نشد',
+      `دلیل: ${event.payload?.reason ?? 'نامعلوم'} · حالت ${event.payload?.mode ?? 'نامعلوم'} · مانع برنامه ${event.payload?.blockedBy ?? 'نامعلوم'} · شمارش ${event.payload?.countKind ?? 'نامعلوم'}`
+    ])
+  }
   for (const row of report.handovers ?? []) {
     const owner = `${row.fromUser ?? '—'} → ${row.finalCustodian ?? row.selectedRecipient ?? '—'}`
     const shift = `نشست ${row.fromShiftId}${row.toShiftId ? ` → ${row.toShiftId}` : ''}`
@@ -1172,9 +1198,9 @@ export const custodyService = {
       /** Amount deliberately omitted: a new opener must recount blindly. */
       legacyOpeningRequired: !!pendingLegacyRecovery,
       config: cfg,
-      /** UI hint only; Main still verifies the selected personal PIN and this
-       * policy again in open().  It prevents a single-shift dialog from
-       * presenting unrelated staff as selectable daily custodians. */
+      /** Ordinary roster hint only. An absent primary never hides the
+       * authenticated off-schedule opening option from the dialog; Main
+       * independently verifies the PIN, count and reason in open(). */
       schedulingPolicy: {
         mode: scheduleMode,
         configured: scheduling.custodyModeConfigured,
@@ -1806,12 +1832,12 @@ export const custodyService = {
       await this.verifyPin(input.managerUserId, input.managerPassword, { requireManager: true })
     }
     const next = parseCustodyConfig(input.config)
-    // Once the manager-review workflow has reconciled the two mode records,
-    // mode is no longer a general custody toggle.  Pre-workflow installations
-    // retain their legacy route so an update never silently changes their
-    // active scheduling model before review.
-    const scheduling = await shiftSchedulingOf(prisma)
-    if (scheduling.custodyModeConfigured && current.mode !== next.mode)
+    // Never change the operational mode via this legacy config writer, even
+    // before the first scheduling review. The dedicated workflow records the
+    // named manager's PIN and reason and fences an active responsibility; this
+    // route has none of those protections. Keeping the OLD mode unchanged is
+    // still permitted during onboarding and does not pause an active sale.
+    if (current.mode !== next.mode)
       throw new BusinessError('تغییر تک‌شیفت/چندشیفت فقط از گردش‌کار برنامه‌ریزی حضانت در تنظیمات مجاز است.', 'CUSTODY_MODE_WORKFLOW_REQUIRED')
     /** A fresh install is deliberately SINGLE_SHIFT. MULTI_SHIFT is an explicit
      * staffing policy, not a visual toggle: at least one active named plan must
@@ -1960,9 +1986,9 @@ export const custodyService = {
       return { recoveryId: existing.id, replayed: true, differenceScope: existing.differenceScope }
     }
 
-    /** Use exactly the regular-opening schedule predicate, but do not call
-     * open(): its legacy hard-stop is the condition we are recovering from. */
-    await openingPlanForActor(prisma, actor)
+    /** Use the same PIN/count/reason exception as a fresh opening. Recovery
+     * only records the old boundary; it does not create or appoint its owner. */
+    await openingPlanForActor(prisma, actor, { count: countedCash, reason: note })
     const [state, legacy] = await Promise.all([ensureState(prisma), legacyOpenShifts(prisma)])
     if (state.state !== 'NO_SESSION' || Number(state.epoch) !== seenEpoch || !sameIds(legacy.map((row: any) => row.id), seenShiftIds))
       throw new BusinessError('وضعیت نشست‌های قدیمی هم‌زمان تغییر کرده است؛ صفحه را دوباره باز کنید.', 'CUSTODY_LEGACY_STALE')
@@ -1981,9 +2007,8 @@ export const custodyService = {
 
     try {
       return await prisma.$transaction(async (tx: Client) => {
-        /** Recheck the exact opening eligibility and every renderer-supplied
-         * fact inside the writer transaction. */
-        await openingPlanForActor(tx, actor)
+        /** Recheck the schedule exception inside the writer transaction. */
+        const { offSchedule } = await openingPlanForActor(tx, actor, { count: countedCash, reason: note })
         const live = await ensureState(tx)
         const currentLegacy = await legacyOpenShifts(tx)
         if (live.state !== 'NO_SESSION' || Number(live.epoch) !== seenEpoch || !sameIds(currentLegacy.map((row: any) => row.id), seenShiftIds))
@@ -2081,6 +2106,12 @@ export const custodyService = {
           epochAfter: nextEpoch,
           payload: { shiftIds: seenShiftIds, differenceScope, expectedAvailable: !expectedUnavailable }
         })
+        if (offSchedule) await writeEvent(tx, {
+          type: 'LEGACY_RECOVERY_UNSCHEDULED', legacyRecoveryId: recovery.id,
+          actorUserId: actor.userId, actorKind: 'LEGACY_RECOVERY_WITNESS', authMethod: 'CUSTODY_PIN',
+          epochBefore: Number(live.epoch), epochAfter: nextEpoch,
+          payload: { ...offSchedule, countKind: 'LEGACY_CASH' }
+        })
         return { recoveryId: recovery.id, replayed: false, differenceScope, provisionalDifference }
       })
     } catch (error: any) {
@@ -2102,11 +2133,22 @@ export const custodyService = {
      * cash-only field or opening float used by historical cash-close rows. */
     const operationalTotal = input.operationalTotal == null ? null : asCash(input.operationalTotal, 'مجموع کشو و کارت‌خوان')
     const countedCash = input.countedCash == null ? null : asCash(input.countedCash, 'شمارش نقدی')
+    // The next worker may arrive after days without running status() first.
+    // Close ONLY an actually expired prior Shift as SYSTEM evidence; never ask
+    // that absent worker to log in or create missed planned shifts.
+    await this.ensureRolledOver()
     const openingState = await ensureState(prisma)
     if (openingState.state !== 'NO_SESSION') throw new BusinessError('صندوق هم‌اکنون یک مسئول فعال دارد.', 'SESSION_ALREADY_OPEN')
     const blueOpening = operationalTotal == null ? null : await blueReferenceForOpening(openingState)
     return prisma.$transaction(async (tx: Client) => {
-      const { cfg, scheduling, plan } = await openingPlanForActor(tx, actor)
+      const recovery = await pendingLegacyOpening(tx)
+      const { cfg, scheduling, plan, offSchedule } = await openingPlanForActor(tx, actor, {
+        // Only the explicit, already-recorded legacy recovery may use the
+        // historical cash-only count. Every other off-schedule opening needs
+        // the public drawer+POS total; a forged old countedCash is not proof.
+        count: recovery ? countedCash : operationalTotal,
+        reason: input.note
+      })
       const state = await ensureState(tx)
       if (state.state !== 'NO_SESSION' || state.epoch !== openingState.epoch ||
           (blueOpening && (Number(state.financialRevision ?? 0) !== blueOpening.financialRevision ||
@@ -2121,7 +2163,6 @@ export const custodyService = {
       /** A remaining open Shift with custody metadata is an actual broken live
        * custody invariant, not a migratable legacy row. Keep this hard stop. */
       if (await shiftService.anyOpenShift(tx)) throw new BusinessError('وضعیت حضانت صندوق ناسازگار است؛ ابتدا از مدیر بخواهید آن را بررسی کند.', 'CUSTODY_INVARIANT_BROKEN')
-      const recovery = await pendingLegacyOpening(tx)
       if (recovery && countedCash == null)
         throw new BusinessError('پس از بازیابی نشست قدیمی، شمارش افتتاح مستقل صندوق جدید الزامی است.', 'CUSTODY_RECOVERY_OPENING_COUNT_REQUIRED')
       if (recovery && operationalTotal != null)
@@ -2193,7 +2234,22 @@ export const custodyService = {
       }
       const changed = await tx.custodyState.updateMany({ where: { key: MAIN, state: 'NO_SESSION', epoch: beforeEpoch }, data: { state: 'ACTIVE', activeShiftId: shift.id, pendingHandoverId: null, epoch: nextEpoch, updatedAt: new Date() } })
       if (changed.count !== 1) throw new BusinessError('وضعیت صندوق هم‌زمان تغییر کرد؛ دوباره تلاش کنید.', 'CUSTODY_STALE')
-      await writeEvent(tx, { type: 'OPEN', shiftId: shift.id, actorUserId: actor.userId, actorKind: 'CUSTODIAN', authMethod: 'CUSTODY_PIN', epochBefore: beforeEpoch, epochAfter: nextEpoch, payload: { counted: countedCash != null || operationalTotal != null, aggregateBoundary: operationalTotal != null } })
+      await writeEvent(tx, { type: 'OPEN', shiftId: shift.id, actorUserId: actor.userId, actorKind: 'CUSTODIAN', authMethod: 'CUSTODY_PIN', epochBefore: beforeEpoch, epochAfter: nextEpoch, payload: { counted: countedCash != null || operationalTotal != null, aggregateBoundary: operationalTotal != null, ...(offSchedule ? { offSchedule: true } : {}) } })
+      if (offSchedule) {
+        // This is an exception to the roster, not a transfer of the previous
+        // worker's responsibility or a change to their stored schedule.
+        await writeEvent(tx, {
+          type: 'OPEN_UNSCHEDULED', shiftId: shift.id,
+          actorUserId: actor.userId, actorKind: 'CUSTODIAN', authMethod: 'CUSTODY_PIN',
+          epochBefore: beforeEpoch, epochAfter: nextEpoch,
+          payload: { ...offSchedule, countKind: recovery ? 'LEGACY_CASH' : 'DRAWER_AND_POS', previousResponsibilityTransferred: false }
+        })
+        await auditOrThrow(tx, {
+          action: 'CUSTODY_UNSCHEDULED_OPEN', entity: 'Shift', entityId: shift.id,
+          userId: actor.userId, after: JSON.stringify({ ...offSchedule, countKind: recovery ? 'LEGACY_CASH' : 'DRAWER_AND_POS' }),
+          note: offSchedule.reason
+        })
+      }
       return { shiftId: shift.id, epoch: nextEpoch, countStatus: countedCash == null && operationalTotal == null ? 'COUNT_PENDING' : 'COUNTED' }
     })
   },

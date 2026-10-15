@@ -35,6 +35,14 @@ export type CustodyReference = {
   warnings: string[]
 }
 
+/** An absent or incomplete verdict cannot borrow a page subtotal as the blue
+ * custody reference. Explicit official zero is different from missing data. */
+export function availableCustodyReferenceAmount(reference?: CustodyReference | null): number | null {
+  return reference?.status === 'AVAILABLE' && reference.referenceAmount != null && Number.isSafeInteger(reference.referenceAmount)
+    ? reference.referenceAmount
+    : null
+}
+
 export function calculateCustodyReference(input: {
   cashReceived: number
   cardReceived: number

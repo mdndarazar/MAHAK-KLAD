@@ -58,7 +58,7 @@ eq('گردش‌کار تک‌شیفت explicitly configured می‌شود', sing
 eq('مسئول اصلی روزانه ذخیره می‌شود', single.singleShiftCustodianUserId, dailyCustodian)
 const singleStatus = await custodyService.status()
 eq('status فقط primary تک‌شیفت را به UI اعلام می‌کند', singleStatus.schedulingPolicy?.singleShiftCustodianUserId, dailyCustodian)
-await rejects('کارمند دیگر در تک‌شیفت نمی‌تواند فقط با PIN صندوق را بگیرد', 'NOT_DAILY_CUSTODIAN', () => custodyService.open({ userId: multiCustodian, password: 'MultiFinal380!', countedCash: 1000 }))
+await rejects('کارمند دیگر در تک‌شیفت با PIN و شمارش ولی بدون دلیل نمی‌تواند صندوق را بگیرد', 'CUSTODY_UNSCHEDULED_REASON_REQUIRED', () => custodyService.open({ userId: multiCustodian, password: 'MultiFinal380!', operationalTotal: 1000 }))
 const opened = await custodyService.open({ userId: dailyCustodian, password: 'DailyFinal380!', countedCash: 1000 })
 const preSwitch = await custodyService.status()
 eq('پیش از تغییر، مسئولیت روزانه واقعاً باز است', preSwitch.custodian?.id, dailyCustodian)
@@ -121,7 +121,7 @@ const settingsSource = readFileSync(new URL('../../src/main/services/SettingsSer
 const custodySource = readFileSync(new URL('../../src/main/services/CustodyService.ts', import.meta.url), 'utf8')
 const uiSource = readFileSync(new URL('../../src/renderer/src/pages/Settings.tsx', import.meta.url), 'utf8')
 eq('Main workflow writes both config sources inside a transaction', settingsSource.includes('saveCustodySchedulingWorkflow') && settingsSource.includes('SETTING_KEYS.custodyConfig') && settingsSource.includes('CUSTODY_MODE_SWITCH_FREEZE'), true)
-eq('Main opening enforces the distinct single daily custodian rule', custodySource.includes('NOT_DAILY_CUSTODIAN') && custodySource.includes('effectiveCustodyMode'), true)
+eq('Main retains the daily owner rule and requires evidence for an explicit exception', custodySource.includes('NOT_DAILY_CUSTODIAN') && custodySource.includes('CUSTODY_UNSCHEDULED_REASON_REQUIRED') && custodySource.includes('effectiveCustodyMode'), true)
 eq('Settings UI exposes separate named workflows, not the old multi checkbox copy', uiSource.includes('تک‌شیفت: یک مسئول اصلی روزانه') && uiSource.includes('چندشیفت: کارکنان مستقل هر شیفت') && uiSource.includes('ثبت گردش‌کار حضانت'), true)
 
 console.log(`\n${bad === 0 ? '✓' : '✗'} ${ok} بررسی موفق · ${bad} ناموفق`)

@@ -1,8 +1,8 @@
 /**
- * Handover v2 safety contract:
+ * Blue handover continuity contract:
  * - pending handover keeps the outgoing authenticated custodian as the writer;
- * - an intervening cash writer is included in the receiver's fresh watermark;
- * - a non-zero recount without an auditable reason cannot transfer custody.
+ * - a cash movement is kept on the outgoing Shift; it does not change the blue sales reference;
+ * - both persons count under their own PINs; a physical difference does not accuse anyone.
  *
  * node --import ./test/harness/register.mjs tests/audit-fixes/fix-s363-pending-handover-recount.mjs
  */
@@ -42,8 +42,8 @@ for (const [id, temporary, permanent] of [[giver, 'Giver363!', 'Giver3634!'], [r
   await custodyService.setPin({ userId: id, newPassword: temporary, managerUserId: manager, managerPassword: 'مدیر123!', reason: 'راه‌اندازی آزمون شمارش' })
   await custodyService.setPin({ userId: id, currentPassword: temporary, newPassword: permanent })
 }
-const opened = await custodyService.open({ userId: giver, password: 'Giver3634!', countedCash: 0 })
-const handover = await custodyService.handoverStart({ password: 'Giver3634!', countedCash: 0, toUserId: receiver, idempotencyKey: 's363-handover' })
+const opened = await custodyService.open({ userId: giver, password: 'Giver3634!', operationalTotal: 0 })
+const handover = await custodyService.handoverStart({ password: 'Giver3634!', operationalTotal: 0, blueReference: true, toUserId: receiver, idempotencyKey: 's363-handover' })
 eq('تحویل وارد وضعیت pending شد', handover.state, 'HANDOVER_PENDING')
 
 const fence = await custodyService.actorForFinancialOperation()
@@ -52,19 +52,19 @@ eq('pending همان نشست خروجی را نگه می‌دارد', fence?.ex
 await cashMovementService.add({ type: CashMovementType.DEPOSIT, amount: 100, description: 'فروش/گردش هنگام انتظار تحویل', userId: giver, custodyFence: fence })
 eq('گردش مالی در انتظار تحویل روی نشست خروجی ثبت شد', seed.one('SELECT shiftId FROM "CashMovement" ORDER BY id DESC LIMIT 1')?.shiftId, opened.shiftId)
 
-await rejects('پذیرش با شمارش دارای مغایرت و بدون دلیل رد می‌شود', 'HANDOVER_DIFFERENCE_REASON_REQUIRED', () => custodyService.handoverAccept({ handoverId: handover.id, password: 'Recv3634!', countedCash: 0 }))
-eq('رد شمارش، مرز مالی را freeze می‌کند و فروش باز نمی‌شود', (await custodyService.status()).state, 'HANDOVER_RECOUNT')
-await rejects('بعد از blind count دارای اختلاف، writer مالی دیگر fence نمی‌گیرد', 'HANDOVER_RECOUNT', () => custodyService.actorForFinancialOperation())
-eq('شمارش فریز‌شده در سابقه append-only ثبت شد', seed.one('SELECT kind FROM "CustodyCount" WHERE handoverId=? ORDER BY id DESC LIMIT 1', handover.id)?.kind, 'HANDOVER_RECOUNT_DIFFERENCE_PENDING')
-const accepted = await custodyService.handoverAccept({ handoverId: handover.id, password: 'Recv3634!', countedCash: 0, differenceReason: 'شمارش فیزیکی مستقل از مبلغ ثبت‌شده کمتر بود.' })
-eq('پذیرش با همان شمارش فریز‌شده و اختلاف واقعی انجام می‌شود', accepted.differenceCash, -100)
-eq('پذیرش مسئول را به گیرنده منتقل می‌کند', (await custodyService.status()).custodian?.id, receiver)
-eq('segment گیرنده دقیقاً با شمارش blind قبلی شروع می‌شود', accepted.countedCash, 0)
-eq('سند blind پذیرفته‌شده بدون بازنویسی در سابقه می‌ماند', seed.one('SELECT kind FROM "CustodyCount" WHERE handoverId=? ORDER BY id DESC LIMIT 1', handover.id)?.kind, 'HANDOVER_RECOUNT_DIFFERENCE_PENDING')
-const watermark = JSON.parse(seed.one('SELECT ledgerWatermark FROM "CustodyHandover" WHERE id=?', handover.id)?.ledgerWatermark ?? '{}')
-eq('watermark نهایی فقط پس از ثبت دلیل پذیرفته است', watermark.accepted, true)
-eq('watermark نهایی همان expected فریز‌شده را نگه می‌دارد', watermark.expectedCash, 100)
-eq('watermark نهایی همان blind count فریز‌شده را نگه می‌دارد', watermark.countedCash, 0)
+const incoming = await custodyService.handoverCountBlue({ handoverId: handover.id, password: 'Recv3634!', operationalTotal: 100 })
+eq('گیرنده پس از گردش نقدی شمارش مستقل خود را ثبت می‌کند', incoming.state, 'RECEIVER_COUNTED')
+eq('تفاوت دو شمارش بدون حدس دربارهٔ تقصیر ثبت می‌شود', incoming.freshDifference, 100)
+eq('شمارش گیرنده فروشِ مسئول قبلی را قفل نمی‌کند', (await custodyService.actorForFinancialOperation()).expectedShiftId, opened.shiftId)
+eq('دو شاهد فیزیکی مستقل و append-only هستند', seed.count('CustodyBlueSnapshot', 'handoverId=?', handover.id), 2)
+await rejects('تأیید نهایی PIN مستقل گیرنده را لازم دارد', 'PIN_WRONG',
+  () => custodyService.handoverConfirmBlue({ handoverId: handover.id, password: '' }))
+const accepted = await custodyService.handoverConfirmBlue({ handoverId: handover.id, password: 'Recv3634!' })
+eq('پس از PIN و تأیید، گیرنده صاحب نشست مستقل است', (await custodyService.status()).custodian?.id, receiver)
+eq('گردش قبلی به گیرنده بازنویسی نمی‌شود', seed.one('SELECT shiftId FROM "CashMovement" ORDER BY id DESC LIMIT 1')?.shiftId, opened.shiftId)
+eq('شمارش گیرنده در سابقه محفوظ است', seed.one('SELECT kind FROM "CustodyCount" WHERE handoverId=? ORDER BY id DESC LIMIT 1', handover.id)?.kind, 'BLUE_HANDOVER_IN')
+eq('نشست گیرنده تازه است', accepted.shiftId !== opened.shiftId, true)
+eq('اختلاف به خودی خود پروندهٔ تقصیر نمی‌سازد', seed.count('CustodyDiscrepancyCase'), 0)
 
 console.log(`\n${bad === 0 ? '✓' : '✗'} ${ok} بررسی موفق · ${bad} ناموفق`)
 process.exitCode = bad ? 1 : 0

@@ -61,7 +61,7 @@ import {
 } from '../components/ResizableColumns'
 import { faDigits, money, isValidJalaliDate } from '@shared/jalali'
 import { physicalMoneyInDrawerAndCard, returnCreditAmountOf } from '@shared/accounting'
-import type { CustodyReference } from '@shared/custodyReference'
+import { availableCustodyReferenceAmount, type CustodyReference } from '@shared/custodyReference'
 import { buildNetToDrawer, splitDrawerPos } from '@shared/cashExplainer'
 import { DrawerVsPosSplit } from '../components/cash/DrawerVsPosSplit'
 import FinancialInspector from '../components/cash/FinancialInspector'
@@ -1259,7 +1259,9 @@ export default function SalesReports() {
    * چاپ حرارتی. ردیف‌های کنارگذاشته‌شده عمداً چاپ نمی‌شوند تا کاغذ عیناً همان
    * چیزی باشد که روی صفحه دیده شده است.
    */
-  const summaryPrintLines = () => [
+  const summaryPrintLines = () => {
+    const officialAmount = availableCustodyReferenceAmount(report.custodyReference)
+    return [
     ...summary.active.map((p) => ({
       label: p.label,
       value: `${p.sign < 0 ? '−' : '+'}${money(p.value)}`
@@ -1268,9 +1270,9 @@ export default function SalesReports() {
     {
       label:
         `کنترل کارت‌خوان و صندوق — نقدی ${money(t.cashTotal)} · کارت ${money(summary.cardTotal)} · ` +
-        (report.custodyReference?.status === 'PENDING_RECONCILIATION'
-          ? `مرجع قطعی در انتظار تطبیق است؛ بخش معلوم ${report.custodyReference.knownSubtotal == null ? 'نامعلوم' : money(report.custodyReference.knownSubtotal)} ریال، پرداخت اعتباری قدیمیِ مبهم ${report.custodyReference.ambiguousLegacyCredit == null ? 'نامعلوم' : money(report.custodyReference.ambiguousLegacyCredit)} ریال، وجه با مقصد نامشخص ${report.custodyReference.destinationUnknownReceived == null ? 'نامعلوم' : money(report.custodyReference.destinationUnknownReceived)} ریال.`
-          : `اعتباری ${money(t.creditTotal)} ⇒ ${money(summary.realCash)} ریال مرجع گزارش برای صندوق و کارت‌خوان.`) +
+        (officialAmount == null
+          ? `مرجع قطعی در انتظار تطبیق است؛ بخش معلوم ${report.custodyReference?.knownSubtotal == null ? 'نامعلوم' : money(report.custodyReference.knownSubtotal)} ریال، پرداخت اعتباری قدیمیِ مبهم ${report.custodyReference?.ambiguousLegacyCredit == null ? 'نامعلوم' : money(report.custodyReference.ambiguousLegacyCredit)} ریال، وجه با مقصد نامشخص ${report.custodyReference?.destinationUnknownReceived == null ? 'نامعلوم' : money(report.custodyReference.destinationUnknownReceived)} ریال.`
+          : `اعتباری ${money(t.creditTotal)} ⇒ ${money(officialAmount)} ریال مرجع گزارش برای صندوق و کارت‌خوان.`) +
         // کار الف: این دو عدد عمداً بیرون از «باید در صندوق و کارت‌خوان باشد» گزارش می‌شوند
         (summary.managerTotal > 0
           ? ` · ${MANAGER_ACCOUNT_ROW_LABEL} ${money(summary.managerTotal)} ریال — ${MANAGER_ACCOUNT_ROW_NOTE}.`
@@ -1292,7 +1294,8 @@ export default function SalesReports() {
       value: '',
       note: true
     }
-  ]
+    ]
+  }
 
   const printA4 = async () => {
     if (printBusyRef.current) return
@@ -3294,7 +3297,6 @@ function SaleSummaryBlock({
           pos={split.pos}
           other={split.other}
           managerOutside={split.managerOutside}
-          realCash={realCash}
           custodyReference={custodyReference}
           cashTotal={cashTotal}
           cardTotal={cardTotal}
@@ -3357,7 +3359,6 @@ function SaleSummaryBlock({
             refundCardTotal
           }}
           statements={statements}
-          referenceRealCash={realCash}
           custodyReference={custodyReference}
           split={split}
           bridgeAlarm={netToDrawer.alarm}

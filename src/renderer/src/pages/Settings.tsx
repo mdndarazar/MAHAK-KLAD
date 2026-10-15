@@ -911,8 +911,8 @@ export default function Settings() {
       setDirty(false)
       flash(
         saved.custodyMode === 'SINGLE_SHIFT'
-          ? 'گردش‌کار تک‌شیفت با مسئول اصلی روزانه ذخیره شد. مسئولیت صندوق فقط با PIN و شمارش فیزیکی او آغاز می‌شود.'
-          : 'گردش‌کار چندشیفت با کارکنان مستقل هر شیفت ذخیره شد. مسئولیت صندوق فقط با PIN و شمارش فیزیکی آغاز می‌شود.'
+          ? 'گردش‌کار تک‌شیفت با مسئول اصلی روزانه ذخیره شد. در غیبت او، فرد مجاز دیگری فقط با PIN شخصی، شمارش واقعی و دلیل ثبت‌شده صندوق تازه را باز می‌کند.'
+          : 'گردش‌کار چندشیفت ذخیره شد. فرد خارج از برنامه برای افتتاح مستقل به PIN شخصی، شمارش واقعی و دلیل ثبت‌شده نیاز دارد.'
       )
     } catch (e: any) {
       setErr(e?.message ?? 'ذخیره‌ی روش حضانت انجام نشد.')
@@ -3649,7 +3649,7 @@ export default function Settings() {
               <div className="rounded border-2 border-indigo-300 bg-indigo-50 p-3 space-y-3">
                 <div className="font-bold text-indigo-950">گردش‌کار مسئولیت و برنامه‌ریزی حضانت</div>
                 <p className="kbd leading-6">
-                  این دو روش عمداً جدا هستند؛ تیک مشترک یا انتخاب نام، مسئولیت مالی ایجاد نمی‌کند. در هر دو روش فقط PIN شخصی و شمارش فیزیکی هنگام بازکردن صندوق مسئولیت می‌سازد.
+                  این دو روش عمداً جدا هستند؛ تیک مشترک یا انتخاب نام، مسئولیت مالی ایجاد نمی‌کند. مسئولیت تازه با PIN شخصی و شمارش واقعی هنگام افتتاح شروع می‌شود. افتتاح خارج از برنامه دلیل ثبت‌شده هم می‌خواهد و مسئولیت قبلی را منتقل نمی‌کند.
                 </p>
                 <div className="grid md:grid-cols-2 gap-2">
                   <button
@@ -3668,7 +3668,7 @@ export default function Settings() {
                     onClick={() => { setShift((current) => ({ ...current, custodyMode: 'MULTI_SHIFT', singleShiftCustodianUserId: null })); setDirty(true) }}
                   >
                     <b>چندشیفت: کارکنان مستقل هر شیفت</b>
-                    <span className="block kbd mt-1 leading-6">کارکنانِ هر قالب زمانی پایین جداگانه تعیین می‌شوند؛ فقط فرد ثبت‌شده در بازهٔ فعال می‌تواند صندوق را تحویل بگیرد.</span>
+                    <span className="block kbd mt-1 leading-6">کارکنانِ هر بازه برای افتتاح عادی تعیین می‌شوند؛ در غیبت آن‌ها، صندوق‌دار یا مدیر فعال با PIN، شمارش واقعی و دلیل می‌تواند مستقل افتتاح کند.</span>
                   </button>
                 </div>
 
@@ -3687,7 +3687,7 @@ export default function Settings() {
                         {staffRows.filter((staff) => staff.isActive && (staff.role === 'MANAGER' || staff.role === 'CASHIER')).map((staff) => <option key={staff.id} value={staff.id}>{staff.name} · {staff.roleLabel}</option>)}
                       </select>
                     </label>
-                    <p className="kbd leading-6">این انتخاب فقط واجدبودن برای تحویل‌گیری را مشخص می‌کند. حتی همین فرد نیز بدون PIN شخصی و ثبت شمارش واقعی نمی‌تواند مسئول صندوق شود.</p>
+                    <p className="kbd leading-6">این انتخاب مسئول برنامه‌ریزی‌شده را مشخص می‌کند، نه مالکیت خودکار صندوق. او هم به PIN شخصی و شمارش واقعی نیاز دارد؛ جانشین خارج از برنامه علاوه بر این‌ها باید دلیل ثبت کند.</p>
                   </div>
                 ) : (
                   <div className="rounded border border-indigo-200 bg-white p-3">
@@ -3921,7 +3921,7 @@ export default function Settings() {
               {shift.custodyMode === 'MULTI_SHIFT' ? (
               <div className="space-y-2">
                 <div className="font-bold">برنامهٔ چندشیفت: کارکنان و مجوز تحویل میان‌روز هر شیفت</div>
-                <p className="kbd leading-6">این بخش منبع canonical برنامه‌های جدید است. کارمند برنامه‌ریزی‌شده فقط «واجد انتخاب» می‌شود؛ تا PIN خودش را وارد و صندوق را باز نکند، هیچ مسئولیت مالی ندارد.</p>
+                <p className="kbd leading-6">این بخش منبع برنامه‌های جدید است. کارمند برنامه‌ریزی‌شده با انتخاب نام صاحب صندوق نمی‌شود؛ PIN و شمارش واقعی لازم دارد. جانشین خارج از برنامه با دلیل ثبت‌شده، بدون انتقال اسناد قبلی، مستقل افتتاح می‌کند.</p>
                 {shift.templates.map((template, index) => (
                   <details key={`schedule-${template.id}`} className="rounded border bg-slate-50 p-3" open={shift.templates.length === 1}>
                     <summary className="cursor-pointer font-bold">{template.name || `شیفت ${faDigits(index + 1)}`} · {faDigits(index + 1)}</summary>
@@ -3953,7 +3953,7 @@ export default function Settings() {
               ) : (
                 <div className="rounded border border-indigo-200 bg-indigo-50 p-3 space-y-1">
                   <b>تک‌شیفت: برنامهٔ کارکنانِ هر قالب غیرفعال است</b>
-                  <p className="kbd leading-6">در این روش فقط مسئول اصلی روزانهٔ بالا برای تحویل‌گیری صندوق واجد است. نام و ساعت قالب‌ها همچنان برای نمایش و گزارش نشست‌های عادی نگه داشته می‌شوند، اما انتخاب کارمند در آن‌ها نمی‌تواند مسئولیت حضانت بسازد.</p>
+                  <p className="kbd leading-6">در این روش فرد بالا مسئول اصلی برنامه‌ریزی‌شده است. در غیبت او، صندوق‌دار یا مدیر فعال می‌تواند با PIN شخصی، شمارش واقعی و دلیل، صندوق تازه را بدون جابه‌جایی مسئولیت قبلی باز کند. قالب‌های چندشیفت همچنان مسئول جایگزین را به‌طور خودکار تعیین نمی‌کنند.</p>
                 </div>
               )}
 
