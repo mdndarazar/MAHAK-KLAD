@@ -309,6 +309,10 @@ export const IPC = {
   /** Main-generated export of a bounded manager custody-report page. Renderer
    * supplies scope only; it never supplies audit rows. */
   custodyReportExport: 'custody:report:export',
+  /** Only committed Cash Closing outcomes; never invokes custody status/rollover. */
+  cashClosingHistory: 'cash-closing:history',
+  /** Main-owned export of the exact frozen history token, no renderer rows. */
+  cashClosingHistoryExport: 'cash-closing:history:export',
   /** Manager-only aggregate drawer + POS discrepancy cases. */
   custodyDiscrepancyReport: 'custody:discrepancy:report',
   custodyDiscrepancyReview: 'custody:discrepancy:review',

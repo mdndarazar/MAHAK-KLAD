@@ -26,6 +26,7 @@ import { cashboxService } from '../services/CashboxService'
 import { cashMovementService } from '../services/CashMovementService'
 import { custodyService } from '../services/CustodyService'
 import { custodyBlueResolutionService } from '../services/CustodyBlueResolutionService'
+import { cashClosingHistoryService } from '../services/CashClosingHistoryService'
 import { custodyPlanService } from '../services/CustodyPlanService'
 import { fraudService } from '../services/FraudService'
 import { receiptGapReport } from '../services/receiptNo'
@@ -1177,6 +1178,10 @@ export function registerIpcHandlers(): void {
   handle(IPC.custodyHandoverConfirmBlue, (p) => custodyService.handoverConfirmBlue(p ?? {}))
   handle(IPC.custodyHandoverAccept, (p) => custodyService.handoverAccept(p ?? {}))
   handle(IPC.custodyHandoverCancel, (p) => custodyService.handoverCancel(p ?? {}))
+  /** Both handlers require this sender's manager login instance inside Main;
+   * query uses only SELECTs and export uses only a Main-owned frozen token. */
+  handle(IPC.cashClosingHistory, (p) => cashClosingHistoryService.query(p))
+  handle(IPC.cashClosingHistoryExport, (p) => exportTableFile(cashClosingHistoryService.exportData(p)))
   handle(IPC.custodyBluePendingList, (p) => {
     assertManagerSession('دیدن پرونده‌های مرجع آبی در انتظار تطبیق')
     return custodyBlueResolutionService.pendingList({ skip: p?.skip })
