@@ -6,6 +6,7 @@ import { AuditAction } from '@shared/enums'
 import { DEFAULT_CUSTODY_CONFIG, parseCustodyConfig, parseShiftConfig, SETTING_KEYS, type CustodyConfig, type ShiftConfig, type ShiftTemplate } from '@shared/receipt'
 import { toJalaliDate, jalaliStartOfDay, jalaliEndOfDay, isValidJalaliDate, toLatinDigits } from '@shared/jalali'
 import { observationOf, absenceUncounted, isAbsentUncounted } from '@shared/custodyPeriod'
+import { compareCustodyPeerCounts } from '@shared/custodyPeerCount'
 import { pendingCustodyReference, CUSTODY_REFERENCE_LEGACY_VERSION } from '@shared/custodyReference'
 import { recordBlueSnapshot, referenceFromBlueSnapshot } from './CustodyBlueSnapshotService'
 import { shiftService } from './ShiftService'
@@ -50,6 +51,24 @@ function asCash(value: unknown, label = 'مبلغ'): number {
   const n = typeof value === 'string' ? Number(value.trim()) : value
   if (!Number.isSafeInteger(n) || n < 0) throw new BusinessError(`${label} باید یک عدد صحیحِ صفر یا مثبت باشد.`)
   return n
+}
+
+/** Same shape for the just-recorded IN and the receiver-PIN readback. The
+ * peer warning only uses the two physical witnesses, never the reference or
+ * the inherited/fresh accounting variance. Monetary amounts do not enter
+ * public status or the handover-start response. */
+function blueHandoverPreview(handoverId: number, out: any, incoming: any, selfCount: boolean) {
+  return {
+    handoverId, state: 'RECEIVER_COUNTED' as const,
+    referenceStatus: incoming.referenceStatus,
+    referenceAmount: incoming.referenceAmount == null ? null : Number(incoming.referenceAmount),
+    knownSubtotal: incoming.knownSubtotal == null ? null : Number(incoming.knownSubtotal),
+    destinationUnknownReceived: incoming.destinationUnknownReceived == null ? null : Number(incoming.destinationUnknownReceived),
+    ambiguousLegacyCredit: incoming.ambiguousLegacyCredit == null ? null : Number(incoming.ambiguousLegacyCredit),
+    rawDifference: incoming.rawDifference == null ? null : Number(incoming.rawDifference),
+    freshDifference: incoming.freshDifference == null ? null : Number(incoming.freshDifference),
+    peerComparison: compareCustodyPeerCounts(out, incoming, selfCount)
+  }
 }
 
 /** Manager discrepancy filters are intentionally Jalali-only.  A malformed
@@ -3178,16 +3197,49 @@ export const custodyService = {
         actorUserId: receiver.userId, actorKind: 'RECEIVER', authMethod: 'CUSTODY_PIN',
         epochBefore: state.epoch, epochAfter: state.epoch,
         payload: { incomingSnapshotId: incoming.id, outgoingSnapshotId: out.id, receiverCountId: counted.id, referenceStatus: incoming.referenceStatus } })
-      return { stale: false as const, handoverId, state: 'RECEIVER_COUNTED' as const,
-        referenceStatus: incoming.referenceStatus, referenceAmount: incoming.referenceAmount == null ? null : Number(incoming.referenceAmount),
-        knownSubtotal: incoming.knownSubtotal == null ? null : Number(incoming.knownSubtotal),
-        destinationUnknownReceived: incoming.destinationUnknownReceived == null ? null : Number(incoming.destinationUnknownReceived),
-        ambiguousLegacyCredit: incoming.ambiguousLegacyCredit == null ? null : Number(incoming.ambiguousLegacyCredit),
-        rawDifference: incoming.rawDifference == null ? null : Number(incoming.rawDifference),
-        freshDifference: incoming.freshDifference == null ? null : Number(incoming.freshDifference) }
+      return { stale: false as const, ...blueHandoverPreview(handoverId, out, incoming, live.fromUserId === receiver.userId) }
     })
     if (result.stale) throw new BusinessError('میان دو شمارش فروش ثبت شد یا روز عوض شد. فروش محفوظ است؛ هر دو نفر با مبلغ و PIN تازه دوباره شمارش کنند.', 'BLUE_RECOUNT_REQUIRED')
     return result
+  },
+
+  /** Read back the already-recorded IN preview after reopening the dialog.
+   * The receiver's personal PIN (with the usual lockout) is required; public
+   * status, the handover start and a pre-IN request reveal no prior count.
+   * This transaction performs SELECTs only: it never restores/updates a count
+   * or advances custody. Confirmation does not call or depend on this review. */
+  async handoverBlueReview(input: { handoverId: unknown; password: unknown }) {
+    const handoverId = asSafeId(input.handoverId, 'شناسه تحویل')
+    const pending = await prisma.custodyHandover.findUnique({ where: { id: handoverId } })
+    if (!pending || pending.status !== 'RECEIVER_COUNTED' || JSON.parse(String(pending.ledgerWatermark || '{}')).blueV1 !== true)
+      throw new BusinessError('این تحویل هنوز دو شمارش مستقل برای بازبینی ندارد.', 'BLUE_NOT_COUNTED')
+    const receiver = await this.verifyPin(pending.selectedRecipientUserId, input.password)
+    return prisma.$transaction(async (tx: Client) => {
+      const [state, live, out, incoming] = await Promise.all([
+        tx.custodyState.findUnique({ where: { key: MAIN } }),
+        tx.custodyHandover.findUnique({ where: { id: handoverId } }),
+        tx.custodyBlueSnapshot.findFirst({ where: { handoverId, role: 'OUT' } }),
+        tx.custodyBlueSnapshot.findFirst({ where: { handoverId, role: 'IN' } })
+      ])
+      if (!state || !live || live.status !== 'RECEIVER_COUNTED' ||
+          state.state !== 'HANDOVER_PENDING' || state.pendingHandoverId !== handoverId ||
+          state.activeShiftId !== live.fromShiftId || live.selectedRecipientUserId !== receiver.userId)
+        throw new BusinessError('این تحویل دیگر در انتظار تأیید نیست.', 'BLUE_NOT_COUNTED')
+      const watermark = JSON.parse(String(live.ledgerWatermark || '{}'))
+      if (watermark.blueV1 !== true || !watermark.receiverCountId ||
+          !out || !incoming || watermark.receiverSnapshotId !== incoming.id ||
+          incoming.priorSnapshotId !== out.id || out.actorUserId !== live.fromUserId ||
+          incoming.actorUserId !== receiver.userId || out.shiftId !== live.fromShiftId ||
+          incoming.shiftId !== live.fromShiftId || out.authMethod !== 'CUSTODY_PIN' ||
+          incoming.authMethod !== 'CUSTODY_PIN' ||
+          out.calculationVersion !== incoming.calculationVersion || out.sourceHash !== incoming.sourceHash)
+        throw new BusinessError('اسناد مستقل شمارش تحویل با یکدیگر سازگار نیستند.', 'BLUE_SNAPSHOT_MISSING')
+      if (Number(state.financialRevision ?? 0) !== out.financialRevision ||
+          incoming.financialRevision !== out.financialRevision ||
+          toJalaliDate(new Date()) !== incoming.referenceToDay)
+        throw new BusinessError('پس از شمارش فروش ثبت شد یا روز عوض شد؛ این نتیجه نیازمند شمارش تازه است. فروش محفوظ است.', 'BLUE_RECOUNT_REQUIRED')
+      return blueHandoverPreview(handoverId, out, incoming, live.fromUserId === receiver.userId)
+    })
   },
 
   /** Explicit second confirmation: no count is supplied/reused by the UI.

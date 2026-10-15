@@ -327,6 +327,8 @@ export const IPC = {
   custodyHandoverStart: 'custody:handover:start',
   /** Independent receiver count, then a separate explicit PIN confirmation. */
   custodyHandoverCountBlue: 'custody:handover:blue-count',
+  /** Receiver-PIN readback of the saved two-count preview, never public status. */
+  custodyHandoverBlueReview: 'custody:handover:blue-review',
   custodyHandoverConfirmBlue: 'custody:handover:blue-confirm',
   custodyHandoverAccept: 'custody:handover:accept',
   custodyHandoverCancel: 'custody:handover:cancel',

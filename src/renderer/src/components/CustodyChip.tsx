@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { call, CH } from '../lib/api'
 import { money } from '@shared/jalali'
+import type { CustodyPeerComparison } from '@shared/custodyPeerCount'
+import { custodyPeerWarningText } from '@shared/custodyPeerWarningText'
 import { useTopmostModalKey } from './Modal'
 import { useManagerSession } from '../hooks/useManagerSession'
 
@@ -33,6 +35,8 @@ type Status = {
 type View = 'main' | 'open' | 'handover' | 'accept' | 'confirmBlue' | 'emergency' | 'masterOverride' | 'close' | 'changePin' | 'legacyRecovery'
 
 type BlueCountPreview = {
+  handoverId: number
+  peerComparison: CustodyPeerComparison
   referenceStatus: 'AVAILABLE' | 'PENDING_RECONCILIATION'
   referenceAmount: number | null
   knownSubtotal: number | null
@@ -61,6 +65,8 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
   const [managerPassword, setManagerPassword] = useState('')
   const [countedCash, setCountedCash] = useState('')
   const [blueCountPreview, setBlueCountPreview] = useState<BlueCountPreview | null>(null)
+  const [reviewPin, setReviewPin] = useState('')
+  const latestReload = useRef(0)
   const [note, setNote] = useState('')
   const [legacyRecoveryKey, setLegacyRecoveryKey] = useState('')
   const [legacyAcknowledged, setLegacyAcknowledged] = useState({ missedHandover: false, physicalCount: false, responsibilityBoundary: false })
@@ -69,11 +75,43 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
   const [dismissedReminderBucket, setDismissedReminderBucket] = useState<number | null>(null)
   const { isManager } = useManagerSession()
 
+  const reset = (next: View = 'main') => {
+    setView(next)
+    setPassword('')
+    setReviewPin('')
+    setNewPassword('')
+    setRepeatNewPassword('')
+    setManagerPassword('')
+    setCountedCash('')
+    setBlueCountPreview(null)
+    setNote('')
+    setError(null)
+  }
+  const dismiss = () => {
+    if (busy) return
+    // Neither the PIN nor its authenticated preview should remain visible to
+    // the next person who opens this shared drawer control.
+    reset()
+    setVisible(false)
+  }
+
   const reload = useCallback(async () => {
+    const request = ++latestReload.current
     try {
       const next = await call<Status>(CH.custodyStatus, {})
+      if (request !== latestReload.current) return
       setStatus(next)
-      setStaff(await call<Staff[]>(CH.custodyStaffList, {}))
+      // A previously authenticated preview belongs to ONE still-pending pair.
+      // Do not show it after cancellation, transfer, recovery or a new attempt.
+      const sameCountedHandover = (handoverId: number) =>
+        next.state === 'HANDOVER_PENDING' && next.pendingHandover?.blueReference === true &&
+        next.pendingHandover.id === handoverId && next.pendingHandover.status === 'RECEIVER_COUNTED'
+      setBlueCountPreview((prior) => prior && sameCountedHandover(prior.handoverId) ? prior : null)
+      setView((prior) => prior === 'confirmBlue' &&
+        !(next.state === 'HANDOVER_PENDING' && next.pendingHandover?.blueReference && next.pendingHandover.status === 'RECEIVER_COUNTED')
+        ? 'main' : prior)
+      const nextStaff = await call<Staff[]>(CH.custodyStaffList, {})
+      if (request === latestReload.current) setStaff(nextStaff)
     } catch {
       // The established shift chip remains usable if an old database has not
       // migrated yet. No renderer fallback may silently create a shift here.
@@ -89,7 +127,7 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
   useTopmostModalKey(visible, (event) => {
     if (event.key !== 'Escape') return
     event.preventDefault()
-    if (!busy) setVisible(false)
+    dismiss()
   })
 
   if (!status) return null
@@ -107,17 +145,6 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
   const managers = eligible.filter((row) => row.role === 'MANAGER')
   const legacyBlock = status.legacyBlock
   const nameOf = (id: number | null | undefined) => staff.find((row) => row.id === id)?.name ?? 'کارمند انتخاب‌شده'
-  const reset = (next: View = 'main') => {
-    setView(next)
-    setPassword('')
-    setNewPassword('')
-    setRepeatNewPassword('')
-    setManagerPassword('')
-    setCountedCash('')
-    setBlueCountPreview(null)
-    setNote('')
-    setError(null)
-  }
   const normalHandoverDifferencePending = status.state === 'HANDOVER_RECOUNT' && status.pendingHandover?.status === 'PENDING' && status.pendingHandover?.blindCountedCash != null
   const resumeHandoverDifference = () => {
     const pending = status.pendingHandover
@@ -134,12 +161,12 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
     if (!Number.isSafeInteger(value) || value < 0) throw new Error('مبلغ شمارش‌شده را به‌صورت عدد صحیحِ صفر یا بیشتر وارد کنید.')
     return value
   }
-  const run = async (fn: () => Promise<unknown>) => {
+  const run = async (fn: () => Promise<unknown>, nextView: View = 'main') => {
     setBusy(true)
     setError(null)
     try {
       await fn()
-      reset()
+      reset(nextView)
       await reload()
       window.dispatchEvent(new Event('mahak:shift-changed'))
     } catch (e: any) {
@@ -159,6 +186,7 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
       const result = await call<BlueCountPreview>(CH.custodyHandoverCountBlue, {
         handoverId: status.pendingHandover?.id, password, operationalTotal: observed
       })
+      if (result.handoverId !== status.pendingHandover?.id) throw new Error('تلاش تحویل تغییر کرده است؛ وضعیت را تازه کنید.')
       setBlueCountPreview(result)
       setPassword('')
       setCountedCash('')
@@ -171,8 +199,31 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
       setBusy(false)
     }
   }
+  const reviewBluePreview = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      if (!reviewPin.trim()) throw new Error('برای بازبینی، PIN شخصی گیرنده را وارد کنید.')
+      const handoverId = status.pendingHandover?.id
+      const saved = await call<BlueCountPreview>(CH.custodyHandoverBlueReview, { handoverId, password: reviewPin })
+      if (saved.handoverId !== handoverId) throw new Error('تلاش تحویل تغییر کرده است؛ وضعیت را تازه کنید.')
+      setBlueCountPreview(saved)
+      await reload()
+    } catch (e: any) {
+      setBlueCountPreview(null)
+      setError(e?.message ?? 'بازبینی دو شمارش انجام نشد.')
+      await reload()
+    } finally {
+      setReviewPin('')
+      setBusy(false)
+    }
+  }
   const showReminder = (status.state === 'ACTIVE' || status.state === 'HANDOVER_PENDING') &&
     !!status.reminder?.due && status.reminder.bucket !== dismissedReminderBucket
+  const currentBluePreview = status.state === 'HANDOVER_PENDING' &&
+    status.pendingHandover?.blueReference && status.pendingHandover.status === 'RECEIVER_COUNTED' &&
+    blueCountPreview?.handoverId === status.pendingHandover.id ? blueCountPreview : null
+  const peerWarning = currentBluePreview ? custodyPeerWarningText(currentBluePreview.peerComparison) : null
   const frozenHandover = status.state === 'HANDOVER_RECOUNT' && status.pendingHandover != null
   const emergencyInProgress = frozenHandover && status.pendingHandover?.status === 'EMERGENCY_RECOUNT'
   const masterOverrideInProgress = frozenHandover && status.pendingHandover?.status === 'MASTER_OVERRIDE_RECOUNT'
@@ -205,11 +256,11 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
         {status.legacyBlock ? '⚠ صندوق · نیازمند بازیابی Shift قدیمی' : frozenHandover ? '⚠ تحویل نیمه‌تمام · بازیابی با شمارش تازه' : status.state === 'HANDOVER_PENDING' ? '⚠ تحویل صندوق در انتظار تأیید' : status.state === 'ACTIVE' ? `صندوق · ${status.custodian?.name ?? 'فعال'}` : 'صندوق · نیازمند ورود'}
       </button>
       {visible ? createPortal(
-        <div className="fixed inset-0 z-[80] bg-black/55 flex justify-center items-start overflow-auto p-4" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) setVisible(false) }}>
+        <div className="fixed inset-0 z-[80] bg-black/55 flex justify-center items-start overflow-auto p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) dismiss() }}>
           <section className="w-full max-w-xl bg-white rounded-lg shadow-xl p-5 mt-8 text-slate-800" dir="rtl">
             <div className="flex items-start gap-3 border-b pb-3 mb-4">
               <div className="flex-1"><h2 className="font-bold text-lg">حضانت صندوق</h2><p className="text-xs text-slate-500 mt-1">{title} · تغییر مسئول با PIN شخصی و شمارش مستقل انجام می‌شود؛ Master Override فقط با PIN شخصی همان مدیر انجام می‌شود.</p></div>
-              <button className="text-slate-500 hover:text-slate-900 px-2" onClick={() => !busy && setVisible(false)} aria-label="بستن">×</button>
+              <button className="text-slate-500 hover:text-slate-900 px-2" onClick={dismiss} aria-label="بستن">×</button>
             </div>
             {showReminder ? <div className="mb-3 p-3 rounded border border-amber-300 bg-amber-50 text-sm"><b>یادآوری پایان برنامهٔ شیفت</b><br />برنامهٔ «{status.schedule?.title ?? 'شیفت'}» به پایان رسیده است. فروش متوقف نمی‌شود و همچنان به مسئول فعلی منتسب است؛ در زمان مناسب تحویل یا بستن نهایی را ثبت کنید.<button className="block mt-2 underline" onClick={() => setDismissedReminderBucket(status.reminder.bucket)}>فعلاً بستن این یادآوری</button></div> : null}
             {error ? <div className="mb-3 p-2 rounded bg-red-50 text-red-700 text-sm">{error}</div> : null}
@@ -251,17 +302,72 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
             /> : null}
             {view === 'legacyRecovery' && legacyBlock ? <LegacyRecoveryForm legacy={legacyBlock} staff={openingEligible} selected={selectedUserId} setSelected={setSelectedUserId} password={password} setPassword={setPassword} amount={countedCash} setAmount={setCountedCash} note={note} setNote={setNote} acknowledgements={legacyAcknowledged} setAcknowledgements={setLegacyAcknowledged} busy={busy} onBack={() => reset()} onSubmit={() => run(async () => { if (!selectedUserId) throw new Error('صندوق‌دار یا مدیر حاضر را انتخاب کنید.'); if (!legacyAcknowledged.missedHandover || !legacyAcknowledged.physicalCount || !legacyAcknowledged.responsibilityBoundary) throw new Error('هر سه تأیید بازیابی را بخوانید و تأیید کنید.'); await call(CH.custodyLegacyRecover, { userId: selectedUserId, password, countedCash: amount(), note: note.trim() || undefined, ackTextVersion: 'LEGACY_RECOVERY_V1', idempotencyKey: legacyRecoveryKey, seenEpoch: status.epoch, seenShiftIds: legacyBlock.shiftIds }) })} /> : null}
             {view === 'changePin' ? <ChangeTemporaryPinForm staff={staff.filter((row) => row.isActive && row.hasCustodyPin && row.mustChangePin)} selected={selectedUserId} setSelected={setSelectedUserId} temporaryPassword={password} setTemporaryPassword={setPassword} newPassword={newPassword} setNewPassword={setNewPassword} repeatNewPassword={repeatNewPassword} setRepeatNewPassword={setRepeatNewPassword} busy={busy} onBack={() => reset()} onSubmit={() => run(async () => { if (!selectedUserId) throw new Error('کارمند دارای رمز موقت را انتخاب کنید.'); if (newPassword !== repeatNewPassword) throw new Error('تکرار رمز جدید یکسان نیست.'); await call(CH.custodyPinSet, { userId: selectedUserId, currentPassword: password, newPassword }) })} /> : null}
-            {view === 'handover' ? (status.state === 'HANDOVER_PENDING' || normalHandoverDifferencePending) ? <PasswordOnly label={normalHandoverDifferencePending ? "شمارشِ دارای اختلاف به‌عنوان سند باقی می‌ماند؛ فقط مسئول قبلی با PIN خودش می‌تواند تحویل فریز‌شده را لغو و فروش را به segment قبلی بازگرداند." : "برای لغو تحویل، مسئول قبلی رمز خودش را وارد می‌کند"} password={password} setPassword={setPassword} busy={busy} onBack={() => reset()} submit="لغو تحویل" onSubmit={() => run(() => call(CH.custodyHandoverCancel, { handoverId: status.pendingHandover?.id, password }))} /> : <CredentialForm staff={eligible} selected={recipientId} setSelected={setRecipientId} password={password} setPassword={setPassword} amount={countedCash} setAmount={setCountedCash} label="مجموع کور کشو و کارت‌خوان پیش از تحویل" submit="شروع تحویل" busy={busy} onBack={() => reset()} selectLabel="تحویل‌گیرنده (خودتحویلی هم با دو شمارش و دو بار PIN مجاز است)" onSubmit={() => run(async () => { if (!recipientId) throw new Error('تحویل‌گیرنده را انتخاب کنید.'); await call(CH.custodyHandoverStart, { toUserId: recipientId, password, operationalTotal: amount(), note: note.trim() || undefined }) })} /> : null}
+            {view === 'handover' ? (status.state === 'HANDOVER_PENDING' || normalHandoverDifferencePending)
+              ? <PasswordOnly
+                  label={normalHandoverDifferencePending
+                    ? 'شمارشِ دارای اختلاف به‌عنوان سند باقی می‌ماند؛ فقط مسئول قبلی با PIN خودش می‌تواند تحویل فریز‌شده را لغو و فروش را به بخش قبلی بازگرداند.'
+                    : status.pendingHandover?.blueReference && status.pendingHandover.status === 'RECEIVER_COUNTED'
+                      ? 'بازشماری اختیاری: فقط مسئول تحویل‌دهنده با PIN خودش تلاش کنونی را لغو می‌کند؛ هر دو شمارش قبلی در تاریخچه می‌ماند. سپس خودش شمارش خروجی تازه را با PIN خودش ثبت می‌کند و گیرنده هم مستقل دوباره می‌شمارد. اگر بازشماری نمی‌خواهید، به تأیید گیرنده برگردید.'
+                      : 'برای لغو تحویل، مسئول قبلی رمز خودش را وارد می‌کند.'}
+                  password={password} setPassword={setPassword} busy={busy}
+                  onBack={() => reset()}
+                  submit={status.pendingHandover?.blueReference && status.pendingHandover.status === 'RECEIVER_COUNTED'
+                    ? 'لغو تلاش و شروع دوبارهٔ شمارش' : 'لغو تحویل'}
+                  onSubmit={() => {
+                    const freshAttempt = status.pendingHandover?.blueReference === true && status.pendingHandover.status === 'RECEIVER_COUNTED'
+                    const recipient = status.pendingHandover?.selectedRecipientUserId
+                    void run(async () => {
+                      await call(CH.custodyHandoverCancel, { handoverId: status.pendingHandover?.id, password })
+                      if (freshAttempt && recipient) setRecipientId(recipient)
+                    }, freshAttempt ? 'handover' : 'main')
+                  }}
+                />
+              : <CredentialForm staff={eligible} selected={recipientId} setSelected={setRecipientId}
+                  password={password} setPassword={setPassword} amount={countedCash} setAmount={setCountedCash}
+                  label="مجموع کور کشو و کارت‌خوان پیش از تحویل" submit="شروع تحویل" busy={busy}
+                  onBack={() => reset()}
+                  selectLabel="تحویل‌گیرنده (خودتحویلی هم با دو شمارش و دو بار PIN مجاز است)"
+                  onSubmit={() => run(async () => {
+                    if (!recipientId) throw new Error('تحویل‌گیرنده را انتخاب کنید.')
+                    await call(CH.custodyHandoverStart, {
+                      toUserId: recipientId, password, operationalTotal: amount(), note: note.trim() || undefined
+                    })
+                  })} /> : null}
             {view === 'accept' ? status.pendingHandover?.blueReference
               ? <PasswordOnly label={`فقط ${nameOf(status.pendingHandover.selectedRecipientUserId)} با PIN شخصی خود، بدون دیدن مبلغ شمارش اول، مجموع واقعی کشو و کارت‌خوان را مستقل وارد می‌کند. پس از ثبت، تأیید جداگانه لازم است؛ فروش در این فاصله به نام مسئول فعلی ادامه دارد.`} password={password} setPassword={setPassword} amount={countedCash} setAmount={setCountedCash} amountLabel="مجموع واقعی کشو و کارت‌خوان (صفر را صریح بنویسید)" busy={busy} onBack={() => reset()} submit="ثبت شمارش مستقل؛ هنوز تحویل انجام نمی‌شود" onSubmit={() => void countBlueAndPreview()} />
               : <PasswordOnly label={`فقط ${nameOf(status.pendingHandover?.selectedRecipientUserId)} با رمز شخصی خود، مجموع کشو و کارت‌خوان را مستقل وارد می‌کند (تحویل ناتمامِ قدیمی).`} password={password} setPassword={setPassword} amount={countedCash} setAmount={setCountedCash} amountLabel="مجموع فیزیکی کشو و کارت‌خوان" busy={busy} onBack={() => reset()} submit="شمارش و پذیرش تحویل قدیمی" onSubmit={() => run(() => call(CH.custodyHandoverAccept, { handoverId: status.pendingHandover?.id, password, operationalTotal: amount() }))} /> : null}
             {view === 'confirmBlue' && status.pendingHandover?.blueReference && status.pendingHandover.status === 'RECEIVER_COUNTED' ? <div className="space-y-3">
               <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm leading-6" role="status">
                 <b>شمارش مستقل ثبت شد؛ مسئولیت هنوز جابه‌جا نشده است.</b>
-                {blueCountPreview?.referenceStatus === 'PENDING_RECONCILIATION' ? <p>مرجع و اختلاف قطعی در انتظار تطبیق است. بخش معلوم: {blueCountPreview.knownSubtotal == null ? 'نامعلوم' : money(blueCountPreview.knownSubtotal)} ریال · پرداخت قدیمی مبهم: {blueCountPreview.ambiguousLegacyCredit == null ? 'نامعلوم' : money(blueCountPreview.ambiguousLegacyCredit)} ریال · دریافتی با مقصد نامشخص: {blueCountPreview.destinationUnknownReceived == null ? 'نامعلوم' : money(blueCountPreview.destinationUnknownReceived)} ریال. شمارش و فروش ادامه دارند.</p> : blueCountPreview ? <p>مرجع گزارش: {blueCountPreview.referenceAmount == null ? 'نامعلوم' : money(blueCountPreview.referenceAmount)} ریال · اختلاف خام: {blueCountPreview.rawDifference == null ? 'نامعلوم' : money(blueCountPreview.rawDifference)} ریال · اختلاف تازه: {blueCountPreview.freshDifference == null ? 'نامعلوم' : money(blueCountPreview.freshDifference)} ریال.</p> : <p>برای دیدن جزئیات مدیر به گزارش شواهد رجوع می‌کند؛ شمارش ثبت‌شده پس از بازکردن دوبارهٔ فرم نمایش داده نمی‌شود.</p>}
-                <p>اختلاف یا وضعیت در انتظار، اتهام نیست و نیازمند تأیید قبلی مدیر نیست. اگر در این فاصله فروش شود، شمارش‌های تازه لازم خواهد شد.</p>
+                {currentBluePreview?.referenceStatus === 'PENDING_RECONCILIATION'
+                  ? <p>مرجع و اختلاف قطعی در انتظار تطبیق است. بخش معلوم: {currentBluePreview.knownSubtotal == null ? 'نامعلوم' : money(currentBluePreview.knownSubtotal)} ریال · پرداخت قدیمی مبهم: {currentBluePreview.ambiguousLegacyCredit == null ? 'نامعلوم' : money(currentBluePreview.ambiguousLegacyCredit)} ریال · دریافتی با مقصد نامشخص: {currentBluePreview.destinationUnknownReceived == null ? 'نامعلوم' : money(currentBluePreview.destinationUnknownReceived)} ریال. شمارش و فروش ادامه دارند.</p>
+                  : currentBluePreview
+                    ? <p>مرجع گزارش: {currentBluePreview.referenceAmount == null ? 'نامعلوم' : money(currentBluePreview.referenceAmount)} ریال · اختلاف خام: {currentBluePreview.rawDifference == null ? 'نامعلوم' : money(currentBluePreview.rawDifference)} ریال · اختلاف تازه: {currentBluePreview.freshDifference == null ? 'نامعلوم' : money(currentBluePreview.freshDifference)} ریال.</p>
+                    : <p>نتیجهٔ ثبت‌شده پس از بازکردن دوبارهٔ فرم، فقط با PIN شخصی گیرنده قابل مشاهده است؛ شمارش اول پیش از ثبت شمارش گیرنده نمایش داده نمی‌شود.</p>}
+                <p>اختلاف مرجع یا وضعیت در انتظار، اتهام نیست و به تأیید قبلی مدیر نیاز ندارد. اگر در این فاصله فروش شود، شمارش‌های تازه لازم خواهد شد.</p>
               </div>
-              <PasswordOnly label={`فقط ${nameOf(status.pendingHandover.selectedRecipientUserId)} با PIN شخصی خود انتقال مسئولیت را جداگانه تأیید می‌کند؛ هیچ مبلغی دوباره از فرم فرستاده نمی‌شود.`} password={password} setPassword={setPassword} busy={busy} onBack={() => reset()} submit="تأیید نهایی و تحویل مسئولیت" onSubmit={() => run(() => call(CH.custodyHandoverConfirmBlue, { handoverId: status.pendingHandover?.id, password }))} />
+              {peerWarning ? <div className="rounded border-2 border-rose-500 bg-rose-50 p-3 text-sm leading-6 text-rose-950" role="alert">
+                <b>⚠ اختلاف دو شمارش واقعی</b>
+                <p className="font-bold text-base mt-1">{peerWarning}</p>
+                <p>این فقط تفاوت دو شمارش مستقل است؛ به‌تنهایی کسری قطعی یا تقصیر هیچ‌کس را ثابت نمی‌کند و تأیید مجاز تحویل یا فروش را متوقف نمی‌کند.</p>
+                <button type="button" className="btn-secondary mt-3 w-full" disabled={busy} onClick={() => reset('handover')}>بازگشت و بررسی/بازشماری (اختیاری)</button>
+                <p className="mt-1 text-xs">برای شمارش تازهٔ خروجی، ابتدا مسئول قبلی با PIN خودش تلاش کنونی را لغو می‌کند؛ شمارش‌های ثبت‌شده حذف نمی‌شوند.</p>
+              </div> : currentBluePreview?.peerComparison.status === 'EQUAL'
+                ? <p className="rounded border border-emerald-300 bg-emerald-50 p-3 text-sm" role="status">دو شمارش واقعی برابرند؛ تأیید نهایی با PIN گیرنده انجام می‌شود.</p>
+                : currentBluePreview?.peerComparison.status === 'NOT_APPLICABLE'
+                  ? <p className="rounded border border-slate-300 bg-slate-50 p-3 text-sm" role="status">برای این اسناد دو شمارش انسانی قابل مقایسه وجود ندارد؛ مبلغی به‌جای شمارش غایب، صفر فرض نمی‌شود.</p>
+                  : null}
+              {!currentBluePreview ? <div className="rounded border border-sky-300 bg-sky-50 p-3 text-sm leading-6">
+                <p>برای دیدن دوبارهٔ نتیجهٔ دو شمارش، گیرنده PIN شخصی خودش را وارد می‌کند. این بازبینی فقط‌خواندنی و اختیاری است؛ تأیید نهایی به آن وابسته نیست.</p>
+                <label className="block mt-2">PIN گیرنده برای بازبینی نتیجه
+                  <input className="input mt-1 w-full" type="password" value={reviewPin} onChange={(e) => setReviewPin(e.target.value)} autoComplete="current-password" />
+                </label>
+                <button type="button" className="btn-secondary mt-2 w-full" disabled={busy} onClick={() => void reviewBluePreview()}>{busy ? 'در حال بازبینی…' : 'نمایش نتیجهٔ ثبت‌شده'}</button>
+              </div> : null}
+              <PasswordOnly label={`فقط ${nameOf(status.pendingHandover.selectedRecipientUserId)} با PIN شخصی خود انتقال مسئولیت را جداگانه تأیید می‌کند؛ هیچ مبلغی دوباره از فرم فرستاده نمی‌شود.`}
+                password={password} setPassword={setPassword} busy={busy} onBack={() => reset()}
+                submit="تأیید نهایی و تحویل مسئولیت"
+                onSubmit={() => run(() => call(CH.custodyHandoverConfirmBlue, { handoverId: status.pendingHandover?.id, password }))} />
             </div> : null}
             {view === 'emergency' ? <EmergencyCoverForm staff={eligible.filter((row) => row.id !== status.custodian?.id)} selected={selectedUserId} setSelected={setSelectedUserId} password={password} setPassword={setPassword} amount={countedCash} setAmount={setCountedCash} reason={note} setReason={setNote} busy={busy} inProgress={emergencyInProgress} onBack={() => reset()} onSubmit={() => run(async () => { if (!selectedUserId) throw new Error('کارمند پوشش‌دهنده را انتخاب کنید.'); await call(CH.custodyEmergencyCover, { userId: selectedUserId, password, operationalTotal: amount(), reason: note.trim() }) })} /> : null}
             {view === 'masterOverride' ? <MasterOverrideForm managers={managers.filter((row) => row.id !== status.custodian?.id)} managerId={managerId} setManagerId={setManagerId} managerPassword={managerPassword} setManagerPassword={setManagerPassword} amount={countedCash} setAmount={setCountedCash} reason={note} setReason={setNote} busy={busy} inProgress={masterOverrideInProgress} onBack={() => reset()} onSubmit={() => run(async () => { if (!managerId) throw new Error('مدیر مسئول Master Override را انتخاب کنید.'); await call(CH.custodyMasterOverride, { managerUserId: managerId, managerPassword, operationalTotal: amount(), reason: note.trim() }) })} /> : null}

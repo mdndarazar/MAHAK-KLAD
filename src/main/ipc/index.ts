@@ -1139,6 +1139,7 @@ export function registerIpcHandlers(): void {
   // handovers still use the old accept route; a new blue attempt cannot call it.
   handle(IPC.custodyHandoverStart, (p) => custodyService.handoverStart({ ...(p ?? {}), blueReference: true }))
   handle(IPC.custodyHandoverCountBlue, (p) => custodyService.handoverCountBlue(p ?? {}))
+  handle(IPC.custodyHandoverBlueReview, (p) => custodyService.handoverBlueReview(p ?? {}))
   handle(IPC.custodyHandoverConfirmBlue, (p) => custodyService.handoverConfirmBlue(p ?? {}))
   handle(IPC.custodyHandoverAccept, (p) => custodyService.handoverAccept(p ?? {}))
   handle(IPC.custodyHandoverCancel, (p) => custodyService.handoverCancel(p ?? {}))
