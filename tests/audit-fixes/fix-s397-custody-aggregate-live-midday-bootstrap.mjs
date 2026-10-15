@@ -148,12 +148,13 @@ console.log('\n[5] پوشش اضطراری و بستن نهایی روی segment
   const giver = staff.c
   const cover = staff.d
   const opened = await custodyService.open({ userId: giver.id, password: giver.permanent, countedCash: 0 })
-  await custodyService.emergencyCover({ userId: cover.id, password: cover.permanent, operationalTotal: 3_000_000, reason: 'مسئول قبلی حاضر نیست و باید پوشش داده شود.' })
-  const emergencyBoundary = seed.one('SELECT * FROM "CustodyBlueSnapshot" WHERE shiftId=? AND role=? ORDER BY id DESC LIMIT 1', opened.shiftId, 'IN')
+  const emergency = await custodyService.emergencyCover({ userId: cover.id, password: cover.permanent, operationalTotal: 3_000_000, reason: 'مسئول قبلی حاضر نیست و باید پوشش داده شود.' })
+  const emergencyBoundary = seed.one('SELECT * FROM "CustodyBlueSnapshot" WHERE shiftId=? AND role=? ORDER BY id DESC LIMIT 1', emergency.shiftId, 'IN')
   eq('پوشش اضطراری فقط سند آبی با شمارش واقعی می‌سازد', Number(emergencyBoundary?.humanAmount), 3_000_000)
+  eq('شمارش جدید در نشست قبلی ثبت نمی‌شود', count('SELECT COUNT(*) AS n FROM "CustodyCount" WHERE shiftId=? AND kind=?', opened.shiftId, 'BLUE_EMERGENCY_IN'), 0)
   eq('پوشش اضطراری بدون شمارش واقعی قبلی، اختلاف تازهٔ ساختگی ندارد', emergencyBoundary?.freshDifference, null)
   eq('پوشش اضطراری پروندهٔ مغایرت قدیمی نمی‌سازد', count('SELECT COUNT(*) AS n FROM "CustodyDiscrepancyCase" WHERE boundaryKind=?', 'EMERGENCY_COVER'), 0)
-  eq('پوشش اضطراری expected جعلی روی شمارش نمی‌نشاند', count('SELECT COUNT(*) AS n FROM "CustodyCount" WHERE shiftId=? AND kind=? AND expectedCash IS NOT NULL', opened.shiftId, 'BLUE_EMERGENCY_IN'), 0)
+  eq('پوشش اضطراری expected جعلی روی شمارش نمی‌نشاند', count('SELECT COUNT(*) AS n FROM "CustodyCount" WHERE shiftId=? AND kind=? AND expectedCash IS NOT NULL', emergency.shiftId, 'BLUE_EMERGENCY_IN'), 0)
   eq('مسئولیت به پوشش‌دهنده منتقل شد', (await custodyService.status()).custodian?.id, cover.id)
   await resetWith(cover, 3_000_000)
   eq('بستن نهایی با segment تازه بی‌خطر است', (await custodyService.status()).state, 'NO_SESSION')
@@ -163,9 +164,10 @@ console.log('\n[6] Master Override روی segment بدون سابقهٔ آبی: 
 {
   const giver = staff.e
   const opened = await custodyService.open({ userId: giver.id, password: giver.permanent, countedCash: 0 })
-  await custodyService.masterOverride({ managerUserId: manager, managerPassword: 'Manager397!', operationalTotal: 1_500_000, reason: 'مسئول غایب است و مدیر مسئولیت صندوق را می‌گیرد.' })
-  const witness = seed.one('SELECT * FROM "CustodyBlueSnapshot" WHERE shiftId=? AND role=? ORDER BY id DESC LIMIT 1', opened.shiftId, 'IN')
+  const override = await custodyService.masterOverride({ managerUserId: manager, managerPassword: 'Manager397!', operationalTotal: 1_500_000, reason: 'مسئول غایب است و مدیر مسئولیت صندوق را می‌گیرد.' })
+  const witness = seed.one('SELECT * FROM "CustodyBlueSnapshot" WHERE shiftId=? AND role=? ORDER BY id DESC LIMIT 1', override.shiftId, 'IN')
   eq('Master Override به جای aggregate-v2 سند مستقل آبی دارد', Number(witness?.humanAmount), 1_500_000)
+  eq('شمارش مدیر برای شیفت قبلی ثبت نمی‌شود', count('SELECT COUNT(*) AS n FROM "CustodyCount" WHERE shiftId=? AND kind=?', opened.shiftId, 'BLUE_MASTER_OVERRIDE_IN'), 0)
   eq('سند Master Override PIN شخصی مدیر را ثبت می‌کند', witness?.authMethod, 'MANAGER_CUSTODY_PIN')
   eq('بدون شمارش انسانی قبلی، اختلاف تازه نامعلوم می‌ماند', witness?.freshDifference, null)
   eq('مدیر منتخب مسئول شد', (await custodyService.status()).custodian?.id, manager)

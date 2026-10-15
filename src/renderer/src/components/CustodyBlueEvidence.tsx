@@ -85,7 +85,10 @@ export type BlueHandoverView = {
 const amount = (value: number | null | undefined) => value == null ? 'نامعلوم' : `${money(value)} ریال`
 const roleName = (role: string) => role === 'FINAL_CLOSE' ? 'بستن نهایی'
   : role === 'OPENING' ? 'افتتاح' : role === 'RECOVERY' ? 'بازیابی' : role
-const originName = (origin: string) => origin === 'SYSTEM_ABSENCE_ZERO' ? 'صفر سیستمیِ غیبت؛ بدون شمارش انسان'
+// The old ZERO-named identifier is immutable storage, not a monetary zero.
+// Both historic and new absence evidence must read as NO outgoing count.
+const absentOut = (origin: string) => origin === 'ABSENT_UNCOUNTED' || origin === 'SYSTEM_ABSENCE_ZERO'
+const originName = (origin: string) => absentOut(origin) ? 'غایب؛ شمارش خروجی انجام نشده'
   : origin === 'EMPTY_OPTIONAL' ? 'افتتاح اختیاریِ خالی؛ بدون شمارش واقعی'
     : origin === 'EXPLICIT_ZERO' ? 'صفرِ صریحِ انسان' : origin === 'EXPLICIT_AMOUNT' ? 'شمارش واقعی' : origin
 
@@ -125,12 +128,12 @@ export function CustodyBlueEvidence({ blueBoundaries, handovers }: {
     {blueHandovers.map((handover) => {
       const blue = handover.blue!
       return <details key={`handover-${handover.id}`} className="rounded border border-sky-200 bg-white p-2" open={blue.status === 'PENDING_RECONCILIATION'}>
-        <summary className="cursor-pointer font-semibold">تحویل #{handover.id} · {handover.fromUser ?? '—'} → {handover.finalCustodian ?? handover.selectedRecipient ?? '—'} · {blue.status === 'PENDING_RECONCILIATION' ? 'مرجع نامعلوم، نیازمند تطبیق' : handover.status}</summary>
+        <summary className="cursor-pointer font-semibold">{blue.outgoing && absentOut(blue.outgoing.countOrigin) ? 'پوشش غیبت؛ خروج بدون شمارش' : 'تحویل'} #{handover.id} · {handover.fromUser ?? '—'} → {handover.finalCustodian ?? handover.selectedRecipient ?? '—'} · {blue.status === 'PENDING_RECONCILIATION' ? 'مرجع نامعلوم، نیازمند تطبیق' : handover.status}</summary>
         <div className="space-y-1 mt-2">
           <p>بازهٔ سند: {blue.referenceFromDay ?? 'نامعلوم'} تا {blue.referenceToDay ?? 'نامعلوم'} · نسخهٔ محاسبه: {blue.calculationVersion ?? 'نامعلوم'}</p>
           {([['خروجِ تحویل‌دهنده', blue.outgoing], ['شمارش مستقل گیرنده', blue.incoming]] as const).map(([label, snapshot]) => snapshot
             ? <div key={snapshot.id} className="rounded bg-sky-50 p-2">
-                <b>{label} · سند #{snapshot.id}</b> · {originName(snapshot.countOrigin)} · احراز: {snapshot.authMethod} · مبلغ انسانی: {amount(snapshot.humanAmount)}
+                <b>{absentOut(snapshot.countOrigin) ? 'غیبت تحویل‌دهنده؛ شمارش خروجی ثبت نشده' : label} · سند #{snapshot.id}</b> · {originName(snapshot.countOrigin)} · احراز: {absentOut(snapshot.countOrigin) ? 'بدون PIN فرد غایب؛ ثبت سیستمی' : snapshot.authMethod} · مبلغ انسانی: {amount(snapshot.humanAmount)}
                 <div>مرجع اولیه: {amount(snapshot.referenceAmount)} · اختلاف خام اولیه: {amount(snapshot.rawDifference)} · اختلاف تازهٔ اولیه: {amount(snapshot.freshDifference)} · {snapshot.referenceStatus}</div>
                 <Components knownSubtotal={snapshot.knownSubtotal} destinationUnknownReceived={snapshot.destinationUnknownReceived} ambiguousLegacyCredit={snapshot.ambiguousLegacyCredit} calculationVersion={snapshot.calculationVersion} />
               </div>
@@ -140,9 +143,9 @@ export function CustodyBlueEvidence({ blueBoundaries, handovers }: {
       </details>
     })}
     {blueBoundaries.map((row) => <details key={`boundary-${row.snapshotId}`} className="rounded border border-sky-200 bg-white p-2" open={row.originalReferenceStatus === 'PENDING_RECONCILIATION'}>
-      <summary className="cursor-pointer font-semibold">{roleName(row.role)} · شیفت #{row.shiftId} / سند #{row.snapshotId} · {row.actorName ?? '—'} · {row.originalReferenceStatus === 'PENDING_RECONCILIATION' ? 'مرجع اولیه نامعلوم' : 'مرجع اولیه معلوم'}</summary>
+      <summary className="cursor-pointer font-semibold">{row.role === 'OUT' && absentOut(row.countOrigin) ? 'غیبت مسئول قبلی؛ خروج بدون شمارش' : roleName(row.role)} · شیفت #{row.shiftId} / سند #{row.snapshotId} · {row.actorName ?? '—'} · {row.originalReferenceStatus === 'PENDING_RECONCILIATION' ? 'مرجع اولیه نامعلوم' : 'مرجع اولیه معلوم'}</summary>
       <div className="space-y-1 mt-2">
-        <p>بازهٔ سند: {row.referenceFromDay} تا {row.referenceToDay} · نسخهٔ محاسبه: {row.calculationVersion} · {originName(row.countOrigin)} · احراز: {row.authMethod} · مبلغ انسانی: {amount(row.countedAmount)}</p>
+        <p>بازهٔ سند: {row.referenceFromDay} تا {row.referenceToDay} · نسخهٔ محاسبه: {row.calculationVersion} · {originName(row.countOrigin)} · احراز: {absentOut(row.countOrigin) ? 'بدون PIN فرد غایب؛ ثبت سیستمی' : row.authMethod} · مبلغ انسانی: {amount(row.countedAmount)}</p>
         <p>مرجع اولیه: <b>{amount(row.originalReferenceAmount)}</b> · اختلاف خام اولیه: <b>{amount(row.originalRawDifference)}</b> · اختلاف تازهٔ اولیه: <b>{amount(row.originalFreshDifference)}</b></p>
         <Components knownSubtotal={row.knownSubtotal} destinationUnknownReceived={row.destinationUnknownReceived} ambiguousLegacyCredit={row.ambiguousLegacyCredit} calculationVersion={row.calculationVersion} />
         <Decision decision={row.decision} referenceAmount={row.referenceAmount} rawDifference={row.rawDifference} freshDifference={row.freshDifference} />

@@ -5,7 +5,7 @@ import { audit, auditOrThrow } from './AuditService'
 import { AuditAction } from '@shared/enums'
 import { DEFAULT_CUSTODY_CONFIG, parseCustodyConfig, parseShiftConfig, SETTING_KEYS, type CustodyConfig, type ShiftConfig, type ShiftTemplate } from '@shared/receipt'
 import { toJalaliDate, jalaliStartOfDay, jalaliEndOfDay, isValidJalaliDate, toLatinDigits } from '@shared/jalali'
-import { observationOf, systemAbsenceZero } from '@shared/custodyPeriod'
+import { observationOf, absenceUncounted, isAbsentUncounted } from '@shared/custodyPeriod'
 import { pendingCustodyReference, CUSTODY_REFERENCE_LEGACY_VERSION } from '@shared/custodyReference'
 import { recordBlueSnapshot, referenceFromBlueSnapshot } from './CustodyBlueSnapshotService'
 import { shiftService } from './ShiftService'
@@ -746,16 +746,31 @@ async function commitBlueEmergency(input: {
     const nextEpoch = Number(live.epoch) + 1
     const master = input.managerOverride
     const authMethod = master ? 'MANAGER_CUSTODY_PIN' : 'CUSTODY_PIN'
+    // Establish the responsibility boundary before recording the arriving
+    // worker's count. Everything below is ONE SQLite transaction: on failure
+    // the old Shift stays open, and no sale/owner/count is partly reassigned.
+    const closed = await shiftService.closeInTx(tx, { shiftId: fromShift.id, userId: fromShift.userId,
+      note: master ? 'پوشش غیبت با PIN شخصی مدیر؛ خروج قبلی بدون شمارش' : 'پوشش غیبت؛ خروج قبلی بدون شمارش' })
+    const sourceTemplate = sourceMeta.templateId ? scheduling.templates.find((row: ShiftTemplate) => row.id === sourceMeta.templateId) ?? null : null
+    const plan = planFromSegmentSnapshot(sourceMeta, sourceTemplate)
+    const immutableScheduleSnapshot = sourceMeta.scheduleSnapshotJson ?? scheduleSnapshotJson(plan, scheduling, cfg)
+    const key = `blue-cover:${fromShift.id}:${state.epoch}:${input.receiver.userId}`
+    const next = await shiftService.createSession(tx, {
+      staffId: input.receiver.userId, staffConfirmed: true, actorId: input.receiver.userId,
+      mode: master ? 'MASTER_OVERRIDE' : 'EMERGENCY_COVER',
+      openIdempotencyKey: key, openIdempotencyFingerprint: `custody-${key}`,
+      note: master ? 'Master Override با PIN شخصی و شمارش آغاز مسئولیت خود' : 'پوشش غیبت با شمارش آغاز مسئولیت خود'
+    })
     const count = await tx.custodyCount.create({ data: {
-      shiftId: fromShift.id, kind: master ? 'BLUE_MASTER_OVERRIDE_IN' : 'BLUE_EMERGENCY_IN',
+      shiftId: next.id, kind: master ? 'BLUE_MASTER_OVERRIDE_IN' : 'BLUE_EMERGENCY_IN',
       countedCash: BigInt(input.count), expectedCash: null, differenceCash: null,
       countedByUserId: input.receiver.userId, authMethod, note: input.reason,
-      epochAtCount: nextEpoch, operationalDay: blue.today,
-      idempotencyKey: `blue-cover:${fromShift.id}:${state.epoch}:${input.receiver.userId}`
+      epochAtCount: nextEpoch, operationalDay: blue.today, idempotencyKey: key
     } })
-    /** outCountId is a legacy required link: for an absent giver it points to
-     * the receiver's real witness count, NEVER a fabricated human zero. The
-     * immutable OUT blue snapshot below carries system-absence provenance. */
+    /** outCountId and the numeric fields are required CASH-ERA bridge columns.
+     * They are never presented as an outgoing count for an absence. The ID
+     * points to the receiver's OWN count on the NEW Shift, not the old one;
+     * the true absent OUT is null-valued in the immutable blue snapshot. */
     const handover = await tx.custodyHandover.create({ data: {
       fromShiftId: fromShift.id, fromUserId: fromShift.userId,
       selectedRecipientUserId: input.receiver.userId,
@@ -763,40 +778,38 @@ async function commitBlueEmergency(input: {
       status: 'PENDING', outCountId: count.id,
       expectedAtStart: BigInt(0), countedAtStart: BigInt(input.count), differenceCash: BigInt(0),
       ledgerWatermark: JSON.stringify({ blueV1: true, emergency: true, masterOverride: master,
-        outCountOrigin: 'SYSTEM_ABSENCE_ZERO', outCountIdIsReceiverWitness: true,
-        receiverCountId: count.id, supersededHandoverId: supersededId, reason: input.reason }),
-      fenceEpochAtStart: nextEpoch,
-      idempotencyKey: `blue-cover:${fromShift.id}:${state.epoch}:${input.receiver.userId}`,
+        outCountOrigin: 'ABSENT_UNCOUNTED', outgoingHumanCount: null, outCountIdIsReceiverWitness: true,
+        receiverCountId: count.id, receiverShiftId: next.id, supersededHandoverId: supersededId, reason: input.reason }),
+      fenceEpochAtStart: nextEpoch, idempotencyKey: key,
       stateKey: MAIN, operationalDay: blue.today, resolutionReason: input.reason
     } })
     const prior = await acceptedBlueBaselineForShift(tx, fromShift.id)
     const out = await recordBlueSnapshot(tx, {
       handoverId: handover.id, shiftId: fromShift.id, role: 'OUT',
-      actorUserId: input.receiver.userId, authMethod: 'SYSTEM_ABSENCE_ZERO',
-      count: systemAbsenceZero(), reference: blue.reference,
+      // The physical counter is ABSENT. This non-null cash-era actor field
+      // identifies who requested the system absence boundary, not a counter.
+      // Manager views explicitly project its witness as SYSTEM, never this id.
+      actorUserId: input.receiver.userId, authMethod: 'SYSTEM_ABSENCE',
+      count: absenceUncounted(), reference: blue.reference,
       referenceFromDay: blue.fromDay, referenceToDay: blue.today,
       scopeKind: blue.scopeKind, financialRevision: blue.financialRevision,
       epochAtCount: nextEpoch, prior, idempotencyKey: `blue-absence:${handover.id}`
     })
     const incoming = await recordBlueSnapshot(tx, {
-      handoverId: handover.id, shiftId: fromShift.id, role: 'IN',
+      handoverId: handover.id, shiftId: next.id, role: 'IN',
       actorUserId: input.receiver.userId, authMethod,
       count: observationOf(input.count, false), reference: blue.reference,
       referenceFromDay: blue.fromDay, referenceToDay: blue.today,
       scopeKind: blue.scopeKind, financialRevision: blue.financialRevision,
       epochAtCount: nextEpoch, prior: out, idempotencyKey: `blue-cover-in:${handover.id}`
     })
-    const closed = await shiftService.closeInTx(tx, { shiftId: fromShift.id, userId: fromShift.userId,
-      note: master ? 'پوشش غیبت با PIN شخصی مدیر و شمارش واقعی' : 'پوشش غیبت با PIN و شمارش واقعی کارمند جدید' })
-    const sourceTemplate = sourceMeta.templateId ? scheduling.templates.find((row: ShiftTemplate) => row.id === sourceMeta.templateId) ?? null : null
-    const plan = planFromSegmentSnapshot(sourceMeta, sourceTemplate)
-    const immutableScheduleSnapshot = sourceMeta.scheduleSnapshotJson ?? scheduleSnapshotJson(plan, scheduling, cfg)
-    const next = await shiftService.createSession(tx, {
-      staffId: input.receiver.userId, staffConfirmed: true, actorId: input.receiver.userId,
-      mode: master ? 'MASTER_OVERRIDE' : 'EMERGENCY_COVER',
-      openIdempotencyKey: `blue-cover:${handover.id}`,
-      openIdempotencyFingerprint: `custody-blue-cover:${handover.id}`,
-      note: master ? 'Master Override با PIN شخصی و شمارش فیزیکی' : 'پوشش غیبت با شمارش فیزیکی'
+    await writeEvent(tx, {
+      type: 'BLUE_OUTGOING_UNCOUNTED_ABSENT', shiftId: fromShift.id,
+      handoverId: handover.id, actorUserId: null,
+      actorKind: 'SYSTEM', authMethod: 'SYSTEM_ABSENCE',
+      epochBefore: state.epoch, epochAfter: nextEpoch,
+      payload: { absentCustodianUserId: fromShift.userId, initiatedByUserId: input.receiver.userId,
+        outgoingHumanCount: null, outgoingSnapshotId: out.id, incomingShiftId: next.id, reason: input.reason }
     })
     await tx.custodyShiftMeta.update({ where: { shiftId: fromShift.id }, data: {
       endKind: master ? 'BLUE_MASTER_OVERRIDE' : 'BLUE_EMERGENCY_COVER', endedAt: closed.closedAt
@@ -839,7 +852,7 @@ async function commitBlueEmergency(input: {
       actorKind: master ? 'MASTER_OVERRIDE_MANAGER' : 'EMERGENCY_COVER', authMethod,
       epochBefore: state.epoch, epochAfter: nextEpoch,
       payload: { fromShiftId: fromShift.id, toShiftId: next.id, priorCustodianUserId: fromShift.userId,
-        outSnapshotId: out.id, inSnapshotId: incoming.id, countOrigin: 'SYSTEM_ABSENCE_ZERO',
+        outSnapshotId: out.id, inSnapshotId: incoming.id, countOrigin: 'ABSENT_UNCOUNTED',
         rawDifference: incoming.rawDifference == null ? null : String(incoming.rawDifference),
         freshDifference: null, reason: input.reason, automaticBlame: false }
     })
@@ -1002,8 +1015,10 @@ function custodyAuditExportRows(report: any): CustodyAuditExportCell[][] {
   for (const row of report.handovers ?? []) {
     const owner = `${row.fromUser ?? '—'} → ${row.finalCustodian ?? row.selectedRecipient ?? '—'}`
     const shift = `نشست ${row.fromShiftId}${row.toShiftId ? ` → ${row.toShiftId}` : ''}`
+    const outgoingAbsent = row.blue?.outgoing && isAbsentUncounted(row.blue.outgoing.countOrigin)
     rows.push([
-      row.blue ? 'تحویل آبی' : 'تحویل', custodyAuditExportTime(row.startedAt), shift, owner,
+      row.blue ? outgoingAbsent ? 'پوشش غیبت؛ خروج بدون شمارش' : 'تحویل آبی' : 'تحویل',
+      custodyAuditExportTime(row.startedAt), shift, owner,
       custodyAuditExportAmount(row.countedAtStart), custodyAuditExportAmount(row.expectedAtStart),
       custodyAuditExportAmount(row.differenceCash), row.status ?? null, row.resolutionKind ?? null
     ])
@@ -1015,13 +1030,13 @@ function custodyAuditExportRows(report: any): CustodyAuditExportCell[][] {
        * null reference even after a later append-only manager resolution. */
       const outgoing = blue.outgoing
       if (outgoing && blue.incoming) rows.push([
-        outgoing.countOrigin === 'SYSTEM_ABSENCE_ZERO' ? 'شاهد سیستمی غیبتِ تحویل‌دهنده' : 'شمارش مستقل تحویل‌دهندهٔ آبی',
+        outgoingAbsent ? 'غیبت تحویل‌دهنده؛ شمارش خروجی انجام نشده' : 'شمارش مستقل تحویل‌دهندهٔ آبی',
         custodyAuditExportTime(outgoing.at), `تحویل ${row.id} / سند ${outgoing.id}`,
-        outgoing.countOrigin === 'SYSTEM_ABSENCE_ZERO' ? `سیستم؛ غیبت ${row.fromUser ?? 'مسئول قبلی'}` : row.fromUser ?? '—',
+        outgoingAbsent ? `سیستم؛ غیبت ${row.fromUser ?? 'مسئول قبلی'}` : row.fromUser ?? '—',
         custodyAuditExportAmount(outgoing.humanAmount), custodyAuditExportAmount(outgoing.referenceAmount),
         custodyAuditExportAmount(outgoing.rawDifference), outgoing.referenceStatus,
-        outgoing.countOrigin === 'SYSTEM_ABSENCE_ZERO'
-          ? 'منشأ SYSTEM_ABSENCE_ZERO · بدون PIN فرد غایب؛ صفر سیستمی شمارش انسانی یا مبنای اختلاف تازه نیست'
+        outgoingAbsent
+          ? 'غایب؛ مبلغ شمارش خروجی نامعلوم · بدون PIN فرد غایب · شمارش نفر حاضر فقط متعلق به نشست خودش است؛ اختلاف تازه منتسب نمی‌شود'
           : `منشأ ${outgoing.countOrigin} · احراز ${outgoing.authMethod ?? 'نامعلوم'} · اختلاف تازه ${custodyAuditExportAmount(outgoing.freshDifference) ?? 'نامعلوم'}`
       ])
       rows.push([
@@ -1060,10 +1075,16 @@ function custodyAuditExportRows(report: any): CustodyAuditExportCell[][] {
     'عملیات POS', custodyAuditExportTime(row.at), `نشست ${row.custodyShiftId}`, `${row.operatorName ?? (row.operatorKind === 'MANAGER_SESSION' ? 'نشست مدیر، بدون انتساب شخصی' : '—')} · مسئول کشو: ${row.custodianName ?? '—'}`, null, null, null,
     row.operatorKind ?? null, `${row.receiptNo == null ? `فاکتور ${row.invoiceId}` : `فیش ${row.receiptNo}`} · ${row.authMethod ?? 'روش ثبت‌شده'}`
   ])
-  for (const row of report.counts ?? []) rows.push([
-    row.kind ?? 'شمارش', custodyAuditExportTime(row.at), `نشست ${row.shiftId}`, row.countedByName ?? '—', custodyAuditExportAmount(row.countedCash), custodyAuditExportAmount(row.expectedCash), custodyAuditExportAmount(row.differenceCash),
-    row.authMethod ?? null, row.note ?? null
-  ])
+  for (const row of report.counts ?? []) {
+    const arrivingCount = row.kind === 'BLUE_EMERGENCY_IN' || row.kind === 'BLUE_MASTER_OVERRIDE_IN'
+    rows.push([
+      arrivingCount ? 'شمارش آغاز مسئولیت فرد حاضر؛ پوشش غیبت' : row.kind ?? 'شمارش',
+      custodyAuditExportTime(row.at), `نشست ${row.shiftId}`, row.countedByName ?? '—',
+      custodyAuditExportAmount(row.countedCash), custodyAuditExportAmount(row.expectedCash),
+      custodyAuditExportAmount(row.differenceCash), row.authMethod ?? null,
+      arrivingCount ? `${row.note ? `${row.note} · ` : ''}شمارش ورودی فرد حاضر است، نه خروج فرد غایب؛ در برخی اسناد قدیمی شناسهٔ نشست پیشین ذخیره شده است` : row.note ?? null
+    ])
+  }
   for (const row of report.resolutions ?? []) rows.push([
     row.evidence ?? 'پروندهٔ بازیابی', custodyAuditExportTime(row.openedAt), `نشست ${row.shiftId}`, row.decisionByName ?? row.attributedToName ?? '—', null, custodyAuditExportAmount(row.nightExpectedCash), custodyAuditExportAmount(row.provisionalDifference),
     row.status ?? null, `انتساب: ${row.differenceAttribution ?? '—'}${row.decisionReason ? ` · دلیل: ${row.decisionReason}` : ''}`
@@ -1573,9 +1594,14 @@ export const custodyService = {
       blueBoundaries: blueBoundaries.map((row: any) => {
         const decision: any = decisionBySnapshot.get(row.id)
         const amount = (value: any) => value == null ? null : Number(value)
+        // The cash-era column actorUserId on an absence OUT identifies the
+        // initiator of a SYSTEM boundary, never an outgoing physical counter.
+        // Old immutable ZERO-named rows get exactly the same honest view.
+        const absentOut = row.role === 'OUT' && isAbsentUncounted(row.countOrigin)
         return {
           snapshotId: row.id, shiftId: row.shiftId, role: row.role, at: row.at,
-          actorUserId: row.actorUserId, actorName: userName.get(row.actorUserId) ?? null,
+          actorUserId: absentOut ? null : row.actorUserId,
+          actorName: absentOut ? 'سیستم؛ غیبت مسئول قبلی' : userName.get(row.actorUserId) ?? null,
           countOrigin: row.countOrigin, authMethod: row.authMethod,
           calculationVersion: row.calculationVersion,
           countedAmount: amount(row.humanAmount),
@@ -1609,7 +1635,8 @@ export const custodyService = {
         const amount = (value: any) => value == null ? null : Number(value)
         const blueEvidence = (snapshot: any) => snapshot ? {
           id: snapshot.id, at: snapshot.at, role: snapshot.role,
-          actorUserId: snapshot.actorUserId, authMethod: snapshot.authMethod,
+          actorUserId: snapshot.role === 'OUT' && isAbsentUncounted(snapshot.countOrigin) ? null : snapshot.actorUserId,
+          authMethod: snapshot.authMethod,
           countOrigin: snapshot.countOrigin, humanAmount: amount(snapshot.humanAmount),
           calculationVersion: snapshot.calculationVersion,
           referenceStatus: snapshot.referenceStatus, referenceAmount: amount(snapshot.referenceAmount),
@@ -1652,7 +1679,10 @@ export const custodyService = {
           finalCustodian: row.finalCustodianUserId ? userName.get(row.finalCustodianUserId) ?? null : null,
           /** Never project the historical 0 placeholders as blue evidence. */
           expectedAtStart: isBlue ? null : row.expectedAtStart,
-          countedAtStart: row.countedAtStart,
+          // Outgoing never attested a count on an absence. Old cash-era bridge
+          // columns must not present the arriving worker's IN amount as OUT.
+          countedAtStart: isBlue && pair?.OUT && isAbsentUncounted(pair.OUT.countOrigin)
+            ? null : row.countedAtStart,
           differenceCash: isBlue ? null : row.differenceCash,
           resolutionKind: row.resolutionKind, blue }
       }),

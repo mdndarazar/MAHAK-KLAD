@@ -4,7 +4,7 @@
  * node --import ./test/harness/register.mjs tests/audit-fixes/fix-s399-custody-blue-fresh-period.mjs
  */
 import { calculateCustodyReference, pendingCustodyReference } from '../../src/shared/custodyReference.ts'
-import { observationOf, reconcileCustodyPeriod, systemAbsenceZero } from '../../src/shared/custodyPeriod.ts'
+import { observationOf, reconcileCustodyPeriod, systemAbsenceZero, absenceUncounted, isAbsentUncounted } from '../../src/shared/custodyPeriod.ts'
 
 let checked = 0
 const eq = (name, got, want) => {
@@ -47,7 +47,15 @@ console.log('\n[3] Optional empty input is arithmetic zero, not a genuine openin
   eq('missing baseline explicitly tagged', result.freshStatus, 'UNKNOWN_NO_REAL_PRIOR_COUNT')
   const explicit = reconcileCustodyPeriod({ start: at(observationOf('0', true), 100_000_000), end: at(observationOf(110_000_000, false), 110_000_000) })
   eq('an explicit zero is an actual count', explicit.freshDifference, 100_000_000)
-  eq('system absence zero not a witness', systemAbsenceZero().humanAmount, null)
+  eq('historical absence provenance remains readable, not a witness', systemAbsenceZero().humanAmount, null)
+  eq('new absence means no human count', absenceUncounted().humanAmount, null)
+  eq('new absence has no zero for arithmetic either', absenceUncounted().arithmeticAmount, null)
+  eq('old origin remains recognized without rewriting stored history', isAbsentUncounted(systemAbsenceZero().origin), true)
+  eq('new origin is an uncounted absence', isAbsentUncounted(absenceUncounted().origin), true)
+  const noOldCount = reconcileCustodyPeriod({
+    start: at(absenceUncounted(), 100_000_000), end: at(observationOf(110_000_000, false), 110_000_000)
+  })
+  eq('new physical count never proves an old departure difference', noOldCount.freshDifference, null)
   try { observationOf('', false); throw new Error('blank unexpectedly accepted') }
   catch (error) { eq('mandatory blank rejected', String(error.message).includes('وارد کنید'), true) }
 }

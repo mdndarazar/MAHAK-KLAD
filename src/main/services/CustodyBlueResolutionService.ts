@@ -3,7 +3,7 @@ import { BusinessError } from '../errors'
 import { custodyService } from './CustodyService'
 import { isValidJalaliDate } from '@shared/jalali'
 import { CUSTODY_REFERENCE_VERSION, CUSTODY_REFERENCE_LEGACY_VERSION, type CustodyReference } from '@shared/custodyReference'
-import { observationOf, systemAbsenceZero, type CustodyObservation } from '@shared/custodyPeriod'
+import { observationOf, systemAbsenceZero, absenceUncounted, isAbsentUncounted, type CustodyObservation } from '@shared/custodyPeriod'
 import { resolvedCustodySnapshot, type CustodyBlueDecision, type CustodyCreditDecision } from '@shared/custodyResolution'
 
 function idOf(raw: unknown, name: string) {
@@ -33,7 +33,11 @@ function asReference(row: any): CustodyReference {
   }
 }
 function asObservation(row: any): CustodyObservation {
-  if (row.countOrigin === 'SYSTEM_ABSENCE_ZERO') return systemAbsenceZero()
+  if (isAbsentUncounted(row.countOrigin)) {
+    if (row.humanAmount != null || row.arithmeticAmount != null)
+      throw new BusinessError('سند غیبت نباید شمارش یا صفر مالی داشته باشد.', 'BLUE_COUNT_INVALID')
+    return row.countOrigin === 'ABSENT_UNCOUNTED' ? absenceUncounted() : systemAbsenceZero()
+  }
   if (row.countOrigin === 'EMPTY_OPTIONAL') return observationOf(null, true)
   const amount = rialOf(row.humanAmount, 'شمارش واقعی')
   if (amount == null) throw new BusinessError('سند شمارش واقعی بدون مبلغ معتبر است.', 'BLUE_COUNT_INVALID')

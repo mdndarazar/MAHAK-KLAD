@@ -631,7 +631,7 @@ export const shiftService = {
             : mode === 'EMERGENCY_COVER'
               ? ' · پوشش اضطراری با PIN و شمارش کارمند جایگزین'
               : mode === 'MASTER_OVERRIDE'
-                ? ' · Master Override با مدیر منتخب، رمز مشترک مدیر و شمارش فیزیکی'
+                ? ' · Master Override با PIN شخصی مدیر منتخب و شمارش فیزیکی خودش'
                 : mode === 'AUTO'
               ? ' · خودکار با اولین فعالیت'
               : '')

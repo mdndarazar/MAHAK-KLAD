@@ -1,6 +1,6 @@
 import { BusinessError } from '../errors'
 import { CUSTODY_REFERENCE_VERSION, CUSTODY_REFERENCE_LEGACY_VERSION, type CustodyReference } from '@shared/custodyReference'
-import { observationOf, systemAbsenceZero, reconcileCustodyPeriod, type CustodyObservation } from '@shared/custodyPeriod'
+import { observationOf, systemAbsenceZero, absenceUncounted, isAbsentUncounted, reconcileCustodyPeriod, type CustodyObservation } from '@shared/custodyPeriod'
 import { isValidJalaliDate } from '@shared/jalali'
 
 function safeMoney(raw: unknown): number | null {
@@ -27,7 +27,13 @@ export function referenceFromBlueSnapshot(row: any): CustodyReference {
   }
 }
 export function countFromBlueSnapshot(row: any): CustodyObservation {
-  if (row.countOrigin === 'SYSTEM_ABSENCE_ZERO') return systemAbsenceZero()
+  if (isAbsentUncounted(row.countOrigin)) {
+    if (row.humanAmount != null || row.arithmeticAmount != null)
+      throw new BusinessError('سند غیبت نباید شمارش یا صفرِ مالی داشته باشد.', 'BLUE_COUNT_INVALID')
+    // Read old ZERO-named immutable rows as absence; only new rows get the
+    // unambiguous origin. Never rewrite the historical document.
+    return row.countOrigin === 'ABSENT_UNCOUNTED' ? absenceUncounted() : systemAbsenceZero()
+  }
   if (row.countOrigin === 'EMPTY_OPTIONAL') return observationOf(null, true)
   const amount = safeMoney(row.humanAmount)
   if (amount == null) throw new BusinessError('شمارش واقعی در سند مرجع مبلغ ندارد.', 'BLUE_COUNT_INVALID')
@@ -47,8 +53,9 @@ export async function recordBlueSnapshot(tx: any, input: {
   shiftId: number
   role: 'OUT' | 'IN' | 'OPENING' | 'RECOVERY' | 'FINAL_CLOSE'
   actorUserId: number
-  /** Absent outgoing party is SYSTEM provenance, never their unentered PIN. */
-  authMethod?: 'CUSTODY_PIN' | 'MANAGER_CUSTODY_PIN' | 'SYSTEM_ABSENCE_ZERO'
+  /** New absent OUT is system evidence with no old PIN or count. The old
+   * SYSTEM_ABSENCE_ZERO name remains readable, not writable. */
+  authMethod?: 'CUSTODY_PIN' | 'MANAGER_CUSTODY_PIN' | 'SYSTEM_ABSENCE' | 'SYSTEM_ABSENCE_ZERO'
   count: CustodyObservation
   reference: CustodyReference
   referenceFromDay: string
@@ -61,9 +68,11 @@ export async function recordBlueSnapshot(tx: any, input: {
 }) {
   const { reference, count } = input
   const authMethod = input.authMethod ?? 'CUSTODY_PIN'
-  if ((count.origin === 'SYSTEM_ABSENCE_ZERO') !== (authMethod === 'SYSTEM_ABSENCE_ZERO') ||
-      (count.origin === 'SYSTEM_ABSENCE_ZERO' && input.role !== 'OUT'))
-    throw new BusinessError('صفر سیستمی فقط شاهد غیبتِ خروجی است، نه شمارش انسانی یا PIN فرد غایب.', 'BLUE_ABSENCE_ORIGIN_INVALID')
+  if (count.origin === 'SYSTEM_ABSENCE_ZERO' || authMethod === 'SYSTEM_ABSENCE_ZERO' ||
+      (count.origin === 'ABSENT_UNCOUNTED') !== (authMethod === 'SYSTEM_ABSENCE') ||
+      (count.origin === 'ABSENT_UNCOUNTED' && (input.role !== 'OUT' ||
+        count.humanAmount != null || count.arithmeticAmount != null)))
+    throw new BusinessError('غیبت فقط به‌صورت «بدون شمارش خروجی» ثبت می‌شود؛ صفر یا PIN فرد غایب معتبر نیست.', 'BLUE_ABSENCE_ORIGIN_INVALID')
   if (!isValidJalaliDate(input.referenceFromDay) || !isValidJalaliDate(input.referenceToDay) || input.referenceFromDay > input.referenceToDay)
     throw new BusinessError('دامنهٔ سند مرجع حضانت نامعتبر است.', 'BLUE_SCOPE_INVALID')
   if (reference.calculationVersion !== CUSTODY_REFERENCE_VERSION ||

@@ -237,7 +237,7 @@ function CustodyAdminModal({ onClose }: { onClose: () => void }) {
             <CustodyBlueEvidence blueBoundaries={report.blueBoundaries ?? []} handovers={report.handovers ?? []} />
             <h3 className="font-bold mt-6">شمارش‌های همین صفحه</h3>
             <div className="overflow-auto"><table className="w-full text-sm"><thead><tr><th>زمان</th><th>شیفت</th><th>نوع</th><th>شمارش</th><th>انتظار</th><th>اختلاف</th><th>ثبت‌کننده</th></tr></thead><tbody>
-              {report?.counts.map((row) => <tr key={row.id}><td>{new Date(row.at).toLocaleString('fa-IR')}</td><td>{row.shiftId}</td><td>{row.kind}</td><td>{money(row.countedCash)}</td><td>{row.expectedCash == null ? '—' : money(row.expectedCash)}</td><td>{row.differenceCash == null ? '—' : money(row.differenceCash)}</td><td>{row.countedByName ?? '—'}</td></tr>)}
+              {report?.counts.map((row) => <tr key={row.id}><td>{new Date(row.at).toLocaleString('fa-IR')}</td><td>{row.shiftId}</td><td>{row.kind === 'BLUE_EMERGENCY_IN' || row.kind === 'BLUE_MASTER_OVERRIDE_IN' ? 'شمارش آغاز مسئولیت فرد حاضر؛ نه خروج مسئول غایب' : row.kind}</td><td>{money(row.countedCash)}</td><td>{row.expectedCash == null ? '—' : money(row.expectedCash)}</td><td>{row.differenceCash == null ? '—' : money(row.differenceCash)}</td><td>{row.countedByName ?? '—'}</td></tr>)}
             </tbody></table></div>
           </> : <p className="mt-3 text-sm text-slate-500">گزارش فقط در نشست فعال مدیر خوانده می‌شود.</p>}
         </div> : null}

@@ -1,7 +1,11 @@
 import type { CustodyReference } from './custodyReference'
 
-/** A contractual zero is not a person's attested observation. */
-export type CustodyCountOrigin = 'EXPLICIT_AMOUNT' | 'EXPLICIT_ZERO' | 'EMPTY_OPTIONAL' | 'SYSTEM_ABSENCE_ZERO'
+/** Absence has NO monetary value. The old ZERO-named provenance is read only
+ * for append-only historical rows; new absences use ABSENT_UNCOUNTED. */
+export type CustodyCountOrigin = 'EXPLICIT_AMOUNT' | 'EXPLICIT_ZERO' | 'EMPTY_OPTIONAL' | 'ABSENT_UNCOUNTED' | 'SYSTEM_ABSENCE_ZERO'
+export function isAbsentUncounted(origin: unknown): boolean {
+  return origin === 'ABSENT_UNCOUNTED' || origin === 'SYSTEM_ABSENCE_ZERO'
+}
 export type CustodyObservation = {
   origin: CustodyCountOrigin
   /** Nullable for an empty optional input or system absence; zero may be explicit. */
@@ -24,6 +28,12 @@ export function observationOf(raw: unknown, optional: boolean): CustodyObservati
   return { origin: amount === 0 ? 'EXPLICIT_ZERO' : 'EXPLICIT_AMOUNT', humanAmount: amount, arithmeticAmount: amount }
 }
 
+/** No previous person's PIN or count; even arithmetic stays unknown. */
+export function absenceUncounted(): CustodyObservation {
+  return { origin: 'ABSENT_UNCOUNTED', humanAmount: null, arithmeticAmount: null }
+}
+
+/** Historic append-only V1 provenance; never emit on a NEW absence. */
 export function systemAbsenceZero(): CustodyObservation {
   return { origin: 'SYSTEM_ABSENCE_ZERO', humanAmount: null, arithmeticAmount: null }
 }

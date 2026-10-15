@@ -196,6 +196,8 @@ function custodyCountKindLabel(kind: string) {
     HANDOVER_CANCELED: 'شاهد لغو تحویل',
     EMERGENCY_COVER_COUNT: 'شمارش پوشش اضطراری',
     MASTER_OVERRIDE_COUNT: 'شمارش Master Override',
+    BLUE_EMERGENCY_IN: 'شمارش آغاز مسئولیت فرد حاضر؛ نه خروج فرد غایب',
+    BLUE_MASTER_OVERRIDE_IN: 'شمارش آغاز مسئولیت مدیر؛ نه خروج فرد غایب',
     MORNING_WITNESS: 'شمارش شاهد صبح',
     ARCHIVED_CUSTODIAN_WITNESS: 'شمارش شاهدِ مسئول آرشیوشده'
   } as Record<string, string>)[kind] ?? `شمارش ثبت‌شده (${kind})`
