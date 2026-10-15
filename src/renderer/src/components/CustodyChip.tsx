@@ -124,24 +124,10 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
     reset('accept')
     if (pending?.blindCountedCash != null) setCountedCash(String(pending.blindCountedCash))
   }
-  const resumeEmergency = () => {
-    const pending = status.pendingHandover
-    reset('emergency')
-    if (pending?.status === 'EMERGENCY_RECOUNT') {
-      setSelectedUserId(pending.selectedRecipientUserId)
-      setCountedCash(pending.countedAtStart == null ? '' : String(pending.countedAtStart))
-      setNote(pending.resolutionReason ?? '')
-    }
-  }
-  const resumeMasterOverride = () => {
-    const pending = status.pendingHandover
-    reset('masterOverride')
-    if (pending?.status === 'MASTER_OVERRIDE_RECOUNT') {
-      setManagerId(pending.selectedRecipientUserId)
-      setCountedCash(pending.countedAtStart == null ? '' : String(pending.countedAtStart))
-      setNote(pending.resolutionReason ?? '')
-    }
-  }
+  // Public recovery now makes an independent blue boundary. An unfinished
+  // pre-blue amount/reason is evidence, never a default for the next person.
+  const restartEmergency = () => reset('emergency')
+  const restartMasterOverride = () => reset('masterOverride')
   const amount = () => {
     if (!countedCash.trim()) throw new Error('شمارش واقعی را وارد کنید؛ برای صفر، رقم ۰ را صریحاً بنویسید.')
     const value = Number(countedCash)
@@ -185,14 +171,16 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
       setBusy(false)
     }
   }
-  const showReminder = !!status.reminder?.due && status.reminder.bucket !== dismissedReminderBucket
-  const emergencyInProgress = status.state === 'HANDOVER_RECOUNT' && status.pendingHandover?.status === 'EMERGENCY_RECOUNT'
-  const masterOverrideInProgress = status.state === 'HANDOVER_RECOUNT' && status.pendingHandover?.status === 'MASTER_OVERRIDE_RECOUNT'
+  const showReminder = (status.state === 'ACTIVE' || status.state === 'HANDOVER_PENDING') &&
+    !!status.reminder?.due && status.reminder.bucket !== dismissedReminderBucket
+  const frozenHandover = status.state === 'HANDOVER_RECOUNT' && status.pendingHandover != null
+  const emergencyInProgress = frozenHandover && status.pendingHandover?.status === 'EMERGENCY_RECOUNT'
+  const masterOverrideInProgress = frozenHandover && status.pendingHandover?.status === 'MASTER_OVERRIDE_RECOUNT'
   const title =
     status.legacyBlock
       ? `${status.legacyBlock.count} نشست قدیمی نیازمند بازیابی است`
       : normalHandoverDifferencePending
-        ? `مغایرتِ شمارشِ تحویل برای ${nameOf(status.pendingHandover?.selectedRecipientUserId)} منتظر دلیل است`
+        ? 'تحویل قدیمی نیمه‌تمام است؛ فرد حاضر می‌تواند با شمارش تازه صندوق را بگیرد'
       : masterOverrideInProgress
         ? `شمارش Master Override مدیر ${nameOf(status.pendingHandover?.selectedRecipientUserId)} در حال ثبت است`
         : emergencyInProgress
@@ -201,9 +189,11 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
             ? status.pendingHandover?.status === 'RECEIVER_COUNTED'
               ? `دو شمارش انجام شد؛ تأیید جداگانهٔ ${nameOf(status.pendingHandover?.selectedRecipientUserId)} لازم است`
               : `تحویل در انتظار شمارش مستقل ${nameOf(status.pendingHandover?.selectedRecipientUserId)}`
-            : status.state === 'ACTIVE'
-              ? `صندوق: ${status.custodian?.name ?? 'مسئول نامشخص'}`
-              : 'صندوق بدون مسئول فعال'
+            : frozenHandover
+              ? 'تحویل قبلی نیمه‌تمام است؛ برای فرد حاضر راه شمارش تازه وجود دارد'
+              : status.state === 'ACTIVE'
+                ? `صندوق: ${status.custodian?.name ?? 'مسئول نامشخص'}`
+                : 'صندوق بدون مسئول فعال'
 
   return (
     <>
@@ -212,7 +202,7 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
         onClick={() => { setVisible(true); reset() }}
         title="حضانت صندوق: مسئول فعلی، تحویل احرازشده و بستن نهایی"
       >
-        {status.legacyBlock ? '⚠ صندوق · نیازمند بازیابی Shift قدیمی' : normalHandoverDifferencePending ? '⚠ اختلاف تحویل نیازمند دلیل' : masterOverrideInProgress ? '⚠ Master Override در حال ثبت' : emergencyInProgress ? '⚠ پوشش اضطراری در حال ثبت' : status.state === 'HANDOVER_PENDING' ? '⚠ تحویل صندوق در انتظار تأیید' : status.state === 'ACTIVE' ? `صندوق · ${status.custodian?.name ?? 'فعال'}` : 'صندوق · نیازمند ورود'}
+        {status.legacyBlock ? '⚠ صندوق · نیازمند بازیابی Shift قدیمی' : frozenHandover ? '⚠ تحویل نیمه‌تمام · بازیابی با شمارش تازه' : status.state === 'HANDOVER_PENDING' ? '⚠ تحویل صندوق در انتظار تأیید' : status.state === 'ACTIVE' ? `صندوق · ${status.custodian?.name ?? 'فعال'}` : 'صندوق · نیازمند ورود'}
       </button>
       {visible ? createPortal(
         <div className="fixed inset-0 z-[80] bg-black/55 flex justify-center items-start overflow-auto p-4" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) setVisible(false) }}>
@@ -228,9 +218,15 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
               {status.state === 'NO_SESSION' && !status.legacyBlock ? <button className="w-full btn-primary py-3" onClick={() => reset('open')}>ورود مسئول و باز کردن صندوق</button> : null}
               {status.state === 'ACTIVE' ? <div className={`grid gap-3 ${isManager ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-3'}`}><button className="btn-secondary py-3" onClick={() => reset('handover')}>تحویل عادی</button><button className="btn-secondary py-3" onClick={() => reset('emergency')}>پوشش اضطراری</button>{isManager ? <button className="btn-secondary py-3 border-amber-400 text-amber-900" onClick={() => reset('masterOverride')}>Master Override</button> : null}<button className="btn-primary py-3" onClick={() => reset('close')}>بستن نهایی</button></div> : null}
               {status.state === 'HANDOVER_PENDING' ? <div className="grid grid-cols-2 gap-3"><button className="btn-primary py-3" onClick={() => reset(status.pendingHandover?.blueReference && status.pendingHandover.status === 'RECEIVER_COUNTED' ? 'confirmBlue' : 'accept')}>{status.pendingHandover?.blueReference ? status.pendingHandover.status === 'RECEIVER_COUNTED' ? 'تأیید جداگانهٔ گیرنده' : 'شمارش مستقل گیرنده' : 'تأیید تحویل‌گیرندهٔ قدیمی'}</button><button className="btn-secondary py-3" onClick={() => reset('handover')}>لغو با رمز تحویل‌دهنده</button><button className="btn-secondary py-3" onClick={() => reset('emergency')}>پوشش ضروریِ غیبت با شمارش تازه</button>{isManager ? <button className="btn-secondary py-3" onClick={() => reset('masterOverride')}>Master Override با PIN شخصی</button> : null}</div> : null}
-              {emergencyInProgress ? <div className="p-3 rounded bg-amber-50 text-sm leading-6">شمارش پوشش اضطراری برای <b>{nameOf(status.pendingHandover?.selectedRecipientUserId)}</b> موقتاً صندوق را freeze کرده است. همان کارمند باید با همان PIN، شمارش و دلیل، ثبت را ادامه دهد.<button className="block mt-2 underline font-bold" onClick={resumeEmergency}>ادامهٔ پوشش اضطراری</button></div> : null}
-              {masterOverrideInProgress ? <div className="p-3 rounded bg-amber-50 text-sm leading-6">Master Override برای مدیر <b>{nameOf(status.pendingHandover?.selectedRecipientUserId)}</b> موقتاً صندوق را freeze کرده است. همان مدیر با PIN شخصی خود، شمارش و دلیل تازه را ثبت می‌کند.<button className="block mt-2 underline font-bold" onClick={resumeMasterOverride}>ادامهٔ Master Override</button></div> : null}
-              {normalHandoverDifferencePending ? <div className="p-3 rounded bg-rose-50 border border-rose-200 text-sm leading-6"><b>اختلاف شمارشِ تحویل فریز شده است.</b> هیچ فروش یا محاسبهٔ تازه‌ای تا تکمیل این مرز مالی انجام نمی‌شود. فقط <b>{nameOf(status.pendingHandover?.selectedRecipientUserId)}</b> می‌تواند با همان شمارش و PIN خود دلیل اختلاف را ثبت کند؛ یا مسئول قبلی با PIN خودش تحویل را لغو کند.<div className="grid grid-cols-2 gap-2 mt-3"><button className="btn-primary" onClick={resumeHandoverDifference}>ثبت دلیل و تکمیل تحویل</button><button className="btn-secondary" onClick={() => reset('handover')}>لغو با PIN تحویل‌دهنده</button></div></div> : null}
+              {frozenHandover ? <div className="rounded border border-sky-300 bg-sky-50 p-3 text-sm leading-6 text-sky-950">
+                <b>بازیابی تحویل نیمه‌تمام، بدون حضور افراد قبلی</b>
+                <p className="mt-1">شمارش و فروش‌های قبلی سند باقی می‌مانند. صندوق‌دار یا مدیرِ حاضر با PIN شخصی، شمارش تازهٔ مجموع کشو و کارت‌خوان و دلیل روشن می‌تواند نشست مستقل بگیرد؛ مبلغ یا PIN تلاش قبلی استفاده نمی‌شود. پس از ثبت موفق، فروش به نام فرد حاضر ادامه می‌یابد.</p>
+                <p className="mt-1 text-xs">اگر سند قبلی ناسازگار گزارش شد، مدیر از تنظیمات با PIN شخصی، تأیید و دلیل، «ریست شیفت» را بررسی کند؛ سپس فرد حاضر مستقلاً شمارش کند.</p>
+                <button className="btn-primary mt-2 w-full" onClick={() => reset('emergency')}>شمارش تازه و ورود جایگزین</button>
+              </div> : null}
+              {emergencyInProgress ? <div className="p-3 rounded bg-amber-50 text-sm leading-6">تلاش قدیمیِ پوشش اضطراری برای <b>{nameOf(status.pendingHandover?.selectedRecipientUserId)}</b> نیمه‌تمام است؛ مبلغ و PIN آن برای ورود تازه استفاده نمی‌شود.<button className="block mt-2 underline font-bold" onClick={restartEmergency}>ثبت پوشش تازه</button></div> : null}
+              {masterOverrideInProgress ? <div className="p-3 rounded bg-amber-50 text-sm leading-6">Master Override قدیمی برای <b>{nameOf(status.pendingHandover?.selectedRecipientUserId)}</b> نیمه‌تمام است؛ مدیرِ حاضر با PIN شخصی و شمارش تازه می‌تواند مسیر جداگانه‌ای ثبت کند.<button className="block mt-2 underline font-bold" onClick={restartMasterOverride}>ثبت Override تازه</button></div> : null}
+              {normalHandoverDifferencePending ? <div className="p-3 rounded bg-rose-50 border border-rose-200 text-sm leading-6"><b>شمارش تحویل قدیمی به‌عنوان سند محفوظ است.</b> برای تکمیل همان تلاش، <b>{nameOf(status.pendingHandover?.selectedRecipientUserId)}</b> با PIN خودش اقدام می‌کند؛ مسئول قبلی هم می‌تواند با PIN خودش آن را لغو کند. اگر این افراد حاضر نیستند، از «شمارش تازه و ورود جایگزین» بالا استفاده کنید؛ تا ثبت موفق مرز تازه، فروشِ این نشست در انتظار می‌ماند.<div className="grid grid-cols-2 gap-2 mt-3"><button className="btn-primary" onClick={resumeHandoverDifference}>تکمیل همان تحویل</button><button className="btn-secondary" onClick={() => reset('handover')}>لغو با PIN تحویل‌دهنده</button></div></div> : null}
               {staff.some((row) => row.isActive && row.hasCustodyPin && row.mustChangePin) ? <button className="mt-3 text-sm underline text-slate-700" onClick={() => reset('changePin')}>تغییر رمز موقت کارکنان</button> : null}
             </> : null}
             {view === 'open' ? <CredentialForm
@@ -319,10 +315,10 @@ function LegacyRecoveryForm({ legacy, staff, selected, setSelected, password, se
 }
 
 function EmergencyCoverForm({ staff, selected, setSelected, password, setPassword, amount, setAmount, reason, setReason, busy, inProgress, onBack, onSubmit }: any) {
-  return <div className="space-y-3"><p className="text-sm leading-6 bg-rose-50 border border-rose-200 p-3 rounded"><b>پوشش اضطراری</b> فقط وقتی استفاده می‌شود که مسئول فعلی حاضر نیست. شخص پوشش‌دهنده با PIN خودش و شمارش واقعی مسئولیت بخش تازه را می‌گیرد؛ صفرِ فرد غایب فقط شاهد سیستمی است، نه شمارش او یا حکم تقصیر. فروش قفل نمی‌شود.</p>{inProgress ? <p className="text-xs leading-5 text-amber-800">برای ادامه، دقیقاً همان کارمند، شمارش و دلیل ثبت‌شده را وارد کنید.</p> : null}<label className="block text-sm">کارمند پوشش‌دهنده<select className="input mt-1 w-full" value={selected} onChange={(e) => setSelected(e.target.value ? Number(e.target.value) : '')}><option value="">انتخاب کنید…</option>{staff.map((row: Staff) => <option key={row.id} value={row.id}>{row.name} ({row.role === 'MANAGER' ? 'مدیر' : 'صندوقدار'})</option>)}</select></label><label className="block text-sm">PIN شخصی کارمند پوشش‌دهنده<input className="input mt-1 w-full" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></label><label className="block text-sm">مجموع فیزیکی کشو و کارت‌خوان<input className="input mt-1 w-full" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ''))} placeholder="۰" /></label><label className="block text-sm">دلیل اضطراری (حداقل ۱۰ حرف)<textarea className="input mt-1 w-full" value={reason} onChange={(e) => setReason(e.target.value)} /></label><div className="flex gap-2"><button className="btn-secondary flex-1" onClick={onBack} disabled={busy}>بازگشت</button><button className="btn-primary flex-1" disabled={busy} onClick={onSubmit}>{busy ? 'در حال ثبت…' : inProgress ? 'ادامه و تکمیل پوشش' : 'ثبت پوشش اضطراری'}</button></div></div>
+  return <div className="space-y-3"><p className="text-sm leading-6 bg-rose-50 border border-rose-200 p-3 rounded"><b>پوشش اضطراری</b> فقط وقتی استفاده می‌شود که مسئول فعلی حاضر نیست. شخص پوشش‌دهنده با PIN خودش و شمارش واقعی مسئولیت بخش تازه را می‌گیرد؛ صفرِ فرد غایب فقط شاهد سیستمی است، نه شمارش او یا حکم تقصیر. پس از ثبت موفق، فروش به نام مسئول تازه ادامه پیدا می‌کند.</p>{inProgress ? <p className="text-xs leading-5 text-amber-800">تلاش قدیمی نیمه‌تمام است؛ هر کارمند مجازِ حاضر باید مبلغ واقعی را دوباره بشمارد و با PIN و دلیلِ خودش مرز تازه ثبت کند. شمارش قبلی جایگزین شمارش شما نیست.</p> : null}<label className="block text-sm">کارمند پوشش‌دهنده<select className="input mt-1 w-full" value={selected} onChange={(e) => setSelected(e.target.value ? Number(e.target.value) : '')}><option value="">انتخاب کنید…</option>{staff.map((row: Staff) => <option key={row.id} value={row.id}>{row.name} ({row.role === 'MANAGER' ? 'مدیر' : 'صندوقدار'})</option>)}</select></label><label className="block text-sm">PIN شخصی کارمند پوشش‌دهنده<input className="input mt-1 w-full" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></label><label className="block text-sm">مجموع فیزیکی کشو و کارت‌خوان<input className="input mt-1 w-full" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ''))} placeholder="۰" /></label><label className="block text-sm">دلیل اضطراری (حداقل ۱۰ حرف)<textarea className="input mt-1 w-full" value={reason} onChange={(e) => setReason(e.target.value)} /></label><div className="flex gap-2"><button className="btn-secondary flex-1" onClick={onBack} disabled={busy}>بازگشت</button><button className="btn-primary flex-1" disabled={busy} onClick={onSubmit}>{busy ? 'در حال ثبت…' : inProgress ? 'ثبت پوشش تازه' : 'ثبت پوشش اضطراری'}</button></div></div>
 }
 function MasterOverrideForm({ managers, managerId, setManagerId, managerPassword, setManagerPassword, amount, setAmount, reason, setReason, busy, inProgress, onBack, onSubmit }: any) {
-  return <div className="space-y-3"><p className="text-sm leading-6 bg-rose-50 border border-rose-200 p-3 rounded"><b>Master Override</b> مسیر استثناییِ مدیر است، نه تحویل عادی: مدیر فعالِ انتخاب‌شده با <b>PIN شخصی خود</b> و شمارش واقعی، مسئولیت بخش تازه را می‌پذیرد. غیبت مسئول قبلی فقط شاهد سیستمی است؛ اختلاف حکم تخلف نیست و فروش قفل نمی‌شود.</p>{inProgress ? <p className="text-xs leading-5 text-amber-800">برای ادامهٔ تلاش قدیمی، مدیر با PIN شخصی خود مراجعه کند. مبلغِ تلاش لغوشده برای تحویل تازه دوباره استفاده نمی‌شود.</p> : null}<label className="block text-sm">مدیر مسئول Master Override<select className="input mt-1 w-full" value={managerId} onChange={(e) => setManagerId(e.target.value ? Number(e.target.value) : '')}><option value="">انتخاب کنید…</option>{managers.map((row: Staff) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label><label className="block text-sm">PIN شخصی مدیر انتخاب‌شده<input className="input mt-1 w-full" type="password" value={managerPassword} onChange={(e) => setManagerPassword(e.target.value)} autoComplete="current-password" /></label><label className="block text-sm">مجموع فیزیکی کشو و کارت‌خوان<input className="input mt-1 w-full" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ''))} placeholder="۰" /></label><label className="block text-sm">دلیل Master Override (حداقل ۱۰ حرف)<textarea className="input mt-1 w-full" value={reason} onChange={(e) => setReason(e.target.value)} /></label><div className="flex gap-2"><button className="btn-secondary flex-1" onClick={onBack} disabled={busy}>بازگشت</button><button className="btn-primary flex-1" disabled={busy} onClick={onSubmit}>{busy ? 'در حال ثبت…' : inProgress ? 'ادامه و تکمیل Override' : 'ثبت Master Override'}</button></div></div>
+  return <div className="space-y-3"><p className="text-sm leading-6 bg-rose-50 border border-rose-200 p-3 rounded"><b>Master Override</b> مسیر استثناییِ مدیر است، نه تحویل عادی: مدیر فعالِ انتخاب‌شده با <b>PIN شخصی خود</b> و شمارش واقعی، مسئولیت بخش تازه را می‌پذیرد. غیبت مسئول قبلی فقط شاهد سیستمی است؛ اختلاف حکم تخلف نیست و پس از ثبت موفق، فروش ادامه پیدا می‌کند.</p>{inProgress ? <p className="text-xs leading-5 text-amber-800">تلاش قدیمی نیمه‌تمام است؛ مدیر حاضر باید با PIN شخصی، شمارش واقعیِ تازه و دلیل خودش یک مرز مستقل ثبت کند. مبلغ قبلی دوباره استفاده نمی‌شود.</p> : null}<label className="block text-sm">مدیر مسئول Master Override<select className="input mt-1 w-full" value={managerId} onChange={(e) => setManagerId(e.target.value ? Number(e.target.value) : '')}><option value="">انتخاب کنید…</option>{managers.map((row: Staff) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label><label className="block text-sm">PIN شخصی مدیر انتخاب‌شده<input className="input mt-1 w-full" type="password" value={managerPassword} onChange={(e) => setManagerPassword(e.target.value)} autoComplete="current-password" /></label><label className="block text-sm">مجموع فیزیکی کشو و کارت‌خوان<input className="input mt-1 w-full" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ''))} placeholder="۰" /></label><label className="block text-sm">دلیل Master Override (حداقل ۱۰ حرف)<textarea className="input mt-1 w-full" value={reason} onChange={(e) => setReason(e.target.value)} /></label><div className="flex gap-2"><button className="btn-secondary flex-1" onClick={onBack} disabled={busy}>بازگشت</button><button className="btn-primary flex-1" disabled={busy} onClick={onSubmit}>{busy ? 'در حال ثبت…' : inProgress ? 'ثبت Override تازه' : 'ثبت Master Override'}</button></div></div>
 }
 function PasswordOnly({ label, password, setPassword, amount, setAmount, note, setNote, noteLabel = 'یادداشت (برای بستن خالی ضروری است)', amountLabel = 'شمارش نقدی', submit, busy, onBack, onSubmit }: any) {
   return <div className="space-y-3"><p className="text-sm leading-6 bg-slate-50 p-3 rounded">{label}</p><label className="block text-sm">رمز شخصی<input className="input mt-1 w-full" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></label>{setAmount ? <label className="block text-sm">{amountLabel}<input className="input mt-1 w-full" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ''))} placeholder="۰" /></label> : null}{setNote ? <label className="block text-sm">{noteLabel}<textarea className="input mt-1 w-full" value={note} onChange={(e) => setNote(e.target.value)} /></label> : null}<div className="flex gap-2"><button className="btn-secondary flex-1" onClick={onBack} disabled={busy}>بازگشت</button><button className="btn-primary flex-1" onClick={onSubmit} disabled={busy}>{busy ? 'در حال ثبت…' : submit}</button></div></div>

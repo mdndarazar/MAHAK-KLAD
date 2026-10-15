@@ -693,8 +693,10 @@ async function commitBlueEmergency(input: {
 }) {
   await custodyService.ensureRolledOver()
   const state = await ensureState(prisma)
-  if (!['ACTIVE', 'HANDOVER_PENDING'].includes(state.state) || !state.activeShiftId)
+  if (!['ACTIVE', 'HANDOVER_PENDING', 'HANDOVER_RECOUNT'].includes(state.state) || !state.activeShiftId)
     throw new BusinessError('برای پوشش غیبت، صندوق باید مسئول ثبت‌شدهٔ فعال داشته باشد؛ پس از پایان روز با شمارش خودتان افتتاح کنید.', 'NO_ACTIVE_CUSTODY')
+  if (state.state === 'HANDOVER_RECOUNT' && !state.pendingHandoverId)
+    throw new BusinessError('سند تحویل ناتمام پیدا نشد؛ مدیر باید وضعیت صندوق را بازبینی کند.', 'CUSTODY_INVARIANT_BROKEN')
   const fromMeta = await prisma.custodyShiftMeta.findUnique({ where: { shiftId: state.activeShiftId } })
   if (!fromMeta) throw new BusinessError('سند مسئولیت فعلی ناقص است.', 'CUSTODY_INVARIANT_BROKEN')
   if (fromMeta.custodianUserId === input.receiver.userId)
@@ -721,14 +723,23 @@ async function commitBlueEmergency(input: {
         !sourceMeta || sourceMeta.custodianUserId === input.receiver.userId)
       throw new BusinessError('مسئول فعلی صندوق با سند مالی سازگار نیست.', 'CUSTODY_INVARIANT_BROKEN')
     let supersededId: number | null = null
-    if (live.state === 'HANDOVER_PENDING') {
+    let priorHandoverStatus: string | null = null
+    let priorResolutionKind: string | null = null
+    if (live.state === 'HANDOVER_PENDING' || live.state === 'HANDOVER_RECOUNT') {
       if (!live.pendingHandoverId) throw new BusinessError('تحویل ناتمام پیدا نشد.', 'CUSTODY_INVARIANT_BROKEN')
       const previous = await tx.custodyHandover.findUnique({ where: { id: live.pendingHandoverId } })
-      if (!previous || !['PENDING', 'RECEIVER_COUNTED'].includes(previous.status) || previous.fromShiftId !== fromShift.id)
+      const allowed = live.state === 'HANDOVER_PENDING' ? ['PENDING', 'RECEIVER_COUNTED']
+        : ['PENDING', 'RECEIVER_COUNTED', 'EMERGENCY_RECOUNT', 'MASTER_OVERRIDE_RECOUNT']
+      if (!previous || !allowed.includes(previous.status) || previous.fromShiftId !== fromShift.id || previous.fromUserId !== fromShift.userId)
         throw new BusinessError('تحویل ناتمام ناسازگار است؛ مدیر باید بازیابی حالت را انجام دهد.', 'CUSTODY_INVARIANT_BROKEN')
       supersededId = previous.id
+      priorHandoverStatus = previous.status
+      priorResolutionKind = previous.resolutionKind ?? null
+      // The old count(s), reason and original kind stay on the historical
+      // attempt. Only its mutable workflow status is retired; the new worker
+      // attests a DIFFERENT count and a system-absence OUT snapshot below.
       await tx.custodyHandover.update({ where: { id: previous.id }, data: {
-        status: 'SUPERSEDED_EMERGENCY', resolutionKind: 'SUPERSEDED_BY_REAL_COVER',
+        status: 'SUPERSEDED_EMERGENCY', resolutionKind: previous.resolutionKind ?? 'SUPERSEDED_BY_REAL_COVER',
         finishedAt: new Date(), version: { increment: 1 }
       } })
     }
@@ -819,7 +830,8 @@ async function commitBlueEmergency(input: {
       handoverId: supersededId, actorUserId: input.receiver.userId,
       actorKind: master ? 'MASTER_OVERRIDE_MANAGER' : 'EMERGENCY_COVER', authMethod,
       epochBefore: state.epoch, epochAfter: nextEpoch,
-      payload: { replacementHandoverId: handover.id, priorCountsNotReused: true }
+      payload: { replacementHandoverId: handover.id, priorCountsNotReused: true,
+        previousState: state.state, priorHandoverStatus, priorResolutionKind }
     })
     await writeEvent(tx, {
       type: master ? 'BLUE_MASTER_OVERRIDE_COMMITTED' : 'BLUE_EMERGENCY_COVER_COMMITTED',
@@ -2260,7 +2272,10 @@ export const custodyService = {
    * physical count and financial snapshot. */
   async ensureRolledOver(now = new Date()) {
     const state = await ensureState(prisma)
-    if ((state.state !== 'ACTIVE' && state.state !== 'HANDOVER_PENDING') || !state.activeShiftId) return null
+    // An interrupted pre-blue recount can remain durably frozen across a power
+    // outage. Its ACTUAL Shift still expires: do not require either absent PIN
+    // merely because the old acceptance was between its two transactions.
+    if (!['ACTIVE', 'HANDOVER_PENDING', 'HANDOVER_RECOUNT'].includes(state.state) || !state.activeShiftId) return null
     const [meta, scheduling] = await Promise.all([
       prisma.custodyShiftMeta.findUnique({ where: { shiftId: state.activeShiftId } }),
       shiftSchedulingOf(prisma)
@@ -2272,7 +2287,7 @@ export const custodyService = {
         live.activeShiftId ? tx.custodyShiftMeta.findUnique({ where: { shiftId: live.activeShiftId } }) : null,
         shiftSchedulingOf(tx)
       ])
-      if (!liveMeta || (live.state !== 'ACTIVE' && live.state !== 'HANDOVER_PENDING') || live.activeShiftId !== state.activeShiftId || live.epoch !== state.epoch || expiryAt(liveMeta, liveScheduling) > now) return null
+      if (!liveMeta || !['ACTIVE', 'HANDOVER_PENDING', 'HANDOVER_RECOUNT'].includes(live.state) || live.activeShiftId !== state.activeShiftId || live.epoch !== state.epoch || expiryAt(liveMeta, liveScheduling) > now) return null
       const shift = await tx.shift.findUnique({ where: { id: live.activeShiftId } })
       if (!shift || shift.closedAt) return null
       // The lazy detector may run the following morning. Financial attribution
@@ -2281,9 +2296,29 @@ export const custodyService = {
       const effectiveEndAt = expiryAt(liveMeta, liveScheduling)
       const nextEpoch = Number(live.epoch) + 1
       let handoverId: number | null = null
-      if (live.state === 'HANDOVER_PENDING' && live.pendingHandoverId) {
+      let priorHandoverStatus: string | null = null
+      let priorResolutionKind: string | null = null
+      if (live.state === 'HANDOVER_RECOUNT' && !live.pendingHandoverId)
+        // Keep the manager reset route usable for an actually corrupt pointer;
+        // do not fabricate a handover or strand reset behind this read.
+        return null
+      if ((live.state === 'HANDOVER_PENDING' || live.state === 'HANDOVER_RECOUNT') && live.pendingHandoverId) {
         handoverId = live.pendingHandoverId
-        await tx.custodyHandover.update({ where: { id: handoverId }, data: { status: 'EXPIRED_UNRESOLVED', resolutionKind: 'EXPIRED_AT_ROLLOVER', finalCustodianUserId: null, finishedAt: now, version: { increment: 1 } } })
+        const prior = await tx.custodyHandover.findUnique({ where: { id: handoverId } })
+        // Only an unfinished, genuinely linked attempt may be retired. An
+        // inconsistent pointer must not silently close an unrelated Shift.
+        if (live.state === 'HANDOVER_RECOUNT' && (!prior || prior.fromShiftId !== shift.id || prior.fromUserId !== shift.userId ||
+            !['PENDING', 'RECEIVER_COUNTED', 'EMERGENCY_RECOUNT', 'MASTER_OVERRIDE_RECOUNT'].includes(prior.status)))
+          return null // corrupted evidence is manager-reset only, never automatic attribution
+        priorHandoverStatus = prior?.status ?? null
+        priorResolutionKind = prior?.resolutionKind ?? null
+        await tx.custodyHandover.update({ where: { id: handoverId }, data: {
+          status: 'EXPIRED_UNRESOLVED',
+          // Preserve the origin of a frozen emergency/override witness. The
+          // expired status and audit event already describe its final outcome.
+          resolutionKind: live.state === 'HANDOVER_RECOUNT' && priorResolutionKind ? priorResolutionKind : 'EXPIRED_AT_ROLLOVER',
+          finalCustodianUserId: null, finishedAt: now, version: { increment: 1 }
+        } })
       }
       await shiftService.closeInTx(tx, { shiftId: shift.id, userId: shift.userId ?? null, note: 'پایان برنامه/روز عملیاتی؛ نیازمند شمارش شاهد صبح' })
       await tx.shift.update({ where: { id: shift.id }, data: { closedAt: effectiveEndAt } })
@@ -2291,7 +2326,7 @@ export const custodyService = {
       const resolution = await tx.custodyResolution.create({ data: { shiftId: shift.id, status: 'OPEN', evidence: 'NONE', differenceAttribution: 'PENDING_DECISION' } })
       const changed = await tx.custodyState.updateMany({ where: { key: MAIN, state: live.state, activeShiftId: shift.id, epoch: live.epoch }, data: { state: 'NO_SESSION', activeShiftId: null, pendingHandoverId: null, epoch: nextEpoch, updatedAt: now } })
       if (changed.count !== 1) throw new BusinessError('وضعیت صندوق هم‌زمان تغییر کرد؛ rollover ثبت نشد.', 'CUSTODY_STALE')
-      await writeEvent(tx, { type: 'ROLLOVER_UNRESOLVED', shiftId: shift.id, handoverId, resolutionId: resolution.id, actorKind: 'SYSTEM', epochBefore: live.epoch, epochAfter: nextEpoch, payload: { resolutionId: resolution.id, effectiveAt: effectiveEndAt.toISOString(), expiryKind: liveMeta.templateId ? 'SCHEDULED_END_PLUS_OVERTIME' : 'CUTOVER_FALLBACK' } })
+      await writeEvent(tx, { type: 'ROLLOVER_UNRESOLVED', shiftId: shift.id, handoverId, resolutionId: resolution.id, actorKind: 'SYSTEM', epochBefore: live.epoch, epochAfter: nextEpoch, payload: { resolutionId: resolution.id, effectiveAt: effectiveEndAt.toISOString(), expiryKind: liveMeta.templateId ? 'SCHEDULED_END_PLUS_OVERTIME' : 'CUTOVER_FALLBACK', previousState: live.state, priorHandoverStatus, priorResolutionKind } })
       return { resolutionId: resolution.id, shiftId: shift.id }
     })
     if (result) {
