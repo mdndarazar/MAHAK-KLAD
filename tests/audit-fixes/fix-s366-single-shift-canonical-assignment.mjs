@@ -23,7 +23,8 @@ const rejects = async (label, code, work) => { try { await work(); eq(label, tru
 const hm = (minute) => `${String(Math.floor(((minute % 1440) + 1440) % 1440 / 60)).padStart(2, '0')}:${String(((minute % 60) + 60) % 60).padStart(2, '0')}`
 const manager = seed.user('مدیر S366'), planned = seed.user('مسئول تک‌شیفت S366'), replacement = seed.user('جایگزین ثبت‌شده S366')
 const now = new Date(), minute = now.getHours() * 60 + now.getMinutes()
-seed.setting(SETTING_KEYS.shiftConfig, { custodyMode: 'SINGLE_SHIFT', byTime: true, reminderEnabled: true, overrunGraceMinutes: 0, templates: [{ id: 's366-single', name: 'تک‌شیفت اصلی', startTime: hm(minute - 20), endTime: hm(minute + 80), isActive: true, daysMask: 1 << now.getDay(), staffIds: [planned], reminderRepeatMin: 15, allowMidDayHandover: true }] })
+// Seed a positive single-shift policy for the transfer-specific fixture.
+seed.setting(SETTING_KEYS.shiftConfig, { custodyMode: 'SINGLE_SHIFT', singleShiftAllowMidDayHandover: true, byTime: true, reminderEnabled: true, overrunGraceMinutes: 0, templates: [{ id: 's366-single', name: 'تک‌شیفت اصلی', startTime: hm(minute - 20), endTime: hm(minute + 80), isActive: true, daysMask: 1 << now.getDay(), staffIds: [planned], reminderRepeatMin: 15, allowMidDayHandover: true }] })
 await custodyService.setPin({ userId: manager, newPassword: 'مدیر123!', currentPassword: '1111' })
 await custodyService.setConfig({ config: { enabled: true }, managerUserId: manager, managerPassword: 'مدیر123!' })
 for (const [id, temp, perm] of [[planned, 'Plan366!', 'Plan3664!'], [replacement, 'Repl366!', 'Repl3664!']]) {

@@ -222,7 +222,8 @@ function sameCustodySchedulingPolicy(a: ShiftConfig, b: ShiftConfig): boolean {
   return (
     a.custodyMode === b.custodyMode &&
     a.custodyModeConfigured === b.custodyModeConfigured &&
-    a.singleShiftCustodianUserId === b.singleShiftCustodianUserId
+    a.singleShiftCustodianUserId === b.singleShiftCustodianUserId &&
+    a.singleShiftAllowMidDayHandover === b.singleShiftAllowMidDayHandover
   )
 }
 
@@ -326,6 +327,19 @@ export const settingsService = {
       await writeKey(SETTING_KEYS.shiftConfig, next, tx)
       await writeKey(SETTING_KEYS.custodyConfig, nextCustody, tx)
 
+      if (frozenEpoch != null && next.custodyMode === 'SINGLE_SHIFT' && next.singleShiftAllowMidDayHandover &&
+          (beforeMode !== 'SINGLE_SHIFT' || !beforeShift.singleShiftAllowMidDayHandover)) {
+        // An explicit manager workflow may grant the CURRENT open segment once.
+        // Disabling the future setting cannot retrospectively erase this
+        // append-only grant. Neither grant nor mode edit changes the custodian.
+        await tx.custodyEvent.create({ data: {
+          type: 'CUSTODY_SINGLE_MIDDAY_GRANTED', shiftId: state.activeShiftId,
+          actorUserId: manager.userId, actorKind: 'MANAGER', authMethod: 'MANAGER_CUSTODY_PIN',
+          epochBefore: frozenEpoch, epochAfter: frozenEpoch,
+          payloadJson: JSON.stringify({ reason, permission: 'SINGLE_SHIFT_MIDDAY_HANDOVER', source: 'MANAGER_WORKFLOW' }),
+          operationalDay: toJalaliDate(new Date())
+        } })
+      }
       if (frozenEpoch != null) {
         const resumedEpoch = frozenEpoch + 1
         const resumed = await tx.custodyState.updateMany({
@@ -345,8 +359,8 @@ export const settingsService = {
       await tx.auditLog.create({
         data: {
           action: 'SETTINGS_UPDATE', entity: 'CustodySchedulingWorkflow', userId: manager.userId,
-          before: JSON.stringify({ custodyMode: beforeMode, configured: beforeShift.custodyModeConfigured, primaryUserId: beforeShift.singleShiftCustodianUserId }),
-          after: JSON.stringify({ custodyMode: next.custodyMode, configured: true, primaryUserId: next.singleShiftCustodianUserId, custodyConfigMode: nextCustody.mode, authMethod: 'MANAGER_CUSTODY_PIN' }),
+          before: JSON.stringify({ custodyMode: beforeMode, configured: beforeShift.custodyModeConfigured, primaryUserId: beforeShift.singleShiftCustodianUserId, singleShiftAllowMidDayHandover: beforeShift.singleShiftAllowMidDayHandover }),
+          after: JSON.stringify({ custodyMode: next.custodyMode, configured: true, primaryUserId: next.singleShiftCustodianUserId, singleShiftAllowMidDayHandover: next.singleShiftAllowMidDayHandover, custodyConfigMode: nextCustody.mode, authMethod: 'MANAGER_CUSTODY_PIN' }),
           note: frozenEpoch == null ? `ثبت روش برنامه‌ریزی حضانت با PIN شخصی مدیر: ${reason}` : `ثبت روش برنامه‌ریزی حضانت با حفظ مسئولیت باز: ${reason}`
         }
       })
@@ -869,7 +883,9 @@ export const settingsService = {
       // Older saved schedules did not have an explicit workflow marker.  Keep
       // their legacy save semantics intact; once the manager reviews either
       // workflow, every later policy mutation must take the atomic route.
-      if ((currentShift.custodyModeConfigured || normalizedShift.custodyModeConfigured) && !sameCustodySchedulingPolicy(currentShift, normalizedShift))
+      if ((currentShift.custodyModeConfigured || normalizedShift.custodyModeConfigured ||
+           currentShift.singleShiftAllowMidDayHandover !== normalizedShift.singleShiftAllowMidDayHandover) &&
+          !sameCustodySchedulingPolicy(currentShift, normalizedShift))
         throw new BusinessError(
           'تغییر تک‌شیفت/چندشیفت یا مسئول اصلی روزانه فقط از بخش «روش مسئولیت و برنامه‌ریزی حضانت» انجام می‌شود؛ این مسیر مسئولیت باز را اتمی حفظ می‌کند.',
           'CUSTODY_SCHEDULING_WORKFLOW_REQUIRED'

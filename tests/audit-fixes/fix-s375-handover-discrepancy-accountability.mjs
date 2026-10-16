@@ -13,6 +13,7 @@ process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
+const { settingsService } = await import('../../src/main/services/SettingsService.ts')
 const db = harnessClient(); const seed = makeSeeder(db)
 let ok = 0
 const eq = (label, got, expected) => {
@@ -32,6 +33,7 @@ for (const [id, temporary, personal] of [[giver, 'Giver375!', 'Giver3754!'], [re
   await custodyService.setPin({ userId: id, newPassword: temporary, managerUserId: manager, managerPassword: 'Manager375!', reason: 'راه‌اندازی آزمون تحویل مستقل' })
   await custodyService.setPin({ userId: id, currentPassword: temporary, newPassword: personal })
 }
+await settingsService.saveCustodySchedulingWorkflow({ shift: { ...await settingsService.shiftConfig(), custodyMode: 'SINGLE_SHIFT', singleShiftCustodianUserId: giver, singleShiftAllowMidDayHandover: true }, managerUserId: manager, managerPassword: 'Manager375!', reason: 'اجازهٔ تحویل برای آزمون پاسخگویی اختلاف' })
 const opened = await custodyService.open({ userId: giver, password: 'Giver3754!', operationalTotal: 1000 })
 const started = await custodyService.handoverStart({ password: 'Giver3754!', operationalTotal: 1000, blueReference: true, toUserId: receiver, idempotencyKey: 's375:new-two-count-handover' })
 eq('تحویل در انتظار شمارش مستقل است، نه freeze', (await custodyService.status()).state, 'HANDOVER_PENDING')

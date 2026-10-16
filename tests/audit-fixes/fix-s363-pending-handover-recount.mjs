@@ -17,6 +17,7 @@ process.env.HARNESS_DB = join(DIR, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
+const { settingsService } = await import('../../src/main/services/SettingsService.ts')
 const { cashMovementService } = await import('../../src/main/services/CashMovementService.ts')
 const { CashMovementType } = await import('@shared/enums')
 
@@ -42,6 +43,7 @@ for (const [id, temporary, permanent] of [[giver, 'Giver363!', 'Giver3634!'], [r
   await custodyService.setPin({ userId: id, newPassword: temporary, managerUserId: manager, managerPassword: 'مدیر123!', reason: 'راه‌اندازی آزمون شمارش' })
   await custodyService.setPin({ userId: id, currentPassword: temporary, newPassword: permanent })
 }
+await settingsService.saveCustodySchedulingWorkflow({ shift: { ...await settingsService.shiftConfig(), custodyMode: 'SINGLE_SHIFT', singleShiftCustodianUserId: giver, singleShiftAllowMidDayHandover: true }, managerUserId: manager, managerPassword: 'مدیر123!', reason: 'اجازهٔ آزمون تحویل با شمارش مستقل واقعی' })
 const opened = await custodyService.open({ userId: giver, password: 'Giver3634!', operationalTotal: 0 })
 const handover = await custodyService.handoverStart({ password: 'Giver3634!', operationalTotal: 0, blueReference: true, toUserId: receiver, idempotencyKey: 's363-handover' })
 eq('تحویل وارد وضعیت pending شد', handover.state, 'HANDOVER_PENDING')

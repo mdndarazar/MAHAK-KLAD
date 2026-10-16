@@ -2259,6 +2259,11 @@ model CustodyHandover {
   idempotencyKey          String   @unique
   stateKey                String   @default("MAIN")
   startedAt               DateTime @default(now())
+  /// New attempts pin their TTL when OUT commits; never extend on IN/retry.
+  /// NULL protocolVersion is a pre-deadline V2 attempt (startedAt + 10 min).
+  protocolVersion         Int?
+  deadlineAt              DateTime?
+  deadlinePolicyMinutes   Int?
   finishedAt              DateTime?
   version                 Int      @default(1)
   operationalDay          String
@@ -2294,6 +2299,8 @@ model CustodyBlueSnapshot {
   destinationUnknownReceived BigInt?
   ambiguousLegacyCredit    BigInt?
   calculationVersion       String
+  /// V3 seals the original count/reference/domain/links; old V1/V2 remain NULL.
+  evidenceDigest           String?
   sourceScope              String?
   sourceHash               String?
   financialRevision        Int
@@ -2307,6 +2314,7 @@ model CustodyBlueSnapshot {
   operationalDay           String
   at                       DateTime @default(now())
   resolutions              CustodyBlueResolution[]
+  managerNotes             CustodyBlueNote[]
 
   @@unique([handoverId, role])
   @@index([shiftId, at])
@@ -2342,6 +2350,60 @@ model CustodyBlueResolution {
 
   @@index([snapshotId, at])
   @@index([managerUserId, at])
+}
+
+/// Optional manager annotations are independent of any financial decision.
+/// They never rewrite the source count, reference, responsibility or resolution.
+model CustodyBlueNote {
+  id             Int      @id @default(autoincrement())
+  snapshotId     Int
+  snapshot       CustodyBlueSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
+  managerUserId  Int
+  authMethod     String   @default("MANAGER_CUSTODY_PIN")
+  text           String
+  idempotencyKey String   @unique
+  at             DateTime @default(now())
+
+  @@index([snapshotId, at])
+  @@index([managerUserId, at])
+}
+
+/// Durable, immutable quarantine for a corrupt BLUE witness or pending pointer.
+/// The case remains linked to the original Shift even after system rollover.
+/// Resolution is an independent append-only CustodyEvidenceRecovery row.
+model CustodyEvidenceQuarantine {
+  id                  Int      @id @default(autoincrement())
+  sourceKey           String   @unique
+  shiftId             Int
+  handoverId          Int?
+  snapshotId          Int?
+  reasonCode          String
+  detectedEpoch       Int
+  detectedAt          DateTime @default(now())
+  recovery            CustodyEvidenceRecovery?
+
+  @@index([shiftId, detectedAt])
+  @@index([handoverId])
+}
+
+model CustodyEvidenceRecovery {
+  id                  Int      @id @default(autoincrement())
+  quarantineId        Int      @unique
+  quarantine          CustodyEvidenceQuarantine @relation(fields: [quarantineId], references: [id], onDelete: Restrict)
+  shiftId             Int
+  managerUserId       Int
+  authMethod          String   @default("MANAGER_CUSTODY_PIN")
+  countedAmount       BigInt
+  reason              String
+  outcome             String
+  recoverySnapshotId  Int?
+  seenEpoch           Int
+  epochAfter          Int
+  idempotencyKey      String   @unique
+  requestFingerprint  String
+  at                  DateTime @default(now())
+
+  @@index([shiftId, at])
 }
 
 model CustodyResolution {

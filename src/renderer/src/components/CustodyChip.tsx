@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { call, CH } from '../lib/api'
-import { money, parseRequiredRialAmount } from '@shared/jalali'
+import { money, parseRequiredRialAmount, toJalaliDateTime, faDigits } from '@shared/jalali'
+import { CustodyDifference } from './CustodyDifference'
+import { OpeningRialInput } from './OpeningRialInput'
 import type { CustodyPeerComparison } from '@shared/custodyPeerCount'
 import { custodyPeerWarningText } from '@shared/custodyPeerWarningText'
 import { useTopmostModalKey } from './Modal'
@@ -13,11 +15,13 @@ type Status = {
   /** Durable main-process verdict; a recovery case can govern even if a stale
    * config row says the feature is disabled. */
   governed?: boolean
+  /** Only a public boolean; manager case details stay in Settings. */
+  evidenceQuarantined?: boolean
   state: 'NO_SESSION' | 'ACTIVE' | 'HANDOVER_PENDING' | string
   epoch: number
   custodian: { id: number; name: string | null } | null
   shift: { id: number; name: string; openedAt: string } | null
-  pendingHandover: { id: number; fromUserId: number; selectedRecipientUserId: number; startedAt: string; status?: string; resolutionKind?: string | null; blueReference?: boolean; countedAtStart?: number; resolutionReason?: string | null; blindCountedCash?: number | null } | null
+  pendingHandover: { id: number; fromUserId: number; selectedRecipientUserId: number; startedAt: string; deadlineAt?: string | null; status?: string; resolutionKind?: string | null; blueReference?: boolean; countedAtStart?: number; resolutionReason?: string | null; blindCountedCash?: number | null } | null
   schedule: { planId: number; title: string; scheduledEndAt: string } | null
   schedulingPolicy?: { mode: 'SINGLE_SHIFT' | 'MULTI_SHIFT'; configured: boolean; singleShiftCustodianUserId: number | null }
   reminder: { due: boolean; bucket: number | null; repeatMinutes: number; scheduledEndAt: string | null }
@@ -107,7 +111,7 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
         next.state === 'HANDOVER_PENDING' && next.pendingHandover?.blueReference === true &&
         next.pendingHandover.id === handoverId && next.pendingHandover.status === 'RECEIVER_COUNTED'
       setBlueCountPreview((prior) => prior && sameCountedHandover(prior.handoverId) ? prior : null)
-      setView((prior) => prior === 'confirmBlue' &&
+      setView((prior) => next.evidenceQuarantined || prior === 'confirmBlue' &&
         !(next.state === 'HANDOVER_PENDING' && next.pendingHandover?.blueReference && next.pendingHandover.status === 'RECEIVER_COUNTED')
         ? 'main' : prior)
       const nextStaff = await call<Staff[]>(CH.custodyStaffList, {})
@@ -228,7 +232,9 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
   const emergencyInProgress = frozenHandover && status.pendingHandover?.status === 'EMERGENCY_RECOUNT'
   const masterOverrideInProgress = frozenHandover && status.pendingHandover?.status === 'MASTER_OVERRIDE_RECOUNT'
   const title =
-    status.legacyBlock
+    status.evidenceQuarantined
+      ? 'شاهد آبی قرنطینه است؛ فقط بازیابی مستقل مدیر مجاز است'
+    : status.legacyBlock
       ? `${status.legacyBlock.count} نشست قدیمی نیازمند بازیابی است`
       : normalHandoverDifferencePending
         ? 'تحویل قدیمی نیمه‌تمام است؛ فرد حاضر می‌تواند با شمارش تازه صندوق را بگیرد'
@@ -253,7 +259,7 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
         onClick={() => { setVisible(true); reset() }}
         title="حضانت صندوق: مسئول فعلی، تحویل احرازشده و بستن نهایی"
       >
-        {status.legacyBlock ? '⚠ صندوق · نیازمند بازیابی Shift قدیمی' : frozenHandover ? '⚠ تحویل نیمه‌تمام · بازیابی با شمارش تازه' : status.state === 'HANDOVER_PENDING' ? '⚠ تحویل صندوق در انتظار تأیید' : status.state === 'ACTIVE' ? `صندوق · ${status.custodian?.name ?? 'فعال'}` : 'صندوق · نیازمند ورود'}
+        {status.evidenceQuarantined ? '⚠ صندوق · شاهد قرنطینه' : status.legacyBlock ? '⚠ صندوق · نیازمند بازیابی Shift قدیمی' : frozenHandover ? '⚠ تحویل نیمه‌تمام · بازیابی با شمارش تازه' : status.state === 'HANDOVER_PENDING' ? '⚠ تحویل صندوق در انتظار تأیید' : status.state === 'ACTIVE' ? `صندوق · ${status.custodian?.name ?? 'فعال'}` : 'صندوق · نیازمند ورود'}
       </button>
       {visible ? createPortal(
         <div className="fixed inset-0 z-[80] bg-black/55 flex justify-center items-start overflow-auto p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) dismiss() }}>
@@ -263,16 +269,18 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
               <button className="text-slate-500 hover:text-slate-900 px-2" onClick={dismiss} aria-label="بستن">×</button>
             </div>
             {showReminder ? <div className="mb-3 p-3 rounded border border-amber-300 bg-amber-50 text-sm"><b>یادآوری پایان برنامهٔ شیفت</b><br />برنامهٔ «{status.schedule?.title ?? 'شیفت'}» به پایان رسیده است. فروش متوقف نمی‌شود و همچنان به مسئول فعلی منتسب است؛ در زمان مناسب تحویل یا بستن نهایی را ثبت کنید.<button className="block mt-2 underline" onClick={() => setDismissedReminderBucket(status.reminder.bucket)}>فعلاً بستن این یادآوری</button></div> : null}
+            {status.state === 'HANDOVER_PENDING' && status.pendingHandover?.deadlineAt ? <p className="mb-3 rounded border border-amber-300 bg-amber-50 p-2 text-sm">مهلت همین تلاش تحویل: {faDigits(toJalaliDateTime(new Date(status.pendingHandover.deadlineAt)))}. شمارش و تأیید باید پیش از این لحظه تکمیل شوند؛ پس از انقضای تلاش، سندها حفظ و مسئولیت تا پایان واقعی نشست با مسئول قبلی است.</p> : null}
             {error ? <div className="mb-3 p-2 rounded bg-red-50 text-red-700 text-sm">{error}</div> : null}
             {view === 'main' ? <>
-              {status.legacyBlock ? <div className="mb-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950"><b>نشست قدیمی نیازمند بازیابی است.</b><p className="mt-1">تا ثبت شمارش واقعی، فروش و افتتاح صندوق قفل است. بازیابی، مسئولیت فروش‌ها یا اختلاف‌های گذشته را به شما منتقل نمی‌کند؛ مسئولیت شما فقط پس از افتتاح جداگانهٔ صندوق جدید آغاز می‌شود.</p><button className="btn-primary mt-3 w-full" onClick={() => { reset('legacyRecovery'); setLegacyRecoveryKey(`legacy-${crypto.randomUUID()}`); setLegacyAcknowledged({ missedHandover: false, physicalCount: false, responsibilityBoundary: false }) }}>ثبت بازیابی Shift قدیمی</button></div> : null}
-              {status.state === 'NO_SESSION' && !status.legacyBlock ? <button className="w-full btn-primary py-3" onClick={() => reset('open')}>ورود مسئول و باز کردن صندوق</button> : null}
-              {status.state === 'ACTIVE' ? <div className={`grid gap-3 ${isManager ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-3'}`}><button className="btn-secondary py-3" onClick={() => reset('handover')}>تحویل عادی</button><button className="btn-secondary py-3" onClick={() => reset('emergency')}>پوشش اضطراری</button>{isManager ? <button className="btn-secondary py-3 border-amber-400 text-amber-900" onClick={() => reset('masterOverride')}>Master Override</button> : null}<button className="btn-primary py-3" onClick={() => reset('close')}>بستن نهایی</button></div> : null}
-              {status.state === 'HANDOVER_PENDING' ? <div className="grid grid-cols-2 gap-3"><button className="btn-primary py-3" onClick={() => reset(status.pendingHandover?.blueReference && status.pendingHandover.status === 'RECEIVER_COUNTED' ? 'confirmBlue' : 'accept')}>{status.pendingHandover?.blueReference ? status.pendingHandover.status === 'RECEIVER_COUNTED' ? 'تأیید جداگانهٔ گیرنده' : 'شمارش مستقل گیرنده' : 'تأیید تحویل‌گیرندهٔ قدیمی'}</button><button className="btn-secondary py-3" onClick={() => reset('handover')}>لغو با رمز تحویل‌دهنده</button><button className="btn-secondary py-3" onClick={() => reset('emergency')}>پوشش ضروریِ غیبت با شمارش تازه</button>{isManager ? <button className="btn-secondary py-3" onClick={() => reset('masterOverride')}>Master Override با PIN شخصی</button> : null}</div> : null}
-              {frozenHandover ? <div className="rounded border border-sky-300 bg-sky-50 p-3 text-sm leading-6 text-sky-950">
+              {status.evidenceQuarantined ? <div className="mb-3 rounded border border-rose-300 bg-rose-50 p-3 text-sm leading-7 text-rose-950"><b>شاهد صندوق ناسازگار و در قرنطینه است.</b><p>عدد مرجع، شمارش قدیمی یا صفرِ فرضی برای فروش، تحویل، بستن یا افتتاح مجاز نیست. وضعیت واقعی Shift تا موعد خودش محفوظ است؛ پس از آن هم پرونده به همان Shift بسته‌شده پیوند دارد. مدیر باید از تنظیمات › حضانت صندوق › «قرنطینهٔ شاهد · بازیابی مستقل» با PIN، دلیل و شمارش تازه اقدام کند. ریست شیفت راه عبور نیست.</p></div> : null}
+              {!status.evidenceQuarantined && status.legacyBlock ? <div className="mb-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950"><b>نشست قدیمی نیازمند بازیابی است.</b><p className="mt-1">تا ثبت شمارش واقعی، فروش و افتتاح صندوق قفل است. بازیابی، مسئولیت فروش‌ها یا اختلاف‌های گذشته را به شما منتقل نمی‌کند؛ مسئولیت شما فقط پس از افتتاح جداگانهٔ صندوق جدید آغاز می‌شود.</p><button className="btn-primary mt-3 w-full" onClick={() => { reset('legacyRecovery'); setLegacyRecoveryKey(`legacy-${crypto.randomUUID()}`); setLegacyAcknowledged({ missedHandover: false, physicalCount: false, responsibilityBoundary: false }) }}>ثبت بازیابی Shift قدیمی</button></div> : null}
+              {status.state === 'NO_SESSION' && !status.legacyBlock && !status.evidenceQuarantined ? <button className="w-full btn-primary py-3" onClick={() => reset('open')}>ورود مسئول و باز کردن صندوق</button> : null}
+              {status.state === 'ACTIVE' && !status.evidenceQuarantined ? <div className={`grid gap-3 ${isManager ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-3'}`}><button className="btn-secondary py-3" onClick={() => reset('handover')}>تحویل عادی</button><button className="btn-secondary py-3" onClick={() => reset('emergency')}>پوشش اضطراری</button>{isManager ? <button className="btn-secondary py-3 border-amber-400 text-amber-900" onClick={() => reset('masterOverride')}>Master Override</button> : null}<button className="btn-primary py-3" onClick={() => reset('close')}>بستن نهایی</button></div> : null}
+              {status.state === 'HANDOVER_PENDING' && !status.evidenceQuarantined ? <div className="grid grid-cols-2 gap-3"><button className="btn-primary py-3" onClick={() => reset(status.pendingHandover?.blueReference && status.pendingHandover.status === 'RECEIVER_COUNTED' ? 'confirmBlue' : 'accept')}>{status.pendingHandover?.blueReference ? status.pendingHandover.status === 'RECEIVER_COUNTED' ? 'تأیید جداگانهٔ گیرنده' : 'شمارش مستقل گیرنده' : 'تأیید تحویل‌گیرندهٔ قدیمی'}</button><button className="btn-secondary py-3" onClick={() => reset('handover')}>لغو با رمز تحویل‌دهنده</button><button className="btn-secondary py-3" onClick={() => reset('emergency')}>پوشش ضروریِ غیبت با شمارش تازه</button>{isManager ? <button className="btn-secondary py-3" onClick={() => reset('masterOverride')}>Master Override با PIN شخصی</button> : null}</div> : null}
+              {frozenHandover && !status.evidenceQuarantined ? <div className="rounded border border-sky-300 bg-sky-50 p-3 text-sm leading-6 text-sky-950">
                 <b>بازیابی تحویل نیمه‌تمام، بدون حضور افراد قبلی</b>
                 <p className="mt-1">شمارش و فروش‌های قبلی سند باقی می‌مانند. صندوق‌دار یا مدیرِ حاضر با PIN شخصی، شمارش تازهٔ مجموع کشو و کارت‌خوان و دلیل روشن می‌تواند نشست مستقل بگیرد؛ مبلغ یا PIN تلاش قبلی استفاده نمی‌شود. پس از ثبت موفق، فروش به نام فرد حاضر ادامه می‌یابد.</p>
-                <p className="mt-1 text-xs">اگر سند قبلی ناسازگار گزارش شد، مدیر از تنظیمات با PIN شخصی، تأیید و دلیل، «ریست شیفت» را بررسی کند؛ سپس فرد حاضر مستقلاً شمارش کند.</p>
+                <p className="mt-1 text-xs">اگر سند قبلی ناسازگار و قرنطینه شد، مدیر باید از تب مستقل «قرنطینهٔ شاهد» با PIN، دلیل و شمارش تازه اقدام کند؛ ریست شیفت برای عبور از شاهد خراب نیست.</p>
                 <button className="btn-primary mt-2 w-full" onClick={() => reset('emergency')}>شمارش تازه و ورود جایگزین</button>
               </div> : null}
               {emergencyInProgress ? <div className="p-3 rounded bg-amber-50 text-sm leading-6">تلاش قدیمیِ پوشش اضطراری برای <b>{nameOf(status.pendingHandover?.selectedRecipientUserId)}</b> نیمه‌تمام است؛ مبلغ و PIN آن برای ورود تازه استفاده نمی‌شود.<button className="block mt-2 underline font-bold" onClick={restartEmergency}>ثبت پوشش تازه</button></div> : null}
@@ -342,7 +350,7 @@ export function CustodyChip({ showSetup = true, showOperations = true }: { showS
                 {currentBluePreview?.referenceStatus === 'PENDING_RECONCILIATION'
                   ? <p>مرجع و اختلاف قطعی در انتظار تطبیق است. بخش معلوم: {currentBluePreview.knownSubtotal == null ? 'نامعلوم' : money(currentBluePreview.knownSubtotal)} ریال · پرداخت قدیمی مبهم: {currentBluePreview.ambiguousLegacyCredit == null ? 'نامعلوم' : money(currentBluePreview.ambiguousLegacyCredit)} ریال · دریافتی با مقصد نامشخص: {currentBluePreview.destinationUnknownReceived == null ? 'نامعلوم' : money(currentBluePreview.destinationUnknownReceived)} ریال. شمارش و فروش ادامه دارند.</p>
                   : currentBluePreview
-                    ? <p>مرجع گزارش: {currentBluePreview.referenceAmount == null ? 'نامعلوم' : money(currentBluePreview.referenceAmount)} ریال · اختلاف خام: {currentBluePreview.rawDifference == null ? 'نامعلوم' : money(currentBluePreview.rawDifference)} ریال · اختلاف تازه: {currentBluePreview.freshDifference == null ? 'نامعلوم' : money(currentBluePreview.freshDifference)} ریال.</p>
+                    ? <p>عدد مرجع گزارش: {currentBluePreview.referenceAmount == null ? 'نامعلوم' : `${money(currentBluePreview.referenceAmount)} ریال`} · اختلاف خام: <CustodyDifference value={currentBluePreview.rawDifference} label="اختلاف خام تحویل" /> · اختلاف تازه: <CustodyDifference value={currentBluePreview.freshDifference} label="اختلاف تازهٔ تحویل" />.</p>
                     : <p>نتیجهٔ ثبت‌شده پس از بازکردن دوبارهٔ فرم، فقط با PIN شخصی گیرنده قابل مشاهده است؛ شمارش اول پیش از ثبت شمارش گیرنده نمایش داده نمی‌شود.</p>}
                 <p>اختلاف مرجع یا وضعیت در انتظار، اتهام نیست و به تأیید قبلی مدیر نیاز ندارد. اگر در این فاصله فروش شود، شمارش‌های تازه لازم خواهد شد.</p>
               </div>
@@ -409,7 +417,7 @@ function CredentialForm({ staff, selected, setSelected, password, setPassword, a
     {openingHelp ? <p className="rounded border border-sky-200 bg-sky-50 p-3 text-sm leading-6 text-sky-950">{openingHelp}</p> : null}
     <label className="block text-sm">{selectLabel}<select className="input mt-1 w-full" value={selected} onChange={(e) => setSelected(e.target.value ? Number(e.target.value) : '')}><option value="">انتخاب کنید…</option>{staff.map((row: Staff) => <option key={row.id} value={row.id}>{row.name} ({row.role === 'MANAGER' ? 'مدیر' : 'صندوقدار'})</option>)}</select></label>
     <label className="block text-sm">رمز شخصی<input className="input mt-1 w-full" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></label>
-    <label className="block text-sm">{label}<input className="input mt-1 w-full" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="۰" /></label>
+    <OpeningRialInput label={label} value={amount} onChange={setAmount} />
     {showNote ? <label className="block text-sm">{noteLabel}<textarea className="input mt-1 w-full" value={note} onChange={(e) => setNote(e.target.value)} placeholder="مثلاً مسئول برنامه امروز غایب است و صندوق را خودم شمارش کرده‌ام." /></label> : null}
     <div className="flex gap-2"><button className="btn-secondary flex-1" onClick={onBack} disabled={busy}>بازگشت</button><button className="btn-primary flex-1" onClick={onSubmit} disabled={busy}>{busy ? 'در حال ثبت…' : submit}</button></div>
   </div>

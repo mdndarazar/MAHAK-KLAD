@@ -10,8 +10,9 @@ const chip = readFileSync(new URL('../../src/renderer/src/components/CustodyChip
 const ipc = readFileSync(new URL('../../src/main/ipc/index.ts', import.meta.url), 'utf8')
 const service = readFileSync(new URL('../../src/main/services/CustodyService.ts', import.meta.url), 'utf8')
 assert.match(chip, /const frozenHandover = status\.state === 'HANDOVER_RECOUNT'/, 'renderer recognizes an interrupted legacy acceptance')
-assert.match(chip, /\{frozenHandover \? <div[\s\S]{0,1100}onClick=\{\(\) => reset\('emergency'\)\}/,
-  'the visible frozen-state panel offers a replacement without old PINs')
+assert.match(chip, /\{frozenHandover && !status\.evidenceQuarantined \? <div[\s\S]{0,1500}onClick=\{\(\) => reset\('emergency'\)\}/,
+  'the visible frozen-state panel offers a replacement without old PINs only while evidence is healthy')
+assert.match(chip, /status\.evidenceQuarantined \? <div[\s\S]{0,900}قرنطینه/, 'a corrupt witness has its own manager route, not emergency cover')
 assert.match(chip, /شمارش تازه و ورود جایگزین/, 'next worker is explicitly asked for a new independent count')
 assert.doesNotMatch(chip, /setCountedCash\(pending\.countedAtStart/, 'old emergency amount is never auto-filled')
 assert.doesNotMatch(chip, /setNote\(pending\.resolutionReason/, 'old exceptional reason is never borrowed')

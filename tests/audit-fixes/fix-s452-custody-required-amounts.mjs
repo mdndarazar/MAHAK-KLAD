@@ -32,10 +32,14 @@ for (const [raw, amount] of [
 for (const raw of [null, undefined, '', ' ', '1.5', '۱٫۵', '-5', '+5', '1e3', '0x10', '1,5', '1٬23', '12abc', '9007199254740992'])
   eq(`reject malformed amount ${JSON.stringify(raw)}`, parseRequiredRialAmount(raw), null)
 
-// The renderer must pass the untouched text to this same parser. In particular
-// the browser must not turn '-' or '.' into a new, apparently valid count.
+// The renderer must never turn '-' or '.' into a new, apparently valid count.
+// Opening has a display-only formatter that leaves invalid text untouched;
+// the four other custody amount fields still pass raw input through.
 const chip = readFileSync(new URL('../../src/renderer/src/components/CustodyChip.tsx', import.meta.url), 'utf8')
-eq('all custody amount fields preserve raw text', chip.match(/setAmount\(e\.target\.value\)/g)?.length, 5)
+const opening = readFileSync(new URL('../../src/renderer/src/components/OpeningRialInput.tsx', import.meta.url), 'utf8')
+const formatter = readFileSync(new URL('../../src/shared/custodyRialInput.ts', import.meta.url), 'utf8')
+eq('non-opening custody fields preserve raw text', chip.match(/setAmount\(e\.target\.value\)/g)?.length, 4)
+eq('opening formats only a value accepted by the strict rial parser', opening.includes('formatOpeningRialTyping') && formatter.includes('if (amount === null) return { text: raw, cursor }'), true)
 eq('custody submit uses shared parser', chip.includes('parseRequiredRialAmount(countedCash)'), true)
 eq('custody does not silently strip invalid characters', /setAmount\(e\.target\.value\.replace/.test(chip), false)
 const legacyUi = readFileSync(new URL('../../src/renderer/src/pages/CashClose.tsx', import.meta.url), 'utf8')

@@ -1,4 +1,5 @@
 /** Append-only snapshot persistence and daily/inherited reconciliation. */
+import { createHash } from 'node:crypto'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -17,7 +18,13 @@ const eq = (label, actual, expected) => {
   if (actual !== expected) throw new Error(`${label}: expected ${expected}, got ${actual}`)
   checked++; console.log(`  ✓ ${label}`)
 }
-const ref = (amount) => calculateCustodyReference({ cashReceived: amount, cardReceived: 0, otherReceived: 0, destinationUnknownReceived: 0, ambiguousLegacyCredit: 0, refundCash: 0, refundCard: 0 })
+const ref = (amount) => {
+  const reference = calculateCustodyReference({ cashReceived: amount, cardReceived: 0, otherReceived: 0,
+    destinationUnknownReceived: 0, ambiguousLegacyCredit: 0, refundCash: 0, refundCard: 0 })
+  const sourceScope = JSON.stringify({ filter: { fromJalali: day, toJalali: day } })
+  return { ...reference, sourceScope,
+    sourceHash: createHash('sha256').update(JSON.stringify({ scope: sourceScope, reference })).digest('hex') }
+}
 const make = (shiftId, amount, report, prior, role) => recordBlueSnapshot(db, {
   shiftId, role, actorUserId: 1, count: observationOf(amount, false),
   reference: report, referenceFromDay: day, referenceToDay: day, scopeKind: 'TODAY',

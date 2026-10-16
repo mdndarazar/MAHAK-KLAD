@@ -26,6 +26,7 @@ import { cashboxService } from '../services/CashboxService'
 import { cashMovementService } from '../services/CashMovementService'
 import { custodyService } from '../services/CustodyService'
 import { custodyBlueResolutionService } from '../services/CustodyBlueResolutionService'
+import { custodyBlueNoteService } from '../services/CustodyBlueNoteService'
 import { cashClosingHistoryService } from '../services/CashClosingHistoryService'
 import { custodyPlanService } from '../services/CustodyPlanService'
 import { fraudService } from '../services/FraudService'
@@ -1195,10 +1196,29 @@ export function registerIpcHandlers(): void {
       decisionKind, evidenceDay, evidenceReference, destinationDecisionKind,
       destinationEvidenceDay, destinationEvidenceReference, reason, idempotencyKey })
   })
+  handle(IPC.custodyBlueNoteAdd, (p) => {
+    assertManagerSession('ثبت یادداشت اختیاری مدیر روی سند آبی')
+    const { snapshotId, managerUserId, password, text, idempotencyKey } = p ?? {}
+    return custodyBlueNoteService.append({ snapshotId, managerUserId, password, text, idempotencyKey })
+  })
+  handle(IPC.custodyBlueNoteList, (p) => {
+    assertManagerSession('خواندن یادداشت مدیر روی سند آبی')
+    return custodyBlueNoteService.list({ snapshotId: p?.snapshotId, skip: p?.skip })
+  })
   handle(IPC.custodyShiftReset, (p) => {
     assertManagerSession('ریست بازیابانهٔ شیفت')
     const { managerUserId, password, reason, confirmed } = p ?? {}
     return custodyService.resetShift({ managerUserId, password, reason, confirmed })
+  })
+  handle(IPC.custodyEvidenceCases, (p) => {
+    assertManagerSession('دیدن پرونده‌های قرنطینهٔ سند آبی')
+    return custodyService.evidenceCases({ skip: p?.skip })
+  })
+  handle(IPC.custodyManagerEvidenceRecovery, (p) => {
+    assertManagerSession('بازیابی مستقل سند قرنطینه با شمارش تازهٔ مدیر')
+    const { caseId, managerUserId, password, operationalTotal, reason, seenEpoch, idempotencyKey } = p ?? {}
+    return custodyService.managerEvidenceRecovery({ caseId, managerUserId, password,
+      operationalTotal, reason, seenEpoch, idempotencyKey })
   })
   handle(IPC.custodyOpenResolutions, () => {
     assertManagerSession('بازبینی شیفت‌های منقضی در تنظیمات مدیر')

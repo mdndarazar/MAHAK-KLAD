@@ -41,6 +41,7 @@ process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
+import { grantMiddayFixture } from './grant-midday-fixture.mjs'
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
 const { custodyBlueResolutionService } = await import('../../src/main/services/CustodyBlueResolutionService.ts')
 const { toJalaliDate } = await import('@shared/jalali')
@@ -52,6 +53,7 @@ const giver = seed.user('تحویل‌دهنده S430')
 const receiver = seed.user('گیرنده S430')
 await custodyService.setPin({ userId: manager, newPassword: 'Manager430!', currentPassword: '1111' })
 await custodyService.setConfig({ config: { enabled: true }, managerUserId: manager, managerPassword: 'Manager430!' })
+await grantMiddayFixture({ manager, password: 'Manager430!', custodian: giver })
 for (const [id, temp, pin] of [[giver, 'Giver430Temp!', 'Giver430Final!'], [receiver, 'Receiver430Temp!', 'Receiver430Final!']]) {
   await custodyService.setPin({ userId: id, newPassword: temp, managerUserId: manager,
     managerPassword: 'Manager430!', reason: 'تست شاهد مقصد نامعلوم' })

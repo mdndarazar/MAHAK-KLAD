@@ -1,5 +1,6 @@
 import { BusinessError } from '../errors'
-import { CUSTODY_REFERENCE_VERSION, CUSTODY_REFERENCE_LEGACY_VERSION, type CustodyReference } from '@shared/custodyReference'
+import { CUSTODY_REFERENCE_VERSION, CUSTODY_REFERENCE_PREVIOUS_VERSION, CUSTODY_REFERENCE_LEGACY_VERSION, type CustodyReference } from '@shared/custodyReference'
+import { blueEvidenceDigest, blueEvidenceFault } from './CustodyBlueIntegrity'
 import { observationOf, systemAbsenceZero, absenceUncounted, isAbsentUncounted, reconcileCustodyPeriod, type CustodyObservation } from '@shared/custodyPeriod'
 import { isValidJalaliDate } from '@shared/jalali'
 
@@ -10,8 +11,10 @@ function safeMoney(raw: unknown): number | null {
   return n
 }
 export function referenceFromBlueSnapshot(row: any): CustodyReference {
-  if (row.calculationVersion !== CUSTODY_REFERENCE_VERSION && row.calculationVersion !== CUSTODY_REFERENCE_LEGACY_VERSION)
+  if (![CUSTODY_REFERENCE_VERSION, CUSTODY_REFERENCE_PREVIOUS_VERSION, CUSTODY_REFERENCE_LEGACY_VERSION].includes(row?.calculationVersion))
     throw new BusinessError('نسخهٔ سند مرجع تحویل با نسخهٔ برنامه متفاوت است.', 'BLUE_VERSION_MISMATCH')
+  if (blueEvidenceFault(row))
+    throw new BusinessError('سند مرجع آبی از نظر دامنه، مبلغ، منبع یا نسخه معتبر نیست؛ مرجع آن قابل قرض‌گرفتن نیست.', 'CUSTODY_EVIDENCE_QUARANTINED')
   return {
     status: row.referenceStatus,
     referenceAmount: safeMoney(row.referenceAmount),
@@ -82,6 +85,8 @@ export async function recordBlueSnapshot(tx: any, input: {
   if (!Number.isSafeInteger(input.financialRevision) || input.financialRevision < 0 ||
       !Number.isSafeInteger(input.epochAtCount) || input.epochAtCount < 0)
     throw new BusinessError('نسخهٔ مالی سند شمارش نامعتبر است.', 'BLUE_REVISION_INVALID')
+  if (input.prior && blueEvidenceFault(input.prior))
+    throw new BusinessError('سند مبنای قبلی ناسازگار است؛ ساخت مرجع با قرض‌گرفتن آن ممنوع است.', 'CUSTODY_EVIDENCE_QUARANTINED')
   const scopeKey = blueScopeKey({ ...input, calculationVersion: reference.calculationVersion })
   const result = reconcileCustodyPeriod({
     start: input.prior ? {
@@ -92,7 +97,7 @@ export async function recordBlueSnapshot(tx: any, input: {
     end: { count, reference, scopeKey }
   })
   const toBigInt = (value: number | null) => value == null ? null : BigInt(value)
-  return tx.custodyBlueSnapshot.create({ data: {
+  const data = {
     handoverId: input.handoverId ?? null,
     shiftId: input.shiftId, role: input.role,
     actorUserId: input.actorUserId, authMethod,
@@ -117,5 +122,9 @@ export async function recordBlueSnapshot(tx: any, input: {
     freshStatus: result.freshStatus,
     idempotencyKey: input.idempotencyKey,
     operationalDay: input.referenceToDay
-  } })
+  }
+  const witness = { ...data, evidenceDigest: blueEvidenceDigest(data) }
+  if (blueEvidenceFault(witness))
+    throw new BusinessError('دامنه، منبع، شمارش یا مبلغ سند تازه ناسازگار است؛ مبلغ نامعلوم جایگزین شاهد خراب نیست.', 'CUSTODY_EVIDENCE_QUARANTINED')
+  return tx.custodyBlueSnapshot.create({ data: witness })
 }

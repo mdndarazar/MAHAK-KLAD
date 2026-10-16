@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { call, CH } from '../lib/api'
 import { money } from '@shared/jalali'
-import { CUSTODY_REFERENCE_VERSION } from '@shared/custodyReference'
+import { CustodyDifference } from './CustodyDifference'
+import { CustodyBlueNotes, type BlueManagerNoteView } from './CustodyBlueNotes'
+import { CUSTODY_REFERENCE_LEGACY_VERSION } from '@shared/custodyReference'
 
 const PAGE_SIZE = 100
 
@@ -22,10 +24,12 @@ type BlueRow = {
   destinationUnknownReceived: number | null
   ambiguousLegacyCredit: number | null
   originalReferenceAmount: number | null
-  status: 'RESOLVED' | 'PENDING_RECONCILIATION'
+  status: 'RESOLVED' | 'PENDING_RECONCILIATION' | 'EVIDENCE_QUARANTINED'
+  integrityFault?: string | null
   referenceAmount: number | null
   rawDifference: number | null
   freshDifference: number | null
+  managerNotes: BlueManagerNoteView[]
   decision: null | { id: number; kind: string; destinationKind: string | null; destinationEvidenceDay: string | null; destinationEvidenceReference: string | null; managerUserId: number; evidenceDay: string; evidenceReference: string; reason: string; at: string }
 }
 
@@ -122,16 +126,18 @@ export function BlueResolutionPanel({ staff }: { staff: Staff[] }) {
     {!rows.length ? <p className="text-slate-500">{page === 0 ? 'هنوز سند شمارش، تحویل یا بستن با مقصد نامشخص یا پرداخت قدیمیِ مبهم ثبت نشده است.' : 'در این صفحه سند تکمیل‌شده‌ای وجود ندارد؛ در صورت وجود، صفحهٔ بعد را ببینید.'}</p> : null}
     <div className="space-y-2">
       {rows.map((row) => <div key={row.snapshotId} className="rounded border border-slate-200 bg-white p-3 leading-7">
-        <div className="flex flex-wrap justify-between gap-2"><b>{labelOf(row)} · روز {row.day}</b><span className={row.status === 'RESOLVED' ? 'text-emerald-800' : 'text-amber-900'}>{row.status === 'RESOLVED' ? 'تعیین تکلیف شده' : 'در انتظار تطبیق'}</span></div>
+        <div className="flex flex-wrap justify-between gap-2"><b>{labelOf(row)} · روز {row.day}</b><span className={row.status === 'RESOLVED' ? 'text-emerald-800' : row.status === 'EVIDENCE_QUARANTINED' ? 'text-rose-900' : 'text-amber-900'}>{row.status === 'RESOLVED' ? 'تعیین تکلیف شده' : row.status === 'EVIDENCE_QUARANTINED' ? 'شاهد خراب؛ قرنطینه' : 'در انتظار تطبیق'}</span></div>
         <p>{row.handoverId != null ? `از ${nameOf(row.fromUserId)} به ${nameOf(row.toUserId)}` : `شمارش شخصی ${nameOf(row.fromUserId)}`} · بازهٔ مرجع: {row.referenceFromDay} تا {row.referenceToDay}</p>
-        <p>شمارش واقعی {row.handoverId != null ? 'گیرنده' : 'صندوق'}: {amountOf(row.countedAmount)} · بخش معلوم: {amountOf(row.knownSubtotal)} · پرداخت اعتباری قدیمی مبهم: {amountOf(row.ambiguousLegacyCredit)} · دریافتی با مقصد نامشخص: {row.calculationVersion !== CUSTODY_REFERENCE_VERSION ? 'در نسخهٔ قدیمی ثبت نمی‌شد' : amountOf(row.destinationUnknownReceived)}</p>
-        <p>مرجع اولیه: <b>نامعلوم</b> · مرجع پس از تصمیم: <b>{amountOf(row.referenceAmount)}</b> · اختلاف خام پس از تصمیم: <b>{amountOf(row.rawDifference)}</b> · اختلاف تازه: <b>{amountOf(row.freshDifference)}</b></p>
-        {row.decision ? <div className="rounded bg-emerald-50 p-2 mt-1 text-emerald-950">تصمیم #{row.decision.id} با PIN مدیر {nameOf(row.decision.managerUserId)}:
+        <p>شمارش واقعی {row.handoverId != null ? 'گیرنده' : 'صندوق'}: {amountOf(row.countedAmount)} · بخش معلوم: {amountOf(row.knownSubtotal)} · پرداخت اعتباری قدیمی مبهم: {amountOf(row.ambiguousLegacyCredit)} · دریافتی با مقصد نامشخص: {row.calculationVersion === CUSTODY_REFERENCE_LEGACY_VERSION ? 'در نسخهٔ قدیمی ثبت نمی‌شد' : amountOf(row.destinationUnknownReceived)}</p>
+        <p>عدد مرجع اولیه: <b>نامعلوم</b> · عدد مرجع پس از تصمیم: <b>{amountOf(row.referenceAmount)}</b> · اختلاف خام پس از تصمیم: <CustodyDifference value={row.rawDifference} label="اختلاف خام پس از تصمیم" /> · اختلاف تازه: <CustodyDifference value={row.freshDifference} label="اختلاف تازه" /></p>
+        <CustodyBlueNotes snapshotId={row.snapshotId} notes={row.managerNotes ?? []} managers={staff} onSaved={load} />
+        {row.status === 'EVIDENCE_QUARANTINED' ? <p className="mt-2 rounded bg-rose-50 p-2 text-rose-900">دامنه، نسخه، digest یا پیوند سند نامعتبر است ({row.integrityFault ?? 'پروندهٔ باز'}). نه مبلغ اولیه و نه صفر/بخش معلوم قابل استفاده نیست. مدیر از تب «قرنطینهٔ شاهد · بازیابی مستقل» اقدام کند؛ این مسیرِ حل مبلغ معلق برای شاهد خراب ممنوع است.</p>
+          : row.decision ? <div className="rounded bg-emerald-50 p-2 mt-1 text-emerald-950">تصمیم #{row.decision.id} با PIN مدیر {nameOf(row.decision.managerUserId)}:
           {row.decision.kind !== 'NO_LEGACY_CREDIT' ? <div>اعتبار قدیمی: {row.decision.kind} · روز {row.decision.evidenceDay} · سند: {row.decision.evidenceReference}</div> : null}
           {row.decision.destinationKind ? <div>مقصد نامشخص: {row.decision.destinationKind} · روز {row.decision.destinationEvidenceDay} · سند: {row.decision.destinationEvidenceReference}</div> : null}
           <div>توضیح: {row.decision.reason}. تعیین مرجع به‌تنهایی حکم تقصیر نیست.</div>
         </div>
-          : row.calculationVersion !== CUSTODY_REFERENCE_VERSION
+          : row.calculationVersion === CUSTODY_REFERENCE_LEGACY_VERSION
             ? <p className="mt-2 rounded bg-amber-100 p-2 text-amber-950">مرجع نسخهٔ قدیمی مقصد نامشخص را جدا ثبت نکرده است؛ برای تعیین تکلیف این سند قدیمی بررسی ویژه لازم است، نه تصمیم حدسی. فروش و مسئولیت فعلی ادامه دارند.</p>
           : row.knownSubtotal == null || row.ambiguousLegacyCredit == null || row.destinationUnknownReceived == null ||
             (row.ambiguousLegacyCredit <= 0 && row.destinationUnknownReceived <= 0)

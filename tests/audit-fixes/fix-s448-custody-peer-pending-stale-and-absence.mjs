@@ -13,6 +13,7 @@ process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
+import { grantMiddayFixture } from './grant-midday-fixture.mjs'
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
 const { compareCustodyPeerCounts } = await import('../../src/shared/custodyPeerCount.ts')
 const { toJalaliDate } = await import('@shared/jalali')
@@ -28,6 +29,7 @@ const manager = seed.user('مدیر S448'), giver = seed.user('اول S448'), re
 for (const id of [giver, receiver, cover]) sql.prepare('UPDATE "User" SET role=? WHERE id=?').run('CASHIER', id)
 await custodyService.setPin({ userId: manager, currentPassword: '1111', newPassword: 'Manager448!' })
 await custodyService.setConfig({ config: { enabled: true }, managerUserId: manager, managerPassword: 'Manager448!' })
+await grantMiddayFixture({ manager, password: 'Manager448!', custodian: giver })
 for (const [id, temp, pin] of [[giver, 'GiverTmp448!', 'GiverOwn448!'], [receiver, 'ReceiverTmp448!', 'ReceiverOwn448!'], [cover, 'CoverTmp448!', 'CoverOwn448!']]) {
   await custodyService.setPin({ userId: id, newPassword: temp, managerUserId: manager, managerPassword: 'Manager448!', reason: 'PIN شخصی آزمون مرجع نامعلوم و غیبت' })
   await custodyService.setPin({ userId: id, currentPassword: temp, newPassword: pin })

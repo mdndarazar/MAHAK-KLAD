@@ -7,12 +7,13 @@
  */
 import { physicalMoneyInDrawerAndCard } from './accounting'
 
-/** V2 removes UNKNOWN-destination receipts from the known amount. A frozen V1
- * observation must stay readable but must never be compared as the same scope
- * as a new V2 observation. */
-export const CUSTODY_REFERENCE_VERSION = 'sales-blue-v2' as const
+/** V3 keeps V2's corrected accounting formula, but seals the new witness and
+ * verifies its domain/links before it governs another operation. Frozen V1/V2
+ * evidence stays readable on its original terms, never relabeled as V3. */
+export const CUSTODY_REFERENCE_VERSION = 'sales-blue-v3' as const
+export const CUSTODY_REFERENCE_PREVIOUS_VERSION = 'sales-blue-v2' as const
 export const CUSTODY_REFERENCE_LEGACY_VERSION = 'sales-blue-v1' as const
-export type CustodyReferenceVersion = typeof CUSTODY_REFERENCE_VERSION | typeof CUSTODY_REFERENCE_LEGACY_VERSION
+export type CustodyReferenceVersion = typeof CUSTODY_REFERENCE_VERSION | typeof CUSTODY_REFERENCE_PREVIOUS_VERSION | typeof CUSTODY_REFERENCE_LEGACY_VERSION
 
 export type CustodyReferenceStatus = 'AVAILABLE' | 'PENDING_RECONCILIATION'
 
@@ -76,13 +77,20 @@ export function calculateCustodyReference(input: {
     destinationUnknownReceived: input.destinationUnknownReceived,
     ambiguousLegacyCredit: input.ambiguousLegacyCredit,
     calculationVersion: CUSTODY_REFERENCE_VERSION,
-    warnings: [
-      ...(input.ambiguousLegacyCredit > 0
-        ? ['پرداخت اعتباری قدیمی بدون مقصد روشن وجود دارد؛ بخش معلوم نمایش داده می‌شود اما مرجع و اختلاف قطعی تا بررسی آن در انتظار است.'] : []),
-      ...(input.destinationUnknownReceived > 0
-        ? ['وجه با مقصد نامشخص وجود دارد؛ معلوم نیست به کشو، کارت‌خوان یا حساب مدیر رسیده است. تا اثبات مقصد، مرجع و اختلاف قطعی نامعلوم‌اند و فروش ادامه دارد.'] : [])
-    ]
+    warnings: custodyReferenceWarnings(input.ambiguousLegacyCredit, input.destinationUnknownReceived)
   }
+}
+
+/** Shared, deterministic part of the blue source fingerprint. Keeping these
+ * exact warnings in one place lets V3 verify sourceHash against its saved
+ * components without querying today's mutable report or recalculating money. */
+export function custodyReferenceWarnings(ambiguousLegacyCredit: number, destinationUnknownReceived: number): string[] {
+  return [
+    ...(ambiguousLegacyCredit > 0
+      ? ['پرداخت اعتباری قدیمی بدون مقصد روشن وجود دارد؛ بخش معلوم نمایش داده می‌شود اما مرجع و اختلاف قطعی تا بررسی آن در انتظار است.'] : []),
+    ...(destinationUnknownReceived > 0
+      ? ['وجه با مقصد نامشخص وجود دارد؛ معلوم نیست به کشو، کارت‌خوان یا حساب مدیر رسیده است. تا اثبات مقصد، مرجع و اختلاف قطعی نامعلوم‌اند و فروش ادامه دارد.'] : [])
+  ]
 }
 
 export function pendingCustodyReference(reason: string): CustodyReference {

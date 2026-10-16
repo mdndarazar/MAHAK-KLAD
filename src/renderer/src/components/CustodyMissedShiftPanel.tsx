@@ -52,10 +52,12 @@ export function CustodyMissedShiftPanel({ staff }: { staff: Manager[] }) {
     {more ? <p className="text-amber-800">بیش از ۱۰۰ پرونده وجود دارد؛ فقط تازه‌ترین پرونده‌ها اینجا هستند. برای سوابق کامل، گزارش حضانت را ببینید.</p> : null}
     <div className="space-y-2">{rows.map((row) => <div key={row.id} className="rounded border p-3 leading-7">
       <b>پرونده #{row.id} · شیفت واقعی #{row.shiftId} · {nameOf(row.oldOwnerUserId)}</b>
-      <p>پایان ثبت‌شدهٔ سیستم: {row.systemEndedAt ? new Date(row.systemEndedAt).toLocaleString('fa-IR') : 'در انتظار بررسی'} · وضعیت شاهد: {row.evidence === 'CUSTODIAN_ARCHIVED' ? 'مسئول پیشین آرشیو شده' : 'شمارش پایان توسط مسئول پیشین موجود نیست'}</p>
-      <button className="btn-secondary mt-1" disabled={busy} onClick={() => { setSelectedId(row.id); setPin(''); setReason(''); setError(null) }}>بازبینی مدیر بدون شمارش فرضی</button>
+      <p>پایان ثبت‌شدهٔ سیستم: {row.systemEndedAt ? new Date(row.systemEndedAt).toLocaleString('fa-IR') : 'در انتظار بررسی'} · وضعیت شاهد: {row.evidence === 'EVIDENCE_QUARANTINED' ? 'سند ناسازگار در قرنطینه؛ مبلغ و اختلاف نامعلوم' : row.evidence === 'CUSTODIAN_ARCHIVED' ? 'مسئول پیشین آرشیو شده' : 'شمارش پایان توسط مسئول پیشین موجود نیست'}</p>
+      {row.evidence === 'EVIDENCE_QUARANTINED'
+        ? <p className="rounded bg-rose-50 p-2 text-rose-900">از تب «قرنطینهٔ شاهد · بازیابی مستقل» تعیین تکلیف کنید؛ بستن مالی یا بازبینی شب برای این پرونده مجاز نیست.</p>
+        : <button className="btn-secondary mt-1" disabled={busy} onClick={() => { setSelectedId(row.id); setPin(''); setReason(''); setError(null) }}>بازبینی مدیر بدون شمارش فرضی</button>}
     </div>)}</div>
-    {selectedId && rows.some((row) => row.id === selectedId) ? <div className="rounded border-2 border-amber-300 bg-amber-50 p-4 space-y-3">
+    {selectedId && rows.some((row) => row.id === selectedId && row.evidence !== 'EVIDENCE_QUARANTINED') ? <div className="rounded border-2 border-amber-300 bg-amber-50 p-4 space-y-3">
       <h4 className="font-bold">بازبینی پرونده #{selectedId}</h4>
       <p>مبلغ جدید یا شمارش نفر تازه را برای شیفت قدیمی وارد نکنید. در نبود شاهد قابل اتکا، نتیجه فقط «اختلاف نامعلوم و بدون انتساب» است.</p>
       <label className="block">مدیر بازبین<select className="input mt-1 w-full" value={managerId} onChange={(e) => { setManagerId(e.target.value ? Number(e.target.value) : ''); setPin('') }}><option value="">انتخاب کنید…</option>{managers.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>

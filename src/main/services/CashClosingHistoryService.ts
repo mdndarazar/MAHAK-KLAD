@@ -3,7 +3,11 @@ import { prisma } from '../db/client'
 import { BusinessError } from '../errors'
 import { currentManagerSessionIdentity } from './panelSession'
 import { isValidJalaliDate, jalaliStartOfDay, toJalaliDate, toLatinDigits } from '@shared/jalali'
-import { CUSTODY_REFERENCE_LEGACY_VERSION, CUSTODY_REFERENCE_VERSION } from '@shared/custodyReference'
+import { CUSTODY_REFERENCE_LEGACY_VERSION, CUSTODY_REFERENCE_PREVIOUS_VERSION, CUSTODY_REFERENCE_VERSION } from '@shared/custodyReference'
+import { blueEvidenceFault, bluePairFault } from './CustodyBlueIntegrity'
+import { reconcileCustodyPeriod, type CustodyObservation } from '@shared/custodyPeriod'
+import type { CustodyReference } from '@shared/custodyReference'
+import { readBlueNotesForSnapshots } from './CustodyBlueNoteService'
 import type {
   CashClosingHistoryPerson, CashClosingHistoryQuery, CashClosingHistoryResult,
   CashClosingHistoryRow, CashClosingHistoryStream, CashClosingHistoryTotals
@@ -130,13 +134,81 @@ function safeAmount(raw: unknown): number | null {
   return Number.isSafeInteger(n) ? n : null
 }
 
+function sameStoredAmount(left: unknown, right: unknown): boolean {
+  return left == null ? right == null : safeAmount(left) !== null && safeAmount(left) === safeAmount(right)
+}
+function validBlueReference(row: any): boolean {
+  if (row?.calculationVersion === CUSTODY_REFERENCE_VERSION) return blueEvidenceFault(row) === null
+  // Frozen V1/V2 predate the digest. Keep their historical structural checks;
+  // do not relabel those rows as freshly signed V3 or recompute their figure.
+  if (!row || ![CUSTODY_REFERENCE_PREVIOUS_VERSION, CUSTODY_REFERENCE_LEGACY_VERSION].includes(row.calculationVersion) ||
+      typeof row.referenceFromDay !== 'string' || typeof row.referenceToDay !== 'string' ||
+      !/^\d{4}\/\d{2}\/\d{2}$/.test(row.referenceFromDay) || !/^\d{4}\/\d{2}\/\d{2}$/.test(row.referenceToDay) ||
+      !isValidJalaliDate(row.referenceFromDay) || !isValidJalaliDate(row.referenceToDay) ||
+      row.referenceFromDay > row.referenceToDay || !['TODAY', 'PRIOR_AND_TODAY'].includes(row.scopeKind) ||
+      (row.referenceStatus !== 'AVAILABLE' && row.referenceStatus !== 'PENDING_RECONCILIATION') ||
+      (row.referenceStatus === 'AVAILABLE' ? safeAmount(row.referenceAmount) === null : row.referenceAmount != null) ||
+      [row.knownSubtotal, row.ambiguousLegacyCredit, row.destinationUnknownReceived]
+        .some((value) => value != null && safeAmount(value) === null)) return false
+  return true
+}
+function validPhysicalCount(row: any, absent: boolean): boolean {
+  if (!row) return false
+  if (absent) return ['ABSENT_UNCOUNTED', 'SYSTEM_ABSENCE_ZERO'].includes(row.countOrigin) &&
+    row.humanAmount == null && row.arithmeticAmount == null &&
+    ['SYSTEM_ABSENCE', 'SYSTEM_ABSENCE_ZERO'].includes(row.authMethod)
+  const count = safeAmount(row.humanAmount)
+  return count !== null && count >= 0 && sameStoredAmount(row.humanAmount, row.arithmeticAmount) &&
+    row.countOrigin === (count === 0 ? 'EXPLICIT_ZERO' : 'EXPLICIT_AMOUNT')
+}
+
+/** Verify a V3 FINAL_CLOSE's referenced baseline as well as its own digest.
+ * The prior can be an IN outside the F10 date window: it must still be the
+ * actual completed transfer INTO this Shift, with an intact OUT/IN pair.
+ * These calculations are checks of the saved difference, never a replacement
+ * reference amount displayed in F10 or a new closing event. */
+function validFinalPrior(snapshot: any, shiftId: number, custodianId: number,
+  snapshots: Map<number, any>, handovers: Map<number, any>, outs: Map<number, any>): boolean {
+  if (snapshot.calculationVersion !== CUSTODY_REFERENCE_VERSION || snapshot.priorSnapshotId == null) return true
+  const prior = snapshots.get(snapshot.priorSnapshotId)
+  if (!prior || !validBlueReference(prior) || blueEvidenceFault(prior) || !validPhysicalCount(prior, false)) return false
+  if (prior.role === 'OPENING') {
+    if (prior.shiftId !== shiftId || prior.handoverId != null || prior.priorSnapshotId != null ||
+        prior.actorUserId !== custodianId) return false
+  } else if (prior.role === 'IN') {
+    const handover = handovers.get(prior.handoverId)
+    if (!handover || handover.status !== 'COMPLETED' || handover.toShiftId !== shiftId ||
+        handover.finalCustodianUserId !== custodianId || prior.actorUserId !== custodianId ||
+        bluePairFault(outs.get(prior.handoverId), prior, handover)) return false
+  } else return false
+  const periodOf = (row: any) => ({
+    count: {
+      origin: row.countOrigin, humanAmount: safeAmount(row.humanAmount),
+      arithmeticAmount: safeAmount(row.arithmeticAmount)
+    } as CustodyObservation,
+    reference: {
+      status: row.referenceStatus, referenceAmount: safeAmount(row.referenceAmount),
+      knownSubtotal: safeAmount(row.knownSubtotal),
+      destinationUnknownReceived: safeAmount(row.destinationUnknownReceived),
+      ambiguousLegacyCredit: safeAmount(row.ambiguousLegacyCredit),
+      calculationVersion: row.calculationVersion, warnings: []
+    } as CustodyReference,
+    scopeKey: `${row.referenceFromDay}:${row.referenceToDay}:${row.scopeKind}:${row.calculationVersion}`
+  })
+  const expected = reconcileCustodyPeriod({ start: periodOf(prior), end: periodOf(snapshot) })
+  return sameStoredAmount(snapshot.rawDifference, expected.rawDifference) &&
+    sameStoredAmount(snapshot.inheritedDifference, expected.inheritedDifference) &&
+    sameStoredAmount(snapshot.freshDifference, expected.freshDifference) &&
+    snapshot.freshStatus === expected.freshStatus
+}
+
 /** Do not hold a Prisma transaction across pagination or file export. The
  * complete, minimal evidence read is one snapshot; only projected rows stay
  * in bounded Main memory afterward. Never use an array of Prisma promises as
  * $transaction input: those promises may run before BEGIN. */
 async function readEvidence(options: Normalized): Promise<{
   events: any[]; sessions: any[]; handovers: any[]; metas: any[]; shifts: any[];
-  snapshots: any[]; resolutions: any[]; users: any[]; systemResolutions: any[];
+  snapshots: any[]; resolutions: any[]; managerNotes: any[]; users: any[]; systemResolutions: any[];
   firstSessionByShift: Array<{ shiftId: number; _min: { id: number | null } }>
   firstSessionByRange: Array<{ fromDate: Date; dayJalali: string; _min: { id: number | null } }>
 }> {
@@ -155,20 +227,49 @@ async function readEvidence(options: Normalized): Promise<{
       select: { id: true, shiftId: true, closedAt: true, createdAt: true, closedBy: true, fromDate: true, toDate: true, dayJalali: true, note: true },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: CASH_HISTORY_MAX_EVIDENCE + 1 }) : []
     if (events.length + sessions.length > CASH_HISTORY_MAX_EVIDENCE) throw tooLarge()
-    const handoverIds = ids(events.map((r: any) => r.handoverId))
-    const handovers: any[] = []
-    for (const part of chunk(handoverIds)) handovers.push(...await tx.custodyHandover.findMany({ where: { id: { in: part } }, select: {
+    const handoverSelect = {
       id: true, status: true, resolutionKind: true, resolutionReason: true, fromShiftId: true, toShiftId: true,
       fromUserId: true, finalCustodianUserId: true, selectedRecipientUserId: true, finishedAt: true
-    } }))
+    } as const
+    const handoverIds = ids(events.map((r: any) => r.handoverId))
+    const handovers: any[] = []
+    for (const part of chunk(handoverIds)) handovers.push(...await tx.custodyHandover.findMany({ where: { id: { in: part } }, select: handoverSelect }))
     const payloads: Array<Record<string, unknown> | null> = events.map((e: any) => jsonObject(e.payloadJson))
     const snapshotIds = ids(payloads.flatMap((p) => [idOf(p?.outSnapshotId), idOf(p?.inSnapshotId), idOf(p?.snapshotId)]))
+    const snapshotSelect = {
+      id: true, handoverId: true, shiftId: true, role: true, actorUserId: true, authMethod: true,
+      countOrigin: true, humanAmount: true, arithmeticAmount: true, priorSnapshotId: true,
+      referenceStatus: true, referenceAmount: true, knownSubtotal: true,
+      destinationUnknownReceived: true, ambiguousLegacyCredit: true,
+      referenceFromDay: true, referenceToDay: true, scopeKind: true, calculationVersion: true,
+      sourceHash: true, sourceScope: true, financialRevision: true, epochAtCount: true,
+      rawDifference: true, inheritedDifference: true, freshDifference: true,
+      freshStatus: true, idempotencyKey: true, evidenceDigest: true, operationalDay: true
+    } as const
     const blueSnapshots: any[] = []
-    for (const part of chunk(snapshotIds)) blueSnapshots.push(...await tx.custodyBlueSnapshot.findMany({ where: { id: { in: part } }, select: {
-      id: true, handoverId: true, shiftId: true, role: true, countOrigin: true, humanAmount: true,
-      priorSnapshotId: true, referenceStatus: true, referenceAmount: true, knownSubtotal: true,
-      referenceFromDay: true, referenceToDay: true, scopeKind: true, calculationVersion: true, sourceHash: true
-    } }))
+    for (const part of chunk(snapshotIds)) blueSnapshots.push(...await tx.custodyBlueSnapshot.findMany({ where: { id: { in: part } }, select: snapshotSelect }))
+    // FINAL_CLOSE may reference an opening or IN witness outside the selected
+    // F10 date window. Fetch only those first-degree links in this SAME read
+    // transaction; otherwise a damaged/missing prior could leave a known V3
+    // close on-screen while its inherited difference has no valid source.
+    const loadedSnapshotIds = new Set(snapshotIds)
+    const finalPriors = ids(blueSnapshots.filter((row) => row.role === 'FINAL_CLOSE' &&
+      row.calculationVersion === CUSTODY_REFERENCE_VERSION).map((row) => row.priorSnapshotId))
+      .filter((id) => !loadedSnapshotIds.has(id))
+    for (const part of chunk(finalPriors)) blueSnapshots.push(...await tx.custodyBlueSnapshot.findMany({
+      where: { id: { in: part } }, select: snapshotSelect
+    }))
+    const finalPriorSet = new Set(finalPriors)
+    const priorInHandoverIds = ids(blueSnapshots.filter((row) => finalPriorSet.has(row.id) && row.role === 'IN')
+      .map((row) => row.handoverId))
+    const knownHandoverIds = new Set(handoverIds)
+    const missingHandoverIds = priorInHandoverIds.filter((id) => !knownHandoverIds.has(id))
+    for (const part of chunk(missingHandoverIds)) handovers.push(...await tx.custodyHandover.findMany({
+      where: { id: { in: part } }, select: handoverSelect
+    }))
+    for (const part of chunk(priorInHandoverIds)) blueSnapshots.push(...await tx.custodyBlueSnapshot.findMany({
+      where: { handoverId: { in: part }, role: 'OUT' }, select: snapshotSelect
+    }))
     const inIds = ids(payloads.flatMap((p) => [idOf(p?.inSnapshotId), idOf(p?.snapshotId)]))
     const resolutions: any[] = []
     for (const part of chunk(inIds)) {
@@ -177,6 +278,7 @@ async function readEvidence(options: Normalized): Promise<{
       }, orderBy: [{ at: 'desc' }, { id: 'desc' }], take: CASH_HISTORY_MAX_EVIDENCE + 1 - resolutions.length }))
       if (resolutions.length > CASH_HISTORY_MAX_EVIDENCE) throw tooLarge()
     }
+    const managerNotes = await readBlueNotesForSnapshots(tx, snapshotIds)
     const shiftIds = ids([
       ...events.map((r: any) => r.shiftId), ...sessions.map((r: any) => r.shiftId),
       ...handovers.flatMap((h) => [h.fromShiftId, h.toShiftId])
@@ -206,11 +308,13 @@ async function readEvidence(options: Normalized): Promise<{
     const userIds = ids([
       ...handovers.flatMap((h) => [h.fromUserId, h.finalCustodianUserId]),
       ...metas.map((m) => m.custodianUserId), ...shifts.map((s) => s.userId),
-      ...sessions.map((s: any) => s.closedBy), ...resolutions.map((r) => r.managerUserId)
+      ...sessions.map((s: any) => s.closedBy), ...resolutions.map((r) => r.managerUserId),
+      ...managerNotes.map((n) => n.managerUserId)
     ])
     const users: any[] = []
     for (const part of chunk(userIds)) users.push(...await tx.user.findMany({ where: { id: { in: part } }, select: { id: true, displayName: true } }))
-    return { events, sessions, handovers, snapshots: blueSnapshots, resolutions, metas, shifts, users, systemResolutions, firstSessionByShift, firstSessionByRange }
+    return { events, sessions, handovers, snapshots: blueSnapshots, resolutions, managerNotes,
+      metas, shifts, users, systemResolutions, firstSessionByShift, firstSessionByRange }
   }, READ_TX_OPTIONS)
 }
 
@@ -221,9 +325,20 @@ function orderRows(rows: CashClosingHistoryRow[]): CashClosingHistoryRow[] {
 function project(raw: Awaited<ReturnType<typeof readEvidence>>, options: Normalized) {
   const handovers = new Map<number, any>(raw.handovers.map((h) => [h.id, h]))
   const blue = new Map<number, any>(raw.snapshots.map((s) => [s.id, s]))
+  const outs = new Map<number, any>(raw.snapshots.filter((s) => s.role === 'OUT' && s.handoverId != null)
+    .map((s) => [s.handoverId, s]))
   const metas = new Map<number, any>(raw.metas.map((m) => [m.shiftId, m]))
   const shifts = new Map<number, any>(raw.shifts.map((s) => [s.id, s]))
   const users = new Map<number, any>(raw.users.map((u) => [u.id, u]))
+  const notes = new Map<number, CashClosingHistoryRow['managerNotes']>()
+  for (const note of raw.managerNotes) {
+    const at = iso(note.at)
+    if (!at) throw new BusinessError('زمان یادداشت مدیر نامعتبر است؛ گزارش ناقص نمایش داده نمی‌شود.', 'REPORT_EVIDENCE_INVALID')
+    const items = notes.get(note.snapshotId) ?? []
+    items.push({ id: note.id, snapshotId: note.snapshotId, at, text: note.text,
+      managerUserId: note.managerUserId, managerCurrentName: users.get(note.managerUserId)?.displayName ?? null })
+    notes.set(note.snapshotId, items)
+  }
   const decisions = new Map<number, any>()
   for (const row of raw.resolutions) if (!decisions.has(row.snapshotId)) decisions.set(row.snapshotId, row)
   const linkedCashSessions = new Set<number>()
@@ -233,6 +348,7 @@ function project(raw: Awaited<ReturnType<typeof readEvidence>>, options: Normali
   const rangeKey = (row: any) => `range:${iso(row?.fromDate)}:${String(row?.dayJalali ?? '')}`
   const firstByRange = new Map<string, number>(raw.firstSessionByRange.map((s) => [rangeKey(s), s._min.id ?? 0]))
   const warnings: string[] = []
+  let quarantinedEvidence = 0
   const rows: CashClosingHistoryRow[] = []
   const legacyRows: CashClosingHistoryRow[] = []
   const person = (userId: number | null, shiftId: number | null, presence: CashClosingHistoryPerson['presence']): CashClosingHistoryPerson | null => {
@@ -248,14 +364,6 @@ function project(raw: Awaited<ReturnType<typeof readEvidence>>, options: Normali
     const isClose = FINAL_CLOSES.includes(event.type as typeof FINAL_CLOSES[number])
     const isBlue = event.type.startsWith('BLUE_')
     const handoverId = idOf(event.handoverId)
-    if (isClose) {
-      const shiftId = idOf(event.shiftId)
-      if (shiftId != null && seenCloses.has(shiftId)) { warnings.push('سند بستن نهایی تکراری بود؛ تنها یک بار شمرده شد.'); continue }
-      if (shiftId != null) seenCloses.add(shiftId)
-    } else {
-      if (handoverId != null && seenHandovers.has(handoverId)) { warnings.push('سند تحویل تکراری بود؛ تنها یک بار شمرده شد.'); continue }
-      if (handoverId != null) seenHandovers.add(handoverId)
-    }
     const payload = jsonObject(event.payloadJson)
     const handover = handoverId == null ? null : handovers.get(handoverId)
     const shiftId = idOf(event.shiftId)
@@ -292,27 +400,58 @@ function project(raw: Awaited<ReturnType<typeof readEvidence>>, options: Normali
         evidenceWarning = 'سند پایان مسئولیت با رویداد بستن سازگار نیست.'
       if (!isBlue) {
         const linkedId = idOf(payload?.cashSessionId)
-        if (linkedId != null) linkedCashSessions.add(linkedId)
         if (!linkedId || meta?.cashSessionId !== linkedId)
           evidenceWarning = 'شناسهٔ بستن قدیمی و سند پایان مسئولیت با هم سازگار نیستند.'
+        else linkedCashSessions.add(linkedId)
       }
     } else if (!handoverId || !handover || handover.status !== 'COMPLETED' ||
-      handover.resolutionKind !== expectedKind[event.type] || !toShiftId || !toUserId ||
-      (isBlue && shiftId !== toShiftId)) {
+      handover.resolutionKind !== expectedKind[event.type] || !fromShiftId || !fromUserId || !toShiftId || !toUserId ||
+      (isBlue && (shiftId !== toShiftId || idOf(payload?.fromShiftId) !== fromShiftId ||
+        idOf(payload?.toShiftId) !== toShiftId))) {
       evidenceWarning = 'سند تأیید تحویل با رویداد تکمیل سازگار نیست.'
     }
     if (isBlue && !evidenceWarning) {
-      if (!snapshot || (isClose ? snapshot.role !== 'FINAL_CLOSE' || snapshot.shiftId !== shiftId || snapshot.handoverId != null
-        : !outgoing || snapshot.role !== 'IN' || outgoing.role !== 'OUT' || snapshot.handoverId !== handoverId ||
-          outgoing.handoverId !== handoverId ||
-          (snapshot.shiftId !== toShiftId && !(snapshot.calculationVersion === CUSTODY_REFERENCE_LEGACY_VERSION && snapshot.shiftId === fromShiftId)) ||
-          outgoing.shiftId !== fromShiftId ||
-          snapshot.priorSnapshotId !== outgoing.id || snapshot.sourceHash !== outgoing.sourceHash ||
-          snapshot.calculationVersion !== outgoing.calculationVersion ||
-          (absent && (!['ABSENT_UNCOUNTED', 'SYSTEM_ABSENCE_ZERO'].includes(outgoing.countOrigin) || outgoing.humanAmount != null)) ||
-          (!absent && (outgoing.countOrigin === 'ABSENT_UNCOUNTED' || outgoing.countOrigin === 'SYSTEM_ABSENCE_ZERO')))) {
-        evidenceWarning = 'پیوند اسناد مرجع آبی و رویداد تکمیل سازگار نیست.'
+      // The normal V2 writer counts both OUT and IN on the *old* open Shift,
+      // then creates the new Shift at confirmation. Emergency/override instead
+      // creates its IN on the new Shift inside the same transaction. Some
+      // immutable V1 IN documents used the destination Shift; accept those
+      // ONLY with the full version-aware chain, never by relabeling them V2.
+      const v1 = snapshot?.calculationVersion === CUSTODY_REFERENCE_LEGACY_VERSION
+      const incomingShiftValid = v1
+        ? snapshot?.shiftId === fromShiftId || snapshot?.shiftId === toShiftId
+        : snapshot?.shiftId === (absent ? toShiftId : fromShiftId)
+      const peopleValid = isClose
+        ? metas.get(shiftId!)?.custodianUserId === shifts.get(shiftId!)?.userId &&
+          snapshot?.actorUserId === fromUserId
+        : metas.get(fromShiftId!)?.custodianUserId === fromUserId &&
+          shifts.get(fromShiftId!)?.userId === fromUserId &&
+          metas.get(toShiftId!)?.custodianUserId === toUserId &&
+          shifts.get(toShiftId!)?.userId === toUserId &&
+          snapshot?.actorUserId === toUserId &&
+          (absent ? outgoing?.actorUserId === toUserId : outgoing?.actorUserId === fromUserId)
+      if (!snapshot || !validBlueReference(snapshot) || !validPhysicalCount(snapshot, false) || !peopleValid ||
+          (isClose
+            ? snapshot.role !== 'FINAL_CLOSE' || snapshot.shiftId !== shiftId || snapshot.handoverId != null ||
+              !validFinalPrior(snapshot, shiftId!, fromUserId!, blue, handovers, outs)
+            : !outgoing || !validBlueReference(outgoing) || !validPhysicalCount(outgoing, absent) ||
+              snapshot.role !== 'IN' || outgoing.role !== 'OUT' || snapshot.handoverId !== handoverId ||
+              outgoing.handoverId !== handoverId || !incomingShiftValid || outgoing.shiftId !== fromShiftId ||
+              snapshot.priorSnapshotId !== outgoing.id || snapshot.sourceHash !== outgoing.sourceHash ||
+              snapshot.sourceScope !== outgoing.sourceScope ||
+              snapshot.calculationVersion !== outgoing.calculationVersion ||
+              snapshot.referenceFromDay !== outgoing.referenceFromDay ||
+              snapshot.referenceToDay !== outgoing.referenceToDay || snapshot.scopeKind !== outgoing.scopeKind ||
+              snapshot.referenceStatus !== outgoing.referenceStatus ||
+              !sameStoredAmount(snapshot.referenceAmount, outgoing.referenceAmount) ||
+              !sameStoredAmount(snapshot.knownSubtotal, outgoing.knownSubtotal) ||
+              !sameStoredAmount(snapshot.ambiguousLegacyCredit, outgoing.ambiguousLegacyCredit) ||
+              !sameStoredAmount(snapshot.destinationUnknownReceived, outgoing.destinationUnknownReceived) ||
+              snapshot.financialRevision !== outgoing.financialRevision)) {
+        evidenceWarning = 'پیوند، مبلغ یا دامنهٔ اسناد مرجع آبی با رویداد تکمیل سازگار نیست.'
       }
+      if (!evidenceWarning && !isClose && snapshot?.calculationVersion === CUSTODY_REFERENCE_VERSION &&
+          bluePairFault(outgoing, snapshot, handover))
+        evidenceWarning = 'نسخهٔ v3 اسناد OUT/IN با digest و پیوند واقعی تحویل سازگار نیست.'
     }
     let era: CashClosingHistoryRow['era'] = 'PRE_BLUE'
     let reference: CashClosingHistoryRow['reference'] = {
@@ -320,7 +459,8 @@ function project(raw: Awaited<ReturnType<typeof readEvidence>>, options: Normali
       fromDay: null, toDay: null, scopeKind: null, snapshotId: null, calculationVersion: null
     }
     if (isBlue && snapshot) {
-      era = snapshot.calculationVersion === CUSTODY_REFERENCE_LEGACY_VERSION ? 'BLUE_V1' : 'BLUE_V2'
+      era = snapshot.calculationVersion === CUSTODY_REFERENCE_LEGACY_VERSION ? 'BLUE_V1'
+        : snapshot.calculationVersion === CUSTODY_REFERENCE_PREVIOUS_VERSION ? 'BLUE_V2' : 'BLUE_V3'
       const fromDay = snapshot.referenceFromDay
       const toDay = snapshot.referenceToDay
       const scopeKind = snapshot.scopeKind
@@ -328,14 +468,15 @@ function project(raw: Awaited<ReturnType<typeof readEvidence>>, options: Normali
       const available = snapshot.referenceStatus === 'AVAILABLE' && amount !== null
       const pending = snapshot.referenceStatus === 'PENDING_RECONCILIATION' && snapshot.referenceAmount == null
       if (!available && !pending ||
-          ![CUSTODY_REFERENCE_VERSION, CUSTODY_REFERENCE_LEGACY_VERSION].includes(snapshot.calculationVersion) ||
+          ![CUSTODY_REFERENCE_VERSION, CUSTODY_REFERENCE_PREVIOUS_VERSION, CUSTODY_REFERENCE_LEGACY_VERSION].includes(snapshot.calculationVersion) ||
           typeof fromDay !== 'string' || typeof toDay !== 'string' ||
           !isValidJalaliDate(fromDay) || !isValidJalaliDate(toDay) || fromDay > toDay ||
           !['TODAY', 'PRIOR_AND_TODAY'].includes(scopeKind)) {
         evidenceWarning = 'وضعیت، نسخه یا دامنهٔ مبلغ مرجع ذخیره‌شده ناسازگار است.'
       }
       reference = {
-        state: pending ? era === 'BLUE_V1' ? 'PENDING_V1' : 'PENDING_V2' : era === 'BLUE_V1' ? 'KNOWN_V1' : 'KNOWN_V2',
+        state: pending ? era === 'BLUE_V1' ? 'PENDING_V1' : era === 'BLUE_V2' ? 'PENDING_V2' : 'PENDING_V3'
+          : era === 'BLUE_V1' ? 'KNOWN_V1' : era === 'BLUE_V2' ? 'KNOWN_V2' : 'KNOWN_V3',
         amount: available ? amount : null,
         knownSubtotal: pending ? safeAmount(snapshot.knownSubtotal) : null,
         fromDay: fromDay ?? null, toDay: toDay ?? null,
@@ -343,10 +484,25 @@ function project(raw: Awaited<ReturnType<typeof readEvidence>>, options: Normali
         snapshotId: snapshot.id, calculationVersion: snapshot.calculationVersion
       }
     } else if (isBlue) evidenceWarning = evidenceWarning ?? 'سند مبلغ مرجع آبی پیدا نشد.'
-    if (evidenceWarning) reference = { ...reference, state: 'INCONSISTENT', amount: null, knownSubtotal: null }
+    if (evidenceWarning) {
+      // Keep the immutable event/snapshots for the manager's evidence review,
+      // but never present a forged/invalid chain as a completed F10 outcome.
+      // The separate warning counter prevents silent disappearance.
+      quarantinedEvidence++
+      continue
+    }
+    // Deduplicate only after checking the evidence. A malformed later event
+    // must not mask an earlier valid commit for the same handover/Shift.
+    if (isClose) {
+      if (shiftId != null && seenCloses.has(shiftId)) { warnings.push('سند بستن نهایی تکراری بود؛ تنها یک بار شمرده شد.'); continue }
+      if (shiftId != null) seenCloses.add(shiftId)
+    } else {
+      if (handoverId != null && seenHandovers.has(handoverId)) { warnings.push('سند تحویل تکراری بود؛ تنها یک بار شمرده شد.'); continue }
+      if (handoverId != null) seenHandovers.add(handoverId)
+    }
     // Hiding V1 is an explicit source filter. Never label it V2 or recalculate it.
     if (!options.includeBlueV1 && era === 'BLUE_V1') continue
-    const decision = snapshot && !evidenceWarning ? decisions.get(snapshot.id) : null
+    const decision = snapshot ? decisions.get(snapshot.id) : null
     const decisionAmount = decision ? safeAmount(decision.effectiveReferenceAmount) : null
     const laterDecision = decision && decisionAmount != null && iso(decision.at) ? {
       at: iso(decision.at)!, managerUserId: decision.managerUserId,
@@ -358,6 +514,8 @@ function project(raw: Awaited<ReturnType<typeof readEvidence>>, options: Normali
       occurredDayJalali: toJalaliDate(event.at), kind, era,
       handoverId, shiftId: isClose ? shiftId : fromShiftId, from, to, reference, laterDecision,
       reason: !isClose ? String(handover?.resolutionReason ?? payload?.reason ?? '').trim().slice(0, 1000) || null : null,
+      managerNotes: [...new Set([outId, targetId].filter((id): id is number => id != null))]
+        .flatMap((id) => notes.get(id) ?? []).sort((a, b) => a.at.localeCompare(b.at) || a.id - b.id),
       evidenceWarning, legacyRepeat: false
     })
   }
@@ -385,7 +543,7 @@ function project(raw: Awaited<ReturnType<typeof readEvidence>>, options: Normali
       reference: { state: 'NOT_RECORDED', amount: null, knownSubtotal: null, fromDay: null, toDay: null,
         scopeKind: null, snapshotId: null, calculationVersion: null }, laterDecision: null,
       reason: typeof session.note === 'string' ? session.note.slice(0, 1000) || null : null,
-      evidenceWarning: null, legacyRepeat: false
+      managerNotes: [], evidenceWarning: null, legacyRepeat: false
     })
   }
   // A second close must be identified by the original committed row (oldest
@@ -413,8 +571,9 @@ function project(raw: Awaited<ReturnType<typeof readEvidence>>, options: Normali
     custodyFinalClosings: 0,
     legacyCloses: legacyRows.filter((r) => !r.legacyRepeat).length,
     legacyCorrections: legacyRows.filter((r) => r.legacyRepeat).length,
-    amountKnownV2: 0, amountPendingV2: 0, amountKnownV1: 0, amountPendingV1: 0,
-    amountNotRecorded: 0, amountInconsistent: 0
+    amountKnownV3: 0, amountPendingV3: 0, amountKnownV2: 0, amountPendingV2: 0,
+    amountKnownV1: 0, amountPendingV1: 0,
+    amountNotRecorded: 0, amountInconsistent: quarantinedEvidence
   }
   for (const row of rows) {
     if (row.kind === 'FINAL_CLOSE') totals.custodyFinalClosings++
@@ -430,6 +589,8 @@ function project(raw: Awaited<ReturnType<typeof readEvidence>>, options: Normali
   // labeled, independently paged source with no invented blue amount.
   totals.finalClosings = totals.custodyFinalClosings + totals.legacyCloses
   for (const row of [...rows, ...legacyRows]) {
+    if (row.reference.state === 'KNOWN_V3') totals.amountKnownV3++
+    if (row.reference.state === 'PENDING_V3') totals.amountPendingV3++
     if (row.reference.state === 'KNOWN_V2') totals.amountKnownV2++
     if (row.reference.state === 'PENDING_V2') totals.amountPendingV2++
     if (row.reference.state === 'KNOWN_V1') totals.amountKnownV1++
@@ -437,7 +598,7 @@ function project(raw: Awaited<ReturnType<typeof readEvidence>>, options: Normali
     if (row.reference.state === 'NOT_RECORDED') totals.amountNotRecorded++
     if (row.reference.state === 'INCONSISTENT') totals.amountInconsistent++
   }
-  if (totals.amountInconsistent) warnings.push(`${totals.amountInconsistent} سند ناسازگار است؛ مبلغ آن‌ها نامعلوم نشان داده می‌شود.`)
+  if (totals.amountInconsistent) warnings.push(`${totals.amountInconsistent} شاهد ناسازگار از ردیف‌ها و شمارنده‌های رویداد واقعی کنار گذاشته شد؛ اصل سند برای بررسی مدیر محفوظ است.`)
   return { rows, legacyRows, totals, warnings: [...new Set(warnings)] }
 }
 
@@ -541,7 +702,7 @@ export const cashClosingHistoryService = {
       'نشست قبلی', 'مسئول بعدی (نام فعلی)', 'شناسه مسئول بعدی', 'نشست بعدی',
       'وضعیت مرجع آبی لحظه رویداد', 'مبلغ مرجع آبی (ریال)', 'بازه مرجع آبی',
       'نسخه محاسبه', 'تعیین تکلیف بعدی مدیر', 'تاریخ تصمیم مدیر',
-      'هشدار سند', 'بستن تکراری/اصلاحیه'
+      'هشدار سند', 'بستن تکراری/اصلاحیه', 'یادداشت‌های اختیاری مدیر روی اسناد آبی'
     ]
     const line = (row: CashClosingHistoryRow) => [
       row.source, row.sourceId, row.occurredAt, row.kind, row.from?.currentName ?? '', row.from?.userId ?? '',
@@ -549,7 +710,8 @@ export const cashClosingHistoryService = {
       row.reference.state, row.reference.amount ?? '',
       row.reference.fromDay ? `${row.reference.fromDay} تا ${row.reference.toDay}` : '',
       row.reference.calculationVersion ?? '', row.laterDecision?.amount ?? '', row.laterDecision?.at ?? '',
-      row.evidenceWarning ?? '', row.legacyRepeat ? 'بله؛ خارج از شمارنده بستن نهایی' : ''
+      row.evidenceWarning ?? '', row.legacyRepeat ? 'بله؛ خارج از شمارنده بستن نهایی' : '',
+      row.managerNotes.map((note) => `سند ${note.snapshotId} · ${note.managerCurrentName ?? `مدیر #${note.managerUserId}`} · ${note.at}: ${note.text}`).join(' | ')
     ]
     return {
       fileName: 'cash-closing-history', format: 'csv' as const, ask: true,

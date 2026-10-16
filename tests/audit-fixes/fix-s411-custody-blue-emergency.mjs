@@ -13,6 +13,7 @@ process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
+const { settingsService } = await import('../../src/main/services/SettingsService.ts')
 const db = harnessClient()
 const seed = makeSeeder(db)
 const manager = seed.user('مدیر S411')
@@ -24,6 +25,11 @@ for (const [id, temporary, personal] of [[absent, 'Absent411!', 'Absent4114!'], 
   await custodyService.setPin({ userId: id, newPassword: temporary, managerUserId: manager, managerPassword: 'Manager411!', reason: 'آزمون پوشش اضطراری با PIN شخصی' })
   await custodyService.setPin({ userId: id, currentPassword: temporary, newPassword: personal })
 }
+// This fixture tests absence/override, not the independent single-shift
+// default-deny rule: grant the live segment's mid-day permission explicitly.
+await settingsService.saveCustodySchedulingWorkflow({ shift: { ...await settingsService.shiftConfig(),
+  custodyMode: 'SINGLE_SHIFT', singleShiftCustodianUserId: absent, singleShiftAllowMidDayHandover: true },
+  managerUserId: manager, managerPassword: 'Manager411!', reason: 'مجوز مستقل تحویل میان‌روز برای آزمون پوشش اضطراری' })
 let checks = 0
 function eq(label, actual, expected) {
   if (actual !== expected) throw new Error(`${label}: expected ${expected}, got ${actual}`)

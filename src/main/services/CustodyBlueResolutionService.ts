@@ -1,8 +1,11 @@
 import { prisma } from '../db/client'
 import { BusinessError } from '../errors'
 import { custodyService } from './CustodyService'
+import { readBlueNotesForSnapshots } from './CustodyBlueNoteService'
 import { normalizeJalaliYmd } from '@shared/jalaliBuckets'
-import { CUSTODY_REFERENCE_VERSION, CUSTODY_REFERENCE_LEGACY_VERSION, type CustodyReference } from '@shared/custodyReference'
+import { CUSTODY_REFERENCE_VERSION, CUSTODY_REFERENCE_PREVIOUS_VERSION, CUSTODY_REFERENCE_LEGACY_VERSION, type CustodyReference } from '@shared/custodyReference'
+import { blueEvidenceFault, bluePairFault } from './CustodyBlueIntegrity'
+import { openEvidenceCases } from './CustodyEvidenceGuard'
 import { observationOf, systemAbsenceZero, absenceUncounted, isAbsentUncounted, type CustodyObservation } from '@shared/custodyPeriod'
 import { resolvedCustodySnapshot, type CustodyBlueDecision, type CustodyCreditDecision } from '@shared/custodyResolution'
 
@@ -18,7 +21,7 @@ function rialOf(raw: unknown, name: string): number | null {
   return n
 }
 function asReference(row: any): CustodyReference {
-  if (row.calculationVersion !== CUSTODY_REFERENCE_VERSION && row.calculationVersion !== CUSTODY_REFERENCE_LEGACY_VERSION)
+  if (![CUSTODY_REFERENCE_VERSION, CUSTODY_REFERENCE_PREVIOUS_VERSION, CUSTODY_REFERENCE_LEGACY_VERSION].includes(row.calculationVersion))
     throw new BusinessError('نسخهٔ محاسبهٔ مرجع با نسخهٔ جاری سازگار نیست.', 'BLUE_VERSION_MISMATCH')
   return {
     status: row.referenceStatus as CustodyReference['status'],
@@ -67,13 +70,23 @@ export const custodyBlueResolutionService = {
       where: { role: { in: ['IN', 'OPENING', 'FINAL_CLOSE', 'RECOVERY'] }, referenceStatus: 'PENDING_RECONCILIATION' },
       orderBy: [{ at: 'desc' }, { id: 'desc' }], skip, take: pageSize + 1
     })
+    const notes = await readBlueNotesForSnapshots(prisma, snapshots.slice(0, pageSize).map((row: any) => row.id))
+    const notesBySnapshot = new Map<number, any[]>()
+    for (const note of notes) {
+      const group = notesBySnapshot.get(note.snapshotId) ?? []
+      group.push({ id: note.id, managerUserId: note.managerUserId, text: note.text, at: note.at.toISOString() })
+      notesBySnapshot.set(note.snapshotId, group)
+    }
     const rows: any[] = []
     for (const snapshot of snapshots.slice(0, pageSize)) {
       const handover = snapshot.role === 'IN' && snapshot.handoverId != null
         ? await prisma.custodyHandover.findUnique({ where: { id: snapshot.handoverId } }) : null
       if (snapshot.role === 'IN' && (!handover || handover.status !== 'COMPLETED')) continue
       if (snapshot.role !== 'IN' && snapshot.handoverId != null) continue
-      const decision = await prisma.custodyBlueResolution.findFirst({
+      const out = handover ? await prisma.custodyBlueSnapshot.findFirst({ where: { handoverId: handover.id, role: 'OUT' } }) : null
+      const invalidWitness = blueEvidenceFault(snapshot) || (handover ? bluePairFault(out, snapshot, handover) : null)
+      const quarantined = !!invalidWitness || (await openEvidenceCases(prisma, snapshot.shiftId)).length > 0
+      const decision = quarantined ? null : await prisma.custodyBlueResolution.findFirst({
         where: { snapshotId: snapshot.id }, orderBy: [{ at: 'desc' }, { id: 'desc' }]
       })
       rows.push({
@@ -83,12 +96,14 @@ export const custodyBlueResolutionService = {
         toUserId: handover?.finalCustodianUserId ?? null,
         day: snapshot.operationalDay, referenceFromDay: snapshot.referenceFromDay,
         referenceToDay: snapshot.referenceToDay, calculationVersion: snapshot.calculationVersion,
-        countedAmount: rialOf(snapshot.humanAmount, 'شمارش'),
-        knownSubtotal: rialOf(snapshot.knownSubtotal, 'بخش معلوم'),
-        destinationUnknownReceived: snapshot.calculationVersion === CUSTODY_REFERENCE_LEGACY_VERSION ? null : rialOf(snapshot.destinationUnknownReceived, 'مقصد نامشخص'),
-        ambiguousLegacyCredit: rialOf(snapshot.ambiguousLegacyCredit, 'بخش مبهم'),
-        originalReferenceAmount: rialOf(snapshot.referenceAmount, 'مرجع اولیه'),
-        status: decision ? 'RESOLVED' : 'PENDING_RECONCILIATION',
+        countedAmount: quarantined ? null : rialOf(snapshot.humanAmount, 'شمارش'),
+        knownSubtotal: quarantined ? null : rialOf(snapshot.knownSubtotal, 'بخش معلوم'),
+        destinationUnknownReceived: quarantined || snapshot.calculationVersion === CUSTODY_REFERENCE_LEGACY_VERSION ? null : rialOf(snapshot.destinationUnknownReceived, 'مقصد نامشخص'),
+        ambiguousLegacyCredit: quarantined ? null : rialOf(snapshot.ambiguousLegacyCredit, 'بخش مبهم'),
+        originalReferenceAmount: quarantined ? null : rialOf(snapshot.referenceAmount, 'مرجع اولیه'),
+        managerNotes: notesBySnapshot.get(snapshot.id) ?? [],
+        status: quarantined ? 'EVIDENCE_QUARANTINED' : decision ? 'RESOLVED' : 'PENDING_RECONCILIATION',
+        integrityFault: invalidWitness ?? (quarantined ? 'SHIFT_EVIDENCE_CASE_OPEN' : null),
         referenceAmount: decision ? rialOf(decision.effectiveReferenceAmount, 'مرجع حل‌شده') : null,
         rawDifference: decision ? rialOf(decision.resolvedRawDifference, 'اختلاف حل‌شده') : null,
         freshDifference: decision ? rialOf(decision.resolvedFreshDifference, 'اختلاف تازه') : null,
@@ -153,11 +168,18 @@ export const custodyBlueResolutionService = {
         ['OPENING', 'FINAL_CLOSE', 'RECOVERY'].includes(snapshot?.role)
       if (!snapshot || (!isTransfer && !isIndependentBoundary))
         throw new BusinessError('فقط سند شمارش واقعیِ تحویل، افتتاح یا بستن نهایی قابل تعیین تکلیف است.', 'BLUE_SNAPSHOT_NOT_FOUND')
+      if ((await openEvidenceCases(tx, snapshot.shiftId)).length)
+        throw new BusinessError('این نشست پروندهٔ قرنطینهٔ باز دارد؛ تعیین مبلغ از سند آن ممنوع است.', 'CUSTODY_EVIDENCE_QUARANTINED')
       if (isTransfer) {
         const handover = await tx.custodyHandover.findUnique({ where: { id: snapshot.handoverId } })
         if (!handover || handover.status !== 'COMPLETED')
           throw new BusinessError('تحویل هنوز به‌عنوان سند نهایی پذیرفته نشده است.', 'BLUE_HANDOVER_NOT_COMPLETED')
+        const out = await tx.custodyBlueSnapshot.findFirst({ where: { handoverId: handover.id, role: 'OUT' } })
+        if (bluePairFault(out, snapshot, handover))
+          throw new BusinessError('زنجیرهٔ OUT/IN معتبر نیست؛ حل مبلغ به شاهد دیگری متکی نمی‌شود.', 'CUSTODY_EVIDENCE_QUARANTINED')
       }
+      if (blueEvidenceFault(snapshot))
+        throw new BusinessError('سند آبی با دامنه، نسخه یا پیوند مالیِ ثبت‌شده سازگار نیست؛ بررسی مستقل مدیر لازم است.', 'CUSTODY_EVIDENCE_QUARANTINED')
       if (evidenceDay < snapshot.referenceFromDay || evidenceDay > snapshot.referenceToDay)
         throw new BusinessError('تاریخ سند اثبات باید داخل همان بازهٔ مرجع سند اولیه باشد.', 'BLUE_EVIDENCE_OUT_OF_SCOPE')
       // Preserve idempotent replays of decisions made before the upgrade, but
@@ -198,6 +220,8 @@ export const custodyBlueResolutionService = {
         throw new BusinessError('روز سند اثبات مقصد نامشخص باید در همان بازهٔ مرجع باشد.', 'BLUE_EVIDENCE_OUT_OF_SCOPE')
       const prior = snapshot.priorSnapshotId == null
         ? null : await tx.custodyBlueSnapshot.findUnique({ where: { id: snapshot.priorSnapshotId } })
+      if (snapshot.priorSnapshotId != null && (!prior || blueEvidenceFault(prior)))
+        throw new BusinessError('شاهد مبنای اولیه معتبر نیست؛ از آن مبلغ یا اختلاف تازه محاسبه نمی‌شود.', 'CUSTODY_EVIDENCE_QUARANTINED')
       const result = resolvedCustodySnapshot({
         reference,
         count: asObservation(snapshot),

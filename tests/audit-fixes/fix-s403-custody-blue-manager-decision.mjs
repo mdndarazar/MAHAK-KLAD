@@ -14,7 +14,7 @@ const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
 const { custodyBlueResolutionService } = await import('../../src/main/services/CustodyBlueResolutionService.ts')
 const { toJalaliDate } = await import('@shared/jalali')
-const { CUSTODY_REFERENCE_VERSION } = await import('@shared/custodyReference')
+const { CUSTODY_REFERENCE_PREVIOUS_VERSION } = await import('@shared/custodyReference')
 const db = harnessClient()
 const seed = makeSeeder(db)
 const manager = seed.user('مدیر شخصی S403')
@@ -41,16 +41,20 @@ function frozenHandover(suffix) {
     expectedAtStart: 0, countedAtStart: 501_000_000, differenceCash: 0,
     ledgerWatermark: '{}', fenceEpochAtStart: 2, idempotencyKey: `s403:handover:${suffix}`, operationalDay: day
   })
-  const snapshotId = seed.insert('CustodyBlueSnapshot', {
-    handoverId, shiftId, role: 'IN', actorUserId: cashier, authMethod: 'CUSTODY_PIN',
+  // A historical V2 decision still needs an authentic linked OUT/IN pair.
+  // An unpaired, unsigned row labelled V3 must not become a monetary source.
+  const shared = {
+    handoverId, shiftId, actorUserId: cashier, authMethod: 'CUSTODY_PIN',
     countOrigin: 'EXPLICIT_AMOUNT', humanAmount: 501_000_000, arithmeticAmount: 501_000_000,
     referenceFromDay: day, referenceToDay: day, scopeKind: 'TODAY',
     referenceStatus: 'PENDING_RECONCILIATION', referenceAmount: null, knownSubtotal: 500_000_000,
-    ambiguousLegacyCredit: 1_000_000, destinationUnknownReceived: 0, calculationVersion: CUSTODY_REFERENCE_VERSION,
+    ambiguousLegacyCredit: 1_000_000, destinationUnknownReceived: 0, calculationVersion: CUSTODY_REFERENCE_PREVIOUS_VERSION,
     financialRevision: 0, epochAtCount: 2,
-    rawDifference: null, freshDifference: null, freshStatus: 'UNKNOWN_REFERENCE_PENDING',
-    idempotencyKey: `s403:snapshot:${suffix}`, operationalDay: day
-  })
+    rawDifference: null, freshDifference: null, freshStatus: 'UNKNOWN_REFERENCE_PENDING', operationalDay: day
+  }
+  const outId = seed.insert('CustodyBlueSnapshot', { ...shared, role: 'OUT', idempotencyKey: `s403:out:snapshot:${suffix}` })
+  const snapshotId = seed.insert('CustodyBlueSnapshot', { ...shared, role: 'IN', priorSnapshotId: outId,
+    idempotencyKey: `s403:snapshot:${suffix}` })
   return { snapshotId, handoverId }
 }
 const base = (snapshotId, decisionKind, suffix) => ({
@@ -81,7 +85,7 @@ eq('NOT_RECEIVED reference 500M', denied.referenceAmount, 500_000_000)
 eq('NOT_RECEIVED raw +1M', denied.rawDifference, 1_000_000)
 eq('NOT_RECEIVED fresh remains unknown', denied.freshDifference, null)
 eq('historic day retained', seed.one('SELECT operationalDay FROM "CustodyBlueSnapshot" WHERE id=?', noReceipt.snapshotId).operationalDay, day)
-eq('no blame assigned by decision', seed.one('SELECT freshStatus FROM "CustodyBlueResolution" WHERE id=?', denied.id).freshStatus, 'UNKNOWN_NO_REAL_PRIOR_COUNT')
+eq('pending OUT never turns into a new attributable difference', seed.one('SELECT freshStatus FROM "CustodyBlueResolution" WHERE id=?', denied.id).freshStatus, 'UNKNOWN_REFERENCE_PENDING')
 
 console.log('\n[3] Neither a wrong PIN nor proof from another date can resolve a snapshot')
 const untouched = frozenHandover('untouched')

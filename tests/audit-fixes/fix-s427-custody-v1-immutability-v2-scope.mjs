@@ -6,6 +6,7 @@
  * node --import ./test/harness/register.mjs tests/audit-fixes/fix-s427-custody-v1-immutability-v2-scope.mjs
  */
 import { DatabaseSync } from 'node:sqlite'
+import { createHash } from 'node:crypto'
 import { mkdtempSync, readdirSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -69,16 +70,21 @@ const oldWithDefaultId = seed.insert('CustodyBlueSnapshot', {
 })
 const oldWithDefault = await db.custodyBlueSnapshot.findUnique({ where: { id: oldWithDefaultId } })
 eq('V1 decoder does not mistake a historical default 0 for proof', referenceFromBlueSnapshot(oldWithDefault).destinationUnknownReceived, null)
-const v2 = calculateCustodyReference({ cashReceived: 550, cardReceived: 0, otherReceived: 0,
+const v3 = calculateCustodyReference({ cashReceived: 550, cardReceived: 0, otherReceived: 0,
   destinationUnknownReceived: 0, ambiguousLegacyCredit: 0, refundCash: 0, refundCard: 0 })
+// A V3 witness must carry a same-day source scope and hash. This fixture is
+// about V1/V3 isolation, not about absence of an accounting report.
+const scope = JSON.stringify({ filter: { fromJalali: today, toJalali: today, channels: ['RETAIL', 'WHOLESALE'] } })
+const reference = { ...v3, sourceScope: scope,
+  sourceHash: createHash('sha256').update(JSON.stringify({ scope, reference: v3 })).digest('hex') }
 const next = await recordBlueSnapshot(db, {
-  shiftId, role: 'FINAL_CLOSE', actorUserId: manager, count: observationOf(600, false), reference: v2,
+  shiftId, role: 'FINAL_CLOSE', actorUserId: manager, count: observationOf(600, false), reference,
   referenceFromDay: today, referenceToDay: today, scopeKind: 'TODAY', financialRevision: 0, epochAtCount: 1,
   prior, idempotencyKey: 's427:v2:close'
 })
-eq('V2 reference and raw difference remain available', Number(next.rawDifference), 50)
-eq('V1 and V2 versions have different comparison scopes', next.freshStatus, 'UNKNOWN_SCOPE_CHANGE')
-eq('V2 cannot attribute a made-up fresh difference to the next owner', next.freshDifference, null)
+eq('V3 reference and raw difference remain available without rewriting V1', Number(next.rawDifference), 50)
+eq('V1 and V3 versions have different comparison scopes', next.freshStatus, 'UNKNOWN_SCOPE_CHANGE')
+eq('V3 cannot attribute a made-up fresh difference to the next owner', next.freshDifference, null)
 eq('historic V1 amount remains intact after new snapshot', seed.one('SELECT referenceAmount FROM "CustodyBlueSnapshot" WHERE id=?', priorId).referenceAmount, 500)
 
 await custodyService.setPin({ userId: manager, newPassword: 'Manager427!', currentPassword: '1111' })

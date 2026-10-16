@@ -17,6 +17,7 @@ process.env.HARNESS_DB = join(DIR, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
+const { settingsService } = await import('../../src/main/services/SettingsService.ts')
 
 const db = harnessClient()
 const seed = makeSeeder(db)
@@ -50,6 +51,7 @@ for (const [id, temporary, permanent] of [[giver, 'Giver381!', 'Giver3814!'], [r
   await custodyService.setPin({ userId: id, currentPassword: temporary, newPassword: permanent })
 }
 
+await settingsService.saveCustodySchedulingWorkflow({ shift: { ...await settingsService.shiftConfig(), custodyMode: 'SINGLE_SHIFT', singleShiftCustodianUserId: giver, singleShiftAllowMidDayHandover: true }, managerUserId: manager, managerPassword: 'Manager381!', reason: 'مجوز تحویل برای آزمون گیت expected صندوق' })
 const opened = await custodyService.open({ userId: giver, password: 'Giver3814!', countedCash: 1000 })
 await rejects('expectedCash حتی برای segment فعال به شمارش‌کننده نمایش داده نمی‌شود', 'CUSTODY_EXPECTED_HIDDEN', () => custodyService.assertExpectedCashRead({ shiftId: opened.shiftId }))
 await rejects('شیفت تاریخی نیز مجوز خواندن expectedCash ندارد', 'CUSTODY_EXPECTED_HIDDEN', () => custodyService.assertExpectedCashRead({ shiftId: opened.shiftId + 1 }))

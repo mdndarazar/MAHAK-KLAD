@@ -4,7 +4,7 @@
 export type CashClosingHistoryKind = 'HANDOVER' | 'EMERGENCY_COVER' | 'MASTER_OVERRIDE' | 'FINAL_CLOSE' | 'LEGACY_CLOSE'
 export type CashClosingHistoryStream = 'CUSTODY' | 'LEGACY'
 export type CashClosingReferenceState =
-  | 'KNOWN_V2' | 'PENDING_V2' | 'KNOWN_V1' | 'PENDING_V1' | 'NOT_RECORDED' | 'INCONSISTENT'
+  | 'KNOWN_V3' | 'PENDING_V3' | 'KNOWN_V2' | 'PENDING_V2' | 'KNOWN_V1' | 'PENDING_V1' | 'NOT_RECORDED' | 'INCONSISTENT'
 
 export type CashClosingHistoryPerson = {
   userId: number | null
@@ -22,7 +22,7 @@ export type CashClosingHistoryRow = {
   occurredAt: string
   occurredDayJalali: string
   kind: CashClosingHistoryKind
-  era: 'BLUE_V2' | 'BLUE_V1' | 'PRE_BLUE'
+  era: 'BLUE_V3' | 'BLUE_V2' | 'BLUE_V1' | 'PRE_BLUE'
   handoverId: number | null
   shiftId: number | null
   from: CashClosingHistoryPerson | null
@@ -41,7 +41,11 @@ export type CashClosingHistoryRow = {
   /** A later decision is never a replacement for the stored original amount. */
   laterDecision: { at: string; managerUserId: number; managerCurrentName: string | null; amount: number; kind: string } | null
   reason: string | null
-  /** An inconsistent evidence row is visible, but must never claim a known amount. */
+  /** Optional append-only annotations on the OUT/IN or final blue documents.
+   * Never substitute a note for a reference resolution or a completed event. */
+  managerNotes: Array<{ id: number; snapshotId: number; at: string; text: string; managerUserId: number; managerCurrentName: string | null }>
+  /** Invalid evidence is quarantined from F10 rows; older cached clients may
+   * still carry an inconsistent row with its amount explicitly unknown. */
   evidenceWarning: string | null
   /** A second close of the same shift/range is a correction, not another final close. */
   legacyRepeat: boolean
@@ -56,6 +60,8 @@ export type CashClosingHistoryTotals = {
   /** Old-system CashSessions have their own stream, but genuine closes also contribute to finalClosings. */
   legacyCloses: number
   legacyCorrections: number
+  amountKnownV3: number
+  amountPendingV3: number
   amountKnownV2: number
   amountPendingV2: number
   amountKnownV1: number

@@ -15,6 +15,7 @@ const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mj
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { calculateCustodyReference } = await import('../../src/shared/custodyReference.ts')
 const { officialReferenceForDays } = await import('../../src/main/services/CustodyReferenceService.ts')
+import { grantMiddayFixture } from './grant-midday-fixture.mjs'
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
 const { custodyBlueResolutionService } = await import('../../src/main/services/CustodyBlueResolutionService.ts')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
@@ -46,6 +47,7 @@ const giver = seed.user('مسئول اول S424')
 const receiver = seed.user('مسئول دوم S424')
 await custodyService.setPin({ userId: manager, newPassword: 'Manager424!', currentPassword: '1111' })
 await custodyService.setConfig({ config: { enabled: true }, managerUserId: manager, managerPassword: 'Manager424!' })
+await grantMiddayFixture({ manager, password: 'Manager424!', custodian: giver })
 for (const [id, temporary, personal] of [[giver, 'GiverTemp424!', 'GiverFinal424!'], [receiver, 'ReceiverTemp424!', 'ReceiverFinal424!']]) {
   await custodyService.setPin({ userId: id, newPassword: temporary, managerUserId: manager,
     managerPassword: 'Manager424!', reason: 'تست تاریخی مقصد نامشخص' })

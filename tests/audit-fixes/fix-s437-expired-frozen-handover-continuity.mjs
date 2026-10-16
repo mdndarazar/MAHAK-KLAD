@@ -38,7 +38,7 @@ for (const [id, temporary, permanent] of [[oldOwner, 'OldTemp437!', 'OldFinal437
   await custodyService.setPin({ userId: id, currentPassword: temporary, newPassword: permanent })
 }
 const before = parseShiftConfig(await settingsService.shiftConfig())
-await settingsService.saveCustodySchedulingWorkflow({ shift: { ...before, custodyMode: 'SINGLE_SHIFT', singleShiftCustodianUserId: oldOwner },
+await settingsService.saveCustodySchedulingWorkflow({ shift: { ...before, custodyMode: 'SINGLE_SHIFT', singleShiftCustodianUserId: oldOwner, singleShiftAllowMidDayHandover: true },
   managerUserId: manager, managerPassword: 'Manager437!', reason: 'مسئول روزانهٔ قدیمی پس از قطع برق در محل حضور ندارد' })
 const old = await custodyService.open({ userId: oldOwner, password: 'OldFinal437!', countedCash: 0 })
 const oldInvoice = seed.invoice({ receiptNo: 437001, grandTotal: 200, status: 'SETTLED' })

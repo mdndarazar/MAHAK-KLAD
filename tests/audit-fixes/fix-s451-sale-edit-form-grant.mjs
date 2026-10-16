@@ -15,6 +15,7 @@ process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
+import { grantMiddayFixture } from './grant-midday-fixture.mjs'
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
 const db = harnessClient(), seed = makeSeeder(db), sql = db.$harness.db
 let checks = 0
@@ -27,6 +28,7 @@ const manager = seed.user('مدیر ۴۵۱'), A = seed.user('مسئول الف �
 for (const id of [A, B]) sql.prepare('UPDATE "User" SET role=? WHERE id=?').run('CASHIER', id)
 await custodyService.setPin({ userId: manager, currentPassword: '1111', newPassword: 'Manager451!' })
 await custodyService.setConfig({ config: { enabled: true }, managerUserId: manager, managerPassword: 'Manager451!' })
+await grantMiddayFixture({ manager, password: 'Manager451!', custodian: A })
 for (const [id, temporary, own] of [[A, 'Temporary451A!', 'Personal451A!'], [B, 'Temporary451B!', 'Personal451B!']]) {
   await custodyService.setPin({ userId: id, newPassword: temporary, managerUserId: manager, managerPassword: 'Manager451!', reason: 'شبیه‌سازی مسئول صندوق' })
   await custodyService.setPin({ userId: id, currentPassword: temporary, newPassword: own })

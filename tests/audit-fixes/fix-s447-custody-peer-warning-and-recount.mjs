@@ -13,6 +13,7 @@ process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
+import { grantMiddayFixture } from './grant-midday-fixture.mjs'
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
 const { toJalaliDate } = await import('@shared/jalali')
 const { IPC } = await import('@shared/ipc')
@@ -41,6 +42,7 @@ const receiver = seed.user('مسئول دوم S447')
 for (const id of [giver, receiver]) sql.prepare('UPDATE "User" SET role=? WHERE id=?').run('CASHIER', id)
 await custodyService.setPin({ userId: manager, newPassword: 'Manager447!', currentPassword: '1111' })
 await custodyService.setConfig({ config: { enabled: true }, managerUserId: manager, managerPassword: 'Manager447!' })
+await grantMiddayFixture({ manager, password: 'Manager447!', custodian: giver })
 for (const [id, temp, pin] of [[giver, 'GiverTmp447!', 'GiverOwn447!'], [receiver, 'ReceiverTmp447!', 'ReceiverOwn447!']]) {
   await custodyService.setPin({ userId: id, newPassword: temp, managerUserId: manager, managerPassword: 'Manager447!', reason: 'PIN مستقل برای آزمون هشدار دو شمارش' })
   await custodyService.setPin({ userId: id, currentPassword: temp, newPassword: pin })

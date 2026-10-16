@@ -1,4 +1,4 @@
-import { CUSTODY_REFERENCE_VERSION, type CustodyReference } from './custodyReference'
+import { CUSTODY_REFERENCE_VERSION, CUSTODY_REFERENCE_PREVIOUS_VERSION, type CustodyReference } from './custodyReference'
 import type { CustodyObservation } from './custodyPeriod'
 import { reconcileCustodyPeriod, type CustodyPeriodResult } from './custodyPeriod'
 
@@ -23,7 +23,7 @@ export function resolvedCustodySnapshot(input: {
   const known = reference.knownSubtotal
   const credit = reference.ambiguousLegacyCredit
   const destination = reference.destinationUnknownReceived
-  if (reference.calculationVersion !== CUSTODY_REFERENCE_VERSION)
+  if (reference.calculationVersion !== CUSTODY_REFERENCE_VERSION && reference.calculationVersion !== CUSTODY_REFERENCE_PREVIOUS_VERSION)
     throw new RangeError('سند نسخهٔ قدیمی مقصد نامشخص را ثبت نکرده است و با فرمول جدید قابل حل خودکار نیست.')
   if (reference.status !== 'PENDING_RECONCILIATION' || known == null || credit == null || destination == null ||
       !Number.isSafeInteger(known) || !Number.isSafeInteger(credit) || credit < 0 ||

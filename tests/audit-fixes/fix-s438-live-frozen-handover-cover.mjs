@@ -15,6 +15,7 @@ process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
+import { grantMiddayFixture } from './grant-midday-fixture.mjs'
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
 const { toJalaliDate } = await import('@shared/jalali')
 const db = harnessClient(); const seed = makeSeeder(db); const sql = db.$harness.db
@@ -35,6 +36,7 @@ for (const id of [prior, stalledReceiver, replacement, temporary, inactive]) sql
 sql.prepare('UPDATE "User" SET role=? WHERE id=?').run('STOCKKEEPER', nonOperational)
 await custodyService.setPin({ userId: manager, currentPassword: '1111', newPassword: 'Manager438!' })
 await custodyService.setConfig({ config: { enabled: true }, managerUserId: manager, managerPassword: 'Manager438!' })
+await grantMiddayFixture({ manager, password: 'Manager438!', custodian: prior })
 for (const [id, temporary, permanent] of [
   [prior, 'PriorTemp438!', 'PriorFinal438!'],
   [stalledReceiver, 'ReceiverTemp438!', 'ReceiverFinal438!'],

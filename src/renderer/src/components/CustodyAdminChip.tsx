@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { call, CH } from '../lib/api'
-import { money, isValidJalaliDate, jalaliStartOfDay, jalaliEndOfDay } from '@shared/jalali'
+import { money, isValidJalaliDate, jalaliStartOfDay, jalaliEndOfDay, toJalaliDate } from '@shared/jalali'
+import JalaliDateInput from './JalaliDateInput'
 import { useManagerSession } from '../hooks/useManagerSession'
 import { CustodyBlueEvidence, type BlueBoundaryView, type BlueHandoverView } from './CustodyBlueEvidence'
 import { BlueResolutionPanel } from './BlueResolutionPanel'
 import { CustodyResetShiftPanel } from './CustodyResetShiftPanel'
+import { CustodyEvidenceRecoveryPanel } from './CustodyEvidenceRecoveryPanel'
 import { CustodyMissedShiftPanel } from './CustodyMissedShiftPanel'
+import { CustodyDifference } from './CustodyDifference'
 
 /** This small Settings-only workspace deliberately owns no staff profile fields
  * and has no schedule/ShiftPlan writer. Shift Settings is the canonical place
@@ -21,7 +24,7 @@ type LegacyRecoveryReport = {
 type Report = {
   from: string; to: string
   coverage: { skip: number; take: number; hasMoreAny: boolean; hasMore: Record<string, boolean> }
-  summary: { handovers: number; unresolvedOpen: number; dispositionPending: number; totalCountDifference: number; unknownCountDifferences?: number; blueHandoversAwaitingReference?: number; legacyRecoveries?: number; legacyRecoveryReviews?: number; legacyRecoveriesAwaitingOpening?: number }
+  summary: { handovers: number; unresolvedOpen: number; dispositionPending: number; totalCountDifference: number; unknownCountDifferences?: number; blueHandoversAwaitingReference?: number; blueHandoversQuarantined?: number; legacyRecoveries?: number; legacyRecoveryReviews?: number; legacyRecoveriesAwaitingOpening?: number }
   counts: Array<{ id: number; at: string; shiftId: number; kind: string; countedCash: number; expectedCash: number | null; differenceCash: number | null; countedByName?: string | null }>
   handovers: BlueHandoverView[]
   blueBoundaries: BlueBoundaryView[]
@@ -49,7 +52,7 @@ type DiscrepancyReport = {
   }>
 }
 
-type Tab = 'credentials' | 'legacy' | 'report' | 'blue' | 'reset' | 'missed'
+type Tab = 'credentials' | 'legacy' | 'report' | 'blue' | 'evidence' | 'reset' | 'missed'
 const asTime = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
 
 /** Entry point is rendered only in Settings > Custody. It is intentionally not
@@ -76,8 +79,10 @@ function CustodyAdminModal({ onClose }: { onClose: () => void }) {
   const [pinReason, setPinReason] = useState('')
   const [report, setReport] = useState<Report | null>(null)
   const [discrepancies, setDiscrepancies] = useState<DiscrepancyReport | null>(null)
-  const [discrepancyFrom, setDiscrepancyFrom] = useState('')
-  const [discrepancyTo, setDiscrepancyTo] = useState('')
+  // Default only the manager's control report to today's local Jalali date;
+  // an explicitly edited range is never replaced by an implicit 90-day query.
+  const [discrepancyFrom, setDiscrepancyFrom] = useState(() => toJalaliDate(new Date()))
+  const [discrepancyTo, setDiscrepancyTo] = useState(() => toJalaliDate(new Date()))
   const [discrepancyStatus, setDiscrepancyStatus] = useState<'ALL' | 'OPEN' | 'CLOSED'>('ALL')
   const [discrepancySkip, setDiscrepancySkip] = useState(0)
   const [adoptionSkip, setAdoptionSkip] = useState(0)
@@ -105,9 +110,11 @@ function CustodyAdminModal({ onClose }: { onClose: () => void }) {
     finally { setBusy(false) }
   }
   const loadDiscrepancies = async (skip = discrepancySkip, bootstrapSkip = adoptionSkip) => {
+    if (!isValidJalaliDate(discrepancyFrom) || !isValidJalaliDate(discrepancyTo) || discrepancyFrom > discrepancyTo)
+      throw new Error('برای گزارش کنترل، بازهٔ شمسیِ معتبر از تاریخ تا تاریخ را وارد کنید.')
     const next = await call<DiscrepancyReport>(CH.custodyDiscrepancyReport, {
-      from: discrepancyFrom.trim() || undefined,
-      to: discrepancyTo.trim() || undefined,
+      from: discrepancyFrom,
+      to: discrepancyTo,
       status: discrepancyStatus,
       take: 50,
       skip,
@@ -117,16 +124,12 @@ function CustodyAdminModal({ onClose }: { onClose: () => void }) {
     setDiscrepancies(next)
   }
   const refreshReport = async () => {
-    let range: { from?: string; to?: string } = {}
-    if (discrepancyFrom.trim() || discrepancyTo.trim()) {
-      if (!isValidJalaliDate(discrepancyFrom) || !isValidJalaliDate(discrepancyTo))
-        throw new Error('برای تاریخچه هر دو تاریخ شمسی را کامل وارد کنید؛ نمونه: ۱۴۰۵/۰۷/۲۲.')
-      const from = jalaliStartOfDay(discrepancyFrom)
-      const to = jalaliEndOfDay(discrepancyTo)
-      if (to.getTime() < from.getTime()) throw new Error('پایان بازهٔ گزارش نمی‌تواند پیش از آغاز آن باشد.')
-      range = { from: from.toISOString(), to: to.toISOString() }
-    }
-    const next = await call<Report>(CH.custodyReport, { ...range, skip: 0, take: 150 })
+    if (!isValidJalaliDate(discrepancyFrom) || !isValidJalaliDate(discrepancyTo))
+      throw new Error('برای گزارش کنترل هر دو تاریخ شمسی را کامل وارد کنید؛ نمونه: ۱۴۰۵/۰۷/۲۲.')
+    const from = jalaliStartOfDay(discrepancyFrom)
+    const to = jalaliEndOfDay(discrepancyTo)
+    if (to.getTime() < from.getTime()) throw new Error('پایان بازهٔ گزارش نمی‌تواند پیش از آغاز آن باشد.')
+    const next = await call<Report>(CH.custodyReport, { from: from.toISOString(), to: to.toISOString(), skip: 0, take: 150 })
     setReport(next)
     setReviewRecoveryId(next.legacyRecoveries?.[0]?.id ?? '')
   }
@@ -161,6 +164,7 @@ function CustodyAdminModal({ onClose }: { onClose: () => void }) {
           <button className={`px-3 py-2 ${tab === 'credentials' ? 'border-b-2 border-brand font-bold' : ''}`} onClick={() => setTab('credentials')}>رمز موقت</button>
           <button className={`px-3 py-2 ${tab === 'report' ? 'border-b-2 border-brand font-bold' : ''}`} onClick={() => setTab('report')}>گزارش کنترل</button>
           <button className={`px-3 py-2 ${tab === 'blue' ? 'border-b-2 border-brand font-bold' : ''}`} onClick={() => setTab('blue')}>مرجع آبی و اسناد در انتظار</button>
+          <button className={`px-3 py-2 ${tab === 'evidence' ? 'border-b-2 border-brand font-bold' : ''}`} onClick={() => setTab('evidence')}>قرنطینهٔ شاهد · بازیابی مستقل</button>
           <button className={`px-3 py-2 ${tab === 'reset' ? 'border-b-2 border-brand font-bold' : ''}`} onClick={() => setTab('reset')}>ریست ایمن شیفت</button>
           <button className={`px-3 py-2 ${tab === 'missed' ? 'border-b-2 border-brand font-bold' : ''}`} onClick={() => setTab('missed')}>شیفت‌های منقضی مدیر</button>
         </div>
@@ -186,6 +190,7 @@ function CustodyAdminModal({ onClose }: { onClose: () => void }) {
         </div> : null}
 
         {tab === 'blue' ? <BlueResolutionPanel staff={staff} /> : null}
+        {tab === 'evidence' ? <CustodyEvidenceRecoveryPanel staff={staff} /> : null}
         {tab === 'reset' ? <CustodyResetShiftPanel staff={staff} /> : null}
         {tab === 'missed' ? <CustodyMissedShiftPanel staff={staff} /> : null}
 
@@ -200,8 +205,8 @@ function CustodyAdminModal({ onClose }: { onClose: () => void }) {
 
         {tab === 'report' ? <div>
           <div className="flex flex-wrap gap-2 items-end rounded border bg-slate-50 p-3">
-            <label className="text-sm">از تاریخ جلالی<input className="input mt-1" dir="ltr" placeholder="۱۴۰۵/۰۷/۲۰" value={discrepancyFrom} onChange={(event) => { setDiscrepancySkip(0); setAdoptionSkip(0); setDiscrepancyFrom(event.target.value) }} /></label>
-            <label className="text-sm">تا تاریخ جلالی<input className="input mt-1" dir="ltr" placeholder="۱۴۰۵/۰۷/۲۵" value={discrepancyTo} onChange={(event) => { setDiscrepancySkip(0); setAdoptionSkip(0); setDiscrepancyTo(event.target.value) }} /></label>
+            <label className="text-sm">از تاریخ جلالی<JalaliDateInput className="input mt-1 w-36" value={discrepancyFrom} onChange={(value) => { setDiscrepancySkip(0); setAdoptionSkip(0); setDiscrepancyFrom(value); setReport(null); setDiscrepancies(null) }} /></label>
+            <label className="text-sm">تا تاریخ جلالی<JalaliDateInput className="input mt-1 w-36" value={discrepancyTo} onChange={(value) => { setDiscrepancySkip(0); setAdoptionSkip(0); setDiscrepancyTo(value); setReport(null); setDiscrepancies(null) }} /></label>
             <label className="text-sm">وضعیت<select className="input mt-1" value={discrepancyStatus} onChange={(event) => { setDiscrepancySkip(0); setAdoptionSkip(0); setDiscrepancyStatus(event.target.value as 'ALL' | 'OPEN' | 'CLOSED') }}><option value="ALL">همه</option><option value="OPEN">باز</option><option value="CLOSED">بسته</option></select></label>
             <button className="btn-primary" disabled={busy} onClick={() => void run(async () => {
               setDiscrepancySkip(0); setAdoptionSkip(0)
@@ -211,7 +216,7 @@ function CustodyAdminModal({ onClose }: { onClose: () => void }) {
           </div>
           {report && summary ? <>
             <div className="mt-3 rounded border border-indigo-200 bg-indigo-50 p-2 text-sm text-indigo-950">گزارش حضانت: {new Date(report.from).toLocaleString('fa-IR')} تا {new Date(report.to).toLocaleString('fa-IR')} · آمار و ردیف‌ها فقط برای همین صفحه هستند. هر بخشِ شواهد صفحه‌بندی مستقل دارد.</div>
-            <div className="grid md:grid-cols-4 gap-3 my-4 text-sm"><Info label="تحویل‌ها" value={summary.handovers} /><Info label="شب‌های باز" value={summary.unresolvedOpen} /><Info label="تعیین تکلیف تأییدنشده" value={summary.dispositionPending} /><Info label="جمع اختلاف شمارش‌های معلوم" value={money(summary.totalCountDifference)} /><Info label="تحویل آبی با مرجع نامعلوم" value={summary.blueHandoversAwaitingReference ?? 0} /><Info label="شمارش بدون اختلاف معلوم" value={summary.unknownCountDifferences ?? 0} /><Info label="بازیابی Shift قدیمی" value={summary.legacyRecoveries ?? 0} /><Info label="بازبینی‌های بازیابی" value={summary.legacyRecoveryReviews ?? 0} /></div>
+            <div className="grid md:grid-cols-4 gap-3 my-4 text-sm"><Info label="تحویل‌ها" value={summary.handovers} /><Info label="شب‌های باز" value={summary.unresolvedOpen} /><Info label="تعیین تکلیف تأییدنشده" value={summary.dispositionPending} /><Info label="جمع اختلاف شمارش‌های معلوم" value={money(summary.totalCountDifference)} /><Info label="تحویل آبی با مرجع نامعلوم" value={summary.blueHandoversAwaitingReference ?? 0} /><Info label="تحویل با شاهد ناسازگار؛ قرنطینه" value={summary.blueHandoversQuarantined ?? 0} /><Info label="شمارش بدون اختلاف معلوم" value={summary.unknownCountDifferences ?? 0} /><Info label="بازیابی Shift قدیمی" value={summary.legacyRecoveries ?? 0} /><Info label="بازبینی‌های بازیابی" value={summary.legacyRecoveryReviews ?? 0} /></div>
             <div className="flex flex-wrap items-center gap-2 rounded border p-2 text-sm">
               <span>صفحهٔ شواهد از ردیف {report.coverage.skip + 1} (در هر بخش)</span>
               <button className="btn-secondary" disabled={busy || report.coverage.skip === 0} onClick={() => void reportPage(Math.max(0, report.coverage.skip - report.coverage.take))}>جدیدتر</button>
@@ -234,10 +239,10 @@ function CustodyAdminModal({ onClose }: { onClose: () => void }) {
                 await call(CH.custodyLegacyRecoveryReview, { recoveryId: reviewRecoveryId, reason: reviewReason.trim(), idempotencyKey: `legacy-review-${crypto.randomUUID()}`, decision: 'NOTE' })
                 await refreshReport(); setReviewReason('')
               })}>ثبت یادداشت</button></div></div>{(report?.legacyRecoveryReviews?.length ?? 0) > 0 ? <div className="overflow-auto"><h4 className="font-bold text-sm mt-3">بازبینی‌های ثبت‌شده در این صفحه</h4><table className="w-full text-sm"><thead><tr><th>زمان</th><th>بازیابی</th><th>بازبین</th><th>یادداشت</th></tr></thead><tbody>{report?.legacyRecoveryReviews?.map((row) => <tr key={row.id}><td>{new Date(row.createdAt).toLocaleString('fa-IR')}</td><td>#{row.recoveryId}</td><td>{row.actorName ?? 'نشست مدیر'}</td><td>{row.reason}</td></tr>)}</tbody></table></div> : null}</div> : null}
-            <CustodyBlueEvidence blueBoundaries={report.blueBoundaries ?? []} handovers={report.handovers ?? []} />
+            <CustodyBlueEvidence blueBoundaries={report.blueBoundaries ?? []} handovers={report.handovers ?? []} managers={staff} onSaved={refreshReport} />
             <h3 className="font-bold mt-6">شمارش‌های همین صفحه</h3>
             <div className="overflow-auto"><table className="w-full text-sm"><thead><tr><th>زمان</th><th>شیفت</th><th>نوع</th><th>شمارش</th><th>انتظار</th><th>اختلاف</th><th>ثبت‌کننده</th></tr></thead><tbody>
-              {report?.counts.map((row) => <tr key={row.id}><td>{new Date(row.at).toLocaleString('fa-IR')}</td><td>{row.shiftId}</td><td>{row.kind === 'BLUE_EMERGENCY_IN' || row.kind === 'BLUE_MASTER_OVERRIDE_IN' ? 'شمارش آغاز مسئولیت فرد حاضر؛ نه خروج مسئول غایب' : row.kind}</td><td>{money(row.countedCash)}</td><td>{row.expectedCash == null ? '—' : money(row.expectedCash)}</td><td>{row.differenceCash == null ? '—' : money(row.differenceCash)}</td><td>{row.countedByName ?? '—'}</td></tr>)}
+              {report?.counts.map((row) => <tr key={row.id}><td>{new Date(row.at).toLocaleString('fa-IR')}</td><td>{row.shiftId}</td><td>{row.kind === 'BLUE_EMERGENCY_IN' || row.kind === 'BLUE_MASTER_OVERRIDE_IN' ? 'شمارش آغاز مسئولیت فرد حاضر؛ نه خروج مسئول غایب' : row.kind}</td><td>{money(row.countedCash)}</td><td>{row.expectedCash == null ? '—' : money(row.expectedCash)}</td><td><CustodyDifference value={row.differenceCash} label="اختلاف شمارش" /></td><td>{row.countedByName ?? '—'}</td></tr>)}
             </tbody></table></div>
           </> : <p className="mt-3 text-sm text-slate-500">گزارش فقط در نشست فعال مدیر خوانده می‌شود.</p>}
         </div> : null}
@@ -275,7 +280,7 @@ function DiscrepancyCasesPanel({ report, busy, onRefresh, onPage, onBootstrapPag
     <div className="flex flex-wrap justify-between gap-3 items-start"><div><h3 className="font-bold text-rose-950">پرونده‌های مغایرت کشو و کارت‌خوان</h3><p className="text-xs mt-1 text-slate-600">بازهٔ جلالی {report.from} تا {report.to} · شواهد اولیه و اختلاف هرگز با بستن پرونده تغییر نمی‌کنند.</p></div><div className="flex gap-2"><button className="btn-secondary text-sm" disabled={busy || workingCase != null} onClick={() => void exportPage()}>خروجی پرونده و افتتاحِ همین صفحه</button><button className="btn-secondary text-sm" disabled={busy || workingCase != null} onClick={onRefresh}>تازه‌سازی</button></div></div>
     {error ? <p className="mt-3 rounded bg-red-100 p-2 text-sm text-red-800">{error}</p> : null}
     <div className="grid grid-cols-2 md:grid-cols-6 gap-2 my-3 text-sm"><Info label="همه" value={report.summary.allCases} /><Info label="باز" value={report.summary.openCases} /><Info label="بسته" value={report.summary.closedCases} /><Info label="کسری" value={money(Math.abs(Math.min(0, report.summary.shortages)))} /><Info label="اضافه" value={money(Math.max(0, report.summary.overages))} /><Info label="خالص" value={money(report.summary.net)} /></div>
-    {!report.cases.length ? <p className="text-sm text-slate-600">در این بازه پرونده‌ای ثبت نشده است.</p> : <div className="space-y-3">{report.cases.map((row) => <details key={row.id} className="rounded border bg-white p-3"><summary className="cursor-pointer flex flex-wrap justify-between gap-2"><span><b>پرونده #{row.id}</b> · {row.status === 'OPEN' ? 'باز' : 'بسته'} · {row.boundaryKind}</span><span className={row.differenceAmount < 0 ? 'text-red-700 font-bold' : 'text-emerald-700 font-bold'}>{money(row.differenceAmount)} ریال</span></summary><div className="mt-3 space-y-3 text-sm"><div className="grid md:grid-cols-4 gap-2"><Info label="روز عملیاتی" value={row.operationalDay} /><Info label="نظری مدیر" value={money(row.theoreticalExpectedTotal)} /><Info label="انتظار عملیاتی" value={money(row.operationalExpectedTotal)} /><Info label="شمارش کور" value={money(row.observedOperationalTotal)} /></div><p className="text-xs text-slate-600">Shift قبلی: {row.fromShiftId ?? '—'} · Shift بعدی: {row.toShiftId ?? '—'} · زمان ثبت: {new Date(row.detectedAt).toLocaleString('fa-IR')} · اختلاف کل نظری در همان مرز: {money(row.totalTheoreticalDifference)} ریال</p>{row.currentReviewResult ? <p className="rounded bg-emerald-50 p-2 text-emerald-900">نتیجهٔ فعلی مدیر: {row.currentReviewResult}</p> : null}<div className="rounded border bg-slate-50 p-3"><div className="font-bold">بازبینی مدیر</div><div className="grid md:grid-cols-2 gap-2 mt-2"><input className="input" value={results[row.id] ?? ''} onChange={(event) => setResults((prior) => ({ ...prior, [row.id]: event.target.value }))} placeholder="نتیجهٔ بازبینی؛ برای بستن اجباری" /><textarea className="input" value={notes[row.id] ?? ''} onChange={(event) => setNotes((prior) => ({ ...prior, [row.id]: event.target.value }))} placeholder="یادداشت مدیر؛ حداقل ۱۰ حرف" /></div><div className="flex gap-2 mt-2">{row.status === 'OPEN' ? <button className="btn-primary" disabled={busy || workingCase === row.id} onClick={() => void review(row, 'CLOSE')}>✓ بررسی شد / بستن پرونده</button> : <button className="btn-secondary" disabled={busy || workingCase === row.id} onClick={() => void review(row, 'REOPEN')}>بازگشایی پرونده</button>}</div></div>{row.reviews.length ? <div><div className="font-bold mb-1">سابقهٔ افزایشی بازبینی</div><ul className="space-y-1">{row.reviews.map((review) => <li key={review.id} className="rounded bg-slate-50 p-2">{new Date(review.at).toLocaleString('fa-IR')} · {review.action} · {review.managerName ?? (review.actorKind === 'MANAGER_SESSION' ? 'نشست مدیر' : 'مدیر')} {review.result ? `· ${review.result}` : ''}<br />{review.note}</li>)}</ul></div> : null}</div></details>)}</div>}
+    {!report.cases.length ? <p className="text-sm text-slate-600">در این بازه پرونده‌ای ثبت نشده است.</p> : <div className="space-y-3">{report.cases.map((row) => <details key={row.id} className="rounded border bg-white p-3"><summary className="cursor-pointer flex flex-wrap justify-between gap-2"><span><b>پرونده #{row.id}</b> · {row.status === 'OPEN' ? 'باز' : 'بسته'} · {row.boundaryKind}</span><CustodyDifference value={row.differenceAmount} label="اختلاف پرونده" /></summary><div className="mt-3 space-y-3 text-sm"><div className="grid md:grid-cols-4 gap-2"><Info label="روز عملیاتی" value={row.operationalDay} /><Info label="نظری مدیر" value={money(row.theoreticalExpectedTotal)} /><Info label="انتظار عملیاتی" value={money(row.operationalExpectedTotal)} /><Info label="شمارش کور" value={money(row.observedOperationalTotal)} /></div><p className="text-xs text-slate-600">Shift قبلی: {row.fromShiftId ?? '—'} · Shift بعدی: {row.toShiftId ?? '—'} · زمان ثبت: {new Date(row.detectedAt).toLocaleString('fa-IR')} · اختلاف کل نظری در همان مرز: {money(row.totalTheoreticalDifference)} ریال</p>{row.currentReviewResult ? <p className="rounded bg-emerald-50 p-2 text-emerald-900">نتیجهٔ فعلی مدیر: {row.currentReviewResult}</p> : null}<div className="rounded border bg-slate-50 p-3"><div className="font-bold">بازبینی مدیر</div><div className="grid md:grid-cols-2 gap-2 mt-2"><input className="input" value={results[row.id] ?? ''} onChange={(event) => setResults((prior) => ({ ...prior, [row.id]: event.target.value }))} placeholder="نتیجهٔ بازبینی؛ برای بستن اجباری" /><textarea className="input" value={notes[row.id] ?? ''} onChange={(event) => setNotes((prior) => ({ ...prior, [row.id]: event.target.value }))} placeholder="یادداشت مدیر؛ حداقل ۱۰ حرف" /></div><div className="flex gap-2 mt-2">{row.status === 'OPEN' ? <button className="btn-primary" disabled={busy || workingCase === row.id} onClick={() => void review(row, 'CLOSE')}>✓ بررسی شد / بستن پرونده</button> : <button className="btn-secondary" disabled={busy || workingCase === row.id} onClick={() => void review(row, 'REOPEN')}>بازگشایی پرونده</button>}</div></div>{row.reviews.length ? <div><div className="font-bold mb-1">سابقهٔ افزایشی بازبینی</div><ul className="space-y-1">{row.reviews.map((review) => <li key={review.id} className="rounded bg-slate-50 p-2">{new Date(review.at).toLocaleString('fa-IR')} · {review.action} · {review.managerName ?? (review.actorKind === 'MANAGER_SESSION' ? 'نشست مدیر' : 'مدیر')} {review.result ? `· ${review.result}` : ''}<br />{review.note}</li>)}</ul></div> : null}</div></details>)}</div>}
     <section className="mt-5 rounded border border-sky-300 bg-sky-50 p-3 text-sm space-y-2">
       <h4 className="font-bold text-sky-950">مرزهای افتتاح خنثی (ADOPTION) — مستقل از پرونده‌های مغایرت</h4>
       <p className="text-slate-700">این‌ها شمارش واقعیِ آغاز یک بخش بدون مبنای قابل قیاس قبلی‌اند؛ پروندهٔ اختلاف یا حکم تقصیر نیستند. مبلغ انتظارِ داخلی در این مرز فقط هم‌اندازهٔ شمارش پایه ثبت شده و مرجع/اختلاف تازه از آن نتیجه نمی‌شود. فیلتر «باز/بسته» فقط پرونده‌ها را محدود می‌کند، نه این شواهد را.</p>

@@ -14,7 +14,7 @@ const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
 const { custodyBlueResolutionService } = await import('../../src/main/services/CustodyBlueResolutionService.ts')
 const { toJalaliDate } = await import('@shared/jalali')
-const { CUSTODY_REFERENCE_VERSION } = await import('@shared/custodyReference')
+const { CUSTODY_REFERENCE_PREVIOUS_VERSION } = await import('@shared/custodyReference')
 const db = harnessClient()
 const seed = makeSeeder(db)
 const day = toJalaliDate(new Date())
@@ -34,7 +34,7 @@ for (let i = 0; i < 101; i++) {
     referenceFromDay: day, referenceToDay: day, scopeKind: 'TODAY',
     referenceStatus: 'PENDING_RECONCILIATION', referenceAmount: null,
     knownSubtotal: 500_000_000, ambiguousLegacyCredit: 1_000_000,
-    destinationUnknownReceived: 0, calculationVersion: CUSTODY_REFERENCE_VERSION, financialRevision: 0, epochAtCount: 1,
+    destinationUnknownReceived: 0, calculationVersion: CUSTODY_REFERENCE_PREVIOUS_VERSION, financialRevision: 0, epochAtCount: 1,
     rawDifference: null, freshDifference: null, freshStatus: 'UNKNOWN_REFERENCE_PENDING',
     idempotencyKey: `s422:snapshot:${i}`, operationalDay: day
   }))

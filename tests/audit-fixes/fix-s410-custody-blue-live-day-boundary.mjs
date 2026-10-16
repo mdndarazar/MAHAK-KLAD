@@ -11,6 +11,7 @@ process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
+import { grantMiddayFixture } from './grant-midday-fixture.mjs'
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
 const { toJalaliDate, jalaliStartOfDay } = await import('@shared/jalali')
 const db = harnessClient()
@@ -51,6 +52,7 @@ function eq(label, actual, expected) {
 }
 await custodyService.status() // the actual old Shift, not missing roster slots, is rolled over
 const first = await custodyService.open({ userId: morning, password: 'Morning4104!', operationalTotal: 5_500_000 })
+await grantMiddayFixture({ manager, password: 'Manager410!', custodian: morning })
 const firstSnapshot = seed.one('SELECT * FROM "CustodyBlueSnapshot" WHERE shiftId=? AND role=?', first.shiftId, 'OPENING')
 eq('morning first reference combines yesterday and today', Number(firstSnapshot.referenceAmount), 5_500_000)
 eq('first count includes the previous day', firstSnapshot.referenceFromDay, priorDay)

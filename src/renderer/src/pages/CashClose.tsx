@@ -252,6 +252,15 @@ export default function CashClose() {
   /** Manager-only, read-only custody evidence. This never controls sale/close
    * actions; if the main manager session ends, the timeline fails closed. */
   const [custodyTimeline, setCustodyTimeline] = useState<CustodyTimeline | null>(null)
+  const [blueManagers, setBlueManagers] = useState<Array<{ id: number; name: string; role: string; isActive: boolean }>>([])
+  useEffect(() => {
+    if (!isManager) { setBlueManagers([]); return }
+    let live = true
+    void call<Array<{ id: number; name: string; role: string; isActive: boolean }>>(CH.custodyStaffList, {})
+      .then((people) => { if (live) setBlueManagers(people.filter((person) => person.role === 'MANAGER' && person.isActive)) })
+      .catch(() => { if (live) setBlueManagers([]) })
+    return () => { live = false }
+  }, [isManager])
   /** The manager explicitly selects a bounded read window; this affects only
    * report data, never live custody status or any financial operation. */
   const [custodyReportDays, setCustodyReportDays] = useState<1 | 7 | 30 | 90 | 180>(90)
@@ -1002,7 +1011,7 @@ export default function CashClose() {
           {custodyHandovers.length ? <div className="border-t border-indigo-200 pt-3"><h3 className="font-bold text-sm mb-2">تحویل‌ها</h3><div className="space-y-1 text-sm">
             {custodyHandovers.map((handover) => <div key={handover.id} className="rounded bg-white border border-indigo-100 px-2 py-1">تحویل‌دهنده: <b>{handover.fromUser ?? '—'}</b> · گیرندهٔ انتخابی: {handover.selectedRecipient ?? '—'} · دریافت‌کنندهٔ نهایی: <b>{handover.finalCustodian ?? '—'}</b> · {handover.status}{handover.unbasedAdoption ? <div className="text-amber-800">مبنای قبلی نامعلوم؛ شمارش گیرنده آغاز بخش تازه است، نه اثبات اختلاف صفر.</div> : null}</div>)}
           </div></div> : null}
-          <CustodyBlueEvidence blueBoundaries={custodyTimeline.blueBoundaries ?? []} handovers={custodyHandovers} />
+          <CustodyBlueEvidence blueBoundaries={custodyTimeline.blueBoundaries ?? []} handovers={custodyHandovers} managers={blueManagers} onSaved={() => loadCustodyTimeline(custodyReportSkip)} />
           <div className="border-t border-indigo-200 pt-3"><h3 className="font-bold text-sm mb-1">عملیات POS همان مسئولیت کشو نیست</h3><p className="text-xs text-indigo-800 mb-2">در اینجا فقط سند مستقل اپراتورِ ثبت‌شده نمایش داده می‌شود؛ مسئول مالی/فیزیکی کشو همچنان مسئول همان segment است. فاکتورهای قدیمی فاقد سند اپراتور ممکن است در این فهرست نباشند؛ هویت آن اپراتور از نام مسئول کشو یا فاکتور حدس زده نمی‌شود و قابل اثبات نیست.</p>
             {custodySaleOperators.length ? <div className="space-y-1 text-sm">{custodySaleOperators.map((row) => <div key={row.id} className="rounded bg-white border border-indigo-100 px-2 py-1"><b>{row.receiptNo == null ? `فاکتور ${faDigits(row.invoiceId)}` : `فیش ${faDigits(row.receiptNo)}`}</b> · {custodyOperatorLabel(row)} · مسئول کشو/مالی: <b>{row.custodianName ?? '—'}</b></div>)}</div> : <p className="text-xs text-indigo-900">در این صفحه سند مستقلی برای اپراتور ثبت نشده است؛ این به معنی نبود فروش نیست.</p>}
           </div>

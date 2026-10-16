@@ -20,6 +20,7 @@ process.env.HARNESS_DB = join(DIR, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
+const { settingsService } = await import('../../src/main/services/SettingsService.ts')
 const { SETTING_KEYS } = await import('@shared/receipt')
 
 const db = harnessClient()
@@ -57,6 +58,9 @@ for (const person of Object.values(staff)) {
   await custodyService.setPin({ userId: person.id, newPassword: person.temporary, managerUserId: manager, managerPassword: 'Manager397!', reason: 'راه‌اندازی آزمون s397' })
   await custodyService.setPin({ userId: person.id, currentPassword: person.temporary, newPassword: person.permanent })
 }
+// Earlier sections exercise bootstrap arithmetic with different openers, not
+// permission; seed an explicit positive single-shift policy in this fixture.
+seed.setting(SETTING_KEYS.shiftConfig, { singleShiftAllowMidDayHandover: true })
 const SHIFT_BOUNDARY_NOTE = 'مرز نهایی را با مبلغ واقعی ببندید.'
 void SHIFT_BOUNDARY_NOTE
 
@@ -206,6 +210,9 @@ console.log('\n[8] سیاست میان‌روز زنده: گیرندهٔ خار�
   })
   await resetWith(staff.d, 0).catch(() => {})
   setTemplate(false)
+  // The live-template setting is a MULTI_SHIFT policy; a single-shift template
+  // toggle must never silently grant its separate midday permission.
+  await settingsService.saveCustodySchedulingWorkflow({ shift: { ...await settingsService.shiftConfig(), custodyMode: 'MULTI_SHIFT' }, managerUserId: manager, managerPassword: 'Manager397!', reason: 'ثبت گردش‌کار چندشیفت برای آزمون مجوز زندهٔ قالب' })
   await custodyService.open({ userId: midGiver.id, password: midGiver.permanent, countedCash: 0 })
   await rejectsWith('سیاست خاموش: گیرندهٔ غیرroster رد می‌شود', 'MIDDAY_HANDOVER_DISABLED', () => custodyService.handoverStart({ password: midGiver.permanent, operationalTotal: 0, blueReference: true, toUserId: outsider.id, idempotencyKey: 's397-mid-off' }))
   setTemplate(true)

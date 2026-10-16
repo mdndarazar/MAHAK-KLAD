@@ -20,8 +20,10 @@ function person(row: CashClosingHistoryRow['from']) {
 }
 function storedReference(row: CashClosingHistoryRow) {
   switch (row.reference.state) {
-    case 'KNOWN_V2': return <><b className="text-sky-950">{money(row.reference.amount)} ریال</b><small className="block">مرجع آبی ثبت‌شده در لحظهٔ رویداد</small></>
+    case 'KNOWN_V3':
+    case 'KNOWN_V2': return <><b className="text-sky-950">{money(row.reference.amount)} ریال</b><small className="block">عدد مرجع آبی ذخیره‌شده در لحظهٔ رویداد · نسخهٔ {row.reference.state === 'KNOWN_V3' ? 'v3' : 'v2'}</small></>
     case 'KNOWN_V1': return <><b>{money(row.reference.amount)} ریال</b><small className="block text-amber-900">نسخهٔ قدیمی v1؛ با مرجع v2 قابل مقایسه نیست.</small></>
+    case 'PENDING_V3':
     case 'PENDING_V2':
     case 'PENDING_V1': return <><b>در انتظار تطبیق در همان لحظه</b>{row.reference.knownSubtotal != null ? <small className="block">بخش معلوم: {money(row.reference.knownSubtotal)} ریال؛ این مبلغ مرجع نیست.</small> : null}{row.reference.state === 'PENDING_V1' ? <small className="block">نسخهٔ قدیمی v1</small> : null}</>
     case 'NOT_RECORDED': return 'برای این سابقه، مبلغ مرجع آبی ثبت نشده است.'
@@ -32,10 +34,10 @@ function HistoryTable({ rows }: { rows: CashClosingHistoryRow[] }) {
   if (!rows.length) return null
   return <div className="overflow-auto border rounded bg-white">
     <table className="min-w-[1060px] w-full text-sm text-right" dir="rtl">
-      <thead className="bg-slate-100 border-b"><tr>{['زمان تکمیل', 'رویداد', 'مسئول / نشست قبلی', 'مسئول / نشست بعدی', 'مرجع آبی همان لحظه', 'دامنهٔ مرجع', 'تصمیم بعدی مدیر'].map((x) => <th key={x} className="p-2">{x}</th>)}</tr></thead>
+      <thead className="bg-slate-100 border-b"><tr>{['زمان تکمیل', 'رویداد', 'مسئول / نشست قبلی', 'مسئول / نشست بعدی', 'عدد مرجع آبی همان لحظه', 'دامنهٔ مرجع', 'تصمیم بعدی مدیر'].map((x) => <th key={x} className="p-2">{x}</th>)}</tr></thead>
       <tbody>{rows.map((row) => <tr key={`${row.source}-${row.sourceId}`} className="border-b align-top">
         <td className="p-2 whitespace-nowrap">{faDigits(toJalaliDateTime(new Date(row.occurredAt)))}</td>
-        <td className="p-2"><b>{eventLabels[row.kind]}</b>{row.legacyRepeat && <small className="block text-amber-900">بستن دوباره/اصلاحیه؛ خارج از شمارنده</small>}{row.reason && <small className="block text-slate-600">دلیل ثبت‌شده: {row.reason}</small>}{row.evidenceWarning && <small className="block text-rose-800">{row.evidenceWarning}</small>}</td>
+        <td className="p-2"><b>{eventLabels[row.kind]}</b>{row.legacyRepeat && <small className="block text-amber-900">بستن دوباره/اصلاحیه؛ خارج از شمارنده</small>}{row.reason && <small className="block text-slate-600">دلیل ثبت‌شده: {row.reason}</small>}{row.evidenceWarning && <small className="block text-rose-800">{row.evidenceWarning}</small>}{row.managerNotes?.length ? <details className="mt-1"><summary className="cursor-pointer text-sky-900">یادداشت‌های اختیاری مدیر ({faDigits(row.managerNotes.length)})</summary><ul className="list-disc pr-4">{row.managerNotes.map((note) => <li key={note.id}>سند #{faDigits(note.snapshotId)} · {note.managerCurrentName ?? `مدیر #${faDigits(note.managerUserId)}`} · {faDigits(toJalaliDateTime(new Date(note.at)))}: {note.text}</li>)}</ul></details> : null}</td>
         <td className="p-2">{person(row.from)}</td>
         <td className="p-2">{row.kind === 'FINAL_CLOSE' || row.kind === 'LEGACY_CLOSE' ? '—' : person(row.to)}</td>
         <td className="p-2 min-w-44">{storedReference(row)}</td>

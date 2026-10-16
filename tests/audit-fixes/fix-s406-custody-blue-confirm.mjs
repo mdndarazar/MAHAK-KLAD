@@ -12,6 +12,7 @@ process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
+const { settingsService } = await import('../../src/main/services/SettingsService.ts')
 const { toJalaliDate } = await import('@shared/jalali')
 const db = harnessClient()
 const seed = makeSeeder(db)
@@ -27,6 +28,10 @@ for (const [id, temp, final] of [[first, 'First406!', 'First4064!'], [noon, 'Noo
   await custodyService.setPin({ userId: id, newPassword: temp, managerUserId: manager, managerPassword: 'Manager406!', reason: 'صدور PIN شخصی آزمون تحویل' })
   await custodyService.setPin({ userId: id, currentPassword: temp, newPassword: final })
 }
+// This scenario tests blue transfer, so explicitly grant midday permission.
+await settingsService.saveCustodySchedulingWorkflow({ shift: { ...await settingsService.shiftConfig(),
+  custodyMode: 'SINGLE_SHIFT', singleShiftCustodianUserId: first, singleShiftAllowMidDayHandover: true },
+  managerUserId: manager, managerPassword: 'Manager406!', reason: 'مجوز مستند تحویل میان‌روز آزمون اسناد آبی' })
 const method = seed.insert('PaymentMethod', { key: 'S406_CASH', label: 'نقدی', kind: 'CASH', isActive: 1 })
 const opened = await custodyService.open({ userId: first, password: 'First4064!', operationalTotal: 18_481_000 })
 function sale(receiptNo, amount, owner, shiftId) {

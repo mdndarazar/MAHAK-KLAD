@@ -67,7 +67,7 @@ const event = (type, props = {}) => seed.insert('CustodyEvent', {
   operationalDay: day, payloadJson: '{}', ...props
 })
 const snapshot = (handoverId, shiftId, role, version, status, amount, extra = {}) => seed.insert('CustodyBlueSnapshot', {
-  handoverId, shiftId, role, actorUserId: receiver, authMethod: 'CUSTODY_PIN',
+  handoverId, shiftId, role, actorUserId: role === 'OUT' || role === 'FINAL_CLOSE' ? outgoing : receiver, authMethod: 'CUSTODY_PIN',
   countOrigin: role === 'OUT' ? 'EXPLICIT_AMOUNT' : 'EXPLICIT_ZERO',
   humanAmount: role === 'OUT' ? 1000 : 0, arithmeticAmount: role === 'OUT' ? 1000 : 0,
   referenceStatus: status, referenceAmount: amount, knownSubtotal: status === 'AVAILABLE' ? amount : 245,
@@ -86,9 +86,11 @@ const handover = (type, kind, amount, { status = 'AVAILABLE', version = 'sales-b
     startedAt: time(-60), finishedAt: committed ? time(100 + suffix) : null,
     idempotencyKey: `history-handover-${++suffix}` })
   const out = snapshot(id, from, 'OUT', version, status, amount, absent ? {
-    authMethod: 'SYSTEM_ABSENCE', countOrigin: 'ABSENT_UNCOUNTED', humanAmount: null, arithmeticAmount: null
+    actorUserId: receiver, authMethod: 'SYSTEM_ABSENCE', countOrigin: 'ABSENT_UNCOUNTED', humanAmount: null, arithmeticAmount: null
   } : {})
-  const incoming = snapshot(id, to, 'IN', version, status, amount, { priorSnapshotId: out })
+  // The real normal V2 writer records IN on the still-open *source* Shift;
+  // immutable historical V1 fixtures retain the former destination layout.
+  const incoming = snapshot(id, absent || version === 'sales-blue-v1' ? to : from, 'IN', version, status, amount, { priorSnapshotId: out })
   const idEvent = committed ? event(type, { shiftId: to, handoverId: id,
     payloadJson: JSON.stringify({ fromShiftId: from, toShiftId: to, outSnapshotId: out, inSnapshotId: incoming }) }) : null
   return { id, out, incoming, eventId: idEvent, from, to }
@@ -132,7 +134,8 @@ const repeated = seed.insert('CashSession', { shiftId: plainShift, closedAt: tim
 const recovered = shift(outgoing)
 const recoverySession = seed.insert('CashSession', { shiftId: recovered, closedAt: time(160), createdAt: time(160) })
 seed.insert('CustodyResolution', { shiftId: recovered, cashSessionId: recoverySession, status: 'RESOLVED' })
-// Inconsistent amount/linkage cannot borrow a current value or silently drop a committed event.
+// Inconsistent amount/linkage cannot borrow a current value or appear as a
+// valid closing. Original immutable evidence survives for manager review.
 const broken = handover('BLUE_HANDOVER_COMMITTED', 'BLUE_RECEIVER_ACCEPTED', 800)
 // Immutable snapshot cannot be altered. Commit a second event referring to a non-existent id.
 const brokenHand = seed.insert('CustodyHandover', { fromShiftId: broken.from, fromUserId: outgoing,
@@ -142,11 +145,14 @@ const brokenEvent = event('BLUE_HANDOVER_COMMITTED', { shiftId: broken.to, hando
   payloadJson: JSON.stringify({ outSnapshotId: 90000001, inSnapshotId: 90000002 }) })
 // Exact duplicate event for the same handover must not duplicate totals.
 event('BLUE_HANDOVER_COMMITTED', { shiftId: first.to, handoverId: first.id,
-  payloadJson: JSON.stringify({ outSnapshotId: first.out, inSnapshotId: first.incoming }) })
+  payloadJson: JSON.stringify({ fromShiftId: first.from, toShiftId: first.to, outSnapshotId: first.out, inSnapshotId: first.incoming }) })
+// A newer tampered duplicate must NOT hide the earlier verified handover.
+const forgedDuplicate = event('BLUE_HANDOVER_COMMITTED', { shiftId: first.to, handoverId: first.id,
+  payloadJson: JSON.stringify({ fromShiftId: first.from, toShiftId: first.to, outSnapshotId: first.out, inSnapshotId: 90000004 }) })
 
 const before = fingerprint()
 const full = await query({ ...range, take: 1 })
-eq('one visible row but complete handover total', [full.rows.length, full.totals.handovers], [1, 9])
+eq('one visible row but complete handover total', [full.rows.length, full.totals.handovers], [1, 8])
 eq('one visible legacy row but complete legacy total', [full.legacy.rows.length, full.totals.legacyCloses, full.totals.legacyCorrections], [1, 1, 1])
 eq('both custody and real old-system closes count in the complete closing total', [full.totals.finalClosings, full.totals.custodyFinalClosings], [3, 2])
 eq('no system status/rollover adds a close', full.rows.some((row) => row.kind === 'LEGACY_CLOSE' || row.sourceId === oldEvent && row.kind === 'FINAL_CLOSE'), false)
@@ -156,14 +162,14 @@ let cursor = full.page.nextCursor, oldCursor = full.legacy.page.nextCursor
 while (cursor) {
   const p = await query({ ...range, take: 1, snapshotToken: full.snapshotToken, cursor })
   all.push(...p.rows); cursor = p.page.nextCursor
-  eq('main total does not depend on page', p.totals.handovers, 9)
+  eq('main total does not depend on page', p.totals.handovers, 8)
 }
 while (oldCursor) {
   const p = await query({ ...range, take: 1, snapshotToken: full.snapshotToken, cursor: oldCursor })
   allOld.push(...p.legacy.rows); oldCursor = p.legacy.page.nextCursor
   eq('legacy count independent of page', p.totals.legacyCloses, 1)
 }
-eq('eleven distinct committed custody events materialized once', all.length, 11)
+eq('ten verified completed custody events materialized once', all.length, 10)
 eq('legacy CashSessions are separate without double-counting linked custody/recovery', allOld.map((r) => r.sourceId).sort((a, b) => a - b), [plain, repeated])
 eq('duplicate commit event for first handover deduped', all.filter((r) => r.handoverId === first.id).length, 1)
 eq('real stored zero is known zero', all.find((r) => r.handoverId === first.id).reference, { ...all.find((r) => r.handoverId === first.id).reference, state: 'KNOWN_V2', amount: 0 })
@@ -175,7 +181,9 @@ eq('preblue committed handover has unknown original reference', all.find((r) => 
 eq('blue emergency has absent outgoing, without invented count', all.find((r) => r.handoverId === cover.id).from.presence, 'ABSENT_UNCOUNTED')
 eq('Master Override is a completed handover', all.find((r) => r.handoverId === override.id).kind, 'MASTER_OVERRIDE')
 eq('genuine final close uses stored FINAL_CLOSE snapshot', all.find((r) => r.sourceId === finalId).reference.amount, 992)
-eq('broken evidence stays visible but amount unknown', [all.find((r) => r.sourceId === brokenEvent).reference.state, all.find((r) => r.sourceId === brokenEvent).reference.amount], ['INCONSISTENT', null])
+eq('broken and forged evidence do not produce F10 rows', [all.some((r) => r.sourceId === brokenEvent || r.sourceId === forgedDuplicate), full.totals.amountInconsistent], [false, 2])
+eq('a valid handover survives a newer forged duplicate', all.filter((r) => r.handoverId === first.id).length, 1)
+eq('quarantine is explicit but never counted as a completed handover', full.warnings.some((warning) => warning.includes('کنار گذاشته شد')), true)
 eq('old handover starting yesterday appears on the completion day', all.find((r) => r.sourceId === oldEvent).occurredDayJalali, day)
 eq('original cash session linked to custody close not repeated in legacy section', allOld.some((r) => r.sourceId === oldSession), false)
 eq('second old-system close is correction not another genuine close', [allOld.find((r) => r.sourceId === plain).legacyRepeat, allOld.find((r) => r.sourceId === repeated).legacyRepeat], [false, true])

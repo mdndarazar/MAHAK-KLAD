@@ -3688,6 +3688,12 @@ export default function Settings() {
                       </select>
                     </label>
                     <p className="kbd leading-6">این انتخاب مسئول برنامه‌ریزی‌شده را مشخص می‌کند، نه مالکیت خودکار صندوق. او هم به PIN شخصی و شمارش واقعی نیاز دارد؛ جانشین خارج از برنامه علاوه بر این‌ها باید دلیل ثبت کند.</p>
+                    <label className="flex items-center gap-2 text-sm font-semibold">
+                      <input type="checkbox" checked={shift.singleShiftAllowMidDayHandover} disabled={!isManager || custodySchedulingBusy}
+                        onChange={(e) => { setShift((current) => ({ ...current, singleShiftAllowMidDayHandover: e.target.checked })); setDirty(true) }} />
+                      مجوز تحویل میان‌روز تک‌شیفت (پیش‌فرض خاموش)
+                    </label>
+                    <p className="kbd leading-6">فقط از همین گردش‌کار با PIN شخصی مدیر ذخیره می‌شود. مجوز مثبتِ ثبت‌شده برای نشست باز پایدار است؛ خاموش‌کردن گزینه برای نشست‌های آینده است، نه لغو تحویل در جریان.</p>
                   </div>
                 ) : (
                   <div className="rounded border border-indigo-200 bg-white p-3">

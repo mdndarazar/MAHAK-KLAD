@@ -13,6 +13,7 @@ process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
+import { grantMiddayFixture } from './grant-midday-fixture.mjs'
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
 const { custodyBlueResolutionService } = await import('../../src/main/services/CustodyBlueResolutionService.ts')
 const { toJalaliDate } = await import('@shared/jalali')
@@ -25,6 +26,7 @@ const giver = seed.user('مسئول قبلی S407')
 const receiver = seed.user('مسئول بعدی S407')
 await custodyService.setPin({ userId: manager, newPassword: 'Manager407!', currentPassword: '1111' })
 await custodyService.setConfig({ config: { enabled: true }, managerUserId: manager, managerPassword: 'Manager407!' })
+await grantMiddayFixture({ manager, password: 'Manager407!', custodian: giver })
 for (const [id, temporary, personal] of [[giver, 'Giver407!', 'Giver4074!'], [receiver, 'Receiver407!', 'Receiver4074!']]) {
   await custodyService.setPin({ userId: id, newPassword: temporary, managerUserId: manager, managerPassword: 'Manager407!', reason: 'صدور PIN برای آزمون تحویل زنده' })
   await custodyService.setPin({ userId: id, currentPassword: temporary, newPassword: personal })

@@ -14,6 +14,7 @@ process.env.HARNESS_DB = join(DIR, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
+const { settingsService } = await import('../../src/main/services/SettingsService.ts')
 const { staffService } = await import('../../src/main/services/StaffService.ts')
 const { notePanelUnlocked, clearPanelSessions, runWithPanelSessionOwner } = await import('../../src/main/services/panelSession.ts')
 const db = harnessClient(); const seed = makeSeeder(db)
@@ -27,6 +28,7 @@ for (const [id, temp, perm] of [[giver, 'Giver367!', 'Giver3674!'], [recipient, 
   await custodyService.setPin({ userId: id, newPassword: temp, managerUserId: manager, managerPassword: 'مدیر123!', reason: 'راه‌اندازی' })
   await custodyService.setPin({ userId: id, currentPassword: temp, newPassword: perm })
 }
+await settingsService.saveCustodySchedulingWorkflow({ shift: { ...await settingsService.shiftConfig(), custodyMode: 'SINGLE_SHIFT', singleShiftCustodianUserId: giver, singleShiftAllowMidDayHandover: true }, managerUserId: manager, managerPassword: 'مدیر123!', reason: 'اجازهٔ تحویل برای بررسی بایگانی کارمند گیرنده' })
 const sessionOwner = 36701
 await runWithPanelSessionOwner(sessionOwner, async () => {
   notePanelUnlocked('settings', 'MANAGER')

@@ -13,6 +13,7 @@ process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
+const { settingsService } = await import('../../src/main/services/SettingsService.ts')
 const { notePanelUnlocked } = await import('../../src/main/services/panelSession.ts')
 const db = harnessClient()
 const seed = makeSeeder(db)
@@ -35,6 +36,9 @@ for (const [id, temp, pin] of [[giver, 'Giver440Temp!', 'Giver440Final!'],
     managerPassword: 'Manager440!', reason: 'تست پروجکشن شمارش تحویل قدیمی' })
   await custodyService.setPin({ userId: id, currentPassword: temp, newPassword: pin })
 }
+await settingsService.saveCustodySchedulingWorkflow({ shift: { ...await settingsService.shiftConfig(),
+  custodyMode: 'SINGLE_SHIFT', singleShiftCustodianUserId: giver, singleShiftAllowMidDayHandover: true },
+  managerUserId: manager, managerPassword: 'Manager440!', reason: 'اجازهٔ مستند تحویل برای آزمون تاریخی' })
 await custodyService.open({ userId: giver, password: 'Giver440Final!', countedCash: 0 })
 const adopted = await custodyService.handoverStart({ password: 'Giver440Final!', operationalTotal: 5_000_000,
   toUserId: receiver, idempotencyKey: 's440:historical-pending' })

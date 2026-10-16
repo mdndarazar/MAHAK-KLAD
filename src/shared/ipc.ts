@@ -338,8 +338,14 @@ export const IPC = {
   custodyHandoverCancel: 'custody:handover:cancel',
   custodyBluePendingList: 'custody:blue:pending-list',
   custodyBlueResolve: 'custody:blue:resolve',
+  custodyBlueNoteAdd: 'custody:blue:note:add',
+  custodyBlueNoteList: 'custody:blue:note:list',
   /** بازیابی همیشه‌در‌دسترسِ مدیر؛ فقط PIN شخصی، دلیل و تأیید صریح. */
   custodyShiftReset: 'custody:shift:reset',
+  /** Distinct manager-only quarantine inventory and fresh-count recovery;
+   * never alias this to resetShift or to missing-amount resolution. */
+  custodyEvidenceCases: 'custody:evidence:cases',
+  custodyManagerEvidenceRecovery: 'custody:evidence:manager-recovery',
   /** فهرست پرونده‌های پایان خودکار شیفت قدیمی، فقط در تنظیمات مدیر. */
   custodyOpenResolutions: 'custody:missed-shifts:manager-list',
   /** پوشش اضطراری با PIN و شمارش فیزیکی کارمند جایگزین. */
