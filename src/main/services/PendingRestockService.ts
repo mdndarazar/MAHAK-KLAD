@@ -40,18 +40,16 @@ function chunksOf<T>(values: T[], size = PENDING_RESTOCK_IN_CHUNK): T[][] {
  * ===========================================================================
  * جلسه ۴۰ · کار ب — «کالای برگشتیِ در انتظار تأیید مدیر»: لایه‌ی main.
  *
- * دو کار، و فقط همین دو کار:
- *   ۱) `summary` — یک تابع مشترک که **هر پنج صفحه** از همان استفاده می‌کند
- *      (انبار فروشگاه، گزارشات فروش، انبارگردانی، بستن صندوق، پنل کارت‌به‌کارت).
- *      هیچ صفحه‌ای اجازه ندارد این عدد را خودش بسازد.
- *   ۲) `releaseReturnStock` — تنها نقطه‌ای در کل برنامه که کالای معلق را به
- *      موجودی قابل‌فروش برمی‌گرداند. `CardTransferService.pay` و مسیر
- *      «آزادسازی صریح مدیر» هر دو همین را صدا می‌زنند و هر دو پشت قفل
- *      `PANEL_KEYS.cardTransfers` هستند.
+ * دو کار:
+ *   ۱) `summary` — عدد واحد معلق برای انبار، گزارش، انبارگردانی، صندوق و
+ *      پنل کارت‌به‌کارت؛ اسناد دارای اصلاح جبرانی از فهرست اقدامات حذف‌اند.
+ *   ۲) `releaseReturnStock` — فقط مسیر تاریخیِ بدون دفتر حق و بدون نشانگر
+ *      الزام رسید فیزیکی. برای پروندهٔ جدید تنها ReturnGoodsService.receive
+ *      موجودی را مقداربه‌مقدار، با شاهد واقعی، افزایش می‌دهد.
  *
- * ⚠️ این سرویس هیچ مدل جدیدی ندارد و هیچ جدول موجودی موازی نمی‌سازد. منبع
- * حقیقت همان `SaleReturnItem.restockedQty` + پرچم `SaleReturn.restockPending`
- * است (دلیلش در `src/shared/pendingRestock.ts` نوشته شده).
+ * ⚠️ این سرویس جدول موجودی موازی نمی‌سازد. تعداد از `restockedQty` و
+ * `restockPending` می‌آید؛ `goodsReceiptRequired`/دفتر حق تعیین می‌کنند که
+ * حضور فیزیکی هنوز اثبات نشده است؛ اصلاح جبرانی درخواست را می‌بندد.
  *
  * ⚠️ `releaseReturnStock` **idempotent** است: فقط اقلامی را برمی‌گرداند که
  * `restockedQty < qty`. پس دو بار زدن «پرداخت شد» (یا یک retry) هیچ‌وقت کالا
@@ -72,6 +70,7 @@ type PendingReturnRow = {
   kind: string | null
   returnedAt: Date
   returnedAtJalali: string | null
+  goodsReceiptRequired: boolean
   items: Array<{
     variantId: number
     /** در schema هر دو `Int` غیرنال‌اند (`restockedQty` با پیش‌فرض ۰). */
@@ -86,7 +85,10 @@ type PendingReturnRow = {
 /** فقط برگشت‌های معلق را می‌خواند (یک کوئری، با ایندکس `restockPending`). */
 async function pendingReturns(client: any = prisma): Promise<PendingReturnRow[]> {
   return readAll<PendingReturnRow>((page) => client.saleReturn.findMany({
-    where: { restockPending: true, voidedAt: null },
+    // ReturnCorrection is an append-only compensation, not a mutation of the
+    // original paper. A posted/corrected paper is no longer an actionable
+    // goods request even if its historical restockPending flag remains true.
+    where: { restockPending: true, voidedAt: null, corrections: { none: {} } },
     orderBy: [{ returnedAt: 'asc' }, { id: 'asc' }],
     include: {
       items: true,
@@ -106,6 +108,13 @@ export const pendingRestockService = {
     if (!returns.length) return { ...EMPTY_PENDING_RESTOCK, byVariant: {}, items: [] }
 
     const returnIds = returns.map((r: any) => r.id)
+    const managed = new Set<number>()
+    for (const ids of chunksOf(returnIds)) {
+      const claims = await client.returnEntitlement.findMany({
+        where: { returnId: { in: ids } }, select: { returnId: true }
+      })
+      for (const claim of claims) managed.add(Number(claim.returnId))
+    }
     /**
      * درخواست کارت‌به‌کارتِ مرجع. با `kind = REQUEST` فیلتر می‌شود تا ردیف‌های
      * `ADJUSTMENT` (که همان `returnId` را دارند) مبلغ را دو بار نشمارند.
@@ -143,6 +152,8 @@ export const pendingRestockService = {
 
     const items: PendingRestockItem[] = []
     const byVariant: Record<number, number> = {}
+    const physicalByVariant: Record<number, number> = {}
+    let unconfirmedQty = 0
     let totalQty = 0
     let pendingAmount = 0
     let needsAttentionQty = 0
@@ -166,6 +177,8 @@ export const pendingRestockService = {
         if (qty <= 0) continue
         const v: any = vmap.get(it.variantId)
         byVariant[it.variantId] = (byVariant[it.variantId] ?? 0) + qty
+        if (managed.has(r.id) || r.goodsReceiptRequired) unconfirmedQty += qty
+        else physicalByVariant[it.variantId] = (physicalByVariant[it.variantId] ?? 0) + qty
         items.push({
           variantId: it.variantId,
           name: v
@@ -195,6 +208,8 @@ export const pendingRestockService = {
       oldestAgeDays: items.reduce((m, i) => Math.max(m, i.ageDays), 0),
       items,
       byVariant,
+      physicalByVariant,
+      unconfirmedQty,
       needsAttentionQty
     }
   },
@@ -202,19 +217,29 @@ export const pendingRestockService = {
   /** فقط نقشه‌ی «کالا ⇒ تعداد معلق» (برای صفحه‌ی انبار و snapshot انبارگردانی). */
   async byVariant(client: any = prisma): Promise<Record<number, number>> {
     const returns = await pendingReturns(client)
+    const managed = new Set<number>()
+    for (const ids of chunksOf(returns.map((r) => r.id))) {
+      const claims = await client.returnEntitlement.findMany({
+        where: { returnId: { in: ids } }, select: { returnId: true }
+      })
+      for (const claim of claims) managed.add(Number(claim.returnId))
+    }
     const out: Record<number, number> = {}
-    for (const r of returns)
+    for (const r of returns) {
+      if (managed.has(r.id) || r.goodsReceiptRequired) continue // physical presence not yet witnessed
       for (const it of r.items) {
         const qty = Math.max(0, Math.round(it.qty ?? 0) - Math.round(it.restockedQty ?? 0))
         if (qty > 0) out[it.variantId] = (out[it.variantId] ?? 0) + qty
       }
+    }
     return out
   },
 
   /**
    * -------------------------------------------------------------------------
-   * تنها نقطه‌ی آزادسازی کالای معلق. همیشه با `tx` صدا زده می‌شود (قاعده‌ی ۶
-   * README) و صدازننده **باید قبلاً تأیید مدیر را گرفته باشد**.
+   * مسیر تاریخیِ آزادسازی کالای معلقِ بدون دفتر حق. همیشه با `tx` صدا زده
+   * می‌شود و صدازننده باید قبلاً تأیید مدیر را گرفته باشد. پروندهٔ جدید این
+   * تابع را حتی با تأیید مدیر نمی‌گذراند: فقط ReturnGoodsService.receive.
    *
    * idempotent: اقلامی که `restockedQty >= qty` دارند نادیده گرفته می‌شوند، پس
    * هیچ مسیری نمی‌تواند کالا را دو بار به موجودی اضافه کند.
@@ -244,6 +269,13 @@ export const pendingRestockService = {
       include: { items: true, invoice: { select: { id: true, receiptNo: true, deductInventory: true } } }
     })
     if (!ret) throw new Error('سند برگشت مرجع پیدا نشد، پس کالایی به انبار برنگشت.')
+    if (await tx.returnCorrection.findUnique({ where: { returnId }, select: { id: true } }))
+      throw new Error('این برگشت اصلاح جبرانی ثبت‌شده دارد؛ سند اصلی تاریخی است و کالایی از این مسیر آزاد نمی‌شود.')
+    const managed = await tx.returnEntitlement.findUnique({ where: { returnId } })
+    if (managed)
+      throw new Error('برای برگشت جدید، دریافت کالا باید مستقل از پرداخت و مقداربه‌مقدار با شاهد ثبت شود؛ آزادسازی یکجای قدیمی مجاز نیست.')
+    if (ret.goodsReceiptRequired)
+      throw new Error('برای برگشت جدید، دریافت کالا فقط با رسید فیزیکیِ شاهددار و مقداربه‌مقدار ثبت می‌شود؛ آزادسازی یکجای قدیمی مجاز نیست.')
 
     /**
      * اگر این سند اصلاً معلق نیست، هیچ کاری انجام نمی‌شود. دو حالتِ ممکن:

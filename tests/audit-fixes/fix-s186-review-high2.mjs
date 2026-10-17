@@ -143,7 +143,9 @@ console.log('\n— ۲-۱) بند ۴-۱۴/۴-۵۳: نشستِ فقط-وصول ر�
 ok('گروه‌بندی پارامتر نشست‌های فعال گرفت', /activeSessions: \{[\s\S]*?shiftId: number[\s\S]*?dayJalali: string[\s\S]*?shiftName: string/.test(SHAPE))
 ok('و گزارش آن را پاس می‌دهد', /groupByDayShift\(rows, shiftMeta, activeSessions\)/.test(SALES))
 ok('مبنا createdShiftId است (نشستِ ثبت پرداخت)', /createdShiftId: \{ not: null \}/.test(SALES))
-ok('نشستی که فروش دارد دوباره ساخته نمی‌شود', /const missing = ids\.filter\(\(id\) => !rows\.some\(\(r\) => r\.shiftId === id\)\)/.test(SALES))
+ok('نشستی که فروش دارد دوباره ساخته نمی‌شود',
+  /const sKey = `\$\{key\}#\$\{a\.shiftId\}`/.test(SHAPE) &&
+  /if \(!bucket\.has\(sKey\)\)/.test(SHAPE))
 ok('خطای این بخش کل گزارش را نمی‌خواباند', /گروه‌بندی یک «کمک» است/.test(SALES))
 {
   const { groupByDayShift } = await import('../../src/main/services/reportShape.ts')

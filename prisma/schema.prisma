@@ -784,6 +784,8 @@ model SaleReturn {
   /// اعتبار خرید بعدیِ صادرشده برای این تعویض (اگر ما بدهکار شدیم)
   storeCreditId      Int?
   storeCreditCode    String?
+  /// سندهای تازه کد خرج‌پذیر را فقط در برگهٔ جدا چاپ می‌کنند؛ legacy بدون تغییر.
+  creditPaperSeparate Boolean @default(false)
   /// کاربر ثبت‌کننده‌ی برگشت (scalar، بدون relation تا مدل User تغییر نکند)
   userId             Int?
   /// شیفتی که برگشت در آن ثبت شده
@@ -794,6 +796,9 @@ model SaleReturn {
   /// روش بازپرداخت؛ برای برگشت‌های قدیمی تهی می‌ماند تا فرض تاریخی جعل نشود.
   refundMethod       String?
   refundAmount       BigInt    @default(0)
+  /// Immutable non-cash restoration of redeemed credit on this new return.
+  /// Legacy rows default to zero; this is NOT money, debt reduction or a payout.
+  creditRestored     BigInt    @default(0)
   refundPaymentId    Int?
   /// نشست ۶۰ · خوشه B (بند ۴-۵) — فقط برای تعویض (kind = EXCHANGE): بخشی از
   /// مابه‌التفاوت منفی که به‌جای پرداخت پول، از بدهی فاکتور اصلی کم شد.
@@ -813,21 +818,27 @@ model SaleReturn {
   refundNote         String?
   legacyAssumption   String?
 
-  /// ------------- جلسه ۴۰ · کار ب — «کالای در انتظار تأیید مدیر» -------------
-  /// true یعنی کالای این برگشت **فیزیکی در فروشگاه هست ولی هنوز به موجودی
-  /// قابل‌فروش اضافه نشده**، چون بازپرداختش «کارت‌به‌کارت توسط مدیر» است و مدیر
-  /// هنوز «پرداخت شد» نزده. در همین حالت `SaleReturnItem.restockedQty = 0`
-  /// می‌ماند و تنها نقطه‌ی آزادسازی، `CardTransferService.pay` است.
+  /// ------------- کالای برگشتیِ هنوز واردِ موجودی‌نشده -------------
+  /// true یعنی تعدادی کالا هنوز به موجودی برنگشته‌اند؛ حضور فیزیکی پروندهٔ
+  /// جدید بدون `ReturnGoodsReceipt` مقداربه‌مقدار فرض نمی‌شود. «پرداخت شد» مدیر
+  /// شاهد بانک یا دریافت کالا نیست و این پرچم را برای پروندهٔ جدید نمی‌بندد.
+  /// پروندهٔ قدیمیِ بدون دفتر حق، مسیر تاریخیِ آزادسازی مدیر را حفظ می‌کند.
   ///
   /// ⚠️ چرا یک ستون جدا لازم است و `restockedQty = 0` کافی نیست؟ چون
   /// `restockedQty = 0` دو معنای کاملاً متفاوت دارد: (۱) «فاکتور اصلی بدون کسر
-  /// از موجودی بود، پس هیچ‌وقت چیزی برنمی‌گردد» و (۲) «معلق تا تأیید مدیر».
+  /// از موجودی بود، پس هیچ‌وقت چیزی برنمی‌گردد» و (۲) «دریافت واقعی کالا معلق است».
   /// بدون این ستون، برگشت‌های فروش عمده‌ی بدون کسر موجودی هم «معلق» شمرده
   /// می‌شدند و انبارگردانی یک کسری کاذب می‌ساخت.
   /// پیش‌فرض false ⇒ همه‌ی برگشت‌های قبلی دقیقاً مثل امروز رفتار می‌کنند.
   restockPending          Boolean   @default(false)
-  /// لحظه‌ای که کالای معلق واقعاً به موجودی قابل‌فروش برگشت (پرداخت مدیر یا
-  /// آزادسازی صریح مدیر). فقط برای سابقه و گزارش.
+  /// پروتکل مستقلِ دریافت کالا برای *اسناد تازهٔ دارای کسر موجودی*.
+  /// false برای تمام داده‌های پیش از این migration و فاکتور بی‌کسر می‌ماند؛
+  /// صرفاً از restockPending یا نبود دفتر حق، حضور فیزیکی حدس زده نمی‌شود.
+  /// true یعنی هر قلم فقط با ReturnGoodsReceipt مقداربه‌مقدار به انبار برمی‌گردد؛
+  /// بدون درخواست کارت‌به‌کارت هم مسیر آزادسازی تاریخی مدیر مجاز نیست.
+  goodsReceiptRequired    Boolean   @default(false)
+  /// لحظهٔ تکمیل دریافت شاهددار همهٔ اقلام جدید؛ در پروندهٔ قدیمی ممکن است
+  /// پرداخت/آزادسازیِ تاریخی مدیر باشد. فقط سابقه و گزارش، نه شاهد بانک.
   restockReleasedAt       DateTime?
   restockReleasedAtJalali String?
 
@@ -1119,7 +1130,7 @@ model StoreCredit {
   /// در حالت یک‌بارمصرف، اولین مصرف — حتی جزئی — وضعیت را قطعاً می‌بندد.
   multiUse   Boolean @default(false)
   /// نشست ۱۸۳ — تکلیف باقی‌مانده وقتی این اعتبار یک‌بارمصرف است:
-  /// true (پیش‌فرض) = باقی‌مانده به بارکد جدید برمی‌گردد · false = می‌سوزد.
+  /// true (پیش‌فرض) = مانده روی همین کد باز می‌ماند تا صفر شود · false = کوپن واقعاً تک‌مصرف است.
   /// عمداً روی خودِ رکورد **اسنپ‌شات** می‌شود، نه خوانده‌شده از تنظیمات لحظه‌ی
   /// مصرف: مشتری بارکد را در جیبش دارد و قاعده‌اش نباید بعداً زیر پایش عوض شود.
   carryRemainder   Boolean  @default(true)
@@ -1163,9 +1174,13 @@ model StoreCredit {
   printCount    Int       @default(0)
   lastPrintedAt DateTime?
 
-  // ------------- جلسه ۲۰ · یادآوری (§۱۴ — بدون اتصال واقعی پیامک) -------------
-  reminderOptOut   Boolean   @default(false)
-  reminderCount    Int       @default(0)
+  // ------------- یادآوری: شماره/نبود opt-out هرگز رضایت نیست -------------
+  reminderOptOut       Boolean   @default(false)
+  /// فقط پس از ثبت جداگانهٔ رضایت مستندِ همان شماره؛ رکوردهای قدیمی NULL می‌مانند.
+  reminderConsentAt    DateTime?
+  reminderConsentPhone String?
+  reminderConsentEvidence String?
+  reminderCount        Int       @default(0)
   lastReminderAt   DateTime?
   lastReminderKind String?
 
@@ -1276,9 +1291,17 @@ model StoreCreditRedemption {
   /// اگر فاکتور مرجع بعداً Refund/Reverse شد، این مصرف برگشت خورد (§۸)
   reversedAt     DateTime?
   reversedReason String?
+  /// جبران با شاخهٔ B/E: مصرف اصلی *برنمی‌گردد* و در ابطال بعدی نیز
+  /// نباید دوباره به اعتبار والد اضافه شود.
+  compensatedAt       DateTime?
+  compensatedReturnId Int?
+  /// Snapshot زمان مصرف؛ false برای تاریخچهٔ قبل از این migration = نامعلوم.
+  expiryCaptured     Boolean  @default(false)
+  expiryAtRedeem     DateTime?
 
   note String?
 
+  @@index([compensatedReturnId])
   @@unique([idempotencyKey])
   @@index([creditId])
   @@index([invoiceId])
@@ -1547,7 +1570,8 @@ model CardTransferRequest {
 
   /// REQUEST = درخواست پرداخت · ADJUSTMENT = رویداد اصلاحی روی یک درخواست قبلی
   kind   String @default("REQUEST")
-  /// PENDING = در انتظار پرداخت · PAID = پرداخت شد · ADJUSTED = با رویداد بعدی اصلاح شد
+  /// PENDING = درخواست باز · PAID = اعلام مدیر (برای پروندهٔ جدید، نه شاهد بانک)
+  /// ADJUSTED = با رویداد بعدی اصلاح شد؛ دادهٔ قدیمی، معنای تاریخی خود را دارد.
   status String @default("PENDING")
 
   /// RETURN | EXCHANGE — عملیات مرجع (هیچ‌وقت خالی نیست؛ قاعده‌ی سیستم)
@@ -1602,11 +1626,10 @@ model CardTransferRequest {
   /// حذف نمی‌شود؛ فقط برچسب و دلیل می‌گیرد (همان قاعده‌ی ۲ بالای سرویس).
   canceledAt       DateTime?
   cancelReason     String?
-  /// لحظه‌ای که کالای معلقِ این درخواست به موجودی قابل‌فروش برگشت. تنها دو مسیر
-  /// این ستون را پر می‌کنند و هر دو پشت قفل «پرداخت‌های مدیر» هستند: `pay` و
-  /// آزادسازی صریح در `cancel({ releaseStock: true })`.
+  /// پروندهٔ جدید: زمان آخرین دریافت شاهددار کالا؛ پروندهٔ قدیمی: زمان آزادسازی
+  /// با تأیید مدیر. این زمان هیچ‌وقت اثبات پرداخت بانکی نیست.
   stockReleasedAt  DateTime?
-  /// تعداد کالایی که در همان لحظه آزاد شد (برای سابقه‌ی خوانا)
+  /// تعداد تجمعیِ کالای واردشده به موجودی (برای پروندهٔ جدید با رسید مستقل).
   stockReleasedQty Int?
 
   /// این ردیف، رویداد اصلاحیِ کدام ردیف است؟ (فقط برای kind = ADJUSTMENT)
@@ -2601,4 +2624,183 @@ model LegacyRecoveryOpeningLink {
   at                  DateTime @default(now())
 
   @@index([openingCountId])
+}
+
+/// Permanent receipt-code tombstone. The original SaleInvoice is the claim;
+/// it is deliberately NOT an FK so purging an invoice cannot free its code.
+/// Legacy duplicate codes occupy one reservation, not a guessed invoice owner.
+model ReceiptCodeReservation {
+  code      String   @id
+  invoiceId Int?     @unique
+  source    String   @default("ISSUED") // HISTORICAL | ISSUED
+  createdAt DateTime @default(now())
+}
+
+/// Cash rights are separate from invoice debt, gift opportunity, bank evidence
+/// and StoreCredit. No cascading FK: financial claims survive source deletion.
+/// Legacy records are not silently backfilled with inferred cash entitlement.
+model ReturnEntitlement {
+  id              Int      @id @default(autoincrement())
+  returnId        Int      @unique
+  invoiceId       Int
+  requestId       Int?     @unique
+  cashRight       BigInt   @default(0)
+  giftOpportunity BigInt   @default(0)
+  debtReduced     BigInt   @default(0)
+  cashPaid        BigInt   @default(0)
+  cashReserved    BigInt   @default(0)
+  cashConverted   BigInt   @default(0)
+  /// OPEN | UNKNOWN_BANK | OVER_ALLOCATED | VOID | QUARANTINED
+  state           String   @default("OPEN")
+  version         Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now())
+
+  @@index([invoiceId])
+  @@index([state])
+}
+
+/// Immutable idempotent allocation/evidence record. The mutable claim above
+/// is only a CAS-protected projection, never a substitute for this journal.
+model ReturnEntitlementEvent {
+  id            Int      @id @default(autoincrement())
+  entitlementId Int
+  eventKey      String   @unique
+  kind          String
+  amount        BigInt   @default(0)
+  requestId     Int?
+  creditId      Int?
+  actorUserId   Int?
+  evidenceKind  String   @default("SYSTEM")
+  evidenceHash  String?
+  reason        String?
+  beforeVersion Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  @@index([entitlementId, id])
+  @@index([requestId])
+  @@index([creditId])
+}
+
+/// Issuing/printing a spendable code does not prove delivery. The credit stays
+/// DRAFT until an authorized, witnessed delivery in a separate transaction.
+model CreditDelivery {
+  id                Int      @id @default(autoincrement())
+  creditId          Int      @unique
+  originCreditId Int?     @unique
+  sourceKind     String
+  /// PENDING_DELIVERY | DELIVERED | VOID
+  status            String   @default("PENDING_DELIVERY")
+  version           Int      @default(0)
+  createdAt         DateTime @default(now())
+  deliveredAt       DateTime?
+  deliveredByUserId Int?
+  witnessKind       String?
+  witnessRef        String?
+
+  @@index([originCreditId])
+  @@index([status])
+}
+
+/// Archived bank statement/export reviewed by a manager. A typed tracking
+/// number, PIN or 'paid' click alone is NOT bank evidence. Blob base64 is
+/// private and included in the normal SQLite backup; never expose via IPC.
+/// شاهد مقدارمحورِ رسیدن کالای برگشتی، جدا از هر وضعیت تسویهٔ بانک.
+/// Scalar IDs: تاریخچه با حذف کالای آزمایشی یا سند دستکاری/پاک نمی‌شود.
+/// انتقال ماندهٔ معتبر کد گم‌شده به جانشینِ غیرفعال تا تحویل شاهددار.
+model CreditReplacement {
+  id                 Int      @id @default(autoincrement())
+  originalCreditId   Int      @unique
+  successorCreditId  Int      @unique
+  transferredAmount  BigInt
+  receiptRef         String
+  witnessRef         String
+  reason             String
+  approvingManagerId Int
+  actorUserId        Int?
+  createdAt          DateTime @default(now())
+}
+
+/// هر سهم اعتباریِ کالای برگشتی، مستقل از وجه نقد و کاهش بدهی.
+/// صرفاً ردیف جدید؛ مصرف/پرداخت/سند قدیمی را backfill یا پاک نمی‌کنیم.
+model CreditReturnAllocation {
+  id                Int       @id @default(autoincrement())
+  returnId          Int
+  invoiceId         Int
+  redemptionId      Int
+  parentCreditId    Int
+  rootCreditId      Int
+  originNominal      BigInt
+  /// فقط سهم واقعی برگشتِ این فاکتور؛ برای debt/OVERPAY.
+  amount             BigInt
+  /// باقی‌ماندهٔ خاموشِ کد یک‌بارمصرف که فقط یک‌بار به شاخه منتقل می‌شود.
+  supplementUnspent  BigInt    @default(0)
+  successorCreditId Int?      @unique
+  /// ORIGINAL_REVERSED | BRANCH | SUPPLEMENT | EXPIRED
+  kind              String
+  originalExpiresAt DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@unique([returnId, redemptionId])
+  @@index([parentCreditId, id])
+  @@index([rootCreditId, id])
+  @@index([invoiceId])
+}
+
+model ReturnGoodsReceipt {
+  id          Int      @id @default(autoincrement())
+  eventKey    String   @unique
+  returnId    Int
+  returnItemId Int
+  variantId   Int
+  qty         Int
+  actorUserId Int?
+  witnessKind String
+  witnessRef  String
+  createdAt   DateTime @default(now())
+
+  @@index([returnId, id])
+  @@index([returnItemId, id])
+}
+
+/// سهم واقعیِ هر رسید فیزیکی از منابع فروش: STORE یا ردیف *مشخص* انبار
+/// مرکزی/شعبه. در همان تراکنش دریافت، پس از بازگشت موجودی ثبت می‌شود؛ اصلاح
+/// جبرانی فقط از این شاهد مقداربه‌مقدار کم می‌کند. شناسه‌ها scalar اند تا حذف
+/// احتمالی سند/ردیف، تاریخچه را پاک نکند. رسیدهای قدیمی حدسی backfill نمی‌شوند.
+model ReturnGoodsReceiptSource {
+  id                   Int      @id @default(autoincrement())
+  receiptId            Int
+  returnItemId         Int
+  variantId            Int
+  allocationId         Int?
+  sourceKind           String
+  /// null برای فروشگاه یا انبار مرکزی پیش‌فرض؛ sourceKind این دو را جدا می‌کند.
+  warehouseId          Int?
+  warehouseName        String   @default("")
+  /// شناسهٔ ردیفی که *واقعاً* دریافت را گرفت، حتی اگر ردیف فروش حذف شده بود.
+  secondaryStockItemId Int?
+  /// snapshot برای جلوگیری از کسر از ردیفی که بعداً برای کالای دیگری ویرایش شد.
+  stockItemName        String?
+  stockItemCode        String?
+  qty                  Int
+  createdAt            DateTime @default(now())
+
+  @@index([receiptId, id])
+  @@index([allocationId])
+  @@index([secondaryStockItemId])
+}
+
+model BankStatementEvidence {
+  id               Int      @id @default(autoincrement())
+  requestId        Int      @unique
+  confirmedAmount  BigInt
+  sha256           String
+  fileName         String
+  documentBase64   String
+  mimeType         String
+  reviewedByUserId Int?
+  reviewNote       String
+  createdAt        DateTime @default(now())
+
+  @@index([sha256])
 }

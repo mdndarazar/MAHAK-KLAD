@@ -38,6 +38,8 @@ register('./support/s129-hooks.mjs', import.meta.url)
 const root = process.env.MAHAK_ROOT ? resolve(process.env.MAHAK_ROOT) : resolve('.')
 const mock = await import('./support/s129-electron-mock.mjs')
 const electron = await import('electron')
+const { attachTestIpcWindow } = await import('../../test/harness/ipcWindow.mjs')
+const { event: ipcEvent } = attachTestIpcWindow(electron)
 const handlers = new Map()
 electron.ipcMain.handle = (ch, fn) => handlers.set(ch, fn)
 
@@ -470,7 +472,7 @@ console.log('\n— ۷) مسیر واقعی با ماک Electron')
   mock.state.captureBitmap = solidFor([255, 255, 255])
   const handler = handlers.get(IPC.printTestPage)
   mock.state.executeJavaScriptOutcome = 108
-  const r1 = await safe(() => handler(null, { profile: 'INVOICE', deviceName: 'Axiom Thermal 80', method: 'RAW' }))
+  const r1 = await safe(() => handler(ipcEvent, { profile: 'INVOICE', deviceName: 'Axiom Thermal 80', method: 'RAW' }))
   check('آزمایش RAW رسید بدون خطا', r1.error ?? null, null)
   check('آزمایش RAW رسید: موفق + روش RAW + دروازه باز', [
     r1.value?.ok,
@@ -496,7 +498,7 @@ console.log('\n— ۷) مسیر واقعی با ماک Electron')
   gate.resetRawTrial()
   await writeSetting(SETTING_KEYS.labelTemplate, { printerName: 'TSC TE200', printMethod: 'CHROMIUM' })
   const blocked = await safe(() =>
-    handlers.get(IPC.settingsSaveBundle)(null, {
+    handlers.get(IPC.settingsSaveBundle)(ipcEvent, {
       label: { printerName: 'TSC TE200', printMethod: 'RAW' }
     })
   )
@@ -524,7 +526,7 @@ console.log('\n— ۷) مسیر واقعی با ماک Electron')
   const spawnLabel = fakePowershell({ exitCode: 0 })
   sendRawMod.setRawSpawnForTest(spawnLabel)
   mock.state.captureBitmap = solidFor([255, 255, 255])
-  const r2 = await safe(() => handler(null, { profile: 'LABEL', deviceName: 'TSC TE200', method: 'RAW' }))
+  const r2 = await safe(() => handler(ipcEvent, { profile: 'LABEL', deviceName: 'TSC TE200', method: 'RAW' }))
   check('آزمایش RAW لیبل بدون خطا', r2.error ?? null, null)
   const labelJob = spawnLabel.calls[0]?.bytes ?? Buffer.alloc(0)
   const labelText = labelJob.toString('latin1')
@@ -539,7 +541,7 @@ console.log('\n— ۷) مسیر واقعی با ماک Electron')
 
   // ۷.۳ — پس از آزمایش، ذخیره‌ی روش RAW مجاز است (دروازه در سرویس)
   const saved = await safe(() =>
-    handlers.get(IPC.settingsSaveBundle)(null, {
+    handlers.get(IPC.settingsSaveBundle)(ipcEvent, {
       label: {
         widthMm: 50,
         heightMm: 30,
@@ -625,13 +627,13 @@ console.log('\n— ۷) مسیر واقعی با ماک Electron')
     useSystemDialog: true
   })
   const labelRawDialog = await safe(() =>
-    handlers.get(IPC.printLabels)(null, {
+    handlers.get(IPC.printLabels)(ipcEvent, {
       labels: [{ name: 'کالا', code: '123', price: 1000, barcodeDataUrl: '' }],
       deviceName: 'TSC TE200',
       silent: false
     })
   )
-  const testRawDialog = await safe(() => handler(null, { profile: 'LABEL', deviceName: 'TSC TE200', method: 'RAW' }))
+  const testRawDialog = await safe(() => handler(ipcEvent, { profile: 'LABEL', deviceName: 'TSC TE200', method: 'RAW' }))
   check('printLabels RAW + دیالوگ ویندوز قبل از TSPL رد می‌شود', [
     labelRawDialog.value?.ok,
     /چاپ خام.*دیالوگ ویندوز/.test(labelRawDialog.value?.error ?? ''),

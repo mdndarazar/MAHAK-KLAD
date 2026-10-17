@@ -17,6 +17,7 @@ process.env.HARNESS_DB = join(DIR, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
+const { returnGoodsService } = await import('../../src/main/services/ReturnGoodsService.ts')
 const { salesLedger } = await import('../../src/main/services/SalesLedger.ts')
 const { toJalaliDate } = await import('@shared/jalali')
 
@@ -57,7 +58,7 @@ const inv = await salesService.create({
   lines: [{ variantId: variant(1_000_000), qty: 1, unitPrice: 1_000_000, discount: 0, tax: 0 }],
   payments: [{ methodId: cash, amount: 1_000_000, destination: 'CASH' }]
 })
-await salesService.createExchange({
+const exchange = await salesService.createExchange({
   invoiceId: inv.id,
   lines: [{ saleItemId: itemsOf(inv.id)[0].id, qty: 1 }],
   replacements: [{ variantId: variant(1_400_000), qty: 1 }],
@@ -66,6 +67,12 @@ await salesService.createExchange({
   shiftId
 })
 
+const pending = await salesLedger.ledger({ fromJalali: today, toJalali: today })
+eq('تعویض نقدی پیش از رسید فیزیکی ورود انبار ندارد', pending.totals.stockIn, 0)
+const goods = (await returnGoodsService.items(exchange.returnId)).items[0]
+await returnGoodsService.receive({ returnId: exchange.returnId, returnItemId: goods.id,
+  qty: 1, eventKey: 's204-exchange-physical-item', witnessKind: 'SELECTED_CONFIRMED',
+  witnessRef: 'کالای تعویض دریافت شد', physicalConfirmed: true, actorUserId: userId })
 const led = await salesLedger.ledger({ fromJalali: today, toJalali: today })
 const saleRows = led.rows.filter((r) => r.eventType === 'SALE')
 const expRows = led.rows.filter((r) => r.eventType === 'EXCHANGE_REPLACEMENT')

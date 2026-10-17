@@ -1,11 +1,22 @@
 import { createHash } from 'node:crypto'
 import { prisma } from '../db/client'
 import { createCardTransferRequest } from './CardTransferService'
+import {
+  openCardTransferEntitlement,
+  correctPendingEntitlement,
+  quarantineEntitlement
+} from './ReturnEntitlementService'
 import { inventoryService } from './InventoryService'
 import { audit, auditOrThrow } from './AuditService'
 import { shiftService } from './ShiftService'
 import { custodyService } from './CustodyService'
-import { generateReturnCode, normalizeReturnCode, returnCodeExpiry, DAY_MS } from './ReturnCodeService'
+import {
+  generateReturnCode,
+  attachReturnCodeReservation,
+  normalizeReturnCode,
+  returnCodeExpiry,
+  DAY_MS
+} from './ReturnCodeService'
 import { shapeSaleRow, sumTotals, groupByDayShift, paymentLabels, returnedTotalOf } from './reportShape'
 import { buildStatements, cashMovementTotals } from './accountingReport'
 import { calculateCustodyReference, pendingCustodyReference, type CustodyReference } from '@shared/custodyReference'
@@ -23,6 +34,7 @@ import { settingsService } from './SettingsService'
 import { findCustomerByPhone, normalizePhone } from './PartyService'
 import { secondaryStockService } from './SecondaryStockService'
 import { stockAllocationService } from './StockAllocationService'
+import { applyGoodsCorrection, prepareGoodsCorrection } from './ReturnGoodsCorrectionService'
 import {
   normalizePlan,
   planHasNegative,
@@ -45,6 +57,7 @@ import {
   guardCreditCode,
   reverseInvoiceRedemptions
 } from './StoreCreditService'
+import { applyCreditReturn, planCreditReturn, type CreditReturnPlan } from './CreditReturnService'
 import {
   exchangeCreditDays,
   CreditSource,
@@ -121,7 +134,7 @@ import {
 import { SETTING_KEYS, parseSaleDefaults } from '@shared/receipt'
 import { discountCeilingFor, fixedDiscountFor } from '@shared/priceAdjust'
 import { computeCharges, type ChargeBreakdown } from '@shared/charges'
-import { toNumberRial, toRial } from '@shared/money'
+import { toNumberRial, toRial, type RialLike } from '@shared/money'
 import type {
   CreateSaleInput,
   ReturnSaleInput,
@@ -580,7 +593,7 @@ function validateReturnUpdateMutation(input: UpdateReturnInput): void {
  * کاهش بدهی). یک‌بار بیرون از تراکنش برای سنجش رمز، یک‌بار داخل برای هم‌زمانی.
  */
 function returnUpdateFinancialGate(
-  ret: { refundAmount?: unknown; refundMethod?: string | null },
+  ret: { refundAmount?: RialLike; refundMethod?: string | null },
   /** فقط مرجع امن؛ کد قابل‌مصرف نباید حتی در پیام gate یا Audit راه پیدا کند. */
   settledCredit: { id: number } | null,
   relatedTransfer: { status: string } | null
@@ -1428,7 +1441,7 @@ async function cashLikeReceivedOf(
  */
 async function cashLikeRefundableOf(
   tx: Prisma.TransactionClient,
-  invoice: { id: number; paidTotal: unknown; sourceInvoiceId?: number | null },
+  invoice: { id: number; paidTotal: RialLike; sourceInvoiceId?: number | null },
   previouslyRefunded: number
 ): Promise<number> {
   const paidNow = toNumberRial(invoice.paidTotal)
@@ -1669,7 +1682,7 @@ async function initialPaymentRows(
   tx: Prisma.TransactionClient,
   input: CreateSaleInput,
   issuedAt: Date,
-  opts: { shiftId?: number | null; createdAt?: Date } = {}
+  opts: { shiftId?: number | null; createdAt?: Date; seqStart?: number } = {}
 ) {
   const dateJalali = toJalaliDate(issuedAt)
   const time = toClock(issuedAt)
@@ -1719,7 +1732,7 @@ async function initialPaymentRows(
       reference: p.reference,
       kind: PaymentEntryKind.CASH,
       destination,
-      seq: i + 1,
+      seq: (opts.seqStart ?? 0) + i + 1,
       paidAt: issuedAt,
       paidAtJalali: dateJalali,
       paidAtTime: time,
@@ -3004,8 +3017,13 @@ async function purgeStockPlan(
   const planSelect = {
     id: true,
     deductInventory: true,
+    exchangeReturnId: true,
     items: { select: { variantId: true, qty: true } },
-    returns: { where: { voidedAt: null }, select: { id: true, items: { select: { variantId: true, restockedQty: true } } } }
+    returns: { where: { voidedAt: null }, select: {
+      id: true,
+      items: { select: { variantId: true, restockedQty: true } },
+      corrections: { where: { status: 'POSTED' }, select: { id: true } }
+    } }
   } as const
   const invoices: any[] = []
   if (invoiceIds?.length) {
@@ -3017,6 +3035,25 @@ async function purgeStockPlan(
     )
   }
 
+  // A corrected exchange restores its *replacement* sale via the correction
+  // ledger, without creating a SaleReturn on the replacement invoice. Read
+  // those posted inventory effects even when only the replacement invoice is
+  // selected for purge. Without this, cleanup would add the same goods twice.
+  const replacementReturnIds = [...new Set(invoices.map((i) => i.exchangeReturnId).filter((id): id is number => Number.isInteger(id)))]
+  const replacementAlreadyRestored = new Map<number, Array<{ variantId: number; qty: number }>>()
+  for (const chunk of reportIdChunks(replacementReturnIds)) {
+    const corrections = await prisma.returnCorrection.findMany({
+      where: { returnId: { in: chunk }, status: 'POSTED' },
+      select: { returnId: true, effects: {
+        where: { type: 'EXCHANGE_REPLACEMENT_IN' }, select: { variantId: true, qty: true }
+      } }
+    })
+    for (const c of corrections)
+      replacementAlreadyRestored.set(c.returnId, c.effects
+        .filter((e): e is typeof e & { variantId: number } => e.variantId != null && e.qty > 0)
+        .map((e) => ({ variantId: e.variantId, qty: e.qty })))
+  }
+
   const net = new Map<number, number>()
   let returnCount = 0
   let itemCount = 0
@@ -3025,8 +3062,17 @@ async function purgeStockPlan(
       itemCount++
       if (inv.deductInventory) net.set(it.variantId, (net.get(it.variantId) ?? 0) + it.qty)
     }
+    if (inv.deductInventory && inv.exchangeReturnId != null) {
+      for (const effect of replacementAlreadyRestored.get(inv.exchangeReturnId) ?? [])
+        net.set(effect.variantId, (net.get(effect.variantId) ?? 0) - effect.qty)
+    }
     for (const r of inv.returns) {
       returnCount++
+      // A POSTED correction has already debited exactly the stock that this
+      // return physically received. The historical return remains visible,
+      // but its restockedQty is NOT currently in inventory. Subtracting it
+      // again here would under-restore stock when this sale is later purged.
+      if (r.corrections.length) continue
       for (const it of r.items) {
         if (it.restockedQty > 0) net.set(it.variantId, (net.get(it.variantId) ?? 0) - it.restockedQty)
       }
@@ -3241,6 +3287,24 @@ function resolveRefund(input: {
   }
 }
 
+/** Optional literal contact fields for the paper of a NEW return/exchange
+ * credit. No inferred ownership, UNIQUE phone, customer lock or messaging permission.
+ * Missing data must never prevent issuance/printing. */
+function optionalPrintedHolder(input: {
+  printedHolderFirstName?: string | null
+  printedHolderLastName?: string | null
+  printedHolderPhone?: string | null
+}): { name: string | null; phone: string | null } {
+  const part = (value: unknown): string => {
+    if (value == null) return ''
+    if (typeof value !== 'string' || value.trim().length > 100)
+      throw new BusinessError('نام/نام خانوادگی/تلفن روی کد اختیاری‌اند؛ هر فیلد حداکثر ۱۰۰ نویسه دارد.')
+    return value.trim()
+  }
+  const name = [part(input.printedHolderFirstName), part(input.printedHolderLastName)].filter(Boolean).join(' ')
+  return { name: name || null, phone: part(input.printedHolderPhone) || null }
+}
+
 /**
  * ===========================================================================
  * هسته‌ی «برگشت از فروش» — مشترک بین برگشت ساده و تعویض کالا (بخش ۶).
@@ -3280,6 +3344,9 @@ async function runReturn(
      * کالا را آزاد می‌کند.
      */
     deferRestock?: boolean
+    /** Protocol cutover: every NEW stock-deducted return (even NONE/CASH/CARD)
+     * waits for its own witnessed receipt. Not read from renderer input. */
+    goodsReceiptRequired?: boolean
     /** نشست ۷۳ — رمز مدیر پیش از تراکنش برای مبلغ کاملِ بدون تخفیف تایید شده است */
     fullRefundOverride?: boolean
     /** نشست ۱۸۹ — رمز سقف اعتبار اضافه‌دریافت، بیرون از تراکنش سنجیده شده */
@@ -3292,6 +3359,14 @@ async function runReturn(
       include: { items: true, returns: { where: { voidedAt: null }, include: { items: true } } }
     })
     if (!invoice) throw new BusinessError('این فاکتور پیدا نشد؛ ممکن است حذف شده باشد.')
+    // A posted correction already returned the replacement goods to stock.
+    // The historical replacement invoice is deliberately kept for evidence,
+    // not a live source for a second return/exchange. Otherwise a seller could
+    // record one more return on goods that are no longer with the customer.
+    if (invoice.exchangeReturnId != null && await tx.returnCorrection.findUnique({
+      where: { returnId: invoice.exchangeReturnId }, select: { id: true }
+    }))
+      throw new BusinessError('سند جایگزین این تعویض اصلاح جبرانی شده است؛ برگشت یا تعویض دوباره روی کالایی که اثرش قبلاً معکوس شده مجاز نیست. سند اصلی و دفتر اصلاح را بررسی کنید.')
     /** نشست ۱۶۴ · Y22 · بند ۴-۵۲ — بدهی فاکتور *پیش از* این برگشت (برای تشخیص «این برگشت بدهی را صفر کرد») */
     const debtBefore = await invoiceRemaining(
       tx,
@@ -3442,7 +3517,28 @@ async function runReturn(
      * می‌توانستند بیشتر از پولِ دریافتی از کشو بیرون بکشند.
      */
     let refund: { method: string; amount: number; note: string } | null = null
+    let creditReturnPlan: CreditReturnPlan | null = null
+    if (!opts.applyRefund && await tx.payment.count({
+      where: { invoiceId: invoice.id, voidedAt: null, storeCreditId: { not: null } }
+    }))
+      throw new BusinessError('تعویضِ خریدی که با اعتبار پرداخت شده فعلاً به تطبیق منشأ توسط مدیر نیاز دارد؛ سهم اعتبار به وجه نقد یا ارزش تعویض تبدیل نمی‌شود.')
     if (opts.applyRefund) {
+      creditReturnPlan = await planCreditReturn(tx, {
+        invoiceId: invoice.id, grandTotal: toNumberRial(invoice.grandTotal),
+        paidTotal: debtBefore.received, returnedValue: returnTotal, debtBefore,
+        activeReturns: invoice.returns.map((r) => ({ id: r.id, kind: r.kind, total: r.total }))
+      })
+      if (creditReturnPlan.credit > 0 && input.refundAmount != null &&
+          Number(input.refundAmount) !== creditReturnPlan.cash)
+        throw new BusinessError(
+          `این برگشت ${money(creditReturnPlan.credit)} ریال سهم اعتبار غیرنقدی و فقط ${money(creditReturnPlan.cash)} ریال حق بازپرداخت پول واقعی دارد. ` +
+          'مبلغ پول واقعی را به مقدار نشان‌داده‌شده اصلاح و همان را تأیید کنید؛ فروشنده منشأ را دستی تعیین نمی‌کند.'
+        )
+      if (creditReturnPlan.credit > 0 && creditReturnPlan.cash > 0 &&
+          input.refundMethod === RefundMethod.NONE)
+        throw new BusinessError(`برای سهم نقدی ${money(creditReturnPlan.cash)} ریال روش بازپرداخت واقعی را مشخص کنید؛ اعتبار هدیه جای پول نقد نیست.`)
+      if (creditReturnPlan.credit > 0 && opts.fullRefundOverride)
+        throw new BusinessError('بازپرداخت به قیمتِ قبل از تخفیف برای خرید ترکیبیِ دارای اعتبار، بدون دفتر اصلاح منشأ مجاز نیست.')
       /**
        * نشست ۵۹ · خوشه B/D (DECISIONS S59-5) — «بازپرداخت‌های قبلی» حالا همان
        * refundFromReceived واحدِ `remainingOf` است: نقد + کارت + **کارت‌به‌کارت
@@ -3451,6 +3547,13 @@ async function runReturn(
        */
       const prevAdj = adjustmentsOrEmpty(await debtAdjustmentsByInvoice(tx, [invoice.id]), invoice.id)
       const previouslyRefunded = Math.max(0, Math.round(prevAdj.refundFromReceived ?? 0))
+      const previouslyRestoredCredit = creditReturnPlan?.shares.length
+        ? toNumberRial((await tx.creditReturnAllocation.aggregate({
+            where: { invoiceId: invoice.id }, _sum: { amount: true }
+          }))._sum.amount ?? 0)
+        : 0
+      if (previouslyRestoredCredit > previouslyRefunded)
+        throw new BusinessError('دفتر برگشت اعتبار با دفتر بدهی این فاکتور سازگار نیست؛ بازپرداخت تا تطبیق مدیر متوقف است.')
       const redeemedOnInvoice = await tx.storeCreditRedemption.aggregate({
         where: { invoiceId: invoice.id, reversedAt: null },
         _sum: { amount: true }
@@ -3469,7 +3572,7 @@ async function runReturn(
        * نشست ۱۹۷ — سقف خروج = پول واقعی (نقد/کارت/چک پاس‌شده)، نه `paidTotal`
        * و نه `EXCHANGE_CREDIT`. اعتبار خرج‌شده دوباره اعتبار می‌شود، نقد نه.
        */
-      const receivedOnInvoice = await cashLikeRefundableOf(tx, invoice, previouslyRefunded)
+      const receivedOnInvoice = await cashLikeRefundableOf(tx, invoice, previouslyRefunded - previouslyRestoredCredit)
       const fullRefundAmount = opts.fullRefundOverride
         ? items.reduce((sum, item) => {
             const src = invoice.items.find((candidate) => candidate.id === item.saleItemId)
@@ -3497,7 +3600,9 @@ async function runReturn(
        * برگشت*، پول قابل‌برگشت زنجیره منبع درست است؛ محاسبهٔ واقعی بدهی/گزارش
        * پایین‌تر همچنان از دفتر همان سند و `recalcSettlement` می‌آید.
        */
-      const refundDecisionReceived = Math.max(cashLikeReceived, receivedOnInvoice)
+      const refundDecisionReceived = creditReturnPlan?.shares.length
+        ? Math.max(cashLikeReceived, receivedOnInvoice, debtBefore.received)
+        : Math.max(cashLikeReceived, receivedOnInvoice)
       const afterNone = remainingOf({
         grandTotal: toNumberRial(invoice.grandTotal),
         received: refundDecisionReceived,
@@ -3518,10 +3623,11 @@ async function runReturn(
        * نشست ۱۹۷: سند تعویض با EXCHANGE_CREDIT «تسویه‌شده» دیده می‌شود و
        * afterNone.overpaid > ۰ است، ولی پول واقعی صفر است — همان کاهش بدهی.
        */
-      const debtOnly = refundingAsked && (afterNone.overpaid <= 0 || receivedOnInvoice <= 0)
+      const debtOnly = refundingAsked && (afterNone.overpaid <= 0 || receivedOnInvoice <= 0 ||
+        (creditReturnPlan!.credit > 0 && creditReturnPlan!.cash === 0))
       refund = resolveRefund({
         method: debtOnly ? RefundMethod.NONE : (input.refundMethod ?? null),
-        requested: debtOnly ? null : (input.refundAmount ?? null),
+        requested: debtOnly ? null : (creditReturnPlan!.credit > 0 ? creditReturnPlan!.cash : input.refundAmount ?? null),
         returnTotal,
         fullAmount: fullRefundAmount,
         /**
@@ -3539,6 +3645,10 @@ async function runReturn(
         maxKeepSettled: afterNone.overpaid,
         receiptNo: invoice.receiptNo
       })
+      if (creditReturnPlan.credit > 0 &&
+          (refund.amount !== creditReturnPlan.cash ||
+            (creditReturnPlan.cash > 0 && refund.method === RefundMethod.NONE)))
+        throw new BusinessError('سهم نقدی و سهم اعتبار برگشت با مبلغ تسویه سازگار نیست؛ وجه یا کد تازه ثبت نشد. پرونده را تازه و تطبیق کنید.')
       if (debtOnly) {
         refund = {
           ...refund,
@@ -3603,22 +3713,23 @@ async function runReturn(
 
     /**
      * ================== جلسه ۴۰ · کار ب — معلق ماندن کالا ==================
-     * اگر بازپرداخت «کارت‌به‌کارت توسط مدیر» است، هیچ پولی همین حالا به مشتری
-     * نرسیده؛ پس کالا هم همین حالا «قابل فروش» نمی‌شود. `restockedQty = 0`
-     * ثبت می‌شود، هیچ `inventoryService.increase` نمی‌خورد، و پرچم
-     * `restockPending` روی سند برگشت می‌نشیند. تنها نقطه‌ی آزادسازی،
-     * `CardTransferService.pay` (پشت قفل «پرداخت‌های مدیر») است.
+     * در درخواست کارت‌به‌کارت، اعلام مدیر شاهد بانک یا رسید فیزیکی نیست.
+     * `restockedQty = 0` می‌ماند و تنها دریافتِ مقداربه‌مقدار و شاهددارِ
+     * `ReturnGoodsService.receive` برای پروندهٔ جدید آن را آزاد می‌کند؛ مسیر
+     * تاریخیِ بدون دفتر حق در `PendingRestockService` استثنای جداگانه دارد.
      *
-     * ⚠️ فقط و فقط همین یک حالت. بازپرداخت نقدی/کارتیِ سر صندوق، اعتبار خرید،
-     * «بدون بازپرداخت» و تعویضِ بدون پرداخت مدیر مو‌به‌مو مثل قبل همان لحظه به
-     * انبار برمی‌گردند.
+     * از cutover، همهٔ مسیرهای تازهٔ دارای کسر موجودی (ازجمله NONE/نقد/
+     * کارت/اعتبار و تعویض بدون بدهی مدیر) منتظر شاهد مستقل می‌مانند. marker
+     * افزایشیِ goodsReceiptRequired اسناد تاریخی را دست‌نخورده نگه می‌دارد؛
+     * حتی بدون دفتر حق/درخواست کارت‌به‌کارت نیز دریافت باید مقدارمحور باشد.
      *
      * ⚠️ فاکتور «بدون کسر از موجودی» هیچ‌وقت معلق نمی‌شود: آنجا `restock` از
      * ابتدا false است و کالایی در کار نیست که برگردد (وگرنه انبارگردانی یک
      * کسری کاذب می‌ساخت).
      */
+    const goodsReceiptRequired = restock && opts.goodsReceiptRequired === true
     const deferRestock =
-      restock && (opts.deferRestock === true || refund?.method === RefundMethod.CARD_TO_CARD)
+      restock && (goodsReceiptRequired || opts.deferRestock === true || refund?.method === RefundMethod.CARD_TO_CARD)
     const restockNow = restock && !deferRestock
 
     const ret = await tx.saleReturn.create({
@@ -3626,6 +3737,12 @@ async function runReturn(
         invoiceId: invoice.id,
         isFull: !!input.full,
         total: returnTotal,
+        // Proven gift opportunity snapshot for aggregate reports. The B/E
+        // allocation is written atomically below in this same transaction.
+        creditRestored: creditReturnPlan?.credit ?? 0,
+        // New return/exchange receipts are accounting papers. The spendable
+        // barcode has its own controlled first-print/reprint route.
+        creditPaperSeparate: true,
         returnedAt: now,
         returnedAtJalali: toJalaliDate(now),
         // بخش ۳ و ۶: ساعت دقیق ثبت برگشت (HH:mm:ss). گزارش «تعویض کالا» جزئیات
@@ -3659,6 +3776,7 @@ async function runReturn(
          * انتظارِ تأیید مدیر است، نه به‌معنای فاکتور بدون کسر موجودی».
          */
         restockPending: deferRestock,
+        goodsReceiptRequired,
         items: {
           create: items.map((i) => ({
             saleItemId: i.saleItemId,
@@ -3732,11 +3850,14 @@ async function runReturn(
       } else if (refund.method === RefundMethod.STORE_CREDIT) {
         // بارکد اعتبار خرید بعدی، به‌جای پول نقد. اثر نقدی صفر، بدهی ما ثبت‌شده.
         const defaults = await saleDefaultsWith(tx)
+        const paperHolder = optionalPrintedHolder(input)
         refundCredit = await issueStoreCredit(tx, {
           amount: refund.amount,
           returnId: ret.id,
           sourceInvoiceId: invoice.id,
           customerId: invoice.customerId ?? null,
+          customerName: paperHolder.name,
+          holderPhone: paperHolder.phone,
           /**
            * بند ۹ (جلسه ۳۰) · §۳ — مدت اعتبارِ مسیر تعویض/برگشت.
            * تا دیروز همیشه `returnCodeDays` (تنظیمات «کد برگشت») فرستاده می‌شد و
@@ -3789,18 +3910,27 @@ async function runReturn(
       where: { id: invoice.id },
       data: { status: fullyReturned ? SaleStatus.RETURNED : SaleStatus.PARTIALLY_RETURNED }
     })
-    /**
-     * اعتبار مصرف‌شده فقط وقتی برمی‌گردد که کل فاکتور واقعاً برگشت خورده باشد.
-     * برگشت جزئی نباید دفتر مصرف را دست‌کاری کند. این call داخل همان تراکنش
-     * است تا وضعیت فاکتور، سند برگشت و برگشت اعتبار اتمیک بمانند.
+    /** A partial gift-funded return cannot reverse the entire redemption.
+     * Only the cumulative share is restored in a B/E branch. A full return
+     * without a prior branch may reactivate the ORIGINAL H1; with a branch,
+     * the redemption is marked compensated and cannot later be reversed by
+     * purge/payment deletion. Every step is in this same sale transaction.
      */
-    const reversedCreditRedemptions = fullyReturned
-      ? await reverseInvoiceRedemptions(tx, {
-          invoiceId: invoice.id,
-          reason: `برگشت کامل فاکتور ${faDigits(invoice.receiptNo)}`,
-          userId: input.userId ?? null
+    const creditRestoration = creditReturnPlan && creditReturnPlan.shares.length
+      ? await applyCreditReturn(tx, {
+          invoiceId: invoice.id, returnId: ret.id, full: fullyReturned,
+          userId: input.userId ?? null, plan: creditReturnPlan
         })
-      : 0
+      : null
+    const reversedCreditRedemptions = creditRestoration
+      ? creditRestoration.reversedOriginal
+      : fullyReturned
+        ? await reverseInvoiceRedemptions(tx, {
+            invoiceId: invoice.id,
+            reason: `برگشت کامل فاکتور ${faDigits(invoice.receiptNo)}`,
+            userId: input.userId ?? null
+          })
+        : 0
 
     await audit(tx, {
       action: AuditAction.SALE_RETURN,
@@ -3814,13 +3944,14 @@ async function runReturn(
         items: items.map((i) => ({ variantId: i.variantId, qty: i.qty, removed: i.removedFromStock })),
         restocked: restockNow,
         restockPending: deferRestock,
+        goodsReceiptRequired,
         fullyReturned,
         /** جلسه ۴۷ — چه مقدار به انبارهای مبدأ (نه انبار فروشگاه) برگشت */
         restoredToWarehouses: restoreSplit?.warehouseQty ?? 0
       }),
       note: deferRestock
-        ? 'کالای برگشتی به موجودی قابل‌فروش اضافه نشد و در انتظار پرداخت مدیر است ' +
-          '(فیزیکی در فروشگاه، بیرون از موجودی قابل‌فروش)'
+        ? 'کالای برگشتی به موجودی قابل‌فروش اضافه نشد؛ حضور فیزیکی‌اش هنوز شاهد ندارد. ' +
+          'اعلام مدیر یا وضعیت بانک جای رسیدِ مقداربه‌مقدار کالا نیست.'
         : restockNow
           ? hasRemovedItems
             ? 'برگشت موجودی به انبار (شامل کالای حذف‌شده، با تایید دستی کاربر)'
@@ -3886,6 +4017,7 @@ async function runReturn(
       restockedQty: restockNow ? items.reduce((s, i) => s + i.qty, 0) : 0,
       /** ---- جلسه ۴۰ · کار ب ---- */
       restockPending: deferRestock,
+      goodsReceiptRequired,
       pendingRestockQty: deferRestock ? items.reduce((s, i) => s + i.qty, 0) : 0,
       /** جلسه ۴۷ — تعداد و شرح برگشتِ کالا به انبارهای مبدأ (۰ = فقط فروشگاه) */
       restoredToWarehouses: restoreSplit?.warehouseQty ?? 0,
@@ -3901,6 +4033,11 @@ async function runReturn(
       refundMethod: refund?.method ?? null,
       refundAmount: refund?.amount ?? 0,
       reversedCreditRedemptions,
+      creditOpportunity: creditRestoration ? {
+        restored: creditRestoration.restored,
+        expiredShare: creditRestoration.expiredShare,
+        pendingDelivery: creditRestoration.credits
+      } : null,
       refundNote: refund?.note ?? null,
       storeCreditCode: refundCredit?.code ?? null,
       storeCredit: refundCredit ? shapeStoreCredit(refundCredit) : null,
@@ -3923,6 +4060,49 @@ function creditPaymentEditBlockedMessage(amount: number): string {
 }
 
 export const salesService = {
+  /** Read-only server preview. Recalculated inside createReturn's transaction;
+   * never a permission or a bank/physical-receipt attestation. No credit code
+   * or personal details cross this IPC boundary. */
+  async returnProvenancePreview(input: {
+    invoiceId: number; full?: boolean; lines?: { saleItemId: number; qty: number }[]
+  }) {
+    const invoiceId = assertSafeInteger(input?.invoiceId, 'شناسه فاکتور', 1)
+    return prisma.$transaction(async (tx) => {
+      const invoice = await tx.saleInvoice.findUnique({ where: { id: invoiceId },
+        include: { items: true, returns: { where: { voidedAt: null }, include: { items: true } } } })
+      if (!invoice || !isReturnableStatus(invoice.status))
+        throw new BusinessError('این فاکتور برای پیش‌نمایش برگشت معتبر نیست؛ دوباره رسید را اسکن کنید.')
+      const already = new Map<number, number>()
+      for (const r of invoice.returns) for (const it of r.items)
+        already.set(it.saleItemId, (already.get(it.saleItemId) ?? 0) + it.qty)
+      const targets = mergeReturnTargets(input.full
+        ? invoice.items.map((it) => ({ saleItemId: it.id, qty: Math.max(0, it.qty - (already.get(it.id) ?? 0)) }))
+        : input.lines ?? [])
+      if (!targets.length) throw new BusinessError('حداقل یک قلم و تعداد معتبر برای پیش‌نمایش انتخاب کنید.')
+      const lineNet = allocateLineNet(invoice)
+      const returnedValue = targets.reduce((sum, t) => {
+        const it = invoice.items.find((row) => row.id === t.saleItemId)
+        if (!it || !Number.isSafeInteger(t.qty) || t.qty <= 0 ||
+            t.qty > it.qty - (already.get(it.id) ?? 0))
+          throw new BusinessError('تعداد/قلم برگشتی تغییر کرده است؛ فاکتور را تازه کنید.')
+        return sum + returnValueOf(lineNet.get(it.id) ?? 0, it.qty, already.get(it.id) ?? 0, t.qty)
+      }, 0)
+      const payments = await tx.payment.findMany({ where: { invoiceId, voidedAt: null },
+        select: { amount: true, kind: true, chequeStatus: true } })
+      const debtBefore = await invoiceRemaining(tx, invoiceId, toNumberRial(invoice.grandTotal), receivedTotalOf(payments))
+      const plan = await planCreditReturn(tx, {
+        invoiceId, grandTotal: toNumberRial(invoice.grandTotal), paidTotal: debtBefore.received,
+        returnedValue, debtBefore,
+        activeReturns: invoice.returns.map((r) => ({ id: r.id, kind: r.kind, total: r.total }))
+      })
+      return { returnTotal: returnedValue,
+        debtReduced: returnedValue - plan.fundedReturning,
+        giftOpportunity: plan.credit,
+        cashRight: plan.cash,
+        /** only a DB snapshot; the write rechecks all amounts under CAS */
+        previewOnly: true }
+    }, TX_OPTIONS)
+  },
   /**
    * ثبت فاکتور فروش (POS و فاکتور فروش عمده).
    * کل عملیات (فاکتور + اقلام + پرداخت‌ها + کسر انبار + کد فاکتور) در یک تراکنش
@@ -4294,6 +4474,7 @@ export const salesService = {
         },
         include: { items: true, payments: { include: { method: true } }, customer: true, shift: true }
       })
+      if (generated) await attachReturnCodeReservation(tx, generated.code, invoice.id)
 
       if (verifiedOperator) {
         await (tx as any).custodySaleEvidence.create({
@@ -4554,6 +4735,8 @@ export const salesService = {
         issuedAtJalali: true,
         receiptNo: true,
         orderType: true,
+        sourceInvoiceId: true,
+        exchangeReturnId: true,
         // سند لغو یا پیش‌نویس مدرک فروش قابل‌ویرایش نیست: ویرایش آن می‌توانست پس از
         // باطل‌شدن همهٔ پرداخت‌ها، پرداخت تازه‌ای بسازد و paidTotal را دوباره پر کند.
         status: true,
@@ -4572,6 +4755,11 @@ export const salesService = {
      * سیاست تخفیف با orderType نهایی (ورودی یا همان فاکتور) سنجیده می‌شود.
      */
     if (!pre) throw new BusinessError('این فاکتور پیدا نشد؛ ممکن است حذف شده باشد. لیست فاکتورها را تازه کنید.')
+    // The replacement's EXCHANGE_CREDIT and stock belong to the complete
+    // return/exchange graph. An ordinary sale edit can neither reconcile its
+    // payment nor a previous correction; never silently convert it to a sale.
+    if (pre.orderType === OrderType.EXCHANGE || pre.exchangeReturnId != null || pre.sourceInvoiceId != null)
+      throw new BusinessError('سند تعویض از ویرایش عادی فروش قابل تغییر نیست؛ برای اصلاح جبرانیِ شاهددار از مسیر برگشت/تعویض استفاده کنید.')
     if (pre.status === SaleStatus.CANCELED || pre.status === SaleStatus.DRAFT || pre.voidedAt != null)
       throw new BusinessError('فاکتور لغوشده یا پیش‌نویس قابل ویرایش نیست؛ هیچ کالا یا پرداختی تغییر نکرد.')
     const orderTypeForUpdate = input.orderType ?? pre.orderType
@@ -4676,9 +4864,20 @@ export const salesService = {
         }
       })
       if (!current) throw new BusinessError('این فاکتور پیدا نشد؛ ممکن است حذف شده باشد. لیست فاکتورها را تازه کنید.')
+      // Preflight is not a write fence: recheck the immutable exchange graph
+      // in the SAME transaction before any payment or stock delta is applied.
+      if (current.orderType === OrderType.EXCHANGE || current.exchangeReturnId != null || current.sourceInvoiceId != null)
+        throw new BusinessError('سند تعویض از ویرایش عادی فروش قابل تغییر نیست؛ برای اصلاح جبرانیِ شاهددار از مسیر برگشت/تعویض استفاده کنید.')
       // بررسی دوباره داخل تراکنش، فاصلهٔ بین preflight و نوشتن را هم fail-closed می‌کند.
       if (current.status === SaleStatus.CANCELED || current.status === SaleStatus.DRAFT || current.voidedAt != null)
         throw new BusinessError('فاکتور لغوشده یا پیش‌نویس قابل ویرایش نیست؛ هیچ کالا یا پرداختی تغییر نکرد.')
+      // A payment added after the preflight but before this transaction must
+      // not let an item edit void/rewrite that live financial evidence.
+      if (input.keepPayments !== true && input.payments != null && current.payments.length > 0)
+        throw new BusinessError(
+          'تغییر یا ابطال پرداخت‌های این فاکتور از ویرایش اقلام ممکن نیست. از پنجرهٔ «پرداختی‌ها» استفاده کنید ' +
+          '(همان گیت رمز ویرایش/ابطال پرداخت). هیچ تغییری ذخیره نشد.'
+        )
 
       // بند ۱۷ — ویرایش فاکتوری که تاریخش در دوره‌ی بسته‌شده است
       await periodLockService.assertOpen(tx, {
@@ -4951,6 +5150,15 @@ export const salesService = {
             })
           : null
 
+      // Voided payments are immutable evidence, but still own their sequence
+      // numbers under UNIQUE(invoiceId, seq). In the rare legacy flow where
+      // every previous payment was voided, a new initial-payment list must
+      // start AFTER all historical rows, not overwrite seq=1 and fail P2002.
+      const lastPaymentSeq = !keepPayments && input.payments?.length
+        ? (await tx.payment.findFirst({
+            where: { invoiceId: current.id }, orderBy: { seq: 'desc' }, select: { seq: true }
+          }))?.seq ?? 0
+        : 0
       const t = saleTotals(input)
       const invoice = await tx.saleInvoice.update({
         where: { id: current.id },
@@ -4977,13 +5185,15 @@ export const salesService = {
             : {
                 payments: {
                   create: await initialPaymentRows(tx, input, issuedAt, {
-                    shiftId: await currentPaymentShiftId(tx, input.userId ?? null, (input as any).custodyFence ?? null)
+                    shiftId: await currentPaymentShiftId(tx, input.userId ?? null, (input as any).custodyFence ?? null),
+                    seqStart: lastPaymentSeq
                   })
                 }
               })
         },
         include: { items: true }
       })
+      if (backfillCode) await attachReturnCodeReservation(tx, backfillCode.code, invoice.id)
 
       /** نشست ۱۵۴ (S151-b) — قیمت دستی ویرایش (نسبت به فاکتور اصلی) در AuditLog، داخل همین تراکنش */
       await writeSalePriceOverrideAudit(tx, {
@@ -5723,9 +5933,8 @@ export const salesService = {
    * پیدا کردن فاکتور فروش تکی با «کد فاکتور» (تایپ‌شده یا اسکن‌شده).
    *
    * قواعد:
-   *   • فقط کدهای *معتبر* (منقضی‌نشده) به فاکتور اشاره می‌کنند. اگر کد منقضی
-   *     شده باشد، پیام روشن با تاریخ انقضا داده می‌شود (چون همان کد ممکن است
-   *     بعداً برای فاکتور دیگری تولید شود).
+   *   • فقط کدهای *معتبر* (منقضی‌نشده) به فاکتور اشاره می‌کنند. کد منقضی
+   *     هم برای همیشه رزرو است؛ پیام روشن می‌دهیم و سند دیگری را حدس نمی‌زنیم.
    *   • اگر ورودی کاملاً عددی باشد، به‌عنوان «شماره فیش» هم امتحان می‌شود تا
    *     کاربر بتواند شماره‌ی روی رسید را هم وارد کند.
    *   • وضعیت انباری هر قلم مشخص می‌شود: کالای حذف‌شده از انبار با پیام
@@ -5736,20 +5945,34 @@ export const salesService = {
     if (!code) throw new BusinessError('کد فاکتور را وارد کنید یا بارکد روی رسید را اسکن کنید.')
 
     const now = new Date()
-    let invoice = await prisma.saleInvoice.findFirst({
-      where: { returnCode: code, returnCodeExpiresAt: { gt: now } },
-      orderBy: { issuedAt: 'desc' },
-      include: {
-        items: true,
-        customer: true,
-        shift: true,
-        payments: { where: { voidedAt: null }, include: { method: true } },
-        returns: { where: { voidedAt: null }, include: { items: true } }
-      }
+    // Old databases may contain several historical invoices with the SAME
+    // receipt code. Never guess the latest and disclose someone else's sale.
+    const claims = await prisma.saleInvoice.findMany({
+      where: { returnCode: code },
+      select: { id: true, returnCodeExpiresAt: true },
+      take: 2
     })
+    if (claims.length > 1)
+      throw new BusinessError('این کد رسید در سوابق چند سند دارد. از شماره فیش در گزارش فروش و بررسی مدیر استفاده کنید.')
+    if (claims.length && (!claims[0].returnCodeExpiresAt || claims[0].returnCodeExpiresAt <= now))
+      throw new BusinessError('مهلت این کد رسید تمام شده است. سند را با شماره فیش در گزارش فروش بررسی کنید.')
 
-    // ورودی عددی: احتمالاً شماره فیش روی رسید است
-    if (!invoice && /^[0-9]+$/.test(code)) {
+    let invoice = claims.length
+      ? await prisma.saleInvoice.findUnique({
+          where: { id: claims[0].id },
+          include: {
+            items: true,
+            customer: true,
+            shift: true,
+            payments: { where: { voidedAt: null }, include: { method: true } },
+            returns: { where: { voidedAt: null }, include: { items: true } }
+          }
+        })
+      : null
+
+    // شماره فیش تنها زمانی امتحان می‌شود که هیچ ادعای کد رسید (حتی منقضی)
+    // با همان ورودی وجود نداشته باشد؛ کد منقضی نباید سند دیگری را باز کند.
+    if (!invoice && !claims.length && /^[0-9]+$/.test(code) && Number.isSafeInteger(Number(code))) {
       invoice = await prisma.saleInvoice.findFirst({
         where: { receiptNo: Number(code) },
         include: {
@@ -5761,25 +5984,7 @@ export const salesService = {
         }
       })
     }
-
-    if (!invoice) {
-      const expired = await prisma.saleInvoice.findFirst({
-        where: { returnCode: code },
-        orderBy: { issuedAt: 'desc' },
-        select: { receiptNo: true, issuedAtJalali: true, returnCodeExpiresAt: true }
-      })
-      if (expired) {
-        throw new BusinessError(
-          `اعتبار کد «${code}» تمام شده است. این کد برای فاکتور شماره ${faDigits(expired.receiptNo)} ` +
-            `(تاریخ ${faDigits(expired.issuedAtJalali)}) صادر شده بود و اعتبارش ` +
-            `${faDigits(toJalaliDate(expired.returnCodeExpiresAt ?? new Date()))} به پایان رسیده است. ` +
-            'برای برگشت این فاکتور از «گزارشات فروش» شماره فیش را پیدا کنید.'
-        )
-      }
-      throw new BusinessError(
-        `فاکتوری با کد «${code}» پیدا نشد. کد را دوباره وارد کنید یا بارکد روی رسید را اسکن کنید.`
-      )
-    }
+    if (!invoice) throw new BusinessError('سندی برای این ورودی پیدا نشد. کد را بررسی کنید یا از گزارش فروش استفاده کنید.')
 
     // ---- وضعیت انباری اقلام (بدون include تودرتو، تا کالای حذف‌شده گزارش را نخواباند) ----
     const variantIds = [...new Set(invoice.items.map((i) => i.variantId))]
@@ -5945,7 +6150,8 @@ export const salesService = {
   },
 
   /**
-   * برگشت جزئی یا کلی. موجودی برگشتی فوراً و به‌صورت FINAL به انبار برمی‌گردد.
+   * برگشت جزئی یا کلی. از cutover، موجودی برگشتی فقط پس از رسید مستقل کالا
+   * به انبار می‌رود؛ مسیر تاریخی با marker=false و بدون backfill حفظ می‌شود.
    *
    * قواعد:
    *   • تعداد قابل برگشت هر قلم = تعداد فروش − برگشت‌های قبلی. بیشتر از آن فقط
@@ -5958,7 +6164,7 @@ export const salesService = {
    *   • وضعیت فاکتور بر اساس *جمع* برگشت‌ها به‌روز می‌شود: همه‌ی اقلام برگشته
    *     ⇒ RETURNED، وگرنه PARTIALLY_RETURNED.
    */
-  async createReturn(input: ReturnSaleInput) {
+  async createReturn(input: ReturnSaleInput, protocol: { goodsReceiptRequired?: boolean } = {}) {
     validateReturnMutation(input)
     const fullRefundOverride = input.managerFullRefund === true
     if (fullRefundOverride) {
@@ -6008,7 +6214,10 @@ export const salesService = {
       })
       // فیلدهای کمکیِ مسیر تعویض (رکوردهای خام) روی سیم IPC نمی‌روند
       // بند ۱۱ — مسیر برگشت ساده همیشه روش بازپرداخت را اجباری می‌کند
-      const full = await runReturn(tx, input, { applyRefund: true, fullRefundOverride, overpayManagerApproved })
+      const full = await runReturn(tx, input, {
+        applyRefund: true, fullRefundOverride, overpayManagerApproved,
+        goodsReceiptRequired: protocol.goodsReceiptRequired !== false
+      })
       // دادهٔ خام فقط برای ادامهٔ تراکنش است؛ پاسخ استاندارد هیچ credential ندارد.
       const {
         returnRecord: _rec,
@@ -6053,8 +6262,9 @@ export const salesService = {
           /**
            * جلسه ۴۰ · کار ب — `stockNote` باید *وضعیت واقعی* را بگوید. در این
            * مسیر (کارت‌به‌کارت مدیر) کالا **به انبار نرفته** و معلق است؛ متن
-           * قبلی («برگشت N عدد به انبار») از این نسخه دروغ می‌شد.
-           * بعد از `pay` همین ستون به‌روز می‌شود.
+           * قبلی («برگشت N عدد به انبار») از این نسخه دروغ می‌شد. فقط رسید
+           * فیزیکیِ شاهددار این ستون را به «دریافت شد» به‌روز می‌کند؛ اعلام
+           * مدیر و حتی شاهد بانک، دریافت کالا نیستند.
            */
           stockNote: full.restockPending
             ? pendingStockNote(full.pendingRestockQty ?? 0, faDigits)
@@ -6066,6 +6276,14 @@ export const salesService = {
           shiftId: rec?.shiftId ?? null,
           shiftName: shift?.name ?? null,
           note: 'ثبت‌شده از پنل برگشت از فروش'
+        })
+        await openCardTransferEntitlement(tx, {
+          returnId: rec.id, invoiceId: inv.id, requestId: cardTransfer.id,
+          amount: toNumberRial(cardTransfer.amount),
+          giftOpportunity: full.creditOpportunity?.restored ?? 0,
+          debtReduced: Math.max(0, toNumberRial(rec.total) - toNumberRial(cardTransfer.amount) -
+            (full.creditOpportunity?.restored ?? 0)),
+          actorUserId: input.userId ?? null
         })
         await tx.auditLog.create({
           data: {
@@ -6082,7 +6300,7 @@ export const salesService = {
               `درخواست کارت‌به‌کارت ${money(cardTransfer.amount)} ریال ثبت شد (در انتظار پرداخت مدیر) · ` +
               'هیچ پولی در این لحظه جابه‌جا نشد و این مبلغ در سرجمع فروش نمی‌آید' +
               (full.restockPending
-                ? ` · ${faDigits(full.pendingRestockQty ?? 0)} قلم کالای برگشتی تا زدن «پرداخت شد» در موجودی قابل‌فروش نمی‌نشیند`
+                ? ` · ${faDigits(full.pendingRestockQty ?? 0)} قلم کالای برگشتی تا دریافت فیزیکیِ شاهددار در موجودی قابل‌فروش نمی‌نشیند؛ اعلام مدیر یا حتی شاهد بانک جای رسید کالا نیست`
                 : '') +
               '.'
           }
@@ -6136,7 +6354,7 @@ export const salesService = {
    * تعویض‌های صوری، پول نقد صندوق را جابه‌جا کند.
    * -------------------------------------------------------------------------
    */
-  async createExchange(input: ExchangeSaleInput): Promise<ExchangeSaleResult> {
+  async createExchange(input: ExchangeSaleInput, protocol: { goodsReceiptRequired?: boolean } = {}): Promise<ExchangeSaleResult> {
     validateExchangeMutation(input)
     if (!input?.invoiceId) throw new BusinessError('فاکتور اصلی مشتری برای تعویض مشخص نشده است.')
     const replacements = (input.replacements ?? []).filter((r) => r?.variantId && r.qty > 0)
@@ -6300,7 +6518,8 @@ export const salesService = {
            * می‌شود. محافظه‌کارانه‌ترین ترتیب همین است: اول معلق، بعد آزادسازیِ
            * آگاهانه — نه برعکس.
            */
-          deferRestock: refundMode === 'CARD_TO_CARD'
+          deferRestock: refundMode === 'CARD_TO_CARD',
+          goodsReceiptRequired: protocol.goodsReceiptRequired !== false
         }
       )
       const source = back.invoice
@@ -6459,6 +6678,7 @@ export const salesService = {
         },
         include: { items: true, customer: true, shift: true }
       })
+      await attachReturnCodeReservation(tx, generated.code, exchangeInvoice.id)
 
       if (deductInventory) {
         await inventoryService.decrease(
@@ -6733,13 +6953,15 @@ export const salesService = {
               note: `صدور اعتبار بالاتر از سقف، با تایید مدیر · ${money(owed)} ریال (سقف ${money(policy.storeCreditLimit)})`
             })
           }
+          const paperHolder = optionalPrintedHolder(input)
           credit = await issueStoreCredit(tx, {
             amount: owed,
             returnId: back.id,
             exchangeInvoiceId: exchangeInvoice.id,
             sourceInvoiceId: source.id,
             customerId: source.customerId ?? null,
-            customerName: exchangeInvoice.customer?.name ?? null,
+            customerName: paperHolder.name ?? exchangeInvoice.customer?.name ?? null,
+            holderPhone: paperHolder.phone,
             /**
            * بند ۹ (جلسه ۳۰) · §۳ — مدت اعتبارِ مسیر تعویض/برگشت.
            * تا دیروز همیشه `returnCodeDays` (تنظیمات «کد برگشت») فرستاده می‌شد و
@@ -6847,19 +7069,11 @@ export const salesService = {
         })
       }
 
-      /**
-       * ================== جلسه ۴۰ · کار ب — آزادسازی آگاهانه ==================
-       * کالای برگشتی وقتی معلق شد که کاربر «کارت‌به‌کارت مدیر» را انتخاب کرده
-       * بود. اگر مابه‌التفاوت آخر صفر یا به نفع فروشگاه درآمد، هیچ پرداخت مدیری
-       * وجود ندارد و هیچ‌کس نیست که «پرداخت شد» بزند ⇒ کالا باید همین حالا و در
-       * همین تراکنش آزاد شود، وگرنه برای همیشه معلق می‌ماند.
-       *
-       * این مسیر تأیید مدیر نمی‌خواهد و نباید بخواهد: قاعده‌ی «فقط با تأیید
-       * مدیر» مخصوص حالتی است که پولی به مشتری بدهکاریم. اینجا بدهی‌ای نیست و
-       * رفتار عیناً همان رفتار همیشگیِ تعویضِ بدون پرداخت مدیر است.
-       */
+      /** Historical exchange only: a C2C intent with no actual payout was
+       * once released immediately. A NEW goodsReceiptRequired paper stays
+       * pending for the independent physical witness, even at diff >= 0. */
       let releasedPending = 0
-      if (back.restockPending && cardToCard <= 0) {
+      if (back.restockPending && !back.goodsReceiptRequired && cardToCard <= 0) {
         const rel = await pendingRestockService.releaseReturnStock(tx, {
           returnId: back.id,
           userId: input.userId ?? null,
@@ -6913,6 +7127,10 @@ export const salesService = {
           shiftId,
           shiftName: shiftRow?.name ?? null,
           note: 'ثبت‌شده از پنل تعویض کالا'
+        })
+        await openCardTransferEntitlement(tx, {
+          returnId: back.id, invoiceId: source.id, requestId: cardTransfer.id,
+          amount: cardToCard, debtReduced: debtCut, actorUserId: input.userId ?? null
         })
         await tx.auditLog.create({
           data: {
@@ -7012,7 +7230,8 @@ export const salesService = {
         /** کد در نتیجهٔ عادی تعویض نیست؛ فقط مرجع امن برای ردیابی برمی‌گردد. */
         storeCredit: credit ? shapeStoreCreditSafe(credit) : null,
         restockedQty: back.restockedQty ?? 0,
-        /** ---- جلسه ۴۰ · کار ب ---- */
+        /** ---- دریافت مستقلِ کالا؛ تسویهٔ مابه‌التفاوت شاهد فیزیکی نیست ---- */
+        goodsReceiptRequired: back.goodsReceiptRequired,
         restockPending: back.restockPending === true && releasedPending === 0,
         pendingRestockQty: releasedPending > 0 ? 0 : (back.pendingRestockQty ?? 0),
         stockWarnings,
@@ -7098,6 +7317,7 @@ export const salesService = {
       where,
       include: {
         items: true,
+        corrections: { select: { id: true } },
         invoice: {
           select: {
             id: true,
@@ -7204,6 +7424,10 @@ export const salesService = {
         const creditRow = credit ? shapeStoreCredit(credit) : null
         return {
           returnId: r.id,
+          /** سند اصلاح‌شده برای بررسی تاریخی است؛ دکمهٔ ابطال/اصلاح دوباره ندارد. */
+          corrected: r.corrections.length > 0,
+          goodsReceiptRequired: r.goodsReceiptRequired,
+          restockedQty: r.items.reduce((sum, item) => sum + item.restockedQty, 0),
           invoiceId: r.invoiceId,
           receiptNo: r.invoice?.receiptNo ?? 0,
           invoiceDateJalali: r.invoice?.issuedAtJalali ?? '—',
@@ -7674,6 +7898,7 @@ export const salesService = {
       where,
       include: {
         items: true,
+        corrections: { select: { id: true } },
         invoice: {
           select: {
             receiptNo: true,
@@ -7734,13 +7959,13 @@ export const salesService = {
       note: r.note ?? '',
       qty: r.items.reduce((s, i) => s + i.qty, 0),
       restockedQty: r.items.reduce((s, i) => s + i.restockedQty, 0),
-      /**
-       * ---- جلسه ۴۰ · کار ب — «در انتظار تأیید مدیر» (فقط خواندنی) ----
-       * تب برگشت/تعویض گزارشات فروش با همین دو عدد ستون و نشان می‌سازد؛ هیچ
-       * دکمه‌ی تأیید/بازگشت به انباری بیرون از پنل قفل‌دار ساخته نمی‌شود.
-       */
-      restockPending: r.restockPending === true,
-      pendingRestockQty: r.restockPending === true ? pendingQtyOfItems(r.items) : 0,
+      goodsReceiptRequired: r.goodsReceiptRequired,
+      corrected: r.corrections.length > 0,
+      /** وضعیت دریافت فیزیکیِ شاهددار مستقل از نتیجهٔ تسویهٔ مدیر است.
+       * پروندهٔ دارای اصلاح جبرانی فقط تاریخی است، نه صفِ ورود کالای تازه. */
+      restockPending: r.restockPending === true && r.corrections.length === 0,
+      pendingRestockQty: r.restockPending === true && r.corrections.length === 0
+        ? pendingQtyOfItems(r.items) : 0,
       // ---------------- افزوده‌های جلسه ۱۴ (بند ۱۰ و ۱۱) ----------------
       refundMethod: r.refundMethod ?? null,
       refundMethodLabel: refundMethodLabel(r.refundMethod),
@@ -7970,8 +8195,14 @@ export const salesService = {
       })
       if (!ret) throw new BusinessError('این برگشت از فروش پیدا نشد؛ ممکن است حذف شده باشد. فهرست را تازه کنید.')
       assertReturnNotVoided(ret as any, 'ویرایش')
+      if (await tx.returnCorrection.findUnique({ where: { returnId: ret.id }, select: { id: true } }))
+        throw new BusinessError('این سند اصلاح جبرانی ثبت‌شده دارد؛ سند اصلی تاریخی است و ویرایش دوبارهٔ آن مجاز نیست.')
+      if (ret.goodsReceiptRequired && await tx.returnGoodsReceipt.count({ where: { returnId: ret.id } }))
+        throw new BusinessError('این برگشت رسید فیزیکیِ کالا دارد؛ ویرایش مستقیم اقلام رسید را بی‌مرجع می‌کند. اصلاح جبرانی شاهددار لازم است.')
       // نشست ۶۰ · C6 — برگشتِ تعویض جدا از گرافش ویرایش نمی‌شود
       assertNotExchangeReturn(ret as any, 'ویرایش')
+      if (await tx.creditReturnAllocation.count({ where: { returnId: ret.id } }))
+        throw new BusinessError('این برگشت شاخهٔ اعتبار B/E یا احیای اعتبار اصلی دارد؛ ویرایش مستقیم سند، حق را دوبار باز می‌کند. اصلاح جبرانی شاهددار مدیر لازم است.')
       const invoice = ret.invoice
       if (!invoice) throw new BusinessError('فاکتور این برگشت پیدا نشد؛ فهرست را تازه کنید.')
       /** نشست ۲۱۴ · M1 — بدهی پیش از ویرایش، برای قاعدهٔ چک بند ۴-۵۲ (مثل ثبت برگشت). */
@@ -8033,6 +8264,10 @@ export const salesService = {
         where: { returnId: ret.id, status: { not: CardTransferStatus.CANCELED } },
         select: { id: true, status: true, amount: true }
       })
+      const managedClaim = await tx.returnEntitlement.findUnique({ where: { returnId: ret.id } })
+      if (managedClaim && (managedClaim.state !== 'OPEN' || relatedTransfer?.status !== CardTransferStatus.PENDING ||
+          ret.items.some((item) => item.restockedQty > 0)))
+        throw new BusinessError('این برگشت دفتر حق مالی، شاهد بانک یا کالای دریافت‌شده دارد؛ ویرایش مستقیم اقلام مجاز نیست. اصلاح شاهددار پروندهٔ مدیر لازم است.')
       /**
        * ⚠️ تمایز ظریفی که اول از قلم افتاد و تست `acceptance-db-session40`
        * گرفتش: **کارت‌به‌کارتِ در انتظار یعنی هنوز هیچ پولی خارج نشده.**
@@ -8103,9 +8338,10 @@ export const salesService = {
        * موجودی قابل‌فروش برمی‌گرداند. یعنی همان قفلی که برای `pay` گذاشته شد از
        * یک درِ دیگر دور می‌خورد.
        *
-       * پس در حالت معلق، ویرایش **تعداد و مبلغ سند را عوض می‌کند ولی هیچ حرکت
-       * انباری نمی‌سازد**: اقلام جدید هم `restockedQty = 0` می‌گیرند و کالا معلق
-       * می‌ماند. تنها نقطه‌ی آزادسازی، همان پنل قفل‌دار مدیر است.
+       * پس در حالت معلق، ویرایشِ پروندهٔ قدیمیِ مجاز **تعداد و مبلغ سند را عوض
+       * می‌کند ولی هیچ حرکت انباری نمی‌سازد**: اقلام جدید هم `restockedQty = 0`
+       * می‌گیرند و کالا معلق می‌ماند. پروندهٔ جدیدِ دارای دفتر حق/رسید، ویرایش
+       * مستقیم اقلام را رد می‌کند؛ دریافت کالا با شاهد مستقل از بانک است.
        *
        * ⚠️ هم‌زمان جلوی «دو بار اضافه شدن» را هم می‌گیرد: چون `oldRestock` برای
        * سند معلق صفر است و `newRestock` هم صفر می‌شود، `increase`/`decrease` هر
@@ -8207,6 +8443,11 @@ export const salesService = {
        */
       if (relatedTransfer && transferPending && toNumberRial(relatedTransfer.amount) !== total) {
         const wasAmount = toNumberRial(relatedTransfer.amount)
+        await correctPendingEntitlement(tx, {
+          returnId: ret.id, requestId: relatedTransfer.id, newRight: total,
+          reason: String(input.overrideReason ?? '').trim() || 'اصلاح مبلغ درخواست کارت‌به‌کارت با ویرایش سند',
+          actorUserId: input.userId ?? null
+        })
         await tx.cardTransferRequest.update({
           where: { id: relatedTransfer.id },
           data: { amount: total, returnTotal: total }
@@ -8328,8 +8569,8 @@ export const salesService = {
           correctionAuthScope
         }),
         note: pendingRestock
-          ? 'ویرایش برگشت از فروش · کالای این برگشت «در انتظار پرداخت مدیر» است، پس هیچ حرکت انباری ' +
-            'ثبت نشد و کالا همچنان بیرون از موجودی قابل‌فروش است'
+          ? 'ویرایش برگشت از فروش · کالای این برگشت هنوز به موجودی برنگشته است؛ ' +
+            'ویرایش سند شاهد دریافت فیزیکی نیست و هیچ حرکت انباری ثبت نشد'
           : restock
             ? `ویرایش برگشت از فروش · اختلاف موجودی اعمال شد (ورود ${increase.length} قلم، خروج ${decrease.length} قلم)`
             : 'ویرایش برگشت از فروش (فاکتور بدون کسر موجودی بود، انبار تغییر نکرد)'
@@ -8486,6 +8727,16 @@ export const salesService = {
         })
         if (!ret) throw new BusinessError('این برگشت از فروش پیدا نشد؛ فهرست را تازه کنید.')
         assertReturnNotVoided(ret as any, 'ابطال')
+        if (await tx.returnCorrection.findUnique({ where: { returnId: ret.id }, select: { id: true } }))
+          throw new BusinessError('این سند اصلاح جبرانی ثبت‌شده دارد؛ ابطال دوبارهٔ سند اصلی مجاز نیست.')
+        if (ret.goodsReceiptRequired && await tx.returnGoodsReceipt.count({ where: { returnId: ret.id } }))
+          throw new BusinessError('این سند رسید فیزیکیِ کالا دارد؛ ابطال مستقیم تاریخچهٔ دریافت را دو بار معکوس می‌کند. اصلاح جبرانی شاهددار لازم است.')
+        const managedClaim = await tx.returnEntitlement.findUnique({ where: { returnId: ret.id } })
+        if (await tx.creditReturnAllocation.count({ where: { returnId: ret.id } }))
+          throw new BusinessError('این سند برگشت، احیای اعتبار اصلی یا شاخهٔ B/E ثبت‌شده دارد؛ ابطال مستقیم حق را دوبار باز می‌کند. اصلاح جبرانی شاهددار مدیر لازم است.')
+        if (managedClaim && (managedClaim.state !== 'OPEN' ||
+            toNumberRial(managedClaim.cashPaid) > 0 || toNumberRial(managedClaim.cashConverted) > 0))
+          throw new BusinessError('این برگشت دفتر حق مالی/شاهد بانک یا اعتبار صادرشده دارد؛ ابطال ساده ممکن نیست. اصلاح جبرانی شاهددار لازم است.')
         /**
          * نشست ۶۵ (S65-1) — برگشتِ تعویض جدا از گرافش باطل نمی‌شود: همین‌جا کل گراف
          * (سند برگشت + سند تعویض + اعتبار + درخواست کارت‌به‌کارت + انبار دو طرف +
@@ -8702,6 +8953,7 @@ export const salesService = {
           where: { id: ret.id },
           data: { voidedAt: now, voidedByUserId: input.userId ?? null, voidReason: reason, ...(wasPending ? { restockPending: false } : {}) }
         })
+        await quarantineEntitlement(tx, { returnId: ret.id, reason, actorUserId: input.userId ?? null })
 
         // ---- ۴-ب) نشست ۶۵ — سند تعویض (فاکتور جایگزین): انبار معکوس + مهر ابطال ----
         let exReversedQty = 0
@@ -8824,7 +9076,7 @@ export const salesService = {
             (changes.length
               ? ` · ${faDigits(changes.reduce((s, c) => s + c.qty, 0))} عدد از موجودی انبار برگشت خورد`
               : wasPending
-                ? ' · کالایش «در انتظار پرداخت مدیر» بود و هیچ‌وقت به موجودی اضافه نشده بود'
+                ? ' · کالایش هنوز دریافت/به موجودی برنگشته بود؛ ابطال سند شاهد فیزیکی ایجاد نمی‌کند'
                 : '') +
             (canceledCreditRefs.length ? ` · اعتبار باطل‌شده: ${canceledCreditRefs.join('، ')}` : '') +
             (pendingReq ? ` · درخواست کارت‌به‌کارت ${faDigits(pendingReq.id)} لغو شد` : '') +
@@ -8996,6 +9248,12 @@ export const salesService = {
       })
       if (!ret) throw new BusinessError('این برگشت از فروش پیدا نشد؛ فهرست را تازه کنید.')
       assertReturnNotVoided(ret as any, 'ابطال')
+      const managedClaim = await tx.returnEntitlement.findUnique({ where: { returnId: ret.id } })
+      if (await tx.creditReturnAllocation.count({ where: { returnId: ret.id } }))
+        throw new BusinessError('این برگشت منشأ اعتبار احیاشده یا شاخهٔ B/E دارد؛ اصلاح بدون دفتر جبران همین شاخه‌ها مجاز نیست. سند و اعتبار حفظ شدند.')
+      if (managedClaim && (managedClaim.state === 'UNKNOWN_BANK' ||
+          toNumberRial(managedClaim.cashConverted) > 0))
+        throw new BusinessError('تسویهٔ بانک نامعلوم است یا کدِ حق نقدی قبلاً صادر شده؛ اصلاح جبرانی بدون تعیین تکلیف شاهد بانک/کد انجام نمی‌شود.')
       const isExchange = ret.kind === ReturnKind.EXCHANGE
       if (!isExchange && ret.kind !== ReturnKind.RETURN)
         throw new BusinessError('نوع این سند دیگر شناخته‌شده نیست؛ اصلاح جبرانی انجام نشد.')
@@ -9032,6 +9290,11 @@ export const salesService = {
       if (existing)
         throw new BusinessError(`برای برگشت ${faDigits(ret.id)} قبلاً اصلاح جبرانی شماره ${faDigits(existing.id)} ثبت شده است؛ ثبت دوباره ممنوع است.`)
 
+      // Read the *per-receipt, per-physical-row* source evidence while this
+      // transaction owns the correction. Historical/partial evidence fails
+      // closed; no warehouse unit is silently assigned to the store.
+      const goodsPlan = await prepareGoodsCorrection(tx, ret)
+
       await periodLockService.assertOpen(tx, {
         at: ret.returnedAt,
         what: `اصلاح جبرانی برگشت ${faDigits(ret.id)}`,
@@ -9056,7 +9319,10 @@ export const salesService = {
        * درخواست کارت‌به‌کارت یک تعهد/جریان جداست: PENDING هنوز پرداخت نشده و
        * PAID/ADJUSTED فقط به اندازه‌ی پرداخت خالصِ واقعی قابل بازیافت است.
        */
-      const actualCardToCardPaid = async (): Promise<number> => {
+      const actualCardToCardPaid = async (): Promise<{
+        paid: number
+        pending: { id: number; amount: number | bigint } | null
+      }> => {
         const requests = await tx.cardTransferRequest.findMany({
           where: { returnId: ret.id, kind: CardTransferKind.REQUEST },
           orderBy: { id: 'asc' },
@@ -9071,13 +9337,12 @@ export const salesService = {
         if (request.status === CardTransferStatus.PENDING) {
           if (request.paidAt != null || request.paidAmount != null)
             throw new BusinessError('درخواست کارت‌به‌کارت این سند هم‌زمان «در انتظار» و دارای پرداخت ثبت‌شده است؛ مبلغ بازیافتی حدس زده نمی‌شود و رسیدگی دستی مدیر لازم است.')
-          pendingCardTransfer = { id: request.id, amount: request.amount }
-          return 0
+          return { paid: 0, pending: { id: request.id, amount: request.amount } }
         }
         if (request.status === CardTransferStatus.CANCELED) {
           if (request.paidAt != null || request.paidAmount != null)
             throw new BusinessError('درخواست کارت‌به‌کارت لغوشده‌ی این سند پرداخت ثبت‌شده هم دارد؛ مبلغ بازیافتی حدس زده نمی‌شود و رسیدگی دستی مدیر لازم است.')
-          return 0
+          return { paid: 0, pending: null }
         }
         if (
           (request.status !== CardTransferStatus.PAID && request.status !== CardTransferStatus.ADJUSTED) ||
@@ -9095,7 +9360,7 @@ export const salesService = {
           adjustments.reduce((sum, row) => sum + toNumberRial(row.paidAmount ?? row.amount), 0)
         if (!Number.isSafeInteger(paidNet) || paidNet < 0)
           throw new BusinessError('جمع پرداخت کارت‌به‌کارت این سند معتبر نیست؛ مبلغ بازیافتی حدس زده نمی‌شود و رسیدگی دستی مدیر لازم است.')
-        return paidNet
+        return { paid: paidNet, pending: null }
       }
       if (isExchange) {
         const exchangeDiff = toNumberRial(ret.exchangeDiff ?? 0)
@@ -9121,7 +9386,9 @@ export const salesService = {
           if (exchangeSettlement === ExchangeSettlement.CASH_REFUND || exchangeSettlement === ExchangeSettlement.CARD_REFUND) {
             originalCashOrCardOut = exchangeRefund
           } else if (exchangeSettlement === ExchangeSettlement.CARD_TO_CARD) {
-            originalCashOrCardOut = await actualCardToCardPaid()
+            const transfer = await actualCardToCardPaid()
+            originalCashOrCardOut = transfer.paid
+            pendingCardTransfer = transfer.pending
           } else if (exchangeSettlement !== ExchangeSettlement.CREDIT)
             throw new BusinessError('مابه‌التفاوت منفی این تعویض با روش تسویه‌ی ناسازگار ثبت شده است؛ اصلاح جبرانی انجام نشد.')
         }
@@ -9134,7 +9401,11 @@ export const salesService = {
               : 'روش بازپرداخت این برگشت قدیمی ثبت نشده است؛ مبلغ آن را صفر فرض نمی‌کنیم. ابتدا رسیدگی دستی و تکمیل تسویه لازم است.'
           )
         if (refundMethod === RefundMethod.CASH || refundMethod === RefundMethod.CARD) originalCashOrCardOut = refundAmount
-        if (refundMethod === RefundMethod.CARD_TO_CARD) originalCashOrCardOut = await actualCardToCardPaid()
+        if (refundMethod === RefundMethod.CARD_TO_CARD) {
+          const transfer = await actualCardToCardPaid()
+          originalCashOrCardOut = transfer.paid
+          pendingCardTransfer = transfer.pending
+        }
       }
       if (cashRecovered + cardRecovered > originalCashOrCardOut)
         throw new BusinessError(
@@ -9270,40 +9541,15 @@ export const salesService = {
           note: `درخواست کارت‌به‌کارت ${faDigits(pendingCardTransfer.id)} با اصلاح جبرانی ${isExchange ? 'تعویض' : 'برگشت'} ${faDigits(ret.id)} لغو شد · دلیل: ${reason}`
         })
       }
-      const stockLines = ret.items
-        .filter((item: any) => Number(item.restockedQty ?? 0) > 0)
-        .map((item: any) => ({ variantId: Number(item.variantId), qty: Number(item.restockedQty) }))
-      if (stockLines.length) {
-        await inventoryService.decrease(
-          stockLines,
-          {
-            reason: 'RETURN_CORRECTION',
-            refType: 'ReturnCorrection',
-            refId: correction.id,
-            userId: correctingUserId,
-            note: `اصلاح جبرانی برگشت ${faDigits(ret.id)} · فاکتور ${faDigits(ret.invoice?.receiptNo ?? 0)} · ${reason}`
-          },
-          tx
-        )
-        for (const item of ret.items) {
-          const qty = Number(item.restockedQty ?? 0)
-          if (qty > 0)
-            effectRows.push({
-              correctionId: correction.id,
-              type: 'INVENTORY_OUT',
-              qty,
-              variantId: item.variantId,
-              referenceType: 'SaleReturnItem',
-              referenceId: item.id,
-              detailsJson: JSON.stringify({ returnId: ret.id }),
-              occurredAt: now,
-              occurredAtJalali: toJalaliDate(now),
-              occurredAtTime: toClock(now),
-              shiftId: correctingShiftId,
-              userId: correctingUserId
-            })
-        }
-      }
+      const goodsEffects = await applyGoodsCorrection(tx, ret, goodsPlan, {
+        correctionId: correction.id, receiptNo: ret.invoice?.receiptNo ?? null,
+        userId: correctingUserId, reason, at: now
+      })
+      for (const effect of goodsEffects) effectRows.push({
+        correctionId: correction.id, ...effect,
+        occurredAt: now, occurredAtJalali: toJalaliDate(now), occurredAtTime: toClock(now),
+        shiftId: correctingShiftId, userId: correctingUserId
+      })
       /** تعویض دو جهت موجودی دارد: کالای اولیه از انبار خارج و کالای جایگزین به انبار فعلی برمی‌گردد. */
       if (isExchange && exchangeInvoice?.deductInventory) {
         const replacementLines = exchangeInvoice.items
@@ -9467,6 +9713,7 @@ export const salesService = {
         })
       }
       if (effectRows.length) await (tx as any).returnCorrectionEffect.createMany({ data: effectRows })
+      await quarantineEntitlement(tx, { returnId: ret.id, reason, actorUserId: correctingUserId })
 
       const status = await refreshInvoiceStatus(tx, ret.invoiceId)
       const settleAfter = await recalcSettlement(tx, ret.invoiceId, { userId: correctingUserId, overpayCreditShortfall: 'flag' })
@@ -9535,7 +9782,12 @@ export const salesService = {
       include: { effects: { orderBy: { id: 'asc' } }, return: { select: { invoiceId: true, returnedAtJalali: true, total: true } } },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
     })
-    const userIds = [...new Set(rows.flatMap((row: any) => [row.originalUserId, row.correctingUserId, row.approvingManagerId]).filter(Boolean))]
+    const possibleUserIds: Array<number | null> = rows.flatMap((row: any) =>
+      [row.originalUserId, row.correctingUserId, row.approvingManagerId]
+    )
+    const userIds = [...new Set(possibleUserIds.filter((id): id is number =>
+      typeof id === 'number' && Number.isSafeInteger(id) && id > 0
+    ))]
     const users = userIds.length
       ? await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, displayName: true } })
       : []
@@ -9711,7 +9963,7 @@ export const salesService = {
         sourceLabel: CREDIT_ISSUE_REASON_LABELS[creditIssueReasonOf(credit)],
         status,
         statusLabel: CREDIT_STATUS_LABELS[status] ?? status,
-        remaining: creditRemainingOf({ amount: toNumberRial(credit.amount), usedAmount: toNumberRial(credit.usedAmount) })
+        remaining: creditRemainingOf({ amount: toNumberRial(credit.amount), usedAmount: toNumberRial(credit.usedAmount), status })
       }
     }
     const rows: CreditSettlementLineageView['rows'] = []
@@ -11042,6 +11294,18 @@ export const salesService = {
             ...(await tx.saleReturn.findMany({ where: { invoiceId: { in: ids } }, select: { id: true } })).map((r) => r.id)
           )
         returnIds.sort((a, b) => a - b)
+        // A purged purchase with a branched credit (or an issued B/E on its
+        // return) cannot silently void one side of the provenance chain.
+        // Keep both documents and the customer's opportunity for witnessed
+        // reconciliation, even when none of the child codes was spent yet.
+        for (const ids of invoiceChunks) {
+          if (await tx.creditReturnAllocation.count({ where: { invoiceId: { in: ids } } }))
+            throw new BusinessError('این بازه خریدی با منشأ اعتبارِ برگشتی H1/B/E دارد؛ پاک‌سازی ساده حق مشتری را می‌سوزاند یا دوبار باز می‌کند. رسیدگی جبرانی مدیر لازم است.')
+        }
+        for (const ids of reportIdChunks(returnIds)) {
+          if (await tx.creditReturnAllocation.count({ where: { returnId: { in: ids } } }))
+            throw new BusinessError('این بازه سند برگشتی با شاخهٔ اعتبار دارد؛ پاک‌سازی ساده بدون دفتر جبران مجاز نیست.')
+        }
 
         /**
          * ۱) بازگشت موجودی (اگر کاربر «بله» را انتخاب کرده باشد).

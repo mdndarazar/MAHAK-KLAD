@@ -80,7 +80,7 @@ console.log('\n— ۲) ورودی «مبلغ بازپرداخت» سه‌رقم�
     /from '\.\.\/lib\/moneyInput'/.test(salesReturn),
     /value=\{groupThousands\(refundAmount\)\}/.test(salesReturn),
     /onChange=\{\(e\) => setRefundAmount\(digitsOnly\(e\.target\.value\)\)\}/.test(salesReturn),
-    /placeholder=\{groupThousands\(String\(totals\.amount\)\)\}/.test(salesReturn),
+    /placeholder=\{groupThousands\(String\(creditPreview\?\.giftOpportunity \? creditPreview\.cashRight : totals\.amount\)\)\}/.test(salesReturn),
     /inputMode="numeric"/.test(salesReturn)
   ], [true, true, true, true, true])
 

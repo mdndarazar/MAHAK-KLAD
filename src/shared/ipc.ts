@@ -35,6 +35,8 @@ export const IPC = {
   saleList: 'sale:list',
   saleGet: 'sale:get',
   saleReturn: 'sale:return',
+  /** پیش‌نمایش بدون کد اعتبار: کاهش بدهی / سهم اعتبار / حق پول واقعی */
+  saleReturnProvenancePreview: 'sale:return:provenance:preview',
   /** پیدا کردن فاکتور فروش تکی با «کد فاکتور» (تایپ یا اسکن بارکد) */
   saleByReturnCode: 'sale:byReturnCode',
   /** فهرست برگشت‌های ثبت‌شده (تب برگشت از فروش در گزارشات) */
@@ -166,6 +168,8 @@ export const IPC = {
   creditDelete: 'credit:delete',
   /** ثبت چاپ سند اعتبار (نسخه‌ی دوم به بعد «نسخه‌ی مجدد» می‌خورد) */
   creditMarkPrinted: 'credit:markPrinted',
+  /** ثبت رضایت مثبتِ مستندِ مخاطب برای یادآوریِ همین شماره؛ نشست و رمز مدیر */
+  creditReminderConsentGrant: 'credit:reminder:consent:grant',
   /** فهرست «اعتبارهای واجد شرایط یادآوری» + دلیل فارسی هر ردیف */
   creditReminderCandidates: 'credit:reminder:candidates',
   /** ثبت یک یادآوری در صف (بدون هیچ ارسال واقعی پیامک) */
@@ -175,6 +179,8 @@ export const IPC = {
   /** تنظیمات مرکزی اعتبار خرید (§۲۲) */
   creditSettingsGet: 'credit:settings:get',
   creditSettingsSet: 'credit:settings:set',
+  /** چاپ اول اعتبار اضافه‌دریافت با مجوز مقید به صدور؛ چاپ دیگر فقط با رمز ماژول اعتبار. */
+  overpayCreditPrint: 'print:credit:overpay',
   /** چاپ سند اعتبار (نسخه‌ی دوم به بعد «نسخه‌ی مجدد») */
   printCredit: 'print:credit',
   /** چاپ گروهی یک دسته — یک Job چندصفحه‌ای، نه هزاران Job */
@@ -623,6 +629,17 @@ export const IPC = {
    * (گیت سمت سرور `assertPanelPassword(PANEL_KEYS.cardTransfers, …)`).
    */
   cardTransferCancel: 'cardTransfer:cancel',
+  /** دفتر حق و شاهد بانکی: صرف اعلام پرداخت بانک را اثبات نمی‌کند. */
+  returnEntitlementView: 'return:entitlement:view',
+  returnBankReview: 'return:bank:review',
+  returnCashConvert: 'return:cash:convert',
+  /** چاپ کنترل‌شدهٔ کد برگشت/تعویض عادی یا کد جایگزین؛ هرگز چاپِ رسید مالی نیست. */
+  returnCreditPrint: 'return:credit:print',
+  returnCreditDeliver: 'return:credit:deliver',
+  creditManagerReplaceLost: 'credit:manager:replace-lost',
+  /** ورود مقدار واقعی کالای برگشتی، مستقل از کارت‌به‌کارت. */
+  returnGoodsItems: 'return:goods:items',
+  returnGoodsReceive: 'return:goods:receive',
 
   /**
    * -----------------------------------------------------------------------

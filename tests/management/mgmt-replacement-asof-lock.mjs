@@ -56,7 +56,8 @@ const shiftId = seed.insert('Shift', {
 const v = seed.variant(p, 'L')
 sql.prepare('UPDATE "ProductVariant" SET stock = 2, salePrice = 3000000, purchasePrice = 1000000 WHERE id = ?').run(v)
 
-/** خرید ۲ عدد با فی ۱ میلیون — ۴۰ روز پیش. */
+/** خرید قدیمی، با فاصلهٔ قطعی از ماه فروش و خرید جدید؛ روز اجرای تست
+ * ممکن است اول/وسط ماه جلالی باشد و فروش امروز نباید داخل ماهِ فروش قبلی بیفتد. */
 const mkBuy = (qty, unit, daysAgo) => {
   const at = Date.now() - daysAgo * DAY
   const inv = seed.insert('PurchaseInvoice', {
@@ -80,12 +81,12 @@ const mkBuy = (qty, unit, daysAgo) => {
   })
   return inv
 }
-mkBuy(2, 1_000_000, 40)
+mkBuy(2, 1_000_000, 75)
 sql.prepare('UPDATE "ProductVariant" SET stock = 2 WHERE id = ?').run(v)
 await costEngine.run()
 
-/** فروشِ ۲۰ روز پیش (تب سود باز نشده): ۲ عدد × ۳ میلیون. */
-const saleDay = Date.now() - 20 * DAY
+/** فروشِ ۶۰ روز پیش (ماه جدا از فروش امروز): ۲ عدد × ۳ میلیون. */
+const saleDay = Date.now() - 60 * DAY
 const inv = seed.insert('SaleInvoice', {
   receiptNo: 881,
   issuedAtJalali: toJalaliDate(new Date(saleDay)),
@@ -193,7 +194,7 @@ const r2 = sql
 eq('فروشِ امروز: جایگزینی با فیِ امروز (۲م) و FIFO از لاتِ خودش', [Number(r2.replacementCost), Number(r2.fifoCost)], [2_000_000, 2_000_000])
 
 /**
- * قلبِ تست: همان فاکتورِ ۲۰ روز پیش ویرایش می‌شود و سهمِ فروشگاه عوض می‌کند (۲ → ۱ عدد)
+ * قلبِ تست: همان فاکتورِ ۶۰ روز پیش ویرایش می‌شود و سهمِ فروشگاه عوض می‌کند (۲ → ۱ عدد)
  * ⇒ جفت‌شدنِ یتیم ناممکن است ⇒ دفتر قلم را از نو قفل می‌کند. فیِ جایگزینی باید فیِ
  * «روزِ همان فروش» (۱م) باشد؛ کدِ قدیمی فیِ امروز (۲م) را می‌گذاشت و «سود تورمی» یک
  * ماهِ گذشته را از +۱م به −۱م عوض می‌کرد — فقط به این دلیل که دفتر دیر رسید.

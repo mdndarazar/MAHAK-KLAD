@@ -182,7 +182,9 @@ console.log('\n۵) قلاب «تشکر از خرید» بیرون از تراک�
   // ⚠️ باید خطِ *خودِ کد* پیدا شود نه کامنتی که همین نام را نقل می‌کند
   const saleLine = ipcMain.split('\n').find((l) => l.trim().startsWith('handle(IPC.saleCreate')) ?? ''
   ok_('خط sale:create هم قلاب را دارد', /afterSaleThankYou\(/.test(saleLine))
-  ok_('و هم نشست بازِ کارمند را (قرارداد نشست ۱۸۲ دست‌نخورده)', /withSessionActor\(p \?\? \{\}, 'ثبت فاکتور فروش'\)/.test(saleLine))
+  ok_('و هم نشست بازِ کارمند را (از درون گیت اپراتور راستی‌آزمایی می‌کند)',
+    /withVerifiedSaleOperator\(p \?\? \{\}\)/.test(saleLine) &&
+    /const financial = await withSessionActor\(raw, 'ثبت فاکتور فروش'\)/.test(ipcMain))
 
   const notify = read('src/main/services/sms/SmsSaleNotify.ts')
   ok_('خودِ تابع هم هرگز throw نمی‌کند (try/catch سراسری)', /catch \(e/.test(notify))
@@ -363,7 +365,8 @@ console.log('\n۱۲) گاردهای «دوباره زدن» — باگ اول ب
     'Enter در دیالوگ تأیید وقتی کار در جریان است کار نمی‌کند',
     /e\.key === 'Enter' && !busy/.test(dialog)
   )
-  ok_('و busy در وابستگی‌های شنونده هست', /\[open, onCancel, onConfirm, busy\]/.test(dialog))
+  ok_('و شنونده در رندر تازه handlerِ دارای busy فعلی را می‌خواند',
+    /useTopmostModalKey\(open,/.test(dialog) && /handlerRef\.current = handler/.test(read('src/renderer/src/components/Modal.tsx')))
   ok_('پنل، گارد ورود دوباره‌ی کارها دارد', /actBusyRef/.test(panel) && /return null/.test(panel))
 
   ok_('کمپین، قفل ساخت هم‌زمان دارد', /createInFlight/.test(camp))

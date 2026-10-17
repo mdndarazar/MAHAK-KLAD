@@ -577,6 +577,10 @@ export interface ReturnSaleInput {
   refundNote?: string | null
   /** مهلت بارکد اعتبارِ صادرشده وقتی refundMethod = STORE_CREDIT */
   creditDays?: number | null
+  /** فقط اطلاعات اختیاریِ روی برگهٔ کد؛ نه مدرک مالکیت، UNIQUE یا مجوز پیامک. */
+  printedHolderFirstName?: string | null
+  printedHolderLastName?: string | null
+  printedHolderPhone?: string | null
   /**
    * ------------------------ جلسه ۱۵ (بند ۱۷ سند مرجع) ------------------------
    * فقط وقتی لازم می‌شوند که تاریخ این سند در دوره‌ی بسته‌شده باشد (صندوق بسته
@@ -2017,6 +2021,10 @@ export interface ExchangeSaleInput {
   serviceCharge?: number
   /** اعتبار بارکدِ صادرشده به روز (خالی = همان مهلت کد فاکتور فروش تکی) */
   creditDays?: number | null
+  /** اطلاعات اختیاریِ چاپ کد تعویض؛ هیچ‌کدام مالکیت/راستی‌گویی را ثابت نمی‌کنند. */
+  printedHolderFirstName?: string | null
+  printedHolderLastName?: string | null
+  printedHolderPhone?: string | null
   /** برداشت خودکار کمبود موجودی کالای جایگزین از انبار مرکزی */
   autoCentralWithdraw?: boolean
   /**
@@ -2036,9 +2044,10 @@ export interface ExchangeSaleInput {
    *
    * ------------------------ جلسه ۴۶ (رفعِ بدهیِ تایپ) ------------------------
    *   CARD_TO_CARD = بازپرداخت کارت‌به‌کارت **توسط مدیر** (جلسه ۱۷ · بند ۱)؛ یک
-   *   `CardTransferRequest` با وضعیت PENDING ساخته می‌شود و — از جلسه ۴۰ — کالای
-   *   برگشتی تا زدن «پرداخت شد» در پنل قفل‌دار به موجودی قابل‌فروش برنمی‌گردد
-   *   (`deferRestock`). این مقدار **عمداً جدا** از `CARD` است، نه حالتی از آن.
+   *   `CardTransferRequest` با وضعیت PENDING ساخته می‌شود. کالای پروندهٔ جدید
+   *   تا دریافت فیزیکیِ شاهددار و مقداربه‌مقدار به موجودی برنمی‌گردد؛ اعلام
+   *   مدیر یا بازبینی بانک جای شاهد کالا نیست (`deferRestock`). پروندهٔ قدیمی
+   *   بدون دفتر حق رویهٔ تاریخیِ خود را دارد. این مقدار جدا از `CARD` است.
    *
    * چرا تا حالا نبود: مسیر IPC از `withUser` با تایپ `any` رد می‌شود، پس `tsc`
    * خطا نمی‌داد؛ ولی `SalesService.createExchange` (فهرست معتبرها) و
@@ -2126,6 +2135,8 @@ export interface StoreCreditRow {
   printCount: number
   lastPrintedAtJalali: string | null
   reminderOptOut: boolean
+  /** فقط تاریخِ رضایت مستند؛ مجوز ارسال نهایی در main برای شمارهٔ فعلی بازسنجی می‌شود. */
+  reminderConsentAtJalali: string | null
   reminderCount: number
   lastReminderAtJalali: string | null
   lastReminderKind: string | null
@@ -2273,6 +2284,9 @@ export interface CreditDetail {
   batch: CreditBatchRow | null
   /** اعتبار جدیدی که باقی‌مانده‌ی این اعتبار به آن رفت (مسیر یک‌بارمصرف) */
   remainderCredit: { id: number; publicReference: string; amount: number } | null
+  /** فقط شناسه/وضعیت؛ مدرک، رمز و شاهد خصوصی از جزئیات عادی عبور نمی‌کند. */
+  delivery?: { creditId: number; sourceKind: string; status: string } | null
+  replacement?: { originalCreditId: number; successorCreditId: number; transferredAmount: number } | null
 }
 
 /** داشبورد اعتبار خرید (§۱۵). */
@@ -2318,10 +2332,16 @@ export interface ExchangeSaleResult {
   /** CASH | CREDIT | NONE */
   settlement: string
   settlementLabel: string
-  /** اعتبار صادرشده (فقط وقتی ما بدهکار شدیم)؛ کد فقط از reveal مدیر. */
+  /** اعتبار صادرشده (فقط وقتی ما بدهکار شدیم)؛ کد فقط از مسیر چاپ مجاز. */
   storeCredit: StoreCreditSafeRow | null
-  /** تعدادی که به موجودی فروشگاه برگشت */
+  /** مجوز کوتاه‌مدت چاپ اول همین کد در پنجرهٔ صادرکننده؛ خودِ کد خرج‌پذیر نیست. */
+  firstPrintGrant?: string | null
+  /** تعدادی که با رسید به موجودی برگشت */
   restockedQty: number
+  /** پروندهٔ جدید فقط با رسید فیزیکی آزاد می‌شود، حتی اگر مابه‌التفاوت صفر/مثبت باشد. */
+  goodsReceiptRequired: boolean
+  restockPending: boolean
+  pendingRestockQty: number
   /** هشدارهای موجودی کالای جایگزین */
   stockWarnings: string[]
   /**
@@ -2343,6 +2363,10 @@ export interface ExchangeSaleResult {
 /** یک ردیف در تب «تعویض کالا»ی گزارشات فروش — با جزئیات کامل، دقیق به ثانیه. */
 export interface ExchangeReportRow {
   returnId: number
+  /** سند دارای دفتر اصلاح جبرانی؛ برای تاریخچه چاپ می‌شود ولی دوباره تغییر نمی‌کند. */
+  corrected?: boolean
+  goodsReceiptRequired?: boolean
+  restockedQty?: number
   /** فاکتور اصلی */
   invoiceId: number
   receiptNo: number
@@ -2412,6 +2436,12 @@ export interface ReturnListRow {
   note: string
   qty: number
   restockedQty: number
+  /** سند جدید دارای دریافت مقدارمحور مستقل از روش تسویه است. */
+  goodsReceiptRequired: boolean
+  /** اصلاح جبرانی اصل سند را دست‌نخورده می‌گذارد ولی دریافت/ویرایش تازه را می‌بندد. */
+  corrected: boolean
+  restockPending: boolean
+  pendingRestockQty: number
   items: ReturnListItem[]
   /**
    * ---------------------- افزوده‌های جلسه ۱۴ (بند ۱۰ و ۱۱) ----------------------
@@ -3468,6 +3498,7 @@ export interface BridgeDiagFlag {
     | 'largest'            // جزو بزرگ‌ترین ردیف‌های غیرصفر — پیشنهاد نقطه‌ی شروع
     | 'equals-unexplained' // مبلغ ردیف دقیقاً برابر |باقیمانده‌ی بی‌توضیح| است
     | 'date'               // تاریخ سند بیرون از بازه است / تاریخی ثبت نشده
+    | 'note'               // یادداشت راهنمای خواندن نمای تشخیصی
   text: string
   certainty: 'TENTATIVE'
 }
@@ -3529,7 +3560,8 @@ export interface BridgeSuspect {
 
 /** شناسنامه‌ی کامل سند — فقط خواندنی */
 export interface BridgeDocDetail {
-  ref: { kind: SaleBridgeSource['kind']; id: number }
+  // Exchange is a SaleReturn row but the detail view preserves its EXCHANGE label.
+  ref: { kind: SaleBridgeSource['kind'] | 'EXCHANGE'; id: number }
   docType: 'SIMPLE_RETURN' | 'EXCHANGE' | 'CREDIT_PAYMENT' | 'STORE_CREDIT' | 'OVERPAY' | 'CASH_MOVEMENT' | 'INVOICE'
   docNo: string
   parent: {

@@ -32,8 +32,10 @@ const product = seed.product('کالا', seed.category('پوشاک'))
 const variantId = seed.variant(product, 'سایز')
 sql.prepare('UPDATE "ProductVariant" SET stock = 10, salePrice = 1000 WHERE id = ?').run(variantId)
 const cash = seed.insert('PaymentMethod', { key: 'CASH', label: 'نقدی', kind: 'CASH', isActive: 1, sortOrder: 1 })
-await salesService.create({ userId: user, lines: [{ variantId, qty: 1, unitPrice: 1000, discount: 0, tax: 0 }], payments: [{ methodId: cash, amount: 1000, destination: 'CASH' }] })
-sql.exec('UPDATE "Shift" SET closedAt = NULL')
+// مالکیت نشست باید واقعی باشد؛ گیت بستن صندوق از روی userId فاکتور حدس نمی‌زند.
+const shiftId = seed.insert('Shift', { name: 'نشست آزمون', number: 1, dayJalali: today,
+  openedAt: Date.now() - 3600_000, userId: user, staffConfirmed: 1 })
+await salesService.create({ userId: user, shiftId, lines: [{ variantId, qty: 1, unitPrice: 1000, discount: 0, tax: 0 }], payments: [{ methodId: cash, amount: 1000, destination: 'CASH' }] })
 await cashboxService.close({ fromJalali: today, toJalali: today, userId: user, closeShift: false, explicitShift: true, shiftId: null })
 let msg = ''
 try { await cashboxService.close({ fromJalali: today, toJalali: today, userId: user, closeShift: false, explicitShift: true, shiftId: null }) } catch (e) { msg = String(e.message) }

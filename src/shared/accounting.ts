@@ -90,6 +90,8 @@ export interface ReturnEvent {
   exchangeTotal?: RialLike
   exchangeDiff?: RialLike
   exchangeSettlement?: string | null
+  /** سهم برگشت اعتبارِ مصرف‌شده: احیای H1 یا فرصت B/E، نه وجه نقد/بدهی. */
+  creditRestored?: RialLike | null
   /** نشست ۶۰ (بند ۴-۵) — کاهش بدهی فاکتور اصلی از مابه‌التفاوت منفی تعویض */
   debtReduction?: RialLike | null
   sourceInvoiceId?: number | string | null
@@ -600,7 +602,13 @@ export function calculateReturnTotals(events: ReturnEvent[] = [], period?: Perio
       continue
     }
     out.simpleReturns += total
-    const amount = Math.min(total, Math.max(0, n(r.refundAmount || total)))
+    const amount = Math.min(total, Math.max(0, n(r.refundAmount == null ? total : r.refundAmount)))
+    const actualRefund = ['CASH', 'CARD', 'STORE_CREDIT', 'CARD_TO_CARD'].includes(String(r.refundMethod))
+      ? amount : 0
+    // Neither the restored gift opportunity nor a real-money payout reduces
+    // customer debt. In particular a gift-only return with method NONE must
+    // not appear as a "debt-only return" in the drawer/manager report.
+    out.debtOnlyReturns += Math.max(0, total - actualRefund - Math.max(0, n(r.creditRestored)))
     if (r.refundMethod === 'CASH') out.cashRefunds += amount
     else if (r.refundMethod === 'CARD') out.cardRefunds += amount
     else if (r.refundMethod === 'STORE_CREDIT') { out.storeCreditIssued += amount }
@@ -608,7 +616,7 @@ export function calculateReturnTotals(events: ReturnEvent[] = [], period?: Perio
     else if (r.refundMethod === 'CARD_TO_CARD') {
       if (!r.refundCanceled) out.cardToCardPending += amount
     }
-    else out.debtOnlyReturns += total
+    // NONE/null: debt-only portion was already accounted for above.
   }
   return out
 }

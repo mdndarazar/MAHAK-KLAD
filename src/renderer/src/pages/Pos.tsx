@@ -977,7 +977,7 @@ export default function Pos() {
          */
         if (isSplit && (splitCashAmount == null || splitCardAmount == null || splitTotal == null))
           return setErr('مبلغ نقد یا کارت معتبر نیست؛ فقط عدد صحیحِ غیرمنفی (بدون اعشار، منفی یا حرف) وارد کنید.')
-        if (isSplit && (splitCashAmount <= 0 || splitCardAmount <= 0))
+        if (isSplit && splitCashAmount !== null && splitCardAmount !== null && (splitCashAmount <= 0 || splitCardAmount <= 0))
           return setErr('پرداخت ترکیبی باید یک سهم نقدیِ مثبت و یک سهم کارتیِ مثبت داشته باشد.')
         const paidNow = isSplit ? splitTotal! : creditMode ? Math.min(Math.max(0, Math.round(creditPaid || 0)), cashDue) : cashDue
         if (isSplit && splitTotal !== cashDue)

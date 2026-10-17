@@ -54,9 +54,12 @@ const pay = (methodId, amount, hour, destination) => seed.insert('Payment', {
 // ۴٬۰۰۰ مصرف اعتبار (۲٬۰۰۰ خرید + ۲٬۰۰۰ تعویض) صبح زود، سه وصول نقدی واقعی بعدازظهر
 const baseCredit = pay(creditM, 1_000, 8, null)
 const baseExch = pay(exchM, 1_000, 8, null)
-const cols = seed.rows('SELECT * FROM "Payment" WHERE id = ?', baseCredit).map((r) => Object.keys(r))[0].filter((c) => c !== 'id')
-const clone = sql.prepare(`INSERT INTO "Payment" (${cols.map((c) => `"${c}"`).join(',')}) SELECT ${cols.map((c) => `"${c}"`).join(',')} FROM "Payment" WHERE id = ?`)
-for (let i = 0; i < 1999; i++) { clone.run(baseCredit); clone.run(baseExch) }
+// The financial schema now reserves (invoiceId, seq) even for historical
+// copies. This bulk fixture intentionally duplicates amounts, never sequence.
+const cols = seed.rows('SELECT * FROM "Payment" WHERE id = ?', baseCredit).map((r) => Object.keys(r))[0].filter((c) => c !== 'id' && c !== 'seq')
+const clone = sql.prepare(`INSERT INTO "Payment" ("seq",${cols.map((c) => `"${c}"`).join(',')}) SELECT ?,${cols.map((c) => `"${c}"`).join(',')} FROM "Payment" WHERE id = ?`)
+let nextSeq = Number(seed.one('SELECT MAX(seq) AS last FROM "Payment" WHERE invoiceId = ?', inv.id).last) + 1
+for (let i = 0; i < 1999; i++) { clone.run(nextSeq++, baseCredit); clone.run(nextSeq++, baseExch) }
 const real = [pay(cashM, 100_000, 15, 'CASH'), pay(cashM, 200_000, 16, 'CASH'), pay(cashM, 300_000, 17, 'CASH')]
 eq('داده: ۴٬۰۰۳ پرداخت روی فاکتور دوره‌ی قبل', seed.rows('SELECT COUNT(*) c FROM "Payment"')[0].c, 4003)
 
@@ -72,9 +75,10 @@ eq('truncated = false', r1.sections?.priorSettlements?.truncated ?? null, false)
 eq('هشدار کاذب «وصول نسیه… فقط ۴٬۰۰۰» نیست', (r1.warnings ?? []).some((w) => w.includes('وصول نسیه‌ی بازه‌های قبل پیدا شد')), false)
 
 console.log('\n۲) وصول واقعی واقعاً بالای سقف ⇒ هشدار با عدد درست')
-const cashCols = seed.rows('SELECT * FROM "Payment" WHERE id = ?', real[0]).map((r) => Object.keys(r))[0].filter((c) => c !== 'id')
-const cloneCash = sql.prepare(`INSERT INTO "Payment" (${cashCols.map((c) => `"${c}"`).join(',')}) SELECT ${cashCols.map((c) => `"${c}"`).join(',')} FROM "Payment" WHERE id = ?`)
-for (let i = 0; i < 3998; i++) cloneCash.run(real[0])
+const cashCols = seed.rows('SELECT * FROM "Payment" WHERE id = ?', real[0]).map((r) => Object.keys(r))[0].filter((c) => c !== 'id' && c !== 'seq')
+const cloneCash = sql.prepare(`INSERT INTO "Payment" ("seq",${cashCols.map((c) => `"${c}"`).join(',')}) SELECT ?,${cashCols.map((c) => `"${c}"`).join(',')} FROM "Payment" WHERE id = ?`)
+nextSeq = Number(seed.one('SELECT MAX(seq) AS last FROM "Payment" WHERE invoiceId = ?', inv.id).last) + 1
+for (let i = 0; i < 3998; i++) cloneCash.run(nextSeq++, real[0])
 const r2 = await salesLedger.ledger({ fromJalali: day, toJalali: day })
 const prior2 = r2.rows.filter((r) => r.eventType === 'CREDIT_SETTLEMENT')
 eq('totalCount = ۴٬۰۰۱ (فقط وصول واقعی)', r2.sections?.priorSettlements?.totalCount ?? null, 4001)

@@ -22,17 +22,18 @@ import {
  * برای جلوگیری از آن نوشته شد. پس:
  *
  *   • *محاسبه و متن*  ⇒  `@shared/pendingRestock` (مشترک با main)
- *   • *اعمال*         ⇒  `PendingRestockService` + `CardTransferService.pay/cancel`
+ *   • *اعمال*         ⇒  `ReturnGoodsService.receive` برای پروندهٔ جدید؛
+ *                       مسیر قدیمیِ جدا در `PendingRestockService` و CardTransfer
  *   • *خواندن در UI*  ⇒  همین هوک، و هیچ‌جای دیگر
  *
  * سه قاعده‌ی این هوک:
  *   ۱) **فقط خواندنی.** هیچ کانال نویسنده‌ای صدا نمی‌زند و هیچ صفحه‌ای با آن
- *      نمی‌تواند کالا را به موجودی قابل‌فروش برگرداند. آن کار فقط با
- *      `cardTransfer:pay` / `cardTransfer:cancel` و پشت قفل
- *      `PANEL_KEYS.cardTransfers` انجام می‌شود.
+ *      نمی‌تواند کالا را به موجودی قابل‌فروش برگرداند. کالای پروندهٔ جدید
+ *      فقط پس از اسکن/انتخاب و شمارش واقعی از IPC مستقلِ دریافت بازمی‌گردد؛
+ *      اعلام/لغو پرداخت مدیر جای رسید فیزیکی نیست.
  *   ۲) **بازه‌ی تاریخ نمی‌گیرد** (عیناً همان تصمیم پنل مدیر در جلسه ۴۲):
- *      کالایی که سه ماه پیش معلق شده و پرداخت نشده، امروز هم روی قفسه است.
- *      فیلتر تاریخ دقیقاً همان چیزی را پنهان می‌کرد که این کار برای دیدنش است.
+ *      کالایی که سه ماه پیش معلق شده، تا رسید واقعی همچنان پیگیری می‌خواهد؛
+ *      بدون شاهد نمی‌گوییم روی قفسه است. فیلتر تاریخ آن را پنهان می‌کرد.
  *   ۳) **هیچ‌وقت صفحه را نمی‌شکند.** اگر کانال خطا داد، عدد صفر می‌ماند و
  *      `error` پر می‌شود؛ نه استثنا بالا می‌رود و نه گزارش میزبان خراب می‌شود.
  *      هیچ عددِ مالیِ هیچ صفحه‌ای به این هوک وابسته نیست (همه‌جا فقط «هشدار»).
@@ -51,6 +52,8 @@ export interface PendingRestockView {
   shiftWarning: string | null
   /** معلقِ یک کالا (صفحه‌ی کالاها و انبارگردانی) */
   qtyOfVariant: (variantId: number | null | undefined) => number
+  /** کالای فیزیکیِ معلقِ یک واریانت، برای شمارش بدون افزودن به موجودی فروش */
+  physicalQtyOfVariant: (variantId: number | null | undefined) => number
   /** معلقِ یک سند برگشت (تب برگشت/تعویض گزارشات) */
   qtyOfReturn: (returnId: number | null | undefined) => number
   /** ردیف‌های معلقِ یک کالا (برای tooltip و جزئیات) */
@@ -121,8 +124,12 @@ export function usePendingRestock(enabled = true): PendingRestockView {
     [byVariantItems]
   )
 
+  const physicalQtyOfVariant = (variantId: number | null | undefined): number =>
+    variantId == null ? 0 : Math.max(0, summary.physicalByVariant?.[variantId] ?? 0)
+
   return {
     summary,
+    physicalQtyOfVariant,
     totalQty: Math.max(0, Math.round(summary.totalQty ?? 0)),
     tone: pendingRestockTone(summary.oldestAgeDays, summary.totalQty),
     headline: pendingRestockHeadline(summary, faDigits, money),

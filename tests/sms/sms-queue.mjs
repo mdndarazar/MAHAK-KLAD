@@ -279,7 +279,7 @@ console.log('\n۷) سرویس‌دهنده‌ی واقعیِ ناقص — بدو
   truthy('دلیل روشن گفته می‌شود', t.detail.includes('کلید API'), t.detail)
   eq('تست در AuditLog نشست', audits(AuditAction.SMS_PROVIDER_TEST) >= 1, true)
 
-  const m = await enqueueSms({ eventType: 'CREDIT_REMINDER', phone: '09120000020', body: 'یادآوری', dedupeKey: key('ir') })
+  const m = await enqueueSms({ eventType: 'SALE_THANK_YOU', phone: '09120000020', body: 'پیام خدماتی', dedupeKey: key('ir') })
   const run = await runSmsQueueOnce()
   eq('یک پیام برداشته شد', run.picked, 1)
   eq('ناموفق شمرده شد', run.failed, 1)
@@ -718,10 +718,10 @@ console.log('\n۱۷) گرسنگی صف: خط خدماتی خاموش، کمپی�
   })
   for (let i = 0; i < 5; i++)
     await enqueueSms({
-      eventType: 'CREDIT_REMINDER',
+      eventType: 'SALE_THANK_YOU',
       phone: `0912666010${i}`,
-      body: 'یادآوری بی‌خط',
-      templateCode: 'CREDIT_REMINDER',
+      body: 'پیام خدماتی بی‌خط',
+      templateCode: 'SALE_THANK_YOU',
       dedupeKey: key(`starve-svc-${i}`),
       priority: 3
     })
@@ -960,6 +960,8 @@ console.log('\n۲۲) آزادکردن سهمیه‌ی یادآوری وقتی پ
   await smsCredentialService.save({ providerKey: 'LOG_ONLY', name: 'خط سهمیه', purpose: 'SERVICE', isActive: true, userId })
 
   const credit = await issueStoreCredit(db, { amount: 6_000_000, holderPhone: '09128880020', source: 'MANUAL', userId })
+  sql.prepare('UPDATE "StoreCredit" SET reminderConsentAt = ?, reminderConsentPhone = ?, reminderConsentEvidence = ? WHERE id = ?')
+    .run(Date.now() - 60_000, '09128880020', 'رسید رضایتِ مخاطب در fixture بازگشت صف', credit.id)
   // `force` مثل دکمه‌ی دستی مدیر: بدون آن، قواعد ضداسپم اجازه نمی‌دهند.
   await storeCreditService.queueReminder({ id: credit.id, userId, force: true })
   eq('سهمیه یک بار مصرف شد', Math.round(Number(db.$harness.db.prepare('SELECT reminderCount n FROM "StoreCredit" WHERE id = ?').get(credit.id).n)), 1)
@@ -1085,7 +1087,8 @@ console.log('\n۲۴) سهمیه‌ی یادآوری و بازگرداندن دس
   // یک کد اعتبار «واجد شرایط» بساز (تاریخ صدورش را عقب می‌بریم تا ضداسپم اجازه بدهد)
   const mkCredit = async (phone) => {
     const c = await issueCredit2(db, { amount: 4_000_000, holderPhone: phone, source: 'MANUAL', userId })
-    sql.prepare('UPDATE "StoreCredit" SET issuedAt = ? WHERE id = ?').run(Date.now() - 40 * 86400_000, c.id)
+    sql.prepare('UPDATE "StoreCredit" SET issuedAt = ?, reminderConsentAt = ?, reminderConsentPhone = ?, reminderConsentEvidence = ? WHERE id = ?')
+      .run(Date.now() - 40 * 86400_000, Date.now() - 60_000, phone, 'رضایت مستند در fixture بازگشت دستی', c.id)
     return c
   }
   const cancelableOutbox = (phone) =>

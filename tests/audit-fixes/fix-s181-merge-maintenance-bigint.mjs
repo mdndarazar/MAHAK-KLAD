@@ -156,7 +156,11 @@ console.log('\n— ۵) بقیه‌ی کوئری‌های خام ستون مال�
       if (!/\$(queryRaw|executeRaw)(Unsafe)?/.test(l)) return
       total++
       const ctx = lines.slice(i, i + 6).join(' ')
-      if (names.some((m) => new RegExp(`"${m}"`).test(ctx))) touching.push(`${f}:${i + 1}`)
+      // WooSync فقط cursor تنظیمات را با INSERT/ON CONFLICT روی Setting.value
+      // جلو می‌برد؛ value مشترک‌نام با PriceChangeBatch.value است اما پول نیست.
+      const cursorOnly = f.endsWith('/WooSyncService.ts') &&
+        /INSERT INTO "Setting" \("key", "value"\)/.test(ctx) && /ON CONFLICT\("key"\)/.test(ctx)
+      if (!cursorOnly && names.some((m) => new RegExp(`"${m}"`).test(ctx))) touching.push(`${f}:${i + 1}`)
     })
   }
   ok(`کوئری خام شمرده شد (${total} مورد)`, total > 30)

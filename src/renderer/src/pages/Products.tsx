@@ -415,7 +415,7 @@ export default function Products() {
                     title={
                       pending.qtyOfVariant(r.id)
                         ? `موجودی فیزیکیِ مورد انتظار روی قفسه: ${faDigits(
-                            expectedPhysicalQty(r.stock, pending.qtyOfVariant(r.id))
+                            expectedPhysicalQty(r.stock, pending.physicalQtyOfVariant(r.id))
                           )} · ${PENDING_RESTOCK_EXPLAINER}`
                         : undefined
                     }

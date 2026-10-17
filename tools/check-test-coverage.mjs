@@ -32,7 +32,13 @@ for (const root of ['test', 'tests']) if (existsSync(root)) walk(root)
  * پوشه‌هایی که عمداً «تست اجرایی» نیستند و نباید در رگرسیون باشند:
  * زیرساخت هارنس و ماک‌های مشترک. هر پوشه‌ی دیگری باید اجرا شود.
  */
-const INFRA = [join('test', 'harness'), join('tests', 'audit-fixes', 'support')]
+// Worker فرایند دوم آزمونِ رقابت است، نه فایل تست مستقل: آرگومان‌هایش را
+// تست والد می‌دهد و اجرای بی‌آرگومانش بی‌معنا/خطرناک است.
+const INFRA = [
+  join('test', 'harness'),
+  join('tests', 'audit-fixes', 'support'),
+  join('tests', 'audit-fixes', 'helpers')
+]
 const isInfrastructure = (dir) => INFRA.some((i) => dir === i || dir.startsWith(i + '/'))
 
 const problems = []

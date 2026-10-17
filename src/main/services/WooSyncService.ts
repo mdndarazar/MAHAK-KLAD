@@ -88,12 +88,12 @@ function openOutboxStatuses(): string[] {
 
 class WooHttpError extends BusinessError {
   readonly status: number
-  readonly code: string | null
+  readonly code: string | undefined
   constructor(status: number, code: string | null, message: string) {
     super(message)
     this.name = 'WooHttpError'
     this.status = status
-    this.code = code
+    this.code = code ?? undefined
   }
 }
 
@@ -173,7 +173,7 @@ function int(raw: unknown, label: string, opts: { positive?: boolean; allowZero?
     }
   }
   const ok = n !== null && (opts.positive ? n > 0 : opts.allowZero ? n >= 0 : true)
-  if (!ok) throw new BusinessError(`${label} نامعتبر است؛ عدد صحیح لازم است.`)
+  if (!ok || n === null) throw new BusinessError(`${label} نامعتبر است؛ عدد صحیح لازم است.`)
   return n
 }
 

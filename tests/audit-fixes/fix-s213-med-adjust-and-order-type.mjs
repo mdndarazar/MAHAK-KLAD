@@ -14,7 +14,7 @@ process.env.HARNESS_DB = join(DIR, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
-const { cardTransferService, createCardTransferRequest } = await import('../../src/main/services/CardTransferService.ts')
+const { cardTransferService } = await import('../../src/main/services/CardTransferService.ts')
 const { DEFAULT_MANAGER_PASSWORD: PW } = await import('@shared/receipt')
 const { toJalaliDate } = await import('@shared/jalali')
 
@@ -63,20 +63,22 @@ const ret = await salesService.createReturn({
   refundMethod: 'CARD_TO_CARD',
   userId
 })
-const req = await createCardTransferRequest(db, { returnId: ret.id, amount: 1000, userId })
-await cardTransferService.pay({ id: req.id, paidAmount: 600, userId, managerPassword: PW })
-await rejects(
-  '۶۰۰ + ۵۰۰ از سقف ۱۰۰۰ رد می‌شود',
+// The issued request is already linked atomically to the financial right.
+// Creating a SECOND orphan request here would masquerade as a legacy return
+// and bypass the post-cutover bank-evidence guard.
+const req = ret.cardTransfer
+eq('درخواست یکتا همراه برگشت و دفتر حق ثبت شده است', !!req?.id, true)
+const declared = await cardTransferService.pay({ id: req.id, paidAmount: 600, userId, managerPassword: PW })
+eq('ثبت عدد پرداخت شاهد بانک نیست', declared.bankEvidenceState, 'UNKNOWN_BANK')
+await rejects('اصلاح ۵۰۰ بیش از سقف درخواست بدون شاهد بانک رد می‌شود',
   () => cardTransferService.adjust({ id: req.id, amount: 500, reason: 'اضافه بی‌سقف', userId, managerPassword: PW }),
-  'مبلغ درخواست'
-)
-eq('خالص بعد از رد همان ۶۰۰ است', Number(sql.prepare(
+  'دفتر حق مالی')
+await rejects('حتی اصلاح ۴۰۰ زیر سقف نیز پیش از شاهد بانک حق تازه باز نمی‌کند',
+  () => cardTransferService.adjust({ id: req.id, amount: 400, reason: 'تا سقف', userId, managerPassword: PW }),
+  'دفتر حق مالی')
+eq('خالص اعلام‌شده همان ۶۰۰ است، حق مالی همچنان قفل', Number(sql.prepare(
   `SELECT COALESCE(SUM(COALESCE(paidAmount, amount)), 0) AS n FROM "CardTransferRequest" WHERE id = ? OR adjustsRequestId = ?`
 ).get(req.id, req.id)?.n), 600)
-await cardTransferService.adjust({ id: req.id, amount: 400, reason: 'تا سقف', userId, managerPassword: PW })
-eq('۶۰۰ + ۴۰۰ = ۱۰۰۰ پذیرفته شد', Number(sql.prepare(
-  `SELECT COALESCE(SUM(COALESCE(paidAmount, amount)), 0) AS n FROM "CardTransferRequest" WHERE id = ? OR adjustsRequestId = ?`
-).get(req.id, req.id)?.n), 1000)
 
 console.log('\\nMED-2) نوع فروش جعلی رد شود و فیش مصرف نشود')
 const beforeNo = Number(sql.prepare('SELECT COUNT(*) AS n FROM "SaleInvoice"').get()?.n ?? 0)

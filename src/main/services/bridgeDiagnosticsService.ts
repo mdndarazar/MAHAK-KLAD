@@ -323,7 +323,7 @@ export const bridgeDiagnosticsService = {
     const id = Number(ref.id)
     const kind = String(ref.kind ?? 'RETURN').toUpperCase()
 
-    let docDetail: BridgeDocDetail | null = null
+    let docDetail: BridgeDocDetail
 
     if (kind === 'RETURN' || kind === 'EXCHANGE') {
       const ret = await prisma.saleReturn.findFirst({

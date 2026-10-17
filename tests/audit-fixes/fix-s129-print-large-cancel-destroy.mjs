@@ -16,7 +16,8 @@
  */
 import { register } from 'node:module'
 import { randomBytes } from 'node:crypto'
-import { readdirSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 
 register('./support/s129-hooks.mjs', import.meta.url)
 
@@ -77,6 +78,14 @@ const rows = Array.from({ length: 3000 }, (_, i) => [
 const bigReport = reportHtml('گزارش جزئیات فروش', headers, rows, ['جمع', '', '', '', '', '', fa(3000), '', '', money(7350000000), ''], 'بازه: ۱۴۰۳/۰۷/۰۱ تا ۱۴۰۳/۰۷/۳۰')
 const bigUrlChars = ('data:text/html;charset=utf-8,' + encodeURIComponent(bigReport)).length
 console.log(`  (طول data URL گزارش ۳٬۰۰۰ ردیفی: ${bigUrlChars} کاراکتر؛ سقف کرومیوم ${mock.CHROMIUM_MAX_URL_CHARS})`)
+// Electron's hidden print window does not load renderer styles.css. Bundled
+// print resources must be byte-for-byte the same OFL fonts as the renderer.
+const fontNames = ['Arabic-400', 'Latin-400', 'Arabic-700', 'Latin-700'].map((s) => `Vazirmatn-${s}.woff2`)
+check('چهار قلم فونت چاپ و فایل مجوز همراه برنامه عین دارایی renderer هستند',
+  [...fontNames, 'Vazirmatn-OFL.txt'].every((file) =>
+    readFileSync(join('resources/print/fonts', file)).equals(readFileSync(join('src/renderer/src/assets/fonts', file)))))
+check('گزارش A4 هر چهار قلم فونت محلی را بی‌نیاز از اینترنت حمل می‌کند',
+  (bigReport.match(/data:font\/woff2;base64,/g) ?? []).length === 4)
 
 // ---- ۱) چاپ A4 بزرگ ----
 mock.reset()
@@ -89,6 +98,20 @@ check(
 )
 check('سند بزرگ از فایل موقت خوانده شد و بعد از چاپ هیچ فایل موقتی باقی نماند', bigLoad?.via === 'file' && tempLeftovers().length === 0)
 check('پنجره‌ی مخفی چاپ بعد از کار نابود شد', mock.state.windows.every((w) => w.isDestroyed()))
+check('چاپ A4 تا بارگذاری واقعی فونت فارسی در پنجرهٔ مخفی منتظر می‌ماند',
+  mock.state.executeJavaScriptCalls.some((c) => c.code.includes('document.fonts.ready') && c.code.includes("face.status === 'loaded'")) && mock.state.printCalls.length === 1)
+
+mock.reset()
+mock.state.executeJavaScriptOutcome = false
+res = await settleWithin(printHtml(bigReport, { silent: false }), 3000)
+check('فونت اعلام‌شده اما بارگذاری‌نشده هم قبل از چاپ رد می‌شود',
+  res.status === 'rejected' && /فونت فارسی/.test(userMessage(res)) && mock.state.printCalls.length === 0 && tempLeftovers().length === 0)
+
+mock.reset()
+mock.state.executeJavaScriptOutcome = 'reject'
+res = await settleWithin(printHtml(bigReport, { silent: false }), 3000)
+check('شکست بارگذاری فونت قبل از ارسال به چاپگر، بدون فایل موقت باقی‌مانده رد می‌شود',
+  res.status === 'rejected' && /فونت فارسی/.test(userMessage(res)) && mock.state.printCalls.length === 0 && tempLeftovers().length === 0)
 
 // ---- ۲) رسید کوچک مثل قبل ----
 mock.reset()
@@ -164,6 +187,12 @@ mock.reset()
 mock.state.pdfOutcome = 'reject'
 res = await settleWithin(pdfFromHtml('<p>سند</p>', { widthMm: 105, heightMm: 148 }))
 check('PDF: خطای printToPDF پیام فارسی با علت می‌دهد، نه پیام کلی', res.status === 'rejected' && /ساخت PDF انجام نشد/.test(userMessage(res)))
+
+mock.reset()
+mock.state.executeJavaScriptOutcome = 'reject'
+res = await settleWithin(pdfFromHtml(bigReport, { widthMm: 210, heightMm: 297 }), 3000)
+check('PDF: شکست فونت، قبل از ساخت فایل رد می‌شود و فایل موقت می‌رود',
+  res.status === 'rejected' && mock.state.pdfCalls.length === 0 && tempLeftovers().length === 0)
 
 console.log(`\n${bad ? '✗' : '✓'} ${ok} بررسی موفق · ${bad} ناموفق`)
 if (bad) process.exitCode = 1

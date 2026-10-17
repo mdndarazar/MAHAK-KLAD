@@ -223,6 +223,9 @@ const cand = {
   issuedAt: new Date(now - 20 * DAY),
   expiresAt: new Date(now + 40 * DAY),
   phone: '09120000000',
+  reminderConsentAt: new Date(now - DAY),
+  reminderConsentPhone: '09120000000',
+  reminderConsentEvidence: 'رسید امضاشده و ثبت‌شده در آزمون',
   reminderCount: 0
 }
 t('L37', 'شرط «N روز از صدور و مصرف‌نشده» ⇒ باید', () => {
@@ -244,6 +247,15 @@ t('L42', 'نزدیک انقضا ⇒ نوع NEAR_EXPIRY (حتی اگر تازه �
 t('L43', 'اعتبار مصرف‌شده/باطل ⇒ هیچ یادآوری', () =>
   !reminderDecision({ ...cand, status: CreditStatus.USED }, rem, now).should &&
   !reminderDecision({ ...cand, status: CreditStatus.CANCELED }, rem, now).should)
+t('L43-الف', 'شمارهٔ تنها و Opt-out=false بدون رضایت مثبت ⇒ هرگز', () => {
+  const d = reminderDecision({ ...cand, reminderConsentAt: null }, rem, now)
+  return !d.should && d.code === 'NO_CONSENT'
+})
+t('L43-ب', 'رضایت شمارهٔ دیگر/بی‌شاهد ⇒ رد', () =>
+  !reminderDecision({ ...cand, reminderConsentPhone: '09124445555' }, rem, now).should &&
+  !reminderDecision({ ...cand, reminderConsentEvidence: '' }, rem, now).should)
+t('L43-ج', 'رضایت ثبت‌شده در آینده معتبر نیست', () =>
+  reminderDecision({ ...cand, reminderConsentAt: new Date(now + DAY) }, rem, now).code === 'NO_CONSENT')
 t('L44', 'Placeholder ها پر می‌شوند و کلید ناشناس دست‌نخورده می‌ماند', () => {
   const out = fillPlaceholders('{store_name}/{credit_code}/{unknown_key}', { store_name: 'مهک', credit_code: 'CR1' })
   return out === 'مهک/CR1/{unknown_key}'

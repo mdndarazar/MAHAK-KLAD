@@ -139,7 +139,7 @@ export const stockInsightService = {
     const lastSalePromise = (async () => {
       // B9 (بازبینی دوازدهم) — «از ابتدای تاریخ» قبلاً با رشتهٔ `1300-01-01` نوشته می‌شد که فقط
       // تصادفی درست کار می‌کرد (پارسرِ جلالی آن قالب را نمی‌شناسد و قید حذف می‌شد). قیدِ صریح:
-      const whereCounted = saleWhere({ from: new Date(0), toJalali: to } as SaleReportFilter)
+      const whereCounted = saleWhere({ from: new Date(0).toISOString(), toJalali: to })
       /**
        * سقفِ هزینه: «بزرگ‌ترین idِ هر واریانت» روی کل تاریخچه یک اسکنِ کامل است. first
        * فقط پنجرهٔ ۳۰۰۰ فاکتورِ آخر را گروه می‌کند (با ایندکسِ `invoiceId`)؛ واریانت‌هایی
@@ -571,7 +571,8 @@ export const stockInsightService = {
       { productId: number; name: string; sizes: Record<string, { stock: number; sold90: number }> }
     >()
     for (const r of stock.rows) {
-      const cur = byProduct.get(r.productId) ?? { productId: r.productId, name: r.productName, sizes: {} }
+      const cur: { productId: number; name: string; sizes: Record<string, { stock: number; sold90: number }> } =
+        byProduct.get(r.productId) ?? { productId: r.productId, name: r.productName, sizes: {} }
       const s = cur.sizes[r.size] ?? { stock: 0, sold90: 0 }
       s.stock += r.stock
       s.sold90 += r.netSold90

@@ -1,6 +1,6 @@
 /**
  * ===========================================================================
- * جلسه ۵۳ — سوییت «نمایش مبدأ کسر» (مرحله ۴) + اصلاح متن قفل.
+ * جلسه ۵۳/۳۱۶ — نمایش مبدأ کسر در گزارش داخلی، نه رسید مشتری؛ اصلاح متن قفل.
  * ممیزی ایستای کد، بی دیتابیس و بی node_modules:
  *   node test/stock-source-display-session53.mjs
  * ---------------------------------------------------------------------------
@@ -54,33 +54,21 @@ ok('`summaryShortLine`/`summaryTextLines` دست‌نخورده‌اند (رفت
   SRC.includes("`${g.warehouseName} ${fa(g.totalQty)}${g.negativeCount > 0 ? ' ⚠' : ''}`"))
 
 // ---------------------------------------------------------------------------
-section('رسید چاپی و چاپ A4 — بلوک «مبدأ کسر»')
-has('قرارداد تازه در ReceiptData', TPL, 'stockSource?: ReceiptStockSource | null')
-has('شکل بلوک سه فیلد دارد', TPL, 'export interface ReceiptStockSource')
-has('بلوک ساخته می‌شود', TPL, "  let stockBlock = ''\n  if (srcLines.length) {")
-has('بلوک در بدنه‌ی رسید تزریق شده', TPL, '      stockBlock +')
-has('تیتر از shared می‌آید، نه هاردکد تازه', TPL, 'STOCK_PICK_TEXT.receiptTitle')
-has('علامت روشن منفی‌شدن', TPL, 'd.stockSource?.hasNegative')
-has('نام کالا هم مثل بقیه‌ی رسید escape می‌شود', TPL, 'escapeHtml(faDigits(l))')
-ok('بی‌دفتر ⇒ رشته‌ی خالی ⇒ هیچ خط/خط‌چین اضافه‌ای (رسید مو‌به‌مو مثل قبل)',
-  TPL.includes("const srcLines = d.stockSource?.lines?.filter((l) => l && l.trim()) ?? []") &&
-  TPL.includes("  let stockBlock = ''") &&
-  TPL.includes("  if (srcLines.length) {"))
-ok('بلوک استایل خودش را inline دارد (قالب رسید و بقیه‌ی قالب‌ها دست‌نخورده)',
-  // اصلاح جلسه ۵۵ · کار ۳ — الگو یک backslash اضافه داشت (`src\\"` ⇒ در رشته‌ی
-  // جاوااسکریپت می‌شد `src\"`) ولی `templates.ts` خط ۲۰۵ عیناً `src" style="…`
-  // است. پس این assertion همیشه شکست می‌خورد، بی آن‌که کد مشکلی داشته باشد.
-  // فقط الگوی تست درست شد؛ `templates.ts` یک کاراکتر هم عوض نشده.
-  count(TPL, 'src" style="margin:2px 0;line-height:1.5') === 1 && !TPL.includes('.src { margin'))
-hasnt('سند تعویض دست نخورد (بلوک مبدأ ندارد)', TPL.split('export function exchangeReceiptHtml')[1] ?? '', 'stockBlock')
-
-section('PrintService — خواندنی محض، و چاپ هیچ‌وقت نمی‌شکند')
-has('از همان `summaryOf` سرور می‌خواند', PRT, 'await stockAllocationService.summaryOf(invoiceId)')
-has('بی‌دفتر ⇒ null', PRT, 'if (sum.groups.length && sum.lines.length)')
-has('پیش‌فرض null است', PRT, 'let stockSource: ReceiptStockSource | null = null')
-has('خطای خواندن جلوی چاپ رسید را نمی‌گیرد', PRT, "console.error('[print] stock source summary failed', e)")
-has('فیلد در خروجی رسید هست', PRT, '      stockSource\n    }')
+section('رسید مشتری — منبع انبار عمداً چاپ نمی‌شود؛ فهرست داخلی همچنان آن را نشان می‌دهد')
+// تصمیم متأخر مالک (نشست ۳۱۶) جای قرارداد چاپ جلسه ۵۳ را گرفت. این گیت
+// از نشت مبدأ کسر/موجودی منفی روی رسید واقعی جلوگیری می‌کند؛ حذف از چاپ به
+// معنی حذف از فهرست/گزارش داخلی نیست (آزمون آن‌ها پایین باقی است).
+const receiptFields = TPL.slice(TPL.indexOf('export interface ReceiptData'), TPL.indexOf('export function receiptHtml'))
+const receiptMarkup = TPL.slice(TPL.indexOf('export function receiptHtml'), TPL.indexOf('export function exchangeReceiptHtml'))
+const receiptLoader = PRT.slice(PRT.indexOf('async receiptDataFor('), PRT.indexOf('async withBarcode('))
+ok('نوع دادهٔ چاپی مبدأ یا هشدار منفیِ انبار ندارد',
+  !/\bstockSource\s*\??:|\bhasNegative\s*\??:/.test(receiptFields))
+ok('قالب رسید مشتری نه عنوان مبدأ دارد نه بلوک/سهم انبار',
+  !/STOCK_PICK_TEXT\.receiptTitle|\bstockBlock\b|d\.stockSource/.test(receiptMarkup))
+ok('دادهٔ رسید سرور دفتر مبدأ را نمی‌خواند',
+  !/await stockAllocationService\.summaryOf\(/.test(receiptLoader))
 hasnt('هیچ کانال نویسنده‌ای در مسیر چاپ صدا نمی‌شود', PRT, 'stockAllocationService.apply')
+
 /**
  * به‌روزرسانی نشست ۱۸۱ — مقصود این بررسی عوض نشده، فقط متنش.
  *

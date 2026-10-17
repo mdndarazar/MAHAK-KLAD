@@ -75,7 +75,6 @@ import {
 import { toJalaliDate, toClock, jalaliToday, faDigits, money } from '@shared/jalali'
 import { resolveLabelBrand, type LabelTemplate, type ReceiptTemplate } from '@shared/receipt'
 import { toNumberRial } from '@shared/money'
-import { remainingOf, debtAdjustmentsOf } from '@shared/settlement'
 import { saleLineTitle } from '@shared/saleItemSnapshot'
 import { invoiceRemaining } from './invoiceDebt'
 import {
@@ -133,7 +132,10 @@ async function creditIssueLinesForDoc(c: any): Promise<string[]> {
         if (itemNames.length) lines.push(`اقلام برگشتی: ${joinNames(itemNames)}`)
         lines.push(`مبلغ کل برگشت: ${money(toNumberRial(ret.total))} ریال`)
         const refunded = toNumberRial(ret.refundAmount)
-        if (refunded > 0 && ret.refundMethod !== 'STORE_CREDIT')
+        const claim = await prisma.returnEntitlement.findUnique({ where: { returnId: ret.id }, select: { cashPaid: true } })
+        if (claim && ret.refundMethod === 'CARD_TO_CARD') {
+          lines.push(`درخواست کارت‌به‌کارت: ${money(refunded)} ریال؛ پرداخت مستندِ بانک: ${money(toNumberRial(claim.cashPaid))} ریال`)
+        } else if (refunded > 0 && ret.refundMethod !== 'STORE_CREDIT')
           lines.push(`تسویه در همان لحظه: ${money(refunded)} ریال (${refundMethodLabel(ret.refundMethod)})`)
         lines.push(
           c.source === CreditSource.OVERPAY
@@ -213,6 +215,15 @@ function logCreditMarkFailure(scope: string, err: unknown): void {
   console.error(`[print-credit] ${scope} markPrinted failed`, err)
 }
 
+/** Legacy exchange receipts may contain an old barcode. A routine receipt
+ * print must not become an unguarded way of reproducing that credential.
+ * A manager can explicitly approve the historical full paper instead.
+ */
+export function exchangeAccountingPrintData(data: ExchangeReceiptData): ExchangeReceiptData {
+  return data.storeCreditCode ? { ...data, storeCreditCode: null, storeCreditBarcodeDataUrl: null,
+    separateCreditPaper: true, historicalCodeRedacted: true } : data
+}
+
 export const printService = {
   /** داده‌ی رسید یک فاکتور ثبت‌شده، مستقیم از دیتابیس. */
   async receiptDataFor(invoiceId: number): Promise<ReceiptData> {
@@ -228,6 +239,8 @@ export const printService = {
       }
     })
     if (!inv) throw new BusinessError('این فاکتور پیدا نشد؛ ممکن است حذف شده باشد.')
+    const exchangeCorrection = inv.exchangeReturnId == null ? null
+      : await prisma.returnCorrection.findUnique({ where: { returnId: inv.exchangeReturnId }, select: { id: true } })
 
     // واریانت‌ها جدا خوانده می‌شوند تا کالای حذف‌شده مانع چاپ رسید نشود.
     const variantIds = [...new Set(inv.items.map((i) => i.variantId))]
@@ -249,6 +262,7 @@ export const printService = {
       dateJalali: inv.issuedAtJalali || toJalaliDate(issuedAt),
       time: toClock(issuedAt),
       orderTypeLabel: ORDER_TYPE_LABELS[inv.orderType] ?? inv.orderType,
+      exchangeCorrected: !!exchangeCorrection,
       tableNo: inv.tableNo,
       customerName: inv.customer?.name ?? 'مشتری عمومی',
       customerCode: inv.customer?.code ?? null,
@@ -273,11 +287,8 @@ export const printService = {
       deliveryFee: toNumberRial(inv.deliveryFee),
       grandTotal: toNumberRial(inv.grandTotal),
       paidTotal: toNumberRial(inv.paidTotal),
-      remaining: remainingOf({
-        grandTotal: toNumberRial(inv.grandTotal),
-        received: toNumberRial(inv.paidTotal),
-        ...debtAdjustmentsOf(inv.returns ?? [])
-      }).remaining,
+      remaining: (await invoiceRemaining(prisma, inv.id, toNumberRial(inv.grandTotal),
+        toNumberRial(inv.paidTotal))).remaining,
       /**
        * ---- کار الف: پرداختیِ «به حساب مدیر» روی رسید مشخص می‌شود ----
        * فقط یک برچسب متنی است و هیچ عددی را عوض نمی‌کند (جمع رسید همان جمع
@@ -387,25 +398,37 @@ export const printService = {
    * «سند تعویض کالا» (بخش ۶) — داده‌ی چاپ، مستقیم از دیتابیس.
    *
    * همه‌ی اعداد از `salesService.exchangeGet` می‌آیند (همان سرویسی که تب
-   * «تعویض کالا»ی گزارشات می‌خواند)، پس برگه‌ی چاپی و گزارش هیچ‌وقت دو عدد
-   * متفاوت نشان نمی‌دهند. بارکد اعتبار — اگر صادر شده باشد — با همان
-   * `barcodePng` رسید فروش ساخته می‌شود.
+   * «تعویض کالا»ی گزارشات می‌خواند). سندهای جدید کد اعتبار ندارند؛ تاریخچهٔ
+   * قدیمی قالب قبلی را نگه می‌دارد و چاپ روتینِ آن کد را می‌پوشاند.
    * =========================================================================
    */
   async exchangeDataFor(returnId: number, tpl: ReceiptTemplate): Promise<ExchangeReceiptData> {
     const row = await salesService.exchangeGet({ id: returnId })
     const sale = await settingsService.saleDefaults()
 
-    // گزارش ExchangeReportRow عمداً کد ندارد؛ چاپ از رکورد اصلی در main می‌خواند.
-    const credit = await prisma.storeCredit.findFirst({ where: { returnId }, orderBy: { id: 'desc' } })
+    // New accounting exchange receipts never carry the spendable code: a
+    // seller may print the receipt again without reprinting the credential.
+    // Historic receipts retain their layout. Never pick a later replacement.
+    const returnPaper = await prisma.saleReturn.findUnique({ where: { id: returnId },
+      select: { creditPaperSeparate: true, restockPending: true, goodsReceiptRequired: true,
+        voidedAt: true, items: { select: { qty: true, restockedQty: true } } } })
+    const correction = await prisma.returnCorrection.findUnique({ where: { returnId }, select: { id: true } })
+    const claim = await prisma.returnEntitlement.findUnique({ where: { returnId }, select: { id: true } })
+    const originalCredit = returnPaper?.creditPaperSeparate || claim ? null : await prisma.storeCredit.findFirst({
+      where: { returnId, voidedAt: null, deletedAt: null }, orderBy: { id: 'asc' }
+    })
+    const controlledDelivery = originalCredit
+      ? await prisma.creditDelivery.findUnique({ where: { creditId: originalCredit.id } }) : null
+    const credit = controlledDelivery ? null : originalCredit
 
     let storeCreditBarcodeDataUrl: string | null = null
     if (credit?.code && tpl.showReturnBarcode) {
       try {
         storeCreditBarcodeDataUrl = await barcodePng(credit.code, { scale: 2, height: 10 })
-      } catch (e) {
-        // نبودن تصویر بارکد نباید جلوی چاپ سند را بگیرد (کد به‌صورت متن چاپ است)
-        console.error('[print] store credit barcode failed', e)
+      } catch {
+        // Print failures must not leak the spendable code via a barcode
+        // library's exception message into console/error telemetry.
+        console.error('[print] store credit barcode failed; credential redacted')
       }
     }
 
@@ -443,7 +466,14 @@ export const printService = {
       diff: row.diff,
       settlementLabel: row.settlementLabel,
       cashReceived: row.cashReceived,
+      goodsReceiptRequired: returnPaper?.goodsReceiptRequired === true,
+      restockPending: returnPaper?.restockPending === true && !correction && returnPaper.voidedAt == null,
+      restockedQty: returnPaper?.items.reduce((sum, it) => sum + it.restockedQty, 0) ?? 0,
+      pendingRestockQty: returnPaper?.restockPending && !correction && returnPaper.voidedAt == null
+        ? returnPaper.items.reduce((sum, it) => sum + Math.max(0, it.qty - it.restockedQty), 0) : 0,
+      corrected: !!correction,
       storeCreditCode: credit?.code ?? null,
+      separateCreditPaper: returnPaper?.creditPaperSeparate === true,
       storeCreditAmount: row.storeCreditAmount,
       storeCreditStatusLabel: row.storeCreditStatusLabel,
       storeCreditExpiresJalali: credit?.expiresAtJalali ?? null,
@@ -471,11 +501,20 @@ export const printService = {
     copies?: number
     silent?: boolean
     deviceName?: string
+    /** Only for explicitly printing a historical barcode, never needed for
+     * a new exchange's separate credit paper. */
+    managerPassword?: string | null
   }) {
     const returnId = Number(input?.returnId ?? input?.id ?? 0)
     if (!returnId) throw new BusinessError('سند تعویضی برای چاپ مشخص نشده است.')
     const tpl = await settingsService.receiptTemplate()
-    const html = await this.exchangeHtml(returnId)
+    const data = await this.exchangeDataFor(returnId, tpl)
+    if (data.storeCreditCode && input?.managerPassword) {
+      const { assertManagerPassword } = await import('./AuthService')
+      await assertManagerPassword(input.managerPassword, 'چاپ بارکد اعتبار روی سند تعویض تاریخی')
+    }
+    const html = exchangeReceiptHtml(data.storeCreditCode && !input?.managerPassword
+      ? exchangeAccountingPrintData(data) : data, tpl)
     /** نشست ۲۲۲ · فاز ۱ — همان اندازه‌ی کاغذ فاکتور (سند تعویض هم رسید حرارتی است). */
     const spec = receiptPageSpec(tpl, 'RETAIL')
     /** فاز ۳ — نام چاپگر از resolver (بدون fallback خودکار). */
@@ -526,6 +565,14 @@ export const printService = {
     })
     if (!ret) throw new BusinessError('این سند برگشت پیدا نشد (شاید حذف شده است).')
     const sale = await settingsService.saleDefaults()
+    const managedClaim = await prisma.returnEntitlement.findUnique({ where: { returnId: ret.id },
+      select: { state: true, cashPaid: true } })
+    const correction = await prisma.returnCorrection.findUnique({ where: { returnId: ret.id }, select: { id: true } })
+    const allocations = await prisma.creditReturnAllocation.findMany({ where: { returnId: ret.id },
+      select: { amount: true, supplementUnspent: true, successorCreditId: true, kind: true } })
+    const creditedValue = allocations.reduce((sum, row) => sum + toNumberRial(row.amount), 0)
+    const branchByCreditId = new Map(allocations.filter((row) => row.successorCreditId != null)
+      .map((row) => [row.successorCreditId, row]))
 
     const variantIds = [...new Set(ret.items.map((i) => i.variantId))]
     const variants = await loadPrintVariantsByIds(variantIds)
@@ -555,15 +602,21 @@ export const printService = {
       select: { id: true, amount: true, source: true, expiresAtJalali: true, status: true },
       orderBy: { id: 'asc' }
     })
-    const storeCredits = credits.map((c) => ({
-      label:
-        c.source === CreditSource.OVERPAY
-          ? 'اعتبار باقیمانده (اضافه‌دریافت)'
-          : 'اعتبار تسویه‌ی برگشت',
-      amount: toNumberRial(c.amount),
-      expiresJalali: c.expiresAtJalali ?? null,
-      status: c.status ?? null
-    }))
+    const storeCredits = credits.map((c) => {
+      const branch = branchByCreditId.get(c.id)
+      return {
+        label: branch
+          ? `بازگشت فرصت اعتبار قبلی (سهم همین برگشت ${money(toNumberRial(branch.amount))}` +
+            (toNumberRial(branch.supplementUnspent) > 0
+              ? ` + ماندهٔ خاموش قبلی ${money(toNumberRial(branch.supplementUnspent))}` : '') + ')'
+          : c.source === CreditSource.OVERPAY
+            ? 'اعتبار باقیمانده (اضافه‌دریافت)'
+            : 'اعتبار تسویه‌ی برگشت',
+        amount: toNumberRial(c.amount),
+        expiresJalali: c.expiresAtJalali ?? null,
+        status: c.status ?? null
+      }
+    })
 
     return {
       returnId: ret.id,
@@ -585,13 +638,23 @@ export const printService = {
       }),
       total: toNumberRial(ret.total),
       refundMethod: ret.refundMethod ?? null,
-      refundMethodLabel: refundMethodLabel(ret.refundMethod),
+      refundMethodLabel: managedClaim && ret.refundMethod === 'CARD_TO_CARD'
+        ? 'درخواست کارت‌به‌کارت (صرف چاپ/اعلام، شاهد بانک نیست)' : refundMethodLabel(ret.refundMethod),
       refundAmount: toNumberRial(ret.refundAmount),
+      creditRestored: creditedValue,
+      expiredCreditShare: allocations.filter((row) => row.kind === 'EXPIRED')
+        .reduce((sum, row) => sum + toNumberRial(row.amount), 0),
+      debtReduced: Math.max(0, toNumberRial(ret.total) - toNumberRial(ret.refundAmount) - creditedValue),
+      bankDocumentAmount: managedClaim ? toNumberRial(managedClaim.cashPaid) : null,
       refundReference: ret.refundReference ?? null,
       voidedAt: ret.voidedAt ?? null,
       voidReason: ret.voidReason ?? null,
       restocked: ret.items.some((i) => i.restockedQty > 0),
       restockedQty: ret.items.reduce((s, i) => s + i.restockedQty, 0),
+      restockPending: ret.restockPending === true && !correction && ret.voidedAt == null,
+      pendingRestockQty: ret.restockPending && !correction && ret.voidedAt == null
+        ? ret.items.reduce((s, i) => s + Math.max(0, i.qty - i.restockedQty), 0) : 0,
+      corrected: !!correction,
       hasRemovedItems: ret.hasRemovedItems,
       storeCredits,
       note: ret.note ?? undefined
@@ -879,6 +942,9 @@ export const printService = {
 
   /** HTML یک سند اعتبار، با اندازه‌ی کاغذِ تنظیمات اعتبار (§۱۳). */
   async creditHtml(id: number, override?: Partial<ReceiptTemplate>): Promise<string> {
+    const pending = await prisma.creditDelivery.findUnique({ where: { creditId: id }, select: { status: true } })
+    if (pending?.status === 'PENDING_DELIVERY')
+      throw new BusinessError('پیش‌نمایش/PDF کد جانشینِ تحویل‌نشده از این مسیر مجاز نیست؛ مدیر از چاپ کنترل‌شده با رمز استفاده کند. چاپ هرگز تحویل نیست.')
     const tpl = { ...(await settingsService.receiptTemplate()), ...(override ?? {}) }
     const settings = await readCreditSettings()
     const data = await this.creditDocDataFor(id, tpl)
@@ -913,6 +979,12 @@ export const printService = {
      * اگر چاپِ اول خراب شود، فروشنده بدون رمز چاپ دوباره ندارد: به مدیر خبر
      * می‌دهد تا خودش از «مدیریت اعتبار خرید» کد صادر/چاپ کند.
      */
+    const pendingDelivery = await prisma.creditDelivery.findUnique({ where: { creditId: id } })
+    if (pendingDelivery?.status === 'PENDING_DELIVERY' &&
+        ['MANAGER_REPLACEMENT', 'CREDIT_RETURN_OPPORTUNITY', 'CASH_RIGHT_CONVERSION'].includes(pendingDelivery.sourceKind)) {
+      const { assertManagerPassword } = await import('./AuthService')
+      await assertManagerPassword(input?.password, 'چاپ کدِ کنترل‌شده پیش از تحویل')
+    }
     if (input?.reprint === true) {
       /**
        * import تنبل: AuthService را وارد گرافِ ایستای این ماژول نکنیم — وارد
@@ -1056,6 +1128,13 @@ export const printService = {
   async creditBatchDocs(input: { batchId?: number; ids?: unknown }): Promise<{ docs: CreditDocData[]; ids: number[]; total: number; capped: boolean }> {
     const tpl = await settingsService.receiptTemplate()
     const { ids, requested, capped } = await this.creditBatchIds(input)
+    for (let offset = 0; offset < ids.length; offset += 400) {
+      const pending = await prisma.creditDelivery.findFirst({
+        where: { creditId: { in: ids.slice(offset, offset + 400) }, status: 'PENDING_DELIVERY' },
+        select: { creditId: true }
+      })
+      if (pending) throw new BusinessError('چاپ/PDF گروهی کد تحویل‌نشده مجاز نیست؛ هر جانشین فقط جداگانه و با رمز مدیر چاپ شود.')
+    }
     const docs: CreditDocData[] = []
     for (const id of ids) docs.push(await this.creditDocDataFor(id, tpl))
     return { docs, ids, total: requested, capped }

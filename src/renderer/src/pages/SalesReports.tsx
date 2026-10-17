@@ -2493,6 +2493,7 @@ export default function SalesReports() {
                     {r.refundMethodLabel ?? '—'}
                     {r.legacyAssumed && <div className="kbd text-amber-800 font-bold">فرض‌شده از داده‌ی قدیمی</div>}
                     {r.isExchange && <div className="kbd text-sky-800 font-bold">سند تعویض</div>}
+                    {r.corrected && <div className="kbd text-amber-800 font-bold">اصلاح جبرانی؛ سند تاریخی، نه دریافت تازه</div>}
                   </td>
                   <td className={r.cashRefundAmount ? 'text-rose-700 font-bold' : ''}>{money(r.cashRefundAmount ?? 0)}</td>
                   <td dir="ltr" className={r.storeCreditReference ? 'font-bold text-amber-900' : ''}>
@@ -3757,7 +3758,8 @@ function ExchangeTable({
             <td>{faDigits(r.dateJalali)}</td>
             <td>{faDigits(r.time)}</td>
             <td>{r.shiftName}</td>
-            <td>{r.customerName}</td>
+            <td>{r.customerName}{r.corrected &&
+              <div className="kbd text-amber-800 font-bold">اصلاح جبرانی؛ سند تاریخی است</div>}</td>
             <td className="max-w-[240px] whitespace-normal">{itemsLabel(r.returnedItems) || '—'}</td>
             <td>{money(r.returnTotal)}</td>
             {/* معلق برگشتی — خواندنی، از هوک مشترک، بدون هیچ دکمه‌ای */}
@@ -3800,7 +3802,8 @@ function ExchangeTable({
                 <button
                   className="text-red-600 mr-2"
                   onClick={() => onVoid(r)}
-                  title="ابطال کل تعویض (سند برگشت، سند تعویض، اعتبار و اثر انبار با هم؛ سندها با مهر «باطل» و دلیل می‌مانند)"
+                  disabled={r.corrected || (r.goodsReceiptRequired && (r.restockedQty ?? 0) > 0)}
+                  title="ابطال مستقیم فقط قبل از رسید فیزیکی و اصلاح جبرانی مجاز است؛ سند شاهددار به رسیدگی تطبیقی نیاز دارد"
                 >
                   ابطال
                 </button>
@@ -3809,7 +3812,8 @@ function ExchangeTable({
                 <button
                   className="text-amber-700 mr-2"
                   onClick={() => onCorrection(r)}
-                  title="ثبت اثرهای جبرانی تعویض بدون حذف یا تغییر اسناد مبدأ"
+                  disabled={r.corrected}
+                  title="ثبت اثرهای جبرانی تعویض فقط یک‌بار، بدون حذف یا تغییر اسناد مبدأ"
                 >
                   اصلاح جبرانی
                 </button>

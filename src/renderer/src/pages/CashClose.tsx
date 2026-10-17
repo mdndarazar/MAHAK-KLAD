@@ -1374,14 +1374,13 @@ export default function CashClose() {
                   {faDigits(pending.totalQty)} قلم کالای برگشتی · {PENDING_RESTOCK_LABEL}
                   <div className="kbd font-normal leading-6">{pending.shiftWarning}</div>
                   <div className="kbd font-normal leading-6">
-                    مبلغی که مدیر باید کارت‌به‌کارت کند: <b>{money(pending.summary.pendingAmount)}</b> ریال — این پول{' '}
-                    <b>از کشو بیرون نرفته</b>، پس در «نقد انتظاری داخل کشو» و در کسری/اضافی بالا هیچ اثری ندارد. (این
-                    ردیف هیچ ربطی به «{MANAGER_ACCOUNT_ROW_LABEL}» ندارد: آن پولی است که از مشتری گرفته‌ایم، این پولی
-                    است که باید به مشتری برگردد.)
+                    جمع درخواست‌های کارت‌به‌کارتِ هنوز باز: <b>{money(pending.summary.pendingAmount)}</b> ریال. اعلام
+                    مدیر شاهد پرداخت بانک نیست و دریافت کالا هم مستقل است. این عدد از نقد انتظاری داخل کشو کم نمی‌شود
+                    و در کسری/اضافی بالا اثری ندارد؛ «{MANAGER_ACCOUNT_ROW_LABEL}» پول دریافتی از مشتری است، نه حق برگشت.
                   </div>
                   <div className="kbd font-normal leading-6">
-                    {PENDING_RESTOCK_EXPLAINER} برگرداندن کالا به موجودی قابل‌فروش فقط در پنل قفل‌دار «پرداخت‌های مدیر
-                    — کارت‌به‌کارت» (گزارشات فروش) انجام می‌شود؛ این صفحه فقط خبر می‌دهد.
+                    {PENDING_RESTOCK_EXPLAINER} برای پروندهٔ جدید دریافت مقداربه‌مقدار با شاهد در پنل برگشت یا
+                    پرداخت‌های مدیر انجام می‌شود؛ این صفحه فقط خبر می‌دهد.
                   </div>
                 </td>
               </tr>

@@ -220,7 +220,9 @@ const reversibleCode = creditCode(reversibleSafe.id)
 for (let round = 1; round <= 2; round++) {
   const sale = await saleWithCredit(1_000, reversibleCode)
   assert.equal(credit(reversibleSafe.id).status, 'USED', `دور ${round}: اعتبار مصرف شد`)
-  const returned = await fullyReturn(sale.id, 1_000)
+  // Paid entirely by the H1 instrument: restore THAT original opportunity,
+  // not a second 1,000-rial cash-backed return code. No real money was paid.
+  const returned = await fullyReturn(sale.id, 0, RefundMethod.NONE)
   assert.equal(returned.fullyReturned, true)
   assert.equal(returned.reversedCreditRedemptions, 1, `دور ${round}: دفتر مصرف برگشت خورد`)
   assert.equal(returned.overpayAmount, 0, `دور ${round}: مصرف اعتبار، اضافه‌دریافت نقدی جعلی نساخت`)

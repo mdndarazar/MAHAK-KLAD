@@ -80,8 +80,11 @@ const twoItems = async (paid) => {
   const inv = await salesService.create({ userId, shiftId, lines: [line(a, 600), line(b, 400)], payments: paid > 0 ? [{ methodId: cash, amount: paid, destination: 'CASH' }] : [] })
   return { inv, a, b, items: itemsOf(inv.id) }
 }
+// Void graph fixtures are pre-cutover documents; new exchange-goods receipts
+// are exercised independently without rewriting historic stock assertions.
 const exchange = (invoiceId, saleItemId, repVariant, refundMode) =>
-  salesService.createExchange({ invoiceId, lines: [{ saleItemId, qty: 1 }], replacements: [{ variantId: repVariant, qty: 1 }], refundMode, methodId: cash, userId, shiftId })
+  salesService.createExchange({ invoiceId, lines: [{ saleItemId, qty: 1 }], replacements: [{ variantId: repVariant, qty: 1 }], refundMode, methodId: cash, userId, shiftId },
+    { goodsReceiptRequired: false })
 const report = async () => {
   const filter = { fromJalali: today, toJalali: today }
   const { statements } = await buildStatements({
@@ -343,11 +346,17 @@ truthy('دفتر، لغو تعهد کارت‌به‌کارت را اثر مست
 eq('کالای جایگزینِ تعویض معلق به موجودی برگشت', stockOf(repL), 100)
 
 // ===========================================================================
-console.log('\n۱۳) کارت‌به‌کارتِ ناقص: سقف بازیافت فقط پرداخت واقعی است')
+console.log('\n۱۳) مسیر legacy کارت‌به‌کارتِ ناقص: سقف بازیافت فقط پرداخت ثبت‌شده است')
 const M = await safe('فاکتور پرداخت‌شده‌ی ۱٬۰۰۰ برای کارت‌به‌کارت ناقص', () => twoItems(1000))
 const repM = variant(200)
 const exM = await safe('تعویض ۶۰۰ با ۲۰۰ کارت‌به‌کارت', () => exchange(M.inv.id, M.items[0].id, repM, 'CARD_TO_CARD'))
 const reqM = seed.one('SELECT id FROM "CardTransferRequest" WHERE returnId = ?', exM?.returnId ?? -1)
+// Explicit legacy fixture: old requests have no new entitlement. The old
+// correction/recovery regression remains valid ONLY for those rows; new rows
+// must wait for a reviewed bank document and cannot use adjust to unlock rights.
+const legacyClaim = seed.one('SELECT id FROM "ReturnEntitlement" WHERE requestId = ?', reqM?.id ?? -1)
+sql.prepare('DELETE FROM "ReturnEntitlementEvent" WHERE entitlementId = ?').run(legacyClaim?.id)
+sql.prepare('DELETE FROM "ReturnEntitlement" WHERE id = ?').run(legacyClaim?.id)
 await safe('ثبت پرداخت واقعیِ ناقص ۲۰۰', () => cardTransferService.pay({ id: reqM?.id, paidAmount: 200, userId, managerPassword: PW }))
 await safe('ثبت اصلاح منفی ۵۰ برای پرداخت کارت‌به‌کارت', () => cardTransferService.adjust({ id: reqM?.id, amount: -50, reason: 'بخشی از پرداخت برگشت خورد', userId, managerPassword: PW }))
 await throwsWith('بازیافت بیشتر از خالص پرداخت واقعیِ کارت‌به‌کارت رد می‌شود', () =>

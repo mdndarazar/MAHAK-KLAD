@@ -566,7 +566,7 @@ async function returnStatement(scope: StatementScope): Promise<ReturnTotals & { 
     by: ['kind', 'refundMethod', 'exchangeSettlement'],
     /** A1 — برگشت با `returnedAt` خودش اسکوپ می‌شود، نه با تاریخ صدور فاکتور. */
     where: { invoice: returnInvoiceWhere(scope), ...returnScopeWhere(scope), voidedAt: null, ...(range ? { returnedAt: range } : {}) },
-    _sum: { total: true, refundAmount: true, exchangeTotal: true, exchangeDiff: true, debtReduction: true },
+    _sum: { total: true, refundAmount: true, creditRestored: true, exchangeTotal: true, exchangeDiff: true, debtReduction: true },
     _count: { _all: true }
   })
 
@@ -618,14 +618,17 @@ async function returnStatement(scope: StatementScope): Promise<ReturnTotals & { 
     }
     out.returnCount += count
     out.simpleReturns += total
-    const refunded = Math.min(total, Math.max(0, n(r._sum.refundAmount) || total))
+    const refunded = Math.min(total, Math.max(0,
+      r._sum.refundAmount == null ? total : n(r._sum.refundAmount)))
+    const realOrClaim = new Set<string>([RefundMethod.CASH, RefundMethod.CARD, RefundMethod.STORE_CREDIT, RefundMethod.CARD_TO_CARD])
+      .has(String(r.refundMethod)) ? refunded : 0
+    out.debtOnlyReturns += Math.max(0, total - realOrClaim - Math.max(0, n(r._sum.creditRestored)))
     if (r.refundMethod === RefundMethod.CASH) out.cashRefunds += refunded
     else if (r.refundMethod === RefundMethod.CARD) out.cardRefunds += refunded
     else if (r.refundMethod === RefundMethod.STORE_CREDIT) out.storeCreditIssued += refunded
     else if (r.refundMethod === RefundMethod.CARD_TO_CARD) out.cardToCardPending += refunded
     else {
-      // NONE یا تهی (داده‌ی قدیمی) ⇒ فقط بدهی مشتری کم شد
-      out.debtOnlyReturns += total
+      // NONE یا تهی: فقط سهم غیرنقد/غیر اعتبار احیاشده بدهی را کم کرده است.
       if (r.refundMethod == null) out.legacyAssumedCount += count
     }
   }
@@ -1382,7 +1385,7 @@ export interface ReturnBridgeItem {
   /** CASH | CARD | CARD_TO_CARD | STORE_CREDIT | NONE */
   method: string
   inScope: boolean
-  /** نشست ۶۰ — فقط تعویض: کاهش بدهی فاکتور اصلی (بخش پول‌نشده‌ی مابه‌التفاوت منفی) */
+  /** سهم کاهش بدهی پس از کسر پول واقعی و احیای اعتبار (یا سهم بدهی تعویض). */
   debtCut?: number
 }
 async function returnBridgeItems(scope: StatementScope): Promise<ReturnBridgeItem[]> {
@@ -1390,7 +1393,7 @@ async function returnBridgeItems(scope: StatementScope): Promise<ReturnBridgeIte
   const rets = await prisma.saleReturn.findMany({
     where: { invoice: returnInvoiceWhere(scope), ...returnScopeWhere(scope), voidedAt: null, ...(range ? { returnedAt: range } : {}) },
     select: {
-      id: true, invoiceId: true, kind: true, total: true, refundMethod: true, refundAmount: true,
+      id: true, invoiceId: true, kind: true, total: true, refundMethod: true, refundAmount: true, creditRestored: true,
       exchangeDiff: true, exchangeSettlement: true, debtReduction: true,
       returnedAtJalali: true, invoice: { select: { receiptNo: true } }
     },
@@ -1428,13 +1431,15 @@ async function returnBridgeItems(scope: StatementScope): Promise<ReturnBridgeIte
       id: r.id, invoiceId: r.invoiceId, receiptNo: r.invoice?.receiptNo ?? null,
       dateJalali: r.returnedAtJalali ?? null, total: Math.max(0, n(r.total))
     }
-    if (isSimpleReturn(r))
+    if (isSimpleReturn(r)) {
+      const refund = refundFromReceivedOf({ ...r, refundCanceled: canceled.has(r.id) })
       return {
-        ...base, kind: 'RETURN' as const,
-        refund: refundFromReceivedOf({ ...r, refundCanceled: canceled.has(r.id) }),
+        ...base, kind: 'RETURN' as const, refund,
+        debtCut: Math.max(0, base.total - refund - Math.max(0, n(r.creditRestored))),
         method: String(r.refundMethod ?? 'NONE').toUpperCase(),
         inScope: inScope.has(r.invoiceId)
       }
+    }
     const diff = n(r.exchangeDiff)
     const { bucket } = normalizeSettlement({ exchangeSettlement: r.exchangeSettlement, refundMethod: r.refundMethod })
     const method = diff < 0 ? BUCKET_TO_METHOD[bucket] ?? 'NONE' : 'NONE'
@@ -1466,7 +1471,7 @@ export type ReturnBridgeKey = (typeof RETURN_BRIDGE_KEYS)[number]
 export function returnBridgeShare(it: ReturnBridgeItem, key: ReturnBridgeKey): number {
   if (key === 'priorDebtReturns') {
     if (it.inScope) return 0
-    if (it.kind === 'RETURN') return Math.max(0, it.total - it.refund)
+    if (it.kind === 'RETURN') return Math.max(0, n(it.debtCut))
     // نشست ۶۰ (بند ۴-۵) — کاهش بدهی فاکتور دوره‌ی قبل از مابه‌التفاوت تعویض
     return Math.max(0, n(it.debtCut))
   }

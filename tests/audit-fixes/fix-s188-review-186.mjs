@@ -113,18 +113,21 @@ console.log('\n۱) تعویض اعتبار را نقد نمی‌کند')
         refundMode: 'CASH',
         userId, shiftId
       }),
-      'نقد نیستند'
+      'تطبیق منشأ توسط مدیر'
     )
   }
   if (saleB) {
-    const okEx = await safe('تعویض فاکتور ب با بارکد اعتبار مجاز است', () => salesService.createExchange({
+    // پس از cutover، تعویض فاکتورِ پرداخت‌شده با اعتبار بدون دفتر منشأِ شاهددار
+    // نباید حتی با refundMode=STORE_CREDIT حق تازه بسازد یا کد قبلی را بسوزاند.
+    const before = seed.count('SaleReturn', 'invoiceId = ?', saleB.id)
+    await throwsWith('تعویض فاکتور ب بی‌تطبیق منشأ رد شد', () => salesService.createExchange({
       invoiceId: saleB.id,
       lines: [{ saleItemId: itemsOf(saleB.id)[0].id, qty: 1 }],
       replacements: [{ variantId: variant(600_000), qty: 1 }],
       refundMode: 'STORE_CREDIT',
       userId, shiftId
-    }))
-    truthy('تعویض با اعتبار ثبت شد', !!okEx)
+    }), 'تطبیق منشأ توسط مدیر')
+    eq('رد محافظه‌کارانه سند برگشت تازه نمی‌سازد', seed.count('SaleReturn', 'invoiceId = ?', saleB.id), before)
   }
 }
 

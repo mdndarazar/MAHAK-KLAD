@@ -104,6 +104,11 @@ const live = sql.prepare(
 ).get(inv.id)
 eq('پرداخت زنده ۶۰۰ است', Number(live?.amount), 600)
 eq('اضافه‌دریافت زنده ۱۰۰ است نه ۳۰۰', Number(live?.overpayAmount), 100)
+const history = seed.rows('SELECT id, seq, voidedAt FROM "Payment" WHERE invoiceId = ? ORDER BY seq', inv.id)
+truthy('ردیف باطل‌شده سر جای خود و با شمارهٔ قبلی مانده است',
+  history[0]?.id === pay.id && history[0]?.seq === (pay.seq ?? 1) && history[0]?.voidedAt != null)
+truthy('شمارهٔ پرداخت جایگزین بعد از تاریخچه است، نه شمارهٔ پرداخت باطل‌شده',
+  history.length === 2 && history[1]?.seq === history[0].seq + 1 && history[1]?.voidedAt == null)
 
 console.log(`\n${bad === 0 ? '✓' : '✗'} ${ok} بررسی موفق · ${bad} ناموفق`)
 process.exitCode = bad ? 1 : 0

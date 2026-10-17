@@ -25,6 +25,8 @@ register('./support/s129-hooks.mjs', import.meta.url)
 const root = process.env.MAHAK_ROOT ? resolve(process.env.MAHAK_ROOT) : resolve('.')
 const mock = await import('./support/s129-electron-mock.mjs')
 const electron = await import('electron')
+const { attachTestIpcWindow } = await import('../../test/harness/ipcWindow.mjs')
+const { event: ipcEvent } = attachTestIpcWindow(electron)
 const handlers = new Map()
 electron.ipcMain.handle = (ch, fn) => handlers.set(ch, fn)
 
@@ -60,7 +62,7 @@ const printers = () => {
 const { registerIpcHandlers } = await import(new URL('../../src/main/ipc/index.ts', import.meta.url).href)
 registerIpcHandlers()
 const sample = handlers.get(IPC.printSampleInvoice)
-const call = (payload) => sample(null, payload)
+const call = (payload) => sample(ipcEvent, payload)
 
 console.log('\n— ۱) کارت تکی: فاکتور واقعی نمونه، نه برگه‌ی کالیبراسیون')
 {
@@ -132,8 +134,8 @@ console.log('\n— ۳) روش ذخیره‌شده RAW از همان router')
 console.log('\n— ۴) پیش‌نمایش عمده همان سازنده است')
 {
   const prev = handlers.get(IPC.printPreviewHtml)
-  const w = await prev(null, { profile: 'WHOLESALE' })
-  const t = await prev(null, {})
+  const w = await prev(ipcEvent, { profile: 'WHOLESALE' })
+  const t = await prev(ipcEvent, {})
   check('previewHtml عمده پرداختی/مانده دارد و تکی ندارد', [/مانده/.test(w?.data ?? ''), /مانده/.test(t?.data ?? '')], [true, false])
 }
 

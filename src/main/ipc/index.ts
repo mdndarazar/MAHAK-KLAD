@@ -1,8 +1,12 @@
-import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { readFile, stat } from 'node:fs/promises'
 import { cardTransferService } from '../services/CardTransferService'
 import { bridgeDiagnosticsService } from '../services/bridgeDiagnosticsService'
 import { financialInspectorService } from '../services/financialInspectorService'
 import { pendingRestockService } from '../services/PendingRestockService'
+import { returnGoodsService } from '../services/ReturnGoodsService'
+import { managerReplaceLostCredit } from '../services/CreditRecoveryService'
+import { viewReturnEntitlement, reconcileBankDocument, convertCashRight, confirmCreditDelivery } from '../services/ReturnEntitlementService'
 import { stockCountService } from '../services/StockCountService'
 import { staffReportService } from '../services/StaffReportService'
 import { staffService } from '../services/StaffService'
@@ -36,7 +40,7 @@ import { settingsService } from '../services/SettingsService'
 import { priceAdjustService } from '../services/PriceAdjustService'
 import { printService } from '../services/PrintService'
 import { exportTableFile } from '../services/ExportService'
-import { authService, assertManagerPassword } from '../services/AuthService'
+import { authService, assertManagerPassword, assertPanelPasswordStrict } from '../services/AuthService'
 import { barcodePng } from '../services/BarcodeService'
 import { backupService } from '../services/BackupService'
 import { maintenanceService } from '../services/MaintenanceService'
@@ -84,6 +88,11 @@ import {
   issueSaleEditFormGrant, reserveSaleEditFormGrant, assertSaleEditFormActor,
   assertNoEffectiveSaleEditReset, finishSaleEditFormGrant, clearSaleEditFormGrants
 } from './saleEditFormGrant'
+import {
+  issueCreditFirstPrintGrant, reserveCreditFirstPrintGrant,
+  issueOverpayFirstPrintGrant, reserveOverpayFirstPrintGrant,
+  finishCreditFirstPrintGrant, clearCreditFirstPrintGrants
+} from './creditFirstPrintGrant'
 
 /**
  * wrapper یکسان همه‌ی کانال‌ها.
@@ -109,6 +118,7 @@ function sessionOwnerOf(event: IpcMainInvokeEvent): number {
       observedIpcSenders.delete(id)
       clearPanelSessionsForOwner(id)
       clearSaleEditFormGrants(id)
+      clearCreditFirstPrintGrants(id)
     })
   }
   return id
@@ -603,17 +613,24 @@ export function registerIpcHandlers(): void {
    *
    * چرا یک هلپرِ کوچک و نه چند خط داخل خودِ هندلر:
    *
-   *   ۱) **قرارداد ساختاری نشست ۱۸۲** می‌گوید خط `handle(IPC.saleCreate, …)`
-   *      باید همان‌جا `withSessionActor(p ?? {}, 'ثبت فاکتور فروش')` را داشته
-   *      باشد (فروش نشست بازِ کارمند لازم دارد). اگر هندلر را چندخطی می‌کردیم،
-   *      آن نگهبانِ امنیتی می‌شکست. با این هلپر، هم نشست سر جایش است و هم
-   *      خط، شکلِ آزموده‌شده‌ی خودش را نگه می‌دارد.
+   *   ۱) فروش به نشست بازِ کارمند نیاز دارد؛ withVerifiedSaleOperator با
+   *      withSessionActor مسئول مالی/کشو را از Main می‌گیرد و هویت اپراتور
+   *      انتخابی را جداگانه راستی‌آزمایی می‌کند. آزمون نشست ۱۸۲ همین زنجیره
+   *      را می‌سنجد، نه شکلِ قدیمیِ تک‌خطی هندلر.
    *   ۲) «هیچ‌وقت فروش را عقب نینداز»: `notifySaleCreated` صدا زده می‌شود و
    *      `await` **نمی‌شود**؛ پاسخ به پنل فروش بلافاصله برمی‌گردد. صف پیامک
    *      خودش (هر ۲۰ ثانیه) می‌فرستد.
    *   ۳) خطا هم نمی‌تواند این‌جا را بشکند: خودِ تابع هر خطایی را می‌گیرد و
    *      `.catch` دوم فقط بیمه‌ی اضافه است.
    */
+  /** Only a freshly committed OVERPAY issuance gets an ephemeral print permit.
+   * Keep the credential inside main; renderer receives a document-bound token. */
+  const grantOverpayPaper = (credit: any, invoiceId: number, actorUserId: number | null): any =>
+    credit?.id && actorUserId != null
+      ? { ...credit, firstPrintGrant: issueOverpayFirstPrintGrant(
+        currentPanelSessionOwner(), actorUserId, invoiceId, credit.id) }
+      : credit
+
   const afterSaleThankYou = async (created: Promise<any>): Promise<any> => {
     const invoice = await created
     void smsService
@@ -623,7 +640,9 @@ export function registerIpcHandlers(): void {
         userId: (invoice as any)?.userId ?? null
       })
       .catch(() => undefined)
-    return invoice
+    return invoice?.overpayCredit
+      ? { ...invoice, overpayCredit: grantOverpayPaper(invoice.overpayCredit, invoice.id, invoice.userId) }
+      : invoice
   }
 
   handle(IPC.saleCreate, async (p) => afterSaleThankYou(salesService.create(await withVerifiedSaleOperator(p ?? {}))))
@@ -642,7 +661,9 @@ export function registerIpcHandlers(): void {
       const { editFormToken: _editFormToken, ...input } = actor
       const result = await salesService.update(input)
       committed = true // only a committed edit consumes the witness
-      return result
+      return result.overpayCredit
+        ? { ...result, overpayCredit: grantOverpayPaper(result.overpayCredit, result.id, actor.userId) }
+        : result
     } finally {
       finishSaleEditFormGrant(owner, grant, committed)
     }
@@ -665,7 +686,18 @@ export function registerIpcHandlers(): void {
   // را با ساخت برگشت تغییر دهد.
   handle(IPC.saleReturn, async (p) => {
     await assertPanelUnlocked(PANEL_KEYS.salesReturn, 'ثبت برگشت از فروش')
-    return salesService.createReturn(await withSessionActor(p ?? {}, 'ثبت برگشت از فروش'))
+    const input = await withSessionActor(p ?? {}, 'ثبت برگشت از فروش')
+    const result = await salesService.createReturn(input)
+    const creditId = result.storeCredit?.id
+    const firstPrintGrant = result.refundMethod === 'STORE_CREDIT' && creditId
+      ? issueCreditFirstPrintGrant(currentPanelSessionOwner(), input.userId, result.id, creditId) : null
+    return { ...result, firstPrintGrant,
+      overpayCredit: grantOverpayPaper(result.overpayCredit, result.invoiceId, input.userId) }
+  })
+  handle(IPC.saleReturnProvenancePreview, async (p) => {
+    await assertPanelUnlocked(PANEL_KEYS.salesReturn, 'پیش‌نمایش سهم برگشت')
+    await withSessionActor({}, 'پیش‌نمایش سهم برگشت')
+    return salesService.returnProvenancePreview({ invoiceId: p?.invoiceId, full: p?.full, lines: p?.lines })
   })
   handle(IPC.saleByReturnCode, (p) => salesService.findByReturnCode(p?.code ?? ''))
   handle(IPC.saleReturnList, (p) => salesService.returnList(p ?? {}))
@@ -703,8 +735,18 @@ export function registerIpcHandlers(): void {
   })
   // نشست ۶۷ — actor همه‌ی mutationهای Payment فقط از نشست باز می‌آید؛
   // userId ارسالی renderer در این مسیرها عمداً نادیده گرفته می‌شود.
-  handle(IPC.salePaymentAdd, async (p) => salesService.addPayment(await withSessionActor(p)))
-  handle(IPC.saleOverpayCredit, async (p) => salesService.overpayCreditIssue(await withSessionActor(p)))
+  handle(IPC.salePaymentAdd, async (p) => {
+    const input = await withSessionActor(p ?? {}, 'ثبت یا تغییر پرداخت')
+    const result = await salesService.addPayment(input)
+    return result.overpayCredit
+      ? { ...result, overpayCredit: grantOverpayPaper(result.overpayCredit, input.invoiceId, input.userId) }
+      : result
+  })
+  handle(IPC.saleOverpayCredit, async (p) => {
+    const input = await withSessionActor(p ?? {}, 'صدور اعتبار اضافه‌دریافت')
+    const result = await salesService.overpayCreditIssue(input)
+    return grantOverpayPaper(result, input.invoiceId, input.userId)
+  })
   handle(IPC.salePaymentUpdate, async (p) => salesService.updatePayment(await withSessionActor(p)))
   handle(IPC.salePaymentDelete, async (p) => salesService.deletePayment(await withSessionActor(p ?? {})))
   handle(IPC.saleChequeStatus, async (p) => salesService.setChequeStatus(await withSessionActor(p ?? {})))
@@ -715,7 +757,12 @@ export function registerIpcHandlers(): void {
   // ---- تعویض کالا و بارکد اعتبار خرید بعدی (بخش ۶) ----
   handle(IPC.saleExchangeCreate, async (p) => {
     await assertPanelUnlocked(PANEL_KEYS.salesReturn, 'ثبت تعویض کالا')
-    return salesService.createExchange(await withSessionActor(p ?? {}, 'ثبت تعویض کالا'))
+    const input = await withSessionActor(p ?? {}, 'ثبت تعویض کالا')
+    const result = await salesService.createExchange(input)
+    const creditId = result.storeCredit?.id
+    const firstPrintGrant = result.settlement === 'CREDIT' && creditId
+      ? issueCreditFirstPrintGrant(currentPanelSessionOwner(), input.userId, result.returnId, creditId) : null
+    return { ...result, firstPrintGrant }
   })
   handle(IPC.saleExchangeList, async (p) => {
     await assertSalesReportsRead('دیدن فهرست تعویض‌های کالا در گزارشات')
@@ -891,6 +938,11 @@ export function registerIpcHandlers(): void {
     assertManagerSession('ثبت چاپ سند اعتبار خرید')
     return storeCreditService.markPrinted(await withOptionalSessionActor(p ?? {}))
   })
+  handle(IPC.creditReminderConsentGrant, async (p) =>
+    storeCreditService.grantReminderConsent(await withOptionalSessionActor({
+      id: p?.id, phone: p?.phone, evidence: p?.evidence, managerPassword: p?.managerPassword
+    }))
+  )
   handle(IPC.creditReminderCandidates, async (p) => {
     await assertCreditRead('دیدن فهرست یادآوری اعتبار')
     return storeCreditService.reminderCandidates(p ?? {})
@@ -922,6 +974,59 @@ export function registerIpcHandlers(): void {
   })
   handle(IPC.creditSettingsGet, () => settingsService.creditSettings())
   handle(IPC.creditSettingsSet, async (p) => settingsService.saveCreditSettings(await withOptionalSessionActor(p ?? {})))
+  /**
+   * OVERPAY first paper is exceptional: no manager session in a normal sale,
+   * but a short, single-use grant from that committed issuance is required.
+   * Every later/uncertain print requires a fresh credit-panel password. No
+   * renderer-supplied reprint/copies/markPrinted/userId can weaken this gate.
+   */
+  handle(IPC.overpayCreditPrint, async (p) => {
+    const actor = await withSessionActor(p ?? {}, 'چاپ اعتبار اضافه‌دریافت')
+    const id = p?.creditId
+    const invoiceId = p?.invoiceId
+    if (typeof id !== 'number' || !Number.isSafeInteger(id) || id <= 0 ||
+        typeof invoiceId !== 'number' || !Number.isSafeInteger(invoiceId) || invoiceId <= 0)
+      throw new BusinessError('شناسهٔ اعتبار/فاکتور برای چاپ معتبر نیست.')
+    const owner = currentPanelSessionOwner()
+    const firstPrint = typeof p?.firstPrintGrant === 'string' && p.firstPrintGrant.length > 0
+    if (firstPrint && p?.reprint === true)
+      throw new BusinessError('مجوز چاپ اول برای چاپ دوباره پذیرفته نمی‌شود؛ رمز ماژول اعتبار لازم است.')
+    const grant = firstPrint ? reserveOverpayFirstPrintGrant(owner, {
+      creditId: id, invoiceId, actorUserId: actor.userId, token: p.firstPrintGrant
+    }) : null
+    let definitelyCanceled = false
+    try {
+      if (!grant)
+        await assertPanelPasswordStrict(PANEL_KEYS.creditManagement, p?.password, 'چاپ دوبارهٔ اعتبار اضافه‌دریافت')
+      const [credit, invoice, delivery] = await Promise.all([
+        prisma.storeCredit.findUnique({ where: { id }, select: { source: true, sourceInvoiceId: true,
+          returnId: true, userId: true, status: true, printCount: true, usedAmount: true,
+          voidedAt: true, deletedAt: true } }),
+        prisma.saleInvoice.findUnique({ where: { id: invoiceId }, select: { status: true, voidedAt: true } }),
+        prisma.creditDelivery.findUnique({ where: { creditId: id }, select: { id: true } })
+      ])
+      if (!credit || credit.source !== 'OVERPAY' || credit.sourceInvoiceId !== invoiceId ||
+          credit.voidedAt || credit.deletedAt || credit.status === 'CANCELED' || delivery ||
+          !invoice || invoice.voidedAt || ['DRAFT', 'CANCELED'].includes(invoice.status))
+        throw new BusinessError('این اعتبار به اضافه‌دریافت معتبرِ این فاکتور تعلق ندارد؛ چاپ انجام نشد.')
+      if (credit.returnId != null) {
+        const ret = await prisma.saleReturn.findUnique({ where: { id: credit.returnId },
+          select: { invoiceId: true, voidedAt: true } })
+        if (!ret || ret.invoiceId !== invoiceId || ret.voidedAt)
+          throw new BusinessError('سند برگشتِ مرتبط با این اعتبار معتبر نیست؛ چاپ انجام نشد.')
+      }
+      if (grant && (credit.userId !== actor.userId || credit.printCount !== 0 ||
+          credit.status !== 'ACTIVE' || Number(credit.usedAmount) !== 0))
+        throw new BusinessError('چاپ اول فقط برای اعتبار تازه و خرج‌نشدهٔ همین کارمند مجاز است؛ مدیر پرونده را بررسی کند.')
+      return await printService.printCredit({ id, copies: 1, markPrinted: true,
+        reprint: !grant, password: grant ? undefined : p?.password, userId: actor.userId })
+    } catch (e: any) {
+      definitelyCanceled = e?.printCancelled === true
+      throw e
+    } finally {
+      finishCreditFirstPrintGrant(owner, grant, definitelyCanceled)
+    }
+  })
   /** سند/PDF/پیش‌نمایش خودِ credential را دارد؛ فقط نشست واقعی مدیر مجاز است. */
   handle(IPC.printCredit, async (p) => {
     assertManagerSession('چاپ اعتبار خرید')
@@ -1721,6 +1826,111 @@ export function registerIpcHandlers(): void {
   handle(IPC.cardTransferCancel, async (p) => cardTransferService.cancel(await cardTransferActor(p, 'رد/لغو درخواست کارت‌به‌کارت')))
   handle(IPC.cardTransferAdjust, async (p) => cardTransferService.adjust(await cardTransferActor(p, 'ثبت رویداد اصلاحی کارت‌به‌کارت')))
   handle(IPC.cardTransferOutOfSales, (p) => cardTransferService.outOfSales(p ?? {}))
+
+  handle(IPC.returnEntitlementView, async (p) => {
+    await assertPanelUnlocked(PANEL_KEYS.cardTransfers, 'مشاهدهٔ دفتر حق برگشت')
+    return viewReturnEntitlement(p?.returnId)
+  })
+  handle(IPC.returnBankReview, async (p) => {
+    const actor = await withSessionActor(p ?? {}, 'بازبینی صورت‌حساب بانک')
+    // Renderer cannot choose an arbitrary filesystem path or supply a typed
+    // tracking number as bank proof: ONLY the native picker returns the file.
+    await assertManagerPassword(p?.managerPassword, 'بایگانی شاهد بانک برای برگشت')
+    const picked = await dialog.showOpenDialog({
+      title: 'صورت‌حساب بانک برای تطبیق انسانی (PDF یا CSV)',
+      properties: ['openFile'], filters: [{ name: 'صورت‌حساب بانک', extensions: ['pdf', 'csv'] }]
+    })
+    if (picked.canceled || !picked.filePaths[0]) return { canceled: true }
+    const path = picked.filePaths[0]
+    if ((await stat(path)).size > 5_000_000)
+      throw new BusinessError('حجم فایل صورت‌حساب بیش از ۵ مگابایت است؛ مدرک دیگری انتخاب کنید.')
+    const name = path.split(/[\\/]/).pop() ?? ''
+    return reconcileBankDocument({
+      requestId: p?.requestId, confirmedAmount: p?.confirmedAmount,
+      document: { name, bytes: await readFile(path) },
+      reviewNote: p?.reviewNote, attestedBankAccountReview: p?.attestedBankAccountReview,
+      managerPassword: p?.managerPassword, actorUserId: actor.userId
+    })
+  })
+  handle(IPC.returnCashConvert, async (p) => {
+    const actor = await withSessionActor(p ?? {}, 'تبدیل حق نقدی برگشت')
+    return convertCashRight({ returnId: p?.returnId, amount: p?.amount,
+      expectedVersion: p?.expectedVersion, idempotencyKey: p?.idempotencyKey,
+      managerPassword: p?.managerPassword, actorUserId: actor.userId })
+  })
+  handle(IPC.returnCreditPrint, async (p) => {
+    const actor = await withSessionActor(p ?? {}, 'چاپ کنترل‌شدهٔ اعتبار برگشت/تعویض')
+    const id = p?.creditId
+    if (typeof id !== 'number' || !Number.isSafeInteger(id) || id <= 0)
+      throw new BusinessError('شناسهٔ اعتبار برای چاپ معتبر نیست.')
+    const owner = currentPanelSessionOwner()
+    const firstPrint = typeof p?.firstPrintGrant === 'string' && p.firstPrintGrant.length > 0
+    if (firstPrint) await assertPanelUnlocked(PANEL_KEYS.salesReturn, 'چاپ اول کد صادرشده')
+    // Reserve before any awaited database read; a second invoke in the same
+    // window cannot replay a first-print permit while the first is in flight.
+    const grant = firstPrint ? reserveCreditFirstPrintGrant(owner, {
+      creditId: id, returnId: p?.returnId, actorUserId: actor.userId, token: p.firstPrintGrant
+    }) : null
+    let definitelyCanceled = false
+    try {
+      if (!grant) await assertManagerPassword(p?.managerPassword, 'چاپ کد اعتبار برگشت/تعویض')
+      const delivery = await prisma.creditDelivery.findUnique({ where: { creditId: id } })
+      if (delivery) {
+        if (grant || !['MANAGER_REPLACEMENT', 'CASH_RIGHT_CONVERSION', 'CREDIT_RETURN_OPPORTUNITY'].includes(delivery.sourceKind))
+          throw new BusinessError('این اعتبار مجوز چاپ اول فروشنده ندارد؛ چاپ کنترل‌شده با تأیید مدیر انجام شود.')
+      } else {
+        // Ordinary return/exchange credits have no CreditDelivery. Bind the
+        // paper to the precise unvoided SaleReturn, never a guessed code.
+        const returnId = p?.returnId
+        if (typeof returnId !== 'number' || !Number.isSafeInteger(returnId) || returnId <= 0)
+          throw new BusinessError('سند برگشتِ این اعتبار برای چاپ مشخص نیست.')
+        const ret = await prisma.saleReturn.findUnique({ where: { id: returnId },
+          select: { storeCreditId: true, refundMethod: true, voidedAt: true,
+            userId: true, creditPaperSeparate: true } })
+        const origin = await prisma.storeCredit.findUnique({ where: { id },
+          select: { returnId: true, source: true, deletedAt: true, voidedAt: true,
+            status: true, userId: true, usedAmount: true } })
+        if (!ret || ret.voidedAt || ret.refundMethod !== 'STORE_CREDIT' || ret.storeCreditId !== id ||
+            !origin || origin.returnId !== returnId || origin.source !== 'EXCHANGE' ||
+            origin.deletedAt || origin.voidedAt || origin.status === 'CANCELED')
+          throw new BusinessError('این کد به صدور عادی همین سند تعلق ندارد یا دیگر معتبر نیست؛ از پروندهٔ مدیر پیگیری کنید.')
+        if (grant && (ret.userId !== actor.userId || !ret.creditPaperSeparate ||
+            origin.userId !== actor.userId || origin.status !== 'ACTIVE' || Number(origin.usedAmount) !== 0))
+          throw new BusinessError('چاپ اول فروشنده فقط برای اعتبار تازه و خرج‌نشدهٔ خودش مجاز است؛ مدیر پرونده را بررسی کند.')
+      }
+      const printed = await prisma.storeCredit.findUnique({ where: { id }, select: { printCount: true } })
+      if (!printed) throw new BusinessError('اعتبار برای چاپ پیدا نشد.')
+      if (grant && printed.printCount !== 0)
+        throw new BusinessError('این کد قبلاً چاپ شده است؛ چاپ مجدد فقط با تأیید مدیر انجام می‌شود.')
+      return await printService.printCredit({ id, copies: 1, reprint: printed.printCount > 0,
+        password: grant ? undefined : p.managerPassword, userId: actor.userId })
+    } catch (e: any) {
+      definitelyCanceled = e?.printCancelled === true
+      throw e
+    } finally {
+      finishCreditFirstPrintGrant(owner, grant, definitelyCanceled)
+    }
+  })
+  handle(IPC.returnCreditDeliver, async (p) => {
+    const actor = await withSessionActor(p ?? {}, 'تحویل اعتبار جایگزین')
+    return confirmCreditDelivery({ creditId: p?.creditId, witnessKind: p?.witnessKind,
+      witnessRef: p?.witnessRef, managerPassword: p?.managerPassword, actorUserId: actor.userId })
+  })
+  handle(IPC.creditManagerReplaceLost, async (p) => {
+    assertManagerSession('جایگزینی اعتبار گم‌شده')
+    const actor = await withSessionActor(p ?? {}, 'جایگزینی اعتبار گم‌شده')
+    return managerReplaceLostCredit({ creditId: p?.creditId, receiptNo: p?.receiptNo,
+      receiptRef: p?.receiptRef, witnessRef: p?.witnessRef, reason: p?.reason,
+      approvingManagerId: p?.approvingManagerId, managerPin: p?.managerPin, actorUserId: actor.userId })
+  })
+  handle(IPC.returnGoodsItems, async (p) => returnGoodsService.items(p?.returnId))
+  handle(IPC.returnGoodsReceive, async (p) => {
+    const actor = await withSessionActor(p ?? {}, 'دریافت فیزیکی کالای برگشتی')
+    return returnGoodsService.receive({ returnId: p?.returnId, returnItemId: p?.returnItemId,
+      qty: p?.qty, eventKey: p?.eventKey, witnessKind: p?.witnessKind,
+      witnessRef: p?.witnessRef, physicalConfirmed: p?.physicalConfirmed,
+      actorUserId: actor.userId })
+  })
 
   /**
    * جلسه ۴۱ · کار ب — خلاصه‌ی «معلق برگشتی» برای پنج صفحه.

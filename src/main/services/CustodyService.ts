@@ -1598,6 +1598,9 @@ export const custodyService = {
       ? await prisma.custodyBlueSnapshot.findMany({ where: { handoverId: { in: blueIds } }, orderBy: { id: 'asc' } }) : []
     const blueByHandover = new Map<number, { OUT?: any; IN?: any }>()
     for (const snapshot of blueSnapshots) {
+      // Prisma declares the link nullable (opening/boundary evidence has no handover).
+      // This query asks only for linked handovers; never attach an orphan to one.
+      if (snapshot.handoverId == null) continue
       const pair: { OUT?: any; IN?: any } = blueByHandover.get(snapshot.handoverId) ?? {}
       if (snapshot.role === 'OUT') pair.OUT = snapshot
       else if (snapshot.role === 'IN') pair.IN = snapshot
