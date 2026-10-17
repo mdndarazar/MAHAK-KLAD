@@ -1263,8 +1263,30 @@ export async function resolveReportPeriod(
   return { from: jalaliStartOfDay(today), to: jalaliEndOfDay(today), source: 'today' }
 }
 
+/** A correction removes a return from the invoice's *active* status, not
+ * from its historical quantity ceiling. The latter stays reserved until a
+ * separate witnessed money/credit/stock reconciliation explicitly allows
+ * another return; just freeing it here could issue a second entitlement.
+ * All three readers (recompute, write, lookup) must distinguish these views. */
+function summarizeReturnQty(returns: readonly {
+  items: readonly { saleItemId: number; qty: number }[]
+  corrections: readonly { id: number }[]
+}[]) {
+  const lifetime = new Map<number, number>()
+  const active = new Map<number, number>()
+  const corrected = new Map<number, number>()
+  for (const r of returns) {
+    const bucket = r.corrections.length ? corrected : active
+    for (const it of r.items) {
+      lifetime.set(it.saleItemId, (lifetime.get(it.saleItemId) ?? 0) + it.qty)
+      bucket.set(it.saleItemId, (bucket.get(it.saleItemId) ?? 0) + it.qty)
+    }
+  }
+  return { lifetime, active, corrected }
+}
+
 /**
- * وضعیت فاکتور را از روی *جمع همه‌ی برگشت‌های باقی‌مانده* بازمحاسبه می‌کند.
+ * وضعیت فاکتور را از روی *جمع برگشت‌های فعال و اصلاح‌نشده* بازمحاسبه می‌کند.
  * بعد از ویرایش یا حذف یک برگشت لازم است: اگر همه‌ی برگشت‌ها پاک شوند فاکتور
  * دوباره «تسویه شده» می‌شود، وگرنه «برگشت جزئی» یا «برگشت کامل».
  * وضعیت‌های دیگر (پیش‌نویس/لغو‌شده) دست‌نخورده می‌مانند.
@@ -1289,15 +1311,9 @@ async function refreshInvoiceStatus(tx: Prisma.TransactionClient, invoiceId: num
   if (inv.status !== SaleStatus.SETTLED && inv.status !== SaleStatus.RETURNED && inv.status !== SaleStatus.PARTIALLY_RETURNED)
     return inv.status
 
-  const returnedByItem = new Map<number, number>()
-  for (const r of inv.returns) {
-    // ردیف جبرانی جدید، اثر کالای این برگشت را در شیفت اصلاح‌کننده معکوس کرده است.
-    if (r.corrections.length) continue
-    for (const it of r.items) returnedByItem.set(it.saleItemId, (returnedByItem.get(it.saleItemId) ?? 0) + it.qty)
-  }
-
+  const { active } = summarizeReturnQty(inv.returns)
   const soldQty = inv.items.reduce((s, i) => s + i.qty, 0)
-  const returnedQty = inv.items.reduce((s, i) => s + Math.min(i.qty, returnedByItem.get(i.id) ?? 0), 0)
+  const returnedQty = inv.items.reduce((s, i) => s + Math.min(i.qty, active.get(i.id) ?? 0), 0)
   const status =
     returnedQty <= 0 ? SaleStatus.SETTLED : returnedQty >= soldQty ? SaleStatus.RETURNED : SaleStatus.PARTIALLY_RETURNED
   if (status !== inv.status) await tx.saleInvoice.update({ where: { id: inv.id }, data: { status } })
@@ -3356,7 +3372,9 @@ async function runReturn(
     const now = new Date()
     const invoice = await tx.saleInvoice.findUnique({
       where: { id: input.invoiceId },
-      include: { items: true, returns: { where: { voidedAt: null }, include: { items: true } } }
+      include: { items: true, returns: { where: { voidedAt: null }, include: {
+        items: true, corrections: { where: { status: 'POSTED' }, select: { id: true } }
+      } } }
     })
     if (!invoice) throw new BusinessError('این فاکتور پیدا نشد؛ ممکن است حذف شده باشد.')
     // A posted correction already returned the replacement goods to stock.
@@ -3391,9 +3409,11 @@ async function runReturn(
           '؛ روی آن هیچ برگشت یا تعویضی ثبت نمی‌شود.'
       )
 
-    const returnedByItem = new Map<number, number>()
-    for (const r of invoice.returns)
-      for (const it of r.items) returnedByItem.set(it.saleItemId, (returnedByItem.get(it.saleItemId) ?? 0) + it.qty)
+    // Historical/corrected quantities still reserve their sold units against
+    // automatic re-return; only non-corrected returns determine invoice status
+    // and whether a full-return credit reversal is actually safe.
+    const { lifetime: returnedByItem, active: activeReturnedByItem, corrected: correctedByItem } =
+      summarizeReturnQty(invoice.returns)
 
     /**
      * نشست ۲ زنجیره رفع · C5 — ردیف‌های تکراری یک `saleItemId` *قبل* از
@@ -3413,7 +3433,9 @@ async function runReturn(
     if (!targets.length)
       throw new BusinessError(
         input.full
-          ? 'همه‌ی اقلام این فاکتور قبلاً برگشت خورده‌اند؛ چیزی برای برگشت نمانده است.'
+          ? correctedByItem.size
+            ? 'برگشت قبلی این فاکتور اصلاح جبرانی شده است؛ تعداد آن برای جلوگیری از پرداخت یا اعتبار دوباره در سقف برگشت خودکار محفوظ می‌ماند. پرونده را برای تطبیق پول، اعتبار و کالا به مدیر ارجاع دهید.'
+            : 'همه‌ی اقلام این فاکتور قبلاً برگشت خورده‌اند؛ چیزی برای برگشت نمانده است.'
           : 'برای برگشت، تعداد حداقل یک قلم را بزرگ‌تر از صفر بگذارید.'
       )
 
@@ -3452,6 +3474,11 @@ async function runReturn(
        * از انبار هم برگشت بخورد» (کنار `allowRemoved`). آن استثنا منطقی است،
        * این یکی نبود.
        */
+      if (qty > remaining && (correctedByItem.get(src.id) ?? 0) > 0)
+        throw new BusinessError(
+          `«${nameOf(src.variantId)}» قبلاً اصلاح جبرانی شده است. ${faDigits(remaining)} عدد دیگر از این قلم قابل برگشت خودکار است؛ ` +
+            'تعداد اصلاح‌شده بدون تطبیق پول، اعتبار و کالا دوباره آزاد نمی‌شود. پرونده را به مدیر ارجاع دهید.'
+        )
       if (qty > remaining)
         throw new BusinessError(
           `تعداد برگشتی «${nameOf(src.variantId)}» (${faDigits(qty)}) از تعداد قابل برگشت (${faDigits(remaining)}) بیشتر است.\n` +
@@ -3901,10 +3928,13 @@ async function runReturn(
       })
     }
 
-    // ---- وضعیت فاکتور بر اساس جمع کل برگشت‌ها ----
-    for (const i of items) returnedByItem.set(i.saleItemId, (returnedByItem.get(i.saleItemId) ?? 0) + i.qty)
+    // The lifetime cap (above) includes corrected units; the invoice state
+    // and full-return credit side effects must count ONLY active returns, just
+    // like refreshInvoiceStatus. A corrected unit cannot trigger H1 reversal.
+    for (const i of items)
+      activeReturnedByItem.set(i.saleItemId, (activeReturnedByItem.get(i.saleItemId) ?? 0) + i.qty)
     const soldQty = invoice.items.reduce((s, i) => s + i.qty, 0)
-    const returnedQty = invoice.items.reduce((s, i) => s + Math.min(i.qty, returnedByItem.get(i.id) ?? 0), 0)
+    const returnedQty = invoice.items.reduce((s, i) => s + Math.min(i.qty, activeReturnedByItem.get(i.id) ?? 0), 0)
     const fullyReturned = returnedQty >= soldQty
     await tx.saleInvoice.update({
       where: { id: invoice.id },
@@ -5965,7 +5995,9 @@ export const salesService = {
             customer: true,
             shift: true,
             payments: { where: { voidedAt: null }, include: { method: true } },
-            returns: { where: { voidedAt: null }, include: { items: true } }
+            returns: { where: { voidedAt: null }, include: {
+              items: true, corrections: { where: { status: 'POSTED' }, select: { id: true } }
+            } }
           }
         })
       : null
@@ -5980,7 +6012,9 @@ export const salesService = {
           customer: true,
           shift: true,
           payments: { include: { method: true } },
-          returns: { where: { voidedAt: null }, include: { items: true } }
+          returns: { where: { voidedAt: null }, include: {
+            items: true, corrections: { where: { status: 'POSTED' }, select: { id: true } }
+          } }
         }
       })
     }
@@ -6000,10 +6034,7 @@ export const salesService = {
     })
     const vmap = new Map(variants.map((v) => [v.id, v]))
 
-    const returnedByItem = new Map<number, number>()
-    for (const r of invoice.returns)
-      for (const it of r.items) returnedByItem.set(it.saleItemId, (returnedByItem.get(it.saleItemId) ?? 0) + it.qty)
-
+    const { lifetime: returnedByItem, corrected: correctedByItem } = summarizeReturnQty(invoice.returns)
     const warnings: string[] = []
     /** نشست ۲ · C1 — صفحه‌ی برگشت با همین عدد و `returnValueOf` پیش‌نمایش می‌دهد */
     const lookupLineNet = allocateLineNet(invoice)
@@ -6012,7 +6043,10 @@ export const salesService = {
       const removed = !!v && (!v.isActive || v.product?.isActive === false)
       const stockState: ReturnItemStock = !v ? 'MISSING' : removed ? 'REMOVED' : 'OK'
       const returnedQty = returnedByItem.get(it.id) ?? 0
+      const correctedQty = correctedByItem.get(it.id) ?? 0
       const name = saleLineTitle(it, v, 'کالای حذف‌شده از سیستم')
+      if (correctedQty > 0)
+        warnings.push(`«${name}»: ${faDigits(correctedQty)} عدد قبلاً اصلاح جبرانی شده است. وضعیت فاکتور به‌تنهایی مجوز برگشت دوباره نیست؛ تعداد اصلاح‌شده تا تطبیق پول، اعتبار و کالا برای برگشت خودکار محفوظ می‌ماند.`)
       const warning =
         stockState === 'REMOVED'
           ? 'این کالا از موجودی انبار حذف شده است'

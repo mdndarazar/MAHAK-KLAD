@@ -68,6 +68,7 @@ jobs:
             'tests/audit-fixes/fix-financial-goods-multi-source-correction.mjs',
             'tests/audit-fixes/fix-financial-goods-source-edge-cases.mjs',
             'tests/audit-fixes/fix-financial-goods-all-methods.mjs',
+            'tests/audit-fixes/fix-financial-corrected-return-cap.mjs',
             'tests/audit-fixes/fix-s222-print-phase6-remaining-prints.mjs',
             'tests/audit-fixes/fix-s372-exchange-print-panel-gate.mjs'
           )
