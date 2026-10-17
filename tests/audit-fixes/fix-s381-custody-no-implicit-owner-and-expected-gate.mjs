@@ -17,6 +17,7 @@ process.env.HARNESS_DB = join(DIR, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
+const { settingsService } = await import('../../src/main/services/SettingsService.ts')
 
 const db = harnessClient()
 const seed = makeSeeder(db)
@@ -43,20 +44,20 @@ const profilesBefore = Number(seed.one('SELECT COUNT(*) AS n FROM "StaffProfile"
 await rejects('فروش بدون مسئول فعال، مالک/شیفت ساختگی نمی‌سازد', 'CUSTODY_AUTH_REQUIRED', () => custodyService.actorForFinancialOperation())
 eq('رد فروش بدون مسئول، Shift جدید نمی‌سازد', Number(seed.one('SELECT COUNT(*) AS n FROM "Shift"')?.n ?? 0), shiftsBefore)
 eq('رد فروش بدون مسئول، پروفایل bootstrap ساختگی نمی‌سازد', Number(seed.one('SELECT COUNT(*) AS n FROM "StaffProfile" WHERE kind=?', 'BOOTSTRAP_OWNER')?.n ?? 0), profilesBefore)
-await rejects('expectedCash بدون مسئول فعال خوانده نمی‌شود', 'CUSTODY_EXPECTED_AUTH_REQUIRED', () => custodyService.assertExpectedCashRead({ shiftId: 1 }))
+await rejects('در حالت حضانت، expectedCash حتی بدون نشست فعال در پنل کارمند پنهان است', 'CUSTODY_EXPECTED_HIDDEN', () => custodyService.assertExpectedCashRead({ shiftId: 1 }))
 
 for (const [id, temporary, permanent] of [[giver, 'Giver381!', 'Giver3814!'], [receiver, 'Receiver381!', 'Receiver3814!']]) {
   await custodyService.setPin({ userId: id, newPassword: temporary, managerUserId: manager, managerPassword: 'Manager381!', reason: 'راه‌اندازی آزمون سخت‌سازی حضانت' })
   await custodyService.setPin({ userId: id, currentPassword: temporary, newPassword: permanent })
 }
 
+await settingsService.saveCustodySchedulingWorkflow({ shift: { ...await settingsService.shiftConfig(), custodyMode: 'SINGLE_SHIFT', singleShiftCustodianUserId: giver, singleShiftAllowMidDayHandover: true }, managerUserId: manager, managerPassword: 'Manager381!', reason: 'مجوز تحویل برای آزمون گیت expected صندوق' })
 const opened = await custodyService.open({ userId: giver, password: 'Giver3814!', countedCash: 1000 })
-const approved = await custodyService.assertExpectedCashRead({ shiftId: opened.shiftId })
-eq('expectedCash فقط segment فعال را می‌پذیرد', approved?.shiftId, opened.shiftId)
-await rejects('expectedCash شیفت تاریخی/غیر فعال را رد می‌کند', 'CUSTODY_EXPECTED_SCOPE', () => custodyService.assertExpectedCashRead({ shiftId: opened.shiftId + 1 }))
+await rejects('expectedCash حتی برای segment فعال به شمارش‌کننده نمایش داده نمی‌شود', 'CUSTODY_EXPECTED_HIDDEN', () => custodyService.assertExpectedCashRead({ shiftId: opened.shiftId }))
+await rejects('شیفت تاریخی نیز مجوز خواندن expectedCash ندارد', 'CUSTODY_EXPECTED_HIDDEN', () => custodyService.assertExpectedCashRead({ shiftId: opened.shiftId + 1 }))
 
-await custodyService.handoverStart({ password: 'Giver3814!', countedCash: 1000, toUserId: receiver, idempotencyKey: 's381-handover' })
-await rejects('expectedCash در طول شمارش کور تحویل پنهان است', 'CUSTODY_EXPECTED_HIDDEN_DURING_HANDOVER', () => custodyService.assertExpectedCashRead({ shiftId: opened.shiftId }))
+await custodyService.handoverStart({ password: 'Giver3814!', operationalTotal: 1000, blueReference: true, toUserId: receiver, idempotencyKey: 's381-handover' })
+await rejects('expectedCash در طول شمارش کور تحویل پنهان می‌ماند', 'CUSTODY_EXPECTED_HIDDEN', () => custodyService.assertExpectedCashRead({ shiftId: opened.shiftId }))
 
 const custodySource = readFileSync(new URL('../../src/main/services/CustodyService.ts', import.meta.url), 'utf8')
 const ipcSource = readFileSync(new URL('../../src/main/ipc/index.ts', import.meta.url), 'utf8')

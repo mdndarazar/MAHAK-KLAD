@@ -48,6 +48,10 @@ const u4 = seed.user('فروشنده چهار')
 
 const ret = (userId, amount) =>
   seed.insert('SaleReturn', {
+    // Reports now require a genuine source invoice. An orphan with the
+    // seeder's old implicit invoiceId=0 is intentionally excluded, even when
+    // its request is a legacy CARD_TO_CARD row.
+    invoiceId: seed.invoice({ grandTotal: amount }).id,
     userId,
     kind: 'RETURN',
     total: amount,

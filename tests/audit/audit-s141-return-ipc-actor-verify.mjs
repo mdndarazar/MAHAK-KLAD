@@ -31,6 +31,11 @@ const { salesService } = await import(join(root, 'src/main/services/SalesService
 const { jalaliToday } = await import(join(root, 'src/shared/jalali.ts'))
 const { DEFAULT_MANAGER_PASSWORD: PW } = await import(join(root, 'src/shared/receipt.ts'))
 registerIpcHandlers()
+// تستِ actor با عبور از قفل مستقل صفحه اجرا می‌شود؛ قفلِ IPC برای پنجرهٔ
+// دیگری باز نیست و نبود نشست کارمند همچنان باید جداگانه رد شود.
+const { notePanelUnlocked } = await import(join(root, 'src/main/services/panelSession.ts'))
+const { PANEL_KEYS } = await import(join(root, 'src/shared/panels.ts'))
+notePanelUnlocked(PANEL_KEYS.salesReturn, 'PANEL', sender.id)
 const ipc = (ch, payload) => handlers.get(ch)({ sender }, payload)
 const today = jalaliToday()
 const A = seed.user('فروشنده الف ۱۴۱')

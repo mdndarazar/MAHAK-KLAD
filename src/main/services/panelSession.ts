@@ -8,6 +8,7 @@
  * ===========================================================================
  */
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { randomBytes } from 'node:crypto'
 import { BusinessError } from '../errors'
 import { isPanelLockEnabled, normalizePanelKey, PANEL_KEYS } from '@shared/panels'
 import { readPanelLocks } from './AuthService'
@@ -35,7 +36,7 @@ export function panelSessionTtlMs(): number {
 }
 
 type Scope = 'MANAGER' | 'PANEL'
-type Entry = { expiresAt: number; scope: Scope; openedAt: number; generation: number }
+type Entry = { expiresAt: number; scope: Scope; openedAt: number; generation: number; nonce: string }
 
 /**
  * کلید صفر فقط برای تست‌های مستقیم و callerهای قدیمیِ بیرون از IPC است. در
@@ -83,6 +84,14 @@ export function runWithPanelSessionOwner<T>(owner: number, fn: () => T): T {
   return ownerContext.run(owner, fn)
 }
 
+/** Main-only owner of this IPC request; never accept a renderer-supplied id. */
+export function currentPanelSessionOwner(): number {
+  const owner = ownerContext.getStore()
+  if (owner == null || owner <= 0)
+    throw new BusinessError('پنجرهٔ درخواست معتبر نیست؛ عملیات امنیتی انجام نشد.')
+  return owner
+}
+
 /** فقط برای diagnostics/status؛ session status خودش timer بی‌کاری را تازه نمی‌کند. */
 function alive(key: string, owner: number, touch: boolean): Entry | null {
   const entries = bucket(owner)
@@ -110,7 +119,10 @@ export function notePanelUnlocked(panel: string, scope: Scope | 'OPEN', explicit
     expiresAt: now + ttlMs,
     scope,
     openedAt: now,
-    generation: generationOf(owner)
+    generation: generationOf(owner),
+    // generation may be reused after idle expiry and later login. A fresh,
+    // server-only nonce binds historical report tokens to THIS login instance.
+    nonce: randomBytes(16).toString('hex')
   })
 }
 
@@ -160,6 +172,16 @@ export function isPanelUnlocked(panel: string, explicitOwner?: number): boolean 
 /** آیا فقط نشست اصلی مدیر برای sender فعلی معتبر است؟ */
 export function isManagerSessionUnlocked(explicitOwner?: number): boolean {
   return !!alive(MANAGER_KEY, ownerOf(explicitOwner), true)
+}
+
+/** Main-only binding for read-only history snapshots. The nonce never crosses
+ * IPC; panel-scoped credentials and the lock-off policy cannot obtain it.
+ * Logout, expiry, re-login and a different sender all change this identity. */
+export function currentManagerSessionIdentity(action: string): string {
+  const owner = currentPanelSessionOwner()
+  const session = alive(MANAGER_KEY, owner, true)
+  if (!session) throw new BusinessError(`برای ${action} فقط نشست فعال مدیر معتبر است. با رمز مدیر وارد شوید؛ رمز دوم پنل کافی نیست.`, 'REPORT_MANAGER_REQUIRED')
+  return `${owner}:${session.nonce}`
 }
 
 /**

@@ -87,8 +87,9 @@ eq('template/mode edit، expiry persisted segment فعال را عوض نمی‌
 eq('config edit، snapshot evidence را بازنویسی نمی‌کند', afterEditMeta?.scheduleSnapshotJson, initialMeta?.scheduleSnapshotJson)
 eq('mode edit، permission تحویل میان‌روز segment فعال را لغو نمی‌کند', afterEdit.schedule?.allowMidDayHandover, true)
 
-const handover = await custodyService.handoverStart({ password: 'GiverFinal382!', countedCash: 1000, toUserId: receiver, idempotencyKey: 's382-same-template' })
-const accepted = await custodyService.handoverAccept({ handoverId: handover.id, password: 'ReceiverFinal382!', countedCash: 1000 })
+const handover = await custodyService.handoverStart({ password: 'GiverFinal382!', operationalTotal: 1000, blueReference: true, toUserId: receiver, idempotencyKey: 's382-same-template' })
+await custodyService.handoverCountBlue({ handoverId: handover.id, password: 'ReceiverFinal382!', operationalTotal: 1000 })
+const accepted = await custodyService.handoverConfirmBlue({ handoverId: handover.id, password: 'ReceiverFinal382!' })
 const successor = seed.one('SELECT templateId, planTitle, scheduledEndAt, rolloverAt, scheduleSnapshotJson FROM "CustodyShiftMeta" WHERE shiftId=?', accepted.shiftId)
 const successorSnapshot = JSON.parse(successor?.scheduleSnapshotJson ?? '{}')
 eq('mutated current roster نمی‌تواند receiver مجاز snapshot را رد کند', accepted.shiftId > opened.shiftId, true)
@@ -101,7 +102,7 @@ eq('successor roster immutable را نگه می‌دارد', successorSnapshot.s
 eq('successor policy اجازهٔ میان‌روز immutable را نگه می‌دارد', successorSnapshot.allowMidDayHandover, true)
 
 const emergency = await custodyService.emergencyCover({
-  userId: giver, password: 'GiverFinal382!', countedCash: 1000,
+  userId: giver, password: 'GiverFinal382!', operationalTotal: 1000,
   reason: 'مسئول فعلی در دسترس نیست و کارمند PINدار باید پوشش فوری بدهد.'
 })
 const emergencyMeta = seed.one('SELECT planTitle, scheduledEndAt, rolloverAt, scheduleSnapshotJson FROM "CustodyShiftMeta" WHERE shiftId=?', emergency.shiftId)
@@ -111,7 +112,7 @@ eq('Emergency Cover label اولیه را حفظ می‌کند', emergencyMeta?.
 eq('Emergency Cover پایان اولیه را حفظ می‌کند', String(emergencyMeta?.scheduledEndAt), String(initialMeta?.scheduledEndAt))
 
 const overridden = await custodyService.masterOverride({
-  managerUserId: manager, managerPassword: '1111', countedCash: 1000,
+  managerUserId: manager, managerPassword: 'Manager382!', operationalTotal: 1000,
   reason: 'مسئول فعلی در دسترس نیست و مدیر باید با شمارش فیزیکی مسئولیت را تحویل بگیرد.'
 })
 const overrideMeta = seed.one('SELECT planTitle, scheduledEndAt, rolloverAt, scheduleSnapshotJson FROM "CustodyShiftMeta" WHERE shiftId=?', overridden.shiftId)

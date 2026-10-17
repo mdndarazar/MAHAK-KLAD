@@ -43,8 +43,8 @@ check('Shell helper را از همان Modal stack می‌خواند', [
 const mapBlock = shell.slice(shell.indexOf('Object.entries(ROUTE_BY_SHORTCUT)'), shell.indexOf('useHotkeys(map)'))
 check('هر handler ناوبری Shell قبل از nav وضعیت modal را در لحظه keydown چک می‌کند', [
   /if \(isAnyModalOpen\(\)\) return/.test(mapBlock),
-  mapBlock.indexOf('if (isAnyModalOpen()) return') >= 0 && mapBlock.indexOf('if (isAnyModalOpen()) return') < mapBlock.indexOf('nav(r)'),
-  /زمان render Shell/.test(mapBlock) || /Shell را\s*دوباره render نمی‌کند/.test(mapBlock)
+  mapBlock.indexOf('if (isAnyModalOpen()) return') >= 0 && mapBlock.indexOf('if (isAnyModalOpen()) return') < mapBlock.indexOf('nav(route)'),
+  /nav\(route\)/.test(mapBlock) && /\[nav\]/.test(mapBlock)
 ], [true, true, true])
 
 check('useHotkeys همچنان enabled عمومی را نگه داشته و تصمیم modal را به handler لحظه‌ای Shell واگذار می‌کند', [

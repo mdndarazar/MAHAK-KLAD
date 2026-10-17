@@ -59,11 +59,13 @@ console.log('\n— ۲) createReturn: اعشار رد، جزئی درست، کا�
   eq('refundAmount اعشاری هیچ اثری نگذاشت', counts(), before)
   // با پرداخت کامل و برگشت بدون خروج پول، اضافه‌دریافت واقعی ساخته می‌شود؛
   // فلو فعلی تأیید آگاهانه می‌خواهد تا ردیف اضافه بی‌صدا ثبت نشود.
-  const ok1 = await safe(() => salesService.createReturn({ invoiceId: sale.id, full: false, lines: [{ saleItemId: i1, qty: 1 }], refundMethod: 'NONE', confirmOverpay: true, userId }))
+  // این دو fixture جزئی/کاملِ قبل از cutover، stock فوری تاریخی را می‌سنجند؛
+  // ورودی‌های نامعتبر همچنان با پیش‌فرضِ رسید شاهددار به سرویس می‌روند.
+  const ok1 = await safe(() => salesService.createReturn({ invoiceId: sale.id, full: false, lines: [{ saleItemId: i1, qty: 1 }], refundMethod: 'NONE', confirmOverpay: true, userId }, { goodsReceiptRequired: false }))
   eq('برگشت جزئی یک کالا بی‌خطا', ok1?.__error ?? null, null)
   eq('بند ۴-۱۱: برگشت یک کالا از دو کالای ۱٬۰۰۰٬۰۰۰ با ۱۰٪ تخفیف کل = ۹۰۰٬۰۰۰', Number(seed.one('SELECT total FROM "SaleReturn" WHERE invoiceId = ? ORDER BY id DESC', sale.id)?.total), 900_000)
   eq('موجودی کالای ۱ برگشت (۹ ⇒ ۱۰)', stockOf(v1), 10)
-  const full = await safe(() => salesService.createReturn({ invoiceId: sale.id, full: true, refundMethod: 'NONE', confirmOverpay: true, userId }))
+  const full = await safe(() => salesService.createReturn({ invoiceId: sale.id, full: true, refundMethod: 'NONE', confirmOverpay: true, userId }, { goodsReceiptRequired: false }))
   eq('برگشت کامل بدون lines پذیرفته شد', full?.__error ?? null, null)
   eq('برگشت کامل باقی‌مانده = ۹۰۰٬۰۰۰', Number(seed.one('SELECT total FROM "SaleReturn" WHERE invoiceId = ? ORDER BY id DESC', sale.id)?.total), 900_000)
   eq('موجودی کالای ۲ برگشت', stockOf(v2), 10)

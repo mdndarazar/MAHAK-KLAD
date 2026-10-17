@@ -27,7 +27,8 @@ const eq = (label, got, want) => {
   }
 }
 
-eq('گیت بستن دوباره داخل تراکنش قرار دارد', /const session = await prisma\.\$transaction\(async \(tx\) => \{[\s\S]{0,1800}concurrentPrior/.test(source), true)
+eq('گیت بستن دوباره داخل تراکنش قرار دارد',
+  /const \{ session, closedShiftRow \} = await prisma\.\$transaction\(async \(tx\) => \{[\s\S]{0,3000}concurrentPrior/.test(source), true)
 eq('گیت داخل transaction قبل از ساخت snapshot اجرا می‌شود', source.indexOf('concurrentPrior') < source.indexOf('tx.cashSession.create'), true)
 eq('اجرای تکراریِ تأییدشده همچنان مجاز است', /if \(!input\.allowRepeatClose\)/.test(source), true)
 

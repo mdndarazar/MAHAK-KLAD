@@ -16,6 +16,7 @@ process.env.HARNESS_BIGINT = '1'
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
+const { returnGoodsService } = await import('../../src/main/services/ReturnGoodsService.ts')
 const { cashboxService } = await import('../../src/main/services/CashboxService.ts')
 const { cashMovementService } = await import('../../src/main/services/CashMovementService.ts')
 const { DEFAULT_MANAGER_PASSWORD: PW } = await import('@shared/receipt')
@@ -161,7 +162,12 @@ const retN = await salesService.createReturn({
 eq('برگشت نسیه به NONE تبدیل شد', retN.refundMethod === 'NONE' || Number(retN.refundAmount ?? 0) === 0, true)
 eq('نقد با برگشت نسیه کم نشد', await exp(), 1_710_000)
 eq('مانده نسیه بعد از برگشت کامل ۰', (await remaining(sNasiye.id)).remaining, 0)
-eq('موجودی کت بعد از برگشت نسیه یکی برگشت', stock(vA), 46)
+eq('برگشت نسیه، بدون رسید کالا موجودی را زیاد نکرد', stock(vA), 45)
+const debtGoods = (await returnGoodsService.items(retN.id)).items[0]
+await returnGoodsService.receive({ returnId: retN.id, returnItemId: debtGoods.id,
+  qty: 1, eventKey: 's215-debt-goods-confirmed', witnessKind: 'SELECTED_CONFIRMED',
+  witnessRef: 'کت واقعاً تحویل و شمرده شد', physicalConfirmed: true, actorUserId: userId })
+eq('موجودی کت بعد از دریافت واقعی یکی برگشت', stock(vA), 46)
 
 const itemsP = seed.rows('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId = ?', sPart.id)
 await rejects(

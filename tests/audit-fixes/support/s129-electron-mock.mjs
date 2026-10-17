@@ -165,6 +165,10 @@ class MockWebContents extends EventEmitter {
     if (typeof outcome === 'function') return outcome(code)
     if (outcome === 'reject') throw new Error('executeJavaScript failed')
     if (outcome === 'hang') return new Promise(() => {})
+    // Embedded report fonts: the mock has no DOM/FontFaceSet. By default
+    // model a successfully loaded local font; false/reject still exercise the
+    // fail-closed pre-print path without forging a real browser PDF test.
+    if (outcome === null && code.includes('document.fonts.ready') && code.includes("face.family === 'Vazirmatn'")) return true
     return outcome
   }
 }

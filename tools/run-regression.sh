@@ -1,6 +1,7 @@
 #!/bin/bash
 # usage: run-regression.sh <repo-dir> <out-file> [parallelism]
 REPO="$1"; OUT="$2"; P="${3:-3}"
+REGRESSION_FAILURES=0
 LOGDIR="${OUT%.txt}.logs"; rm -rf "$LOGDIR"; mkdir -p "$LOGDIR"
 cd "$REPO" || exit 2
 run_one() { f="$1"; logdir="$2"; name=$(echo "$f" | tr '/' '_'); if timeout 1200 node --import ./test/harness/register.mjs "$f" > "$logdir/$name.log" 2>&1; then echo "PASS $f"; else echo "FAIL $f (exit $?)"; fi; }
@@ -8,11 +9,16 @@ export -f run_one
 suite() {
   local title="$1"; local glob="$2"; local tag="$3"
   echo "## $title"
-  ls $glob | xargs -P "$P" -I{} bash -c 'run_one "$@"' _ {} "$LOGDIR" | sort -k2 > "$LOGDIR/$tag.txt"
+  # فقط فایل‌های تست مستقل: ابزارهای _regen/_run-all می‌توانند دادهٔ مرجع را
+  # بازنویسی کنند یا تست‌ها را دوباره اجرا کنند؛ *-fixture.mjs نیز تست مستقل
+  # نیست. پوشه‌های support/helpers عمداً در glob سطح اول نمی‌آیند.
+  find "${glob%/*.mjs}" -maxdepth 1 -type f -name '*.mjs' ! -name '_*' ! -name '*-fixture.mjs' -print0 \
+    | xargs -0 -r -P "$P" -I{} bash -c 'run_one "$@"' _ {} "$LOGDIR" | sort -k2 > "$LOGDIR/$tag.txt"
   cat "$LOGDIR/$tag.txt"
   local T=$(wc -l < "$LOGDIR/$tag.txt"); local PS=$(grep -c '^PASS' "$LOGDIR/$tag.txt"); local F=$(grep -c '^FAIL' "$LOGDIR/$tag.txt")
   echo "TOTAL=$T PASS=$PS FAIL=$F"
   echo "FAILED: $(grep '^FAIL' "$LOGDIR/$tag.txt" | awk '{print $2}' | xargs -r -n1 basename | tr '\n' ' ')"
+  REGRESSION_FAILURES=$((REGRESSION_FAILURES + F))
 }
 {
   date -u +"start %FT%TZ"
@@ -33,13 +39,21 @@ suite() {
     else
       echo "TYPECHECK_FAILED · $(grep -c 'error TS' "$LOGDIR/typecheck.txt") خطا"
       head -40 "$LOGDIR/typecheck.txt"
+      REGRESSION_FAILURES=$((REGRESSION_FAILURES + 1))
     fi
   else
     echo "TYPECHECK_SKIPPED · ./node_modules/.bin/tsc پیدا نشد (npm install اجرا نشده است)"
+    REGRESSION_FAILURES=$((REGRESSION_FAILURES + 1))
   fi
   echo "## guards"
-  node tools/check-money-fields.mjs 2>&1 | tail -2
-  node tools/check-test-coverage.mjs 2>&1 | tail -1
+  for guard in check-money-fields check-test-coverage; do
+    if node "tools/$guard.mjs" > "$LOGDIR/$guard.txt" 2>&1; then
+      tail -2 "$LOGDIR/$guard.txt"
+    else
+      tail -20 "$LOGDIR/$guard.txt"
+      REGRESSION_FAILURES=$((REGRESSION_FAILURES + 1))
+    fi
+  done
   suite "tests/audit-fixes/*.mjs" "tests/audit-fixes/*.mjs" af
   # 🔴 نشست ۱۸۱ — این خط جا افتاده بود و ۸۴ تست هرگز اجرا نمی‌شدند.
   #
@@ -59,8 +73,20 @@ suite() {
   suite "tests/sms/*.mjs" "tests/sms/*.mjs" sms
   suite "test/*.mjs" "test/*.mjs" legacy
   echo "## esbuild"
-  node tools/esbuild-check.mjs $(find src -name "*.ts" -o -name "*.tsx") | tail -1
-  node tools/esbuild-bundle-check.mjs
+  if node tools/esbuild-check.mjs $(find src -name "*.ts" -o -name "*.tsx") > "$LOGDIR/esbuild-syntax.txt" 2>&1; then
+    tail -1 "$LOGDIR/esbuild-syntax.txt"
+  else
+    tail -30 "$LOGDIR/esbuild-syntax.txt"
+    REGRESSION_FAILURES=$((REGRESSION_FAILURES + 1))
+  fi
+  if node tools/esbuild-bundle-check.mjs > "$LOGDIR/esbuild-bundle.txt" 2>&1; then
+    tail -4 "$LOGDIR/esbuild-bundle.txt"
+  else
+    tail -30 "$LOGDIR/esbuild-bundle.txt"
+    REGRESSION_FAILURES=$((REGRESSION_FAILURES + 1))
+  fi
   date -u +"end %FT%TZ"
-  echo DONE
+  echo "DONE · failures=$REGRESSION_FAILURES"
 } > "$OUT" 2>&1
+# خروجیِ قرمز را با exit=0 پنهان نکنیم؛ خود فایل گزارش/لاگ‌ها همچنان می‌مانند.
+test "$REGRESSION_FAILURES" -eq 0

@@ -32,6 +32,14 @@ export function makeSeeder(client) {
       if (!meta.columns.has(k)) throw new Error(`HARNESS: ستون «${k}» در ${table} نیست`)
       row[k] = v instanceof Date ? v.getTime() : typeof v === 'boolean' ? (v ? 1 : 0) : v
     }
+    // Legacy fixture builders often omit seq for several payments of the same
+    // invoice. Production now enforces UNIQUE(invoiceId, seq); give only those
+    // test rows a sequential value rather than disabling the financial guard.
+    // Explicit seq (including zero) and standalone/null-invoice rows remain as-is.
+    if (table === 'Payment' && row.invoiceId != null && !('seq' in row)) {
+      row.seq = Number(db.prepare('SELECT COALESCE(MAX("seq"), -1) + 1 AS next FROM "Payment" WHERE "invoiceId" = ?')
+        .get(row.invoiceId).next)
+    }
     const now = Date.now()
     for (const [name, col] of meta.columns) {
       if (col.pk || name in row) continue

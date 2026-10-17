@@ -75,10 +75,36 @@ export async function debtAdjustmentsByInvoice(client: Client, ids: number[], as
       })
       for (const q of reqs) canceled.add(q.returnId)
     }
+    // A canceled NEW transfer still has a reserved cash entitlement until
+    // independent bank evidence settles its outcome. Treating it as ordinary
+    // OVERPAY would invent a second origin for the same customer right.
+    const managedCanceled = new Set<number>()
+    const canceledIds = [...canceled]
+    for (let j = 0; j < canceledIds.length; j += 500) {
+      const claims = await (client as any).returnEntitlement.findMany({
+        where: { returnId: { in: canceledIds.slice(j, j + 500) } }, select: { returnId: true }
+      })
+      for (const claim of claims) managedCanceled.add(Number(claim.returnId))
+    }
+    // Read only the immutable allocations of these active returns. An older
+    // invoice has no rows: do not infer that its credit was/wasn't returned.
+    // The sum is a non-cash refund of the Payment funded by store credit;
+    // otherwise settlement would invent OVERPAY out of a restored gift.
+    const nonCashByReturn = new Map<number, number>()
+    for (let j = 0; j < activeRets.length; j += 500) {
+      const allocated = await (client as any).creditReturnAllocation.groupBy({
+        by: ['returnId'],
+        where: { returnId: { in: activeRets.slice(j, j + 500).map((r: any) => r.id) } },
+        _sum: { amount: true }
+      })
+      for (const row of allocated)
+        nonCashByReturn.set(Number(row.returnId), toNumberRial(row._sum.amount ?? 0))
+    }
     const byInv = new Map<number, any[]>()
     for (const r of activeRets) {
       const list = byInv.get(r.invoiceId) ?? []
-      list.push({ ...r, refundCanceled: canceled.has(r.id) })
+      list.push({ ...r, creditRestored: nonCashByReturn.get(Number(r.id)) ?? 0,
+        refundCanceled: canceled.has(r.id) && !managedCanceled.has(r.id) })
       byInv.set(r.invoiceId, list)
     }
     for (const [id, list] of byInv) out.set(id, debtAdjustmentsOf(list))

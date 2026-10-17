@@ -382,12 +382,13 @@ console.log('\n— ۶) migration *فقط* نوع ستون‌های پول را �
     0
   )
 
-  // و آن‌طرفِ سکه: همه‌ی ۸۳ فیلد پول واقعاً عوض شده باشند (نه اینکه هیچ‌کدام)
-  const converted = Object.entries(after).filter(([k, v]) => {
-    const m = /^ستون (\w+)\.(\w+)$/.exec(k)
-    return m && money.has(`${m[1]}.${m[2]}`) && v.type === 'BIGINT'
-  }).length
-  eq('هر ۸۳ ستون پول به BIGINT رفته‌اند', converted, MONEY_FIELDS.length)
+  // The central inventory now also lists monetary columns introduced AFTER
+  // this historical migration. Compare only the columns that actually existed
+  // before it; all original 83 must have been converted in that exact step.
+  const historical = [...money].filter((f) => before[`ستون ${f}`] != null)
+  eq('فهرست مالیِ تاریخی ۸۳ ستون داشت', historical.length, 83)
+  const converted = historical.filter((f) => after[`ستون ${f}`]?.type === 'BIGINT').length
+  eq('هر ۸۳ ستون پولِ موجود در این migration به BIGINT رفته‌اند', converted, historical.length)
 
   // بازتولید دقیق شکستی که در نشست ۱۸۱ رخ داد
   {

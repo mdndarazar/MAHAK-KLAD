@@ -34,6 +34,8 @@ process.env.HARNESS_DB = join(DIR, 'shop.db')
 
 // IPC واقعی main: ipcMain.handle استاب را جایگزین می‌کنیم تا handlerها را خودمان صدا بزنیم.
 const electron = await import('electron')
+const { attachTestIpcWindow } = await import('../../test/harness/ipcWindow.mjs')
+const { event: ipcEvent, owner: ipcOwner } = attachTestIpcWindow(electron)
 const handlers = new Map()
 electron.ipcMain.handle = (ch, fn) => handlers.set(ch, fn)
 
@@ -47,7 +49,7 @@ const { IPC } = await import('@shared/ipc')
 const { DEFAULT_MANAGER_PASSWORD: PW } = await import('@shared/receipt')
 const { jalaliToday } = await import('@shared/jalali')
 registerIpcHandlers()
-const ipc = (ch, payload) => handlers.get(ch)(null, payload)
+const ipc = (ch, payload) => handlers.get(ch)(ipcEvent, payload)
 
 let ok = 0
 let bad = 0

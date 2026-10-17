@@ -11,7 +11,10 @@ if (!FILE) throw new Error('HARNESS_DB تعیین نشده است')
 
 let shared = null
 export function harnessClient() {
-  if (!shared) shared = createClient(FILE)
+  // A multi-process race probe opens the SAME already-migrated SQLite file;
+  // it must never rebuild/delete the other worker's database. Ordinary tests
+  // keep their fresh isolated fixture by default.
+  if (!shared) shared = createClient(FILE, { fresh: process.env.HARNESS_DB_EXISTING !== '1' })
   return shared
 }
 

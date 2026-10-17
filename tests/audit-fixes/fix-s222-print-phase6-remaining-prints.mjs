@@ -34,6 +34,8 @@ register('./support/s129-hooks.mjs', import.meta.url)
 const root = process.env.MAHAK_ROOT ? resolve(process.env.MAHAK_ROOT) : resolve('.')
 const mock = await import('./support/s129-electron-mock.mjs')
 const electron = await import('electron')
+const { attachTestIpcWindow } = await import('../../test/harness/ipcWindow.mjs')
+const { event: ipcEvent } = attachTestIpcWindow(electron)
 const handlers = new Map()
 electron.ipcMain.handle = (ch, fn) => handlers.set(ch, fn)
 
@@ -67,7 +69,7 @@ const safe = async (fn) => {
     return { error: String(err?.message ?? err) }
   }
 }
-const call = (channel, payload) => handlers.get(channel)(null, payload)
+const call = (channel, payload) => handlers.get(channel)(ipcEvent, payload)
 const readSrc = (rel) => readFileSync(resolve(root, rel), 'utf8')
 /** بدنه‌ی یک متد سرویس: از امضای متد تا شروع متد بعدی (به ترتیب فایل). */
 const bodyOf = (src, marker) => {

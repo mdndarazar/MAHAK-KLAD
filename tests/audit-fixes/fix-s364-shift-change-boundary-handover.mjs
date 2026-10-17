@@ -42,17 +42,18 @@ for (const [id, temp, perm] of [[giver, 'Giver364!', 'Giver3644!'], [receiver, '
   await custodyService.setPin({ userId: id, newPassword: temp, managerUserId: manager, managerPassword: 'مدیر123!', reason: 'راه‌اندازی' })
   await custodyService.setPin({ userId: id, currentPassword: temp, newPassword: perm })
 }
-const opened = await custodyService.open({ userId: giver, password: 'Giver3644!', countedCash: 0 })
-const handover = await custodyService.handoverStart({ password: 'Giver3644!', countedCash: 0, toUserId: receiver, idempotencyKey: 's364-boundary' })
+const opened = await custodyService.open({ userId: giver, password: 'Giver3644!', operationalTotal: 0 })
+const handover = await custodyService.handoverStart({ password: 'Giver3644!', operationalTotal: 0, blueReference: true, toUserId: receiver, idempotencyKey: 's364-boundary' })
 eq('مرز پایانی با وجود بسته بودن مجوز mid-day شروع می‌شود', handover.state, 'HANDOVER_PENDING')
 const watermark = JSON.parse(seed.one('SELECT ledgerWatermark FROM "CustodyHandover" WHERE id=?', handover.id)?.ledgerWatermark ?? '{}')
 eq('watermark نوع shift-change را snapshot می‌کند', watermark.handoverKind, 'SHIFT_CHANGE')
 eq('watermark قالب برنامهٔ گیرنده را snapshot می‌کند', watermark.incomingSchedule?.templateId, 's364-next')
-const accepted = await custodyService.handoverAccept({ handoverId: handover.id, password: 'Recv3644!', countedCash: 0 })
+await custodyService.handoverCountBlue({ handoverId: handover.id, password: 'Recv3644!', operationalTotal: 0 })
+const accepted = await custodyService.handoverConfirmBlue({ handoverId: handover.id, password: 'Recv3644!' })
 const incoming = seed.one('SELECT templateId, planTitle FROM "CustodyShiftMeta" WHERE shiftId=?', accepted.shiftId)
 eq('segment جدید به قالب شیفت بعدی وصل است', incoming?.templateId, 's364-next')
 eq('نام snapshot شیفت بعدی حفظ می‌شود', incoming?.planTitle, 'شیفت بعدی')
-eq('segment مبدأ با تحویل بسته شده است', seed.one('SELECT endKind FROM "CustodyShiftMeta" WHERE shiftId=?', opened.shiftId)?.endKind, 'HANDED_OVER')
+eq('segment مبدأ با تحویل بسته شده است', seed.one('SELECT endKind FROM "CustodyShiftMeta" WHERE shiftId=?', opened.shiftId)?.endKind, 'BLUE_HANDOVER')
 
 console.log(`\n${bad === 0 ? '✓' : '✗'} ${ok} بررسی موفق · ${bad} ناموفق`)
 process.exitCode = bad ? 1 : 0

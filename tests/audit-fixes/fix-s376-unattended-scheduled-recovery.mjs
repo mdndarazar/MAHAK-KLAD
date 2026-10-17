@@ -140,7 +140,8 @@ eq('نشست بی‌برنامه scheduled end ندارد', unscheduledMeta?.sch
 eq('فقط نشست بی‌برنامه از cutover fallback استفاده می‌کند', new Date(unscheduledMeta?.rolloverAt).getTime(), expectedCutover.getTime())
 
 const source = readFileSync(new URL('../../src/renderer/src/components/CustodyChip.tsx', import.meta.url), 'utf8')
-eq('UI بازیابی صبح PIN شاهد را به IPC رسمی می‌فرستد', source.includes('CH.custodyUnattendedRecover') && source.includes('userId: selectedUserId'), true)
+eq('UI نفر جدید به‌جای بستن شیفت شب، صندوق خودش را با PIN و شمارش واقعی افتتاح می‌کند', source.includes('CH.custodyOpen') && source.includes('operationalTotal: amount()') && source.includes('password'), true)
+eq('UI جدید شمارش نفر تازه را به شیفت شبِ نفر قبلی نمی‌فرستد', source.includes('CH.custodyUnattendedRecover'), false)
 
 console.log(`\n${bad === 0 ? '✓' : '✗'} ${ok} بررسی موفق · ${bad} ناموفق`)
 process.exitCode = bad ? 1 : 0

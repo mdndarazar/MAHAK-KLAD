@@ -9,6 +9,8 @@ import JalaliDateInput from '../components/JalaliDateInput'
 import type { Party } from '../components/PartyPicker'
 import { IssueForm, OpForm, SettingsForm } from '../components/CreditForms'
 import CreditDetailView from '../components/CreditDetailView'
+import LostCreditReplacement from '../components/LostCreditReplacement'
+import CreditOpportunityHandoff from '../components/CreditOpportunityHandoff'
 import { exportTable } from '../lib/exportCsv'
 import { PANEL_KEYS } from '@shared/panels'
 import { usePanelLock } from '../hooks/usePanelLocks'
@@ -134,6 +136,11 @@ export default function CreditManagement() {
   const [detail, setDetail] = useState<CreditDetail | null>(null)
   /** فقط نتیجهٔ reveal جداگانهٔ مدیر؛ هرگز در list/detail/export ذخیره نمی‌شود. */
   const [revealedCode, setRevealedCode] = useState<string | null>(null)
+  const [consentPhone, setConsentPhone] = useState('')
+  const [consentEvidence, setConsentEvidence] = useState('')
+  const [consentPassword, setConsentPassword] = useState('')
+  const [consentConfirmed, setConsentConfirmed] = useState(false)
+  const [consentBusy, setConsentBusy] = useState(false)
   const [reminders, setReminders] = useState<{ enabled: boolean; rows: CreditReminderCandidateRow[] }>({ enabled: true, rows: [] })
   const [reminderLogs, setReminderLogs] = useState<CreditReminderLogRow[]>([])
   const [onlyEligible, setOnlyEligible] = useState(true)
@@ -146,7 +153,7 @@ export default function CreditManagement() {
   const [listSkipState, setListSkipState] = useState<{ signature: string; skip: number }>({ signature: '', skip: 0 })
   const [listPage, setListPage] = useState<SaleReportPage | null>(null)
   const [settings, setSettings] = useState<CreditSettings>(emptySettings)
-  const [search, setSearch] = useState('')
+  const [holderSearch, setHolderSearch] = useState('')
   const [source, setSource] = useState('')
   const [status, setStatus] = useState('')
   const [from, setFrom] = useState('')
@@ -199,7 +206,7 @@ export default function CreditManagement() {
    * پیش‌فرض «امروز»ِ `creditList` خراب می‌شود)، `take` یک عدد مشترک است (این
    * صفحه ۵۰۰ می‌فرستاد و تب گزارشات ۱۰۰۰)، و §۱۴ (`onlyDue`) یک کلید صریح است.
    */
-  const listSignature = creditSelectionResetSignature({ fromJalali: from, toJalali: to, search, source, status })
+  const listSignature = creditSelectionResetSignature({ fromJalali: from, toJalali: to, holderSearch, source, status })
   const listSkip = creditEffectiveSkip(listSkipState, listSignature)
   const batchSignature = creditSelectionResetSignature({ fromJalali: from, toJalali: to })
   const batchSkip = creditEffectiveSkip(batchSkipState, batchSignature)
@@ -208,7 +215,7 @@ export default function CreditManagement() {
     const req = creditViewRequest(view, {
       fromJalali: from,
       toJalali: to,
-      search,
+      holderSearch,
       source,
       status,
       onlyDue: onlyEligible,
@@ -242,7 +249,7 @@ export default function CreditManagement() {
     } finally {
       if (seq === loadReq.current) setBusy(false)
     }
-  }, [view, from, to, search, source, status, onlyEligible, batchSkip, listSkip])
+  }, [view, from, to, holderSearch, source, status, onlyEligible, batchSkip, listSkip])
 
   useEffect(() => {
     void load()
@@ -257,7 +264,7 @@ export default function CreditManagement() {
   const selectionKey = creditSelectionResetSignature({
     fromJalali: from,
     toJalali: to,
-    search,
+    holderSearch,
     source,
     status
   })
@@ -268,6 +275,10 @@ export default function CreditManagement() {
   const openDetail = async (id: number) => {
     try {
       setRevealedCode(null)
+      setConsentPhone('')
+      setConsentEvidence('')
+      setConsentPassword('')
+      setConsentConfirmed(false)
       setDetail(await call<CreditDetail>(CH.creditDetail, { id }))
       setView('detail')
     } catch (e: any) {
@@ -515,10 +526,9 @@ export default function CreditManagement() {
             جست‌وجو
             <input
               className="inp"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="جست‌وجوی کد در فهرست غیرفعال است؛ کد فقط در مسیر مصرف بررسی می‌شود"
-              disabled
+              value={holderSearch}
+              onChange={(e) => setHolderSearch(e.target.value)}
+              placeholder="جست‌وجوی نام یا تلفن (نه کد و نه مدرک مالکیت)"
             />
           </label>
           <label>
@@ -709,6 +719,7 @@ export default function CreditManagement() {
 
         {/* ---------------- جزئیات (§۱۶ · §۱۲ · §۱۸ · §۱۹) ---------------- */}
         {view === 'detail' && detail && (
+          <div className="space-y-3">
           <CreditDetailView
             detail={detail}
             onOp={(op: CreditOp) => {
@@ -724,8 +735,10 @@ export default function CreditManagement() {
               setRevealedCode(null)
               setView('list')
             }}
-            onPrint={(copies: number) => void printOne(detail.credit.id, copies)}
-            printing={printing}
+            onPrint={(copies: number) => detail.delivery?.status === 'PENDING_DELIVERY'
+              ? setErr('این جانشین فقط با رمز مدیر از فرم چاپ/تحویل شاهددار زیر چاپ می‌شود؛ چاپ عادی تحویل نیست.')
+              : void printOne(detail.credit.id, copies)}
+            printing={printing || detail.delivery?.status === 'PENDING_DELIVERY'}
             onPreview={() => void openPreview(detail.credit.id)}
             onPdf={() => void savePdf({ id: detail.credit.id })}
             onPage={(kind, skip) => void openDetailPage(kind, skip)}
@@ -739,6 +752,68 @@ export default function CreditManagement() {
               )
             }
           />
+          {isManager && (
+            <form className="rounded border border-amber-300 bg-amber-50 p-3 space-y-2" onSubmit={async (e) => {
+              e.preventDefault()
+              if (consentBusy || !detail || !consentConfirmed) return
+              setConsentBusy(true)
+              try {
+                await call(CH.creditReminderConsentGrant, {
+                  id: detail.credit.id,
+                  phone: consentPhone,
+                  evidence: consentEvidence,
+                  managerPassword: toLatinDigits(consentPassword).trim()
+                })
+                flash('رضایت مستند برای همین شماره ثبت شد؛ ارسال فقط پس از بررسی مجدد در صف مجاز است.')
+                await openDetail(detail.credit.id)
+              } catch (error: any) {
+                setErr(error.message)
+              } finally {
+                setConsentBusy(false)
+                setConsentPassword('')
+              }
+            }}>
+              <b>مجوز مستقل یادآوری پیامکی (فقط مدیر)</b>
+              <p className="text-sm">داشتن شماره، پیدا شدن نام یا نبود «لغو پیام» رضایت نیست. تنها پس از دریافت رضایت آگاهانهٔ مخاطب همین شماره، نوع و محل شاهد را ثبت کنید. ثبت رضایت خودِ پیامک را ارسال نمی‌کند.</p>
+              <p className="text-sm">وضعیت ثبت: {detail.credit.reminderConsentAtJalali
+                ? `شاهد در ${faDigits(detail.credit.reminderConsentAtJalali)} ثبت شده؛ برای شمارهٔ فعلی هنگام ارسال دوباره سنجیده می‌شود.`
+                : 'هیچ رضایت مستندی ثبت نشده است؛ یادآوری مسدود است.'}</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <label>شمارهٔ همین اعتبار
+                  <input className="inp" dir="ltr" autoComplete="off" value={consentPhone}
+                    onChange={(event) => setConsentPhone(event.target.value)} placeholder={detail.credit.holderPhone ?? 'ابتدا شمارهٔ دارنده را ثبت کنید'} required />
+                </label>
+                <label>نوع و محل شاهد رضایت مخاطب
+                  <input className="inp" value={consentEvidence} onChange={(event) => setConsentEvidence(event.target.value)}
+                    placeholder="مثلاً رسید امضاشده و تاریخ آن" minLength={10} maxLength={500} required />
+                </label>
+                <label>رمز مدیر
+                  <input className="inp" type="password" autoComplete="off" value={consentPassword}
+                    onChange={(event) => setConsentPassword(event.target.value)} required />
+                </label>
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={consentConfirmed} onChange={(event) => setConsentConfirmed(event.target.checked)} />
+                رضایت مشخص این مخاطب برای یادآوریِ همین اعتبار و همین شماره را دیده‌ام (نه صرفاً شمارهٔ ثبت‌شده).
+              </label>
+              <button className="btn btn-primary" type="submit" disabled={consentBusy || !consentConfirmed || detail.credit.reminderOptOut}>
+                {consentBusy ? 'در حال ثبت…' : 'ثبت رضایت مستند'}
+              </button>
+              {detail.credit.reminderOptOut && <p className="text-sm text-red-700">این مخاطب دریافت پیام را لغو کرده است؛ تا رفع آگاهانهٔ لغو، ثبت مجدد مجاز نیست.</p>}
+            </form>
+          )}
+          {isManager && <LostCreditReplacement key={detail.credit.id} credit={detail.credit}
+            replacement={detail.replacement}
+            onOpenSuccessor={(id) => void openDetail(id)}
+            onRefresh={() => void openDetail(detail.credit.id)} />}
+          {detail.delivery?.status === 'PENDING_DELIVERY' && (
+            isManager
+              ? <CreditOpportunityHandoff key={detail.credit.id} credits={[{
+                  creditId: detail.credit.id, amount: detail.credit.amount, status: detail.delivery.status
+                }]} />
+              : <p className="rounded bg-amber-50 p-2">این اعتبار هنوز تحویل نشده و خرج‌پذیر نیست؛ مدیر باید چاپ و تحویل واقعی را جداگانه ثبت کند.</p>
+          )}
+          </div>
         )}
 
         {/* ---------------- یادآوری (§۱۴) ---------------- */}
@@ -766,6 +841,7 @@ export default function CreditManagement() {
                 </span>
               )}
             </div>
+            <p className="p-2 text-sm bg-amber-50">شمارهٔ تماس به‌تنهایی مجوز یادآوری نیست. برای دیدن اعتبارهای بدون رضایت مستند، گزینهٔ «فقط واجد شرایط» را بردارید و از جزئیات، شاهد رضایت مخاطب همان شماره را با رمز مدیر ثبت کنید.</p>
             <table className="tbl">
               <thead>
                 <tr>
@@ -789,11 +865,11 @@ export default function CreditManagement() {
                         <button
                           className="btn py-0.5"
                           disabled={!c.should}
-                          title={c.should ? 'متن پیام ساخته و در لاگ ثبت می‌شود' : c.reason}
+                          title={c.should ? 'در صورت فعال‌بودن سرویس‌دهنده، پیام پس از بررسی رضایت به صف ارسال می‌رود' : c.reason}
                           onClick={async () => {
                             try {
                               await call(CH.creditReminderQueue, { id: c.credit.id })
-                              flash('یادآوری آماده و در لاگ ثبت شد. متنش را در نمای «لاگ یادآوری» ببینید.')
+                              flash('درخواست یادآوری و نتیجهٔ پذیرشِ صف در لاگ ثبت شد؛ تحویل واقعی را در پنل پیامک بررسی کنید.')
                               void load()
                             } catch (e: any) {
                               setErr(e.message)
@@ -823,7 +899,7 @@ export default function CreditManagement() {
               <button className="btn py-1" onClick={() => void doExport('reminderLogs', reminderLogs)}>
                 خروجی اکسل
               </button>
-              <span className="kbd">{faDigits(reminderLogs.length)} ردیف · هیچ‌کدام «ارسال واقعی» نیست؛ متن آماده و ثبت‌شده است.</span>
+              <span className="kbd">{faDigits(reminderLogs.length)} ردیف · ثبت در لاگ به‌تنهایی به معنی رسیدن پیامک نیست؛ وضعیت واقعی را در پنل پیامک بررسی کنید.</span>
             </div>
             <table className="tbl">
               <thead>

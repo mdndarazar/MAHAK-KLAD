@@ -12,6 +12,7 @@ import { creditDocLogo } from '@shared/creditUi'
 import type { CreditPrintLayout } from '@shared/creditPrint'
 // نشست ۲۲۲ · فاز ۱ طرح چاپ — اندازه‌ی کاغذ فاکتور (میکرون/میلی‌متر) و پروفایل چاپ
 import { receiptPageSpec, type PageSpec, type ReceiptProfile } from '@shared/printSpec'
+import { reportFontCss } from './reportFonts'
 // نشست ۲۲۲ · فاز ۲ طرح چاپ — چیدمان «ردیفی» لیبل روی رول (بخش ۸.۲)
 import {
   LABEL_ROLL_LIMITS,
@@ -133,6 +134,8 @@ export interface ReceiptData {
   payments?: { label: string; amount: number }[]
   returnCode?: string | null
   returnCodeExpiresJalali?: string | null
+  /** Replacement sale already compensated: historical paper, not a fresh sale. */
+  exchangeCorrected?: boolean
   /** تصویر بارکد Code128 کد فاکتور (dataURL) — در ipc ساخته می‌شود */
   returnBarcodeDataUrl?: string | null
   /**
@@ -181,6 +184,8 @@ export function receiptHtml(d: ReceiptData, template?: Partial<ReceiptTemplate>,
   if (t.showOrderType && d.orderTypeLabel) idParts.push(`<span>${escapeHtml(d.orderTypeLabel)}</span>`)
   if (t.showTable) idParts.push(`<span>${escapeHtml(t.tableLabel)} : ${escapeHtml(d.tableNo ?? '')}</span>`)
   if (idParts.length) head.push(`<div class="row">${idParts.join('')}</div>`)
+  if (d.exchangeCorrected)
+    head.push('<div class="msg"><b>سند تعویض دارای اصلاح جبرانی است.</b> فاکتور جایگزین فقط برای سابقه می‌ماند؛ پرداخت/موجودی کنونی و قابلیت برگشتِ دوباره از دفتر اصلاح و با رسیدگی مدیر سنجیده شود.</div>')
 
   if (t.showCustomer)
     head.push(
@@ -356,6 +361,9 @@ export function reportHtml(
              .join('')}</tbody>
          </table>`
       : ''
+  // The hidden print BrowserWindow does not inherit the renderer's bundled
+  // @font-face rules. Do not make A4 pagination depend on fonts installed on
+  // the customer's machine; embed those same offline resources in this report.
   return base(
     `<h1 style="font-size:16px">${escapeHtml(title)}</h1>
      ${meta ? `<div style="text-align:center;margin-bottom:4px">${escapeHtml(meta)}</div>` : ''}
@@ -363,7 +371,7 @@ export function reportHtml(
      ${sum}`,
     '210mm',
     '11px'
-  )
+  ).replace('</style>', `\n${reportFontCss()}\n</style>`)
 }
 
 /**
@@ -523,9 +531,8 @@ export function labelHtml(
  * فونت، نام فروشگاه، تلفن/سایت، پیام‌های پایانی)، پس سند تعویض با رسید فروش
  * فروشگاه یک‌شکل چاپ می‌شود و هیچ تنظیم جدیدی لازم نیست.
  *
- * بارکد اعتبار خرید بعدی (اگر صادر شده باشد) با همان روش رسید فروش چاپ می‌شود:
- * تصویرش در `printService.printExchange` با `barcodePng` ساخته و در
- * `storeCreditBarcodeDataUrl` پاس داده می‌شود — دقیقاً مثل `withBarcode`.
+ * سندهای جدید فقط مبلغ/مرجع تسویه را دارند؛ برگهٔ کد خرج‌پذیر جداست.
+ * اسناد تاریخی، اگر بارکد در نسخهٔ اصلی‌شان بود، همان layout را حفظ می‌کنند.
  * ===========================================================================
  */
 export interface ExchangeReceiptData {
@@ -548,9 +555,18 @@ export interface ExchangeReceiptData {
   /** مثبت = مشتری پرداخت کرد · منفی = ما بدهکار شدیم */
   diff: number
   settlementLabel: string
-  /** مابه‌التفاوتی که نقد/کارت دریافت شد */
+  /** تسویهٔ مابه‌التفاوت شاهد دریافت کالای قدیمی نیست. */
   cashReceived: number
+  goodsReceiptRequired?: boolean
+  restockPending?: boolean
+  restockedQty?: number
+  pendingRestockQty?: number
+  corrected?: boolean
   storeCreditCode?: string | null
+  /** New documents never embed a spendable credential in this accounting receipt. */
+  separateCreditPaper?: boolean
+  /** Routine reprint of a historic receipt hides its old credential. */
+  historicalCodeRedacted?: boolean
   storeCreditAmount?: number
   storeCreditStatusLabel?: string | null
   storeCreditExpiresJalali?: string | null
@@ -575,6 +591,8 @@ export function exchangeReceiptHtml(d: ExchangeReceiptData, template?: Partial<R
     idParts.push(`<span>${escapeHtml(t.receiptNoLabel)} ${faDigits(d.exchangeReceiptNo)}</span>`)
   idParts.push(`<span>فاکتور اصلی: ${faDigits(d.sourceReceiptNo)}</span>`)
   head.push(`<div class="row">${idParts.join('')}</div>`)
+  if (d.corrected)
+    head.push('<div class="msg"><b>اصلاح جبرانی ثبت شده است.</b> این سند تعویض برای سابقه می‌ماند؛ اثر فعلیِ پول و موجودی از دفتر اصلاح خوانده شود، نه از این چاپ.</div>')
 
   if (t.showCustomer)
     head.push(
@@ -619,11 +637,27 @@ export function exchangeReceiptHtml(d: ExchangeReceiptData, template?: Partial<R
   sums.push(sumRow('مابه‌التفاوت', Math.abs(d.diff), true))
   sums.push(
     `<div class="row"><span>نحوه‌ی تسویه</span><span>${escapeHtml(
-      d.diff > 0 ? 'دریافت از مشتری' : d.diff < 0 ? 'صدور بارکد اعتبار' : 'مابه‌التفاوت صفر'
+      d.diff > 0 ? 'دریافت از مشتری'
+        : d.diff < 0 ? d.separateCreditPaper && (d.storeCreditAmount ?? 0) > 0
+          ? 'صدور اعتبار (برگهٔ کد جداگانه)' : d.storeCreditCode
+            ? 'صدور اعتبار خرید' : 'تسویهٔ مابه‌التفاوت منفی'
+          : 'مابه‌التفاوت صفر'
     )}</span></div>`
   )
   if (d.cashReceived > 0) sums.push(sumRow('دریافت نقد/کارت', d.cashReceived))
   sums.push(`<div class="c kbd">${escapeHtml(d.settlementLabel)}</div>`)
+  // The exchanged-out replacement has its own sale stock movement. Neither
+  // its payment nor printing this receipt proves the old goods were received.
+  const goodsState = d.corrected
+    ? 'سند تاریخی؛ اثر موجودی در دفتر اصلاح جبرانی ثبت شده است'
+    : d.restockPending
+      ? `${faDigits(d.restockedQty ?? 0)} عدد با رسید دریافت شد؛ ${faDigits(d.pendingRestockQty ?? 0)} عدد کالای برگشتی هنوز بدون شاهد و خارج از موجودی قابل‌فروش است`
+      : (d.restockedQty ?? 0) > 0
+        ? `${faDigits(d.restockedQty ?? 0)} عدد کالای برگشتی به انبار رسید`
+        : d.goodsReceiptRequired
+          ? 'دریافت فیزیکی نامشخص است؛ برای شمارش به پروندهٔ کالا مراجعه کنید'
+          : 'فاکتور اصلی بدون کسر موجودی یا سند تاریخی بدون رسید؛ ورود کالا ثبت نشد'
+  sums.push(`<div class="row"><span>وضعیت کالای برگشتی</span><span>${goodsState}</span></div>`)
 
   const creditBlock =
     d.storeCreditCode && (d.storeCreditAmount ?? 0) > 0
@@ -644,8 +678,13 @@ export function exchangeReceiptHtml(d: ExchangeReceiptData, template?: Partial<R
              : ''
          }
          ${d.storeCreditStatusLabel ? `<div class="c kbd">${escapeHtml(d.storeCreditStatusLabel)}</div>` : ''}
-         <div class="c kbd">این بارکد یک‌بارمصرف است؛ در خرید بعدی آن را به فروشنده نشان دهید.</div>`
-      : ''
+         <div class="c kbd">این کد را در خرید بعدی ارائه کنید؛ قواعد مصرف و مانده از پروندهٔ اعتبار سنجیده می‌شود.</div>`
+      : d.separateCreditPaper && (d.storeCreditAmount ?? 0) > 0
+        ? `<div class="line"></div><div class="row"><span>اعتبار خرید صادرشده (نه پرداخت نقدی)</span><span>${money(d.storeCreditAmount!)}</span></div>` +
+          (d.historicalCodeRedacted
+            ? '<div class="c kbd">کد تاریخی برای چاپ عادی پوشانده شد؛ مدیر برای بررسی و چاپ کنترل‌شدهٔ کد به پروندهٔ اعتبار مراجعه کند.</div>'
+            : '<div class="c kbd">این رسید مالی کد خرج‌پذیر ندارد؛ برگهٔ اعتبار جداگانه چاپ می‌شود. چاپ رسید اثبات تحویل کد نیست.</div>')
+        : ''
 
   const codeBlock =
     t.showReturnCode && d.exchangeReturnCode
@@ -725,13 +764,23 @@ export interface ReturnReceiptData {
   refundMethod: string | null
   refundMethodLabel: string
   refundAmount: number
+  /** ردیف‌های منشأ H1/B/E؛ مستقل از پول نقد و دفتر بدهی. */
+  creditRestored?: number
+  expiredCreditShare?: number
+  debtReduced?: number
+  /** بازبینی صورت‌حساب بانک، نه اعلام مدیر/چاپ رسید (null = legacy/بی‌دفتر) */
+  bankDocumentAmount?: number | null
   refundReference?: string | null
   /** سندی که باطل شده فقط برای سابقه چاپ می‌شود و باید روی برگه واضح باشد. */
   voidedAt?: string | Date | null
   voidReason?: string | null
-  /** کالا به انبار برگشت یا فقط سند مالی ثبت شد؟ */
+  /** مقدار واقعاً دریافت‌شده و باقی‌ماندهٔ بدون شاهد، مستقل از تسویهٔ پول. */
   restocked: boolean
   restockedQty: number
+  restockPending?: boolean
+  pendingRestockQty?: number
+  /** دفتر جبرانی اصل سند را نگه می‌دارد ولی دیگر منبعِ دریافت تازه نیست. */
+  corrected?: boolean
   hasRemovedItems?: boolean
   /**
    * نشست ۳۱۶ · خواسته‌ی مالک — رسید برگشت «سند حسابداری شیفت» است و نباید
@@ -756,6 +805,8 @@ export function returnReceiptHtml(d: ReturnReceiptData, template?: Partial<Recei
   head.push('<div class="c big">رسید برگشت از فروش</div>')
   if (d.voidedAt)
     head.push(`<div class="msg"><b>باطل</b>${d.voidReason ? ` · دلیل: ${escapeHtml(d.voidReason)}` : ''}</div>`)
+  if (d.corrected)
+    head.push('<div class="msg"><b>اصلاح جبرانی ثبت شده است.</b> این سند برای سابقه است؛ اثر کنونی پول/انبار را از دفتر اصلاح بخوانید. چاپ سند، رسید تازهٔ کالا نیست.</div>')
   head.push(
     `<div class="row"><span>سند برگشت: ${faDigits(d.returnId)}</span>` +
       `<span>فاکتور اصلی: ${faDigits(d.sourceReceiptNo)}</span></div>`
@@ -800,20 +851,41 @@ export function returnReceiptHtml(d: ReturnReceiptData, template?: Partial<Recei
   )
   sums.push(`<div class="row big"><span>جمع کالای برگشتی</span><span>${money(d.total)}</span></div>`)
   if (d.refundAmount > 0)
-    sums.push(`<div class="row"><span>مبلغ بازپرداخت‌شده</span><span>${money(d.refundAmount)}</span></div>`)
+    sums.push(`<div class="row"><span>${d.refundMethod === 'CARD_TO_CARD' && d.bankDocumentAmount != null
+      ? 'حق نقدی درخواست‌شده؛ چاپ/اعلام، شاهد پرداخت بانک نیست'
+      : d.refundMethod === 'STORE_CREDIT' ? 'سهم پول واقعی که آگاهانه به اعتبار تبدیل شد'
+        : 'مبلغ بازپرداخت‌شده'}</span><span>${money(d.refundAmount)}</span></div>`)
+  if (d.refundMethod === 'CARD_TO_CARD' && d.bankDocumentAmount != null)
+    sums.push(d.bankDocumentAmount > 0
+      ? `<div class="row"><span>مبلغ تطبیق‌داده‌شده با سند بانک</span><span>${money(d.bankDocumentAmount)}</span></div>`
+      : '<div class="c kbd">هنوز شاهد تأییدشدهٔ بانک ثبت نشده است؛ این، اثبات پرداخت‌نشدن نیست.</div>')
+  if ((d.creditRestored ?? 0) > 0)
+    sums.push(`<div class="row"><span>سهم اعتبار غیرنقدی (نه پرداخت پول/بانک)</span><span>${money(d.creditRestored!)}</span></div>`)
+  if ((d.debtReduced ?? 0) > 0 && (d.creditRestored ?? 0) > 0)
+    sums.push(`<div class="row"><span>کاهش بدهی جدا از سهم اعتبار</span><span>${money(d.debtReduced!)}</span></div>`)
+  if ((d.expiredCreditShare ?? 0) > 0)
+    sums.push(`<div class="c kbd">${money(d.expiredCreditShare!)} ریال از فرصت اعتبار قبلی منقضی بود؛ کد تازه/وجه نقد از آن صادر نشد.</div>`)
   if (d.refundMethod === 'NONE')
-    sums.push('<div class="c kbd">هیچ پولی پرداخت نشد؛ فقط بدهی مشتری کم شد.</div>')
+    sums.push((d.creditRestored ?? 0) > (d.expiredCreditShare ?? 0)
+      ? '<div class="c kbd">وجه نقدی پرداخت نشد؛ سهم معتبر اعتبار به فرصت قبلی یا شاخهٔ جدا برمی‌گردد. چاپ به‌معنای تحویل نیست.</div>'
+      : (d.expiredCreditShare ?? 0) > 0
+        ? '<div class="c kbd">وجه نقدی پرداخت نشد؛ فرصت اعتبار قبلی منقضی بود و احیا نشد.</div>'
+        : '<div class="c kbd">هیچ پولی پرداخت نشد؛ فقط بدهی مشتری کم شد.</div>')
   if (!d.refundMethod)
     sums.push('<div class="c kbd">این سند قدیمی است و روش بازپرداختش ثبت نشده بود (فرض‌شده از داده‌ی قدیمی).</div>')
   if (d.refundReference)
     sums.push(`<div class="row"><span>شماره پیگیری</span><span>${escapeHtml(d.refundReference)}</span></div>`)
 
-  // وضعیت موجودی: «سند مالی» و «برگشت کالا به انبار» دو چیز متفاوت‌اند
-  sums.push(
-    `<div class="row"><span>وضعیت موجودی</span><span>${
-      d.restocked ? `به انبار برگشت (${faDigits(d.restockedQty)} عدد)` : 'فقط سند مالی؛ انبار تغییر نکرد'
-    }</span></div>`
-  )
+  // سند مالی/چاپ هرگز جای رسید کالا نیست؛ حتی اگر نقد/اعتبار تسویه شده باشد.
+  // اصلاح جبرانی موجودی را جدا از سند اولیه معکوس می‌کند.
+  const goodsState = d.corrected
+    ? 'سند تاریخی؛ اثر موجودی در دفتر اصلاح جبرانی ثبت شده است'
+    : d.restockPending
+      ? `${faDigits(d.restockedQty)} عدد با رسید دریافت شد؛ ${faDigits(d.pendingRestockQty ?? 0)} عدد هنوز بدون شاهد و خارج از موجودی قابل‌فروش است`
+      : d.restocked
+        ? `به انبار برگشت (${faDigits(d.restockedQty)} عدد)`
+        : 'فاکتور بدون کسر موجودی یا سند تاریخیِ بدون رسید کالا؛ ورود به انبار ثبت نشد'
+  sums.push(`<div class="row"><span>وضعیت موجودی</span><span>${goodsState}</span></div>`)
   if (d.hasRemovedItems)
     sums.push('<div class="c kbd">بعضی اقلام این برگشت، کالای حذف‌شده از انبار بودند.</div>')
 

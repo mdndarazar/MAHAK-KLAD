@@ -482,7 +482,9 @@ export const SecondaryStockAction = {
    */
   SALE_WHOLESALE: 'SALE_WHOLESALE',
   /** برگشتِ همان کسر به همان انبار (برگشت از فروش / ویرایش / حذف فاکتور). */
-  SALE_WHOLESALE_RESTORE: 'SALE_WHOLESALE_RESTORE'
+  SALE_WHOLESALE_RESTORE: 'SALE_WHOLESALE_RESTORE',
+  /** خروجِ جبرانیِ فقط سهم دریافت‌شده از همان ردیف انبار مبدأ. */
+  SALE_RETURN_CORRECTION: 'SALE_RETURN_CORRECTION'
 } as const
 export type SecondaryStockAction = (typeof SecondaryStockAction)[keyof typeof SecondaryStockAction]
 
@@ -495,7 +497,8 @@ export const SECONDARY_STOCK_ACTION_LABELS: Record<string, string> = {
   WITHDRAW: 'برداشت خودکار برای فروش',
   TRANSFER_STORE: 'انتقال به انبار فروشگاه',
   SALE_WHOLESALE: 'کسر برای فاکتور فروش عمده',
-  SALE_WHOLESALE_RESTORE: 'برگشت کسر فاکتور فروش عمده'
+  SALE_WHOLESALE_RESTORE: 'برگشت کسر فاکتور فروش عمده',
+  SALE_RETURN_CORRECTION: 'خروج جبرانی رسید برگشتی از انبار مبدأ'
 }
 
 /** وضعیت یک چک ثبت‌شده روی فاکتور. */
@@ -557,6 +560,8 @@ export const AuditAction = {
    * `cardTransfer:pay` و آزادسازی صریح در `cardTransfer:cancel`.
    */
   CARD_TRANSFER_RESTOCK: 'CARD_TRANSFER_RESTOCK',
+  /** دریافت فیزیکیِ شاهددارِ کالای برگشت/تعویض بدون درخواست کارت‌به‌کارت. */
+  RETURN_GOODS_RECEIVE: 'RETURN_GOODS_RECEIVE',
   /** جلسه ۴۰ · کار ب — رد/لغو یک درخواست کارت‌به‌کارت (با دلیل اجباری) */
   CARD_TRANSFER_CANCEL: 'CARD_TRANSFER_CANCEL',
   /** جلسه ۱۷ · بند ۴ — ثبت یک جلسه‌ی شمارش فیزیکی انبار */
@@ -722,7 +727,9 @@ export const AuditAction = {
   CREDIT_PRINT: 'CREDIT_PRINT',
   /** چاپ مجدد (روی کاغذ برچسب «نسخه‌ی مجدد» می‌خورد — §۱۳) */
   CREDIT_REPRINT: 'CREDIT_REPRINT',
-  /** ثبت یک یادآوری در صف (بدون هیچ ارسال واقعی — §۱۴) */
+  /** ثبت رضایت مثبت و مستند برای یادآوریِ همان شماره؛ بدون backfill. */
+  CREDIT_REMINDER_CONSENT: 'CREDIT_REMINDER_CONSENT',
+  /** ثبت یک یادآوری در صف (ارسال فقط با رضایت مستقل) */
   CREDIT_REMINDER_QUEUE: 'CREDIT_REMINDER_QUEUE',
   /** تغییر تنظیمات مرکزی اعتبار خرید (§۲۲) */
   CREDIT_SETTINGS_UPDATE: 'CREDIT_SETTINGS_UPDATE',

@@ -150,6 +150,14 @@ export function splitStatements(sql: string): string[] {
       continue
     }
     if (c === ';') {
+      // SQLite CREATE TRIGGER has inner statements terminated by semicolons.
+      // Keep the entire trigger body through its final END; otherwise a new
+      // migration can be marked failed halfway through an evidence guard.
+      if (/^\s*CREATE\s+(?:TEMP(?:ORARY)?\s+)?TRIGGER\b/i.test(cur) && !/\bEND\s*$/i.test(cur)) {
+        cur += c
+        i++
+        continue
+      }
       if (cur.trim()) out.push(cur.trim())
       cur = ''
       i++

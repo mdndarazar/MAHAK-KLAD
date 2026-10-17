@@ -19,6 +19,7 @@ const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mj
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
 const { custodyPlanService } = await import('../../src/main/services/CustodyPlanService.ts')
+const { settingsService } = await import('../../src/main/services/SettingsService.ts')
 
 const db = harnessClient()
 const seed = makeSeeder(db)
@@ -66,9 +67,19 @@ try {
   await custodyService.setConfig({ config: { enabled: true, mode: 'MULTI_SHIFT', overrunGraceMinutes: 0 }, managerUserId: manager, managerPassword: 'مدیر123!' })
   eq('چندشیفت بدون برنامهٔ دارای کارمند رد می‌شود', true, false)
 } catch (error) {
-  eq('چندشیفت بدون برنامهٔ دارای کارمند رد می‌شود', error?.code, 'CUSTODY_MULTI_SHIFT_NEEDS_PLAN')
+  eq('چندشیفت بدون انتخاب روند و برنامهٔ دارای کارمند رد می‌شود', error?.code, 'CUSTODY_MODE_WORKFLOW_REQUIRED')
 }
 await custodyPlanService.save({ title: 'برنامه آزمایشی', startMinute: now.getHours() * 60, durationMinutes: 120, daysMask: 1 << now.getDay(), staffIds: [a], managerUserId: manager, managerPassword: 'مدیر123!' })
+const canonical = await settingsService.shiftConfig()
+await settingsService.saveCustodySchedulingWorkflow({
+  shift: { ...canonical, custodyMode: 'MULTI_SHIFT',
+    templates: canonical.templates.map((template, index) => index === 0
+      ? { ...template, name: 'برنامه آزمایشی', isActive: true, daysMask: 127,
+          startTime: '00:00', endTime: '00:00', staffIds: [a, b], allowMidDayHandover: true }
+      : { ...template, isActive: false, staffIds: [] }) },
+  reason: 'فعال‌سازی چندشیفت پس از ثبت برنامهٔ دارای کارمند',
+  managerUserId: manager, managerPassword: 'مدیر123!'
+})
 await custodyService.setConfig({ config: { enabled: true, mode: 'MULTI_SHIFT', overrunGraceMinutes: 0 }, managerUserId: manager, managerPassword: 'مدیر123!' })
 
 const opened = await custodyService.open({ userId: a, password: 'A123457!', countedCash: 1000 })
@@ -77,7 +88,7 @@ eq('یک Shift باز وجود دارد', db.$harness.db.prepare('SELECT COUNT(*
 eq('برنامهٔ اختیاری فقط به نشست واقعی الصاق می‌شود', (await custodyService.status()).schedule?.title, 'برنامه آزمایشی')
 
 const firstFence = await custodyService.actorForFinancialOperation()
-const handover = await custodyService.handoverStart({ password: 'A123457!', countedCash: 1000, toUserId: b, idempotencyKey: 's346-a-b' })
+const handover = await custodyService.handoverStart({ password: 'A123457!', operationalTotal: 1000, toUserId: b, idempotencyKey: 's346-a-b' })
 eq('شروع تحویل تنها قفل جدید فروش است', handover.state, 'HANDOVER_PENDING')
 try {
   await db.$transaction((tx) => custodyService.assertFenceInTx(tx, firstFence))
@@ -86,12 +97,12 @@ try {
   eq('fence قدیمی پس از شروع تحویل رد می‌شود', error?.code, 'CUSTODY_STALE')
 }
 eq('تحویل CashSession نمی‌سازد', db.$harness.db.prepare('SELECT COUNT(*) AS n FROM "CashSession"').get().n, 0)
-const accepted = await custodyService.handoverAccept({ handoverId: handover.id, password: 'B123457!', countedCash: 1000 })
+const accepted = await custodyService.handoverAccept({ handoverId: handover.id, password: 'B123457!', operationalTotal: 1000 })
 truthy('پذیرش تحویل Shift جدید می‌سازد', accepted.shiftId > opened.shiftId)
 eq('پس از تحویل فقط یک Shift باز است', db.$harness.db.prepare('SELECT COUNT(*) AS n FROM "Shift" WHERE closedAt IS NULL').get().n, 1)
 eq('Shift جدید به گیرنده منتسب است', db.$harness.db.prepare('SELECT userId FROM "Shift" WHERE id=?').get(accepted.shiftId).userId, b)
 
-const canceled = await custodyService.handoverStart({ password: 'B123457!', countedCash: 1000, toUserId: a, idempotencyKey: 's346-b-a' })
+const canceled = await custodyService.handoverStart({ password: 'B123457!', operationalTotal: 1000, toUserId: a, idempotencyKey: 's346-b-a' })
 await custodyService.handoverCancel({ handoverId: canceled.id, password: 'B123457!' })
 eq('لغو تحویل Shift جدید نمی‌سازد', db.$harness.db.prepare('SELECT COUNT(*) AS n FROM "Shift"').get().n, 2)
 eq('لغو، مسئولیت را به تحویل‌دهنده برمی‌گرداند', (await custodyService.status()).custodian.id, b)

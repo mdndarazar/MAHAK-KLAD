@@ -53,7 +53,10 @@ const logCount = (id) => seed.count('CreditReminderLog', 'creditId = ?', id)
 /** اعتبار مصرف‌نشده‌ی واجد شرایط: ۴۰ روز از صدورش گذشته، بدون انقضا. */
 async function issueEligible(phone = '09129998877') {
   const c = await svc.issueStoreCredit(db, { amount: 4_000_000, holderPhone: phone, source: 'MANUAL', userId })
-  sql.prepare('UPDATE "StoreCredit" SET issuedAt = ? WHERE id = ?').run(Date.now() - 40 * DAY, c.id)
+  // Fixture با رضایت مثبتِ ازپیش‌ثبت‌شده؛ «داشتن شماره» به‌تنهایی در محصول
+  // کافی نیست. مسیر ثبت واقعی و نبود رضایت در آزمون مستقل بررسی می‌شوند.
+  sql.prepare('UPDATE "StoreCredit" SET issuedAt = ?, reminderConsentAt = ?, reminderConsentPhone = ?, reminderConsentEvidence = ? WHERE id = ?')
+    .run(Date.now() - 40 * DAY, Date.now() - DAY, phone, 'رسید رضایت امضاشده در آزمون سهمیه', c.id)
   return creditRow(c.id)
 }
 
@@ -163,9 +166,12 @@ console.log('\n۵) تزریق فرستنده‌ی واقعی: یادآوری م�
   eq('صف پیامک پیام را پذیرفت', String(lastLog(credit.id).status), CreditReminderStatus.LOGGED)
   truthy('زمان تحویل ثبت شد', lastLog(credit.id).sentAt != null)
   eq('یک ردیف در صف نشست', outboxCount(), before + 1)
-  truthy('کد اعتبار در متن پیام است', String(res.text).includes(String(credit.code)), String(res.text).slice(0, 60))
+  truthy('پاسخ IPC/نمایش یادآوری رمزِ خرج‌پذیر را افشا نمی‌کند',
+    !String(res.text).includes(String(credit.code)))
 
   const row = sql.prepare('SELECT * FROM "SmsOutbox" ORDER BY id DESC LIMIT 1').get()
+  truthy('متن محرمانه‌ی صف پیامکِ مقصدِ مشخص حامل همان کد واقعی است',
+    String(row.bodySnapshot).includes(String(credit.code)))
   eq('نوع رویداد', row.eventType, 'CREDIT_REMINDER')
   eq('اولویت تراکنشی (۳) — از جلوی کمپین می‌پرد', row.priority, 3)
   eq('شماره‌ی مقصد', row.phoneSnapshot, '09127770001')
@@ -308,7 +314,8 @@ console.log('\n۱۰) پیش‌فیلتر کاندیدها با «حداقل رو
 
   // اعتبارِ تازه و بدون انقضا — با «۰ روز از صدور» واجد شرایط است
   const young = await svc.issueStoreCredit(db, { amount: 2_000_000, holderPhone: '09126660001', source: 'MANUAL', userId })
-  sql.prepare('UPDATE "StoreCredit" SET expiresAt = NULL, issuedAt = ? WHERE id = ?').run(Date.now() - 2 * DAY, young.id)
+  sql.prepare('UPDATE "StoreCredit" SET expiresAt = NULL, issuedAt = ?, reminderConsentAt = ?, reminderConsentPhone = ?, reminderConsentEvidence = ? WHERE id = ?')
+    .run(Date.now() - 2 * DAY, Date.now() - DAY, '09126660001', 'رسید رضایت آگاهانه در آزمون مرزی', young.id)
 
   setReminder({ minDaysSinceIssue: 0, beforeExpiryDays: 3 })
   const d0 = (await svc.storeCreditService.reminderCandidates({ onlyDue: true, take: 200 })).rows

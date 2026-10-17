@@ -276,6 +276,8 @@ export default function Settings() {
   /** تغییر روش حضانت مستقل از ذخیره‌ی عمومی است تا Main بتواند مسئولیت باز را
    * قبل از commit اتمی fence کند؛ رمز/علت هرگز ذخیره نمی‌شود. */
   const [custodySchedulingReason, setCustodySchedulingReason] = useState('')
+  const [custodySchedulingManagerId, setCustodySchedulingManagerId] = useState<number | ''>('')
+  const [custodySchedulingPin, setCustodySchedulingPin] = useState('')
   const [custodySchedulingBusy, setCustodySchedulingBusy] = useState(false)
   /** legacy ShiftPlanها تا بازبینی صریح مدیر به تنظیمات canonical تبدیل نمی‌شوند. */
   const [legacyShiftPlanReview, setLegacyShiftPlanReview] = useState<LegacyShiftPlanReview | null>(null)
@@ -896,23 +898,26 @@ export default function Settings() {
     if (!isManager) return setErr('تغییر روش حضانت فقط با نشست فعال مدیر ممکن است.')
     if (shift.custodyMode === 'SINGLE_SHIFT' && !shift.singleShiftCustodianUserId)
       return setErr('برای تک‌شیفت، مسئول اصلی روزانه را انتخاب کنید.')
+    if (!custodySchedulingManagerId || !custodySchedulingPin.trim() || custodySchedulingReason.trim().length < 10)
+      return setErr('مدیر، PIN شخصی او و دلیل حداقل ۱۰ نویسه‌ای را وارد کنید؛ حتی اگر صندوق بسته باشد.')
     setCustodySchedulingBusy(true)
     try {
       const saved = await call<ShiftConfig>(CH.settingsCustodySchedulingWorkflow, {
-        shift: { ...shift, custodyModeConfigured: true },
-        reason: custodySchedulingReason
+        shift: { ...shift, custodyModeConfigured: true }, reason: custodySchedulingReason.trim(),
+        managerUserId: custodySchedulingManagerId, managerPassword: custodySchedulingPin
       })
       setShift(parseShiftConfig(saved))
       setCustodySchedulingReason('')
       setDirty(false)
       flash(
         saved.custodyMode === 'SINGLE_SHIFT'
-          ? 'گردش‌کار تک‌شیفت با مسئول اصلی روزانه ذخیره شد. مسئولیت صندوق فقط با PIN و شمارش فیزیکی او آغاز می‌شود.'
-          : 'گردش‌کار چندشیفت با کارکنان مستقل هر شیفت ذخیره شد. مسئولیت صندوق فقط با PIN و شمارش فیزیکی آغاز می‌شود.'
+          ? 'گردش‌کار تک‌شیفت با مسئول اصلی روزانه ذخیره شد. در غیبت او، فرد مجاز دیگری فقط با PIN شخصی، شمارش واقعی و دلیل ثبت‌شده صندوق تازه را باز می‌کند.'
+          : 'گردش‌کار چندشیفت ذخیره شد. فرد خارج از برنامه برای افتتاح مستقل به PIN شخصی، شمارش واقعی و دلیل ثبت‌شده نیاز دارد.'
       )
     } catch (e: any) {
       setErr(e?.message ?? 'ذخیره‌ی روش حضانت انجام نشد.')
     } finally {
+      setCustodySchedulingPin('')
       setCustodySchedulingBusy(false)
     }
   }
@@ -3644,7 +3649,7 @@ export default function Settings() {
               <div className="rounded border-2 border-indigo-300 bg-indigo-50 p-3 space-y-3">
                 <div className="font-bold text-indigo-950">گردش‌کار مسئولیت و برنامه‌ریزی حضانت</div>
                 <p className="kbd leading-6">
-                  این دو روش عمداً جدا هستند؛ تیک مشترک یا انتخاب نام، مسئولیت مالی ایجاد نمی‌کند. در هر دو روش فقط PIN شخصی و شمارش فیزیکی هنگام بازکردن صندوق مسئولیت می‌سازد.
+                  این دو روش عمداً جدا هستند؛ تیک مشترک یا انتخاب نام، مسئولیت مالی ایجاد نمی‌کند. مسئولیت تازه با PIN شخصی و شمارش واقعی هنگام افتتاح شروع می‌شود. افتتاح خارج از برنامه دلیل ثبت‌شده هم می‌خواهد و مسئولیت قبلی را منتقل نمی‌کند.
                 </p>
                 <div className="grid md:grid-cols-2 gap-2">
                   <button
@@ -3663,7 +3668,7 @@ export default function Settings() {
                     onClick={() => { setShift((current) => ({ ...current, custodyMode: 'MULTI_SHIFT', singleShiftCustodianUserId: null })); setDirty(true) }}
                   >
                     <b>چندشیفت: کارکنان مستقل هر شیفت</b>
-                    <span className="block kbd mt-1 leading-6">کارکنانِ هر قالب زمانی پایین جداگانه تعیین می‌شوند؛ فقط فرد ثبت‌شده در بازهٔ فعال می‌تواند صندوق را تحویل بگیرد.</span>
+                    <span className="block kbd mt-1 leading-6">کارکنانِ هر بازه برای افتتاح عادی تعیین می‌شوند؛ در غیبت آن‌ها، صندوق‌دار یا مدیر فعال با PIN، شمارش واقعی و دلیل می‌تواند مستقل افتتاح کند.</span>
                   </button>
                 </div>
 
@@ -3682,7 +3687,13 @@ export default function Settings() {
                         {staffRows.filter((staff) => staff.isActive && (staff.role === 'MANAGER' || staff.role === 'CASHIER')).map((staff) => <option key={staff.id} value={staff.id}>{staff.name} · {staff.roleLabel}</option>)}
                       </select>
                     </label>
-                    <p className="kbd leading-6">این انتخاب فقط واجدبودن برای تحویل‌گیری را مشخص می‌کند. حتی همین فرد نیز بدون PIN شخصی و ثبت شمارش واقعی نمی‌تواند مسئول صندوق شود.</p>
+                    <p className="kbd leading-6">این انتخاب مسئول برنامه‌ریزی‌شده را مشخص می‌کند، نه مالکیت خودکار صندوق. او هم به PIN شخصی و شمارش واقعی نیاز دارد؛ جانشین خارج از برنامه علاوه بر این‌ها باید دلیل ثبت کند.</p>
+                    <label className="flex items-center gap-2 text-sm font-semibold">
+                      <input type="checkbox" checked={shift.singleShiftAllowMidDayHandover} disabled={!isManager || custodySchedulingBusy}
+                        onChange={(e) => { setShift((current) => ({ ...current, singleShiftAllowMidDayHandover: e.target.checked })); setDirty(true) }} />
+                      مجوز تحویل میان‌روز تک‌شیفت (پیش‌فرض خاموش)
+                    </label>
+                    <p className="kbd leading-6">فقط از همین گردش‌کار با PIN شخصی مدیر ذخیره می‌شود. مجوز مثبتِ ثبت‌شده برای نشست باز پایدار است؛ خاموش‌کردن گزینه برای نشست‌های آینده است، نه لغو تحویل در جریان.</p>
                   </div>
                 ) : (
                   <div className="rounded border border-indigo-200 bg-white p-3">
@@ -3699,8 +3710,21 @@ export default function Settings() {
                   <span>مهلت هشدار بعد از پایان (دقیقه)</span>
                   <input className="inp w-24" inputMode="numeric" value={String(shift.overrunGraceMinutes)} onChange={(e) => { const minutes = Math.max(0, Math.min(1440, Math.round(Number(toLatinDigits(e.target.value).replace(/\D/g, '')) || 0))); setShift((current) => ({ ...current, overrunGraceMinutes: minutes })); setDirty(true) }} />
                 </label>
+                <div className="grid md:grid-cols-2 gap-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm">مدیر تصمیم‌گیرنده (با PIN شخصی حضانت)</span>
+                    <select className="inp" value={custodySchedulingManagerId} disabled={!isManager || custodySchedulingBusy} onChange={(e) => setCustodySchedulingManagerId(e.target.value ? Number(e.target.value) : '')}>
+                      <option value="">مدیر را انتخاب کنید…</option>
+                      {staffRows.filter((staff) => staff.isActive && staff.role === 'MANAGER').map((staff) => <option key={staff.id} value={staff.id}>{staff.name}</option>)}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm">PIN شخصی همین مدیر (هر بار لازم است)</span>
+                    <PasswordField value={custodySchedulingPin} onChange={(e) => setCustodySchedulingPin(e.target.value)} />
+                  </label>
+                </div>
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm">علت تغییر روش یا مسئول اصلی (هنگام بازبودن مسئولیت، حداقل ۱۰ کاراکتر و اجباری است)</span>
+                  <span className="text-sm">دلیل مدیر (همیشه اجباری؛ حداقل ۱۰ نویسه، حتی با صندوق بسته)</span>
                   <input className="inp" value={custodySchedulingReason} onChange={(e) => setCustodySchedulingReason(e.target.value)} disabled={!isManager || custodySchedulingBusy} placeholder="مثلاً تغییر رسمی برنامهٔ کاری امروز" />
                 </label>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -3903,7 +3927,7 @@ export default function Settings() {
               {shift.custodyMode === 'MULTI_SHIFT' ? (
               <div className="space-y-2">
                 <div className="font-bold">برنامهٔ چندشیفت: کارکنان و مجوز تحویل میان‌روز هر شیفت</div>
-                <p className="kbd leading-6">این بخش منبع canonical برنامه‌های جدید است. کارمند برنامه‌ریزی‌شده فقط «واجد انتخاب» می‌شود؛ تا PIN خودش را وارد و صندوق را باز نکند، هیچ مسئولیت مالی ندارد.</p>
+                <p className="kbd leading-6">این بخش منبع برنامه‌های جدید است. کارمند برنامه‌ریزی‌شده با انتخاب نام صاحب صندوق نمی‌شود؛ PIN و شمارش واقعی لازم دارد. جانشین خارج از برنامه با دلیل ثبت‌شده، بدون انتقال اسناد قبلی، مستقل افتتاح می‌کند.</p>
                 {shift.templates.map((template, index) => (
                   <details key={`schedule-${template.id}`} className="rounded border bg-slate-50 p-3" open={shift.templates.length === 1}>
                     <summary className="cursor-pointer font-bold">{template.name || `شیفت ${faDigits(index + 1)}`} · {faDigits(index + 1)}</summary>
@@ -3935,7 +3959,7 @@ export default function Settings() {
               ) : (
                 <div className="rounded border border-indigo-200 bg-indigo-50 p-3 space-y-1">
                   <b>تک‌شیفت: برنامهٔ کارکنانِ هر قالب غیرفعال است</b>
-                  <p className="kbd leading-6">در این روش فقط مسئول اصلی روزانهٔ بالا برای تحویل‌گیری صندوق واجد است. نام و ساعت قالب‌ها همچنان برای نمایش و گزارش نشست‌های عادی نگه داشته می‌شوند، اما انتخاب کارمند در آن‌ها نمی‌تواند مسئولیت حضانت بسازد.</p>
+                  <p className="kbd leading-6">در این روش فرد بالا مسئول اصلی برنامه‌ریزی‌شده است. در غیبت او، صندوق‌دار یا مدیر فعال می‌تواند با PIN شخصی، شمارش واقعی و دلیل، صندوق تازه را بدون جابه‌جایی مسئولیت قبلی باز کند. قالب‌های چندشیفت همچنان مسئول جایگزین را به‌طور خودکار تعیین نمی‌کنند.</p>
                 </div>
               )}
 
@@ -4580,9 +4604,9 @@ export default function Settings() {
                 <CustodyChip showOperations={false} />
               </div>
               <div className="rounded border p-4 space-y-3 bg-white">
-                <div className="font-bold">رمزهای موقت و بازبینی دادهٔ قدیمی</div>
+                <div className="font-bold">ریست بازیابانهٔ شیفت، رمزهای موقت و بازبینی اسناد</div>
                 <p className="text-sm text-slate-600">
-                  پس از فعال‌سازی، رمز موقت شخصی صادر یا بازنشانی می‌شود و برنامه‌های Legacy فقط قابل بازبینی‌اند؛ هیچ رمز خام قبلی نمایش داده نمی‌شود. برای ساخت یا ویرایش برنامهٔ جدید به تب «شیفت‌ها» بروید.
+                  ریست شیفت با PIN شخصی، دلیل و تأیید مدیر همیشه در همین بخش در دسترس است، حتی اگر صندوق بسته باشد. ریست فروش یا شمارش گذشته را حذف نمی‌کند و مسئول جدیدی نمی‌سازد. رمز موقت شخصی نیز در این بخش صادر می‌شود؛ برای برنامهٔ جدید به تب «شیفت‌ها» بروید.
                 </p>
                 <CustodyAdminChip />
               </div>

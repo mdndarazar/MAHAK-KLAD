@@ -61,6 +61,7 @@ import {
 } from '../components/ResizableColumns'
 import { faDigits, money, isValidJalaliDate } from '@shared/jalali'
 import { physicalMoneyInDrawerAndCard, returnCreditAmountOf } from '@shared/accounting'
+import { availableCustodyReferenceAmount, type CustodyReference } from '@shared/custodyReference'
 import { buildNetToDrawer, splitDrawerPos } from '@shared/cashExplainer'
 import { DrawerVsPosSplit } from '../components/cash/DrawerVsPosSplit'
 import FinancialInspector from '../components/cash/FinancialInspector'
@@ -1258,7 +1259,9 @@ export default function SalesReports() {
    * چاپ حرارتی. ردیف‌های کنارگذاشته‌شده عمداً چاپ نمی‌شوند تا کاغذ عیناً همان
    * چیزی باشد که روی صفحه دیده شده است.
    */
-  const summaryPrintLines = () => [
+  const summaryPrintLines = () => {
+    const officialAmount = availableCustodyReferenceAmount(report.custodyReference)
+    return [
     ...summary.active.map((p) => ({
       label: p.label,
       value: `${p.sign < 0 ? '−' : '+'}${money(p.value)}`
@@ -1267,7 +1270,9 @@ export default function SalesReports() {
     {
       label:
         `کنترل کارت‌خوان و صندوق — نقدی ${money(t.cashTotal)} · کارت ${money(summary.cardTotal)} · ` +
-        `اعتباری ${money(t.creditTotal)} ⇒ ${money(summary.realCash)} ریال باید در صندوق و کارت‌خوان باشد.` +
+        (officialAmount == null
+          ? `مرجع قطعی در انتظار تطبیق است؛ بخش معلوم ${report.custodyReference?.knownSubtotal == null ? 'نامعلوم' : money(report.custodyReference.knownSubtotal)} ریال، پرداخت اعتباری قدیمیِ مبهم ${report.custodyReference?.ambiguousLegacyCredit == null ? 'نامعلوم' : money(report.custodyReference.ambiguousLegacyCredit)} ریال، وجه با مقصد نامشخص ${report.custodyReference?.destinationUnknownReceived == null ? 'نامعلوم' : money(report.custodyReference.destinationUnknownReceived)} ریال.`
+          : `اعتباری ${money(t.creditTotal)} ⇒ ${money(officialAmount)} ریال مرجع گزارش برای صندوق و کارت‌خوان.`) +
         // کار الف: این دو عدد عمداً بیرون از «باید در صندوق و کارت‌خوان باشد» گزارش می‌شوند
         (summary.managerTotal > 0
           ? ` · ${MANAGER_ACCOUNT_ROW_LABEL} ${money(summary.managerTotal)} ریال — ${MANAGER_ACCOUNT_ROW_NOTE}.`
@@ -1289,7 +1294,8 @@ export default function SalesReports() {
       value: '',
       note: true
     }
-  ]
+    ]
+  }
 
   const printA4 = async () => {
     if (printBusyRef.current) return
@@ -2487,6 +2493,7 @@ export default function SalesReports() {
                     {r.refundMethodLabel ?? '—'}
                     {r.legacyAssumed && <div className="kbd text-amber-800 font-bold">فرض‌شده از داده‌ی قدیمی</div>}
                     {r.isExchange && <div className="kbd text-sky-800 font-bold">سند تعویض</div>}
+                    {r.corrected && <div className="kbd text-amber-800 font-bold">اصلاح جبرانی؛ سند تاریخی، نه دریافت تازه</div>}
                   </td>
                   <td className={r.cashRefundAmount ? 'text-rose-700 font-bold' : ''}>{money(r.cashRefundAmount ?? 0)}</td>
                   <td dir="ltr" className={r.storeCreditReference ? 'font-bold text-amber-900' : ''}>
@@ -2936,6 +2943,7 @@ export default function SalesReports() {
           managerAccountTotal={t.managerAccountTotal}
           destinationUnknownTotal={t.destinationUnknownTotal}
           realCash={summary.realCash}
+          custodyReference={report.custodyReference}
           nonCash={summary.nonCash}
           creditRefundTotal={summary.creditRefundTotal}
           creditUsedTotal={summary.creditUsedTotal}
@@ -3091,6 +3099,7 @@ function SaleSummaryBlock({
   managerAccountTotal = 0,
   destinationUnknownTotal = 0,
   realCash,
+  custodyReference,
   nonCash,
   creditRefundTotal,
   creditUsedTotal,
@@ -3122,6 +3131,7 @@ function SaleSummaryBlock({
   managerAccountTotal?: number
   destinationUnknownTotal?: number
   realCash: number
+  custodyReference?: CustodyReference
   nonCash: number
   creditRefundTotal: number
   creditUsedTotal: number
@@ -3288,7 +3298,7 @@ function SaleSummaryBlock({
           pos={split.pos}
           other={split.other}
           managerOutside={split.managerOutside}
-          realCash={realCash}
+          custodyReference={custodyReference}
           cashTotal={cashTotal}
           cardTotal={cardTotal}
           refundCashTotal={refundCashTotal}
@@ -3350,7 +3360,7 @@ function SaleSummaryBlock({
             refundCardTotal
           }}
           statements={statements}
-          referenceRealCash={realCash}
+          custodyReference={custodyReference}
           split={split}
           bridgeAlarm={netToDrawer.alarm}
           initialFocus={financialInspectorFocus}
@@ -3748,7 +3758,8 @@ function ExchangeTable({
             <td>{faDigits(r.dateJalali)}</td>
             <td>{faDigits(r.time)}</td>
             <td>{r.shiftName}</td>
-            <td>{r.customerName}</td>
+            <td>{r.customerName}{r.corrected &&
+              <div className="kbd text-amber-800 font-bold">اصلاح جبرانی؛ سند تاریخی است</div>}</td>
             <td className="max-w-[240px] whitespace-normal">{itemsLabel(r.returnedItems) || '—'}</td>
             <td>{money(r.returnTotal)}</td>
             {/* معلق برگشتی — خواندنی، از هوک مشترک، بدون هیچ دکمه‌ای */}
@@ -3791,7 +3802,8 @@ function ExchangeTable({
                 <button
                   className="text-red-600 mr-2"
                   onClick={() => onVoid(r)}
-                  title="ابطال کل تعویض (سند برگشت، سند تعویض، اعتبار و اثر انبار با هم؛ سندها با مهر «باطل» و دلیل می‌مانند)"
+                  disabled={r.corrected || (r.goodsReceiptRequired && (r.restockedQty ?? 0) > 0)}
+                  title="ابطال مستقیم فقط قبل از رسید فیزیکی و اصلاح جبرانی مجاز است؛ سند شاهددار به رسیدگی تطبیقی نیاز دارد"
                 >
                   ابطال
                 </button>
@@ -3800,7 +3812,8 @@ function ExchangeTable({
                 <button
                   className="text-amber-700 mr-2"
                   onClick={() => onCorrection(r)}
-                  title="ثبت اثرهای جبرانی تعویض بدون حذف یا تغییر اسناد مبدأ"
+                  disabled={r.corrected}
+                  title="ثبت اثرهای جبرانی تعویض فقط یک‌بار، بدون حذف یا تغییر اسناد مبدأ"
                 >
                   اصلاح جبرانی
                 </button>

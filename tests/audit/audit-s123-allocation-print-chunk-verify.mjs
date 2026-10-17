@@ -48,7 +48,8 @@ for (let i = 0; i < 501; i++) {
 // یک فاکتور ۵۰۱قلمی برای رسید فروش و برگشت
 const big = seed.invoice({ receiptNo: 77_777, grandTotal: 501_000 })
 sql.prepare('UPDATE "SaleInvoice" SET issuedAtJalali = ?, paidTotal = 501000 WHERE id = ?').run(today, big.id)
-const itemIds = vids.map((v) => seed.invoiceItem(big.id, { variantId: v, qty: 1, lineTotal: 1000 }))
+// نام روی قلمِ فاکتور snapshot است؛ چاپ نباید نام فعلی محصول را جای آن حدس بزند.
+const itemIds = vids.map((v) => seed.invoiceItem(big.id, { variantId: v, qty: 1, lineTotal: 1000, variantName: 'شلوار جین' }))
 const ret = seed.insert('SaleReturn', { invoiceId: big.id, kind: 'RETURN', total: 501_000, returnedAt: Date.now(), returnedAtJalali: today })
 for (let i = 0; i < 501; i++) seed.insert('SaleReturnItem', { returnId: ret, saleItemId: itemIds[i], variantId: vids[i], qty: 1, unitPrice: 1000, lineTotal: 1000 })
 sql.exec('COMMIT')

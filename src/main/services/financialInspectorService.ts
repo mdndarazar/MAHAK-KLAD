@@ -428,7 +428,7 @@ async function documentForSource(source: SaleBridgeSource): Promise<FinancialDoc
       status: String(credit.status ?? 'ACTIVE'),
       expiresAt
     })
-    const creditRemaining = remainingOf({ amount: n(credit.amount), usedAmount: n(credit.usedAmount) })
+    const creditRemaining = remainingOf({ amount: n(credit.amount), usedAmount: n(credit.usedAmount), status: creditStatus })
     return {
       ...base,
       title: 'شناسنامهٔ اعتبار خرید',

@@ -30,6 +30,8 @@ process.env.HARNESS_DIR = DIR
 process.env.HARNESS_DB = join(DIR, 'shop.db')
 
 const electron = await import('electron')
+const { attachTestIpcWindow } = await import('../../test/harness/ipcWindow.mjs')
+const { event: ipcEvent } = attachTestIpcWindow(electron)
 const handlers = new Map()
 electron.ipcMain.handle = (ch, fn) => handlers.set(ch, fn)
 
@@ -43,7 +45,7 @@ const { shiftService } = await import('../../src/main/services/ShiftService.ts')
 const { jalaliToday, jalaliAddDays } = await import('@shared/jalali')
 const { SETTING_KEYS } = await import('@shared/receipt')
 registerIpcHandlers()
-const ipc = (ch, payload) => handlers.get(ch)(null, payload)
+const ipc = (ch, payload) => handlers.get(ch)(ipcEvent, payload)
 
 let ok = 0
 let bad = 0

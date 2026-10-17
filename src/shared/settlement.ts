@@ -45,6 +45,8 @@ export interface DebtReturnInput {
   total?: number | null
   refundMethod?: string | null
   refundAmount?: number | null
+  /** سهم اعتبار غیرنقدی که با احیای اصل یا شاخهٔ B/E جبران شد؛ پول/OVERPAY نیست. */
+  creditRestored?: number | null
   /** درخواست کارت‌به‌کارت همین برگشت لغو شده؟ (پولی به مشتری نرسید و نمی‌رسد) */
   refundCanceled?: boolean | null
   /** نشست ۶۰ — فقط تعویض: بخشی از مابه‌التفاوت منفی که از بدهی فاکتور اصلی کم شد */
@@ -104,8 +106,16 @@ export function debtAdjustmentsOf(returns: DebtReturnInput[] = []): DebtAdjustme
       returnedValue += exchangeDebtReductionOf(r as any)
       continue
     }
-    returnedValue += Math.max(0, r0(r.total))
-    refundFromReceived += refundFromReceivedOf(r)
+    const total = Math.max(0, r0(r.total))
+    returnedValue += total
+    // A store-credit payment is part of received, but its returned share
+    // never becomes a cash refund or an OVERPAY. Count only persisted
+    // provenance, and fail closed if it exceeds the return's remaining value.
+    const monetaryRefund = refundFromReceivedOf(r)
+    const creditRestored = Math.max(0, r0(r.creditRestored))
+    if (creditRestored > total - monetaryRefund)
+      throw new Error('CREDIT_RETURN_EXCEEDS_RETURN_VALUE')
+    refundFromReceived += monetaryRefund + creditRestored
   }
   return { returnedValue, refundFromReceived }
 }

@@ -18,6 +18,7 @@ process.env.HARNESS_DB = join(DIR, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
+const { settingsService } = await import('../../src/main/services/SettingsService.ts')
 
 const db = harnessClient()
 const seed = makeSeeder(db)
@@ -39,10 +40,12 @@ for (const [id, temporary, permanent] of [[giver, 'Giver394!', 'Giver3944!'], [r
   await custodyService.setPin({ userId: id, currentPassword: temporary, newPassword: permanent })
 }
 
+await settingsService.saveCustodySchedulingWorkflow({ shift: { ...await settingsService.shiftConfig(), custodyMode: 'SINGLE_SHIFT', singleShiftCustodianUserId: giver, singleShiftAllowMidDayHandover: true }, managerUserId: manager, managerPassword: 'Manager394!', reason: 'اجازهٔ تحویل برای آزمون تجمیعی مالی صندوق' })
 const opened = await custodyService.open({ userId: giver, password: 'Giver3944!', operationalTotal: 20_000_000 })
 eq('افتتاح تجمیعی مسئولیت را باز می‌کند', opened.countStatus, 'COUNTED')
 eq('افتتاح تجمیعی به OPENING_FLOAT نقدی تبدیل نمی‌شود', Number(seed.one('SELECT COUNT(*) AS n FROM "CashMovement" WHERE shiftId=? AND type=?', opened.shiftId, 'OPENING_FLOAT')?.n ?? 0), 0)
-eq('افتتاح اولین baseline aggregate را ثبت می‌کند', Number(seed.one('SELECT COUNT(*) AS n FROM "CustodyAggregateBoundary" WHERE boundaryKind=?', 'OPENING')?.n ?? 0), 1)
+eq('افتتاح آبی baseline قدیمی aggregate را جعل نمی‌کند؛ پذیرش legacy بعدی آن را می‌سازد', Number(seed.one('SELECT COUNT(*) AS n FROM "CustodyAggregateBoundary" WHERE boundaryKind=?', 'OPENING')?.n ?? 0), 0)
+eq('افتتاح آبی snapshot مستقل شمارش واقعی دارد', Number(seed.one('SELECT COUNT(*) AS n FROM "CustodyBlueSnapshot" WHERE role=? AND shiftId=?', 'OPENING', opened.shiftId)?.n ?? 0), 1)
 
 const started = await custodyService.handoverStart({ password: 'Giver3944!', operationalTotal: 20_000_000, toUserId: receiver, idempotencyKey: 's394-first' })
 absent('شروع تحویل مبلغ انتظار را برنمی‌گرداند', started, 'expectedCash')
