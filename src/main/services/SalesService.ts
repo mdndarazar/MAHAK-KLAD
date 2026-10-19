@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { prisma } from '../db/client'
 import { createCardTransferRequest } from './CardTransferService'
+import { recordSaleFundingSnapshot, reviseLatestSaleFundingSnapshot } from './ExchangeFundingLedgerService'
 import {
   openCardTransferEntitlement,
   correctPendingEntitlement,
@@ -1584,6 +1585,10 @@ async function chequePolicyAfterReturn(
           `برگشت سند ${faDigits(ctx.returnId)} بدهی این فاکتور را صفر کرد (بند ۴-۵۲). چک فیزیکی را به مشتری پس بدهید یا نزد مدیر نگه دارید؛ نباید به بانک برود.`
       })
     }
+    // Auto-voiding an outstanding cheque is a payment-row mutation too. A live
+    // return makes its funding allocation unsafe to rewrite, so the journal
+    // records a zero-Rial stale-state marker and keeps exchange transfer closed.
+    await reviseLatestSaleFundingSnapshot(tx, ctx.invoiceId)
     return { voided: cheques.map((c) => c.id), flagged: [] }
   }
   for (const c of cheques) {
@@ -1631,6 +1636,7 @@ async function restoreChequesAfterReturnVoid(
         'اگر چک فیزیکی به مشتری پس داده شده، آن را دستی باطل کنید.'
     })
   }
+  if (rows.length) await reviseLatestSaleFundingSnapshot(tx, ctx.invoiceId)
   return rows.map((r) => r.id)
 }
 
@@ -4684,6 +4690,10 @@ export const salesService = {
         }
       }
 
+      // Capture only persisted, reconciled payment/redemption rows. The journal
+      // is append-only and shares this sale transaction; failure rolls back sale.
+      await recordSaleFundingSnapshot(tx, invoice.id)
+
       /**
        * هشدارهای موجودی همراه خود فاکتور برمی‌گردند تا پنل فروش همان کادر زرد
        * همیشگی را نشان دهد — ولی فاکتور ثبت‌شده است و چاپ هم می‌شود.
@@ -5277,6 +5287,9 @@ export const salesService = {
        * هم وقتی بازنویسی شده‌اند.
        */
       const settle = await recalcSettlement(tx, current.id, { userId: input.userId ?? null })
+      // An ordinary invoice edit can change grandTotal (and optionally replace
+      // payments); keep the append-only funding snapshot in the same transaction.
+      await reviseLatestSaleFundingSnapshot(tx, current.id)
 
       /**
        * =====================================================================
@@ -10272,6 +10285,7 @@ export const salesService = {
       })
 
       const settle = await recalcSettlement(tx, invoiceId)
+      await reviseLatestSaleFundingSnapshot(tx, invoiceId)
 
       /** نشست ۶۱ — مرحله ۳: صدور کد اعتبار در همان تراکنش (خطا ⇒ پرداخت هم ثبت نمی‌شود) */
       let overpayCredit: OverpayCreditResult | null = null
@@ -10583,6 +10597,7 @@ export const salesService = {
 
       await tx.payment.update({ where: { id }, data })
       const settle = await recalcSettlement(tx, current.invoiceId)
+      await reviseLatestSaleFundingSnapshot(tx, current.invoiceId)
       // نشست ۵۸ · C3 — ردیف را *بعد از* بازسازی اضافه‌دریافت می‌خوانیم تا عدد پنل درست باشد
       const updated = await tx.payment.findUnique({ where: { id }, include: { method: true } })
       await auditOverpayChanges(tx, settle, {
@@ -10744,6 +10759,7 @@ export const salesService = {
         data: { voidedAt, voidedByUserId: input.userId ?? null, voidReason: reason }
       })
       const settle = await recalcSettlement(tx, current.invoiceId)
+      await reviseLatestSaleFundingSnapshot(tx, current.invoiceId)
       await auditOverpayChanges(tx, settle, {
         invoiceId: current.invoiceId, receiptNo: current.invoice?.receiptNo ?? 0, userId: input?.userId ?? null,
         why: `ابطال پرداختی ${faDigits(current.seq ?? 1)}`
@@ -10925,6 +10941,7 @@ export const salesService = {
       const settle = await recalcSettlement(tx, current.invoiceId, {
         overpayCreditShortfall: 'flag', userId: input?.userId ?? null
       })
+      await reviseLatestSaleFundingSnapshot(tx, current.invoiceId)
       await auditOverpayChanges(tx, settle, {
         invoiceId: current.invoiceId, receiptNo: current.invoice?.receiptNo ?? 0, userId: (input as any)?.userId ?? null,
         why: 'تغییر وضعیت چک'

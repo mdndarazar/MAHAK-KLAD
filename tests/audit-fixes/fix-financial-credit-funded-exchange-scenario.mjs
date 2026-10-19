@@ -55,6 +55,16 @@ assert.equal(redeemed.amount, 2_000_000)
 assert.equal(redeemed.reversedAt, null)
 assert.equal(redeemed.compensatedAt, null)
 assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', gift.id).status, 'USED')
+const originalFunding = seed.rows(`SELECT kind, amount, shareId, rootShareId, sourceCreditId
+  FROM "ExchangeFundingEvent" WHERE sourceInvoiceId=? AND eventKey LIKE ? ORDER BY id`,
+  original.id, `sale:${original.id}:r1:%`).filter((row) => row.kind.startsWith('SOURCE_'))
+assert.deepEqual(originalFunding.map(({ kind, amount, sourceCreditId }) => ({ kind, amount, sourceCreditId }))
+  .sort((a, b) => a.kind.localeCompare(b.kind)), [
+  { kind: 'SOURCE_CASH', amount: 13_980_000, sourceCreditId: null },
+  { kind: 'SOURCE_GIFT', amount: 2_000_000, sourceCreditId: gift.id }
+], 'the actual create transaction keeps the 2m gift separate from 13.98m real cash')
+assert.equal(originalFunding.find((row) => row.kind === 'SOURCE_GIFT')?.rootShareId, `credit:${gift.id}`)
+assert.equal(originalFunding.reduce((sum, row) => sum + Number(row.amount), 0), original.grandTotal)
 const stockBefore = seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?) ORDER BY id', source, replacement)
 const attemptedExchange = (invoiceId, saleItemId) => salesService.createExchange({
   invoiceId, lines: [{ saleItemId, qty: 1 }], replacements: [{ variantId: replacement, qty: 1 }],

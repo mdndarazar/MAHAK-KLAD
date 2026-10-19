@@ -2763,6 +2763,42 @@ model ReturnGoodsReceipt {
   @@index([returnItemId, id])
 }
 
+/// Immutable, append-only provenance journal for proven funding shares carried
+/// through replacement invoices. Scalar links intentionally have no FKs so
+/// deleting a business record cannot delete or alter financial history.
+/// Event kinds and signs are validated by the service; unknown origins are not
+/// backfilled or relabelled. The only zero-amount rows are snapshot state markers
+/// (SNAPSHOT_STALE / SNAPSHOT_RECONCILED), never monetary shares.
+model ExchangeFundingEvent {
+  id                    Int       @id @default(autoincrement())
+  eventKey              String    @unique
+  kind                  String
+  amount                BigInt
+  shareId               String
+  rootShareId           String
+  sourceInvoiceId       Int?
+  childInvoiceId        Int?
+  returnId              Int?
+  sourcePaymentId       Int?
+  sourceRedemptionId    Int?
+  sourceCreditId        Int?
+  parentEventId         Int?
+  debtId                Int?
+  sourceMethodKind      String?
+  sourceDestination      String?
+  evidenceKind          String    @default("SYSTEM")
+  evidenceRef           String?
+  actorUserId           Int?
+  reversesEventId       Int?      @unique
+  createdAt             DateTime  @default(now())
+
+  @@index([shareId, id])
+  @@index([sourceInvoiceId, id])
+  @@index([childInvoiceId, id])
+  @@index([returnId, id])
+  @@index([parentEventId])
+}
+
 /// سهم واقعیِ هر رسید فیزیکی از منابع فروش: STORE یا ردیف *مشخص* انبار
 /// مرکزی/شعبه. در همان تراکنش دریافت، پس از بازگشت موجودی ثبت می‌شود؛ اصلاح
 /// جبرانی فقط از این شاهد مقداربه‌مقدار کم می‌کند. شناسه‌ها scalar اند تا حذف

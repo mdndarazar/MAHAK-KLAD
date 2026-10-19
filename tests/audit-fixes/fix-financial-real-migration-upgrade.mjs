@@ -18,7 +18,7 @@ const names = readdirSync(join(root, 'prisma/migrations'))
   .filter((name) => name !== 'migration_lock.toml').sort()
 const historicNames = names.filter((name) => name < cutover)
 const newNames = names.filter((name) => name >= cutover)
-assert.equal(newNames.length, 8, 'update this test when the financial cutover gains another migration')
+assert.equal(newNames.length, 9, 'update this test when the financial cutover gains another migration')
 const dir = mkdtempSync(join(tmpdir(), 'mahak-real-migration-upgrade-'))
 process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'unused-harness.db')
@@ -137,9 +137,39 @@ assert.deepEqual(one('SELECT reminderConsentAt, reminderConsentPhone, reminderCo
   { reminderConsentAt: null, reminderConsentPhone: null, reminderConsentEvidence: null },
   'old holder phone and non-opt-out flag never backfill SMS permission')
 for (const table of ['ReturnEntitlement', 'ReturnEntitlementEvent', 'CreditDelivery', 'BankStatementEvidence',
-  'ReturnGoodsReceipt', 'ReturnGoodsReceiptSource', 'CreditReplacement', 'CreditReturnAllocation']) {
+  'ReturnGoodsReceipt', 'ReturnGoodsReceiptSource', 'CreditReplacement', 'CreditReturnAllocation',
+  'ExchangeFundingEvent']) {
   assert.equal(one(`SELECT COUNT(*) AS n FROM "${table}"`).n, 0, `${table}: no guessed legacy rights/evidence`)
 }
+const addFundingEvent = db.prepare(`INSERT INTO "ExchangeFundingEvent"
+  (eventKey, kind, amount, shareId, rootShareId, evidenceKind) VALUES (?, ?, ?, ?, ?, ?)`)
+addFundingEvent.run('migration-test:source', 'SOURCE_CASH', 100, 'payment:1', 'payment:1', 'PAYMENT_ROW')
+assert.throws(() => addFundingEvent.run('migration-test:source', 'SOURCE_CASH', 100,
+  'payment:2', 'payment:2', 'PAYMENT_ROW'), /UNIQUE constraint failed/,
+  'event keys enforce idempotency at the database boundary')
+db.prepare(`INSERT INTO "ExchangeFundingEvent"
+  (eventKey, kind, amount, shareId, rootShareId, sourceInvoiceId, evidenceKind)
+  VALUES (?, ?, ?, ?, ?, ?, ?)`)
+  .run('snapshot-migration-test:stale', 'SNAPSHOT_STALE', 0,
+    `snapshot:${firstInvoiceId}`, `snapshot:${firstInvoiceId}`, firstInvoiceId, 'ACTIVE_RETURN_REQUIRES_WITNESSED_CORRECTION')
+assert.throws(() => db.prepare(`INSERT INTO "ExchangeFundingEvent"
+  (eventKey, kind, amount, shareId, rootShareId, evidenceKind) VALUES (?, ?, ?, ?, ?, ?)`)
+  .run('migration-test:zero-source', 'SOURCE_CASH', 0, 'payment:zero', 'payment:zero', 'PAYMENT_ROW'),
+  /CHECK constraint failed/, 'zero is reserved for explicit snapshot-state markers, never a monetary share')
+assert.throws(() => db.prepare(`INSERT INTO "ExchangeFundingEvent"
+  (eventKey, kind, amount, shareId, rootShareId, sourceInvoiceId, evidenceKind) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+  .run('snapshot-migration-test:invalid', 'SNAPSHOT_STALE', 1,
+    `snapshot:${firstInvoiceId}`, `snapshot:${firstInvoiceId}`, firstInvoiceId, 'SYSTEM'),
+  /CHECK constraint failed/, 'snapshot-state markers cannot fabricate a Rial balance')
+db.prepare(`INSERT INTO "ExchangeFundingEvent"
+  (eventKey, kind, amount, shareId, rootShareId, evidenceKind, reversesEventId)
+  VALUES (?, ?, ?, ?, ?, ?, ?)`)
+  .run('migration-test:void', 'VOID_SOURCE', -100, 'payment:1', 'payment:1', 'SALE_INVOICE_VOID', 1)
+assert.throws(() => db.prepare(`INSERT INTO "ExchangeFundingEvent"
+  (eventKey, kind, amount, shareId, rootShareId, evidenceKind, reversesEventId)
+  VALUES (?, ?, ?, ?, ?, ?, ?)`)
+  .run('migration-test:duplicate-void', 'VOID_SOURCE', -100, 'payment:1', 'payment:1', 'SALE_INVOICE_VOID', 1),
+  /UNIQUE constraint failed/, 'one source event cannot be reversed twice')
 assert.equal(one('PRAGMA integrity_check').integrity_check, 'ok')
 assert.deepEqual(rows('PRAGMA foreign_key_check'), [])
 assert.equal(one('SELECT COUNT(*) AS n FROM "_prisma_migrations" WHERE finished_at IS NOT NULL').n, names.length)
