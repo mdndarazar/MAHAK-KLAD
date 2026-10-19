@@ -7,6 +7,7 @@ type LedgerClient = Prisma.TransactionClient | {
   saleInvoice: any
   payment: any
   storeCreditRedemption: any
+  storeCredit: any
   saleReturn: any
 }
 
@@ -159,7 +160,260 @@ async function fundingSnapshotRequiresCorrection(tx: LedgerClient, invoiceId: nu
   return state?.kind === 'SNAPSHOT_STALE'
 }
 
-const PROVEN_SOURCE_KINDS = new Set(['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE', 'SOURCE_GIFT', 'SOURCE_B', 'SOURCE_N'])
+// Only kinds emitted by the persisted-sale snapshot have a defined proof path.
+// Legacy/custom labels (including SOURCE_B/SOURCE_N) stay quarantined until a
+// dedicated source contract exists; a positive amount is never proof by itself.
+const PROVEN_SOURCE_KINDS = new Set(['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE', 'SOURCE_GIFT'])
+
+const sameNullableId = (left: unknown, right: unknown) =>
+  (left == null ? null : Number(left)) === (right == null ? null : Number(right))
+
+function dateMillis(value: unknown): number | null {
+  if (value == null) return null
+  const time = value instanceof Date ? value.getTime() : new Date(value as any).getTime()
+  return Number.isFinite(time) ? time : Number.NaN
+}
+
+async function eventHasReversal(tx: LedgerClient, eventId: number): Promise<boolean> {
+  return !!(await tx.exchangeFundingEvent.findUnique({ where: { reversesEventId: eventId }, select: { id: true } }))
+}
+
+async function latestSaleFundingRevision(tx: LedgerClient, invoiceId: number): Promise<number> {
+  const rows = await tx.exchangeFundingEvent.findMany({
+    where: { sourceInvoiceId: invoiceId }, select: { eventKey: true }
+  })
+  const pattern = new RegExp(`^sale:${invoiceId}:r(\\d+):`)
+  return rows.reduce((max: number, row: any) => {
+    const match = pattern.exec(String(row.eventKey))
+    return match ? Math.max(max, Number(match[1])) : max
+  }, 0)
+}
+
+async function hasPersistedSourcePayment(tx: LedgerClient, event: any): Promise<boolean> {
+  const invoiceId = Number(event?.sourceInvoiceId)
+  const paymentId = Number(event?.sourcePaymentId)
+  if (!Number.isSafeInteger(invoiceId) || invoiceId <= 0 || !Number.isSafeInteger(paymentId) || paymentId <= 0 ||
+      event.evidenceKind !== 'PAYMENT_ROW' || event.evidenceRef !== `Payment:${paymentId}` ||
+      toNumberRial(event.amount) <= 0)
+    return false
+
+  const revisionMatch = new RegExp(`^sale:${invoiceId}:r(\\d+):payment:${paymentId}:funded$`)
+    .exec(String(event.eventKey))
+  if (!revisionMatch) return false
+  const revision = Number(revisionMatch[1])
+  if (!Number.isSafeInteger(revision) || revision <= 0 ||
+      await latestSaleFundingRevision(tx, invoiceId) !== revision)
+    return false
+
+  const [invoice, payment] = await Promise.all([
+    tx.saleInvoice.findUnique({ where: { id: invoiceId }, select: { id: true, voidedAt: true, status: true } }),
+    tx.payment.findUnique({ where: { id: paymentId }, select: {
+      id: true, invoiceId: true, amount: true, kind: true, chequeStatus: true,
+      storeCreditId: true, destination: true, voidedAt: true, method: { select: { kind: true } }
+    } })
+  ])
+  if (!invoice || invoice.voidedAt != null || ['DRAFT', 'CANCELED'].includes(String(invoice.status)) ||
+      !payment || Number(payment.invoiceId) !== invoiceId || payment.voidedAt != null)
+    return false
+
+  const methodKind = String(payment.method?.kind ?? '').toUpperCase()
+  const entryKind = String(payment.kind ?? 'CASH').toUpperCase()
+  const paymentAmount = toNumberRial(payment.amount)
+  const sourceAmount = toNumberRial(event.amount)
+  const overpayKey = `sale:${invoiceId}:r${revision}:payment:${paymentId}:overpay`
+  const overpay = await tx.exchangeFundingEvent.findUnique({ where: { eventKey: overpayKey } })
+  let overpayAmount = 0
+  if (overpay) {
+    if (overpay.kind !== 'SOURCE_OVERPAY' || Number(overpay.sourceInvoiceId) !== invoiceId ||
+        Number(overpay.sourcePaymentId) !== paymentId || toNumberRial(overpay.amount) <= 0 ||
+        overpay.shareId !== `overpay:${paymentId}` || overpay.rootShareId !== `payment:${paymentId}` ||
+        overpay.evidenceKind !== 'PAYMENT_ROW_EXCESS' || overpay.evidenceRef !== `Payment:${paymentId}` ||
+        String(overpay.sourceMethodKind ?? '').toUpperCase() !== methodKind ||
+        (overpay.sourceDestination == null ? null : String(overpay.sourceDestination)) !==
+          (payment.destination == null ? null : String(payment.destination)) ||
+        await eventHasReversal(tx, Number(overpay.id)))
+      return false
+    overpayAmount = toNumberRial(overpay.amount)
+  }
+  // The immutable snapshot must account for the entire saved Payment row,
+  // including its separately quarantined excess, not just a still-positive bit.
+  if (BigInt(sourceAmount) + BigInt(overpayAmount) !== BigInt(paymentAmount) || paymentAmount <= 0 ||
+      String(event.sourceMethodKind ?? '').toUpperCase() !== methodKind ||
+      (event.sourceDestination == null ? null : String(event.sourceDestination)) !==
+        (payment.destination == null ? null : String(payment.destination)))
+    return false
+
+  if (event.kind === 'SOURCE_GIFT') {
+    const creditId = Number(event.sourceCreditId)
+    const redemptionId = Number(event.sourceRedemptionId)
+    if (!Number.isSafeInteger(creditId) || creditId <= 0 || !Number.isSafeInteger(redemptionId) || redemptionId <= 0 ||
+        payment.storeCreditId == null || Number(payment.storeCreditId) !== creditId || methodKind !== 'STORE_CREDIT' ||
+        entryKind !== 'CASH' || event.shareId !== `redemption:${redemptionId}` || event.rootShareId !== `credit:${creditId}`)
+      return false
+    const activeRedemptions = await tx.storeCreditRedemption.findMany({
+      where: { invoiceId, paymentId, reversedAt: null },
+      select: { id: true, creditId: true, amount: true, compensatedAt: true, expiryCaptured: true, expiryAtRedeem: true }
+    })
+    if (activeRedemptions.length !== 1) return false
+    const redemption = activeRedemptions[0]
+    if (Number(redemption.id) !== redemptionId || Number(redemption.creditId) !== creditId ||
+        toNumberRial(redemption.amount) !== paymentAmount || redemption.compensatedAt != null ||
+        redemption.expiryCaptured !== true)
+      return false
+    const credit = await tx.storeCredit.findUnique({ where: { id: creditId }, select: {
+      id: true, amount: true, usedAmount: true, status: true, expiresAt: true, voidedAt: true, deletedAt: true
+    } })
+    const capturedExpiry = dateMillis(redemption.expiryAtRedeem)
+    const currentExpiry = dateMillis(credit?.expiresAt)
+    if (!credit || credit.voidedAt != null || credit.deletedAt != null ||
+        !['USED', 'PARTIALLY_USED'].includes(String(credit.status)) ||
+        toNumberRial(credit.usedAmount) < paymentAmount || toNumberRial(credit.amount) < toNumberRial(credit.usedAmount) ||
+        capturedExpiry !== currentExpiry || (capturedExpiry != null && capturedExpiry <= Date.now()))
+      return false
+    return true
+  }
+
+  if (event.sourceCreditId != null || event.sourceRedemptionId != null || payment.storeCreditId != null ||
+      event.shareId !== `payment:${paymentId}` || event.rootShareId !== `payment:${paymentId}`)
+    return false
+  if (event.kind === 'SOURCE_CASH') return entryKind === 'CASH' && methodKind === 'CASH'
+  if (event.kind === 'SOURCE_CARD') return entryKind === 'CASH' && methodKind === 'CARD'
+  if (event.kind === 'SOURCE_CHEQUE') return entryKind === 'CHEQUE' && payment.chequeStatus === 'CLEARED'
+  return false
+}
+
+async function matchingTransferOutForIn(tx: LedgerClient, into: any): Promise<any | null> {
+  const eventKey = String(into?.eventKey ?? '')
+  const parentEventId = Number(into?.parentEventId)
+  const sourceInvoiceId = Number(into?.sourceInvoiceId)
+  const childInvoiceId = Number(into?.childInvoiceId)
+  const returnId = Number(into?.returnId)
+  if (into?.kind !== 'TRANSFER_IN' || !eventKey.endsWith(':in') ||
+      ![parentEventId, sourceInvoiceId, childInvoiceId, returnId].every((id) => Number.isSafeInteger(id) && id > 0) ||
+      toNumberRial(into.amount) <= 0)
+    return null
+
+  const parent = await tx.exchangeFundingEvent.findUnique({ where: { id: parentEventId } })
+  const out = await tx.exchangeFundingEvent.findUnique({
+    where: { eventKey: `${eventKey.slice(0, -3)}:out` }
+  })
+  if (!parent || !out || out.kind !== 'TRANSFER_OUT' || out.shareId !== parent.shareId ||
+      out.shareId === into.shareId || parent.rootShareId !== into.rootShareId ||
+      out.rootShareId !== into.rootShareId || !sameNullableId(out.parentEventId, into.parentEventId) ||
+      !sameNullableId(out.sourceInvoiceId, into.sourceInvoiceId) ||
+      !sameNullableId(out.childInvoiceId, into.childInvoiceId) || !sameNullableId(out.returnId, into.returnId) ||
+      toNumberRial(out.amount) !== -toNumberRial(into.amount) ||
+      out.evidenceKind !== 'EXCHANGE_TRANSFER' || into.evidenceKind !== 'EXCHANGE_TRANSFER' ||
+      out.evidenceKind !== into.evidenceKind || out.evidenceRef !== into.evidenceRef ||
+      !sameNullableId(out.actorUserId, into.actorUserId) || out.sourcePaymentId != null || into.sourcePaymentId != null ||
+      out.sourceRedemptionId != null || into.sourceRedemptionId != null || out.sourceCreditId != null ||
+      into.sourceCreditId != null || out.debtId != null || into.debtId != null ||
+      out.sourceMethodKind != null || into.sourceMethodKind != null ||
+      out.sourceDestination != null || into.sourceDestination != null ||
+      out.reversesEventId != null || into.reversesEventId != null)
+    return null
+  return out
+}
+
+async function activeExchangeLink(
+  tx: LedgerClient,
+  sourceInvoiceId: number,
+  childInvoiceId: number,
+  returnId: number
+): Promise<any | null> {
+  if (sourceInvoiceId === childInvoiceId) return null
+  const [source, child, ret] = await Promise.all([
+    tx.saleInvoice.findUnique({ where: { id: sourceInvoiceId }, select: { id: true, voidedAt: true, status: true } }),
+    tx.saleInvoice.findUnique({ where: { id: childInvoiceId }, select: {
+      id: true, grandTotal: true, voidedAt: true, status: true,
+      orderType: true, sourceInvoiceId: true, exchangeReturnId: true
+    } }),
+    tx.saleReturn.findUnique({ where: { id: returnId }, select: {
+      id: true, invoiceId: true, total: true, kind: true, voidedAt: true,
+      exchangeInvoiceId: true, exchangeTotal: true
+    } })
+  ])
+  const active = !!source && source.voidedAt == null && !['DRAFT', 'CANCELED'].includes(String(source.status)) &&
+    !!child && child.voidedAt == null && !['DRAFT', 'CANCELED'].includes(String(child.status)) &&
+    child.orderType === 'EXCHANGE' && Number(child.sourceInvoiceId) === sourceInvoiceId &&
+    Number(child.exchangeReturnId) === returnId &&
+    !!ret && ret.voidedAt == null && ret.kind === 'EXCHANGE' && Number(ret.invoiceId) === sourceInvoiceId &&
+    Number(ret.exchangeInvoiceId) === childInvoiceId && toNumberRial(ret.total) > 0 &&
+    ret.exchangeTotal != null && child.grandTotal != null &&
+    toNumberRial(ret.exchangeTotal) === toNumberRial(child.grandTotal)
+  return active ? ret : null
+}
+
+async function transferPairReversalState(tx: LedgerClient, out: any, into: any): Promise<'ACTIVE' | 'REVERSED' | null> {
+  const [outVoid, inVoid] = await Promise.all([
+    tx.exchangeFundingEvent.findUnique({ where: { reversesEventId: Number(out.id) } }),
+    tx.exchangeFundingEvent.findUnique({ where: { reversesEventId: Number(into.id) } })
+  ])
+  if (!outVoid && !inVoid) return 'ACTIVE'
+  if (!outVoid || !inVoid) return null
+
+  const outKey = String(out.eventKey ?? '')
+  const inKey = String(into.eventKey ?? '')
+  const outVoidKey = String(outVoid.eventKey ?? '')
+  const inVoidKey = String(inVoid.eventKey ?? '')
+  if (!outKey.endsWith(':out') || !inKey.endsWith(':in') ||
+      !outVoidKey.endsWith(':out:void') || !inVoidKey.endsWith(':in:void') ||
+      outVoidKey.slice(0, -9) !== inVoidKey.slice(0, -8) ||
+      outVoid.kind !== 'VOID_TRANSFER_OUT' || inVoid.kind !== 'VOID_TRANSFER_IN' ||
+      Number(outVoid.reversesEventId) !== Number(out.id) ||
+      Number(inVoid.reversesEventId) !== Number(into.id) ||
+      toNumberRial(outVoid.amount) !== -toNumberRial(out.amount) ||
+      toNumberRial(inVoid.amount) !== -toNumberRial(into.amount) ||
+      outVoid.shareId !== out.shareId || inVoid.shareId !== into.shareId ||
+      outVoid.rootShareId !== out.rootShareId || inVoid.rootShareId !== into.rootShareId ||
+      !sameNullableId(outVoid.sourceInvoiceId, out.sourceInvoiceId) ||
+      !sameNullableId(inVoid.sourceInvoiceId, into.sourceInvoiceId) ||
+      !sameNullableId(outVoid.childInvoiceId, out.childInvoiceId) ||
+      !sameNullableId(inVoid.childInvoiceId, into.childInvoiceId) ||
+      !sameNullableId(outVoid.returnId, out.returnId) || !sameNullableId(inVoid.returnId, into.returnId) ||
+      !sameNullableId(outVoid.parentEventId, out.parentEventId) ||
+      !sameNullableId(inVoid.parentEventId, into.parentEventId) ||
+      outVoid.evidenceKind !== 'SALE_INVOICE_VOID' || inVoid.evidenceKind !== 'SALE_INVOICE_VOID' ||
+      outVoid.evidenceRef !== inVoid.evidenceRef || !sameNullableId(outVoid.actorUserId, inVoid.actorUserId))
+    return null
+  return 'REVERSED'
+}
+
+async function activeTransferValueForReturn(
+  tx: LedgerClient,
+  sourceInvoiceId: number,
+  childInvoiceId: number,
+  returnId: number
+): Promise<number | null> {
+  const events = await tx.exchangeFundingEvent.findMany({
+    where: { returnId, kind: { in: ['TRANSFER_OUT', 'TRANSFER_IN'] } }
+  })
+  const outs = events.filter((event: any) => event.kind === 'TRANSFER_OUT')
+  const ins = events.filter((event: any) => event.kind === 'TRANSFER_IN')
+  if (outs.length !== ins.length || events.some((event: any) =>
+    Number(event.sourceInvoiceId) !== sourceInvoiceId || Number(event.childInvoiceId) !== childInvoiceId))
+    return null
+  const matchedOutIds = new Set<number>()
+  let total = 0n
+  for (const into of ins) {
+    const out = await matchingTransferOutForIn(tx, into)
+    if (!out || !outs.some((candidate: any) => Number(candidate.id) === Number(out.id)) ||
+        matchedOutIds.has(Number(out.id)))
+      return null
+    matchedOutIds.add(Number(out.id))
+    const state = await transferPairReversalState(tx, out, into)
+    if (state == null) return null
+    if (state === 'ACTIVE') total += BigInt(toNumberRial(into.amount))
+  }
+  if (matchedOutIds.size !== outs.length || total > BigInt(Number.MAX_SAFE_INTEGER)) return null
+  return Number(total)
+}
+
+async function hasActiveTransferPair(tx: LedgerClient, into: any): Promise<boolean> {
+  const out = await matchingTransferOutForIn(tx, into)
+  if (!out || await eventHasReversal(tx, Number(out.id)) || await eventHasReversal(tx, Number(into.id))) return false
+  return !!(await activeExchangeLink(tx, Number(into.sourceInvoiceId), Number(into.childInvoiceId), Number(into.returnId)))
+}
 
 async function hasProvableTransferLineage(tx: LedgerClient, event: any): Promise<boolean> {
   let current = event
@@ -168,8 +422,12 @@ async function hasProvableTransferLineage(tx: LedgerClient, event: any): Promise
     const id = Number(current?.id)
     if (!Number.isSafeInteger(id) || id <= 0 || seen.has(id)) return false
     seen.add(id)
-    if (PROVEN_SOURCE_KINDS.has(String(current.kind))) return toNumberRial(current.amount) > 0
-    if (current.kind !== 'TRANSFER_IN' || current.parentEventId == null) return false
+    if (PROVEN_SOURCE_KINDS.has(String(current.kind))) {
+      return toNumberRial(current.amount) > 0 && !await eventHasReversal(tx, id) &&
+        await hasPersistedSourcePayment(tx, current)
+    }
+    if (current.kind !== 'TRANSFER_IN' || current.parentEventId == null || !await hasActiveTransferPair(tx, current))
+      return false
     current = await tx.exchangeFundingEvent.findUnique({ where: { id: Number(current.parentEventId) } })
     if (!current) return false
   }
@@ -196,6 +454,29 @@ export async function recordSaleFundingSnapshot(tx: LedgerClient, invoiceId: num
   })
   if (priorTransfer)
     throw new BusinessError('پس از انتقال منشأ به سند تعویض، snapshot مبدأ بازنویسی نمی‌شود؛ اصلاح شاهددار لازم است.')
+
+  const snapshotHistory = await tx.exchangeFundingEvent.findMany({ where: { sourceInvoiceId: invoiceId } })
+  const revisionPattern = new RegExp(`^sale:${invoiceId}:r(\\d+):`)
+  const revisionRows = snapshotHistory.filter((row: any) => revisionPattern.test(String(row.eventKey)))
+  const maximumRevision = revisionRows.reduce((max: number, row: any) => {
+    const match = revisionPattern.exec(String(row.eventKey))
+    return match ? Math.max(max, Number(match[1])) : max
+  }, 0)
+  const targetPrefix = `sale:${invoiceId}:r${revision}:`
+  const targetRows = revisionRows.filter((row: any) => String(row.eventKey).startsWith(targetPrefix))
+  if (targetRows.length) {
+    if (maximumRevision !== revision) throw mismatch()
+  } else {
+    if (maximumRevision !== revision - 1)
+      throw new BusinessError('نسخهٔ snapshot باید پیاپی و پس از نسخهٔ قبلی ثبت شود؛ هیچ منشأ تازه‌ای افزوده نشد.')
+    for (const row of revisionRows) {
+      const match = revisionPattern.exec(String(row.eventKey))
+      if (!match || Number(match[1]) >= revision || String(row.kind).startsWith('VOID_')) continue
+      if (!await eventHasReversal(tx, Number(row.id)))
+        throw new BusinessError('نسخهٔ قبلی snapshot هنوز به‌طور کامل ابطال نشده است؛ از مسیر اصلاح snapshot استفاده شود.')
+    }
+  }
+
   const [payments, redemptions] = await Promise.all([
     tx.payment.findMany({ where: { invoiceId, voidedAt: null }, orderBy: [{ seq: 'asc' }, { id: 'asc' }],
       include: { method: { select: { kind: true } } } }),
@@ -406,6 +687,8 @@ export async function transferExchangeFundingShare(tx: LedgerClient, input: Tran
       typeof input.eventKey !== 'string' || input.eventKey.length > 230) throw invalid()
   if (await fundingSnapshotRequiresCorrection(tx, input.sourceInvoiceId))
     throw new BusinessError('snapshot منشأ پرداخت پس از تغییر در فاکتورِ دارای برگشت منسوخ است؛ انتقال تا اصلاح جبرانیِ شاهددار متوقف شد.')
+  const exchangeLink = await activeExchangeLink(tx, input.sourceInvoiceId, input.childInvoiceId, input.returnId)
+  if (!exchangeLink) throw insufficient()
   const origin = await tx.exchangeFundingEvent.findUnique({ where: { id: input.sourceEventId } })
   const originInvoiceMatches = origin && (PROVEN_SOURCE_KINDS.has(String(origin.kind))
     ? Number(origin.sourceInvoiceId) === input.sourceInvoiceId
@@ -422,7 +705,15 @@ export async function transferExchangeFundingShare(tx: LedgerClient, input: Tran
     tx.exchangeFundingEvent.findUnique({ where: { eventKey: `${input.eventKey}:in` } })
   ])
   if (!!priorOut !== !!priorIn) throw mismatch()
-  if (!priorOut && await exchangeFundingBalance(tx, input.sourceShareId) < input.amount) throw insufficient()
+  if (!priorOut) {
+    const alreadyTransferred = await activeTransferValueForReturn(
+      tx, input.sourceInvoiceId, input.childInvoiceId, input.returnId
+    )
+    if (alreadyTransferred == null ||
+        BigInt(alreadyTransferred) + BigInt(input.amount) > BigInt(toNumberRial(exchangeLink.total)) ||
+        await exchangeFundingBalance(tx, input.sourceShareId) < input.amount)
+      throw insufficient()
+  }
   const out = await appendExchangeFundingEvent(tx, {
     ...common, eventKey: `${input.eventKey}:out`, kind: 'TRANSFER_OUT', amount: -input.amount,
     shareId: input.sourceShareId, rootShareId: input.rootShareId
@@ -453,11 +744,19 @@ export async function reverseExchangeFundingTransferPair(tx: LedgerClient, input
   if (!outSource || !inSource || outSource.kind !== 'TRANSFER_OUT' || inSource.kind !== 'TRANSFER_IN' ||
       toNumberRial(outSource.amount) >= 0 || toNumberRial(inSource.amount) !== -toNumberRial(outSource.amount) ||
       outSource.shareId === inSource.shareId || outSource.rootShareId !== inSource.rootShareId ||
-      outSource.returnId !== inSource.returnId ||
-      outSource.childInvoiceId !== inSource.childInvoiceId || outSource.parentEventId !== inSource.parentEventId)
+      outSource.returnId !== inSource.returnId || outSource.childInvoiceId !== inSource.childInvoiceId ||
+      outSource.sourceInvoiceId !== inSource.sourceInvoiceId || outSource.parentEventId !== inSource.parentEventId ||
+      Number((await matchingTransferOutForIn(tx, inSource))?.id) !== Number(outSource.id))
     throw invalid()
   const eventKeyOut = `${input.eventKey}:out:void`
   const eventKeyIn = `${input.eventKey}:in:void`
+  const [sourceOutReversal, sourceInReversal] = await Promise.all([
+    tx.exchangeFundingEvent.findUnique({ where: { reversesEventId: Number(outSource.id) } }),
+    tx.exchangeFundingEvent.findUnique({ where: { reversesEventId: Number(inSource.id) } })
+  ])
+  if (!!sourceOutReversal !== !!sourceInReversal) throw mismatch()
+  if (sourceOutReversal && (sourceOutReversal.eventKey !== eventKeyOut || sourceInReversal.eventKey !== eventKeyIn))
+    throw mismatch()
   const [priorOutVoid, priorInVoid] = await Promise.all([
     tx.exchangeFundingEvent.findUnique({ where: { eventKey: eventKeyOut } }),
     tx.exchangeFundingEvent.findUnique({ where: { eventKey: eventKeyIn } })

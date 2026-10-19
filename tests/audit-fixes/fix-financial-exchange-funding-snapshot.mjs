@@ -132,21 +132,27 @@ const carriedPayment = pay(carried, cashMethod, 500, { destination: 'CASH' })
 await db.$transaction((tx) => recordSaleFundingSnapshot(tx, carried))
 const carriedSourceEvent = seed.one('SELECT id FROM "ExchangeFundingEvent" WHERE sourcePaymentId=? AND kind=?', carriedPayment, 'SOURCE_CASH')
 const carriedChild = invoice(1008, 200)
+const carriedReturnId = seed.insert('SaleReturn', {
+  invoiceId: carried, total: 200, returnedAtJalali: '1405/07/27', kind: 'EXCHANGE',
+  exchangeInvoiceId: carriedChild, exchangeTotal: 200
+})
+sql.prepare(`UPDATE "SaleInvoice" SET orderType='EXCHANGE', sourceInvoiceId=?, exchangeReturnId=? WHERE id=?`)
+  .run(carried, carriedReturnId, carriedChild)
 await db.$transaction((tx) => transferExchangeFundingShare(tx, {
-  eventKey: 'exchange:1007:return:1009:payment', sourceEventId: carriedSourceEvent.id,
-  sourceShareId: `payment:${carriedPayment}`, destinationShareId: 'exchange-carry:1009:payment',
+  eventKey: `exchange:${carried}:return:${carriedReturnId}:payment`, sourceEventId: carriedSourceEvent.id,
+  sourceShareId: `payment:${carriedPayment}`, destinationShareId: `exchange-carry:${carriedReturnId}:payment`,
   rootShareId: `payment:${carriedPayment}`, amount: 200, sourceInvoiceId: carried,
-  childInvoiceId: carriedChild, returnId: 1009
+  childInvoiceId: carriedChild, returnId: carriedReturnId
 }))
 sqlUpdatePaymentAmount(db, carriedPayment, 400)
 const carriedEventsBeforeEditAttempt = seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent" WHERE sourceInvoiceId=?', carried).n
 await assert.rejects(() => db.$transaction((tx) => reviseSaleFundingSnapshot(tx, carried, 2)),
-  /قبلاً به سند تعویض منتقل شده/,
-'once any share is carried downstream, ordinary payment revision fails closed')
+  /دارای برگشت ثبت‌شده|قبلاً به سند تعویض منتقل شده/,
+'once a returned share is carried downstream, ordinary payment revision fails closed')
 assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent" WHERE sourceInvoiceId=?', carried).n,
   carriedEventsBeforeEditAttempt, 'blocked revision leaves source and child balances untouched')
 assert.equal(await exchangeFundingBalance(db, `payment:${carriedPayment}`), 300)
-assert.equal(await exchangeFundingBalance(db, 'exchange-carry:1009:payment'), 200)
+assert.equal(await exchangeFundingBalance(db, `exchange-carry:${carriedReturnId}:payment`), 200)
 
 const pendingCheque = invoice(1003, 500)
 const pendingChequePayment = pay(pendingCheque, customMethod, 500, { kind: 'CHEQUE', chequeStatus: 'PENDING' })
