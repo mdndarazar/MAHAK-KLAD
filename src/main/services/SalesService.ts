@@ -3551,10 +3551,46 @@ async function runReturn(
      */
     let refund: { method: string; amount: number; note: string } | null = null
     let creditReturnPlan: CreditReturnPlan | null = null
-    if (!opts.applyRefund && await tx.payment.count({
-      where: { invoiceId: invoice.id, voidedAt: null, storeCreditId: { not: null } }
-    }))
-      throw new BusinessError('تعویضِ خریدی که با اعتبار پرداخت شده فعلاً به تطبیق منشأ توسط مدیر نیاز دارد؛ سهم اعتبار به وجه نقد یا ارزش تعویض تبدیل نمی‌شود.')
+    if (!opts.applyRefund) {
+      // The exchange gate is deliberately fail-closed until the full source and
+      // child-lineage transfer path is wired. Do not key it only on
+      // Payment.storeCreditId: legacy/malformed rows can identify credit via
+      // method kind/key, or an active redemption with no linked Payment. Only
+      // cash/card rows and cleared cheques are known ordinary funding here;
+      // custom/credit tenders and uncleared cheques stay unresolved.
+      const [livePayments, activeRedemptions] = await Promise.all([
+        tx.payment.findMany({
+          where: { invoiceId: invoice.id, voidedAt: null },
+          select: {
+            storeCreditId: true,
+            amount: true,
+            kind: true,
+            chequeStatus: true,
+            method: { select: { kind: true, key: true } }
+          }
+        }),
+        tx.storeCreditRedemption.count({ where: { invoiceId: invoice.id, reversedAt: null } })
+      ])
+      const hasUnresolvedFundingEvidence = activeRedemptions > 0 || livePayments.some((payment) => {
+        const methodKind = String(payment.method?.kind ?? '').toUpperCase()
+        const methodKey = String(payment.method?.key ?? '').toUpperCase()
+        const paymentKind = String(payment.kind ?? PaymentEntryKind.CASH).toUpperCase()
+        const hasCreditSignal = payment.storeCreditId != null ||
+          methodKind === PaymentKind.STORE_CREDIT || methodKind === PaymentKind.EXCHANGE_CREDIT ||
+          methodKey === PaymentKind.STORE_CREDIT || methodKey === PaymentKind.EXCHANGE_CREDIT
+        if (hasCreditSignal || toNumberRial(payment.amount) <= 0) return true
+        if (paymentKind === PaymentEntryKind.CHEQUE)
+          return String(payment.chequeStatus ?? '').toUpperCase() !== ChequeStatus.CLEARED
+        if (paymentKind !== PaymentEntryKind.CASH) return true
+        return methodKind !== PaymentKind.CASH && methodKind !== PaymentKind.CARD
+      })
+      if (hasUnresolvedFundingEvidence)
+        throw new BusinessError(
+          'تعویضِ این فاکتور به‌دلیل وجود پرداخت اعتباری/ارزش برگشتی، منشأ پرداخت نامعلوم، چکِ پاس‌نشده یا ردپای ردمپشن فعال، ' +
+          'تا تطبیق کامل منشأ و زنجیرهٔ حق متوقف است؛ ' +
+          'هیچ سهمی به وجه نقد یا اعتبار تازه تبدیل نشد.'
+        )
+    }
     if (opts.applyRefund) {
       creditReturnPlan = await planCreditReturn(tx, {
         invoiceId: invoice.id, grandTotal: toNumberRial(invoice.grandTotal),
