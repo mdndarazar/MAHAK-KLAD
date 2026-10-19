@@ -1,7 +1,14 @@
 import { createHash } from 'node:crypto'
 import { prisma } from '../db/client'
 import { createCardTransferRequest } from './CardTransferService'
-import { recordSaleFundingSnapshot, reviseLatestSaleFundingSnapshot } from './ExchangeFundingLedgerService'
+import {
+  getCurrentSaleFundingSources,
+  recordSaleFundingSnapshot,
+  reviseLatestSaleFundingSnapshot,
+  reverseExchangeFundingTransfersForReturn,
+  transferExchangeFundingShare
+} from './ExchangeFundingLedgerService'
+import { allocateExchangeFundingProRata } from '@shared/exchangeFundingAllocation'
 import {
   openCardTransferEntitlement,
   correctPendingEntitlement,
@@ -6724,6 +6731,38 @@ export const salesService = {
       const exchangeTotal = exTotals.grandTotal
       const diff = exchangeTotal - returnTotal
 
+      /**
+       * Exact-value exchanges with a current, fully proven, homogeneous real-
+       * money snapshot can move their shares without creating a refund right or
+       * new tender. Other cases remain on their existing path and receive no
+       * ledger transfer here; in particular this does NOT open the credit-funded
+       * exchange gate or reconstruct missing historical provenance.
+       */
+      let fundingSourcesForTransfer: Array<{ event: any; available: number }> | null = null
+      if (diff === 0 && returnTotal > 0) {
+        let funding: Awaited<ReturnType<typeof getCurrentSaleFundingSources>> | null = null
+        try {
+          funding = await getCurrentSaleFundingSources(tx, source.id)
+        } catch (error) {
+          // The ledger is additive to the legacy exchange path. If no trustworthy
+          // ordinary-sale snapshot can be read, do not fabricate one here.
+          if (!(error instanceof BusinessError)) throw error
+        }
+        if (funding?.snapshotExists && !funding.stale &&
+            !funding.activeReturnIds.some((id) => id !== back.id) &&
+            funding.debt === 0 && funding.unresolved.length === 0 && funding.sources.length > 0 &&
+            funding.sources.every((sourceShare) => sourceShare.available > 0)) {
+          const realKinds = new Set(['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
+          const sourceClasses = new Set(funding.sources.map(({ event }) =>
+            `${String(event.kind)}:${String(event.sourceMethodKind ?? '')}:${String(event.sourceDestination ?? '')}`
+          ))
+          const available = funding.sources.reduce((sum, row) => sum + row.available, 0)
+          if (funding.sources.every(({ event }) => realKinds.has(String(event.kind))) && sourceClasses.size === 1 &&
+              Number.isSafeInteger(available) && available >= returnTotal)
+            fundingSourcesForTransfer = funding.sources
+        }
+      }
+
       // ---------- ۴) سند تعویض (SaleInvoice با orderType = EXCHANGE) ----------
       const defaults = await saleDefaultsWith(tx)
       const generated = await generateReturnCode(tx, {
@@ -7131,6 +7170,36 @@ export const salesService = {
               : { refundMethod: RefundMethod.NONE, refundAmount: 0 })
         }
       })
+
+      // The return/child link now exists, so the append-only ledger can verify
+      // it before moving the exact-value, homogeneous real-money shares. Any
+      // later failure in createExchange rolls these two-sided writes back too.
+      if (fundingSourcesForTransfer) {
+        const allocations = allocateExchangeFundingProRata(returnTotal, fundingSourcesForTransfer.map(({ event, available }) => ({
+          id: Number(event.id), available
+        })))
+        const sourceByEventId = new Map(fundingSourcesForTransfer.map((row) => [Number(row.event.id), row]))
+        if (allocations.reduce((sum, allocation) => sum + allocation.amount, 0) !== returnTotal)
+          throw new BusinessError('تخصیص منشأ مالی تعویض دقیقاً با ارزش برگشتی برابر نشد؛ تراکنش لغو شد.')
+        for (const allocation of allocations) {
+          if (allocation.amount === 0) continue
+          const sourceShare = sourceByEventId.get(allocation.id)
+          if (!sourceShare) throw new BusinessError('سهم منشأ مالی برای انتقال پیدا نشد؛ تراکنش لغو شد.')
+          await transferExchangeFundingShare(tx, {
+            eventKey: `exchange:${source.id}:return:${back.id}:source:${allocation.id}`,
+            sourceEventId: allocation.id,
+            sourceShareId: String(sourceShare.event.shareId),
+            destinationShareId: `exchange:${exchangeInvoice.id}:return:${back.id}:source:${allocation.id}`,
+            rootShareId: String(sourceShare.event.rootShareId),
+            amount: allocation.amount,
+            sourceInvoiceId: source.id,
+            childInvoiceId: exchangeInvoice.id,
+            returnId: back.id,
+            actorUserId: input.userId ?? null,
+            evidenceRef: `SaleReturn:${back.id}:SaleInvoice:${exchangeInvoice.id}`
+          })
+        }
+      }
 
       /**
        * نشست ۶۰ (بند ۴-۵) — کاهش بدهی روی فاکتور اصلی همان لحظه اعمال می‌شود:
@@ -9031,6 +9100,17 @@ export const salesService = {
           })
         }
 
+        // Exchange funding shares are append-only: restore the source and
+        // clear the replacement's carry before the return/child link is voided.
+        // A partial pair, spent child share, or downstream use aborts this whole
+        // correction transaction rather than reopening only one ledger side.
+        if (isExchange) {
+          await reverseExchangeFundingTransfersForReturn(tx, {
+            returnId: ret.id,
+            actorUserId: input.userId ?? null
+          })
+        }
+
         // ---- ۴) مهر ابطال روی خود سند (سند و اقلامش می‌مانند) ----
         await tx.saleReturn.update({
           where: { id: ret.id },
@@ -9368,6 +9448,12 @@ export const salesService = {
             `روی سند جایگزین تعویض ${faDigits(exchangeInvoice!.receiptNo)}، ${faDigits(activeReturnsOnReplacement)} برگشت فعال ثبت شده است؛ ` +
               'ابتدا سرنوشت آن برگشت‌ها را روشن کنید. اصلاح جبرانی این گراف اکنون موجودی را حدس نمی‌زند.'
           )
+        const exchangeFundingTransfer = await tx.exchangeFundingEvent.findFirst({
+          where: { returnId: ret.id, kind: { in: ['TRANSFER_OUT', 'TRANSFER_IN'] } },
+          select: { id: true }
+        })
+        if (exchangeFundingTransfer)
+          throw new BusinessError('این تعویض دفتر انتقال منشأ مالی دارد؛ اصلاح جبرانیِ برگشت هنوز آن انتقال را مقداربه‌مقدار معکوس نمی‌کند. از مسیر ابطال امنِ تعویض استفاده کنید.')
       }
       const existing = await (tx as any).returnCorrection.findUnique({ where: { returnId: ret.id }, select: { id: true } })
       if (existing)

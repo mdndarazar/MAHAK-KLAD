@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
-import { allocateExchangeFundingGiftFirst } from '../../src/shared/exchangeFundingAllocation.ts'
+import {
+  allocateExchangeFundingGiftFirst,
+  allocateExchangeFundingProRata
+} from '../../src/shared/exchangeFundingAllocation.ts'
 
 const ownerExample = allocateExchangeFundingGiftFirst({
   giftAvailable: 2_000_000,
@@ -59,4 +62,26 @@ for (const invalid of [
   assert.throws(() => allocateExchangeFundingGiftFirst(invalid), RangeError)
 }
 
-console.log('✓ gift-first exchange allocation: source separation, exact reconciliation, shortfall quarantine, invalid rial rejection')
+const proRata = allocateExchangeFundingProRata(300, [
+  { id: 20, available: 300 },
+  { id: 10, available: 100 }
+])
+assert.deepEqual(proRata, [
+  { id: 20, amount: 225 },
+  { id: 10, amount: 75 }
+], 'each proven share is partitioned proportionally with exact integer-rial totals')
+assert.equal(proRata.reduce((sum, row) => sum + row.amount, 0), 300)
+const tiedRemainder = allocateExchangeFundingProRata(1, [
+  { id: 20, available: 1 },
+  { id: 10, available: 1 }
+])
+assert.deepEqual(tiedRemainder, [
+  { id: 20, amount: 0 },
+  { id: 10, amount: 1 }
+], 'equal fractional remainders are broken by stable event ID, not row order')
+assert.throws(() => allocateExchangeFundingProRata(2, [{ id: 1, available: 1 }]), RangeError)
+assert.throws(() => allocateExchangeFundingProRata(1, [
+  { id: 1, available: 1 }, { id: 1, available: 1 }
+]), RangeError)
+
+console.log('✓ exchange funding allocation: gift-first source separation, exact pro-rata rial reconciliation, deterministic rounding, shortfall quarantine, invalid rial rejection')

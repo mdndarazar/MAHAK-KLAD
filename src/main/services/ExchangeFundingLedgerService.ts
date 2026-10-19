@@ -434,6 +434,105 @@ async function hasProvableTransferLineage(tx: LedgerClient, event: any): Promise
   return false
 }
 
+/** Read only the latest persisted-sale snapshot and verify every transferable
+ * source against its live Payment/redemption row. This deliberately does not
+ * reconstruct provenance for legacy invoices or treat an EXCHANGE_CREDIT
+ * payment as a source. Callers must separately decide how debt/unknown shares
+ * affect the specific return.
+ */
+export async function getCurrentSaleFundingSources(tx: LedgerClient, invoiceId: number) {
+  if (!Number.isSafeInteger(invoiceId) || invoiceId <= 0) throw invalid()
+  const invoice = await tx.saleInvoice.findUnique({
+    where: { id: invoiceId }, select: { id: true, orderType: true, voidedAt: true, status: true, grandTotal: true }
+  })
+  if (!invoice) throw new BusinessError('فاکتور برای خواندن منشأ مالی پیدا نشد؛ هیچ سهمی حدس زده نشد.')
+  if (invoice.orderType === 'EXCHANGE')
+    throw new BusinessError('فاکتور تعویض برای خواندن منشأ، به دفتر تخصیص مستقل کالای برگشتی نیاز دارد.')
+  if (invoice.voidedAt != null || ['DRAFT', 'CANCELED'].includes(String(invoice.status)))
+    throw new BusinessError('فاکتور لغوشده یا نهایی‌نشده منبع تعویض نیست.')
+
+  const [revision, stale, returnRows] = await Promise.all([
+    latestSaleFundingRevision(tx, invoiceId),
+    fundingSnapshotRequiresCorrection(tx, invoiceId),
+    tx.saleReturn.findMany({ where: { invoiceId, voidedAt: null }, select: { id: true } })
+  ])
+  const base = {
+    invoiceId,
+    revision,
+    snapshotExists: revision > 0,
+    stale,
+    activeReturnIds: (returnRows as any[]).map((row) => Number(row.id)),
+    sources: [] as Array<{ event: any; available: number }>,
+    unresolved: [] as Array<{ eventId: number; kind: string; amount: number }>,
+    debt: 0,
+    overpay: 0
+  }
+  if (revision === 0 || stale) return base
+
+  const prefix = `sale:${invoiceId}:r${revision}:`
+  const rows = await tx.exchangeFundingEvent.findMany({
+    where: { sourceInvoiceId: invoiceId, eventKey: { startsWith: prefix } },
+    orderBy: { id: 'asc' }
+  })
+  if (!rows.length)
+    throw new BusinessError('نسخهٔ منشأ مالی خالی است؛ انتقال بر پایهٔ snapshot ناقص انجام نشد.')
+
+  let allocatedInvoiceValue = 0
+  let snapshotDebt = 0
+  for (const event of rows as any[]) {
+    const kind = String(event.kind ?? '')
+    const amount = toNumberRial(event.amount)
+    const eventId = Number(event.id)
+    if (kind.startsWith('VOID_') || amount === 0) continue
+    if (!Number.isSafeInteger(eventId) || eventId <= 0 || !Number.isSafeInteger(amount) || amount < 0) throw invalid()
+    if (await eventHasReversal(tx, eventId)) {
+      base.unresolved.push({ eventId, kind: 'REVERSED_CURRENT_SNAPSHOT_EVENT', amount })
+      continue
+    }
+    if (['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE', 'SOURCE_GIFT', 'SOURCE_UNKNOWN'].includes(kind)) {
+      allocatedInvoiceValue += amount
+      if (PROVEN_SOURCE_KINDS.has(kind)) {
+        if (!await hasProvableTransferLineage(tx, event)) {
+          base.unresolved.push({ eventId, kind: 'UNPROVEN_SOURCE', amount })
+          continue
+        }
+        const available = await exchangeFundingBalance(tx, String(event.shareId))
+        if (!Number.isSafeInteger(available) || available < 0) {
+          base.unresolved.push({ eventId, kind: 'INVALID_SOURCE_BALANCE', amount })
+          continue
+        }
+        base.sources.push({ event, available })
+      } else {
+        // Unknown money is represented in invoice value but never transferable.
+        base.unresolved.push({ eventId, kind, amount })
+      }
+    } else if (kind === 'SOURCE_OVERPAY') {
+      base.overpay += amount
+    } else if (kind === 'DEBT_OPEN') {
+      snapshotDebt += amount
+    } else {
+      // Unknown and not-yet-cleared instruments stay explicit blockers. In
+      // particular, an uncleared cheque is never promoted to source money.
+      base.unresolved.push({ eventId, kind, amount })
+    }
+  }
+  base.debt = await exchangeFundingBalance(tx, `debt:${invoiceId}`)
+  if (!Number.isSafeInteger(base.debt) || base.debt < 0) {
+    base.unresolved.push({ eventId: 0, kind: 'INVALID_DEBT_BALANCE', amount: Math.abs(base.debt) })
+    base.debt = 0
+  }
+  if (!Number.isSafeInteger(snapshotDebt) || snapshotDebt !== base.debt)
+    base.unresolved.push({ eventId: 0, kind: 'DEBT_SNAPSHOT_MISMATCH', amount: snapshotDebt - base.debt })
+  const invoiceTotal = toNumberRial(invoice.grandTotal)
+  if (!Number.isSafeInteger(invoiceTotal) || invoiceTotal < 0 ||
+      !Number.isSafeInteger(allocatedInvoiceValue + base.debt) || allocatedInvoiceValue + base.debt !== invoiceTotal)
+    base.unresolved.push({ eventId: 0, kind: 'SNAPSHOT_RECONCILIATION_MISMATCH',
+      amount: allocatedInvoiceValue + base.debt - invoiceTotal })
+  if (!Number.isSafeInteger(base.overpay))
+    base.unresolved.push({ eventId: 0, kind: 'INVALID_OVERPAY_BALANCE', amount: base.overpay })
+  return base
+}
+
 /** Capture persisted tender/redemption rows for an ordinary sale. This does not
  * read renderer provenance and deliberately quarantines malformed credit joins
  * and unsupported tenders as SOURCE_UNKNOWN. EXCHANGE invoices need their own
@@ -782,4 +881,48 @@ export async function reverseExchangeFundingTransferPair(tx: LedgerClient, input
   })
   return { outEvent: reversalOut.event, inEvent: reversalIn.event,
     replayed: reversalOut.replayed && reversalIn.replayed }
+}
+
+/** Reverse every validated transfer pair recorded for one exchange return. A
+ * partial/mismatched pair fails the caller's transaction rather than restoring
+ * only one side of the provenance ledger.
+ */
+export async function reverseExchangeFundingTransfersForReturn(tx: LedgerClient, input: {
+  returnId: number
+  actorUserId?: number | null
+}) {
+  if (!input || !Number.isSafeInteger(input.returnId) || input.returnId <= 0 ||
+      (input.actorUserId != null && (!Number.isSafeInteger(input.actorUserId) || input.actorUserId <= 0)))
+    throw invalid()
+  const events = await tx.exchangeFundingEvent.findMany({
+    where: { returnId: input.returnId, kind: { in: ['TRANSFER_OUT', 'TRANSFER_IN'] } },
+    orderBy: { id: 'asc' }
+  })
+  const outs = (events as any[]).filter((event) => event.kind === 'TRANSFER_OUT')
+  const ins = (events as any[]).filter((event) => event.kind === 'TRANSFER_IN')
+  if (outs.length !== ins.length) throw invalid()
+
+  const matchedOutIds = new Set<number>()
+  let reversed = 0
+  for (const into of ins) {
+    const out = await matchingTransferOutForIn(tx, into)
+    if (!out || !outs.some((candidate) => Number(candidate.id) === Number(out.id)) ||
+        matchedOutIds.has(Number(out.id)) || Number(out.returnId) !== input.returnId ||
+        Number(into.returnId) !== input.returnId)
+      throw invalid()
+    matchedOutIds.add(Number(out.id))
+    const state = await transferPairReversalState(tx, out, into)
+    if (state == null) throw invalid()
+    if (state === 'REVERSED') continue
+    await reverseExchangeFundingTransferPair(tx, {
+      eventKey: `void:exchange:return:${input.returnId}:transfer:${Number(out.id)}`,
+      outEventId: Number(out.id),
+      inEventId: Number(into.id),
+      actorUserId: input.actorUserId ?? null,
+      evidenceRef: `SaleReturn:${input.returnId}:SaleInvoice:${Number(into.childInvoiceId)}`
+    })
+    reversed += 1
+  }
+  if (matchedOutIds.size !== outs.length) throw invalid()
+  return { reversed, pairs: ins.length }
 }

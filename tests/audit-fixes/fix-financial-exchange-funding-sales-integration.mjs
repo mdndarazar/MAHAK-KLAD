@@ -16,7 +16,11 @@ process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
-const { transferExchangeFundingShare } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
+const {
+  getCurrentSaleFundingSources,
+  reverseExchangeFundingTransfersForReturn,
+  transferExchangeFundingShare
+} = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
 const { DEFAULT_MANAGER_PASSWORD } = await import('@shared/receipt')
 const { RefundMethod } = await import('@shared/enums')
 const { toJalaliDate } = await import('@shared/jalali')
@@ -64,6 +68,10 @@ assert.deepEqual(rowsFor(sale.id).filter((row) => !String(row.kind).startsWith('
 ])
 assert.equal(balance(`payment:${firstPayment.id}`), 300)
 assert.equal(balance(`debt:${sale.id}`), 700)
+const firstSourceView = await getCurrentSaleFundingSources(db, sale.id)
+assert.equal(firstSourceView.sources[0].available, 300)
+assert.equal(firstSourceView.debt, 700)
+assert.deepEqual(firstSourceView.unresolved, [])
 
 // addPayment creates r2; prior evidence is voided, not edited/deleted.
 const added = await salesService.addPayment({
@@ -180,6 +188,9 @@ assert.ok(postReturnPayment.payment?.id > 0, 'the standard post-return payment s
 const returnedRows = rowsFor(returnedSale.id)
 assert.equal(returnedRows.length, afterReturnBeforePayment + 1, 'only the zero-value stale-state marker is appended')
 assert.ok(returnedRows.some((row) => row.kind === 'SNAPSHOT_STALE' && row.amount === 0))
+const staleFundingView = await getCurrentSaleFundingSources(db, returnedSale.id)
+assert.equal(staleFundingView.stale, true)
+assert.equal(staleFundingView.sources.length, 0, 'stale source amounts are not exposed as transferable shares')
 assert.ok(!returnedRows.some((row) => row.eventKey.startsWith(`sale:${returnedSale.id}:r2:`)),
   'a post-return mutation does not invent a new fungible funding snapshot')
 assert.deepEqual([balance(`payment:${returnedOriginalPayment.id}`),
@@ -224,4 +235,66 @@ assert.deepEqual(seed.one(`SELECT kind, amount FROM "ExchangeFundingEvent"
 assert.deepEqual([balance(`pending-cheque:${autoVoidChequeId}`), balance(`payment:${autoVoidChequeId}`),
   balance(`debt:${autoVoidSale.id}`)], [1_000, 0, 1_000])
 
-console.log('✓ SalesService integration: create/payment/invoice edits revise r1–r5; cheque PENDING→CLEARED→BOUNCED and return auto-void/restore; stale shares stay blocked until safe reconciliation')
+// A real, exact-value exchange with a homogeneous cash source transfers the
+// source share to its child inside createExchange's SQLite transaction. Voiding
+// that exchange appends a matched pair of reversals and restores the source.
+const exactSourceVariant = variant(1_000)
+const exactReplacementVariant = variant(1_000)
+const exactSale = await salesService.create({
+  userId, shiftId, lines: [line(exactSourceVariant, 1_000)],
+  payments: [{ methodId: cashMethodId, amount: 1_000, destination: 'CASH' }]
+})
+const exactSourcePayment = seed.one('SELECT id FROM "Payment" WHERE invoiceId=? AND voidedAt IS NULL', exactSale.id)
+const exactItemId = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', exactSale.id).id
+const exactFundingBefore = await getCurrentSaleFundingSources(db, exactSale.id)
+assert.equal(exactFundingBefore.snapshotExists, true)
+assert.equal(exactFundingBefore.debt, 0)
+assert.equal(exactFundingBefore.sources[0].available, 1_000)
+assert.deepEqual(exactFundingBefore.unresolved, [])
+
+const exactExchange = await salesService.createExchange({
+  invoiceId: exactSale.id,
+  lines: [{ saleItemId: exactItemId, qty: 1 }],
+  replacements: [{ variantId: exactReplacementVariant, qty: 1 }],
+  refundMode: 'STORE_CREDIT', userId, shiftId, managerPassword: DEFAULT_MANAGER_PASSWORD
+})
+assert.equal(exactExchange.returnTotal, 1_000)
+assert.equal(exactExchange.exchangeTotal, 1_000)
+assert.equal(exactExchange.diff, 0)
+const transferRows = seed.rows(`SELECT kind, amount, shareId FROM "ExchangeFundingEvent"
+  WHERE returnId=? AND kind IN ('TRANSFER_OUT','TRANSFER_IN') ORDER BY id`, exactExchange.returnId)
+assert.deepEqual(transferRows.map(({ kind, amount }) => ({ kind, amount })), [
+  { kind: 'TRANSFER_OUT', amount: -1_000 },
+  { kind: 'TRANSFER_IN', amount: 1_000 }
+])
+const childShareId = transferRows.find((row) => row.kind === 'TRANSFER_IN').shareId
+assert.equal(balance(`payment:${exactSourcePayment.id}`), 0)
+assert.equal(balance(childShareId), 1_000)
+await assert.rejects(() => salesService.returnReconcileVoid({
+  id: exactExchange.returnId, userId, reason: 'unsupported funding correction test',
+  panelPassword: DEFAULT_MANAGER_PASSWORD, cashRecovered: 0, cardRecovered: 0,
+  cashPaidOut: 0, cardPaidOut: 0, creditOutcome: 'NONE'
+}), /دفتر انتقال منشأ مالی/,
+'correction route cannot leave an active funding transfer behind')
+assert.equal(balance(`payment:${exactSourcePayment.id}`), 0)
+assert.equal(balance(childShareId), 1_000)
+
+const exchangeVoid = await salesService.returnDelete({
+  id: exactExchange.returnId, userId, reason: 'reverse exact-value ledger test', ...GATE
+})
+assert.equal(exchangeVoid.exchangeVoided, true)
+assert.equal(balance(`payment:${exactSourcePayment.id}`), 1_000)
+assert.equal(balance(childShareId), 0)
+assert.equal(seed.one('SELECT voidedAt IS NOT NULL AS voided FROM "SaleReturn" WHERE id=?', exactExchange.returnId).voided, 1)
+assert.equal(seed.one('SELECT voidedAt IS NOT NULL AS voided FROM "SaleInvoice" WHERE id=?', exactExchange.exchangeInvoiceId).voided, 1)
+assert.equal(seed.one(`SELECT COUNT(*) n FROM "ExchangeFundingEvent"
+  WHERE returnId=? AND kind IN ('VOID_TRANSFER_OUT','VOID_TRANSFER_IN')`, exactExchange.returnId).n, 2)
+const transferVoidReplay = await db.$transaction((tx) => reverseExchangeFundingTransfersForReturn(tx, {
+  returnId: exactExchange.returnId, actorUserId: userId
+}))
+assert.deepEqual(transferVoidReplay, { reversed: 0, pairs: 1 }, 'a reversed transfer pair cannot restore the same source twice')
+const exactFundingAfterVoid = await getCurrentSaleFundingSources(db, exactSale.id)
+assert.deepEqual(exactFundingAfterVoid.activeReturnIds, [])
+assert.equal(exactFundingAfterVoid.sources[0].available, 1_000)
+
+console.log('✓ SalesService funding integration: snapshot revisions, cheque transitions, exact cash exchange transfer and append-only reversal; stale shares remain blocked')
