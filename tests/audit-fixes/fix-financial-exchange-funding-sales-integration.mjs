@@ -271,7 +271,10 @@ assert.deepEqual(transferRows.map(({ kind, amount }) => ({ kind, amount })), [
 const childShareId = transferRows.find((row) => row.kind === 'TRANSFER_IN').shareId
 assert.equal(balance(`payment:${exactSourcePayment.id}`), 0)
 assert.equal(balance(childShareId), 1_000)
+const eventCountBeforeLinePreview = seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
 const childFundingView = await getCurrentExchangeFundingSources(db, exactExchange.exchangeInvoiceId)
+assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n, eventCountBeforeLinePreview,
+  'read-only line attribution does not append ledger events')
 assert.equal(childFundingView.snapshotExists, true)
 assert.equal(childFundingView.sources.length, 1)
 assert.equal(childFundingView.sources[0].event.kind, 'TRANSFER_IN')
@@ -279,11 +282,19 @@ assert.equal(childFundingView.sources[0].sourceKind, 'SOURCE_CASH')
 assert.equal(childFundingView.sources[0].sourceMethodKind, 'CASH')
 assert.equal(childFundingView.sources[0].available, 1_000)
 assert.deepEqual(childFundingView.unresolved, [], 'EXCHANGE_CREDIT is reconciled to the proven parent transfer, not treated as money')
+const exactChildItemId = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', exactExchange.exchangeInvoiceId).id
+assert.equal(childFundingView.lineAllocationStatus, 'READ_ONLY_RECONCILED')
+assert.deepEqual(childFundingView.lineAllocations, [{
+  sourceEventId: childFundingView.sources[0].event.id,
+  saleItemId: exactChildItemId, sourceKind: 'SOURCE_CASH', amount: 1_000
+}], 'an untouched exact child can expose a read-only item attribution, not a persisted return right')
 const childInvoiceTotal = seed.one('SELECT grandTotal FROM "SaleInvoice" WHERE id=?', exactExchange.exchangeInvoiceId).grandTotal
 sql.prepare('UPDATE "SaleInvoice" SET paidTotal=? WHERE id=?').run(childInvoiceTotal - 1, exactExchange.exchangeInvoiceId)
 const debtfulChildFunding = await getCurrentExchangeFundingSources(db, exactExchange.exchangeInvoiceId)
 assert.equal(debtfulChildFunding.debt, 1)
 assert.ok(debtfulChildFunding.unresolved.some((row) => row.kind === 'UNRESOLVED_EXCHANGE_CHILD_DEBT'))
+assert.equal(debtfulChildFunding.lineAllocations.length, 0,
+  'line attribution is withheld while child settlement is in debt')
 sql.prepare('UPDATE "SaleInvoice" SET paidTotal=? WHERE id=?').run(childInvoiceTotal, exactExchange.exchangeInvoiceId)
 const newTenderId = seed.insert('Payment', {
   invoiceId: exactExchange.exchangeInvoiceId, methodId: cashMethodId, amount: 1,
@@ -302,7 +313,6 @@ const destinationSpoofedChildFunding = await getCurrentExchangeFundingSources(db
 assert.ok(destinationSpoofedChildFunding.unresolved.some((row) => row.kind === 'MALFORMED_EXCHANGE_CREDIT_PAYMENT'),
   'a cash-looking destination cannot turn EXCHANGE_CREDIT into payment evidence')
 sql.prepare('UPDATE "Payment" SET destination=NULL WHERE invoiceId=? AND voidedAt IS NULL').run(exactExchange.exchangeInvoiceId)
-const exactChildItemId = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', exactExchange.exchangeInvoiceId).id
 const childGateBefore = {
   returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', exactExchange.exchangeInvoiceId).n,
   children: seed.one('SELECT COUNT(*) n FROM "SaleInvoice" WHERE sourceInvoiceId=?', exactExchange.exchangeInvoiceId).n,

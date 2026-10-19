@@ -1,5 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { BusinessError } from '../errors'
+import { allocateExchangeFundingByLine } from '@shared/exchangeFundingAllocation'
+import { allocateLineNet } from '@shared/returnValue'
 import { toNumberRial } from '@shared/money'
 
 type LedgerClient = Prisma.TransactionClient | {
@@ -569,8 +571,9 @@ export async function getCurrentExchangeFundingSources(tx: LedgerClient, invoice
   const invoice = await tx.saleInvoice.findUnique({
     where: { id: invoiceId },
     select: {
-      id: true, orderType: true, voidedAt: true, status: true, grandTotal: true, paidTotal: true,
-      sourceInvoiceId: true, exchangeReturnId: true
+      id: true, orderType: true, voidedAt: true, status: true, grandTotal: true, paidTotal: true, deliveryFee: true,
+      sourceInvoiceId: true, exchangeReturnId: true,
+      items: { select: { id: true, qty: true, unitPrice: true, lineTotal: true, discount: true, tax: true } }
     }
   })
   if (!invoice) throw new BusinessError('سند تعویض برای خواندن زنجیرهٔ منشأ پیدا نشد.')
@@ -604,6 +607,13 @@ export async function getCurrentExchangeFundingSources(tx: LedgerClient, invoice
       sourceMethodKind: string | null
       sourceDestination: string | null
     }>,
+    lineAllocations: [] as Array<{
+      sourceEventId: number
+      saleItemId: number
+      sourceKind: 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'
+      amount: number
+    }>,
+    lineAllocationStatus: 'UNAVAILABLE' as 'UNAVAILABLE' | 'READ_ONLY_RECONCILED',
     unresolved: [] as Array<{ eventId: number; kind: string; amount: number }>,
     debt: 0,
     overpay: 0
@@ -707,6 +717,38 @@ export async function getCurrentExchangeFundingSources(tx: LedgerClient, invoice
       amount: transferred - invoiceTotal })
   if (!base.snapshotExists && Number.isSafeInteger(invoiceTotal) && invoiceTotal > 0)
     base.unresolved.push({ eventId: 0, kind: 'MISSING_EXCHANGE_TRANSFER_SNAPSHOT', amount: invoiceTotal })
+
+  // This is a read-only per-item projection, not a persisted allocation or a
+  // return permit. Only expose it for an untouched, fully funded child so a
+  // later return cannot reuse a stale whole-invoice split after another branch
+  // has consumed part of the carried shares.
+  if (base.unresolved.length === 0 && base.activeReturnIds.length === 0 &&
+      Number.isSafeInteger(invoiceTotal) && invoiceTotal > 0 && base.sources.length > 0) {
+    const availableTotal = base.sources.reduce((sum, source) => sum + BigInt(source.available), 0n)
+    if (availableTotal > BigInt(Number.MAX_SAFE_INTEGER) || availableTotal !== BigInt(invoiceTotal)) {
+      base.unresolved.push({ eventId: 0,
+        kind: availableTotal > BigInt(Number.MAX_SAFE_INTEGER)
+          ? 'INVALID_EXCHANGE_LINE_SCOPE_BALANCE' : 'EXCHANGE_LINE_SCOPE_BALANCE_MISMATCH',
+        amount: availableTotal > BigInt(Number.MAX_SAFE_INTEGER)
+          ? 0 : Number(availableTotal - BigInt(invoiceTotal)) })
+    } else {
+      try {
+        const lineNet = allocateLineNet(invoice as any)
+        const lines = (invoice.items as any[]).map((item) => ({
+          saleItemId: Number(item.id), amount: Number(lineNet.get(Number(item.id)) ?? 0)
+        }))
+        base.lineAllocations = allocateExchangeFundingByLine(lines, base.sources.map((source) => ({
+          sourceEventId: Number(source.event.id),
+          sourceKind: source.sourceKind as 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE',
+          amount: toNumberRial(source.event.amount)
+        })))
+        base.lineAllocationStatus = 'READ_ONLY_RECONCILED'
+      } catch {
+        base.lineAllocations = []
+        base.unresolved.push({ eventId: 0, kind: 'EXCHANGE_LINE_ALLOCATION_UNRESOLVED', amount: invoiceTotal })
+      }
+    }
+  }
   return base
 }
 

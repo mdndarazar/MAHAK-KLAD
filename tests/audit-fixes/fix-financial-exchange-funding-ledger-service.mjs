@@ -26,6 +26,12 @@ const cardMethodId = seed.insert('PaymentMethod', {
 const exchangeCreditMethodId = seed.insert('PaymentMethod', {
   key: 'EXCHANGE_CREDIT', label: 'Exchange value', kind: 'EXCHANGE_CREDIT', isActive: 1
 })
+const ledgerCategoryId = seed.category('ledger allocation category')
+const ledgerProductId = seed.product('ledger allocation item', ledgerCategoryId)
+const ledgerLineVariants = [
+  seed.variant(ledgerProductId, 'allocation line one'),
+  seed.variant(ledgerProductId, 'allocation line two')
+]
 
 const base = {
   eventKey: 'sale:71:payment:301', kind: 'SOURCE_CASH', amount: 13_980_000,
@@ -108,13 +114,46 @@ async function giftSource(amount, code, expiresAt, expiryCaptured = true, credit
   return { invoiceId: invoice.id, paymentId, creditId, redemptionId, sourceEvent }
 }
 
-function exchangeGraph(sourceInvoiceId, total) {
+async function mixedSource(giftAmount, realAmount, code) {
+  const total = giftAmount + realAmount
+  const invoice = seed.invoice({ grandTotal: total, status: 'FINAL' })
+  const creditId = seed.insert('StoreCredit', {
+    code, amount: giftAmount, usedAmount: giftAmount, usedCount: 1, status: 'USED', expiresAt: null
+  })
+  const giftPaymentId = seed.insert('Payment', {
+    invoiceId: invoice.id, methodId: giftMethodId, amount: giftAmount,
+    kind: 'CASH', seq: 1, storeCreditId: creditId
+  })
+  const cashPaymentId = seed.insert('Payment', {
+    invoiceId: invoice.id, methodId: cashMethodId, amount: realAmount,
+    kind: 'CASH', seq: 2, destination: 'CASH'
+  })
+  const redemptionId = seed.insert('StoreCreditRedemption', {
+    creditId, code, amount: giftAmount, remainderAfter: 0, invoiceId: invoice.id, paymentId: giftPaymentId,
+    idempotencyKey: `ledger-redemption-${code}`, expiryCaptured: true, expiryAtRedeem: null
+  })
+  const snapshot = await db.$transaction((tx) => recordSaleFundingSnapshot(tx, invoice.id))
+  const giftEvent = snapshot.events.find((event) => event.kind === 'SOURCE_GIFT' &&
+    Number(event.sourceRedemptionId) === redemptionId)
+  const cashEvent = snapshot.events.find((event) => event.kind === 'SOURCE_CASH' &&
+    Number(event.sourcePaymentId) === cashPaymentId)
+  assert.ok(giftEvent && cashEvent, 'mixed source roots must come from the ordinary sale Payment and redemption rows')
+  return { invoiceId: invoice.id, creditId, giftPaymentId, cashPaymentId, redemptionId, giftEvent, cashEvent }
+}
+
+function exchangeGraph(sourceInvoiceId, total, lineValues = [total]) {
+  if (lineValues.reduce((sum, amount) => sum + amount, 0) !== total)
+    throw new Error('exchangeGraph line values must reconcile to its invoice total')
   const child = seed.invoice({ grandTotal: total, status: 'SETTLED' })
   seed.insert('Payment', {
     invoiceId: child.id, methodId: exchangeCreditMethodId, amount: total,
     kind: 'CASH', seq: 1
   })
   sql.prepare('UPDATE "SaleInvoice" SET paidTotal=? WHERE id=?').run(total, child.id)
+  lineValues.forEach((amount, index) => seed.invoiceItem(child.id, {
+    variantId: ledgerLineVariants[index % ledgerLineVariants.length],
+    qty: 1, lineTotal: amount, variantName: `exchange line ${index + 1}`
+  }))
   const returnId = seed.insert('SaleReturn', {
     invoiceId: sourceInvoiceId, total,
     returnedAtJalali: '1405/07/27', kind: 'EXCHANGE'
@@ -396,6 +435,42 @@ assert.equal(giftChildFunding.sources[0].event.kind, 'TRANSFER_IN')
 assert.equal(giftChildFunding.sources[0].sourceKind, 'SOURCE_GIFT')
 assert.equal(giftChildFunding.sources[0].event.rootShareId, `credit:${liveGift.creditId}`)
 assert.equal(giftChildFunding.sources[0].available, 500)
+assert.equal(giftChildFunding.lineAllocations.length, 1)
+assert.equal(giftChildFunding.lineAllocations[0].amount, 500)
+
+const mixedSale = await mixedSource(300, 700, 'LEDGER-GIFT-CASH-LINES')
+const mixedGraph = exchangeGraph(mixedSale.invoiceId, 1_000, [700, 300])
+await db.$transaction((tx) => transferExchangeFundingShare(tx, {
+  eventKey: `exchange:${mixedSale.invoiceId}:return:${mixedGraph.returnId}:source:${mixedSale.giftEvent.id}`,
+  sourceEventId: mixedSale.giftEvent.id, sourceShareId: `redemption:${mixedSale.redemptionId}`,
+  destinationShareId: `exchange:${mixedGraph.childInvoiceId}:return:${mixedGraph.returnId}:source:${mixedSale.giftEvent.id}`,
+  rootShareId: `credit:${mixedSale.creditId}`, amount: 300,
+  sourceInvoiceId: mixedSale.invoiceId, childInvoiceId: mixedGraph.childInvoiceId, returnId: mixedGraph.returnId
+}))
+await db.$transaction((tx) => transferExchangeFundingShare(tx, {
+  eventKey: `exchange:${mixedSale.invoiceId}:return:${mixedGraph.returnId}:source:${mixedSale.cashEvent.id}`,
+  sourceEventId: mixedSale.cashEvent.id, sourceShareId: `payment:${mixedSale.cashPaymentId}`,
+  destinationShareId: `exchange:${mixedGraph.childInvoiceId}:return:${mixedGraph.returnId}:source:${mixedSale.cashEvent.id}`,
+  rootShareId: `payment:${mixedSale.cashPaymentId}`, amount: 700,
+  sourceInvoiceId: mixedSale.invoiceId, childInvoiceId: mixedGraph.childInvoiceId, returnId: mixedGraph.returnId
+}))
+const mixedChildFunding = await getCurrentExchangeFundingSources(db, mixedGraph.childInvoiceId)
+const mixedChildLines = seed.rows('SELECT id, lineTotal FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id', mixedGraph.childInvoiceId)
+assert.deepEqual(mixedChildFunding.unresolved, [])
+assert.equal(mixedChildFunding.sources.length, 2)
+const mixedGiftIncomingEventId = mixedChildFunding.sources.find((source) => source.sourceKind === 'SOURCE_GIFT').event.id
+const mixedCashIncomingEventId = mixedChildFunding.sources.find((source) => source.sourceKind === 'SOURCE_CASH').event.id
+assert.deepEqual(mixedChildFunding.lineAllocations, [
+  { sourceEventId: mixedGiftIncomingEventId, saleItemId: mixedChildLines[0].id,
+    sourceKind: 'SOURCE_GIFT', amount: 210 },
+  { sourceEventId: mixedGiftIncomingEventId, saleItemId: mixedChildLines[1].id,
+    sourceKind: 'SOURCE_GIFT', amount: 90 },
+  { sourceEventId: mixedCashIncomingEventId, saleItemId: mixedChildLines[0].id,
+    sourceKind: 'SOURCE_CASH', amount: 490 },
+  { sourceEventId: mixedCashIncomingEventId, saleItemId: mixedChildLines[1].id,
+    sourceKind: 'SOURCE_CASH', amount: 210 }
+], 'the child view exposes a reconciled per-item split of the original gift and cash carries')
+
 const beforeMismatchedReverse = seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
 await assert.rejects(() => db.$transaction((tx) => reverseExchangeFundingTransferPair(tx, {
   eventKey: 'void:exchange:mismatched-pair', outEventId: transfer.outEvent.id, inEventId: giftTransfer.inEvent.id
@@ -588,6 +663,9 @@ const partiallyCarriedChildFunding = await getCurrentExchangeFundingSources(db, 
 assert.equal(partiallyCarriedChildFunding.sources[0].available, 300,
   'downstream transfer reduces only the child share, while lineage still resolves to the root payment')
 assert.deepEqual(partiallyCarriedChildFunding.activeReturnIds, [downstreamGraph.returnId])
+assert.equal(partiallyCarriedChildFunding.lineAllocationStatus, 'UNAVAILABLE')
+assert.equal(partiallyCarriedChildFunding.lineAllocations.length, 0,
+  'a child with a live downstream return cannot reuse an untouched-invoice line split')
 await assert.rejects(() => db.$transaction((tx) => reverseExchangeFundingTransferPair(tx, {
   eventKey: `void:exchange:${chainedGraph.childInvoiceId}:${chainedGraph.returnId}`,
   outEventId: chainedTransfer.outEvent.id, inEventId: chainedTransfer.inEvent.id
@@ -610,4 +688,4 @@ assert.equal(await exchangeFundingBalance(db, `payment:${source.paymentId}`), 2_
 assert.equal(await exchangeFundingBalance(db,
   `exchange:${chainedGraph.childInvoiceId}:return:${chainedGraph.returnId}:share:${source.paymentId}`), 0)
 
-console.log('✓ exchange funding journal: persisted-source proof, expiry, exact transfer pairs, gift/cash child lineage, downstream balance, reversal, cap, stale/orphan guards and idempotency')
+console.log('✓ exchange funding journal: persisted-source proof, expiry, exact transfer pairs, gift/cash per-item child attribution, downstream balance, reversal, cap, stale/orphan guards and idempotency')
