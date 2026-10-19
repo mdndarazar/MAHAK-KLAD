@@ -2799,6 +2799,31 @@ model ExchangeFundingEvent {
   @@index([parentEventId])
 }
 
+/// Immutable source-to-item split for a fully reconciled exchange child. Each
+/// row ties one active incoming transfer event to one replacement sale item and
+/// freezes that item's quantity/net value for later return reconciliation;
+/// scalar references deliberately avoid cascading business-document deletes.
+/// These rows are descriptive provenance, not a spend permit or refund right.
+model ExchangeFundingLineAllocation {
+  id              Int      @id @default(autoincrement())
+  eventKey        String   @unique
+  sourceInvoiceId Int
+  childInvoiceId  Int
+  returnId        Int
+  sourceEventId   Int
+  saleItemId      Int
+  saleItemQty     Int
+  saleItemValue   BigInt
+  sourceKind      String
+  amount          BigInt
+  createdAt       DateTime @default(now())
+
+  @@unique([sourceEventId, saleItemId])
+  @@index([childInvoiceId, saleItemId])
+  @@index([returnId, id])
+  @@index([sourceInvoiceId, id])
+}
+
 /// سهم واقعیِ هر رسید فیزیکی از منابع فروش: STORE یا ردیف *مشخص* انبار
 /// مرکزی/شعبه. در همان تراکنش دریافت، پس از بازگشت موجودی ثبت می‌شود؛ اصلاح
 /// جبرانی فقط از این شاهد مقداربه‌مقدار کم می‌کند. شناسه‌ها scalar اند تا حذف

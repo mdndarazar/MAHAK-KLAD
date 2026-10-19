@@ -9,7 +9,8 @@ process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { appendExchangeFundingEvent, recordSaleFundingSnapshot, exchangeFundingBalance,
-  getCurrentExchangeFundingSources, transferExchangeFundingShare, reverseExchangeFundingTransferPair } =
+  getCurrentExchangeFundingSources, recordExchangeFundingLineAllocations,
+  transferExchangeFundingShare, reverseExchangeFundingTransferPair } =
   await import('../../src/main/services/ExchangeFundingLedgerService.ts')
 const db = harnessClient()
 const seed = makeSeeder(db)
@@ -455,7 +456,7 @@ await db.$transaction((tx) => transferExchangeFundingShare(tx, {
   sourceInvoiceId: mixedSale.invoiceId, childInvoiceId: mixedGraph.childInvoiceId, returnId: mixedGraph.returnId
 }))
 const mixedChildFunding = await getCurrentExchangeFundingSources(db, mixedGraph.childInvoiceId)
-const mixedChildLines = seed.rows('SELECT id, lineTotal FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id', mixedGraph.childInvoiceId)
+const mixedChildLines = seed.rows('SELECT id, qty, lineTotal FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id', mixedGraph.childInvoiceId)
 assert.deepEqual(mixedChildFunding.unresolved, [])
 assert.equal(mixedChildFunding.sources.length, 2)
 const mixedGiftIncomingEventId = mixedChildFunding.sources.find((source) => source.sourceKind === 'SOURCE_GIFT').event.id
@@ -470,6 +471,120 @@ assert.deepEqual(mixedChildFunding.lineAllocations, [
   { sourceEventId: mixedCashIncomingEventId, saleItemId: mixedChildLines[1].id,
     sourceKind: 'SOURCE_CASH', amount: 210 }
 ], 'the child view exposes a reconciled per-item split of the original gift and cash carries')
+assert.equal(mixedChildFunding.lineAllocationStatus, 'READ_ONLY_RECONCILED')
+const persistedLineResult = await db.$transaction((tx) =>
+  recordExchangeFundingLineAllocations(tx, mixedGraph.childInvoiceId))
+assert.deepEqual(persistedLineResult, { invoiceId: mixedGraph.childInvoiceId, allocationCount: 4, replayed: false })
+const persistedMixedLines = seed.rows(`SELECT sourceInvoiceId, childInvoiceId, returnId, sourceEventId,
+  saleItemId, saleItemQty, saleItemValue, sourceKind, amount FROM "ExchangeFundingLineAllocation"
+  WHERE childInvoiceId=? ORDER BY sourceEventId, saleItemId`, mixedGraph.childInvoiceId)
+assert.deepEqual(persistedMixedLines, [
+  { sourceInvoiceId: mixedSale.invoiceId, childInvoiceId: mixedGraph.childInvoiceId,
+    returnId: mixedGraph.returnId, sourceEventId: mixedGiftIncomingEventId,
+    saleItemId: mixedChildLines[0].id, saleItemQty: 1, saleItemValue: mixedChildLines[0].lineTotal,
+    sourceKind: 'SOURCE_GIFT', amount: 210 },
+  { sourceInvoiceId: mixedSale.invoiceId, childInvoiceId: mixedGraph.childInvoiceId,
+    returnId: mixedGraph.returnId, sourceEventId: mixedGiftIncomingEventId,
+    saleItemId: mixedChildLines[1].id, saleItemQty: 1, saleItemValue: mixedChildLines[1].lineTotal,
+    sourceKind: 'SOURCE_GIFT', amount: 90 },
+  { sourceInvoiceId: mixedSale.invoiceId, childInvoiceId: mixedGraph.childInvoiceId,
+    returnId: mixedGraph.returnId, sourceEventId: mixedCashIncomingEventId,
+    saleItemId: mixedChildLines[0].id, saleItemQty: 1, saleItemValue: mixedChildLines[0].lineTotal,
+    sourceKind: 'SOURCE_CASH', amount: 490 },
+  { sourceInvoiceId: mixedSale.invoiceId, childInvoiceId: mixedGraph.childInvoiceId,
+    returnId: mixedGraph.returnId, sourceEventId: mixedCashIncomingEventId,
+    saleItemId: mixedChildLines[1].id, saleItemQty: 1, saleItemValue: mixedChildLines[1].lineTotal,
+    sourceKind: 'SOURCE_CASH', amount: 210 }
+])
+const persistedFundingView = await getCurrentExchangeFundingSources(db, mixedGraph.childInvoiceId)
+assert.equal(persistedFundingView.lineAllocationStatus, 'PERSISTED_RECONCILED')
+assert.deepEqual(persistedFundingView.lineAllocations, mixedChildFunding.lineAllocations)
+const lineAllocationCountBeforeReplay = seed.count('ExchangeFundingLineAllocation', 'childInvoiceId=?', mixedGraph.childInvoiceId)
+assert.deepEqual(await db.$transaction((tx) =>
+  recordExchangeFundingLineAllocations(tx, mixedGraph.childInvoiceId)),
+{ invoiceId: mixedGraph.childInvoiceId, allocationCount: 4, replayed: true },
+'persisting an identical matrix is idempotent')
+assert.equal(seed.count('ExchangeFundingLineAllocation', 'childInvoiceId=?', mixedGraph.childInvoiceId),
+  lineAllocationCountBeforeReplay)
+
+const mixedGiftSource = mixedChildFunding.sources.find((source) => source.sourceKind === 'SOURCE_GIFT')
+const mixedCashSource = mixedChildFunding.sources.find((source) => source.sourceKind === 'SOURCE_CASH')
+const shiftedGiftBalance = await db.$transaction((tx) => appendExchangeFundingEvent(tx, {
+  eventKey: 'test:line-balance:gift-plus', kind: 'TEST_BALANCE_SHIFT', amount: 10,
+  shareId: mixedGiftSource.event.shareId, rootShareId: mixedGiftSource.event.rootShareId,
+  sourceInvoiceId: mixedSale.invoiceId, childInvoiceId: mixedGraph.childInvoiceId,
+  returnId: mixedGraph.returnId, parentEventId: mixedGiftIncomingEventId, evidenceKind: 'TEST'
+}))
+const shiftedCashBalance = await db.$transaction((tx) => appendExchangeFundingEvent(tx, {
+  eventKey: 'test:line-balance:cash-minus', kind: 'TEST_BALANCE_SHIFT', amount: -10,
+  shareId: mixedCashSource.event.shareId, rootShareId: mixedCashSource.event.rootShareId,
+  sourceInvoiceId: mixedSale.invoiceId, childInvoiceId: mixedGraph.childInvoiceId,
+  returnId: mixedGraph.returnId, parentEventId: mixedCashIncomingEventId, evidenceKind: 'TEST'
+}))
+const offsettingSourceBalances = await getCurrentExchangeFundingSources(db, mixedGraph.childInvoiceId)
+assert.equal(offsettingSourceBalances.lineAllocationStatus, 'UNAVAILABLE')
+assert.equal(offsettingSourceBalances.lineAllocations.length, 0)
+assert.ok(offsettingSourceBalances.unresolved.some((row) => row.kind === 'EXCHANGE_LINE_SOURCE_BALANCE_MISMATCH'),
+  'offsetting per-source balance errors cannot pass merely because their grand total reconciles')
+await db.$transaction(async (tx) => {
+  await appendExchangeFundingEvent(tx, {
+    eventKey: 'test:line-balance:gift-plus:void', kind: 'VOID_TEST_BALANCE_SHIFT', amount: -10,
+    shareId: mixedGiftSource.event.shareId, rootShareId: mixedGiftSource.event.rootShareId,
+    sourceInvoiceId: mixedSale.invoiceId, childInvoiceId: mixedGraph.childInvoiceId,
+    returnId: mixedGraph.returnId, parentEventId: mixedGiftIncomingEventId,
+    evidenceKind: 'TEST_REVERSAL', reversesEventId: shiftedGiftBalance.event.id
+  })
+  await appendExchangeFundingEvent(tx, {
+    eventKey: 'test:line-balance:cash-minus:void', kind: 'VOID_TEST_BALANCE_SHIFT', amount: 10,
+    shareId: mixedCashSource.event.shareId, rootShareId: mixedCashSource.event.rootShareId,
+    sourceInvoiceId: mixedSale.invoiceId, childInvoiceId: mixedGraph.childInvoiceId,
+    returnId: mixedGraph.returnId, parentEventId: mixedCashIncomingEventId,
+    evidenceKind: 'TEST_REVERSAL', reversesEventId: shiftedCashBalance.event.id
+  })
+})
+assert.equal((await getCurrentExchangeFundingSources(db, mixedGraph.childInvoiceId)).lineAllocationStatus,
+  'PERSISTED_RECONCILED', 'exact source balances restore the existing persisted matrix')
+
+sql.prepare('UPDATE "SaleInvoiceItem" SET lineTotal=lineTotal+10 WHERE id=?').run(mixedChildLines[0].id)
+const changedChildLineFunding = await getCurrentExchangeFundingSources(db, mixedGraph.childInvoiceId)
+assert.equal(changedChildLineFunding.lineAllocationStatus, 'UNAVAILABLE')
+assert.equal(changedChildLineFunding.lineAllocations.length, 0)
+assert.ok(changedChildLineFunding.unresolved.some((row) => row.kind === 'PERSISTED_EXCHANGE_LINE_ALLOCATION_MISMATCH'),
+  'changing an allocated invoice line cannot silently reuse its old source matrix')
+await assert.rejects(() => db.$transaction((tx) =>
+  recordExchangeFundingLineAllocations(tx, mixedGraph.childInvoiceId)), /تخصیص قلمی/)
+sql.prepare('UPDATE "SaleInvoiceItem" SET lineTotal=lineTotal-10 WHERE id=?').run(mixedChildLines[0].id)
+assert.equal((await getCurrentExchangeFundingSources(db, mixedGraph.childInvoiceId)).lineAllocationStatus,
+  'PERSISTED_RECONCILED', 'restoring the immutable line value restores the exact matrix view')
+sql.prepare('UPDATE "SaleInvoiceItem" SET qty=qty+1 WHERE id=?').run(mixedChildLines[0].id)
+const changedChildQuantityFunding = await getCurrentExchangeFundingSources(db, mixedGraph.childInvoiceId)
+assert.equal(changedChildQuantityFunding.lineAllocationStatus, 'UNAVAILABLE')
+assert.ok(changedChildQuantityFunding.unresolved.some((row) => row.kind === 'PERSISTED_EXCHANGE_LINE_ALLOCATION_MISMATCH'),
+  'a quantity-only edit cannot silently change the future partial-return denominator')
+sql.prepare('UPDATE "SaleInvoiceItem" SET qty=qty-1 WHERE id=?').run(mixedChildLines[0].id)
+assert.equal((await getCurrentExchangeFundingSources(db, mixedGraph.childInvoiceId)).lineAllocationStatus,
+  'PERSISTED_RECONCILED', 'restoring the item quantity restores the frozen line scope')
+
+const rollbackSource = await cashSource(500)
+const rollbackGraph = exchangeGraph(rollbackSource.invoiceId, 500)
+const rollbackEventsBefore = seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
+await assert.rejects(() => db.$transaction(async (tx) => {
+  await transferExchangeFundingShare(tx, {
+    eventKey: `exchange:${rollbackSource.invoiceId}:return:${rollbackGraph.returnId}:source:${rollbackSource.sourceEvent.id}`,
+    sourceEventId: rollbackSource.sourceEvent.id, sourceShareId: `payment:${rollbackSource.paymentId}`,
+    destinationShareId: `exchange:${rollbackGraph.childInvoiceId}:return:${rollbackGraph.returnId}:source:${rollbackSource.sourceEvent.id}`,
+    rootShareId: `payment:${rollbackSource.paymentId}`, amount: 500,
+    sourceInvoiceId: rollbackSource.invoiceId, childInvoiceId: rollbackGraph.childInvoiceId,
+    returnId: rollbackGraph.returnId
+  })
+  await recordExchangeFundingLineAllocations(tx, rollbackGraph.childInvoiceId)
+  throw new Error('injected failure after funding line allocation')
+}), /injected failure after funding line allocation/)
+assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n, rollbackEventsBefore,
+  'transfer events roll back with a later failure in the same exchange transaction')
+assert.equal(seed.count('ExchangeFundingLineAllocation', 'childInvoiceId=?', rollbackGraph.childInvoiceId), 0,
+  'the immutable line matrix rolls back atomically with its transfer pair')
+assert.equal(await exchangeFundingBalance(db, `payment:${rollbackSource.paymentId}`), 500)
 
 const beforeMismatchedReverse = seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
 await assert.rejects(() => db.$transaction((tx) => reverseExchangeFundingTransferPair(tx, {
@@ -688,4 +803,4 @@ assert.equal(await exchangeFundingBalance(db, `payment:${source.paymentId}`), 2_
 assert.equal(await exchangeFundingBalance(db,
   `exchange:${chainedGraph.childInvoiceId}:return:${chainedGraph.returnId}:share:${source.paymentId}`), 0)
 
-console.log('✓ exchange funding journal: persisted-source proof, expiry, exact transfer pairs, gift/cash per-item child attribution, downstream balance, reversal, cap, stale/orphan guards and idempotency')
+console.log('✓ exchange funding journal: persisted-source proof, expiry, exact transfer pairs, immutable gift/cash per-item allocation, downstream balance, reversal, cap, stale/orphan guards and idempotency')

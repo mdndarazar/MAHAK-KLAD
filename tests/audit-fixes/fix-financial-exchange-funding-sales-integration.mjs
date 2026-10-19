@@ -272,9 +272,12 @@ const childShareId = transferRows.find((row) => row.kind === 'TRANSFER_IN').shar
 assert.equal(balance(`payment:${exactSourcePayment.id}`), 0)
 assert.equal(balance(childShareId), 1_000)
 const eventCountBeforeLinePreview = seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
+const lineAllocationCountBeforeRead = seed.one('SELECT COUNT(*) n FROM "ExchangeFundingLineAllocation"').n
 const childFundingView = await getCurrentExchangeFundingSources(db, exactExchange.exchangeInvoiceId)
 assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n, eventCountBeforeLinePreview,
-  'read-only line attribution does not append ledger events')
+  'reading persisted line attribution does not append funding events')
+assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingLineAllocation"').n, lineAllocationCountBeforeRead,
+  'reading persisted line attribution does not append rows')
 assert.equal(childFundingView.snapshotExists, true)
 assert.equal(childFundingView.sources.length, 1)
 assert.equal(childFundingView.sources[0].event.kind, 'TRANSFER_IN')
@@ -283,11 +286,33 @@ assert.equal(childFundingView.sources[0].sourceMethodKind, 'CASH')
 assert.equal(childFundingView.sources[0].available, 1_000)
 assert.deepEqual(childFundingView.unresolved, [], 'EXCHANGE_CREDIT is reconciled to the proven parent transfer, not treated as money')
 const exactChildItemId = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', exactExchange.exchangeInvoiceId).id
-assert.equal(childFundingView.lineAllocationStatus, 'READ_ONLY_RECONCILED')
-assert.deepEqual(childFundingView.lineAllocations, [{
+assert.equal(childFundingView.lineAllocationStatus, 'PERSISTED_RECONCILED')
+const exactLineAllocation = {
+  sourceInvoiceId: exactSale.id,
+  childInvoiceId: exactExchange.exchangeInvoiceId,
+  returnId: exactExchange.returnId,
   sourceEventId: childFundingView.sources[0].event.id,
+  saleItemId: exactChildItemId,
+  saleItemQty: 1,
+  saleItemValue: 1_000,
+  sourceKind: 'SOURCE_CASH',
+  amount: 1_000
+}
+assert.deepEqual(childFundingView.lineAllocations, [{
+  sourceEventId: exactLineAllocation.sourceEventId,
   saleItemId: exactChildItemId, sourceKind: 'SOURCE_CASH', amount: 1_000
-}], 'an untouched exact child can expose a read-only item attribution, not a persisted return right')
+}], 'an untouched exact child can read the persisted item attribution')
+assert.deepEqual(seed.rows(`SELECT sourceInvoiceId, childInvoiceId, returnId, sourceEventId,
+  saleItemId, saleItemQty, saleItemValue, sourceKind, amount
+  FROM "ExchangeFundingLineAllocation" WHERE childInvoiceId=?`,
+  exactExchange.exchangeInvoiceId), [exactLineAllocation],
+  'the exact exchange persists its source-to-item matrix in the same transaction')
+const exactLineAllocationRowId = seed.one('SELECT id FROM "ExchangeFundingLineAllocation" WHERE childInvoiceId=?',
+  exactExchange.exchangeInvoiceId).id
+assert.throws(() => sql.prepare('UPDATE "ExchangeFundingLineAllocation" SET amount=amount+1 WHERE id=?')
+  .run(exactLineAllocationRowId), /append-only/, 'persisted line allocations cannot be edited')
+assert.throws(() => sql.prepare('DELETE FROM "ExchangeFundingLineAllocation" WHERE id=?')
+  .run(exactLineAllocationRowId), /append-only/, 'persisted line allocations cannot be deleted')
 const childInvoiceTotal = seed.one('SELECT grandTotal FROM "SaleInvoice" WHERE id=?', exactExchange.exchangeInvoiceId).grandTotal
 sql.prepare('UPDATE "SaleInvoice" SET paidTotal=? WHERE id=?').run(childInvoiceTotal - 1, exactExchange.exchangeInvoiceId)
 const debtfulChildFunding = await getCurrentExchangeFundingSources(db, exactExchange.exchangeInvoiceId)
@@ -357,4 +382,4 @@ const exactFundingAfterVoid = await getCurrentSaleFundingSources(db, exactSale.i
 assert.deepEqual(exactFundingAfterVoid.activeReturnIds, [])
 assert.equal(exactFundingAfterVoid.sources[0].available, 1_000)
 
-console.log('✓ SalesService funding integration: snapshot revisions, cheque transitions, exact cash exchange transfer and append-only reversal; stale shares remain blocked')
+console.log('✓ SalesService funding integration: snapshot revisions, cheque transitions, atomic exact-cash exchange line allocation, append-only reversal and stale-share hold')

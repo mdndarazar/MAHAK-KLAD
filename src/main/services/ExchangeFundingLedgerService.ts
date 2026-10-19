@@ -6,6 +6,7 @@ import { toNumberRial } from '@shared/money'
 
 type LedgerClient = Prisma.TransactionClient | {
   exchangeFundingEvent: any
+  exchangeFundingLineAllocation: any
   saleInvoice: any
   payment: any
   storeCreditRedemption: any
@@ -561,6 +562,11 @@ export async function getCurrentSaleFundingSources(tx: LedgerClient, invoiceId: 
   return base
 }
 
+/** Stable key for one proven source share on one replacement item. */
+function exchangeFundingLineAllocationEventKey(childInvoiceId: number, sourceEventId: number, saleItemId: number) {
+  return `exchange-line:${childInvoiceId}:source:${sourceEventId}:item:${saleItemId}`
+}
+
 /** Read the child side of an EXCHANGE invoice from its validated incoming
  * transfer pairs. The display Payment(EXCHANGE_CREDIT) is only reconciled to
  * those transfers; it is never promoted to an independent cash source. New
@@ -596,6 +602,8 @@ export async function getCurrentExchangeFundingSources(tx: LedgerClient, invoice
   ])
   const base = {
     invoiceId,
+    sourceInvoiceId: invoice.sourceInvoiceId == null ? null : Number(invoice.sourceInvoiceId),
+    returnId: invoice.exchangeReturnId == null ? null : Number(invoice.exchangeReturnId),
     revision: 0,
     snapshotExists: (transferEvents as any[]).length > 0,
     stale: false,
@@ -607,13 +615,14 @@ export async function getCurrentExchangeFundingSources(tx: LedgerClient, invoice
       sourceMethodKind: string | null
       sourceDestination: string | null
     }>,
+    lineItemSnapshots: [] as Array<{ saleItemId: number; qty: number; netValue: number }>,
     lineAllocations: [] as Array<{
       sourceEventId: number
       saleItemId: number
       sourceKind: 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'
       amount: number
     }>,
-    lineAllocationStatus: 'UNAVAILABLE' as 'UNAVAILABLE' | 'READ_ONLY_RECONCILED',
+    lineAllocationStatus: 'UNAVAILABLE' as 'UNAVAILABLE' | 'READ_ONLY_RECONCILED' | 'PERSISTED_RECONCILED',
     unresolved: [] as Array<{ eventId: number; kind: string; amount: number }>,
     debt: 0,
     overpay: 0
@@ -718,38 +727,149 @@ export async function getCurrentExchangeFundingSources(tx: LedgerClient, invoice
   if (!base.snapshotExists && Number.isSafeInteger(invoiceTotal) && invoiceTotal > 0)
     base.unresolved.push({ eventId: 0, kind: 'MISSING_EXCHANGE_TRANSFER_SNAPSHOT', amount: invoiceTotal })
 
-  // This is a read-only per-item projection, not a persisted allocation or a
-  // return permit. Only expose it for an untouched, fully funded child so a
-  // later return cannot reuse a stale whole-invoice split after another branch
-  // has consumed part of the carried shares.
+  // This projection never acts as a return permit. Only expose it for an
+  // untouched, fully funded child; if an immutable persisted matrix exists,
+  // reconcile it below before returning the current source-to-item view.
   if (base.unresolved.length === 0 && base.activeReturnIds.length === 0 &&
       Number.isSafeInteger(invoiceTotal) && invoiceTotal > 0 && base.sources.length > 0) {
-    const availableTotal = base.sources.reduce((sum, source) => sum + BigInt(source.available), 0n)
-    if (availableTotal > BigInt(Number.MAX_SAFE_INTEGER) || availableTotal !== BigInt(invoiceTotal)) {
-      base.unresolved.push({ eventId: 0,
-        kind: availableTotal > BigInt(Number.MAX_SAFE_INTEGER)
-          ? 'INVALID_EXCHANGE_LINE_SCOPE_BALANCE' : 'EXCHANGE_LINE_SCOPE_BALANCE_MISMATCH',
-        amount: availableTotal > BigInt(Number.MAX_SAFE_INTEGER)
-          ? 0 : Number(availableTotal - BigInt(invoiceTotal)) })
+    const sourceBalancesMatchEvents = base.sources.every((source) =>
+      Number.isSafeInteger(source.available) && source.available === toNumberRial(source.event.amount))
+    if (!sourceBalancesMatchEvents) {
+      base.unresolved.push({ eventId: 0, kind: 'EXCHANGE_LINE_SOURCE_BALANCE_MISMATCH', amount: 0 })
     } else {
-      try {
-        const lineNet = allocateLineNet(invoice as any)
-        const lines = (invoice.items as any[]).map((item) => ({
-          saleItemId: Number(item.id), amount: Number(lineNet.get(Number(item.id)) ?? 0)
-        }))
-        base.lineAllocations = allocateExchangeFundingByLine(lines, base.sources.map((source) => ({
-          sourceEventId: Number(source.event.id),
-          sourceKind: source.sourceKind as 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE',
-          amount: toNumberRial(source.event.amount)
-        })))
-        base.lineAllocationStatus = 'READ_ONLY_RECONCILED'
-      } catch {
+      const availableTotal = base.sources.reduce((sum, source) => sum + BigInt(source.available), 0n)
+      if (availableTotal > BigInt(Number.MAX_SAFE_INTEGER) || availableTotal !== BigInt(invoiceTotal)) {
+        base.unresolved.push({ eventId: 0,
+          kind: availableTotal > BigInt(Number.MAX_SAFE_INTEGER)
+            ? 'INVALID_EXCHANGE_LINE_SCOPE_BALANCE' : 'EXCHANGE_LINE_SCOPE_BALANCE_MISMATCH',
+          amount: availableTotal > BigInt(Number.MAX_SAFE_INTEGER)
+            ? 0 : Number(availableTotal - BigInt(invoiceTotal)) })
+      } else {
+        try {
+          const lineNet = allocateLineNet(invoice as any)
+          const lineItemSnapshots = (invoice.items as any[]).map((item) => ({
+            saleItemId: Number(item.id),
+            qty: Number(item.qty),
+            netValue: Number(lineNet.get(Number(item.id)) ?? 0)
+          }))
+          if (!lineItemSnapshots.every((item) => Number.isSafeInteger(item.saleItemId) && item.saleItemId > 0 &&
+              Number.isSafeInteger(item.qty) && item.qty > 0 && Number.isSafeInteger(item.netValue) && item.netValue >= 0))
+            throw new RangeError('Exchange item quantity/value snapshot is invalid')
+          base.lineItemSnapshots = lineItemSnapshots
+          const lines = lineItemSnapshots.map(({ saleItemId, netValue }) => ({ saleItemId, amount: netValue }))
+          base.lineAllocations = allocateExchangeFundingByLine(lines, base.sources.map((source) => ({
+            sourceEventId: Number(source.event.id),
+            sourceKind: source.sourceKind as 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE',
+            amount: toNumberRial(source.event.amount)
+          })))
+          base.lineAllocationStatus = 'READ_ONLY_RECONCILED'
+        } catch {
+          base.lineItemSnapshots = []
+          base.lineAllocations = []
+          base.unresolved.push({ eventId: 0, kind: 'EXCHANGE_LINE_ALLOCATION_UNRESOLVED', amount: invoiceTotal })
+        }
+      }
+    }
+  }
+  if (base.lineAllocationStatus === 'READ_ONLY_RECONCILED') {
+    const persisted = await tx.exchangeFundingLineAllocation.findMany({
+      where: { childInvoiceId: invoiceId },
+      orderBy: [{ sourceEventId: 'asc' }, { saleItemId: 'asc' }]
+    })
+    if ((persisted as any[]).length > 0) {
+      const sourceInvoiceId = Number(invoice.sourceInvoiceId)
+      const returnId = Number(invoice.exchangeReturnId)
+      const lineSnapshotsById = new Map(base.lineItemSnapshots.map((line) => [line.saleItemId, line]))
+      const expected = base.lineAllocations.map((allocation) => {
+        const line = lineSnapshotsById.get(allocation.saleItemId)
+        return {
+          eventKey: exchangeFundingLineAllocationEventKey(invoiceId, allocation.sourceEventId, allocation.saleItemId),
+          sourceInvoiceId,
+          childInvoiceId: invoiceId,
+          returnId,
+          sourceEventId: allocation.sourceEventId,
+          saleItemId: allocation.saleItemId,
+          saleItemQty: line?.qty ?? 0,
+          saleItemValue: line?.netValue ?? 0,
+          sourceKind: allocation.sourceKind,
+          amount: allocation.amount
+        }
+      })
+      const matches = (persisted as any[]).length === expected.length &&
+        (persisted as any[]).every((row, index) => {
+          const candidate = expected[index]
+          try {
+            return String(row.eventKey) === candidate.eventKey &&
+              Number(row.sourceInvoiceId) === candidate.sourceInvoiceId &&
+              Number(row.childInvoiceId) === candidate.childInvoiceId &&
+              Number(row.returnId) === candidate.returnId &&
+              Number(row.sourceEventId) === candidate.sourceEventId &&
+              Number(row.saleItemId) === candidate.saleItemId &&
+              Number(row.saleItemQty) === candidate.saleItemQty &&
+              toNumberRial(row.saleItemValue) === candidate.saleItemValue &&
+              String(row.sourceKind) === candidate.sourceKind &&
+              toNumberRial(row.amount) === candidate.amount
+          } catch {
+            return false
+          }
+        })
+      if (matches) {
+        base.lineAllocationStatus = 'PERSISTED_RECONCILED'
+      } else {
         base.lineAllocations = []
-        base.unresolved.push({ eventId: 0, kind: 'EXCHANGE_LINE_ALLOCATION_UNRESOLVED', amount: invoiceTotal })
+        base.lineAllocationStatus = 'UNAVAILABLE'
+        base.unresolved.push({ eventId: 0,
+          kind: 'PERSISTED_EXCHANGE_LINE_ALLOCATION_MISMATCH', amount: invoiceTotal })
       }
     }
   }
   return base
+}
+
+/** Persist the exact child-item matrix in the caller's exchange transaction.
+ * It is immutable descriptive provenance only: it does not create refund rights,
+ * authorize chained exchanges, or replace the existing fail-closed gate.
+ */
+export async function recordExchangeFundingLineAllocations(tx: LedgerClient, invoiceId: number) {
+  if (!Number.isSafeInteger(invoiceId) || invoiceId <= 0) throw invalid()
+  const view = await getCurrentExchangeFundingSources(tx, invoiceId)
+  if (view.lineAllocationStatus === 'PERSISTED_RECONCILED')
+    return { invoiceId, allocationCount: view.lineAllocations.length, replayed: true }
+  if (view.lineAllocationStatus !== 'READ_ONLY_RECONCILED' || view.unresolved.length > 0 ||
+      view.activeReturnIds.length > 0 || !Number.isSafeInteger(view.sourceInvoiceId) ||
+      Number(view.sourceInvoiceId) <= 0 || !Number.isSafeInteger(view.returnId) || Number(view.returnId) <= 0 ||
+      view.lineAllocations.length === 0)
+    throw new BusinessError('تخصیص قلمی منشأ تعویض قابل تطبیق نیست؛ هیچ ردیفی ثبت نشد.')
+
+  const sourcesById = new Map(view.sources.map((source) => [Number(source.event.id), source]))
+  const lineSnapshotsById = new Map(view.lineItemSnapshots.map((line) => [line.saleItemId, line]))
+  for (const allocation of view.lineAllocations) {
+    const source = sourcesById.get(allocation.sourceEventId)
+    const line = lineSnapshotsById.get(allocation.saleItemId)
+    if (!source || source.event.kind !== 'TRANSFER_IN' ||
+        Number(source.event.sourceInvoiceId) !== Number(view.sourceInvoiceId) ||
+        Number(source.event.childInvoiceId) !== invoiceId || Number(source.event.returnId) !== Number(view.returnId) ||
+        source.sourceKind !== allocation.sourceKind || !Number.isSafeInteger(allocation.amount) || allocation.amount <= 0 ||
+        !line || !Number.isSafeInteger(line.qty) || line.qty <= 0 ||
+        !Number.isSafeInteger(line.netValue) || line.netValue <= 0)
+      throw new BusinessError('پیوند تخصیص قلمی با رویداد انتقال اثبات‌شده سازگار نیست؛ هیچ ردیفی ثبت نشد.')
+
+    await tx.exchangeFundingLineAllocation.create({
+      data: {
+        eventKey: exchangeFundingLineAllocationEventKey(invoiceId, allocation.sourceEventId, allocation.saleItemId),
+        sourceInvoiceId: Number(view.sourceInvoiceId),
+        childInvoiceId: invoiceId,
+        returnId: Number(view.returnId),
+        sourceEventId: allocation.sourceEventId,
+        saleItemId: allocation.saleItemId,
+        saleItemQty: line.qty,
+        saleItemValue: BigInt(line.netValue),
+        sourceKind: allocation.sourceKind,
+        amount: BigInt(allocation.amount)
+      }
+    })
+  }
+  return { invoiceId, allocationCount: view.lineAllocations.length, replayed: false }
 }
 
 /** Capture persisted tender/redemption rows for an ordinary sale. This does not

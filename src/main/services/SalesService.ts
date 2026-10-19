@@ -3,6 +3,7 @@ import { prisma } from '../db/client'
 import { createCardTransferRequest } from './CardTransferService'
 import {
   getCurrentSaleFundingSources,
+  recordExchangeFundingLineAllocations,
   recordSaleFundingSnapshot,
   reviseLatestSaleFundingSnapshot,
   reverseExchangeFundingTransfersForReturn,
@@ -7200,6 +7201,7 @@ export const salesService = {
             evidenceRef: `SaleReturn:${back.id}:SaleInvoice:${exchangeInvoice.id}`
           })
         }
+        await recordExchangeFundingLineAllocations(tx, exchangeInvoice.id)
       }
 
       /**

@@ -18,7 +18,7 @@ const names = readdirSync(join(root, 'prisma/migrations'))
   .filter((name) => name !== 'migration_lock.toml').sort()
 const historicNames = names.filter((name) => name < cutover)
 const newNames = names.filter((name) => name >= cutover)
-assert.equal(newNames.length, 9, 'update this test when the financial cutover gains another migration')
+assert.equal(newNames.length, 10, 'update this test when the financial cutover gains another migration')
 const dir = mkdtempSync(join(tmpdir(), 'mahak-real-migration-upgrade-'))
 process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'unused-harness.db')
@@ -138,7 +138,7 @@ assert.deepEqual(one('SELECT reminderConsentAt, reminderConsentPhone, reminderCo
   'old holder phone and non-opt-out flag never backfill SMS permission')
 for (const table of ['ReturnEntitlement', 'ReturnEntitlementEvent', 'CreditDelivery', 'BankStatementEvidence',
   'ReturnGoodsReceipt', 'ReturnGoodsReceiptSource', 'CreditReplacement', 'CreditReturnAllocation',
-  'ExchangeFundingEvent']) {
+  'ExchangeFundingEvent', 'ExchangeFundingLineAllocation']) {
   assert.equal(one(`SELECT COUNT(*) AS n FROM "${table}"`).n, 0, `${table}: no guessed legacy rights/evidence`)
 }
 const addFundingEvent = db.prepare(`INSERT INTO "ExchangeFundingEvent"
@@ -170,6 +170,44 @@ assert.throws(() => db.prepare(`INSERT INTO "ExchangeFundingEvent"
   VALUES (?, ?, ?, ?, ?, ?, ?)`)
   .run('migration-test:duplicate-void', 'VOID_SOURCE', -100, 'payment:1', 'payment:1', 'SALE_INVOICE_VOID', 1),
   /UNIQUE constraint failed/, 'one source event cannot be reversed twice')
+
+const insertLineAllocation = db.prepare(`INSERT INTO "ExchangeFundingLineAllocation"
+  (eventKey, sourceInvoiceId, childInvoiceId, returnId, sourceEventId, saleItemId,
+   saleItemQty, saleItemValue, sourceKind, amount)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+const lineAllocationEventKey = `exchange-line:${secondInvoiceId}:source:9001:item:1001`
+insertLineAllocation.run(lineAllocationEventKey, firstInvoiceId, secondInvoiceId, 71, 9001, 1001,
+  1, 100, 'SOURCE_CASH', 100)
+assert.equal(one('SELECT amount FROM "ExchangeFundingLineAllocation" WHERE eventKey=?', lineAllocationEventKey).amount, 100)
+assert.throws(() => insertLineAllocation.run(lineAllocationEventKey, firstInvoiceId, secondInvoiceId,
+  71, 9002, 1002, 1, 100, 'SOURCE_CASH', 100), /UNIQUE constraint failed/, 'line-allocation event keys are idempotency keys')
+assert.throws(() => insertLineAllocation.run(`${lineAllocationEventKey}:duplicate`, firstInvoiceId,
+  secondInvoiceId, 72, 9001, 1001, 1, 100, 'SOURCE_CASH', 100), /UNIQUE constraint failed/,
+  'one transfer-in source cannot be allocated to the same item twice')
+assert.throws(() => insertLineAllocation.run(`${lineAllocationEventKey}:zero`, firstInvoiceId,
+  secondInvoiceId, 71, 9003, 1003, 1, 100, 'SOURCE_CASH', 0), /CHECK constraint failed/,
+  'zero-value allocations are omitted instead of persisted')
+assert.throws(() => insertLineAllocation.run(`${lineAllocationEventKey}:fractional`, firstInvoiceId,
+  secondInvoiceId, 71, 9004, 1004, 1, 100, 'SOURCE_CASH', 0.5), /CHECK constraint failed/,
+  'Rial allocations are integral at the database boundary')
+assert.throws(() => insertLineAllocation.run(`${lineAllocationEventKey}:fractional-id`, firstInvoiceId,
+  secondInvoiceId, 71, 9004.5, 1004, 1, 100, 'SOURCE_CASH', 1), /CHECK constraint failed/,
+  'scalar event links are integral IDs')
+assert.throws(() => insertLineAllocation.run(`${lineAllocationEventKey}:fractional-item-value`, firstInvoiceId,
+  secondInvoiceId, 71, 9005, 1005, 1, 100.5, 'SOURCE_CASH', 1), /CHECK constraint failed/,
+  'the immutable item-value snapshot is integral')
+assert.throws(() => insertLineAllocation.run(`${lineAllocationEventKey}:invalid-item-qty`, firstInvoiceId,
+  secondInvoiceId, 71, 9007, 1007, 0, 100, 'SOURCE_CASH', 1), /CHECK constraint failed/,
+  'replacement item quantities must be positive')
+assert.throws(() => insertLineAllocation.run(`${lineAllocationEventKey}:unknown`, firstInvoiceId,
+  secondInvoiceId, 71, 9006, 1006, 1, 100, 'SOURCE_UNKNOWN', 1), /CHECK constraint failed/,
+  'unproven source classes cannot be persisted as line allocations')
+const lineAllocationId = one('SELECT id FROM "ExchangeFundingLineAllocation" WHERE eventKey=?',
+  lineAllocationEventKey).id
+assert.throws(() => db.prepare('UPDATE "ExchangeFundingLineAllocation" SET amount=101 WHERE id=?')
+  .run(lineAllocationId), /append-only/, 'line allocations are immutable evidence')
+assert.throws(() => db.prepare('DELETE FROM "ExchangeFundingLineAllocation" WHERE id=?')
+  .run(lineAllocationId), /append-only/, 'line allocations cannot be erased')
 assert.equal(one('PRAGMA integrity_check').integrity_check, 'ok')
 assert.deepEqual(rows('PRAGMA foreign_key_check'), [])
 assert.equal(one('SELECT COUNT(*) AS n FROM "_prisma_migrations" WHERE finished_at IS NOT NULL').n, names.length)

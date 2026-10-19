@@ -13,7 +13,8 @@ const root = process.cwd()
 const stage = '20271020620000_return_goods_receipt_sources'
 const stages = [
   '20271020620000_return_goods_receipt_sources',
-  '20271020630000_exchange_funding_events'
+  '20271020630000_exchange_funding_events',
+  '20271020640000_exchange_funding_line_allocations'
 ]
 const allNames = readdirSync(join(root, 'prisma/migrations'))
   .filter((n) => n !== 'migration_lock.toml').sort()
@@ -128,6 +129,8 @@ assert.deepEqual(report.skipped, [])
 assert.deepEqual(before(upgraded.db), snapshot, 'upgrade never edits old inventory, returns, allocations, credits or receipts')
 assert.deepEqual(read(upgraded.db, 'SELECT * FROM \"ReturnGoodsReceiptSource\"'), [], 'historic receipts are not backfilled with guessed sources')
 assert.deepEqual(read(upgraded.db, 'SELECT * FROM \"ExchangeFundingEvent\"'), [], 'historic payment rows are not backfilled with guessed funding shares')
+assert.deepEqual(read(upgraded.db, 'SELECT * FROM "ExchangeFundingLineAllocation"'), [],
+  'historic exchange invoices are not assigned guessed source-to-item allocations')
 assert.equal(read(upgraded.db, 'SELECT COUNT(*) n FROM \"_prisma_migrations\" WHERE finished_at IS NOT NULL')[0].n, allNames.length)
 assert.deepEqual(read(upgraded.db, 'PRAGMA foreign_key_check'), [])
 assert.equal(read(upgraded.db, 'PRAGMA integrity_check')[0].integrity_check, 'ok')
