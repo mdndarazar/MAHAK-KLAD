@@ -17,6 +17,7 @@ const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mj
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
 const {
+  getCurrentExchangeFundingSources,
   getCurrentSaleFundingSources,
   reverseExchangeFundingTransfersForReturn,
   transferExchangeFundingShare
@@ -270,6 +271,55 @@ assert.deepEqual(transferRows.map(({ kind, amount }) => ({ kind, amount })), [
 const childShareId = transferRows.find((row) => row.kind === 'TRANSFER_IN').shareId
 assert.equal(balance(`payment:${exactSourcePayment.id}`), 0)
 assert.equal(balance(childShareId), 1_000)
+const childFundingView = await getCurrentExchangeFundingSources(db, exactExchange.exchangeInvoiceId)
+assert.equal(childFundingView.snapshotExists, true)
+assert.equal(childFundingView.sources.length, 1)
+assert.equal(childFundingView.sources[0].event.kind, 'TRANSFER_IN')
+assert.equal(childFundingView.sources[0].sourceKind, 'SOURCE_CASH')
+assert.equal(childFundingView.sources[0].sourceMethodKind, 'CASH')
+assert.equal(childFundingView.sources[0].available, 1_000)
+assert.deepEqual(childFundingView.unresolved, [], 'EXCHANGE_CREDIT is reconciled to the proven parent transfer, not treated as money')
+const childInvoiceTotal = seed.one('SELECT grandTotal FROM "SaleInvoice" WHERE id=?', exactExchange.exchangeInvoiceId).grandTotal
+sql.prepare('UPDATE "SaleInvoice" SET paidTotal=? WHERE id=?').run(childInvoiceTotal - 1, exactExchange.exchangeInvoiceId)
+const debtfulChildFunding = await getCurrentExchangeFundingSources(db, exactExchange.exchangeInvoiceId)
+assert.equal(debtfulChildFunding.debt, 1)
+assert.ok(debtfulChildFunding.unresolved.some((row) => row.kind === 'UNRESOLVED_EXCHANGE_CHILD_DEBT'))
+sql.prepare('UPDATE "SaleInvoice" SET paidTotal=? WHERE id=?').run(childInvoiceTotal, exactExchange.exchangeInvoiceId)
+const newTenderId = seed.insert('Payment', {
+  invoiceId: exactExchange.exchangeInvoiceId, methodId: cashMethodId, amount: 1,
+  kind: 'CASH', seq: 2, destination: 'CASH'
+})
+const childWithNewTender = await getCurrentExchangeFundingSources(db, exactExchange.exchangeInvoiceId)
+assert.ok(childWithNewTender.unresolved.some((row) => row.kind === 'UNJOURNALED_CHILD_PAYMENT'))
+sql.prepare('DELETE FROM "Payment" WHERE id=?').run(newTenderId)
+const exchangeCreditPayment = seed.one('SELECT methodId FROM "Payment" WHERE invoiceId=? AND voidedAt IS NULL', exactExchange.exchangeInvoiceId)
+sql.prepare('UPDATE "PaymentMethod" SET kind=? WHERE id=?').run('CASH', exchangeCreditPayment.methodId)
+const malformedChildFunding = await getCurrentExchangeFundingSources(db, exactExchange.exchangeInvoiceId)
+assert.ok(malformedChildFunding.unresolved.some((row) => row.kind === 'MALFORMED_EXCHANGE_CREDIT_PAYMENT'))
+sql.prepare('UPDATE "PaymentMethod" SET kind=? WHERE id=?').run('EXCHANGE_CREDIT', exchangeCreditPayment.methodId)
+sql.prepare('UPDATE "Payment" SET destination=? WHERE invoiceId=? AND voidedAt IS NULL').run('CASH', exactExchange.exchangeInvoiceId)
+const destinationSpoofedChildFunding = await getCurrentExchangeFundingSources(db, exactExchange.exchangeInvoiceId)
+assert.ok(destinationSpoofedChildFunding.unresolved.some((row) => row.kind === 'MALFORMED_EXCHANGE_CREDIT_PAYMENT'),
+  'a cash-looking destination cannot turn EXCHANGE_CREDIT into payment evidence')
+sql.prepare('UPDATE "Payment" SET destination=NULL WHERE invoiceId=? AND voidedAt IS NULL').run(exactExchange.exchangeInvoiceId)
+const exactChildItemId = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', exactExchange.exchangeInvoiceId).id
+const childGateBefore = {
+  returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', exactExchange.exchangeInvoiceId).n,
+  children: seed.one('SELECT COUNT(*) n FROM "SaleInvoice" WHERE sourceInvoiceId=?', exactExchange.exchangeInvoiceId).n,
+  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n,
+  stock: seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?) ORDER BY id', exactSourceVariant, exactReplacementVariant)
+}
+await assert.rejects(() => salesService.createExchange({
+  invoiceId: exactExchange.exchangeInvoiceId,
+  lines: [{ saleItemId: exactChildItemId, qty: 1 }],
+  replacements: [{ variantId: exactSourceVariant, qty: 1 }],
+  refundMode: 'STORE_CREDIT', userId, shiftId, managerPassword: DEFAULT_MANAGER_PASSWORD
+}), /تعویضِ این فاکتور/,
+'proved child lineage is readable, but nested exchange stays closed until per-line allocation and rights are integrated')
+assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', exactExchange.exchangeInvoiceId).n, childGateBefore.returns)
+assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleInvoice" WHERE sourceInvoiceId=?', exactExchange.exchangeInvoiceId).n, childGateBefore.children)
+assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n, childGateBefore.fundingEvents)
+assert.deepEqual(seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?) ORDER BY id', exactSourceVariant, exactReplacementVariant), childGateBefore.stock)
 await assert.rejects(() => salesService.returnReconcileVoid({
   id: exactExchange.returnId, userId, reason: 'unsupported funding correction test',
   panelPassword: DEFAULT_MANAGER_PASSWORD, cashRecovered: 0, cardRecovered: 0,

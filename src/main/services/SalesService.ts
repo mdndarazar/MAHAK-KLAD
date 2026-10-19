@@ -3559,8 +3559,9 @@ async function runReturn(
     let refund: { method: string; amount: number; note: string } | null = null
     let creditReturnPlan: CreditReturnPlan | null = null
     if (!opts.applyRefund) {
-      // The exchange gate is deliberately fail-closed until the full source and
-      // child-lineage transfer path is wired. Do not key it only on
+      // The exchange gate stays fail-closed until per-line source allocation,
+      // child-lineage use, and the separate rights lifecycle are fully integrated
+      // and tested. A lineage reader alone is not authorization. Do not key it only on
       // Payment.storeCreditId: legacy/malformed rows can identify credit via
       // method kind/key, or an active redemption with no linked Payment. Only
       // cash/card rows and cleared cheques are known ordinary funding here;
@@ -6753,11 +6754,11 @@ export const salesService = {
             funding.debt === 0 && funding.unresolved.length === 0 && funding.sources.length > 0 &&
             funding.sources.every((sourceShare) => sourceShare.available > 0)) {
           const realKinds = new Set(['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
-          const sourceClasses = new Set(funding.sources.map(({ event }) =>
-            `${String(event.kind)}:${String(event.sourceMethodKind ?? '')}:${String(event.sourceDestination ?? '')}`
+          const sourceClasses = new Set(funding.sources.map(({ sourceKind, sourceMethodKind, sourceDestination }) =>
+            `${sourceKind}:${String(sourceMethodKind ?? '')}:${String(sourceDestination ?? '')}`
           ))
           const available = funding.sources.reduce((sum, row) => sum + row.available, 0)
-          if (funding.sources.every(({ event }) => realKinds.has(String(event.kind))) && sourceClasses.size === 1 &&
+          if (funding.sources.every(({ sourceKind }) => realKinds.has(sourceKind)) && sourceClasses.size === 1 &&
               Number.isSafeInteger(available) && available >= returnTotal)
             fundingSourcesForTransfer = funding.sources
         }

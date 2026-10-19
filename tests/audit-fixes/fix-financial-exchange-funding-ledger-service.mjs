@@ -9,7 +9,7 @@ process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { appendExchangeFundingEvent, recordSaleFundingSnapshot, exchangeFundingBalance,
-  transferExchangeFundingShare, reverseExchangeFundingTransferPair } =
+  getCurrentExchangeFundingSources, transferExchangeFundingShare, reverseExchangeFundingTransferPair } =
   await import('../../src/main/services/ExchangeFundingLedgerService.ts')
 const db = harnessClient()
 const seed = makeSeeder(db)
@@ -22,6 +22,9 @@ const giftMethodId = seed.insert('PaymentMethod', {
 })
 const cardMethodId = seed.insert('PaymentMethod', {
   key: 'LEDGER-CARD', label: 'Ledger card', kind: 'CARD', isActive: 1
+})
+const exchangeCreditMethodId = seed.insert('PaymentMethod', {
+  key: 'EXCHANGE_CREDIT', label: 'Exchange value', kind: 'EXCHANGE_CREDIT', isActive: 1
 })
 
 const base = {
@@ -107,6 +110,11 @@ async function giftSource(amount, code, expiresAt, expiryCaptured = true, credit
 
 function exchangeGraph(sourceInvoiceId, total) {
   const child = seed.invoice({ grandTotal: total, status: 'SETTLED' })
+  seed.insert('Payment', {
+    invoiceId: child.id, methodId: exchangeCreditMethodId, amount: total,
+    kind: 'CASH', seq: 1
+  })
+  sql.prepare('UPDATE "SaleInvoice" SET paidTotal=? WHERE id=?').run(total, child.id)
   const returnId = seed.insert('SaleReturn', {
     invoiceId: sourceInvoiceId, total,
     returnedAtJalali: '1405/07/27', kind: 'EXCHANGE'
@@ -381,6 +389,13 @@ const giftTransfer = await db.$transaction((tx) => transferExchangeFundingShare(
 assert.equal(giftTransfer.replayed, false)
 assert.equal(await exchangeFundingBalance(db, `redemption:${liveGift.redemptionId}`), 0)
 assert.equal(await exchangeFundingBalance(db, `exchange:${giftGraph.childInvoiceId}:redemption:${liveGift.redemptionId}`), 500)
+const giftChildFunding = await getCurrentExchangeFundingSources(db, giftGraph.childInvoiceId)
+assert.equal(giftChildFunding.unresolved.length, 0)
+assert.equal(giftChildFunding.sources.length, 1)
+assert.equal(giftChildFunding.sources[0].event.kind, 'TRANSFER_IN')
+assert.equal(giftChildFunding.sources[0].sourceKind, 'SOURCE_GIFT')
+assert.equal(giftChildFunding.sources[0].event.rootShareId, `credit:${liveGift.creditId}`)
+assert.equal(giftChildFunding.sources[0].available, 500)
 const beforeMismatchedReverse = seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
 await assert.rejects(() => db.$transaction((tx) => reverseExchangeFundingTransferPair(tx, {
   eventKey: 'void:exchange:mismatched-pair', outEventId: transfer.outEvent.id, inEventId: giftTransfer.inEvent.id
@@ -496,6 +511,9 @@ const reversed = await db.$transaction((tx) => reverseExchangeFundingTransferPai
 assert.equal(reversed.replayed, false)
 assert.equal(await exchangeFundingBalance(db, `payment:${source.paymentId}`), 2_000)
 assert.equal(await exchangeFundingBalance(db, transferInput.destinationShareId), 0)
+const reversedChildFunding = await getCurrentExchangeFundingSources(db, firstGraph.childInvoiceId)
+assert.equal(reversedChildFunding.sources.length, 0)
+assert.ok(reversedChildFunding.unresolved.some((row) => row.kind === 'REVERSED_EXCHANGE_TRANSFER'))
 const reversedAgain = await db.$transaction((tx) => reverseExchangeFundingTransferPair(tx, reverseInput))
 assert.equal(reversedAgain.replayed, true)
 assert.equal(await exchangeFundingBalance(db, `payment:${source.paymentId}`), 2_000)
@@ -528,6 +546,9 @@ const orphanIn = await db.$transaction((tx) => appendExchangeFundingEvent(tx, {
   returnId: orphanGraph.returnId, parentEventId: source.sourceEvent.id,
   evidenceKind: 'EXCHANGE_TRANSFER', evidenceRef: `SaleReturn:${orphanGraph.returnId}`
 }))
+const orphanChildFunding = await getCurrentExchangeFundingSources(db, orphanGraph.childInvoiceId)
+assert.equal(orphanChildFunding.sources.length, 0)
+assert.ok(orphanChildFunding.unresolved.some((row) => row.kind === 'INVALID_EXCHANGE_TRANSFER_LINK'))
 const orphanDownstream = exchangeGraph(orphanGraph.childInvoiceId, 50)
 const eventsBeforeOrphanLineage = seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
 await assert.rejects(() => db.$transaction((tx) => transferExchangeFundingShare(tx, {
@@ -549,6 +570,10 @@ const chainedTransfer = await db.$transaction((tx) => transferExchangeFundingSha
   rootShareId: `payment:${source.paymentId}`, amount: 500,
   sourceInvoiceId: source.invoiceId, childInvoiceId: chainedGraph.childInvoiceId, returnId: chainedGraph.returnId
 }))
+const chainedChildFunding = await getCurrentExchangeFundingSources(db, chainedGraph.childInvoiceId)
+assert.equal(chainedChildFunding.unresolved.length, 0)
+assert.equal(chainedChildFunding.sources[0].sourceKind, 'SOURCE_CASH')
+assert.equal(chainedChildFunding.sources[0].available, 500)
 const downstreamGraph = exchangeGraph(chainedGraph.childInvoiceId, 200)
 const downstreamTransfer = await db.$transaction((tx) => transferExchangeFundingShare(tx, {
   eventKey: `exchange:${chainedGraph.childInvoiceId}:return:${downstreamGraph.returnId}:share:${source.paymentId}`,
@@ -559,6 +584,10 @@ const downstreamTransfer = await db.$transaction((tx) => transferExchangeFunding
   sourceInvoiceId: chainedGraph.childInvoiceId,
   childInvoiceId: downstreamGraph.childInvoiceId, returnId: downstreamGraph.returnId
 }))
+const partiallyCarriedChildFunding = await getCurrentExchangeFundingSources(db, chainedGraph.childInvoiceId)
+assert.equal(partiallyCarriedChildFunding.sources[0].available, 300,
+  'downstream transfer reduces only the child share, while lineage still resolves to the root payment')
+assert.deepEqual(partiallyCarriedChildFunding.activeReturnIds, [downstreamGraph.returnId])
 await assert.rejects(() => db.$transaction((tx) => reverseExchangeFundingTransferPair(tx, {
   eventKey: `void:exchange:${chainedGraph.childInvoiceId}:${chainedGraph.returnId}`,
   outEventId: chainedTransfer.outEvent.id, inEventId: chainedTransfer.inEvent.id
@@ -581,4 +610,4 @@ assert.equal(await exchangeFundingBalance(db, `payment:${source.paymentId}`), 2_
 assert.equal(await exchangeFundingBalance(db,
   `exchange:${chainedGraph.childInvoiceId}:return:${chainedGraph.returnId}:share:${source.paymentId}`), 0)
 
-console.log('✓ exchange funding journal: persisted-source proof, expiry, exact active transfer pairs, per-return cap, stale/reversed/orphan lineage guards and idempotency')
+console.log('✓ exchange funding journal: persisted-source proof, expiry, exact transfer pairs, gift/cash child lineage, downstream balance, reversal, cap, stale/orphan guards and idempotency')

@@ -415,23 +415,37 @@ async function hasActiveTransferPair(tx: LedgerClient, into: any): Promise<boole
   return !!(await activeExchangeLink(tx, Number(into.sourceInvoiceId), Number(into.childInvoiceId), Number(into.returnId)))
 }
 
-async function hasProvableTransferLineage(tx: LedgerClient, event: any): Promise<boolean> {
+async function provenSourceRootEvent(tx: LedgerClient, event: any): Promise<any | null> {
   let current = event
   const seen = new Set<number>()
   for (let depth = 0; depth < 50; depth++) {
     const id = Number(current?.id)
-    if (!Number.isSafeInteger(id) || id <= 0 || seen.has(id)) return false
+    const shareId = typeof current?.shareId === 'string' ? current.shareId : ''
+    if (!Number.isSafeInteger(id) || id <= 0 || seen.has(id) || !shareId.trim()) return null
     seen.add(id)
     if (PROVEN_SOURCE_KINDS.has(String(current.kind))) {
-      return toNumberRial(current.amount) > 0 && !await eventHasReversal(tx, id) &&
-        await hasPersistedSourcePayment(tx, current)
+      const rootAmount = toNumberRial(current.amount)
+      if (!Number.isSafeInteger(rootAmount) || rootAmount <= 0) return null
+      if (await eventHasReversal(tx, id)) return null
+      if (!await hasPersistedSourcePayment(tx, current)) return null
+      const rootBalance = await exchangeFundingBalance(tx, shareId)
+      if (!Number.isSafeInteger(rootBalance) || rootBalance < 0) return null
+      return current
     }
-    if (current.kind !== 'TRANSFER_IN' || current.parentEventId == null || !await hasActiveTransferPair(tx, current))
-      return false
+    if (current.kind !== 'TRANSFER_IN' || current.parentEventId == null) return null
+    const carriedAmount = toNumberRial(current.amount)
+    if (!Number.isSafeInteger(carriedAmount) || carriedAmount <= 0) return null
+    if (!await hasActiveTransferPair(tx, current)) return null
+    const carriedBalance = await exchangeFundingBalance(tx, shareId)
+    if (!Number.isSafeInteger(carriedBalance) || carriedBalance < 0) return null
     current = await tx.exchangeFundingEvent.findUnique({ where: { id: Number(current.parentEventId) } })
-    if (!current) return false
+    if (!current) return null
   }
-  return false
+  return null
+}
+
+async function hasProvableTransferLineage(tx: LedgerClient, event: any): Promise<boolean> {
+  return (await provenSourceRootEvent(tx, event)) != null
 }
 
 /** Read only the latest persisted-sale snapshot and verify every transferable
@@ -462,7 +476,13 @@ export async function getCurrentSaleFundingSources(tx: LedgerClient, invoiceId: 
     snapshotExists: revision > 0,
     stale,
     activeReturnIds: (returnRows as any[]).map((row) => Number(row.id)),
-    sources: [] as Array<{ event: any; available: number }>,
+    sources: [] as Array<{
+      event: any
+      available: number
+      sourceKind: string
+      sourceMethodKind: string | null
+      sourceDestination: string | null
+    }>,
     unresolved: [] as Array<{ eventId: number; kind: string; amount: number }>,
     debt: 0,
     overpay: 0
@@ -501,7 +521,13 @@ export async function getCurrentSaleFundingSources(tx: LedgerClient, invoiceId: 
           base.unresolved.push({ eventId, kind: 'INVALID_SOURCE_BALANCE', amount })
           continue
         }
-        base.sources.push({ event, available })
+        base.sources.push({
+          event,
+          available,
+          sourceKind: kind,
+          sourceMethodKind: event.sourceMethodKind == null ? null : String(event.sourceMethodKind),
+          sourceDestination: event.sourceDestination == null ? null : String(event.sourceDestination)
+        })
       } else {
         // Unknown money is represented in invoice value but never transferable.
         base.unresolved.push({ eventId, kind, amount })
@@ -530,6 +556,157 @@ export async function getCurrentSaleFundingSources(tx: LedgerClient, invoiceId: 
       amount: allocatedInvoiceValue + base.debt - invoiceTotal })
   if (!Number.isSafeInteger(base.overpay))
     base.unresolved.push({ eventId: 0, kind: 'INVALID_OVERPAY_BALANCE', amount: base.overpay })
+  return base
+}
+
+/** Read the child side of an EXCHANGE invoice from its validated incoming
+ * transfer pairs. The display Payment(EXCHANGE_CREDIT) is only reconciled to
+ * those transfers; it is never promoted to an independent cash source. New
+ * tenders, debt, missing pairs, and mismatched invoice totals stay unresolved.
+ */
+export async function getCurrentExchangeFundingSources(tx: LedgerClient, invoiceId: number) {
+  if (!Number.isSafeInteger(invoiceId) || invoiceId <= 0) throw invalid()
+  const invoice = await tx.saleInvoice.findUnique({
+    where: { id: invoiceId },
+    select: {
+      id: true, orderType: true, voidedAt: true, status: true, grandTotal: true, paidTotal: true,
+      sourceInvoiceId: true, exchangeReturnId: true
+    }
+  })
+  if (!invoice) throw new BusinessError('سند تعویض برای خواندن زنجیرهٔ منشأ پیدا نشد.')
+  if (invoice.orderType !== 'EXCHANGE')
+    throw new BusinessError('خواندن منشأ فرزند فقط برای فاکتور نوع تعویض انجام می‌شود.')
+  if (invoice.voidedAt != null || ['DRAFT', 'CANCELED'].includes(String(invoice.status)))
+    throw new BusinessError('سند تعویض لغوشده یا نهایی‌نشده منبع زنده نیست.')
+
+  const [transferEvents, payments, returnRows, redemptionCount] = await Promise.all([
+    tx.exchangeFundingEvent.findMany({
+      where: { childInvoiceId: invoiceId, kind: { in: ['TRANSFER_OUT', 'TRANSFER_IN'] } },
+      orderBy: { id: 'asc' }
+    }),
+    tx.payment.findMany({
+      where: { invoiceId, voidedAt: null }, orderBy: [{ seq: 'asc' }, { id: 'asc' }],
+      include: { method: { select: { kind: true, key: true } } }
+    }),
+    tx.saleReturn.findMany({ where: { invoiceId, voidedAt: null }, select: { id: true } }),
+    tx.storeCreditRedemption.count({ where: { invoiceId, reversedAt: null } })
+  ])
+  const base = {
+    invoiceId,
+    revision: 0,
+    snapshotExists: (transferEvents as any[]).length > 0,
+    stale: false,
+    activeReturnIds: (returnRows as any[]).map((row) => Number(row.id)),
+    sources: [] as Array<{
+      event: any
+      available: number
+      sourceKind: string
+      sourceMethodKind: string | null
+      sourceDestination: string | null
+    }>,
+    unresolved: [] as Array<{ eventId: number; kind: string; amount: number }>,
+    debt: 0,
+    overpay: 0
+  }
+  const outs = (transferEvents as any[]).filter((event) => event.kind === 'TRANSFER_OUT')
+  const ins = (transferEvents as any[]).filter((event) => event.kind === 'TRANSFER_IN')
+  const matchedOutIds = new Set<number>()
+  let incomingTotal = 0n
+  if (outs.length !== ins.length)
+    base.unresolved.push({ eventId: 0, kind: 'UNPAIRED_EXCHANGE_TRANSFER', amount: Math.abs(outs.length - ins.length) })
+
+  for (const into of ins) {
+    const eventId = Number(into.id)
+    const amount = toNumberRial(into.amount)
+    const out = await matchingTransferOutForIn(tx, into)
+    if (!out || !outs.some((candidate) => Number(candidate.id) === Number(out.id)) ||
+        matchedOutIds.has(Number(out.id)) || Number(into.childInvoiceId) !== invoiceId ||
+        Number(into.sourceInvoiceId) !== Number(invoice.sourceInvoiceId) ||
+        Number(into.returnId) !== Number(invoice.exchangeReturnId) ||
+        !Number.isSafeInteger(eventId) || eventId <= 0 || !Number.isSafeInteger(amount) || amount <= 0) {
+      base.unresolved.push({ eventId: Number.isSafeInteger(eventId) ? eventId : 0,
+        kind: 'INVALID_EXCHANGE_TRANSFER_LINK', amount: Number.isSafeInteger(amount) ? amount : 0 })
+      continue
+    }
+    matchedOutIds.add(Number(out.id))
+    const state = await transferPairReversalState(tx, out, into)
+    if (state !== 'ACTIVE') {
+      base.unresolved.push({ eventId, kind: state === 'REVERSED' ? 'REVERSED_EXCHANGE_TRANSFER' : 'INVALID_EXCHANGE_TRANSFER_PAIR', amount })
+      continue
+    }
+    incomingTotal += BigInt(amount)
+    const root = await provenSourceRootEvent(tx, into)
+    if (!root) {
+      base.unresolved.push({ eventId, kind: 'UNPROVEN_EXCHANGE_LINEAGE', amount })
+      continue
+    }
+    const available = await exchangeFundingBalance(tx, String(into.shareId))
+    if (!Number.isSafeInteger(available) || available < 0) {
+      base.unresolved.push({ eventId, kind: 'INVALID_TRANSFERRED_SHARE_BALANCE', amount })
+      continue
+    }
+    base.sources.push({
+      event: into,
+      available,
+      sourceKind: String(root.kind),
+      sourceMethodKind: root.sourceMethodKind == null ? null : String(root.sourceMethodKind),
+      sourceDestination: root.sourceDestination == null ? null : String(root.sourceDestination)
+    })
+  }
+  if (matchedOutIds.size !== outs.length)
+    base.unresolved.push({ eventId: 0, kind: 'UNMATCHED_EXCHANGE_TRANSFER_OUT', amount: outs.length - matchedOutIds.size })
+  if (incomingTotal > BigInt(Number.MAX_SAFE_INTEGER))
+    base.unresolved.push({ eventId: 0, kind: 'INVALID_EXCHANGE_TRANSFER_TOTAL', amount: 0 })
+
+  let exchangeCreditTotal = 0
+  for (const payment of payments as any[]) {
+    const amount = toNumberRial(payment.amount)
+    const methodKind = String(payment.method?.kind ?? '').toUpperCase()
+    const methodKey = String(payment.method?.key ?? '').toUpperCase()
+    const hasExchangeCreditSignal = methodKind === 'EXCHANGE_CREDIT' || methodKey === 'EXCHANGE_CREDIT'
+    if (!Number.isSafeInteger(amount) || amount <= 0) {
+      base.unresolved.push({ eventId: Number(payment.id) || 0, kind: 'INVALID_CHILD_PAYMENT', amount: Number.isSafeInteger(amount) ? amount : 0 })
+    } else if (hasExchangeCreditSignal) {
+      if (methodKind !== 'EXCHANGE_CREDIT' || methodKey !== 'EXCHANGE_CREDIT' ||
+          payment.storeCreditId != null || payment.destination != null ||
+          String(payment.kind ?? 'CASH').toUpperCase() !== 'CASH') {
+        base.unresolved.push({ eventId: Number(payment.id) || 0, kind: 'MALFORMED_EXCHANGE_CREDIT_PAYMENT', amount })
+      } else {
+        exchangeCreditTotal += amount
+      }
+    } else {
+      // No typed NEW_PAID event exists for additional child tenders yet.
+      base.unresolved.push({ eventId: Number(payment.id) || 0, kind: 'UNJOURNALED_CHILD_PAYMENT', amount })
+    }
+  }
+  if (redemptionCount > 0)
+    base.unresolved.push({ eventId: 0, kind: 'ACTIVE_CHILD_CREDIT_REDEMPTION', amount: redemptionCount })
+
+  const invoiceTotal = toNumberRial(invoice.grandTotal)
+  const paidTotal = toNumberRial(invoice.paidTotal)
+  const transferred = Number(incomingTotal)
+  if (!Number.isSafeInteger(invoiceTotal) || invoiceTotal < 0 || !Number.isSafeInteger(paidTotal) || paidTotal < 0 ||
+      !Number.isSafeInteger(exchangeCreditTotal) || !Number.isSafeInteger(transferred)) {
+    base.unresolved.push({ eventId: 0, kind: 'INVALID_EXCHANGE_INVOICE_SETTLEMENT', amount: 0 })
+  } else {
+    base.debt = Math.max(0, invoiceTotal - paidTotal)
+    base.overpay = Math.max(0, paidTotal - invoiceTotal)
+    if (base.debt > 0)
+      base.unresolved.push({ eventId: 0, kind: 'UNRESOLVED_EXCHANGE_CHILD_DEBT', amount: base.debt })
+    if (base.overpay > 0)
+      base.unresolved.push({ eventId: 0, kind: 'UNRESOLVED_EXCHANGE_CHILD_OVERPAY', amount: base.overpay })
+    if (paidTotal !== exchangeCreditTotal)
+      base.unresolved.push({ eventId: 0, kind: 'EXCHANGE_TRANSFER_PAID_TOTAL_MISMATCH',
+        amount: paidTotal - exchangeCreditTotal })
+  }
+  if (Number.isSafeInteger(exchangeCreditTotal) && Number.isSafeInteger(transferred) && transferred !== exchangeCreditTotal)
+    base.unresolved.push({ eventId: 0, kind: 'EXCHANGE_TRANSFER_PAYMENT_MISMATCH',
+      amount: transferred - exchangeCreditTotal })
+  if (Number.isSafeInteger(invoiceTotal) && Number.isSafeInteger(transferred) && transferred !== invoiceTotal)
+    base.unresolved.push({ eventId: 0, kind: 'EXCHANGE_TRANSFER_INVOICE_MISMATCH',
+      amount: transferred - invoiceTotal })
+  if (!base.snapshotExists && Number.isSafeInteger(invoiceTotal) && invoiceTotal > 0)
+    base.unresolved.push({ eventId: 0, kind: 'MISSING_EXCHANGE_TRANSFER_SNAPSHOT', amount: invoiceTotal })
   return base
 }
 

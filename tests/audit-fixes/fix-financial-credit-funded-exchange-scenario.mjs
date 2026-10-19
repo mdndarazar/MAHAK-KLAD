@@ -16,6 +16,7 @@ process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
+const { getCurrentExchangeFundingSources } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
 const { issueStoreCredit, findRedeemable } = await import('../../src/main/services/StoreCreditService.ts')
 const { toJalaliDate } = await import('@shared/jalali')
 const { DEFAULT_MANAGER_PASSWORD } = await import('@shared/receipt')
@@ -139,6 +140,11 @@ console.log('✓ all-cash control: 980,000-rial difference issues a new code; do
 // by real cash. Until downstream child-lineage transfer is integrated, it must
 // not be treated as a fresh cash-funded source for a second exchange.
 const controlChildItemId = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', control.exchangeInvoiceId).id
+const unjournaledChildFunding = await getCurrentExchangeFundingSources(db, control.exchangeInvoiceId)
+assert.equal(unjournaledChildFunding.snapshotExists, false)
+assert.ok(unjournaledChildFunding.unresolved.some((row) => row.kind === 'MISSING_EXCHANGE_TRANSFER_SNAPSHOT'))
+assert.equal(unjournaledChildFunding.sources.length, 0,
+  'the EXCHANGE_CREDIT payment cannot replace the missing parent-to-child transfer lineage')
 await assertExchangeGateHasNoEffects(control.exchangeInvoiceId, controlChildItemId,
   'an EXCHANGE_CREDIT child requires its complete parent-funding lineage')
 const exchangeCreditMethodId = seed.one('SELECT id FROM "PaymentMethod" WHERE key=?', 'EXCHANGE_CREDIT').id
