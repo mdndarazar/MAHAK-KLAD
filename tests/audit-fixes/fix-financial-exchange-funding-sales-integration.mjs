@@ -995,4 +995,116 @@ assert.deepEqual({
     'SaleReturn', safeSnapshotResponse.id).n)
 }, stableSnapshotEffects, 'mismatched snapshot binding cannot cause any duplicate financial effects')
 
-console.log('✓ SalesService funding integration: snapshot revisions, child attribution preview, retry-safe returns, safe snapshots, exact-cash lineage and reversal holds')
+// True multi-process race: two independent SQLite clients submit the exact same
+// exchange request/key after both have loaded the harness database.
+const raceSourceVariant = variant(1_000)
+const raceReplacementVariant = variant(1_000)
+const raceSourceSale = await salesService.create({
+  userId, shiftId, lines: [line(raceSourceVariant, 1_000)],
+  payments: [{ methodId: cashMethodId, amount: 1_000, destination: 'CASH' }]
+})
+const raceSourceItemId = Number(seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', raceSourceSale.id).id)
+const exchangeRaceRequest = {
+  invoiceId: raceSourceSale.id,
+  lines: [{ saleItemId: raceSourceItemId, qty: 1 }],
+  replacements: [{ variantId: raceReplacementVariant, qty: 1 }],
+  idempotencyKey: 'exchange-request:sqlite-race-integration-0001',
+  note: 'same-key two-process exchange race', userId, shiftId
+}
+const startExchangeRaceWorker = (request = exchangeRaceRequest) => {
+  const child = spawn(process.execPath, [
+    '--import', './test/harness/register.mjs',
+    'tests/audit-fixes/helpers/exchange-idempotency-worker.mjs',
+    JSON.stringify(request)
+  ], { cwd: process.cwd(), env: {
+    ...process.env, HARNESS_DIR: dir, HARNESS_DB: process.env.HARNESS_DB, HARNESS_DB_EXISTING: '1'
+  }, stdio: ['pipe', 'pipe', 'pipe'] })
+  let stderr = '', sawReady = false, sawResult = false
+  let resolveReady, rejectReady, resolveResult, rejectResult, resolveClose, rejectClose
+  const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject })
+  const result = new Promise((resolve, reject) => { resolveResult = resolve; rejectResult = reject })
+  const closed = new Promise((resolve, reject) => { resolveClose = resolve; rejectClose = reject })
+  const lines = createInterface({ input: child.stdout })
+  lines.on('line', (line) => {
+    try {
+      const message = JSON.parse(line)
+      if (message.ready) { sawReady = true; resolveReady() }
+      else if (typeof message.ok === 'boolean') {
+        sawResult = true
+        if (!message.ok && !sawReady) rejectReady(new Error(`exchange race worker failed before ready: ${JSON.stringify(message)}`))
+        resolveResult(message)
+      }
+    } catch { /* ignore non-JSON diagnostics */ }
+  })
+  child.stderr.on('data', (chunk) => { stderr += String(chunk) })
+  child.on('error', (error) => { rejectReady(error); rejectResult(error); rejectClose(error) })
+  child.on('close', (code) => {
+    if (code === 0) {
+      if (!sawReady) rejectReady(new Error(`exchange race worker exited before ready: ${stderr}`))
+      if (!sawResult) rejectResult(new Error(`exchange race worker exited before result: ${stderr}`))
+      resolveClose()
+    } else {
+      const error = new Error(`exchange race worker exited ${code}: ${stderr}`)
+      rejectReady(error); rejectResult(error); rejectClose(error)
+    }
+  })
+  return { child, ready, result, closed }
+}
+const exchangeRaceWorkers = [startExchangeRaceWorker(), startExchangeRaceWorker()]
+await Promise.all(exchangeRaceWorkers.map((worker) => worker.ready))
+for (const worker of exchangeRaceWorkers) worker.child.stdin.end('go')
+const exchangeRaceResults = await Promise.all(exchangeRaceWorkers.map((worker) => worker.result))
+await Promise.all(exchangeRaceWorkers.map((worker) => worker.closed))
+assert.ok(exchangeRaceResults.every((result) => result.ok), JSON.stringify(exchangeRaceResults))
+assert.equal(exchangeRaceResults[0].returnId, exchangeRaceResults[1].returnId)
+assert.equal(exchangeRaceResults[0].exchangeInvoiceId, exchangeRaceResults[1].exchangeInvoiceId)
+assert.deepEqual(exchangeRaceResults.map((result) => result.replayed).sort(), [false, true])
+assert.equal(seed.count('SaleReturn', 'idempotencyKey=?', exchangeRaceRequest.idempotencyKey), 1)
+assert.equal(seed.count('SaleInvoice', 'sourceInvoiceId=?', raceSourceSale.id), 1,
+  'two workers create one child exchange invoice')
+assert.equal(seed.count('ExchangeFundingEvent', 'returnId=? AND kind IN (?, ?)',
+  exchangeRaceResults[0].returnId, 'TRANSFER_OUT', 'TRANSFER_IN'), 2,
+'one source share produces exactly one transfer pair')
+assert.equal(seed.count('Payment', 'invoiceId=? AND voidedAt IS NULL', exchangeRaceResults[0].exchangeInvoiceId), 1,
+  'the child ExchangeCredit payment is not duplicated')
+assert.equal(Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', raceReplacementVariant).stock), 19,
+  'replacement inventory is deducted once across the process race')
+const racedChildFunding = await getCurrentExchangeFundingSources(db, exchangeRaceResults[0].exchangeInvoiceId)
+assert.equal(racedChildFunding.lineAllocationStatus, 'PERSISTED_RECONCILED')
+assert.equal(racedChildFunding.sources[0].available, 1_000)
+
+// A concurrent request using the same key but a different fingerprint must not
+// receive the winner's response or create a second exchange.
+const mismatchRaceSourceVariant = variant(1_000)
+const mismatchRaceReplacementVariant = variant(1_000)
+const mismatchRaceSale = await salesService.create({
+  userId, shiftId, lines: [{ ...line(mismatchRaceSourceVariant, 1_000), qty: 2 }],
+  payments: [{ methodId: cashMethodId, amount: 2_000, destination: 'CASH' }]
+})
+const mismatchRaceItemId = Number(seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', mismatchRaceSale.id).id)
+const mismatchRaceKey = 'exchange-request:sqlite-mismatch-race-0001'
+const mismatchRaceBase = {
+  invoiceId: mismatchRaceSale.id,
+  lines: [{ saleItemId: mismatchRaceItemId, qty: 1 }],
+  replacements: [{ variantId: mismatchRaceReplacementVariant, qty: 1 }],
+  idempotencyKey: mismatchRaceKey, userId, shiftId
+}
+const mismatchRaceWorkers = [
+  startExchangeRaceWorker({ ...mismatchRaceBase, note: 'independent intent one' }),
+  startExchangeRaceWorker({ ...mismatchRaceBase, note: 'independent intent two' })
+]
+await Promise.all(mismatchRaceWorkers.map((worker) => worker.ready))
+for (const worker of mismatchRaceWorkers) worker.child.stdin.end('go')
+const mismatchRaceResults = await Promise.all(mismatchRaceWorkers.map((worker) => worker.result))
+await Promise.all(mismatchRaceWorkers.map((worker) => worker.closed))
+assert.equal(mismatchRaceResults.filter((result) => result.ok).length, 1, JSON.stringify(mismatchRaceResults))
+const mismatchRaceLoser = mismatchRaceResults.find((result) => !result.ok)
+assert.match(mismatchRaceLoser.error, /payload متفاوت/)
+assert.equal(seed.count('SaleReturn', 'idempotencyKey=?', mismatchRaceKey), 1)
+assert.equal(seed.count('SaleInvoice', 'sourceInvoiceId=?', mismatchRaceSale.id), 1)
+assert.equal(seed.count('SaleReturnItem', 'saleItemId=?', mismatchRaceItemId), 1,
+  'losing distinct intent cannot append another physical return line')
+assert.equal(Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', mismatchRaceReplacementVariant).stock), 19,
+  'only the winning exchange deducts replacement inventory')
+
+console.log('✓ SalesService funding integration: independent-process same-key replay/mismatch, return retries, child attribution, exact lineage and reversal holds')
