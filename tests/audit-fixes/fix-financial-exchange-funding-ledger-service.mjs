@@ -10,6 +10,7 @@ process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
+const { salesService } = await import('../../src/main/services/SalesService.ts')
 const { appendExchangeFundingEvent, recordSaleFundingSnapshot, getCurrentSaleFundingSources, exchangeFundingBalance,
   getCurrentExchangeFundingSources, recordExchangeFundingLineAllocations,
   recordExchangeFundingReturnLineAllocation, reverseExchangeFundingReturnLineAllocationsForReturn,
@@ -729,6 +730,99 @@ const createReturnChunk = async (qty, value, time) => {
 const secondReturnChunk = await createReturnChunk(50, 500, '12:02:00')
 const finalReturnChunk = await createReturnChunk(49, 490, '12:03:00')
 const allActiveChunks = [raceReturnId, secondReturnChunk.returnId, finalReturnChunk.returnId]
+const chunkReportRows = await salesService.returnList({
+  fromJalali: '1405/07/27', toJalali: '1405/07/27', take: 500
+})
+const expectedChunkSources = [
+  { returnId: raceReturnId, total: 10, sources: [
+    { sourceKind: 'SOURCE_CASH', amount: 10 }, { sourceKind: 'SOURCE_GIFT', amount: 0 }
+  ] },
+  { returnId: secondReturnChunk.returnId, total: 500, sources: [
+    { sourceKind: 'SOURCE_CASH', amount: 499 }, { sourceKind: 'SOURCE_GIFT', amount: 1 }
+  ] },
+  { returnId: finalReturnChunk.returnId, total: 490, sources: [
+    { sourceKind: 'SOURCE_CASH', amount: 490 }, { sourceKind: 'SOURCE_GIFT', amount: 0 }
+  ] }
+]
+for (const expected of expectedChunkSources) {
+  const row = chunkReportRows.find((candidate) => candidate.id === expected.returnId)
+  assert.ok(row, `return report includes physical chunk ${expected.returnId}`)
+  assert.equal(row.fundingAttribution.status, 'ATTRIBUTION_ONLY')
+  assert.equal(row.fundingAttribution.settlementReady, false)
+  assert.deepEqual(row.fundingAttribution.sources, expected.sources)
+  assert.equal(row.fundingAttribution.sources.reduce((sum, source) => sum + source.amount, 0), expected.total)
+  assert.equal(row.refundAmount, 0)
+  assert.equal(row.cashRefundAmount, 0)
+}
+const allActiveChunksReportTotal = expectedChunkSources.reduce((sum, chunk) => sum + chunk.total, 0)
+assert.equal(allActiveChunksReportTotal, 1_000,
+  'reports reconcile 1/50/49 physical chunks cumulatively without turning attribution into payout')
+
+// Reorder the same economic chunks to 1/49/50 on an equivalent source graph.
+// The one gift rial moves to the 49-unit return, while the final source totals
+// remain exactly one gift and 999 cash; report rows must preserve event order.
+const reorderedSource = await mixedSource(1, 999, 'LEDGER-RETURN-CHUNK-ORDER-B')
+const reorderedGraph = exchangeGraph(reorderedSource.invoiceId, 1_000)
+const reorderedSourceView = await getCurrentSaleFundingSources(db, reorderedSource.invoiceId)
+await db.$transaction(async (tx) => {
+  for (const source of reorderedSourceView.sources) {
+    await transferExchangeFundingShare(tx, {
+      eventKey: `exchange:${reorderedSource.invoiceId}:return:${reorderedGraph.returnId}:order:${source.event.id}`,
+      sourceEventId: source.event.id, sourceShareId: source.event.shareId,
+      destinationShareId: `exchange:${reorderedGraph.childInvoiceId}:order:${source.event.id}`,
+      rootShareId: source.event.rootShareId, amount: source.available,
+      sourceInvoiceId: reorderedSource.invoiceId, childInvoiceId: reorderedGraph.childInvoiceId,
+      returnId: reorderedGraph.returnId
+    })
+  }
+})
+const reorderedSaleItem = seed.one('SELECT id, variantId FROM "SaleInvoiceItem" WHERE invoiceId=?',
+  reorderedGraph.childInvoiceId)
+sql.prepare('UPDATE "SaleInvoiceItem" SET qty=100, unitPrice=10 WHERE id=?').run(reorderedSaleItem.id)
+await db.$transaction((tx) => recordExchangeFundingLineAllocations(tx, reorderedGraph.childInvoiceId))
+const reorderedReturns = []
+for (const [qty, time] of [[1, '13:01:00'], [49, '13:02:00'], [50, '13:03:00']]) {
+  const returnId = seed.insert('SaleReturn', {
+    invoiceId: reorderedGraph.childInvoiceId, isFull: false, total: qty * 10,
+    returnedAt: new Date(), returnedAtJalali: '1405/07/27', returnedAtTime: time,
+    kind: 'RETURN', refundMethod: 'NONE', refundAmount: 0
+  })
+  const returnItemId = seed.insert('SaleReturnItem', {
+    returnId, saleItemId: Number(reorderedSaleItem.id), variantId: Number(reorderedSaleItem.variantId),
+    qty, unitPrice: 10, lineTotal: qty * 10, restockedQty: 0
+  })
+  await db.$transaction((tx) => recordExchangeFundingReturnLineAllocation(tx, { returnId, returnItemId }))
+  reorderedReturns.push({ returnId, total: qty * 10 })
+}
+const reorderedReportRows = await salesService.returnList({
+  fromJalali: '1405/07/27', toJalali: '1405/07/27', take: 500
+})
+const expectedReorderedSources = [
+  { returnId: reorderedReturns[0].returnId, total: 10, sources: [
+    { sourceKind: 'SOURCE_CASH', amount: 10 }, { sourceKind: 'SOURCE_GIFT', amount: 0 }
+  ] },
+  { returnId: reorderedReturns[1].returnId, total: 490, sources: [
+    { sourceKind: 'SOURCE_CASH', amount: 489 }, { sourceKind: 'SOURCE_GIFT', amount: 1 }
+  ] },
+  { returnId: reorderedReturns[2].returnId, total: 500, sources: [
+    { sourceKind: 'SOURCE_CASH', amount: 500 }, { sourceKind: 'SOURCE_GIFT', amount: 0 }
+  ] }
+]
+for (const expected of expectedReorderedSources) {
+  const row = reorderedReportRows.find((candidate) => candidate.id === expected.returnId)
+  assert.ok(row, `reordered report includes return ${expected.returnId}`)
+  assert.equal(row.fundingAttribution.status, 'ATTRIBUTION_ONLY')
+  assert.deepEqual(row.fundingAttribution.sources, expected.sources)
+  assert.equal(row.fundingAttribution.sources.reduce((sum, source) => sum + source.amount, 0), expected.total)
+  assert.equal(row.cashRefundAmount, 0)
+}
+assert.notDeepEqual(expectedReorderedSources[1].sources, expectedChunkSources[2].sources,
+  'the 49-unit physical event receives a different gift/cash delta depending on return order, while each order reconciles')
+assert.deepEqual(expectedReorderedSources.reduce((all, chunk) => {
+  for (const source of chunk.sources) all[source.sourceKind] = (all[source.sourceKind] ?? 0) + source.amount
+  return all
+}, {}), { SOURCE_CASH: 999, SOURCE_GIFT: 1 },
+'1/49/50 order preserves the exact original cumulative cash/gift totals')
 const chunkedSourceTotals = seed.rows(`SELECT sourceKind, SUM(amountDelta) AS amount
   FROM "ExchangeFundingReturnLineAllocation"
   WHERE returnId IN (?, ?, ?) AND eventKind='ALLOCATION'
@@ -853,6 +947,27 @@ assert.deepEqual(expiredAttributionTotals, [
   { sourceKind: 'SOURCE_CASH', amount: 700 },
   { sourceKind: 'SOURCE_GIFT', amount: 300 }
 ], 'expired gift provenance remains gift in historical return attribution')
+const expiredReturnReport = await salesService.returnList({
+  fromJalali: '1405/07/28', toJalali: '1405/07/28', take: 500
+})
+for (const chunk of expiryChunks) {
+  const row = expiredReturnReport.find((candidate) => candidate.id === chunk.returnId)
+  assert.ok(row, 'post-expiry physical child return remains visible in history')
+  assert.equal(row.fundingAttribution.status, 'ATTRIBUTION_ONLY')
+  assert.equal(row.fundingAttribution.settlementReady, false)
+  assert.equal(row.fundingAttribution.sources.reduce((sum, source) => sum + source.amount, 0),
+    chunk.allocation.shares.reduce((sum, share) => sum + share.amount, 0))
+  assert.equal(row.refundAmount, 0)
+}
+const expiredReportTotals = Object.fromEntries(expiredReturnReport
+  .filter((row) => expiredReturnIds.includes(row.id))
+  .flatMap((row) => row.fundingAttribution.sources)
+  .reduce((totals, source) => {
+    totals.set(source.sourceKind, (totals.get(source.sourceKind) ?? 0) + source.amount)
+    return totals
+  }, new Map()))
+assert.deepEqual(expiredReportTotals, { SOURCE_CASH: 700, SOURCE_GIFT: 300 },
+  'post-expiry report preserves gift lineage as attribution only, never as cash right')
 assert.deepEqual({
   credits: seed.count('StoreCredit'), movements: seed.count('CashMovement'),
   entitlements: seed.count('ReturnEntitlement'), fundingEvents: seed.count('ExchangeFundingEvent')

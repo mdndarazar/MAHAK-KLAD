@@ -178,6 +178,7 @@ import type {
   CreditInvoiceRow,
   CreditSettlementRow,
   CreditReportResult,
+  ReturnFundingAttributionSourceKind,
   ReturnListRow,
   StoreCreditSafeRow,
   SaleAccountingStatements,
@@ -8711,6 +8712,8 @@ export const salesService = {
             receiptNo: true,
             returnCode: true,
             issuedAtJalali: true,
+            orderType: true,
+            sourceInvoiceId: true,
             customer: { select: { name: true } },
             // بند ۱۰ — «فروشنده‌ی فاکتور اصلی»؛ ستونی که تا امروز نبود
             user: { select: { displayName: true } }
@@ -8721,6 +8724,19 @@ export const salesService = {
       skip: page.skip,
       take: page.take
     })
+    const returnAllocationRows: any[] = []
+    for (const ids of reportIdChunks(returns.map((r) => r.id))) {
+      returnAllocationRows.push(...(await prisma.exchangeFundingReturnLineAllocation.findMany({
+        where: { returnId: { in: ids } },
+        orderBy: [{ returnId: 'asc' }, { returnItemId: 'asc' }, { id: 'asc' }]
+      })))
+    }
+    const allocationRowsByReturn = new Map<number, any[]>()
+    for (const allocation of returnAllocationRows) {
+      const list = allocationRowsByReturn.get(Number(allocation.returnId)) ?? []
+      list.push(allocation)
+      allocationRowsByReturn.set(Number(allocation.returnId), list)
+    }
 
     // «کاربر ثبت‌کننده‌ی برگشت» — `SaleReturn.userId` عمداً scalar است (بدون
     // relation، تا مدل User دست‌نخورده بماند)، پس با یک رفت‌وبرگشت جدا خوانده می‌شود.
@@ -8749,6 +8765,122 @@ export const salesService = {
       )
     }
     const vmap = new Map(variants.map((v) => [v.id, v]))
+    const returnFundingAttributionOf = (r: any): ReturnListRow['fundingAttribution'] => {
+      const empty = (status: 'NOT_APPLICABLE' | 'INCOMPLETE'): ReturnListRow['fundingAttribution'] => ({
+        status, settlementReady: false, sources: [], items: []
+      })
+      const isExchangeChildPhysicalReturn = r.invoice?.orderType === OrderType.EXCHANGE && r.exchangeInvoiceId == null
+      if (!isExchangeChildPhysicalReturn) return empty('NOT_APPLICABLE')
+      if (r.kind !== ReturnKind.RETURN) return empty('INCOMPLETE')
+
+      const physicalItems = (r.items ?? []) as any[]
+      const storedRows = allocationRowsByReturn.get(Number(r.id)) ?? []
+      const sourceKinds = new Set(['SOURCE_GIFT', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
+      const parentInvoiceId = Number(r.invoiceId)
+      const sourceInvoiceId = Number(r.invoice?.sourceInvoiceId)
+      if (physicalItems.length === 0 || storedRows.length === 0 ||
+          !Number.isSafeInteger(parentInvoiceId) || parentInvoiceId <= 0 ||
+          !Number.isSafeInteger(sourceInvoiceId) || sourceInvoiceId <= 0)
+        return empty('INCOMPLETE')
+
+      const rowsByItem = new Map<number, any[]>()
+      for (const allocation of storedRows) {
+        const returnItemId = Number(allocation.returnItemId)
+        const list = rowsByItem.get(returnItemId) ?? []
+        list.push(allocation)
+        rowsByItem.set(returnItemId, list)
+      }
+      const itemResults: ReturnListRow['fundingAttribution']['items'] = []
+      const totalsByKind = new Map<string, number>()
+      let physicalTotal = 0n
+      for (const item of physicalItems) {
+        const returnItemId = Number(item.id)
+        const saleItemId = Number(item.saleItemId)
+        const itemQty = Number(item.qty)
+        const itemValue = toNumberRial(item.lineTotal)
+        const rows = rowsByItem.get(returnItemId) ?? []
+        if (!Number.isSafeInteger(returnItemId) || returnItemId <= 0 ||
+            !Number.isSafeInteger(saleItemId) || saleItemId <= 0 ||
+            !Number.isSafeInteger(itemQty) || itemQty <= 0 ||
+            !Number.isSafeInteger(itemValue) || itemValue < 0 || rows.length === 0)
+          return empty('INCOMPLETE')
+        const seenSources = new Set<number>()
+        const shares: ReturnListRow['fundingAttribution']['sources'] = []
+        let itemTotal = 0n
+        let itemSnapshot: { saleItemQty: number; saleItemValue: number; returnedQtyBefore: number;
+          returnedQtyAfter: number; priorReturnValue: number; returnValue: number;
+          cumulativeReturnValue: number } | null = null
+        for (const row of rows) {
+          const sourceEventId = Number(row.sourceEventId)
+          const amount = toNumberRial(row.amountDelta)
+          const returnValue = toNumberRial(row.returnValue)
+          const priorAmount = toNumberRial(row.priorAmount)
+          const cumulativeAmount = toNumberRial(row.cumulativeAmount)
+          const priorReturnValue = toNumberRial(row.priorReturnValue)
+          const cumulativeReturnValue = toNumberRial(row.cumulativeReturnValue)
+          const sourceItemAmount = toNumberRial(row.sourceItemAmount)
+          const returningQty = Number(row.returningQty)
+          const returnedQtyBefore = Number(row.returnedQtyBefore)
+          const returnedQtyAfter = Number(row.returnedQtyAfter)
+          const saleItemQty = Number(row.saleItemQty)
+          const rowSaleItemValue = toNumberRial(row.saleItemValue)
+          const rowSourceInvoiceId = Number(row.sourceInvoiceId)
+          const rowChildInvoiceId = Number(row.childInvoiceId)
+          if (row.eventKind !== 'ALLOCATION' || row.reversesAllocationId != null ||
+              Number(row.returnId) !== Number(r.id) || Number(row.returnItemId) !== returnItemId ||
+              rowChildInvoiceId !== parentInvoiceId || Number(row.saleItemId) !== saleItemId ||
+              rowSourceInvoiceId !== sourceInvoiceId ||
+              !sourceKinds.has(String(row.sourceKind)) || !Number.isSafeInteger(sourceEventId) || sourceEventId <= 0 ||
+              seenSources.has(sourceEventId) || !Number.isSafeInteger(amount) || amount < 0 ||
+              !Number.isSafeInteger(priorAmount) || priorAmount < 0 ||
+              !Number.isSafeInteger(cumulativeAmount) || cumulativeAmount !== priorAmount + amount ||
+              !Number.isSafeInteger(sourceItemAmount) || sourceItemAmount <= 0 || cumulativeAmount > sourceItemAmount ||
+              !Number.isSafeInteger(returnValue) || returnValue !== itemValue ||
+              !Number.isSafeInteger(priorReturnValue) || priorReturnValue < 0 ||
+              !Number.isSafeInteger(cumulativeReturnValue) ||
+                cumulativeReturnValue !== priorReturnValue + returnValue ||
+              !Number.isSafeInteger(returningQty) || returningQty !== itemQty ||
+              !Number.isSafeInteger(returnedQtyBefore) || returnedQtyBefore < 0 ||
+              !Number.isSafeInteger(returnedQtyAfter) || returnedQtyAfter !== returnedQtyBefore + returningQty ||
+              !Number.isSafeInteger(saleItemQty) || saleItemQty <= 0 || returnedQtyAfter > saleItemQty ||
+              !Number.isSafeInteger(rowSaleItemValue) || rowSaleItemValue < itemValue ||
+              cumulativeReturnValue > rowSaleItemValue)
+            return empty('INCOMPLETE')
+          const currentSnapshot = { saleItemQty, saleItemValue: rowSaleItemValue, returnedQtyBefore,
+            returnedQtyAfter, priorReturnValue, returnValue, cumulativeReturnValue }
+          if (itemSnapshot && (itemSnapshot.saleItemQty !== saleItemQty ||
+              itemSnapshot.saleItemValue !== rowSaleItemValue ||
+              itemSnapshot.returnedQtyBefore !== returnedQtyBefore ||
+              itemSnapshot.returnedQtyAfter !== returnedQtyAfter ||
+              itemSnapshot.priorReturnValue !== priorReturnValue ||
+              itemSnapshot.returnValue !== returnValue ||
+              itemSnapshot.cumulativeReturnValue !== cumulativeReturnValue))
+            return empty('INCOMPLETE')
+          itemSnapshot = currentSnapshot
+          seenSources.add(sourceEventId)
+          itemTotal += BigInt(amount)
+          if (itemTotal > BigInt(Number.MAX_SAFE_INTEGER)) return empty('INCOMPLETE')
+          shares.push({ sourceKind: String(row.sourceKind) as ReturnFundingAttributionSourceKind, amount })
+        }
+        if (itemTotal !== BigInt(itemValue)) return empty('INCOMPLETE')
+        for (const share of shares) {
+          const next = (totalsByKind.get(share.sourceKind) ?? 0) + share.amount
+          if (!Number.isSafeInteger(next)) return empty('INCOMPLETE')
+          totalsByKind.set(share.sourceKind, next)
+        }
+        physicalTotal += BigInt(itemValue)
+        if (physicalTotal > BigInt(Number.MAX_SAFE_INTEGER)) return empty('INCOMPLETE')
+        itemResults.push({ returnItemId, saleItemId, sources: shares.sort((a, b) => a.sourceKind.localeCompare(b.sourceKind)) })
+      }
+      const returnTotal = toNumberRial(r.total)
+      if (!Number.isSafeInteger(returnTotal) || returnTotal < 0 || rowsByItem.size !== physicalItems.length ||
+          physicalTotal !== BigInt(returnTotal))
+        return empty('INCOMPLETE')
+      const sources = [...totalsByKind.entries()]
+        .map(([sourceKind, amount]) => ({ sourceKind: sourceKind as ReturnFundingAttributionSourceKind, amount }))
+        .sort((a, b) => a.sourceKind.localeCompare(b.sourceKind))
+      return { status: 'ATTRIBUTION_ONLY', settlementReady: false, sources, items: itemResults }
+    }
     const rows = returns.map((r) => ({
       id: r.id,
       /** RETURN = برگشت ساده · EXCHANGE = برگشتی که سند تعویض دارد (مورد ۵) */
@@ -8773,6 +8905,7 @@ export const salesService = {
       restockPending: r.restockPending === true && r.corrections.length === 0,
       pendingRestockQty: r.restockPending === true && r.corrections.length === 0
         ? pendingQtyOfItems(r.items) : 0,
+      fundingAttribution: returnFundingAttributionOf(r),
       // ---------------- افزوده‌های جلسه ۱۴ (بند ۱۰ و ۱۱) ----------------
       refundMethod: r.refundMethod ?? null,
       refundMethodLabel: refundMethodLabel(r.refundMethod),

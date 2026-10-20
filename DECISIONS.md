@@ -1646,3 +1646,8 @@ S142-6 — سؤال: گیت نبودن رمز مدیر روی issueManual/bulkIs
 - تصمیم: کل درخواست تعویض با کلید caller-held و fingerprint اقتصادی bind می‌شود؛ snapshot پاسخ در همان transaction با SaleReturn ثبت می‌شود تا retry همان intent فقط replay باشد و reuse کلید برای payload دیگر رد شود. IPC کلید را اجباری می‌کند؛ sessionStorage فقط opaque key+digest نگه می‌دارد و تا موفقیت پاک نمی‌شود.
 - رمزهای مدیر در fingerprint یا storage قرار نمی‌گیرند؛ actor و policy دریافت کالا در fingerprint سرور لحاظ می‌شوند. IPC روی replay مجوز first-print تازه صادر نمی‌کند.
 - گیت آزمون: same-key/no-duplicate، mismatch-key/no-effect، replay پس از void/no-resurrection و client reload/key rotation پوشش دارند. PrismaLite Promise.all در یک process شاهد رقابت نداد؛ بنابراین workerهای مستقل process/SQLite ساخته شد. same-key/same-payload و same-key/mismatch با دو connection مستقل در سه اجرای متوالی PASS شدند. این آزمون فقط رقابت چندپردازه‌ای در harness را ثابت می‌کند، نه production Prisma DB.
+
+### S190-D9 — گزارش انتساب برگشت child فقط‌خواندنی است
+- `returnList` از `ExchangeFundingReturnLineAllocation` برای هر برگشت فیزیکی child، source-kind attribution را فقط با تطبیق return/item/invoice scope، qty/value، جمع منبع و snapshot report می‌کند. وضعیت `INCOMPLETE` برای تاریخچهٔ مفقود/ناسازگار برمی‌گردد؛ مبالغ unknown به نقد تبدیل یا صفر پنداشته نمی‌شوند.
+- status `ATTRIBUTION_ONLY` همیشه با `settlementReady:false` است و UI/A4/Excel برچسب «فقط انتساب؛ نه پرداخت یا حق وجه» نشان می‌دهند. این ستون نه tender تازه است نه payout/entitlement.
+- تست‌های chunk-order 1/50/49 در برابر 1/49/50 و پس از expiry، source totals exact را نگه می‌دارند؛ ترتیب می‌تواند سهم گردکردن یک‌ریالی را بین eventهای فیزیکی جابه‌جا کند. برگشت child همچنان در `createReturn` بسته است و این تصمیم مجوز بازکردن settlement نیست.

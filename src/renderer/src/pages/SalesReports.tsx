@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { call, CH } from '../lib/api'
+import { formatReturnFundingAttribution } from '../lib/returnFundingAttribution'
 import { digitsOnly, groupThousands } from '../lib/moneyInput'
 // نشست ۲۲۲ · فاز ۳ — نقطه‌ی مشترک چاپ (پرسش/بی‌پرس + چاپگر)
 import { printWith } from '../lib/printFlow'
@@ -289,6 +290,7 @@ const RETURN_HEADERS = [
   'کامل/جزئی',
   'تعداد',
   'ارزش کالای برگشتی',
+  'انتساب منشأ (صرفاً حسابداری)',
   // ---- بند ۱۰ و ۱۱ (جلسه ۱۶): ستون‌هایی که تفکیک کسری واقعی را ممکن می‌کنند ----
   'نحوه‌ی تسویه',
   'پول واقعاً خارج‌شده از کشو',
@@ -1499,6 +1501,7 @@ export default function SalesReports() {
             r.isFull ? 'کامل' : 'جزئی',
             faDigits(r.qty),
             money(r.total),
+            formatReturnFundingAttribution(r.fundingAttribution),
             r.refundMethodLabel ?? '—',
             money(r.cashRefundAmount ?? 0),
             r.storeCreditReference ?? '—',
@@ -1789,6 +1792,7 @@ export default function SalesReports() {
             r.isFull ? 'کامل' : 'جزئی',
             r.qty,
             r.total,
+            formatReturnFundingAttribution(r.fundingAttribution),
             r.refundMethodLabel ?? '',
             r.cashRefundAmount ?? 0,
             r.storeCreditReference ?? '',
@@ -1810,6 +1814,7 @@ export default function SalesReports() {
             `${output.returnRows.length} برگشت`,
             output.returnRows.reduce((s, r) => s + r.qty, 0),
             output.returnRows.reduce((s, r) => s + r.total, 0),
+            '',
             '',
             output.returnRows.reduce((s, r) => s + (r.cashRefundAmount ?? 0), 0),
             '',
@@ -2478,7 +2483,8 @@ export default function SalesReports() {
             </thead>
             <tbody>
               {returns.map((r) => (
-                <tr key={r.id} className={r.storeCreditReference || r.hasRemovedItems ? 'bg-amber-50' : ''}>
+                <tr key={r.id} className={r.storeCreditReference || r.hasRemovedItems ||
+                  r.fundingAttribution?.status === 'INCOMPLETE' ? 'bg-amber-50' : ''}>
                   <td className="font-bold">{faDigits(r.receiptNo ?? '—')}</td>
                   <td dir="ltr">{r.returnCode ?? '—'}</td>
                   <td>{faDigits(r.invoiceDateJalali)}</td>
@@ -2489,6 +2495,10 @@ export default function SalesReports() {
                   <td>{r.isFull ? 'کامل' : 'جزئی'}</td>
                   <td className="text-center">{faDigits(r.qty)}</td>
                   <td className="font-bold">{money(r.total)}</td>
+                  <td className="max-w-[280px] whitespace-normal text-xs text-slate-600"
+                    title="انتساب حسابداریِ منشأ کالاست؛ وجه دریافت‌شده یا حق بازپرداخت نیست.">
+                    {formatReturnFundingAttribution(r.fundingAttribution)}
+                  </td>
                   <td className="whitespace-normal">
                     {r.refundMethodLabel ?? '—'}
                     {r.legacyAssumed && <div className="kbd text-amber-800 font-bold">فرض‌شده از داده‌ی قدیمی</div>}
@@ -2539,6 +2549,7 @@ export default function SalesReports() {
                   <td colSpan={8}>جمع {faDigits(returns.length)} برگشت</td>
                   <td className="text-center">{faDigits(returns.reduce((s, r) => s + r.qty, 0))}</td>
                   <td>{money(returns.reduce((s, r) => s + r.total, 0))}</td>
+                  <td></td>
                   <td></td>
                   <td className="text-rose-700">{money(returns.reduce((s, r) => s + (r.cashRefundAmount ?? 0), 0))}</td>
                   <td></td>

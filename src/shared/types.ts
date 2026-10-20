@@ -2407,6 +2407,25 @@ export interface ExchangeReportRow {
   note: string
 }
 
+export type ReturnFundingAttributionStatus = 'NOT_APPLICABLE' | 'INCOMPLETE' | 'ATTRIBUTION_ONLY'
+export type ReturnFundingAttributionSourceKind = 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'
+export interface ReturnFundingAttributionShare {
+  sourceKind: ReturnFundingAttributionSourceKind
+  amount: number
+}
+export interface ReturnFundingAttributionItem {
+  returnItemId: number
+  saleItemId: number
+  sources: ReturnFundingAttributionShare[]
+}
+/** Read-only provenance. It is never a cash-right or settlement plan. */
+export interface ReturnFundingAttribution {
+  status: ReturnFundingAttributionStatus
+  settlementReady: false
+  sources: ReturnFundingAttributionShare[]
+  items: ReturnFundingAttributionItem[]
+}
+
 /** یک قلم داخل یک سند برگشت (نمایش در فهرست برگشت‌ها). */
 export interface ReturnListItem {
   name: string
@@ -2421,9 +2440,9 @@ export interface ReturnListItem {
 /**
  * یک ردیف فهرست «برگشت از فروش» (خروجی `sale:return:list`).
  *
- * تا این نسخه این خروجی تایپ نداشت و پنل گزارشات آن را `any[]` می‌گرفت. برای
- * مورد ۵ (جزئیات یک شیفت) تایپ شد تا مودال جزئیات شیفت با تایپ درست کار کند.
- * هیچ فیلدی کم نشده است؛ فقط `kind` / `isExchange` اضافه شده‌اند.
+ * خروجی تایپ‌دار گزارش برگشت. `fundingAttribution` فقط منشأ حسابداریِ برگشت
+ * فرزند تعویض را نشان می‌دهد؛ هرگز مجوز پرداخت/اعتبار یا مبلغ حق وجه نیست.
+ * برگشت‌های قدیمی/ناقص با status=INCOMPLETE از صفر یا وجه حدس‌زده تفکیک می‌شوند.
  */
 export interface ReturnListRow {
   id: number
@@ -2448,6 +2467,8 @@ export interface ReturnListRow {
   corrected: boolean
   restockPending: boolean
   pendingRestockQty: number
+  /** Read-only child-exchange provenance; never a cash-right or settlement plan. */
+  fundingAttribution: ReturnFundingAttribution
   items: ReturnListItem[]
   /**
    * ---------------------- افزوده‌های جلسه ۱۴ (بند ۱۰ و ۱۱) ----------------------

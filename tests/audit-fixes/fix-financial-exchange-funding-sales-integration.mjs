@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { createInterface } from 'node:readline'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -18,6 +18,7 @@ process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
+const { formatReturnFundingAttribution } = await import('../../src/renderer/src/lib/returnFundingAttribution.ts')
 const { issueStoreCredit } = await import('../../src/main/services/StoreCreditService.ts')
 const { planCreditReturn } = await import('../../src/main/services/CreditReturnService.ts')
 const { allocateExchangeFundingLineReturn } = await import('../../src/shared/exchangeFundingLineReturn.ts')
@@ -632,6 +633,13 @@ await assert.rejects(() => salesService.returnProvenancePreview({
 'preview fails closed while an active return lacks its persisted source-attribution snapshot')
 assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation" WHERE childInvoiceId=?',
   mixedChildInvoiceId).n, 0, 'a read-only preview never repairs or writes missing attribution')
+const unallocatedChildReturnReport = await salesService.returnList({
+  fromJalali: toJalaliDate(new Date()), toJalali: toJalaliDate(new Date()), take: 500
+})
+const unallocatedChildReturnRow = unallocatedChildReturnReport.find((row) => row.id === mixedChildReturn1)
+assert.equal(unallocatedChildReturnRow?.fundingAttribution?.status, 'INCOMPLETE',
+  'child-return report surfaces missing source allocation as incomplete rather than cash/unknown zero')
+assert.match(formatReturnFundingAttribution(unallocatedChildReturnRow?.fundingAttribution), /نامکمل/)
 const mixedChildAllocation1 = await db.$transaction((tx) => recordExchangeFundingReturnLineAllocation(tx, {
   returnId: mixedChildReturn1, returnItemId: mixedChildReturnItem1
 }))
@@ -687,6 +695,50 @@ assert.deepEqual(mixedChildAllocation2.shares.map(({ prior, amount, cumulative }
   .sort((a, b) => a.prior - b.prior), [
   { prior: 200, amount: 200, cumulative: 400 }, { prior: 300, amount: 300, cumulative: 600 }
 ])
+const mixedReturnReportEffectsBefore = {
+  cashMovements: seed.count('CashMovement', '1=1'),
+  credits: seed.count('StoreCredit', '1=1'),
+  entitlements: seed.count('ReturnEntitlement', '1=1'),
+  fundingEvents: seed.count('ExchangeFundingEvent', '1=1')
+}
+const mixedChildReturnReportRows = await salesService.returnList({
+  fromJalali: toJalaliDate(new Date()), toJalali: toJalaliDate(new Date()), take: 500
+})
+assert.deepEqual({
+  cashMovements: seed.count('CashMovement', '1=1'),
+  credits: seed.count('StoreCredit', '1=1'),
+  entitlements: seed.count('ReturnEntitlement', '1=1'),
+  fundingEvents: seed.count('ExchangeFundingEvent', '1=1')
+}, mixedReturnReportEffectsBefore, 'return report attribution is read-only and cannot settle/prove cash')
+const reportedMixedChunks = [mixedChildReturn1, mixedChildReturn2]
+  .map((returnId) => mixedChildReturnReportRows.find((row) => row.id === returnId))
+assert.ok(reportedMixedChunks.every(Boolean), 'both physical child-return chunks remain visible in the return report')
+assert.deepEqual(reportedMixedChunks.map((row) => ({
+  status: row.fundingAttribution?.status,
+  settlementReady: row.fundingAttribution?.settlementReady,
+  total: row.fundingAttribution?.sources.reduce((sum, source) => sum + source.amount, 0),
+  sources: row.fundingAttribution?.sources.map(({ sourceKind, amount }) => ({ sourceKind, amount }))
+})), [1, 2].map(() => ({
+  status: 'ATTRIBUTION_ONLY', settlementReady: false, total: 500,
+  sources: [{ sourceKind: 'SOURCE_CASH', amount: 300 }, { sourceKind: 'SOURCE_GIFT', amount: 200 }]
+})), 'report shows each chunk lineage separately and never turns gift attribution into settlement')
+assert.ok(reportedMixedChunks.every((row) => row.cashRefundAmount === 0 && row.refundAmount === 0),
+  'provenance-only allocations remain separate from actual refund/payout columns')
+assert.ok(reportedMixedChunks.every((row) => {
+  const label = formatReturnFundingAttribution(row.fundingAttribution)
+  return label.includes('منشأ هدیه') && label.includes('منشأ وجه') &&
+    label.includes('فقط انتساب؛ نه پرداخت یا حق وجه')
+}), 'printed/UI label explicitly distinguishes accounting provenance from payment/right')
+const forgedSettlementLabel = formatReturnFundingAttribution({
+  ...reportedMixedChunks[0].fundingAttribution, settlementReady: true
+})
+assert.match(forgedSettlementLabel, /نامکمل/)
+assert.doesNotMatch(forgedSettlementLabel, /منشأ وجه/,
+  'the report formatter refuses to display provenance if a settlement-ready flag appears')
+const returnReportUi = readFileSync('src/renderer/src/pages/SalesReports.tsx', 'utf8')
+assert.ok(returnReportUi.includes('انتساب منشأ (صرفاً حسابداری)'))
+assert.equal(returnReportUi.split('formatReturnFundingAttribution(r.fundingAttribution)').length - 1, 3,
+  'the same fail-closed attribution label is wired to table, A4, and Excel outputs')
 assert.equal(seed.count('ExchangeFundingReturnLineAllocation', 'returnItemId=? AND eventKind=?', mixedChildReturnItem1, 'ALLOCATION'), 2)
 await assert.rejects(() => db.$transaction((tx) =>
   reverseExchangeFundingReturnLineAllocationsForReturn(tx, { returnId: mixedChildReturn1 })), /LIFO/)
@@ -705,6 +757,12 @@ sql.prepare('UPDATE "SaleReturn" SET voidedAt=?, voidReason=? WHERE id=?')
   .run(Date.now(), 'test reverse oldest mixed child allocation', mixedChildReturn1)
 assert.equal(seed.one(`SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation"
   WHERE childInvoiceId=? AND eventKind='REVERSAL'`, mixedChildInvoiceId).n, 4)
+const returnReportAfterChunkVoids = await salesService.returnList({
+  fromJalali: toJalaliDate(new Date()), toJalali: toJalaliDate(new Date()), take: 500
+})
+assert.equal(returnReportAfterChunkVoids.some((row) =>
+  row.id === mixedChildReturn1 || row.id === mixedChildReturn2), false,
+'voided physical chunks and their reversed attribution are absent from the active report')
 await assert.rejects(() => salesService.returnProvenancePreview({
   invoiceId: mixedChildInvoiceId, full: true
 }), /تخصیص منشأ به قلم/,
@@ -863,6 +921,14 @@ assert.equal(storedReturnRequest.idempotencyResponseJson.includes('managerPasswo
 const sequentialReturnReplay = await salesService.createReturn(returnRequest)
 assert.equal(sequentialReturnReplay.id, concurrentReturnResults[0].returnId)
 assert.equal(sequentialReturnReplay.replayed, true)
+const ordinaryReturnReportRows = await salesService.returnList({
+  fromJalali: toJalaliDate(new Date()), toJalali: toJalaliDate(new Date()), take: 500
+})
+const ordinaryReturnReportRow = ordinaryReturnReportRows.find((row) => row.id === sequentialReturnReplay.id)
+assert.equal(ordinaryReturnReportRow?.fundingAttribution?.status, 'NOT_APPLICABLE',
+  'ordinary-sale returns remain distinct from child-exchange provenance attribution')
+assert.deepEqual(ordinaryReturnReportRow?.fundingAttribution?.sources, [])
+assert.equal(formatReturnFundingAttribution(ordinaryReturnReportRow?.fundingAttribution), '—')
 const returnCountBeforeMismatch = seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?',
   idempotentReturnSale.id).n
 await assert.rejects(() => salesService.createReturn({ ...returnRequest, note: 'different payload' }),
