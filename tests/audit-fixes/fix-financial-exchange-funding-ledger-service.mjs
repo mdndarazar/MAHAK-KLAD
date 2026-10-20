@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { spawn } from 'node:child_process'
+import { createInterface } from 'node:readline'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -8,9 +10,11 @@ process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
-const { appendExchangeFundingEvent, recordSaleFundingSnapshot, exchangeFundingBalance,
+const { appendExchangeFundingEvent, recordSaleFundingSnapshot, getCurrentSaleFundingSources, exchangeFundingBalance,
   getCurrentExchangeFundingSources, recordExchangeFundingLineAllocations,
-  transferExchangeFundingShare, reverseExchangeFundingTransferPair } =
+  recordExchangeFundingReturnLineAllocation, reverseExchangeFundingReturnLineAllocationsForReturn,
+  transferExchangeFundingShare, reverseExchangeFundingTransferPair,
+  reverseExchangeFundingTransfersForReturn } =
   await import('../../src/main/services/ExchangeFundingLedgerService.ts')
 const db = harnessClient()
 const seed = makeSeeder(db)
@@ -111,11 +115,12 @@ async function giftSource(amount, code, expiresAt, expiryCaptured = true, credit
   return { invoiceId: invoice.id, paymentId, creditId, redemptionId, sourceEvent }
 }
 
-async function mixedSource(giftAmount, realAmount, code) {
+async function mixedSource(giftAmount, realAmount, code, expiresAt = null) {
   const total = giftAmount + realAmount
   const invoice = seed.invoice({ grandTotal: total, status: 'FINAL' })
   const creditId = seed.insert('StoreCredit', {
-    code, amount: giftAmount, usedAmount: giftAmount, usedCount: 1, status: 'USED', expiresAt: null
+    code, amount: giftAmount, usedAmount: giftAmount, usedCount: 1,
+    status: expiresAt && expiresAt.getTime() <= Date.now() ? 'EXPIRED' : 'USED', expiresAt
   })
   const giftPaymentId = seed.insert('Payment', {
     invoiceId: invoice.id, methodId: giftMethodId, amount: giftAmount,
@@ -127,7 +132,7 @@ async function mixedSource(giftAmount, realAmount, code) {
   })
   const redemptionId = seed.insert('StoreCreditRedemption', {
     creditId, code, amount: giftAmount, remainderAfter: 0, invoiceId: invoice.id, paymentId: giftPaymentId,
-    idempotencyKey: `ledger-redemption-${code}`, expiryCaptured: true, expiryAtRedeem: null
+    idempotencyKey: `ledger-redemption-${code}`, expiryCaptured: true, expiryAtRedeem: expiresAt
   })
   const snapshot = await db.$transaction((tx) => recordSaleFundingSnapshot(tx, invoice.id))
   const giftEvent = snapshot.events.find((event) => event.kind === 'SOURCE_GIFT' &&
@@ -275,6 +280,53 @@ await assert.rejects(() => db.$transaction((tx) => transferExchangeFundingShare(
   returnId: multiTenderGraph.returnId
 })), /ماندهٔ سهم اثبات‌شده/,
 'the transfer value cap remains enforced once a return has consumed its full value')
+const multiTenderDownstreamGraph = exchangeGraph(multiTenderGraph.childInvoiceId, 100)
+const multiTenderDownstream = await db.$transaction((tx) => transferExchangeFundingShare(tx, {
+  eventKey: `exchange:${multiTenderGraph.childInvoiceId}:return:${multiTenderDownstreamGraph.returnId}:from-card`,
+  sourceEventId: multiTenderCardReallocated.inEvent.id,
+  sourceShareId: multiTenderCardReallocated.inEvent.shareId,
+  destinationShareId: `exchange:${multiTenderDownstreamGraph.childInvoiceId}:from-card`,
+  rootShareId: `payment:${multiTenderCardPayment}`, amount: 100,
+  sourceInvoiceId: multiTenderGraph.childInvoiceId,
+  childInvoiceId: multiTenderDownstreamGraph.childInvoiceId,
+  returnId: multiTenderDownstreamGraph.returnId
+}))
+const bulkVoidEventsBeforeDescendantCheck = seed.count('ExchangeFundingEvent', 'returnId=? AND kind IN (?, ?)',
+  multiTenderGraph.returnId, 'VOID_TRANSFER_OUT', 'VOID_TRANSFER_IN')
+await assert.rejects(() => db.$transaction((tx) => reverseExchangeFundingTransfersForReturn(tx, {
+  returnId: multiTenderGraph.returnId
+})), /سهم منتقل‌شده در سند فرزند/,
+'bulk parent reversal must fail when a later transfer pair still has value in a descendant')
+assert.equal(seed.count('ExchangeFundingEvent', 'returnId=? AND kind IN (?, ?)',
+  multiTenderGraph.returnId, 'VOID_TRANSFER_OUT', 'VOID_TRANSFER_IN'), bulkVoidEventsBeforeDescendantCheck,
+'a rejected multi-pair reversal rolls back earlier pair inverses instead of partially restoring the source')
+assert.equal(await exchangeFundingBalance(db, multiTenderCashTransfer.inEvent.shareId), 500)
+const downstreamTransferVoid = await db.$transaction((tx) => reverseExchangeFundingTransferPair(tx, {
+  eventKey: `void:exchange:${multiTenderDownstreamGraph.childInvoiceId}:${multiTenderDownstreamGraph.returnId}`,
+  outEventId: multiTenderDownstream.outEvent.id, inEventId: multiTenderDownstream.inEvent.id
+}))
+assert.equal(downstreamTransferVoid.replayed, false)
+const multiPairVoid = await db.$transaction((tx) => reverseExchangeFundingTransfersForReturn(tx, {
+  returnId: multiTenderGraph.returnId
+}))
+assert.deepEqual(multiPairVoid, { reversed: 2, pairs: 3 },
+  'bulk reversal reverses both live pairs and counts the already-reversed card pair exactly once')
+assert.equal(await exchangeFundingBalance(db, multiTenderCashTransfer.inEvent.shareId), 0)
+assert.equal(await exchangeFundingBalance(db, multiTenderCardReallocated.inEvent.shareId), 0)
+const multiPairVoidRows = seed.rows(`SELECT reversesEventId FROM "ExchangeFundingEvent"
+  WHERE returnId=? AND kind IN ('VOID_TRANSFER_OUT','VOID_TRANSFER_IN') ORDER BY id`, multiTenderGraph.returnId)
+assert.equal(multiPairVoidRows.length, 6, 'three transfer pairs have exactly one inverse per side')
+assert.equal(new Set(multiPairVoidRows.map((row) => Number(row.reversesEventId))).size, 6,
+  'bulk reversal never reuses a source event id or duplicates an inverse')
+const multiPairVoidCount = multiPairVoidRows.length
+const multiPairVoidReplay = await db.$transaction((tx) => reverseExchangeFundingTransfersForReturn(tx, {
+  returnId: multiTenderGraph.returnId
+}))
+assert.deepEqual(multiPairVoidReplay, { reversed: 0, pairs: 3 },
+  'replaying bulk reversal never restores a transfer twice')
+assert.equal(seed.rows(`SELECT reversesEventId FROM "ExchangeFundingEvent"
+  WHERE returnId=? AND kind IN ('VOID_TRANSFER_OUT','VOID_TRANSFER_IN')`, multiTenderGraph.returnId).length,
+  multiPairVoidCount, 'bulk reversal replay creates no additional void events')
 
 const overpayInvoice = seed.invoice({ grandTotal: 400, status: 'FINAL' })
 const overpayPaymentId = seed.insert('Payment', {
@@ -502,6 +554,336 @@ assert.deepEqual(await db.$transaction((tx) =>
 'persisting an identical matrix is idempotent')
 assert.equal(seed.count('ExchangeFundingLineAllocation', 'childInvoiceId=?', mixedGraph.childInvoiceId),
   lineAllocationCountBeforeReplay)
+
+// A tiny gift share can round to a zero delta on an early partial return. The
+// zero row must retain SOURCE_GIFT identity and receive its own reversal.
+const zeroDeltaSource = await mixedSource(1, 999, 'LEDGER-ZERO-DELTA-GIFT')
+const zeroDeltaGraph = exchangeGraph(zeroDeltaSource.invoiceId, 1000)
+await db.$transaction((tx) => transferExchangeFundingShare(tx, {
+  eventKey: `exchange:${zeroDeltaSource.invoiceId}:return:${zeroDeltaGraph.returnId}:gift-zero-delta`,
+  sourceEventId: zeroDeltaSource.giftEvent.id,
+  sourceShareId: `redemption:${zeroDeltaSource.redemptionId}`,
+  destinationShareId: `exchange:${zeroDeltaGraph.childInvoiceId}:gift-zero-delta`,
+  rootShareId: `credit:${zeroDeltaSource.creditId}`, amount: 1,
+  sourceInvoiceId: zeroDeltaSource.invoiceId, childInvoiceId: zeroDeltaGraph.childInvoiceId,
+  returnId: zeroDeltaGraph.returnId
+}))
+await db.$transaction((tx) => transferExchangeFundingShare(tx, {
+  eventKey: `exchange:${zeroDeltaSource.invoiceId}:return:${zeroDeltaGraph.returnId}:cash-zero-delta`,
+  sourceEventId: zeroDeltaSource.cashEvent.id,
+  sourceShareId: `payment:${zeroDeltaSource.cashPaymentId}`,
+  destinationShareId: `exchange:${zeroDeltaGraph.childInvoiceId}:cash-zero-delta`,
+  rootShareId: `payment:${zeroDeltaSource.cashPaymentId}`, amount: 999,
+  sourceInvoiceId: zeroDeltaSource.invoiceId, childInvoiceId: zeroDeltaGraph.childInvoiceId,
+  returnId: zeroDeltaGraph.returnId
+}))
+const zeroDeltaSaleItem = seed.one('SELECT id, variantId FROM "SaleInvoiceItem" WHERE invoiceId=?',
+  zeroDeltaGraph.childInvoiceId)
+sql.prepare('UPDATE "SaleInvoiceItem" SET qty=100, unitPrice=10 WHERE id=?').run(zeroDeltaSaleItem.id)
+await db.$transaction((tx) => recordExchangeFundingLineAllocations(tx, zeroDeltaGraph.childInvoiceId))
+const zeroDeltaReturnId = seed.insert('SaleReturn', {
+  invoiceId: zeroDeltaGraph.childInvoiceId, isFull: false, total: 10,
+  returnedAt: new Date(), returnedAtJalali: '1405/07/27', returnedAtTime: '12:00:00',
+  kind: 'RETURN', refundMethod: 'NONE', refundAmount: 0
+})
+const zeroDeltaReturnItemId = seed.insert('SaleReturnItem', {
+  returnId: zeroDeltaReturnId, saleItemId: Number(zeroDeltaSaleItem.id),
+  variantId: Number(zeroDeltaSaleItem.variantId), qty: 1, unitPrice: 10,
+  lineTotal: 10, restockedQty: 0
+})
+await db.$transaction((tx) => recordExchangeFundingReturnLineAllocation(tx, {
+  returnId: zeroDeltaReturnId, returnItemId: zeroDeltaReturnItemId
+}))
+const zeroDeltaRows = seed.rows(`SELECT sourceKind, amountDelta, cumulativeAmount FROM "ExchangeFundingReturnLineAllocation"
+  WHERE returnItemId=? AND eventKind='ALLOCATION' ORDER BY sourceEventId`, zeroDeltaReturnItemId)
+assert.deepEqual(zeroDeltaRows, [
+  { sourceKind: 'SOURCE_GIFT', amountDelta: 0, cumulativeAmount: 0 },
+  { sourceKind: 'SOURCE_CASH', amountDelta: 10, cumulativeAmount: 10 }
+], 'a zero gift delta remains an explicit gift row; it is never reclassified as cash')
+const zeroDeltaAllocationCount = seed.count('ExchangeFundingReturnLineAllocation', 'returnId=?', zeroDeltaReturnId)
+const zeroDeltaReplay = await db.$transaction((tx) => recordExchangeFundingReturnLineAllocation(tx, {
+  returnId: zeroDeltaReturnId, returnItemId: zeroDeltaReturnItemId
+}))
+assert.equal(zeroDeltaReplay.replayed, true,
+  'an exact replay of a zero-delta attribution returns the existing append-only rows')
+assert.equal(zeroDeltaReplay.allocationCount, 2)
+assert.equal(seed.count('ExchangeFundingReturnLineAllocation', 'returnId=?', zeroDeltaReturnId),
+  zeroDeltaAllocationCount, 'exact zero-delta replay appends no duplicate rows')
+const zeroGiftAllocationId = Number(seed.one(`SELECT id FROM "ExchangeFundingReturnLineAllocation"
+  WHERE returnItemId=? AND eventKind='ALLOCATION' AND sourceKind='SOURCE_GIFT'`, zeroDeltaReturnItemId).id)
+assert.throws(() => sql.prepare(`UPDATE "ExchangeFundingReturnLineAllocation" SET amountDelta=1 WHERE id=?`)
+  .run(zeroGiftAllocationId), /append-only/,
+'a zero-valued gift attribution cannot be rewritten into cash')
+assert.throws(() => sql.prepare('DELETE FROM "ExchangeFundingReturnLineAllocation" WHERE id=?')
+  .run(zeroGiftAllocationId), /append-only/,
+'a zero-valued gift attribution cannot be deleted to hide its source')
+const zeroDeltaReversal = await db.$transaction((tx) =>
+  reverseExchangeFundingReturnLineAllocationsForReturn(tx, { returnId: zeroDeltaReturnId }))
+assert.deepEqual(zeroDeltaReversal, { reversed: 2, items: 1, replayed: false })
+const zeroGiftReversal = seed.one(`SELECT sourceKind, amountDelta FROM "ExchangeFundingReturnLineAllocation"
+  WHERE returnItemId=? AND eventKind='REVERSAL' AND sourceKind='SOURCE_GIFT'`, zeroDeltaReturnItemId)
+assert.deepEqual(zeroGiftReversal, { sourceKind: 'SOURCE_GIFT', amountDelta: 0 },
+  'the explicit zero gift allocation must have an explicit zero reversal')
+sql.prepare('UPDATE "SaleReturn" SET voidedAt=?, voidReason=? WHERE id=?')
+  .run(Date.now(), 'zero-delta fixture reversed', zeroDeltaReturnId)
+const raceReturnId = seed.insert('SaleReturn', {
+  invoiceId: zeroDeltaGraph.childInvoiceId, isFull: false, total: 10,
+  returnedAt: new Date(), returnedAtJalali: '1405/07/27', returnedAtTime: '12:01:00',
+  kind: 'RETURN', refundMethod: 'NONE', refundAmount: 0
+})
+const raceReturnItemId = seed.insert('SaleReturnItem', {
+  returnId: raceReturnId, saleItemId: Number(zeroDeltaSaleItem.id),
+  variantId: Number(zeroDeltaSaleItem.variantId), qty: 1, unitPrice: 10,
+  lineTotal: 10, restockedQty: 0
+})
+const allocationWorkerSource = `
+  import { createInterface } from 'node:readline'
+  const { harnessClient } = await import('file://' + process.cwd() + '/test/harness/stubs/prismaClient.mjs')
+  const { recordExchangeFundingReturnLineAllocation } = await import('file://' + process.cwd() + '/src/main/services/ExchangeFundingLedgerService.ts')
+  const db = harnessClient()
+  const input = createInterface({ input: process.stdin })
+  console.log(JSON.stringify({ ready: true }))
+  await new Promise((resolve) => input.once('line', resolve))
+  input.close()
+  try {
+    const result = await db.$transaction((tx) => recordExchangeFundingReturnLineAllocation(tx, {
+      returnId: Number(process.env.RACE_RETURN_ID),
+      returnItemId: Number(process.env.RACE_RETURN_ITEM_ID)
+    }))
+    console.log(JSON.stringify({ ok: true, replayed: result.replayed, allocationCount: result.allocationCount }))
+  } catch (error) {
+    console.log(JSON.stringify({ ok: false, error: String(error?.message ?? error) }))
+  }
+  await db.$disconnect()
+`
+const startAllocationWorker = () => {
+  let resolveReady; let rejectReady; let resolveResult; let rejectResult; let resolveClosed; let rejectClosed
+  const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject })
+  const result = new Promise((resolve, reject) => { resolveResult = resolve; rejectResult = reject })
+  const closed = new Promise((resolve, reject) => { resolveClosed = resolve; rejectClosed = reject })
+  let stderr = ''
+  const child = spawn(process.execPath, [
+    '--import', './test/harness/register.mjs', '--input-type=module', '-e', allocationWorkerSource
+  ], { cwd: process.cwd(), env: { ...process.env, HARNESS_DB_EXISTING: '1',
+    RACE_RETURN_ID: String(raceReturnId), RACE_RETURN_ITEM_ID: String(raceReturnItemId) } })
+  const lines = createInterface({ input: child.stdout })
+  lines.on('line', (line) => {
+    try {
+      const message = JSON.parse(line)
+      if (message.ready) resolveReady()
+      else if (typeof message.ok === 'boolean') resolveResult(message)
+    } catch { /* ignore diagnostics not emitted as JSON */ }
+  })
+  child.stderr.on('data', (chunk) => { stderr += String(chunk) })
+  child.on('error', (error) => { rejectReady(error); rejectResult(error); rejectClosed(error) })
+  child.on('close', (code) => {
+    if (code === 0) resolveClosed()
+    else {
+      const error = new Error(`allocation race worker exited ${code}: ${stderr}`)
+      rejectReady(error); rejectResult(error); rejectClosed(error)
+    }
+  })
+  return { child, ready, result, closed }
+}
+const allocationRaceWorkers = [startAllocationWorker(), startAllocationWorker()]
+await Promise.all(allocationRaceWorkers.map((worker) => worker.ready))
+for (const worker of allocationRaceWorkers) worker.child.stdin.end('go\n')
+const allocationRaceResults = await Promise.all(allocationRaceWorkers.map((worker) => worker.result))
+await Promise.all(allocationRaceWorkers.map((worker) => worker.closed))
+assert.ok(allocationRaceResults.some((worker) => worker.ok), JSON.stringify(allocationRaceResults))
+assert.ok(allocationRaceResults.every((worker) => worker.ok || /busy|locked|unique/i.test(worker.error)),
+  JSON.stringify(allocationRaceResults))
+assert.equal(allocationRaceResults.filter((worker) => worker.ok && !worker.replayed).length, 1,
+  `exactly one independent writer creates the allocation set: ${JSON.stringify(allocationRaceResults)}`)
+assert.ok(allocationRaceResults.filter((worker) => worker.ok)
+  .every((worker) => worker.allocationCount === 2), JSON.stringify(allocationRaceResults))
+const allocationAfterRace = await db.$transaction((tx) => recordExchangeFundingReturnLineAllocation(tx, {
+  returnId: raceReturnId, returnItemId: raceReturnItemId
+}))
+assert.equal(allocationAfterRace.replayed, true,
+  'a fresh retry after independent-connection contention resolves to the persisted allocation')
+assert.equal(seed.count('ExchangeFundingReturnLineAllocation', 'returnItemId=? AND eventKind=?',
+  raceReturnItemId, 'ALLOCATION'), 2,
+'concurrent independent writers persist exactly one complete two-source allocation set')
+
+const createReturnChunk = async (qty, value, time) => {
+  const chunkReturnId = seed.insert('SaleReturn', {
+    invoiceId: zeroDeltaGraph.childInvoiceId, isFull: false, total: value,
+    returnedAt: new Date(), returnedAtJalali: '1405/07/27', returnedAtTime: time,
+    kind: 'RETURN', refundMethod: 'NONE', refundAmount: 0
+  })
+  const chunkItemId = seed.insert('SaleReturnItem', {
+    returnId: chunkReturnId, saleItemId: Number(zeroDeltaSaleItem.id),
+    variantId: Number(zeroDeltaSaleItem.variantId), qty, unitPrice: 10,
+    lineTotal: value, restockedQty: 0
+  })
+  const allocation = await db.$transaction((tx) => recordExchangeFundingReturnLineAllocation(tx, {
+    returnId: chunkReturnId, returnItemId: chunkItemId
+  }))
+  assert.equal(allocation.shares.reduce((sum, share) => sum + share.amount, 0), value,
+    'each persisted return chunk must reconcile exactly to its physical line amount')
+  assert.ok(allocation.shares.every((share) => share.cumulative >= share.prior && share.amount >= 0),
+    'source shares cannot decline or become negative between return chunks')
+  return { returnId: chunkReturnId, itemId: chunkItemId, allocation }
+}
+const secondReturnChunk = await createReturnChunk(50, 500, '12:02:00')
+const finalReturnChunk = await createReturnChunk(49, 490, '12:03:00')
+const allActiveChunks = [raceReturnId, secondReturnChunk.returnId, finalReturnChunk.returnId]
+const chunkedSourceTotals = seed.rows(`SELECT sourceKind, SUM(amountDelta) AS amount
+  FROM "ExchangeFundingReturnLineAllocation"
+  WHERE returnId IN (?, ?, ?) AND eventKind='ALLOCATION'
+  GROUP BY sourceKind ORDER BY sourceKind`, ...allActiveChunks)
+assert.deepEqual(chunkedSourceTotals, [
+  { sourceKind: 'SOURCE_CASH', amount: 999 },
+  { sourceKind: 'SOURCE_GIFT', amount: 1 }
+], 'different return chunk sizes restore the exact original cash/gift source matrix')
+assert.equal(seed.one(`SELECT SUM(returningQty) AS qty FROM "ExchangeFundingReturnLineAllocation"
+  WHERE returnId IN (?, ?, ?) AND eventKind='ALLOCATION' AND sourceKind='SOURCE_CASH'`,
+  ...allActiveChunks).qty, 100)
+const reversalsBeforeLifoProbe = seed.one(`SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation"
+  WHERE returnId IN (?, ?, ?) AND eventKind='REVERSAL'`, ...allActiveChunks).n
+await assert.rejects(() => db.$transaction((tx) =>
+  reverseExchangeFundingReturnLineAllocationsForReturn(tx, { returnId: raceReturnId })),
+/LIFO|برگشت قدیمی‌تر|جدیدتر/iu,
+'an older partial return cannot be reversed while later active returns still depend on its cumulative baseline')
+assert.equal(seed.one(`SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation"
+  WHERE returnId IN (?, ?, ?) AND eventKind='REVERSAL'`, ...allActiveChunks).n,
+  reversalsBeforeLifoProbe, 'a rejected out-of-order reversal appends no partial inverse rows')
+for (const chunk of [finalReturnChunk, secondReturnChunk, { returnId: raceReturnId }]) {
+  const reversedChunk = await db.$transaction((tx) =>
+    reverseExchangeFundingReturnLineAllocationsForReturn(tx, { returnId: chunk.returnId }))
+  assert.deepEqual(reversedChunk, { reversed: 2, items: 1, replayed: false },
+    'each newest active chunk reverses both source rows atomically')
+  sql.prepare('UPDATE "SaleReturn" SET voidedAt=?, voidReason=? WHERE id=?')
+    .run(Date.now(), 'test LIFO child allocation reversal', chunk.returnId)
+}
+const reversedChunkTotals = seed.rows(`SELECT sourceKind, SUM(amountDelta) AS amount
+  FROM "ExchangeFundingReturnLineAllocation"
+  WHERE returnId IN (?, ?, ?) AND eventKind='REVERSAL'
+  GROUP BY sourceKind ORDER BY sourceKind`, ...allActiveChunks)
+assert.deepEqual(reversedChunkTotals, [
+  { sourceKind: 'SOURCE_CASH', amount: -999 },
+  { sourceKind: 'SOURCE_GIFT', amount: -1 }
+], 'LIFO reversals release the exact cash/gift lineage without converting the zero gift delta')
+
+// Expiry changes transferability, not historical source attribution. Funding
+// transferred before expiry can still be allocated to post-expiry physical
+// returns, but this accounting-only path must never create a cash/credit right.
+const sourceExpiry = new Date(Date.now() + 60_000)
+const expiryReturnSource = await mixedSource(300, 700, 'LEDGER-RETURN-AFTER-EXPIRY', sourceExpiry)
+const expiryReturnGraph = exchangeGraph(expiryReturnSource.invoiceId, 1_000)
+const expiryGiftTransfer = await db.$transaction((tx) => transferExchangeFundingShare(tx, {
+  eventKey: `exchange:${expiryReturnSource.invoiceId}:return:${expiryReturnGraph.returnId}:gift-before-expiry`,
+  sourceEventId: expiryReturnSource.giftEvent.id,
+  sourceShareId: `redemption:${expiryReturnSource.redemptionId}`,
+  destinationShareId: `exchange:${expiryReturnGraph.childInvoiceId}:gift-before-expiry`,
+  rootShareId: `credit:${expiryReturnSource.creditId}`, amount: 300,
+  sourceInvoiceId: expiryReturnSource.invoiceId, childInvoiceId: expiryReturnGraph.childInvoiceId,
+  returnId: expiryReturnGraph.returnId
+}))
+await db.$transaction((tx) => transferExchangeFundingShare(tx, {
+  eventKey: `exchange:${expiryReturnSource.invoiceId}:return:${expiryReturnGraph.returnId}:cash-before-expiry`,
+  sourceEventId: expiryReturnSource.cashEvent.id,
+  sourceShareId: `payment:${expiryReturnSource.cashPaymentId}`,
+  destinationShareId: `exchange:${expiryReturnGraph.childInvoiceId}:cash-before-expiry`,
+  rootShareId: `payment:${expiryReturnSource.cashPaymentId}`, amount: 700,
+  sourceInvoiceId: expiryReturnSource.invoiceId, childInvoiceId: expiryReturnGraph.childInvoiceId,
+  returnId: expiryReturnGraph.returnId
+}))
+const expiryReturnLine = seed.one('SELECT id, variantId FROM "SaleInvoiceItem" WHERE invoiceId=?',
+  expiryReturnGraph.childInvoiceId)
+sql.prepare('UPDATE "SaleInvoiceItem" SET qty=100, unitPrice=10 WHERE id=?').run(expiryReturnLine.id)
+await db.$transaction((tx) => recordExchangeFundingLineAllocations(tx, expiryReturnGraph.childInvoiceId))
+const expiredNestedGraph = exchangeGraph(expiryReturnGraph.childInvoiceId, 100)
+sql.prepare('UPDATE "StoreCredit" SET status=? WHERE id=?').run('EXPIRED', expiryReturnSource.creditId)
+const expiryClockBefore = Date.now
+const postExpiry = sourceExpiry.getTime() + 1
+const expiryChunks = []
+const settlementBeforeExpiredAttribution = {
+  credits: seed.count('StoreCredit'),
+  movements: seed.count('CashMovement'),
+  entitlements: seed.count('ReturnEntitlement'),
+  fundingEvents: seed.count('ExchangeFundingEvent')
+}
+Date.now = () => postExpiry
+try {
+  const eventsBeforeExpiredNestedTransfer = seed.count('ExchangeFundingEvent')
+  await assert.rejects(() => db.$transaction((tx) => transferExchangeFundingShare(tx, {
+    eventKey: `exchange:${expiryReturnGraph.childInvoiceId}:return:${expiredNestedGraph.returnId}:expired-gift-descendant`,
+    sourceEventId: expiryGiftTransfer.inEvent.id,
+    sourceShareId: expiryGiftTransfer.inEvent.shareId,
+    destinationShareId: `exchange:${expiredNestedGraph.childInvoiceId}:expired-gift-descendant`,
+    rootShareId: `credit:${expiryReturnSource.creditId}`, amount: 100,
+    sourceInvoiceId: expiryReturnGraph.childInvoiceId,
+    childInvoiceId: expiredNestedGraph.childInvoiceId, returnId: expiredNestedGraph.returnId
+  })), /ماندهٔ سهم اثبات‌شده/,
+  'a post-expiry child cannot carry an expired gift root into another exchange')
+  assert.equal(seed.count('ExchangeFundingEvent'), eventsBeforeExpiredNestedTransfer,
+    'rejected post-expiry descendant transfer appends no funding events')
+  assert.equal(await exchangeFundingBalance(db, expiryGiftTransfer.inEvent.shareId), 300,
+    'the rejected descendant transfer leaves the child gift share untouched')
+
+  const createExpiredChunk = async (qty, value, time) => {
+    const returnId = seed.insert('SaleReturn', {
+      invoiceId: expiryReturnGraph.childInvoiceId, isFull: false, total: value,
+      returnedAt: new Date(postExpiry), returnedAtJalali: '1405/07/28', returnedAtTime: time,
+      kind: 'RETURN', refundMethod: 'NONE', refundAmount: 0
+    })
+    const returnItemId = seed.insert('SaleReturnItem', {
+      returnId, saleItemId: Number(expiryReturnLine.id), variantId: Number(expiryReturnLine.variantId),
+      qty, unitPrice: 10, lineTotal: value, restockedQty: 0
+    })
+    const allocation = await db.$transaction((tx) => recordExchangeFundingReturnLineAllocation(tx, {
+      returnId, returnItemId
+    }))
+    expiryChunks.push({ returnId, returnItemId, allocation })
+  }
+  await createExpiredChunk(40, 400, '12:04:00')
+  await createExpiredChunk(60, 600, '12:05:00')
+} finally {
+  Date.now = expiryClockBefore
+}
+assert.deepEqual(expiryChunks.map((chunk) => chunk.allocation.shares.reduce((sum, share) => sum + share.amount, 0)),
+  [400, 600], 'post-expiry accounting attribution still reconciles both physical return chunks')
+const expiredReturnIds = expiryChunks.map((chunk) => chunk.returnId)
+const expiredAttributionTotals = seed.rows(`SELECT sourceKind, SUM(amountDelta) AS amount
+  FROM "ExchangeFundingReturnLineAllocation" WHERE returnId IN (?, ?) AND eventKind='ALLOCATION'
+  GROUP BY sourceKind ORDER BY sourceKind`, ...expiredReturnIds)
+assert.deepEqual(expiredAttributionTotals, [
+  { sourceKind: 'SOURCE_CASH', amount: 700 },
+  { sourceKind: 'SOURCE_GIFT', amount: 300 }
+], 'expired gift provenance remains gift in historical return attribution')
+assert.deepEqual({
+  credits: seed.count('StoreCredit'), movements: seed.count('CashMovement'),
+  entitlements: seed.count('ReturnEntitlement'), fundingEvents: seed.count('ExchangeFundingEvent')
+}, settlementBeforeExpiredAttribution,
+'post-expiry accounting attribution creates no credit, cash movement, entitlement, or funding settlement event')
+Date.now = () => postExpiry
+try {
+  await assert.rejects(() => db.$transaction((tx) =>
+    reverseExchangeFundingReturnLineAllocationsForReturn(tx, { returnId: expiryChunks[0].returnId })),
+  /LIFO|برگشت قدیمی‌تر|جدیدتر/iu,
+  'post-expiry earlier return remains LIFO-locked while later return is active')
+  const expiredLastReversal = await db.$transaction((tx) =>
+    reverseExchangeFundingReturnLineAllocationsForReturn(tx, { returnId: expiryChunks[1].returnId }))
+  assert.deepEqual(expiredLastReversal, { reversed: 2, items: 1, replayed: false })
+  sql.prepare('UPDATE "SaleReturn" SET voidedAt=?, voidReason=? WHERE id=?')
+    .run(postExpiry, 'post-expiry child return reversal test', expiryChunks[1].returnId)
+  const expiredFirstReversal = await db.$transaction((tx) =>
+    reverseExchangeFundingReturnLineAllocationsForReturn(tx, { returnId: expiryChunks[0].returnId }))
+  assert.deepEqual(expiredFirstReversal, { reversed: 2, items: 1, replayed: false })
+  sql.prepare('UPDATE "SaleReturn" SET voidedAt=?, voidReason=? WHERE id=?')
+    .run(postExpiry, 'post-expiry child return reversal test', expiryChunks[0].returnId)
+  const expiredReversalTotals = seed.rows(`SELECT sourceKind, SUM(amountDelta) AS amount
+    FROM "ExchangeFundingReturnLineAllocation" WHERE returnId IN (?, ?) AND eventKind='REVERSAL'
+    GROUP BY sourceKind ORDER BY sourceKind`, ...expiredReturnIds)
+  assert.deepEqual(expiredReversalTotals, [
+    { sourceKind: 'SOURCE_CASH', amount: -700 },
+    { sourceKind: 'SOURCE_GIFT', amount: -300 }
+  ], 'post-expiry LIFO reversal keeps expired gift historical and never converts it to cash')
+} finally {
+  Date.now = expiryClockBefore
+}
 
 const mixedGiftSource = mixedChildFunding.sources.find((source) => source.sourceKind === 'SOURCE_GIFT')
 const mixedCashSource = mixedChildFunding.sources.find((source) => source.sourceKind === 'SOURCE_CASH')
@@ -735,6 +1117,15 @@ const orphanIn = await db.$transaction((tx) => appendExchangeFundingEvent(tx, {
 const orphanChildFunding = await getCurrentExchangeFundingSources(db, orphanGraph.childInvoiceId)
 assert.equal(orphanChildFunding.sources.length, 0)
 assert.ok(orphanChildFunding.unresolved.some((row) => row.kind === 'INVALID_EXCHANGE_TRANSFER_LINK'))
+const orphanReturnVoidCountBefore = seed.count('ExchangeFundingEvent', 'returnId=? AND kind IN (?, ?)',
+  orphanGraph.returnId, 'VOID_TRANSFER_OUT', 'VOID_TRANSFER_IN')
+await assert.rejects(() => db.$transaction((tx) => reverseExchangeFundingTransfersForReturn(tx, {
+  returnId: orphanGraph.returnId
+})), /رویداد منشأ مالی معتبر نیست/,
+'a return with only an orphan transfer-in cannot report a successful bulk reversal')
+assert.equal(seed.count('ExchangeFundingEvent', 'returnId=? AND kind IN (?, ?)',
+  orphanGraph.returnId, 'VOID_TRANSFER_OUT', 'VOID_TRANSFER_IN'), orphanReturnVoidCountBefore,
+'orphan pair reversal fails without writing either inverse side')
 const orphanDownstream = exchangeGraph(orphanGraph.childInvoiceId, 50)
 const eventsBeforeOrphanLineage = seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
 await assert.rejects(() => db.$transaction((tx) => transferExchangeFundingShare(tx, {
@@ -840,6 +1231,34 @@ const siblingTransfer = await db.$transaction((tx) => transferExchangeFundingSha
   sourceInvoiceId: source.invoiceId, childInvoiceId: siblingGraph.childInvoiceId,
   returnId: siblingGraph.returnId
 }))
+const validSiblingFunding = await getCurrentExchangeFundingSources(db, siblingGraph.childInvoiceId)
+assert.equal(validSiblingFunding.unresolved.length, 0)
+assert.equal(validSiblingFunding.sources[0].available, 100)
+sql.prepare('UPDATE "SaleReturn" SET kind=? WHERE id=?').run('RETURN', siblingGraph.returnId)
+const linkedExchangeWithCorruptKind = await getCurrentExchangeFundingSources(db, siblingGraph.childInvoiceId)
+assert.equal(linkedExchangeWithCorruptKind.unresolved.length, 0,
+  'reciprocal child/parent exchange links preserve funding lineage when the return kind is corrupted')
+assert.equal(linkedExchangeWithCorruptKind.sources[0]?.available, 100,
+  'a corrupted kind must not hide a valid 100-rial exchange funding share')
+sql.prepare('UPDATE "SaleReturn" SET kind=? WHERE id=?').run('EXCHANGE', siblingGraph.returnId)
+
+const corruptKindReversalGraph = exchangeGraph(source.invoiceId, 50)
+await db.$transaction((tx) => transferExchangeFundingShare(tx, {
+  eventKey: `test:corrupt-kind-reversal:${corruptKindReversalGraph.returnId}`,
+  sourceEventId: source.sourceEvent.id, sourceShareId: `payment:${source.paymentId}`,
+  destinationShareId: `exchange:corrupt-kind-reversal:${corruptKindReversalGraph.childInvoiceId}`,
+  rootShareId: `payment:${source.paymentId}`, amount: 50,
+  sourceInvoiceId: source.invoiceId, childInvoiceId: corruptKindReversalGraph.childInvoiceId,
+  returnId: corruptKindReversalGraph.returnId
+}))
+sql.prepare('UPDATE "SaleReturn" SET kind=? WHERE id=?').run('RETURN', corruptKindReversalGraph.returnId)
+const corruptKindReversal = await db.$transaction((tx) => reverseExchangeFundingTransfersForReturn(tx, {
+  returnId: corruptKindReversalGraph.returnId
+}))
+assert.deepEqual(corruptKindReversal, { reversed: 1, pairs: 1 },
+  'reversal must follow reciprocal exchange links and must not depend on a corrupted kind discriminator')
+sql.prepare('UPDATE "SaleReturn" SET kind=? WHERE id=?').run('EXCHANGE', corruptKindReversalGraph.returnId)
+
 const wrongTransferParentGraph = exchangeGraph(chainedGraph.childInvoiceId, 100)
 await db.$transaction(async (tx) => {
   const common = {
@@ -865,5 +1284,57 @@ const wrongTransferParentFunding = await getCurrentExchangeFundingSources(db, wr
 assert.equal(wrongTransferParentFunding.sources.length, 0,
   'a valid transfer from a sibling invoice cannot stand in for the direct source invoice parent')
 assert.ok(wrongTransferParentFunding.unresolved.some((row) => row.kind === 'INVALID_EXCHANGE_TRANSFER_LINK'))
+
+const markerlessSource = seed.invoice({ grandTotal: 1000, status: 'FINAL' })
+const markerlessChild = seed.invoice({ grandTotal: 1000, status: 'FINAL' })
+const markerlessExchangeReturn = seed.insert('SaleReturn', {
+  invoiceId: markerlessSource.id, total: 1000, returnedAtJalali: '1405/07/27', kind: 'EXCHANGE'
+})
+sql.prepare('UPDATE "SaleReturn" SET exchangeInvoiceId=? WHERE id=?')
+  .run(markerlessChild.id, markerlessExchangeReturn)
+sql.prepare('UPDATE "SaleInvoice" SET orderType=?, sourceInvoiceId=NULL, exchangeReturnId=NULL WHERE id=?')
+  .run('INTERNAL', markerlessChild.id)
+sql.prepare('UPDATE "SaleReturn" SET kind=? WHERE id=?').run('RETURN', markerlessExchangeReturn)
+const markerlessFundingEventsBefore = seed.count('ExchangeFundingEvent')
+await assert.rejects(() => getCurrentSaleFundingSources(db, markerlessChild.id),
+  /تعویض|فرزند|lineage|منشأ مالی/iu,
+'a sale funding reader must not treat a markerless exchange child as an ordinary source invoice')
+await assert.rejects(() => db.$transaction((tx) => recordSaleFundingSnapshot(tx, markerlessChild.id)),
+  /تعویض|فرزند|lineage|snapshot فروش عادی/iu,
+'a sale snapshot writer must reject a markerless child proven by the parent exchangeInvoiceId link')
+assert.equal(seed.count('ExchangeFundingEvent'), markerlessFundingEventsBefore,
+  'markerless child rejection writes no ordinary funding events')
+
+const mismatchedReturnSource = await cashSource(1000)
+const mismatchedReturnGraph = exchangeGraph(mismatchedReturnSource.invoiceId, 100)
+const otherChildGraph = exchangeGraph(mismatchedReturnSource.invoiceId, 100)
+const mismatchedReturnTransfer = await db.$transaction((tx) => transferExchangeFundingShare(tx, {
+  eventKey: `exchange:${mismatchedReturnSource.invoiceId}:return:${mismatchedReturnGraph.returnId}:scoped`,
+  sourceEventId: mismatchedReturnSource.sourceEvent.id,
+  sourceShareId: `payment:${mismatchedReturnSource.paymentId}`,
+  destinationShareId: `exchange:${mismatchedReturnGraph.childInvoiceId}:scoped`,
+  rootShareId: `payment:${mismatchedReturnSource.paymentId}`, amount: 100,
+  sourceInvoiceId: mismatchedReturnSource.invoiceId,
+  childInvoiceId: mismatchedReturnGraph.childInvoiceId,
+  returnId: mismatchedReturnGraph.returnId
+}))
+sql.prepare('UPDATE "SaleReturn" SET exchangeInvoiceId=? WHERE id=?')
+  .run(otherChildGraph.childInvoiceId, mismatchedReturnGraph.returnId)
+const mismatchedReturnVoidsBefore = seed.count('ExchangeFundingEvent', 'returnId=? AND kind IN (?, ?)',
+  mismatchedReturnGraph.returnId, 'VOID_TRANSFER_OUT', 'VOID_TRANSFER_IN')
+await assert.rejects(() => db.$transaction((tx) => reverseExchangeFundingTransfersForReturn(tx, {
+  returnId: mismatchedReturnGraph.returnId
+})), /رویداد منشأ مالی معتبر نیست/,
+'bulk reversal must bind transfer pairs to the SaleReturn invoice/child link, not just its numeric return id')
+assert.equal(seed.count('ExchangeFundingEvent', 'returnId=? AND kind IN (?, ?)',
+  mismatchedReturnGraph.returnId, 'VOID_TRANSFER_OUT', 'VOID_TRANSFER_IN'), mismatchedReturnVoidsBefore,
+'mismatched parent-return linkage writes no partial inverse')
+sql.prepare('UPDATE "SaleReturn" SET exchangeInvoiceId=? WHERE id=?')
+  .run(mismatchedReturnGraph.childInvoiceId, mismatchedReturnGraph.returnId)
+const scopedReturnVoid = await db.$transaction((tx) => reverseExchangeFundingTransfersForReturn(tx, {
+  returnId: mismatchedReturnGraph.returnId
+}))
+assert.deepEqual(scopedReturnVoid, { reversed: 1, pairs: 1 })
+assert.ok(mismatchedReturnTransfer.outEvent.id > 0)
 
 console.log('✓ exchange funding journal: persisted-source proof, expiry, exact transfer pairs, immutable gift/cash per-item allocation, scoped parent lineage, downstream balance, reversal, cap, stale/orphan guards and idempotency')

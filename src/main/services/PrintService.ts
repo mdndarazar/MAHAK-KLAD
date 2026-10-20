@@ -124,7 +124,7 @@ async function creditIssueLinesForDoc(c: any): Promise<string[]> {
         include: { items: true, invoice: { select: { receiptNo: true } } }
       })
       if (!ret) return lines
-      const isExchange = ret.kind === 'EXCHANGE'
+      const isExchange = ret.kind === 'EXCHANGE' || ret.exchangeInvoiceId != null
       const receiptNo = ret.invoice?.receiptNo ?? 0
       const itemNames = await namesOfItems(ret.items)
       if (!isExchange) {

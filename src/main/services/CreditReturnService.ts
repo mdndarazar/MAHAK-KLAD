@@ -24,6 +24,10 @@ async function assertOrdinaryReturnInvoice(tx: Client, invoiceId: number) {
   if (!invoice || invoice.orderType === 'EXCHANGE' || invoice.sourceInvoiceId != null ||
       invoice.exchangeReturnId != null)
     throw childReturnBlocked()
+  const parentExchangeReturn = await tx.saleReturn.findFirst({
+    where: { exchangeInvoiceId: invoice.id }, select: { id: true }
+  })
+  if (parentExchangeReturn) throw childReturnBlocked()
   return invoice
 }
 

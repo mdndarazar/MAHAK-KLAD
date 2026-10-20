@@ -127,7 +127,8 @@ export const returnGoodsService = {
       const receivedQty = ret.items.reduce((sum, row) => sum + row.restockedQty + (row.id === item.id ? qty : 0), 0)
       const remainingQty = ret.items.reduce((sum, row) =>
         sum + Math.max(0, row.qty - row.restockedQty - (row.id === item.id ? qty : 0)), 0)
-      const exchangePrefix = ret.kind === 'EXCHANGE' ? 'کالای جایگزین طبق سند تعویض از موجودی کسر شد؛ ' : ''
+      const exchangePrefix = ret.kind === 'EXCHANGE' || ret.exchangeInvoiceId != null
+        ? 'کالای جایگزین طبق سند تعویض از موجودی کسر شد؛ ' : ''
       const stockNote = exchangePrefix + (remainingQty === 0
         ? `${receivedQty} عدد کالای برگشتی با رسید فیزیکیِ شاهددار دریافت شد؛ نتیجهٔ بانک مستقل است.`
         : `${receivedQty} عدد کالای برگشتی با رسید فیزیکیِ شاهددار دریافت شد؛ ${remainingQty} عدد هنوز بدون شاهد است و در موجودی قابل‌فروش نیست. نتیجهٔ بانک مستقل است.`)
@@ -156,15 +157,18 @@ export const returnGoodsService = {
   async items(returnIdRaw: number) {
     const returnId = positive(returnIdRaw, 'شناسه برگشت')
     const ret = await prisma.saleReturn.findUnique({ where: { id: returnId },
-      select: { voidedAt: true, restockPending: true, goodsReceiptRequired: true,
+      select: { invoiceId: true, voidedAt: true, restockPending: true, goodsReceiptRequired: true,
         invoice: { select: { orderType: true, sourceInvoiceId: true, exchangeReturnId: true } },
         items: { select: {
           id: true, qty: true, restockedQty: true, variantCode: true, variantName: true, variantId: true
         } } } })
     const claim = await prisma.returnEntitlement.findUnique({ where: { returnId }, select: { id: true, state: true } })
     const corrected = !!(await prisma.returnCorrection.findUnique({ where: { returnId }, select: { id: true } }))
+    const parentExchangeReturn = ret
+      ? await prisma.saleReturn.findFirst({ where: { exchangeInvoiceId: ret.invoiceId }, select: { id: true } })
+      : null
     const unsupportedLineage = !!ret?.invoice && (ret.invoice.orderType === 'EXCHANGE' ||
-      ret.invoice.sourceInvoiceId != null || ret.invoice.exchangeReturnId != null)
+      ret.invoice.sourceInvoiceId != null || ret.invoice.exchangeReturnId != null) || !!parentExchangeReturn
     const managed = !unsupportedLineage && (!!claim || !!ret?.goodsReceiptRequired)
     return { managed, unsupportedLineage,
       state: unsupportedLineage ? 'UNSUPPORTED_LINEAGE' : claim?.state ?? (ret?.goodsReceiptRequired ? 'GOODS_ONLY' : null),

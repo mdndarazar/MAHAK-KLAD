@@ -12,6 +12,8 @@
  *     node --import ./test/harness/register.mjs tests/audit-fixes/fix-s177-product-remove-in-chunk.mjs
  * ===========================================================================
  */
+import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -108,11 +110,43 @@ eq('هیچ in بالای ۵۰۰ نبود (purge رد)', maxIn <= 500, true)
 sql.prepare('DELETE FROM "StockMovement" WHERE id = ?').run(mv)
 
 console.log('\n۵) حذف همیشگی ۶۲۰ کالا')
+// تاریخچه‌ی فروش/برگشتِ کالا باید پس از حذف واریانت بماند، و triggerهای
+// scope/quantity نباید هنگام بازسازی زوج SaleInvoiceItem/SaleReturnItem گم شوند.
+const historyInvoiceId = seed.insert('SaleInvoice', { receiptNo: 177001, status: 'FINAL',
+  grandTotal: 1000, paidTotal: 1000 })
+const historySaleItemId = seed.insert('SaleInvoiceItem', { invoiceId: historyInvoiceId,
+  variantId: ids[0], qty: 1, unitPrice: 1000, lineTotal: 1000 })
+const historyReturnId = seed.insert('SaleReturn', { invoiceId: historyInvoiceId, kind: 'RETURN', total: 1000,
+  refundMethod: 'NONE', refundAmount: 0 })
+const historyReturnItemId = seed.insert('SaleReturnItem', { returnId: historyReturnId,
+  saleItemId: historySaleItemId, variantId: ids[0], qty: 1, unitPrice: 1000, lineTotal: 1000 })
+const relevantTriggerSnapshot = () => seed.rows(`SELECT name, sql FROM sqlite_master
+  WHERE type='trigger' AND (tbl_name IN ('SaleInvoiceItem', 'SaleReturnItem')
+    OR sql LIKE '%SaleInvoiceItem%' OR sql LIKE '%SaleReturnItem%') ORDER BY name`)
+  .map(({ name, sql }) => ({ name, hash: createHash('sha256').update(String(sql)).digest('hex') }))
+const protectedTriggersBefore = relevantTriggerSnapshot()
 maxIn = 0
 const pg = await run('purge', () => variantPurgeService.purge({ variantIds: ids, managerPassword: PW }))
 eq('deleted', pg?.deleted ?? null, N)
 eq('کالاهای ۶۲۰تایی پاک شدند؛ کنترل ماند', Number(seed.rows(`SELECT COUNT(*) c FROM "ProductVariant" WHERE code LIKE 'S177-%'`)[0].c), 1)
 eq('محصول پایه‌ی بی‌واریانت هم رفت، محصول کنترل ماند', [Number(seed.rows('SELECT COUNT(*) c FROM "Product" WHERE id = ?', pid)[0].c), Number(seed.rows('SELECT COUNT(*) c FROM "Product" WHERE id = ?', pid2)[0].c)], [0, 1])
+eq('تاریخچه‌ی فروش و برگشت با snapshot نام/کد پس از purge ماند', seed.rows(`SELECT si.variantName AS saleVariantName, si.variantCode AS saleVariantCode,
+    ri.variantName AS returnVariantName, ri.variantCode AS returnVariantCode
+  FROM "SaleInvoiceItem" si JOIN "SaleReturnItem" ri ON ri.saleItemId=si.id
+  WHERE si.id=? AND ri.id=?`, historySaleItemId, historyReturnItemId),
+  [{ saleVariantName: 'شلوار جین ۱۷۷', saleVariantCode: 'S177-0',
+    returnVariantName: 'شلوار جین ۱۷۷', returnVariantCode: 'S177-0' }])
+const protectedTriggersAfter = relevantTriggerSnapshot()
+assert.deepEqual(protectedTriggersAfter, protectedTriggersBefore,
+  'all triggers attached to or referencing rebuilt invoice/return item tables must retain exact DDL')
+eq('تعداد triggerهای محافظ scope/quantity پس از purge حفظ شد', protectedTriggersAfter.length, protectedTriggersBefore.length)
+const wrongInvoice = seed.insert('SaleInvoice', { receiptNo: 177002, status: 'FINAL', grandTotal: 0, paidTotal: 0 })
+assert.throws(() => sql.prepare('UPDATE "SaleReturn" SET invoiceId=? WHERE id=?').run(wrongInvoice, historyReturnId),
+  /sale return invoice scope mismatch/i,
+  'the restored parent-scope trigger still rejects retargeting a return')
+assert.throws(() => sql.prepare('UPDATE "SaleReturnItem" SET variantId=? WHERE id=?').run(ctl, historyReturnItemId),
+  /sale return item invoice\/variant scope mismatch/i,
+  'the restored item-scope trigger still rejects cross-variant history')
 eq('هیچ in بالای ۵۰۰ نبود (purge)', maxIn <= 500, true)
 
 console.log('\n۶) حذف ۶۲۰ ردیف انبار مرکزی')

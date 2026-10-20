@@ -125,7 +125,11 @@ console.log('\n— ۳) ردیف EXCHANGE_CREDIT سند تعویض (بی storeCre
   eq('سند تعویض با ابطال گراف لغو شد (CANCELED + voidedAt)', (() => { const r = seed.one('SELECT status, voidedAt FROM "SaleInvoice" WHERE id = ?', exInvId); return [r.status, r.voidedAt != null] })(), ['CANCELED', true])
   const cashPay = seed.one('SELECT id FROM "Payment" WHERE invoiceId = ? AND methodId = ?', src.id, cash).id
   const del2 = await safe(() => salesService.deletePayment({ id: cashPay, userId: A, reason: 'کنترل', ...GATE }))
-  eq('کنترل: ابطال پرداخت نقدی عادی مجاز', errOf(del2), null)
+  eq('پس از تعویض/ابطال، پرداخت مبدأ با lineage تاریخی همچنان محافظت می‌شود', /منشأ این فاکتور قبلاً به سند تعویض منتقل شده است/.test(errOf(del2) ?? ''), true)
+  const ordinary = await salesService.create({ userId: A, shiftId, lines: [line(v1)], payments: [{ methodId: cash, amount: 500_000, destination: 'CASH' }] })
+  const ordinaryPay = seed.one('SELECT id FROM "Payment" WHERE invoiceId = ? AND methodId = ?', ordinary.id, cash).id
+  const ordinaryDelete = await safe(() => salesService.deletePayment({ id: ordinaryPay, userId: A, reason: 'کنترل', ...GATE }))
+  eq('کنترل: ابطال پرداخت نقدی در فروشِ بدون lineage مجاز است', errOf(ordinaryDelete), null)
 }
 
 console.log('\n— ۴) پرداخت اولیه‌ی فروش با روش STORE_CREDIT بی‌کد (AUDIT-S142-02)')

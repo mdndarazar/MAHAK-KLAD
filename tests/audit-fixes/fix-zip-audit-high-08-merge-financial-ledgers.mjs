@@ -8,7 +8,8 @@
  *
  * node --import ./test/harness/register.mjs tests/audit-fixes/fix-zip-audit-high-08-merge-financial-ledgers.mjs
  */
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -55,12 +56,32 @@ const targetInvoiceId = targetSeed.insert('SaleInvoice', {
 targetSeed.insert('Payment', { invoiceId: targetInvoiceId, methodId: targetMethodId, amount: 1, seq: 1 })
 targetSeed.insert('SaleReturn', { invoiceId: targetInvoiceId, returnedAtJalali: '1405/07/19' })
 const sourceFile = join(dir, 'source-financial.db')
-buildDatabase(sourceFile)
+const builtSource = buildDatabase(sourceFile)
+// buildDatabase همه‌ی SQLهای migration را برای fixture اجرا کرده است؛ ثبت همان
+// migrationها در جدول Prisma ضروری است تا runner آن‌ها را دوباره روی schema
+// نهایی replay نکند (به‌ویژه migrationهای بازتعریف جدول که triggerهای متأخر را
+// موقتاً بدون جدول مرجع می‌گذارند). این دیتابیس معادل backup کاملاً migrated است.
+builtSource.db.exec(`CREATE TABLE "_prisma_migrations" (
+  "id" TEXT PRIMARY KEY NOT NULL, "checksum" TEXT NOT NULL, "finished_at" DATETIME,
+  "migration_name" TEXT NOT NULL, "logs" TEXT, "rolled_back_at" DATETIME,
+  "started_at" DATETIME NOT NULL DEFAULT current_timestamp,
+  "applied_steps_count" INTEGER UNSIGNED NOT NULL DEFAULT 0
+)`)
+for (const [index, migrationName] of builtSource.applied.entries()) {
+  const migrationSql = readFileSync(join(process.cwd(), 'prisma/migrations', migrationName, 'migration.sql'))
+  const checksum = createHash('sha256').update(migrationSql).digest('hex')
+  builtSource.db.prepare(`INSERT INTO "_prisma_migrations"
+    (id, checksum, finished_at, migration_name, applied_steps_count)
+    VALUES (?, ?, current_timestamp, ?, 1)`)
+    .run(`fixture-migration-${index}`, checksum, migrationName)
+}
+builtSource.db.close()
 const source = new PrismaClient({ datasources: { db: { url: `file:${sourceFile}?connection_limit=1` } } })
-// buildDatabase برای fixture ساختار نهایی را می‌سازد اما ledger migration ندارد.
-// آن را پیش از درج داده اجرا می‌کنیم تا MergeService همان مسیر واقعیِ backup
-// دارای migration ledger را ببیند، بدون این‌که migration بازتعریف جدول داده را لمس کند.
-await applyMigrations(source, sourceFile, { touchFile: false })
+// مسیر واقعی runner را روی backup مهاجرت‌شده اجرا می‌کنیم؛ همه‌ی migrationها
+// باید شناسایی شوند و هیچ SQL بازتعریف جدول یا mutation دیگری دوباره اجرا نشود.
+const sourceMigrationReport = await applyMigrations(source, sourceFile, { touchFile: false })
+if (sourceMigrationReport.applied.length || sourceMigrationReport.baselined.length || sourceMigrationReport.skipped.length)
+  throw new Error('fully migrated backup unexpectedly reran or baselined migration SQL')
 const sourceSeed = makeSeeder(source)
 const sourceUserId = sourceSeed.user('فروشنده بایگانی')
 const sourceShiftId = sourceSeed.insert('Shift', {

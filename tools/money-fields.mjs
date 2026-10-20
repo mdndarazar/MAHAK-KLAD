@@ -208,7 +208,18 @@ export const MONEY_FIELDS = [
   'CreditReturnAllocation.originNominal', 'CreditReturnAllocation.amount',
   'CreditReturnAllocation.supplementUnspent',
   // BankStatementEvidence
-  'BankStatementEvidence.confirmedAmount'
+  'BankStatementEvidence.confirmedAmount',
+  // ExchangeFundingEvent and immutable source/return line ledgers (Rial).
+  'ExchangeFundingEvent.amount',
+  'ExchangeFundingLineAllocation.saleItemValue', 'ExchangeFundingLineAllocation.amount',
+  'ExchangeFundingReturnLineAllocation.saleItemValue',
+  'ExchangeFundingReturnLineAllocation.sourceItemAmount',
+  'ExchangeFundingReturnLineAllocation.priorReturnValue',
+  'ExchangeFundingReturnLineAllocation.returnValue',
+  'ExchangeFundingReturnLineAllocation.cumulativeReturnValue',
+  'ExchangeFundingReturnLineAllocation.priorAmount',
+  'ExchangeFundingReturnLineAllocation.amountDelta',
+  'ExchangeFundingReturnLineAllocation.cumulativeAmount'
 ]
 
 /**
@@ -429,7 +440,22 @@ export const ID_FIELDS = [
   'ReturnGoodsReceiptSource.secondaryStockItemId',
   // BankStatementEvidence
   'BankStatementEvidence.id', 'BankStatementEvidence.requestId',
-  'BankStatementEvidence.reviewedByUserId'
+  'BankStatementEvidence.reviewedByUserId',
+  // ExchangeFundingEvent: scalar historical links (not ORM foreign keys).
+  'ExchangeFundingEvent.id', 'ExchangeFundingEvent.sourceInvoiceId', 'ExchangeFundingEvent.childInvoiceId',
+  'ExchangeFundingEvent.returnId', 'ExchangeFundingEvent.sourcePaymentId',
+  'ExchangeFundingEvent.sourceRedemptionId', 'ExchangeFundingEvent.sourceCreditId',
+  'ExchangeFundingEvent.parentEventId', 'ExchangeFundingEvent.debtId', 'ExchangeFundingEvent.actorUserId',
+  'ExchangeFundingEvent.reversesEventId',
+  // Immutable exchange line allocation scope.
+  'ExchangeFundingLineAllocation.id', 'ExchangeFundingLineAllocation.sourceInvoiceId',
+  'ExchangeFundingLineAllocation.childInvoiceId', 'ExchangeFundingLineAllocation.returnId',
+  'ExchangeFundingLineAllocation.sourceEventId', 'ExchangeFundingLineAllocation.saleItemId',
+  'ExchangeFundingReturnLineAllocation.id', 'ExchangeFundingReturnLineAllocation.returnId',
+  'ExchangeFundingReturnLineAllocation.returnItemId', 'ExchangeFundingReturnLineAllocation.sourceInvoiceId',
+  'ExchangeFundingReturnLineAllocation.childInvoiceId', 'ExchangeFundingReturnLineAllocation.saleItemId',
+  'ExchangeFundingReturnLineAllocation.sourceEventId',
+  'ExchangeFundingReturnLineAllocation.reversesAllocationId'
 ]
 
 /**
@@ -531,7 +557,14 @@ export const COUNT_FIELDS = [
   // ReturnGoodsReceipt
   'ReturnGoodsReceipt.qty',
   // ReturnGoodsReceiptSource
-  'ReturnGoodsReceiptSource.qty'
+  'ReturnGoodsReceiptSource.qty',
+  // ExchangeFunding line snapshots contain quantities, not rial amounts.
+  'ExchangeFundingLineAllocation.saleItemQty',
+  'ExchangeFundingReturnLineAllocation.saleItemQty',
+  'ExchangeFundingReturnLineAllocation.returnedQtyBefore',
+  'ExchangeFundingReturnLineAllocation.returningQty',
+  'ExchangeFundingReturnLineAllocation.returnedQtyAfter',
+  'ExchangeFundingReturnLineAllocation.allocationVersion'
 ]
 
 /**

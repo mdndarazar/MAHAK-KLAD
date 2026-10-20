@@ -386,6 +386,7 @@ const RETURN_SELECT = {
   id: true,
   total: true,
   kind: true,
+  exchangeInvoiceId: true,
   returnedAt: true,
   returnedAtJalali: true,
   refundMethod: true,
@@ -1891,8 +1892,10 @@ async function initialPaymentRows(
  * «سند تعویض» (که یک فاکتور عادی است) — آن مسیر همه‌ی اثرهای مالی را درست می‌سازد.
  * ===========================================================================
  */
-function assertNotExchangeReturn(ret: { id: number; kind?: string | null; exchangeReceiptNo?: number | null }, what: 'ویرایش') {
-  if ((ret.kind ?? 'RETURN') !== ReturnKind.EXCHANGE) return
+function assertNotExchangeReturn(ret: {
+  id: number; kind?: string | null; exchangeReceiptNo?: number | null; exchangeInvoiceId?: number | null
+}, what: 'ویرایش') {
+  if ((ret.kind ?? 'RETURN') !== ReturnKind.EXCHANGE && ret.exchangeInvoiceId == null) return
   /**
    * نشست ۶۵ (S65-1) — «حذف» سند تعویض دیگر مسدود نیست: returnDelete کل گراف تعویض را
    * اتمیک باطل می‌کند. ویرایش تکی همچنان بسته است؛ راه اصلاح = ابطال کل تعویض + ثبت دوباره.
@@ -1919,13 +1922,27 @@ function isExchangeChildInvoice(invoice: {
     invoice?.sourceInvoiceId != null || invoice?.exchangeReturnId != null
 }
 
-function assertExchangeChildReturnMutationBlocked(
+async function isExchangeChildInvoiceWithLineage(tx: any, invoice: {
+  id?: number | null; orderType?: string | null; sourceInvoiceId?: number | null; exchangeReturnId?: number | null
+} | null | undefined): Promise<boolean> {
+  if (isExchangeChildInvoice(invoice)) return true
+  const id = Number(invoice?.id)
+  if (!Number.isSafeInteger(id) || id <= 0) return false
+  // Legacy child invoices can lose every forward marker. The original exchange
+  // return's inverse link remains historical evidence and must keep them closed.
+  return !!(await tx.saleReturn.findFirst({
+    where: { exchangeInvoiceId: id }, select: { id: true }
+  }))
+}
+
+async function assertExchangeChildReturnMutationBlocked(
+  tx: any,
   invoice: {
     id?: number | null; orderType?: string | null; sourceInvoiceId?: number | null; exchangeReturnId?: number | null
   } | null | undefined,
   action: 'ویرایش' | 'ابطال' | 'اصلاح جبرانی'
 ) {
-  if (!isExchangeChildInvoice(invoice)) return
+  if (!await isExchangeChildInvoiceWithLineage(tx, invoice)) return
   const id = Number(invoice?.id)
   const invoiceLabel = Number.isSafeInteger(id) && id > 0 ? ` #${faDigits(id)}` : ''
   throw new BusinessError(
@@ -3552,7 +3569,8 @@ async function runReturn(
     // source-return allocations, expiry and reversal are consumed by the
     // settlement path, the generic planner must not turn mixed provenance into
     // cash or new credit. Remove this only with the full lifecycle tests green.
-    if (opts.applyRefund && isExchangeChildInvoice(invoice as any))
+    if ((opts.applyRefund || opts.kind === ReturnKind.EXCHANGE) &&
+        await isExchangeChildInvoiceWithLineage(tx, invoice as any))
       throw new BusinessError(exchangeReturnFundingBlockedMessage())
 
     // Historical/corrected quantities still reserve their sold units against
@@ -4582,7 +4600,7 @@ export const salesService = {
         include: { items: true, returns: { where: { voidedAt: null }, include: { items: true } } } })
       if (!invoice || !isReturnableStatus(invoice.status))
         throw new BusinessError('این فاکتور برای پیش‌نمایش برگشت معتبر نیست؛ دوباره رسید را اسکن کنید.')
-      if (isExchangeChildInvoice(invoice as any))
+      if (await isExchangeChildInvoiceWithLineage(tx, invoice as any))
         return previewExchangeReturnFunding(tx, invoice, { ...input, invoiceId })
       const already = new Map<number, number>()
       for (const r of invoice.returns) for (const it of r.items)
@@ -5274,7 +5292,7 @@ export const salesService = {
     // The replacement's EXCHANGE_CREDIT and stock belong to the complete
     // return/exchange graph. An ordinary sale edit can neither reconcile its
     // payment nor a previous correction; never silently convert it to a sale.
-    if (pre.orderType === OrderType.EXCHANGE || pre.exchangeReturnId != null || pre.sourceInvoiceId != null)
+    if (await isExchangeChildInvoiceWithLineage(prisma, pre as any))
       throw new BusinessError('سند تعویض از ویرایش عادی فروش قابل تغییر نیست؛ برای اصلاح جبرانیِ شاهددار از مسیر برگشت/تعویض استفاده کنید.')
     if (pre.status === SaleStatus.CANCELED || pre.status === SaleStatus.DRAFT || pre.voidedAt != null)
       throw new BusinessError('فاکتور لغوشده یا پیش‌نویس قابل ویرایش نیست؛ هیچ کالا یا پرداختی تغییر نکرد.')
@@ -5382,7 +5400,7 @@ export const salesService = {
       if (!current) throw new BusinessError('این فاکتور پیدا نشد؛ ممکن است حذف شده باشد. لیست فاکتورها را تازه کنید.')
       // Preflight is not a write fence: recheck the immutable exchange graph
       // in the SAME transaction before any payment or stock delta is applied.
-      if (current.orderType === OrderType.EXCHANGE || current.exchangeReturnId != null || current.sourceInvoiceId != null)
+      if (await isExchangeChildInvoiceWithLineage(tx, current as any))
         throw new BusinessError('سند تعویض از ویرایش عادی فروش قابل تغییر نیست؛ برای اصلاح جبرانیِ شاهددار از مسیر برگشت/تعویض استفاده کنید.')
       // بررسی دوباره داخل تراکنش، فاصلهٔ بین preflight و نوشتن را هم fail-closed می‌کند.
       if (current.status === SaleStatus.CANCELED || current.status === SaleStatus.DRAFT || current.voidedAt != null)
@@ -6605,7 +6623,7 @@ export const salesService = {
       creditStatus: creditStatusMap.get(r.creditId) ?? 'USED'
     }))
 
-    const isExchangeDoc = isExchangeChildInvoice(invoice as any)
+    const isExchangeDoc = await isExchangeChildInvoiceWithLineage(prisma, invoice as any)
     let sourceReceiptNo: number | null = null
     if (invoice.sourceInvoiceId != null) {
       const parent = await prisma.saleInvoice.findUnique({
@@ -7929,7 +7947,7 @@ export const salesService = {
     // ممیزی A99-03 — دامنه‌ی مشترک با تب برگشت، شمارنده‌ی سقف و پل تطبیق
     const where: Prisma.SaleReturnWhereInput = {
       ...(await returnReportScopeWhere(filter)),
-      kind: ReturnKind.EXCHANGE,
+      OR: [{ kind: ReturnKind.EXCHANGE }, { exchangeInvoiceId: { not: null } }],
       ...(onlyReturnId ? { id: onlyReturnId } : {})
     }
     const totalCount = await prisma.saleReturn.count({ where })
@@ -8137,8 +8155,10 @@ export const salesService = {
   async exchangeGet(input: { id?: number } = {}): Promise<ExchangeReportRow> {
     const id = Number(input?.id ?? 0)
     if (!id) throw new BusinessError('سند تعویضی مشخص نشده است.')
-    const ret = await prisma.saleReturn.findUnique({ where: { id }, select: { returnedAtJalali: true, kind: true, voidedAt: true } })
-    if (!ret || ret.kind !== ReturnKind.EXCHANGE || ret.voidedAt != null)
+    const ret = await prisma.saleReturn.findUnique({ where: { id }, select: {
+      returnedAtJalali: true, kind: true, exchangeInvoiceId: true, voidedAt: true
+    } })
+    if (!ret || (ret.kind !== ReturnKind.EXCHANGE && ret.exchangeInvoiceId == null) || ret.voidedAt != null)
       throw new BusinessError('این سند، تعویض کالا نیست یا حذف شده است.')
     const res = await this.exchangeList({
       fromJalali: ret.returnedAtJalali,
@@ -8498,7 +8518,11 @@ export const salesService = {
      * پنل است؛ `kind` صریح (از تب تعویض) بر آن اولویت دارد.
      */
     const kindFilter = filter.kind
-      ? { kind: filter.kind }
+      ? filter.kind === ReturnKind.RETURN
+        ? { kind: ReturnKind.RETURN, exchangeInvoiceId: null }
+        : filter.kind === ReturnKind.EXCHANGE
+          ? { OR: [{ kind: ReturnKind.EXCHANGE }, { exchangeInvoiceId: { not: null } }] }
+          : { kind: filter.kind }
       : filter.includeExchanges === true
         ? {}
         /**
@@ -8506,9 +8530,10 @@ export const salesService = {
          * `kind: null` با `as any` فقط TypeScript را ساکت می‌کند و Prisma واقعی
          * آن را ورودی نامعتبر می‌داند؛ نتیجه‌اش در UI جدول خالی بود، نه نبودن
          * برگشت ساده. داده‌ی نوع ناشناخته عمداً اینجا «برگشت ساده» حدس زده
-         * نمی‌شود؛ باید جداگانه بررسی شود.
+         * نمی‌شود؛ باید جداگانه بررسی شود. پیوند پایدار exchangeInvoiceId نیز
+         * نباید با kind خراب‌شده به‌عنوان برگشت ساده فهرست شود.
          */
-        : { kind: ReturnKind.RETURN }
+        : { kind: ReturnKind.RETURN, exchangeInvoiceId: null }
     // ممیزی A99-03 — دامنه‌ی مشترک با تب تعویض، شمارنده‌ی سقف و پل تطبیق
     const where: Prisma.SaleReturnWhereInput = {
       ...(await returnReportScopeWhere(filter)),
@@ -8568,7 +8593,7 @@ export const salesService = {
       id: r.id,
       /** RETURN = برگشت ساده · EXCHANGE = برگشتی که سند تعویض دارد (مورد ۵) */
       kind: r.kind,
-      isExchange: r.kind === ReturnKind.EXCHANGE,
+      isExchange: r.kind === ReturnKind.EXCHANGE || r.exchangeInvoiceId != null,
       receiptNo: r.invoice?.receiptNo ?? null,
       returnCode: r.invoice?.returnCode ?? null,
       invoiceDateJalali: r.invoice?.issuedAtJalali ?? '—',
@@ -8743,13 +8768,14 @@ export const salesService = {
         voidReason: true,
         kind: true,
         exchangeReceiptNo: true,
-        invoice: { select: { orderType: true, sourceInvoiceId: true, exchangeReturnId: true } }
+        exchangeInvoiceId: true,
+        invoice: { select: { id: true, orderType: true, sourceInvoiceId: true, exchangeReturnId: true } }
       }
     })
     if (!pre) throw new BusinessError('این برگشت از فروش پیدا نشد؛ ممکن است حذف شده باشد. فهرست را تازه کنید.')
     assertReturnNotVoided(pre as any, 'ویرایش')
     assertNotExchangeReturn(pre as any, 'ویرایش')
-    assertExchangeChildReturnMutationBlocked(pre.invoice as any, 'ویرایش')
+    await assertExchangeChildReturnMutationBlocked(prisma, pre.invoice as any, 'ویرایش')
 
     /**
      * اصلاح هر برگشت، حتی موردِ بدون بازپرداخت، می‌تواند موجودی و بدهی فاکتور
@@ -8829,7 +8855,7 @@ export const salesService = {
         throw new BusinessError('این برگشت شاخهٔ اعتبار B/E یا احیای اعتبار اصلی دارد؛ ویرایش مستقیم سند، حق را دوبار باز می‌کند. اصلاح جبرانی شاهددار مدیر لازم است.')
       const invoice = ret.invoice
       if (!invoice) throw new BusinessError('فاکتور این برگشت پیدا نشد؛ فهرست را تازه کنید.')
-      assertExchangeChildReturnMutationBlocked(invoice as any, 'ویرایش')
+      await assertExchangeChildReturnMutationBlocked(tx, invoice as any, 'ویرایش')
       /** نشست ۲۱۴ · M1 — بدهی پیش از ویرایش، برای قاعدهٔ چک بند ۴-۵۲ (مثل ثبت برگشت). */
       const remainingBeforeEdit = (
         await invoiceRemaining(
@@ -9289,14 +9315,15 @@ export const salesService = {
         voidReason: true,
         kind: true,
         exchangeReceiptNo: true,
-        invoice: { select: { orderType: true, sourceInvoiceId: true, exchangeReturnId: true } }
+        exchangeInvoiceId: true,
+        invoice: { select: { id: true, orderType: true, sourceInvoiceId: true, exchangeReturnId: true } }
       }
     })
     if (!pre) throw new BusinessError('این برگشت از فروش پیدا نشد؛ فهرست را تازه کنید.')
     assertReturnNotVoided(pre as any, 'ابطال')
     /** نشست ۶۵ (S65-1) — برگشتِ تعویض = ابطال اتمیک کل گراف تعویض (نه مسدود) */
-    const preIsExchange = (pre.kind ?? 'RETURN') === ReturnKind.EXCHANGE
-    assertExchangeChildReturnMutationBlocked(pre.invoice as any, 'ابطال')
+    const preIsExchange = (pre.kind ?? 'RETURN') === ReturnKind.EXCHANGE || pre.exchangeInvoiceId != null
+    await assertExchangeChildReturnMutationBlocked(prisma, pre.invoice as any, 'ابطال')
     const reason = String(input.reason ?? '').trim()
     if (reason.length < 3)
       throw new BusinessError(
@@ -9371,7 +9398,7 @@ export const salesService = {
         })
         if (!ret) throw new BusinessError('این برگشت از فروش پیدا نشد؛ فهرست را تازه کنید.')
         assertReturnNotVoided(ret as any, 'ابطال')
-        assertExchangeChildReturnMutationBlocked(ret.invoice as any, 'ابطال')
+        await assertExchangeChildReturnMutationBlocked(tx, ret.invoice as any, 'ابطال')
         if (await tx.returnCorrection.findUnique({ where: { returnId: ret.id }, select: { id: true } }))
           throw new BusinessError('این سند اصلاح جبرانی ثبت‌شده دارد؛ ابطال دوبارهٔ سند اصلی مجاز نیست.')
         if (ret.goodsReceiptRequired && await tx.returnGoodsReceipt.count({ where: { returnId: ret.id } }))
@@ -9387,7 +9414,10 @@ export const salesService = {
          * (سند برگشت + سند تعویض + اعتبار + درخواست کارت‌به‌کارت + انبار دو طرف +
          * کاهش بدهی فاکتور اصلی) در همین تراکنش باطل/برگردانده می‌شود.
          */
-        const isExchange = (ret.kind ?? 'RETURN') === ReturnKind.EXCHANGE
+        const isExchange = (ret.kind ?? 'RETURN') === ReturnKind.EXCHANGE || ret.exchangeInvoiceId != null
+        if (isExchange !== preIsExchange ||
+            (preIsExchange && Number(ret.exchangeInvoiceId ?? 0) !== Number(pre.exchangeInvoiceId ?? 0)))
+          throw new BusinessError('پیوند برگشت/تعویض هنگام تأیید تغییر کرده است؛ هیچ اثری با مجوز کهنه اعمال نشد. فهرست را تازه کنید.')
 
         // بند ۱۷ — ابطال سندِ یک دوره‌ی بسته‌شده: گیت مدیر + دلیل + AuditLog
         await periodLockService.assertOpen(tx, {
@@ -9851,11 +9881,14 @@ export const salesService = {
         userId: true,
         shiftId: true,
         exchangeReceiptNo: true,
-        invoice: { select: { orderType: true, sourceInvoiceId: true, exchangeReturnId: true } }
+        exchangeInvoiceId: true,
+        invoice: { select: { id: true, orderType: true, sourceInvoiceId: true, exchangeReturnId: true } }
       }
     })
     if (!pre) throw new BusinessError('این برگشت از فروش پیدا نشد؛ فهرست را تازه کنید.')
     assertReturnNotVoided(pre as any, 'ابطال')
+    if (pre.exchangeInvoiceId != null && pre.kind !== ReturnKind.EXCHANGE)
+      throw new BusinessError('پیوند سند تعویض با نوع برگشت ناسازگار است؛ اصلاح جبرانی انجام نشد و رسیدگی دستی مدیر لازم است.')
     /** مقدار ناآشنا هرگز برگشت ساده یا تعویض فرض نمی‌شود. */
     if (pre.kind !== ReturnKind.RETURN && pre.kind !== ReturnKind.EXCHANGE)
       throw new BusinessError(
@@ -9863,7 +9896,7 @@ export const salesService = {
           (pre.exchangeReceiptNo ? ` (سند تعویض ${faDigits(pre.exchangeReceiptNo)})` : '') +
           '. برای جلوگیری از اثر مالی نادرست، رسیدگی دستی مدیر لازم است.'
       )
-    assertExchangeChildReturnMutationBlocked(pre.invoice as any, 'اصلاح جبرانی')
+    await assertExchangeChildReturnMutationBlocked(prisma, pre.invoice as any, 'اصلاح جبرانی')
 
     const correctionAuthScope = await assertPanelPassword(
       PANEL_KEYS.salesReturnCorrection,
@@ -9908,14 +9941,16 @@ export const salesService = {
       })
       if (!ret) throw new BusinessError('این برگشت از فروش پیدا نشد؛ فهرست را تازه کنید.')
       assertReturnNotVoided(ret as any, 'ابطال')
-      assertExchangeChildReturnMutationBlocked(ret.invoice as any, 'اصلاح جبرانی')
+      if (ret.exchangeInvoiceId != null && ret.kind !== ReturnKind.EXCHANGE)
+        throw new BusinessError('پیوند سند تعویض با نوع برگشت ناسازگار است؛ اصلاح جبرانی انجام نشد و رسیدگی دستی مدیر لازم است.')
+      await assertExchangeChildReturnMutationBlocked(tx, ret.invoice as any, 'اصلاح جبرانی')
       const managedClaim = await tx.returnEntitlement.findUnique({ where: { returnId: ret.id } })
       if (await tx.creditReturnAllocation.count({ where: { returnId: ret.id } }))
         throw new BusinessError('این برگشت منشأ اعتبار احیاشده یا شاخهٔ B/E دارد؛ اصلاح بدون دفتر جبران همین شاخه‌ها مجاز نیست. سند و اعتبار حفظ شدند.')
       if (managedClaim && (managedClaim.state === 'UNKNOWN_BANK' ||
           toNumberRial(managedClaim.cashConverted) > 0))
         throw new BusinessError('تسویهٔ بانک نامعلوم است یا کدِ حق نقدی قبلاً صادر شده؛ اصلاح جبرانی بدون تعیین تکلیف شاهد بانک/کد انجام نمی‌شود.')
-      const isExchange = ret.kind === ReturnKind.EXCHANGE
+      const isExchange = ret.kind === ReturnKind.EXCHANGE || ret.exchangeInvoiceId != null
       if (!isExchange && ret.kind !== ReturnKind.RETURN)
         throw new BusinessError('نوع این سند دیگر شناخته‌شده نیست؛ اصلاح جبرانی انجام نشد.')
       const exchangeInvoice = isExchange

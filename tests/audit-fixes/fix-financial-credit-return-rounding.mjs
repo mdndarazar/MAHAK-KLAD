@@ -190,6 +190,7 @@ const redemptionRows = [
 ]
 const planForPrior = (persistedPrior) => planCreditReturn({
   saleInvoice: { findUnique: async () => ({ id: 77, orderType: 'INTERNAL', sourceInvoiceId: null, exchangeReturnId: null }) },
+  saleReturn: { findFirst: async () => null },
   payment: { findMany: async () => paymentRows },
   storeCreditRedemption: { findMany: async () => redemptionRows },
   creditReturnAllocation: { aggregate: async ({ where }) => ({

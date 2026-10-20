@@ -113,7 +113,7 @@ console.log('\n۱) تعویض اعتبار را نقد نمی‌کند')
         refundMode: 'CASH',
         userId, shiftId
       }),
-      'تطبیق منشأ توسط مدیر'
+      'تطبیق کامل منشأ'
     )
   }
   if (saleB) {
@@ -126,7 +126,7 @@ console.log('\n۱) تعویض اعتبار را نقد نمی‌کند')
       replacements: [{ variantId: variant(600_000), qty: 1 }],
       refundMode: 'STORE_CREDIT',
       userId, shiftId
-    }), 'تطبیق منشأ توسط مدیر')
+    }), 'تطبیق کامل منشأ')
     eq('رد محافظه‌کارانه سند برگشت تازه نمی‌سازد', seed.count('SaleReturn', 'invoiceId = ?', saleB.id), before)
   }
 }

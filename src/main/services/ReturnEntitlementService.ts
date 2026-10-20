@@ -35,12 +35,15 @@ export async function assertOrdinaryReturnLineage(tx: Client, returnId: number, 
   const checkedReturnId = safeId(returnId, 'شناسه برگشت')
   const checkedInvoiceId = invoiceId == null ? null : safeId(invoiceId, 'شناسه فاکتور')
   const ret = await tx.saleReturn.findUnique({ where: { id: checkedReturnId }, select: {
-    id: true, invoiceId: true, voidedAt: true,
+    id: true, invoiceId: true, total: true, voidedAt: true,
     invoice: { select: { orderType: true, sourceInvoiceId: true, exchangeReturnId: true } }
   } })
+  const parentExchangeReturn = ret
+    ? await tx.saleReturn.findFirst({ where: { exchangeInvoiceId: ret.invoiceId }, select: { id: true } })
+    : null
   if (!ret || (checkedInvoiceId != null && ret.invoiceId !== checkedInvoiceId) ||
       ret.invoice?.orderType === 'EXCHANGE' || ret.invoice?.sourceInvoiceId != null ||
-      ret.invoice?.exchangeReturnId != null)
+      ret.invoice?.exchangeReturnId != null || parentExchangeReturn)
     throw new BusinessError('برگشت فرزند تعویض تا تکمیل lineage و جریان مستقل قابل ثبت یا تغییر نیست.')
   return ret
 }
@@ -60,17 +63,10 @@ export async function openCardTransferEntitlement(
   const amount = secureInt(input.amount, 'حق نقدی')
   const debtReduced = secureInt(input.debtReduced ?? 0, 'کاهش بدهی', 0)
   const giftOpportunity = secureInt(input.giftOpportunity ?? 0, 'سهم اعتبار غیرنقدی', 0)
-  const ret = await tx.saleReturn.findUnique({ where: { id: returnId }, select: {
-    invoiceId: true, total: true,
-    invoice: { select: { orderType: true, sourceInvoiceId: true, exchangeReturnId: true } }
-  } })
-  // Defense in depth: this exported write service must not turn descriptive
-  // child-line provenance into a financial claim, even if a caller bypasses
-  // SalesService's normal child-return gate or orderType was misclassified.
-  if (ret?.invoice?.orderType === 'EXCHANGE' || ret?.invoice?.sourceInvoiceId != null ||
-      ret?.invoice?.exchangeReturnId != null)
-    throw new BusinessError('انتساب منشأ برگشت فرزند تعویض به‌تنهایی حق نقدی نمی‌سازد؛ تسویهٔ مالی آن تا تکمیل lineage و entitlement مسدود است.')
-  if (!ret || ret.invoiceId !== invoiceId || amount + debtReduced + giftOpportunity > toNumberRial(ret.total))
+  // Reuse the common lineage check, including the parent return's inverse
+  // exchangeInvoiceId link when every child-side marker is stale or corrupted.
+  const ret = await assertOrdinaryReturnLineage(tx, returnId, invoiceId)
+  if (ret.voidedAt != null || amount + debtReduced + giftOpportunity > toNumberRial(ret.total))
     throw new BusinessError('حق نقدی، سهم اعتبار و کاهش بدهی با سند برگشت منطبق نیستند؛ حق تازه باز نشد.')
   const existing = await tx.returnEntitlement.findUnique({ where: { returnId } })
   if (existing) {

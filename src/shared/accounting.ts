@@ -83,6 +83,8 @@ export interface InvoiceTotals {
 export interface ReturnEvent {
   id?: number | string
   kind?: ReturnKind | string
+  /** Durable inverse link remains authoritative if legacy kind is corrupted. */
+  exchangeInvoiceId?: number | string | null
   total?: RialLike
   refundMethod?: RefundMethod | string | null
   refundAmount?: RialLike
@@ -577,7 +579,7 @@ export function calculateReturnTotals(events: ReturnEvent[] = [], period?: Perio
   for (const r of events) {
     if (period && !inPeriod(r.returnedAt, period)) continue
     const total = Math.max(0, n(r.total))
-    const exchange = r.kind === 'EXCHANGE'
+    const exchange = r.kind === 'EXCHANGE' || r.exchangeInvoiceId != null
     out.count++
     if (exchange) {
       out.exchangeReturned += total
@@ -1258,7 +1260,7 @@ export function calculateStaffPerformance(
     const row = rowOf(r.userId, r.userName)
     // همان تفکیک kind که calculateReturnTotals می‌کند، ولی برای یک کارمند
     const one = calculateReturnTotals([r])
-    if (r.kind === 'EXCHANGE') {
+    if (r.kind === 'EXCHANGE' || r.exchangeInvoiceId != null) {
       row.exchangeCount += one.count
       /** نشست ۱۸۹ · ۱-۷ — «مبلغ تعویض» ارزش کالای *جایگزین* است، نه کالای برگشتی. */
       row.exchangeTotal += one.exchangeReplacement

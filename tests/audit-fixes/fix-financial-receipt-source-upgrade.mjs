@@ -21,7 +21,13 @@ const stages = [
   '20271020680000_sale_invoice_item_quantity_domain_guard',
   '20271020690000_safe_integer_return_quantity_domain_guard',
   '20271020700000_validate_sale_return_history',
-  '20271020710000_guard_active_return_deletion'
+  '20271020710000_guard_active_return_deletion',
+  '20271020720000_guard_exchange_return_line_reversals',
+  '20271020730000_guard_exchange_return_line_allocation_scope',
+  '20271020740000_guard_exchange_return_line_cumulative_snapshots',
+  '20271020750000_guard_exchange_funding_event_immutability',
+  '20271020760000_guard_exchange_funding_event_reversals',
+  '20271020770000_guard_allocated_return_physical_snapshots'
 ]
 const allNames = readdirSync(join(root, 'prisma/migrations'))
   .filter((n) => n !== 'migration_lock.toml').sort()

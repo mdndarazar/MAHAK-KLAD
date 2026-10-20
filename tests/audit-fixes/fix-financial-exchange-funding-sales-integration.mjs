@@ -746,7 +746,7 @@ await assert.rejects(() => salesService.createExchange({
   lines: [{ saleItemId: exactChildItemId, qty: 1 }],
   replacements: [{ variantId: exactSourceVariant, qty: 1 }],
   refundMode: 'STORE_CREDIT', userId, shiftId, managerPassword: DEFAULT_MANAGER_PASSWORD
-}), /تعویضِ این فاکتور/,
+}), /تعویضِ این فاکتور|lineage فرزند/iu,
 'proved child lineage is readable, but nested exchange stays closed until per-line allocation and rights are integrated')
 assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', exactExchange.exchangeInvoiceId).n, childGateBefore.returns)
 assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleInvoice" WHERE sourceInvoiceId=?', exactExchange.exchangeInvoiceId).n, childGateBefore.children)

@@ -17,6 +17,17 @@ process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
+const { financialInspectorService } = await import('../../src/main/services/financialInspectorService.ts')
+const { bridgeDiagnosticsService } = await import('../../src/main/services/bridgeDiagnosticsService.ts')
+const { reportLimitsService } = await import('../../src/main/services/reportLimits.ts')
+const { salesLedger } = await import('../../src/main/services/SalesLedger.ts')
+const { staffReportService } = await import('../../src/main/services/StaffReportService.ts')
+const { printService } = await import('../../src/main/services/PrintService.ts')
+const { settingsService } = await import('../../src/main/services/SettingsService.ts')
+const { resolveAccountingReadScope, buildStatements } = await import('../../src/main/services/accountingReport.ts')
+const { debtAdjustmentsByInvoice } = await import('../../src/main/services/invoiceDebt.ts')
+const { calculateReturnTotals } = await import('@shared/accounting')
+const { returnedTotalOf } = await import('../../src/main/services/reportShape.ts')
 const { cardTransferService } = await import('../../src/main/services/CardTransferService.ts')
 const { pendingRestockService } = await import('../../src/main/services/PendingRestockService.ts')
 const { returnGoodsService } = await import('../../src/main/services/ReturnGoodsService.ts')
@@ -30,10 +41,15 @@ const { openCardTransferEntitlement, convertCashRight, confirmCreditDelivery,
 const { planCreditReturn, applyCreditReturn } = await import('../../src/main/services/CreditReturnService.ts')
 const { remainingOf } = await import('../../src/shared/settlement.ts')
 const { toJalaliDate } = await import('@shared/jalali')
-const { DEFAULT_MANAGER_PASSWORD } = await import('@shared/receipt')
+const { DEFAULT_MANAGER_PASSWORD, SETTING_KEYS } = await import('@shared/receipt')
+const { PANEL_KEYS } = await import('@shared/panels')
 const db = harnessClient()
 const seed = makeSeeder(db)
 const sql = db.$harness.db
+seed.setting(SETTING_KEYS.panelLocks, {
+  [PANEL_KEYS.salesReports]: false,
+  [PANEL_KEYS.bridgeDiagnostics]: false
+})
 const userId = seed.user('child return correction guard')
 const categoryId = seed.category('child return correction guard')
 const productId = seed.product('child return correction guard', categoryId)
@@ -67,6 +83,16 @@ const exchange = await salesService.createExchange({
 const child = seed.one('SELECT id, orderType FROM "SaleInvoice" WHERE id=?', exchange.exchangeInvoiceId)
 assert.equal(child.orderType, 'EXCHANGE')
 const childItem = seed.one('SELECT id, variantId FROM "SaleInvoiceItem" WHERE invoiceId=?', child.id)
+const exchangeReturnItem = seed.one('SELECT saleItemId, qty FROM "SaleReturnItem" WHERE returnId=? ORDER BY id LIMIT 1',
+  exchange.returnId)
+sql.prepare('UPDATE "SaleReturn" SET kind=? WHERE id=?').run('RETURN', exchange.returnId)
+await assert.rejects(() => salesService.returnUpdate({
+  id: exchange.returnId,
+  lines: [{ saleItemId: Number(exchangeReturnItem.saleItemId), qty: Number(exchangeReturnItem.qty) }],
+  userId, shiftId, panelPassword: DEFAULT_MANAGER_PASSWORD, overrideReason: 'exchange kind corruption regression'
+}), /تعویض|exchange/iu,
+'a corrupted RETURN kind cannot make an exchange return editable while exchangeInvoiceId remains linked')
+sql.prepare('UPDATE "SaleReturn" SET kind=? WHERE id=?').run('EXCHANGE', exchange.returnId)
 const misclassifiedBefore = {
   returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', child.id).n,
   cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
@@ -617,6 +643,141 @@ await assert.rejects(() => openCardTransferEntitlement(db, {
   returnId: returnIds[0], invoiceId: child.id, requestId: 987654324, amount: 1
 }), /فرزند تعویض|lineage|تخصیص منشأ/iu,
 'exchangeReturnId alone must preserve the entitlement hold')
+sql.prepare('UPDATE "SaleInvoice" SET sourceInvoiceId=NULL, exchangeReturnId=NULL WHERE id=?').run(child.id)
+await assert.rejects(() => openCardTransferEntitlement(db, {
+  returnId: legacyChildReturnWithoutClaim, invoiceId: child.id, requestId: 987654325, amount: 1
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'clearing both child markers and corrupting orderType must not erase the parent return inverse-link evidence')
+const markerlessParentSale = await salesService.create({
+  userId, shiftId,
+  lines: [{ variantId: replacementVariant, qty: 1, unitPrice: 1000, discount: 0, tax: 0 }],
+  payments: [{ methodId: cashMethodId, amount: 1000, destination: 'CASH' }]
+})
+const markerlessChildSale = await salesService.create({
+  userId, shiftId,
+  lines: [{ variantId: replacementVariant, qty: 1, unitPrice: 1000, discount: 0, tax: 0 }],
+  payments: [{ methodId: cashMethodId, amount: 1000, destination: 'CASH' }]
+})
+seed.insert('SaleReturn', {
+  invoiceId: markerlessParentSale.id, isFull: false, total: 1000, returnedAt: now,
+  returnedAtJalali: toJalaliDate(now), returnedAtTime: now.toTimeString().slice(0, 8),
+  kind: 'EXCHANGE', exchangeInvoiceId: markerlessChildSale.id, userId, shiftId,
+  refundMethod: 'NONE', refundAmount: 0
+})
+const markerlessChildItemId = Number(seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', markerlessChildSale.id).id)
+const markerlessReturnEffectsBefore = {
+  returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', markerlessChildSale.id).n,
+  cash: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n
+}
+await assert.rejects(() => salesService.createReturn({
+  invoiceId: markerlessChildSale.id, full: false,
+  lines: [{ saleItemId: markerlessChildItemId, qty: 1 }],
+  refundMethod: 'CASH', refundAmount: 1000, userId, shiftId
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'a return on a markerless but parent-linked child invoice must remain fail-closed')
+await assert.rejects(() => planCreditReturn(db, {
+  invoiceId: markerlessChildSale.id, grandTotal: 1000, paidTotal: 1000, returnedValue: 1000,
+  debtBefore: remainingOf({ grandTotal: 1000, received: 1000 }), activeReturns: []
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'direct credit-return planning must recognize inverse exchange lineage without child markers')
+await assert.rejects(() => applyCreditReturn(db, {
+  invoiceId: markerlessChildSale.id, returnId: legacyChildReturnWithoutClaim, full: false,
+  plan: { credit: 0, cash: 0, fundedReturning: 0, shares: [] }
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'direct credit-return application must independently block inverse-linked exchange children')
+assert.deepEqual({
+  returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', markerlessChildSale.id).n,
+  cash: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n
+}, markerlessReturnEffectsBefore, 'markerless child return rejection creates no return, cash refund, or credit')
+await assert.rejects(() => salesService.update({
+  id: markerlessChildSale.id, userId, shiftId, keepPayments: true,
+  lines: [{ variantId: replacementVariant, qty: 1, unitPrice: 1000, discount: 0, tax: 0 }]
+}), /سند تعویض|فرزند تعویض|lineage/iu,
+'a markerless but parent-linked child invoice cannot be edited as an ordinary sale')
+const markerlessNestedExchangeEffectsBefore = {
+  returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn"').n,
+  invoices: seed.one('SELECT COUNT(*) n FROM "SaleInvoice"').n,
+  cash: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
+  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n,
+  stock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', replacementVariant).stock)
+}
+await assert.rejects(() => salesService.createExchange({
+  invoiceId: markerlessChildSale.id,
+  lines: [{ saleItemId: markerlessChildItemId, qty: 1 }],
+  replacements: [{ variantId: replacementVariant, qty: 1 }],
+  refundMode: 'STORE_CREDIT', userId, shiftId
+}), /فرزند تعویض|lineage|EXCHANGE_CREDIT/iu,
+'a markerless exchange child cannot become the parent of another exchange before chained lineage is supported')
+assert.deepEqual({
+  returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn"').n,
+  invoices: seed.one('SELECT COUNT(*) n FROM "SaleInvoice"').n,
+  cash: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
+  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n,
+  stock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', replacementVariant).stock)
+}, markerlessNestedExchangeEffectsBefore,
+'blocked nested exchange creates no return, invoice, payment, credit, funding event, or stock movement')
+const markerlessParentReturnId = Number(seed.one(
+  'SELECT id FROM "SaleReturn" WHERE invoiceId=? AND kind=? ORDER BY id DESC LIMIT 1',
+  markerlessParentSale.id, 'EXCHANGE'
+).id)
+sql.prepare('UPDATE "SaleReturn" SET exchangeInvoiceId=NULL WHERE id=?').run(markerlessParentReturnId)
+const originalUpdatePeriodPreverify = periodLockService.preverify
+periodLockService.preverify = async (...args) => {
+  const result = await originalUpdatePeriodPreverify.apply(periodLockService, args)
+  sql.prepare('UPDATE "SaleReturn" SET exchangeInvoiceId=? WHERE id=?')
+    .run(markerlessChildSale.id, markerlessParentReturnId)
+  return result
+}
+try {
+  await assert.rejects(() => salesService.update({
+    id: markerlessChildSale.id, userId, shiftId, keepPayments: true,
+    lines: [{ variantId: replacementVariant, qty: 1, unitPrice: 1000, discount: 0, tax: 0 }]
+  }), /سند تعویض|فرزند تعویض|lineage/iu,
+  'the sale-edit transaction rechecks inverse exchange lineage added after preflight')
+} finally {
+  periodLockService.preverify = originalUpdatePeriodPreverify
+  sql.prepare('UPDATE "SaleReturn" SET exchangeInvoiceId=? WHERE id=?')
+    .run(markerlessChildSale.id, markerlessParentReturnId)
+}
+sql.prepare('UPDATE "SaleReturn" SET kind=? WHERE id=?').run('RETURN', markerlessParentReturnId)
+await assert.rejects(() => planCreditReturn(db, {
+  invoiceId: markerlessChildSale.id, grandTotal: 1000, paidTotal: 1000, returnedValue: 1000,
+  debtBefore: remainingOf({ grandTotal: 1000, received: 1000 }), activeReturns: []
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'inverse exchangeInvoiceId evidence remains binding even if the linked parent return kind is corrupted')
+sql.prepare('UPDATE "SaleReturn" SET kind=? WHERE id=?').run('EXCHANGE', markerlessParentReturnId)
+const markerlessGoodsReturnId = seed.insert('SaleReturn', {
+  invoiceId: markerlessChildSale.id, isFull: false, total: 1000, returnedAt: now,
+  returnedAtJalali: toJalaliDate(now), returnedAtTime: now.toTimeString().slice(0, 8),
+  kind: 'RETURN', userId, shiftId, refundMethod: 'NONE', refundAmount: 0,
+  goodsReceiptRequired: true, restockPending: true
+})
+const markerlessGoodsItemId = seed.insert('SaleReturnItem', {
+  returnId: markerlessGoodsReturnId, saleItemId: markerlessChildItemId,
+  variantId: replacementVariant, qty: 1, unitPrice: 1000, lineTotal: 1000, restockedQty: 0
+})
+const markerlessGoodsStockBefore = Number(seed.one(
+  'SELECT stock FROM "ProductVariant" WHERE id=?', replacementVariant
+).stock)
+await assert.rejects(() => returnGoodsService.receive({
+  returnId: markerlessGoodsReturnId, returnItemId: markerlessGoodsItemId, qty: 1,
+  eventKey: 'markerless-child-intake-001', witnessKind: 'SELECTED_CONFIRMED',
+  witnessRef: 'Observed item', physicalConfirmed: true, actorUserId: userId
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'physical receipt must reject a markerless child before stock can be restored')
+assert.equal(Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', replacementVariant).stock),
+  markerlessGoodsStockBefore, 'markerless physical intake rejection leaves stock unchanged')
+assert.equal(seed.one('SELECT COUNT(*) n FROM "ReturnGoodsReceipt" WHERE returnId=?', markerlessGoodsReturnId).n, 0,
+  'markerless physical intake rejection writes no witness receipt')
+const markerlessChildGoodsView = await returnGoodsService.items(markerlessGoodsReturnId)
+assert.equal(markerlessChildGoodsView.unsupportedLineage, true,
+  'the physical intake reader must detect the parent exchange link if child markers are missing')
+assert.deepEqual(markerlessChildGoodsView.items, [],
+  'markerless child lineage must not expose quantities for physical intake')
 assert.deepEqual({
   claims: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlement"').n,
   events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
@@ -624,6 +785,10 @@ assert.deepEqual({
 sql.prepare('UPDATE "SaleInvoice" SET sourceInvoiceId=?, exchangeReturnId=? WHERE id=?')
   .run(sale.id, exchange.returnId, child.id)
 
+// These legacy return records still have a parent SaleReturn.exchangeInvoiceId
+// link, but all child-side markers (including orderType) are intentionally lost.
+sql.prepare('UPDATE "SaleInvoice" SET sourceInvoiceId=NULL, exchangeReturnId=NULL, orderType=? WHERE id=?')
+  .run('INTERNAL', child.id)
 const blocked = /برگشت فرزند|تخصیص منشأ|تعویض/iu
 const mutationEffectsBefore = {
   stock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', replacementVariant).stock),
@@ -723,4 +888,269 @@ assert.deepEqual({
   correctionEffects: seed.one('SELECT COUNT(*) n FROM "ReturnCorrectionEffect"').n,
   audits: seed.one('SELECT COUNT(*) n FROM "AuditLog"').n
 }, mutationEffectsBefore, 'all child-return correction attempts leave stock, cash, credit, ledger, and audit effects untouched')
+
+const makeExactExchange = async (label, replacementPrice = 1000, refundMode = 'STORE_CREDIT') => {
+  const sourceVariantId = variant(`${label} source`)
+  const replacementVariantId = variant(`${label} replacement`)
+  sql.prepare('UPDATE "ProductVariant" SET salePrice=? WHERE id=?').run(replacementPrice, replacementVariantId)
+  const invoice = await salesService.create({
+    userId, shiftId,
+    lines: [{ variantId: sourceVariantId, qty: 1, unitPrice: 1000, discount: 0, tax: 0 }],
+    payments: [{ methodId: cashMethodId, amount: 1000, destination: 'CASH' }]
+  })
+  const sourceLine = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', invoice.id)
+  const result = await salesService.createExchange({
+    invoiceId: invoice.id,
+    lines: [{ saleItemId: Number(sourceLine.id), qty: 1 }],
+    replacements: [{ variantId: replacementVariantId, qty: 1 }],
+    refundMode, userId, shiftId, managerPassword: DEFAULT_MANAGER_PASSWORD
+  })
+  return {
+    returnId: result.returnId, invoiceId: invoice.id, childInvoiceId: result.exchangeInvoiceId,
+    sourceVariantId, replacementVariantId
+  }
+}
+
+const reconcileKindProbe = await makeExactExchange('reconcile kind probe')
+const reconcileEffectsBefore = {
+  sourceStock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', reconcileKindProbe.sourceVariantId).stock),
+  replacementStock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', reconcileKindProbe.replacementVariantId).stock),
+  corrections: seed.one('SELECT COUNT(*) n FROM "ReturnCorrection"').n,
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
+}
+sql.prepare('UPDATE "SaleReturn" SET kind=? WHERE id=?').run('RETURN', reconcileKindProbe.returnId)
+await assert.rejects(() => salesService.returnReconcileVoid({
+  id: reconcileKindProbe.returnId, userId, reason: 'exchange kind corruption regression',
+  cashRecovered: 0, cardRecovered: 0, cashPaidOut: 0, cardPaidOut: 0, creditOutcome: 'NONE',
+  panelPassword: DEFAULT_MANAGER_PASSWORD
+}), /تعویض|exchange|پیوند/iu,
+'returnReconcileVoid must fail closed when exchangeInvoiceId contradicts the ordinary RETURN kind')
+assert.equal(seed.one('SELECT voidedAt FROM "SaleReturn" WHERE id=?', reconcileKindProbe.returnId).voidedAt, null)
+assert.equal(seed.one('SELECT voidedAt FROM "SaleInvoice" WHERE id=?', reconcileKindProbe.childInvoiceId).voidedAt, null)
+assert.deepEqual({
+  sourceStock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', reconcileKindProbe.sourceVariantId).stock),
+  replacementStock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', reconcileKindProbe.replacementVariantId).stock),
+  corrections: seed.one('SELECT COUNT(*) n FROM "ReturnCorrection"').n,
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
+}, reconcileEffectsBefore, 'a kind/link mismatch cannot create reconciliation, inventory, cash, or ledger effects')
+
+const deleteKindProbe = await makeExactExchange('delete kind probe')
+const deleteEffectsBefore = {
+  sourceStock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', deleteKindProbe.sourceVariantId).stock),
+  replacementStock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', deleteKindProbe.replacementVariantId).stock),
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
+}
+sql.prepare('UPDATE "SaleReturn" SET kind=? WHERE id=?').run('RETURN', deleteKindProbe.returnId)
+const corruptKindExchangeVoid = await salesService.returnDelete({
+  id: deleteKindProbe.returnId, userId, shiftId,
+  reason: 'exchange kind corruption regression', panelPassword: DEFAULT_MANAGER_PASSWORD
+})
+assert.equal(corruptKindExchangeVoid.exchangeVoided, true,
+  'a valid reciprocal exchange link must route a corrupted kind through the full exchange void')
+assert.ok(seed.one('SELECT voidedAt FROM "SaleReturn" WHERE id=?', deleteKindProbe.returnId).voidedAt)
+assert.ok(seed.one('SELECT voidedAt FROM "SaleInvoice" WHERE id=?', deleteKindProbe.childInvoiceId).voidedAt)
+assert.deepEqual({
+  sourceStock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', deleteKindProbe.sourceVariantId).stock),
+  replacementStock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', deleteKindProbe.replacementVariantId).stock),
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
+}, {
+  sourceStock: deleteEffectsBefore.sourceStock,
+  replacementStock: deleteEffectsBefore.replacementStock + 1,
+  cashMovements: deleteEffectsBefore.cashMovements,
+  fundingEvents: deleteEffectsBefore.fundingEvents + 2
+}, 'kind corruption is corrected only by atomically voiding return, child, stock and paired funding effects')
+
+const injectExchangeLinkAfterPreflight = async (probe, operation, label) => {
+  sql.prepare('UPDATE "SaleReturn" SET kind=?, exchangeInvoiceId=NULL WHERE id=?')
+    .run('RETURN', probe.returnId)
+  const effects = () => ({
+    sourceStock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', probe.sourceVariantId).stock),
+    replacementStock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', probe.replacementVariantId).stock),
+    cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+    fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n,
+    corrections: seed.one('SELECT COUNT(*) n FROM "ReturnCorrection"').n,
+    returnItems: seed.one('SELECT COUNT(*) n FROM "SaleReturnItem" WHERE returnId=?', probe.returnId).n
+  })
+  const effectsBefore = effects()
+  const originalPreverify = periodLockService.preverify
+  periodLockService.preverify = async (...args) => {
+    const result = await originalPreverify.apply(periodLockService, args)
+    sql.prepare('UPDATE "SaleReturn" SET exchangeInvoiceId=? WHERE id=?')
+      .run(probe.childInvoiceId, probe.returnId)
+    return result
+  }
+  try {
+    await assert.rejects(operation, /تعویض|exchange|پیوند|منشأ مالی/iu, label)
+  } finally {
+    periodLockService.preverify = originalPreverify
+    sql.prepare('UPDATE "SaleReturn" SET kind=?, exchangeInvoiceId=? WHERE id=?')
+      .run('EXCHANGE', probe.childInvoiceId, probe.returnId)
+  }
+  assert.equal(seed.one('SELECT voidedAt FROM "SaleReturn" WHERE id=?', probe.returnId).voidedAt, null)
+  assert.equal(seed.one('SELECT voidedAt FROM "SaleInvoice" WHERE id=?', probe.childInvoiceId).voidedAt, null)
+  assert.deepEqual(effects(), effectsBefore, `${label}: rejection leaves stock, cash, funding, correction, and item state unchanged`)
+}
+
+const updateLinkRace = await makeExactExchange('update inverse-link race')
+const updateLinkRaceItem = seed.one(
+  'SELECT saleItemId, qty FROM "SaleReturnItem" WHERE returnId=? ORDER BY id LIMIT 1', updateLinkRace.returnId
+)
+await injectExchangeLinkAfterPreflight(updateLinkRace, () => salesService.returnUpdate({
+  id: updateLinkRace.returnId,
+  lines: [{ saleItemId: Number(updateLinkRaceItem.saleItemId), qty: Number(updateLinkRaceItem.qty) }],
+  userId, shiftId, panelPassword: DEFAULT_MANAGER_PASSWORD, overrideReason: 'inverse exchange link race'
+}), 'returnUpdate rechecks the inverse exchange link inside its transaction')
+
+const deleteLinkRace = await makeExactExchange('delete inverse-link race')
+await injectExchangeLinkAfterPreflight(deleteLinkRace, () => salesService.returnDelete({
+  id: deleteLinkRace.returnId, userId, shiftId,
+  reason: 'inverse exchange link race', panelPassword: DEFAULT_MANAGER_PASSWORD
+}), 'returnDelete routes a link added after preflight through fail-closed exchange validation')
+
+const reconcileLinkRace = await makeExactExchange('reconcile inverse-link race')
+await injectExchangeLinkAfterPreflight(reconcileLinkRace, () => salesService.returnReconcileVoid({
+  id: reconcileLinkRace.returnId, userId, reason: 'inverse exchange link race',
+  cashRecovered: 0, cardRecovered: 0, cashPaidOut: 0, cardPaidOut: 0,
+  creditOutcome: 'NONE', panelPassword: DEFAULT_MANAGER_PASSWORD
+}), 'returnReconcileVoid rechecks kind/link consistency inside its transaction')
+
+const reportKindProbe = await makeExactExchange('report kind probe', 800, 'CASH')
+const reportC2CProbe = await makeExactExchange('report C2C kind probe', 800, 'CARD_TO_CARD')
+const reportDate = toJalaliDate(now)
+const staffPerformanceBefore = (await staffReportService.performance({
+  fromJalali: reportDate, toJalali: reportDate, userId
+})).rows.find((row) => row.userId === userId)
+const accountingScope = await resolveAccountingReadScope({ fromJalali: reportDate, toJalali: reportDate })
+const accountingBefore = (await buildStatements(accountingScope)).statements
+const reportLimitsBefore = await reportLimitsService.limits({ fromJalali: reportDate, toJalali: reportDate })
+sql.prepare('UPDATE "SaleReturn" SET kind=? WHERE id IN (?, ?)')
+  .run('RETURN', reportKindProbe.returnId, reportC2CProbe.returnId)
+const returnEventTotals = calculateReturnTotals([{
+  kind: 'RETURN', exchangeInvoiceId: reportKindProbe.childInvoiceId,
+  total: 1000, exchangeTotal: 800, exchangeDiff: -200,
+  exchangeSettlement: 'CASH_REFUND', refundMethod: 'CASH', refundAmount: 200
+}])
+assert.equal(returnEventTotals.exchangeReturned, 1000,
+  'shared return totals must classify a persisted exchangeInvoiceId as exchange')
+assert.equal(returnEventTotals.simpleReturns, 0,
+  'shared return totals must not count an inverse-linked exchange as a simple return')
+assert.equal(returnEventTotals.exchangeCashRefunds, 200,
+  'shared return totals must preserve cash-refund semantics for an inverse-linked exchange')
+assert.equal(returnedTotalOf({ returns: [{
+  kind: 'RETURN', exchangeInvoiceId: reportKindProbe.childInvoiceId, total: 1000, returnedAt: now
+}] }), 0,
+'a linked exchange must stay out of the simple-return total even when a legacy caller uses the report-shape fallback')
+const debtTotalsForCorruptExchange = await debtAdjustmentsByInvoice(db, [reportKindProbe.invoiceId])
+assert.deepEqual(debtTotalsForCorruptExchange.get(reportKindProbe.invoiceId) ?? {
+  returnedValue: 0, refundFromReceived: 0
+}, { returnedValue: 0, refundFromReceived: 0 },
+'a misclassified exchange refund must not create a simple-return debt reduction or OVERPAY source')
+const detailedSalesReport = await salesService.reportRows({
+  fromJalali: reportDate, toJalali: reportDate, take: 500
+})
+const reportSourceInvoice = detailedSalesReport.rows.find((row) => row.id === reportKindProbe.invoiceId)
+assert.equal(reportSourceInvoice?.returnedTotal, 0,
+  'sales report rows must not subtract a linked exchange as a simple return')
+assert.equal(reportSourceInvoice?.exchangeReturnedTotal, 1000,
+  'sales report rows must retain returned exchange value after kind corruption')
+const staffPerformanceAfter = (await staffReportService.performance({
+  fromJalali: reportDate, toJalali: reportDate, userId
+})).rows.find((row) => row.userId === userId)
+assert.equal(staffPerformanceAfter.exchangeCount, staffPerformanceBefore.exchangeCount,
+  'staff performance must classify a linked exchange from its durable inverse link')
+assert.equal(staffPerformanceAfter.returnCount, staffPerformanceBefore.returnCount,
+  'a corrupted exchange kind must not inflate staff simple-return counts')
+assert.equal(staffPerformanceAfter.exchangeTotal, staffPerformanceBefore.exchangeTotal,
+  'a corrupted exchange kind must not remove replacement value from staff results')
+const staffTransactionRows = await staffReportService.transactions({
+  fromJalali: reportDate, toJalali: reportDate, userId, take: 500
+})
+assert.equal(staffTransactionRows.returns.find((row) => row.id === reportKindProbe.returnId)?.kind, 'EXCHANGE',
+  'staff transaction details must label an inverse-linked return as an exchange')
+const accountingAfter = (await buildStatements(accountingScope)).statements
+const reportLimitsAfter = await reportLimitsService.limits({ fromJalali: reportDate, toJalali: reportDate })
+assert.equal(accountingAfter.returns.returnCount, accountingBefore.returns.returnCount,
+  'accounting statements must not reclassify a linked exchange as a simple return')
+assert.equal(accountingAfter.returns.exchangeCount, accountingBefore.returns.exchangeCount,
+  'accounting statements must preserve exchange count from the persisted inverse link')
+assert.equal(accountingAfter.returns.simpleReturns, accountingBefore.returns.simpleReturns,
+  'corrupt kind must not move exchange value into simple-return totals')
+assert.equal(accountingAfter.returns.exchangeReturned, accountingBefore.returns.exchangeReturned,
+  'corrupt kind must not remove exchange return value from accounting totals')
+assert.deepEqual(accountingAfter.bridge, accountingBefore.bridge,
+  'the reconciliation bridge must classify a linked exchange identically despite a corrupted kind')
+const limitTotal = (result, key) => result.rows.find((row) => row.key === key).total
+assert.equal(limitTotal(reportLimitsAfter, 'returns'), limitTotal(reportLimitsBefore, 'returns'),
+  'return pagination limits must not count a linked exchange as a simple return')
+assert.equal(limitTotal(reportLimitsAfter, 'exchanges'), limitTotal(reportLimitsBefore, 'exchanges'),
+  'exchange pagination limits must retain linked exchanges if kind is corrupted')
+const ordinaryReport = await salesService.returnList({
+  fromJalali: reportDate, toJalali: reportDate, take: 500
+})
+assert.equal(ordinaryReport.some((row) => row.id === reportKindProbe.returnId), false,
+  'the default ordinary-return report must not misclassify a persisted exchangeInvoiceId as a simple return')
+const allReturnRows = await salesService.returnList({
+  fromJalali: reportDate, toJalali: reportDate, take: 500, includeExchanges: true
+})
+assert.equal(allReturnRows.find((row) => row.id === reportKindProbe.returnId)?.isExchange, true,
+  'the mixed return report must classify exchange rows from the persisted inverse link')
+const exchangeRows = await salesService.exchangeList({
+  fromJalali: reportDate, toJalali: reportDate, take: 500
+})
+assert.equal(exchangeRows.rows.some((row) => row.returnId === reportKindProbe.returnId), true,
+  'the exchange report must retain linked exchanges even when the kind discriminator is corrupted')
+const exchangeDetails = await salesService.exchangeGet({ id: reportKindProbe.returnId })
+assert.equal(exchangeDetails.returnId, reportKindProbe.returnId,
+  'exchange detail must use the persisted inverse link as a durable exchange marker')
+const reportScope = { fromJalali: reportDate, toJalali: reportDate }
+const inspectorSources = await financialInspectorService.sources({
+  scope: reportScope, key: 'exchangeCashRefunds'
+})
+const inspectorSource = inspectorSources.result.sources.find((source) => source.ref.id === reportKindProbe.returnId)
+assert.ok(inspectorSource, 'financial inspector keeps the exchange refund source after kind corruption')
+const inspectorDocument = await financialInspectorService.document({
+  scope: reportScope, key: 'exchangeCashRefunds', ref: inspectorSource.ref
+})
+assert.match(inspectorDocument.detail.title, /تعویض/,
+  'financial inspector document must use the exchange invoice link, not corrupted kind')
+const openedBridgeDiagnostics = await bridgeDiagnosticsService.open(reportScope, DEFAULT_MANAGER_PASSWORD)
+assert.equal(openedBridgeDiagnostics?.ok, true)
+const bridgeDocument = await bridgeDiagnosticsService.documentDetail(
+  reportScope, { kind: 'RETURN', id: reportKindProbe.returnId }, 'exchangeCashRefunds'
+)
+assert.equal(bridgeDocument.detail.docType, 'EXCHANGE',
+  'bridge diagnosis must identify the linked exchange rather than a simple return')
+assert.equal(bridgeDocument.detail.ref.kind, 'EXCHANGE')
+const printKindProbe = await makeExactExchange('print kind probe', 800, 'STORE_CREDIT')
+const printCredit = seed.one('SELECT id FROM "StoreCredit" WHERE returnId=?', printKindProbe.returnId)
+sql.prepare('UPDATE "SaleReturn" SET kind=? WHERE id=?').run('RETURN', printKindProbe.returnId)
+const printedCredit = await printService.creditDocDataFor(
+  Number(printCredit.id), await settingsService.receiptTemplate()
+)
+assert.ok(printedCredit.issueLines.some((line) => /بابت تعویض کالای/.test(line)),
+  'customer-facing credit print must keep exchange provenance when kind is corrupted')
+const eventLedger = await salesLedger.ledger({ fromJalali: reportDate, toJalali: reportDate })
+assert.deepEqual(eventLedger.rows.filter((row) => row.sourceId === reportKindProbe.returnId)
+  .map((row) => row.eventType).sort(), ['EXCHANGE_REPLACEMENT', 'EXCHANGE_RETURNED'],
+'cash ledger must retain both exchange event types when the kind field is corrupted')
+const goodsNoteProbe = await makeExactExchange('goods note kind probe', 800, 'CARD_TO_CARD')
+const goodsNoteRequest = seed.one('SELECT id FROM "CardTransferRequest" WHERE returnId=? AND kind=?',
+  goodsNoteProbe.returnId, 'REQUEST')
+assert.ok(goodsNoteRequest, 'the exchange fixture must have a pending manager transfer request')
+const goodsNoteItemId = Number(seed.one('SELECT id FROM "SaleReturnItem" WHERE returnId=?',
+  goodsNoteProbe.returnId).id)
+sql.prepare('UPDATE "SaleReturn" SET kind=? WHERE id=?').run('RETURN', goodsNoteProbe.returnId)
+await returnGoodsService.receive({
+  returnId: goodsNoteProbe.returnId, returnItemId: goodsNoteItemId, qty: 1,
+  eventKey: 'exchange-goods-note-kind-corrupt-001', witnessKind: 'SELECTED_CONFIRMED',
+  witnessRef: 'customer item physically received', physicalConfirmed: true, actorUserId: userId
+})
+const exchangeGoodsStockNote = seed.one('SELECT stockNote FROM "CardTransferRequest" WHERE id=?',
+  goodsNoteRequest.id).stockNote
+assert.match(exchangeGoodsStockNote, /کالای جایگزین طبق سند تعویض از موجودی کسر شد/,
+  'physical receipt note must retain exchange context via exchangeInvoiceId when return kind is corrupt')
 console.log('✓ exchange-child return correction paths fail closed for update, void, and reconciliation')

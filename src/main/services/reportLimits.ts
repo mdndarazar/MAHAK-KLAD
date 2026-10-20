@@ -97,11 +97,14 @@ export const reportLimitsService = {
       prisma.saleReturn.count({
         where: {
           ...returnScope,
-          // kind در schema اجباری است؛ شمارنده باید دقیقاً همان «برگشت ساده»ی جدول را بشمارد.
-          ...(filter.includeExchanges === true ? {} : { kind: ReturnKind.RETURN })
+          // نوع سند و پیوند برگشت معکوس با هم سنجیده می‌شوند؛ kind خراب‌شده نباید
+          // تعویض را وارد شمارندهٔ برگشت ساده کند.
+          ...(filter.includeExchanges === true ? {} : { kind: ReturnKind.RETURN, exchangeInvoiceId: null })
         }
       }),
-      prisma.saleReturn.count({ where: { ...returnScope, kind: ReturnKind.EXCHANGE } }),
+      prisma.saleReturn.count({
+        where: { ...returnScope, OR: [{ kind: ReturnKind.EXCHANGE }, { exchangeInvoiceId: { not: null } }] }
+      }),
       prisma.payment.count({ where: chequeWhere }),
       /**
        * تب legacy اعتبار تنها روی StoreCredit scalar referenceها فیلتر می‌کند

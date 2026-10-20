@@ -44,6 +44,18 @@ const mismatch = () => new BusinessError('کلید عملیات قبلی با د
 const insufficient = () => new BusinessError('ماندهٔ سهم اثبات‌شده برای این انتقال کافی نیست؛ هیچ انتقالی ثبت نشد.')
 const SNAPSHOT_STATE_KINDS = new Set(['SNAPSHOT_STALE', 'SNAPSHOT_RECONCILED'])
 
+async function isExchangeChildInvoiceWithLineage(tx: LedgerClient, invoice: any): Promise<boolean> {
+  if (!invoice) return false
+  if (invoice.orderType === 'EXCHANGE' || invoice.sourceInvoiceId != null || invoice.exchangeReturnId != null)
+    return true
+  const invoiceId = Number(invoice.id)
+  if (!Number.isSafeInteger(invoiceId) || invoiceId <= 0) return false
+  // A stale/corrupted invoice can lose all child-side markers. Its parent's
+  // exchangeInvoiceId remains durable evidence and is enough to disallow the
+  // ordinary-sale funding reader and snapshot writer.
+  return !!(await tx.saleReturn.findFirst({ where: { exchangeInvoiceId: invoiceId }, select: { id: true } }))
+}
+
 const nullableNumber = (value: unknown) => value == null ? null : Number(value)
 const normalized = (row: any) => ({
   eventKey: String(row.eventKey), kind: String(row.kind), amount: toNumberRial(row.amount),
@@ -357,7 +369,8 @@ async function activeExchangeLink(
     !!child && child.voidedAt == null && !['DRAFT', 'CANCELED'].includes(String(child.status)) &&
     child.orderType === 'EXCHANGE' && Number(child.sourceInvoiceId) === sourceInvoiceId &&
     Number(child.exchangeReturnId) === returnId &&
-    !!ret && ret.voidedAt == null && ret.kind === 'EXCHANGE' && Number(ret.invoiceId) === sourceInvoiceId &&
+    // Reciprocal lineage IDs are stronger proof than the mutable legacy discriminator.
+    !!ret && ret.voidedAt == null && Number(ret.invoiceId) === sourceInvoiceId &&
     Number(ret.exchangeInvoiceId) === childInvoiceId && toNumberRial(ret.total) > 0 &&
     ret.exchangeTotal != null && child.grandTotal != null &&
     toNumberRial(ret.exchangeTotal) === toNumberRial(child.grandTotal)
@@ -494,11 +507,14 @@ async function hasProvableTransferLineage(tx: LedgerClient, event: any): Promise
 export async function getCurrentSaleFundingSources(tx: LedgerClient, invoiceId: number) {
   if (!Number.isSafeInteger(invoiceId) || invoiceId <= 0) throw invalid()
   const invoice = await tx.saleInvoice.findUnique({
-    where: { id: invoiceId }, select: { id: true, orderType: true, voidedAt: true, status: true, grandTotal: true }
+    where: { id: invoiceId }, select: {
+      id: true, orderType: true, sourceInvoiceId: true, exchangeReturnId: true,
+      voidedAt: true, status: true, grandTotal: true
+    }
   })
   if (!invoice) throw new BusinessError('فاکتور برای خواندن منشأ مالی پیدا نشد؛ هیچ سهمی حدس زده نشد.')
-  if (invoice.orderType === 'EXCHANGE')
-    throw new BusinessError('فاکتور تعویض برای خواندن منشأ، به دفتر تخصیص مستقل کالای برگشتی نیاز دارد.')
+  if (await isExchangeChildInvoiceWithLineage(tx, invoice))
+    throw new BusinessError('فاکتور تعویض/فرزند تعویض برای خواندن منشأ به مسیر مستقل نیاز دارد؛ هیچ سهم فروش عادی برنگردانده شد.')
   if (invoice.voidedAt != null || ['DRAFT', 'CANCELED'].includes(String(invoice.status)))
     throw new BusinessError('فاکتور لغوشده یا نهایی‌نشده منبع تعویض نیست.')
 
@@ -1140,8 +1156,11 @@ export async function reverseExchangeFundingReturnLineAllocationsForReturn(tx: L
   })
   if (!ret) throw new BusinessError('برگشت برای reversal دفتر تخصیص پیدا نکرد.')
   const childInvoice = ret.invoice as any
+  const parentExchangeReturn = childInvoice?.id != null
+    ? await tx.saleReturn.findFirst({ where: { exchangeInvoiceId: Number(childInvoice.id) }, select: { id: true } })
+    : null
   const isExchangeChild = childInvoice?.orderType === 'EXCHANGE' ||
-    childInvoice?.sourceInvoiceId != null || childInvoice?.exchangeReturnId != null
+    childInvoice?.sourceInvoiceId != null || childInvoice?.exchangeReturnId != null || !!parentExchangeReturn
   if (isExchangeChild && ret.kind === 'RETURN') {
     const seenSaleItemIds = new Set<number>()
     for (const item of ret.items as any[]) {
@@ -1332,11 +1351,13 @@ export async function reverseExchangeFundingReturnLineAllocationsForReturn(tx: L
 export async function recordSaleFundingSnapshot(tx: LedgerClient, invoiceId: number, revision = 1) {
   if (!Number.isSafeInteger(invoiceId) || invoiceId <= 0 || !Number.isSafeInteger(revision) || revision <= 0) throw invalid()
   const invoice = await tx.saleInvoice.findUnique({
-    where: { id: invoiceId }, select: { id: true, grandTotal: true, orderType: true }
+    where: { id: invoiceId }, select: {
+      id: true, grandTotal: true, orderType: true, sourceInvoiceId: true, exchangeReturnId: true
+    }
   })
   if (!invoice) throw new BusinessError('فاکتور برای ثبت منشأ مالی پیدا نشد؛ عملیات متوقف شد.')
-  if (invoice.orderType === 'EXCHANGE')
-    throw new BusinessError('سند تعویض به تخصیص مستقل ارزش برگشتی نیاز دارد؛ snapshot فروش عادی روی آن اعمال نشد.')
+  if (await isExchangeChildInvoiceWithLineage(tx, invoice))
+    throw new BusinessError('سند تعویض/فرزند تعویض به تخصیص مستقل ارزش برگشتی نیاز دارد؛ snapshot فروش عادی روی آن اعمال نشد.')
   if (await tx.saleReturn.count({ where: { invoiceId, voidedAt: null } }))
     throw new BusinessError('برای فاکتور دارای برگشت قبلی، snapshot منشأ تاریخی حدس زده نمی‌شود؛ تطبیق شاهددار لازم است.')
   const priorTransfer = await tx.exchangeFundingEvent.findFirst({
@@ -1685,6 +1706,19 @@ export async function reverseExchangeFundingTransfersForReturn(tx: LedgerClient,
   if (!input || !Number.isSafeInteger(input.returnId) || input.returnId <= 0 ||
       (input.actorUserId != null && (!Number.isSafeInteger(input.actorUserId) || input.actorUserId <= 0)))
     throw invalid()
+  const ret = await tx.saleReturn.findUnique({ where: { id: input.returnId }, select: {
+    id: true, invoiceId: true, exchangeInvoiceId: true
+  } })
+  if (!ret || !Number.isSafeInteger(Number(ret.invoiceId)) ||
+      Number(ret.invoiceId) <= 0 || !Number.isSafeInteger(Number(ret.exchangeInvoiceId)) ||
+      Number(ret.exchangeInvoiceId) <= 0)
+    throw invalid()
+  const child = await tx.saleInvoice.findUnique({ where: { id: Number(ret.exchangeInvoiceId) }, select: {
+    id: true, orderType: true, sourceInvoiceId: true, exchangeReturnId: true
+  } })
+  if (!child || Number(child.id) !== Number(ret.exchangeInvoiceId) || child.orderType !== 'EXCHANGE' ||
+      Number(child.sourceInvoiceId) !== Number(ret.invoiceId) || Number(child.exchangeReturnId) !== input.returnId)
+    throw invalid()
   const events = await tx.exchangeFundingEvent.findMany({
     where: { returnId: input.returnId, kind: { in: ['TRANSFER_OUT', 'TRANSFER_IN'] } },
     orderBy: { id: 'asc' }
@@ -1699,7 +1733,11 @@ export async function reverseExchangeFundingTransfersForReturn(tx: LedgerClient,
     const out = await matchingTransferOutForIn(tx, into)
     if (!out || !outs.some((candidate) => Number(candidate.id) === Number(out.id)) ||
         matchedOutIds.has(Number(out.id)) || Number(out.returnId) !== input.returnId ||
-        Number(into.returnId) !== input.returnId)
+        Number(into.returnId) !== input.returnId ||
+        Number(out.sourceInvoiceId) !== Number(ret.invoiceId) ||
+        Number(into.sourceInvoiceId) !== Number(ret.invoiceId) ||
+        Number(out.childInvoiceId) !== Number(ret.exchangeInvoiceId) ||
+        Number(into.childInvoiceId) !== Number(ret.exchangeInvoiceId))
       throw invalid()
     matchedOutIds.add(Number(out.id))
     const state = await transferPairReversalState(tx, out, into)

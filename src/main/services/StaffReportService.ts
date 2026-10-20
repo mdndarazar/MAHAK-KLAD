@@ -188,6 +188,7 @@ export const staffReportService = {
       select: {
         id: true,
         kind: true,
+        exchangeInvoiceId: true,
         total: true,
         userId: true,
         returnedAt: true,
@@ -237,7 +238,7 @@ export const staffReportService = {
 
     const staffReturns: StaffReturnEvent[] = returns.map((r) => ({
       id: r.id,
-      kind: r.kind,
+      kind: r.kind === 'EXCHANGE' || r.exchangeInvoiceId != null ? 'EXCHANGE' : r.kind,
       total: r.total,
       userId: r.userId,
       userName: userLabel(returnMaps.userOf(r.userId)),
@@ -413,6 +414,7 @@ export const staffReportService = {
         select: {
           id: true,
           kind: true,
+          exchangeInvoiceId: true,
           total: true,
           returnedAtJalali: true,
           returnedAtTime: true,
@@ -485,7 +487,7 @@ export const staffReportService = {
       })),
       returns: returns.map((r) => ({
         id: r.id,
-        kind: r.kind,
+        kind: r.kind === 'EXCHANGE' || r.exchangeInvoiceId != null ? 'EXCHANGE' : r.kind,
         receiptNo: r.invoice?.receiptNo ?? null,
         total: r.total,
         dateJalali: r.returnedAtJalali,
@@ -618,6 +620,7 @@ export const staffReportService = {
       select: {
         id: true,
         kind: true,
+        exchangeInvoiceId: true,
         total: true,
         returnedAt: true,
         returnedAtJalali: true,
@@ -724,8 +727,8 @@ export const staffReportService = {
         .filter(keep),
       ...returns
         .map((r) => ({
-          kind: r.kind === 'EXCHANGE' ? ('EXCHANGE' as const) : ('RETURN' as const),
-          kindLabel: r.kind === 'EXCHANGE' ? 'تعویض کالا' : 'برگشت از فروش',
+          kind: r.kind === 'EXCHANGE' || r.exchangeInvoiceId != null ? ('EXCHANGE' as const) : ('RETURN' as const),
+          kindLabel: r.kind === 'EXCHANGE' || r.exchangeInvoiceId != null ? 'تعویض کالا' : 'برگشت از فروش',
           id: r.id,
           receiptNo: r.invoice?.receiptNo ?? null,
           amount: r.total,

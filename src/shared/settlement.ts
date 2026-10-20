@@ -42,6 +42,8 @@ export type SettlementStateCode = 'UNPAID' | 'PARTIAL' | 'SETTLED'
 
 export interface DebtReturnInput {
   kind?: string | null
+  /** Durable inverse link; do not treat a linked exchange as an ordinary return. */
+  exchangeInvoiceId?: number | string | null
   total?: number | null
   refundMethod?: string | null
   refundAmount?: number | null
@@ -61,8 +63,8 @@ const r0 = (x: unknown): number => {
 }
 
 /** برگشت ساده است؟ (رکورد قدیمی بدون kind هم برگشت ساده حساب می‌شود) */
-export function isSimpleReturn(r: { kind?: string | null }): boolean {
-  return (r?.kind ?? 'RETURN') === 'RETURN'
+export function isSimpleReturn(r: { kind?: string | null; exchangeInvoiceId?: number | string | null }): boolean {
+  return (r?.kind ?? 'RETURN') === 'RETURN' && r?.exchangeInvoiceId == null
 }
 
 /** سهم «پس‌داده‌شده از پول دریافتی» یک برگشت ساده. */

@@ -1215,3 +1215,15 @@ Prisma Client تولیدی، `npm install`، `npx prisma generate`، `npm run ty
 - ✅ S189-D5 · ۱-۵: بستن صندوق و بستن شیفت یک تراکنش؛ تجمیع عدد همان فاکتورهای داخل تراکنش و retry بدون سند خالی. تست: `fix-s189-cash-shift-atomic.mjs` ۱۸/۰.
 - ✅ S189-D6 · ۱-۶: ریز پرداخت جزئیات شیفت با `createdShiftId`/`clearedShiftId` (نه پنجره‌ی paidAt). تست: `fix-s189-shift-payments-by-shift.mjs` ۶/۰.
 - ✅ S189-D7 · باقی‌مانده: چک امروز معوق نیست؛ مبلغ تعویض = جایگزین؛ ساعت در paidAt؛ علامت تاریخ قبل. تست: `fix-s189-remaining-bugs.mjs` ۹/۰.
+
+## نشست ۱۹۰ — ادامهٔ مبنای نهایی برگشت/تعویض/اعتبار خرید
+
+- گام جاری به `docs/design/FINAL-DESIGN-BASIS-fa.md` و دفتر تخصیص برگشت جزئی فرزند در `docs/design/2026-10-20-exchange-child-partial-return-allocation.md` متصل است؛ وضعیت این دفتر «انتساب پیاده‌سازی شده، تسویه بسته» باقی می‌ماند.
+- lineage تازه‌ای اختراع نشد: مسیر `provenSourceRootEvent` در `ExchangeFundingLedgerService.ts` بررسی/استفاده می‌شود؛ transfer از `parentEventId` تا root دنبال می‌شود. دامنهٔ reader ordinary-sale root است؛ `CUSTOMER_HANDOFF` شاهد منشأ/وصول بانکی نیست و سهم نامعلوم هرگز نقد فرض نمی‌شود.
+- اصلاح دو fixture legacy over-return انجام شد: هر کدام فقط trigger درج سقف را حین seed کنار می‌گذارد و DDL دقیق را پیش از محاسبهٔ گزارش/سود restore می‌کند. هر دو تست جداگانه سبزند.
+- `audit-s142-credit-method-gate` به‌روز شد تا بعد از void تعویض، حفاظت lineage پرداخت مبدأ را انتظار داشته باشد؛ حذف عادی با فروش جداگانهٔ بدون lineage کنترل می‌شود.
+- اصلاحات purge/S105 و اصلاحات migration/fixture ثبت‌شده در working tree حفظ شدند؛ S177 در اجرای متمرکز ۲۷/۰ و S105 برابر ۸/۰ گزارش شده است.
+- رگرسیون کامل نهایی پس از همهٔ اصلاحات همان روز (۱۹:۲۷:۴۷ تا ۱۹:۴۰:۱۲ UTC) اجرا شد: audit-fixes ۴۵۳/۴۵۴؛ تنها `fix-s130-a4-layout.mjs` با exit 77 چون مرورگر لازم در محیط حاضر نیست. audit ۸۴/۸۴، management ۶۲/۶۲، SMS ۱۱/۱۱ و legacy ۱۷/۱۷. بنابراین آزمون‌های اجراییِ موجود به‌جز تست مرورگرِ پشتیبانی‌نشده سبزند؛ بااین‌حال runner به‌دلیل typecheck مسدود و exit 77 نهایی‌اش غیرصفر است. typecheck ۷۲۵ خطای cascading ناشی از Prisma Client تولیدنشده دارد و verdict کد نیست.
+- guardهای money fields (۶۶۲/۶۶۲)، test coverage، `git diff --check`، syntax سه تست تغییرکرده، esbuild syntax (۲۷۳/۰) و bundleهای main/preload/renderer بدون warning سبز شدند.
+- Prisma Client تولید نشد: `npm install --ignore-scripts` dependencyها را نصب کرد، ولی `npx prisma generate` به‌علت TLS به `binaries.prisma.sh` شکست خورد. `npm run typecheck`/tsc ۷۲۵ خطای آبشاری از export نشدن `PrismaClient`/`Prisma` دارد و شاهد خطای واقعی در تغییرات این کار نیست؛ typecheck هنوز نامعتبر/باز است.
+- گام بعدی: (۱) اجرای دوبارهٔ رگرسیون کامل پس از اصلاح S142، با ثبت جداگانهٔ skip محیطی S130 و مانع Prisma؛ (۲) ساخت ماتریس شاهددار برای هر ۱۲ سناریوی `FINAL-DESIGN-BASIS-fa.md` در کنار lineage، expiry، idempotency، reversal و invariants؛ (۳) بستن هر gap تجاری در گام‌های مجزا و تست‌شده. تا آن زمان گیت تسویه باز نشود.

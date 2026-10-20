@@ -562,13 +562,25 @@ async function paymentStatement(
  */
 async function returnStatement(scope: StatementScope): Promise<ReturnTotals & { legacyAssumedCount: number; returnCount: number; exchangeCount: number }> {
   const range = dateRange(scope.from, scope.to)
-  const rows = await prisma.saleReturn.groupBy({
-    by: ['kind', 'refundMethod', 'exchangeSettlement'],
-    /** A1 — برگشت با `returnedAt` خودش اسکوپ می‌شود، نه با تاریخ صدور فاکتور. */
-    where: { invoice: returnInvoiceWhere(scope), ...returnScopeWhere(scope), voidedAt: null, ...(range ? { returnedAt: range } : {}) },
+  /** A1 — برگشت با `returnedAt` خودش اسکوپ می‌شود، نه با تاریخ صدور فاکتور. */
+  const baseWhere = {
+    invoice: returnInvoiceWhere(scope), ...returnScopeWhere(scope), voidedAt: null,
+    ...(range ? { returnedAt: range } : {})
+  }
+  const groupReturns = (where: Prisma.SaleReturnWhereInput) => prisma.saleReturn.groupBy({
+    by: ['refundMethod', 'exchangeSettlement'],
+    where,
     _sum: { total: true, refundAmount: true, creditRestored: true, exchangeTotal: true, exchangeDiff: true, debtReduction: true },
     _count: { _all: true }
   })
+  const [simpleRows, exchangeRows] = await Promise.all([
+    groupReturns({ ...baseWhere, kind: ReturnKind.RETURN, exchangeInvoiceId: null }),
+    groupReturns({ ...baseWhere, OR: [{ kind: ReturnKind.EXCHANGE }, { exchangeInvoiceId: { not: null } }] })
+  ])
+  const rows = [
+    ...simpleRows.map((r) => ({ ...r, kind: ReturnKind.RETURN })),
+    ...exchangeRows.map((r) => ({ ...r, kind: ReturnKind.EXCHANGE }))
+  ]
 
   const out = {
     simpleReturns: 0, exchangeReturned: 0, exchangeReplacement: 0, cashRefunds: 0,
@@ -645,7 +657,10 @@ async function returnStatement(scope: StatementScope): Promise<ReturnTotals & { 
       ...(range ? { returnedAt: range } : {}),
       OR: [{ refundMethod: RefundMethod.CARD_TO_CARD }, { exchangeSettlement: 'CARD_TO_CARD' }]
     },
-    select: { id: true, kind: true, refundAmount: true, exchangeDiff: true, debtReduction: true, total: true }
+    select: {
+      id: true, kind: true, exchangeInvoiceId: true,
+      refundAmount: true, exchangeDiff: true, debtReduction: true, total: true
+    }
   })
   if (c2cRets.length) {
     const canceled = new Set<number>()
@@ -658,11 +673,11 @@ async function returnStatement(scope: StatementScope): Promise<ReturnTotals & { 
     }
     for (const r of c2cRets) {
       if (!canceled.has(r.id)) continue
-      const refunded =
-        r.kind === ReturnKind.EXCHANGE
-          ? exchangeRefundPartOf({ exchangeDiff: n(r.exchangeDiff), debtReduction: n(r.debtReduction) })
-          : Math.min(Math.max(0, n(r.total)), Math.max(0, n(r.refundAmount) || n(r.total)))
-      if (r.kind === ReturnKind.EXCHANGE) out.exchangeCardToCardPending = Math.max(0, out.exchangeCardToCardPending - refunded)
+      const isExchange = r.kind === ReturnKind.EXCHANGE || r.exchangeInvoiceId != null
+      const refunded = isExchange
+        ? exchangeRefundPartOf({ exchangeDiff: n(r.exchangeDiff), debtReduction: n(r.debtReduction) })
+        : Math.min(Math.max(0, n(r.total)), Math.max(0, n(r.refundAmount) || n(r.total)))
+      if (isExchange) out.exchangeCardToCardPending = Math.max(0, out.exchangeCardToCardPending - refunded)
       else out.cardToCardPending = Math.max(0, out.cardToCardPending - refunded)
     }
   }
@@ -1390,15 +1405,20 @@ export interface ReturnBridgeItem {
 }
 async function returnBridgeItems(scope: StatementScope): Promise<ReturnBridgeItem[]> {
   const range = dateRange(scope.from, scope.to)
-  const rets = await prisma.saleReturn.findMany({
+  const returnRows = await prisma.saleReturn.findMany({
     where: { invoice: returnInvoiceWhere(scope), ...returnScopeWhere(scope), voidedAt: null, ...(range ? { returnedAt: range } : {}) },
     select: {
-      id: true, invoiceId: true, kind: true, total: true, refundMethod: true, refundAmount: true, creditRestored: true,
+      id: true, invoiceId: true, kind: true, exchangeInvoiceId: true,
+      total: true, refundMethod: true, refundAmount: true, creditRestored: true,
       exchangeDiff: true, exchangeSettlement: true, debtReduction: true,
       returnedAtJalali: true, invoice: { select: { receiptNo: true } }
     },
     orderBy: { id: 'asc' }
   })
+  const rets = returnRows.map((r) => ({
+    ...r,
+    kind: r.kind === ReturnKind.EXCHANGE || r.exchangeInvoiceId != null ? ReturnKind.EXCHANGE : r.kind
+  }))
   if (!rets.length) return []
   const c2c = rets
     .filter((r: any) => r.refundMethod === RefundMethod.CARD_TO_CARD || r.exchangeSettlement === 'CARD_TO_CARD')

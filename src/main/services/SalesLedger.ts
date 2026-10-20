@@ -371,7 +371,7 @@ export const salesLedger = {
         sourceId: r.id,
         sourceKind: 'RETURN'
       }
-      if (r.kind === ReturnKind.EXCHANGE) {
+      if (r.kind === ReturnKind.EXCHANGE || r.exchangeInvoiceId != null) {
         const diff = n(r.exchangeDiff)
         const settle = r.exchangeSettlement ?? null
         rows.push({

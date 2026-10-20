@@ -92,7 +92,7 @@ const assertExchangeGateHasNoEffects = async (invoiceId, saleItemId, label) => {
     stock: seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?) ORDER BY id', source, replacement)
   }
   await assert.rejects(attemptedExchange(invoiceId, saleItemId), (error) =>
-    /تعویضِ این فاکتور/.test(String(error?.message ?? '')), label)
+    /تعویضِ این فاکتور|lineage فرزند/iu.test(String(error?.message ?? '')), label)
   assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', invoiceId).n, before.returns)
   assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleInvoice" WHERE sourceInvoiceId=?', invoiceId).n, before.children)
   assert.equal(seed.one('SELECT COUNT(*) n FROM "Payment" WHERE invoiceId=?', invoiceId).n, before.payments)

@@ -1818,3 +1818,35 @@ baseline: 162/162، 17/17، 144 OK، BUNDLE 1802085/33857/2072233، audit 84/84.
 وضعیت خوشه‌ها: مثل ۱۰-۱۵۱ به‌علاوه‌ی ۱۴۳-intOf ✅، ۱۱۱ ✅، ۱۰۰ تصمیم، ۸۹-دوم کهنه؛ Backup-gate باز.
 محدودیت‌های قطعی: Prisma Client واقعی، typecheck واقعی، رندر واقعی Electron/React، migration داده‌ی تاریخی، race چندپردازه‌ای، crash/قطع برق، timezone غیر Asia/Tehran، حجم ۵۰٬۰۰۰+ اجرا نشدند.
 فایل‌های تغییرکرده: src/shared/creditUi.ts، src/main/services/FraudService.ts، src/main/ipc/index.ts، test/harness/prismaLite.mjs؛ تست‌های تازه: tests/audit-fixes/fix-s179-credit-form-strict-integer.mjs، fix-s179-fraud-actor-duplicate-cheque.mjs؛ TESTLOG-s179*.txt؛ patchها؛ PROGRESS.md، DECISIONS.md، TESTLOG.md، AUDIT-PROGRESS.md؛ HANDOFF-PROMPT-next.txt (قبلی: HANDOFF-PROMPT-next-session178.txt).
+
+## نشست ۱۹۰ — رگرسیون پس از purge/lineage/test-fixture اصلاحات
+
+**محیط:** `npm install --ignore-scripts` موفق (۵۵۷ بسته؛ npm گزارش ۳۲ آسیب‌پذیری: ۱۰ متوسط، ۲۱ بالا، ۱ بحرانی). نصب عادی در اسکریپت Electron به خطای TLS خورد. `npx prisma generate` هم به `binaries.prisma.sh` با خطای TLS نرسید؛ بنابراین Prisma Client تولیدشده موجود نیست.
+
+**رگرسیون کامل:** `bash tools/run-regression.sh /home/user/MAHAK-KLAD /tmp/mahak-regression-followup.txt 4` اجرا شد؛ حدود ۱۲٫۵ دقیقه. نتیجهٔ همان اجرای کامل (پیش از اصلاح assertion S142):
+
+| بخش | نتیجه |
+|---|---:|
+| typecheck | مسدود: ۷۲۵ خطای cascading از `@prisma/client` فاقد `PrismaClient`/`Prisma`؛ نتیجهٔ معتبر برای قضاوت type errorهای تغییرات نیست |
+| guardهای money fields / coverage | PASS؛ ۶۶۲/۶۶۲ فیلد و پوشش همهٔ پوشه‌ها |
+| audit-fixes | ۴۵۳/۴۵۴؛ تنها `fix-s130-a4-layout.mjs` با exit 77، مرورگر لازم در محیط حاضر نیست |
+| audit | ۸۳/۸۴؛ assertion قدیمی S142 دربارهٔ حذف پرداخت مبدأ پس از void تعویض نادرست بود؛ پس از اصلاح تست، اجرای متمرکز S142 برابر ۳۹/۰ |
+| management | ۶۲/۶۲ |
+| SMS | ۱۱/۱۱ |
+| legacy | ۱۷/۱۷ |
+| esbuild syntax | ۲۷۳ OK / ۰ FAIL |
+| bundle | main 3,781,272؛ preload 50,367؛ renderer 3,453,359 بایت؛ صفر warning |
+
+**تست‌های پس از اجرای کامل:** `mgmt-category-multi-return-cap.mjs` ۵/۰، `mgmt-s221-multi-return-cap.mjs` ۹/۰؛ هر دو fixture trigger را فقط حین ساخت تاریخچهٔ قدیمی کنار می‌گذارند و DDL را قبل از خواندن سرویس برمی‌گردانند. `audit-s142-credit-method-gate.mjs` پس از اصلاح lineage انتظار، ۳۹/۰. S177 purge: ۲۷/۰؛ S105 propagation: ۸/۰؛ S340 characterization: PASS. `check-money-fields`, `check-test-coverage`, `git diff --check` و syntax سه تست تغییرکرده نیز PASS.
+
+**تفسیر/محدودیت:** اجرای کامل بعد از آخرین اصلاح S142 هنوز تکرار نشده است؛ ازاین‌رو نباید آن را «رگرسیون کامل سبز» اعلام کرد. S130 exit 77 نیازمند مرورگر واقعی/پشتیبانی‌شده است، نه به‌عنوان PASS گزارش شود. Typecheck تا تولید موفق Prisma Client باز است. هیچ‌یک از نتایج harness یا bundle به‌تنهایی تکمیل lineage/expiry/idempotency/reversal/invariants یا ۱۲ سناریوی تجاری را ثابت نمی‌کند؛ گیت تسویهٔ تعویض اعتبارمحور بسته می‌ماند.
+
+### به‌روزرسانی نهایی S190 — رگرسیون کامل پس از آخرین اصلاح
+
+اجرای کامل پس از اصلاح assertion در S142: `bash tools/run-regression.sh /home/user/MAHAK-KLAD /tmp/mahak-regression-final-s190.txt 4`، ۲۰۲۶-۱۰-۲۰ ساعت ۱۹:۲۷:۴۷ تا ۱۹:۴۰:۱۲ UTC.
+
+- audit-fixes: ۴۵۳/۴۵۴؛ تنها `fix-s130-a4-layout.mjs` با exit 77 چون مرورگر لازم موجود نیست.
+- audit: ۸۴/۸۴؛ management: ۶۲/۶۲؛ SMS: ۱۱/۱۱؛ legacy: ۱۷/۱۷.
+- money-field guard و coverage guard: PASS. esbuild: ۲۷۳ OK/۰ FAIL؛ bundle main/preload/renderer به‌ترتیب 3,781,272 / 50,367 / 3,453,359 بایت، صفر warning.
+- typecheck همچنان ۷۲۵ خطای آبشاری دارد چون Prisma Client (`PrismaClient`/`Prisma`) تولید نشده است؛ علت محیطیِ قابل‌مشاهده: `npx prisma generate` به‌علت TLS به `binaries.prisma.sh` نرسید. این را نه PASS و نه اشکال قطعی سورس گزارش نمی‌کنیم.
+- نتیجهٔ runner غیرصفر است فقط به‌دلیل typecheck مسدود و تست PDF با exit 77؛ تمام تست‌های اجراییِ پشتیبانی‌شده سبزند. با این حال این نتیجه همچنان تکمیل تجاری S1–S12 یا مجوز بازکردن گیت تسویه نیست.

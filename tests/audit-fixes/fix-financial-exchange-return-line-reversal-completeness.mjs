@@ -348,4 +348,24 @@ assert.equal(seed.one(`SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocati
   WHERE returnId=? AND eventKind='REVERSAL'`, forgedHistoryReturnId).n, 0,
 'a voided return with missing reversals must remain write-free')
 
+const markerlessReturnId = seed.insert('SaleReturn', {
+  invoiceId: childId, isFull: false, total: 1000, returnedAt: now,
+  returnedAtJalali: toJalaliDate(now), returnedAtTime: now.toTimeString().slice(0, 8),
+  kind: 'RETURN', userId, shiftId, refundMethod: 'NONE', refundAmount: 0
+})
+seed.insert('SaleReturnItem', {
+  returnId: markerlessReturnId, saleItemId: Number(childItems[0].id),
+  variantId: Number(childItems[0].variantId), qty: 1, unitPrice: 1000,
+  lineTotal: 1000, restockedQty: 0
+})
+sql.prepare('UPDATE "SaleInvoice" SET orderType=?, sourceInvoiceId=NULL, exchangeReturnId=NULL WHERE id=?')
+  .run('INTERNAL', childId)
+await assert.rejects(() => db.$transaction((tx) =>
+  reverseExchangeFundingReturnLineAllocationsForReturn(tx, { returnId: markerlessReturnId })),
+/برگشت فرزند|تخصیص قلمی|lineage|exchange/iu,
+'a markerless child return with parent exchangeInvoiceId evidence cannot report a successful empty reversal')
+assert.equal(seed.one(`SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation"
+  WHERE returnId=?`, markerlessReturnId).n, 0,
+'markerless child reversal fails closed without writing ledger rows')
+
 console.log('✓ exchange-child return line reversals revalidate cumulative history, require complete replay, and reject orphan/cross-linked rows')

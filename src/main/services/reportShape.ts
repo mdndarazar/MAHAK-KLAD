@@ -125,8 +125,8 @@ export function paymentLabels(payments: any[] = []): string {
  * جمع برگشت **ساده**ی یک فاکتور (بند ۲-۱ و ۲-۵).
  *
  * دو قاعده‌ی سخت:
- *   ۱) فقط `kind = RETURN`. تعویض (`kind = EXCHANGE`) هرگز از این عدد رد
- *      نمی‌شود، وگرنه ارزش کالای برگشتی تعویض دوبار از فروش تعهدی کم می‌شود.
+ *   ۱) فقط برگشت ساده: `kind = RETURN` و بدون پیوند `exchangeInvoiceId`.
+ *      پیوند پایدار تعویض حتی در برابر kind خراب‌شده از دوباره‌کاستن جلوگیری می‌کند.
  *   ۲) بر مبنای `returnedAt` خودِ برگشت، نه `issuedAt` فاکتور مادر. فاکتور ماه
  *      اول که ماه دوم برگشت خورد، اثر برگشتش در گزارش **ماه دوم** می‌افتد.
  *
@@ -135,6 +135,7 @@ export function paymentLabels(payments: any[] = []): string {
  */
 export function returnedTotalOf(invoice: any, period?: Period | null): number {
   return (invoice?.returns ?? []).reduce((s: number, r: any) => {
+    if (r?.kind === ReturnKind.EXCHANGE || r?.exchangeInvoiceId != null) return s
     if ((r?.kind ?? ReturnKind.RETURN) !== ReturnKind.RETURN) return s
     if (period && !inRange(r?.returnedAt, period)) return s
     return s + toNumberRial(r?.total ?? 0)

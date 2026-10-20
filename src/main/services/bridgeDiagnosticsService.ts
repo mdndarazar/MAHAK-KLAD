@@ -371,7 +371,8 @@ export const bridgeDiagnosticsService = {
       })
       if (cardReq) cardTransferStatus = cardReq.status
 
-      const method = (ret.refundMethod || (ret.kind === 'EXCHANGE' ? ret.exchangeSettlement : 'NONE') || 'NONE').toUpperCase() as any
+      const isExchange = ret.kind === 'EXCHANGE' || ret.exchangeInvoiceId != null
+      const method = (ret.refundMethod || (isExchange ? ret.exchangeSettlement : 'NONE') || 'NONE').toUpperCase() as any
       const methodLabels: Record<string, string> = {
         CASH: 'بازپرداخت نقدی',
         CARD: 'بازپرداخت کارتی (پوز)',
@@ -386,8 +387,8 @@ export const bridgeDiagnosticsService = {
       }
 
       docDetail = {
-        ref: { kind: ret.kind === 'EXCHANGE' ? 'EXCHANGE' : 'RETURN', id: ret.id },
-        docType: ret.kind === 'EXCHANGE' ? 'EXCHANGE' : 'SIMPLE_RETURN',
+        ref: { kind: isExchange ? 'EXCHANGE' : 'RETURN', id: ret.id },
+        docType: isExchange ? 'EXCHANGE' : 'SIMPLE_RETURN',
         docNo: String(ret.id),
         parent: ret.invoice
           ? {
