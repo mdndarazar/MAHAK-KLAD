@@ -106,6 +106,7 @@ export async function markBankDeclaration(
   const requestId = safeId(input.requestId, 'شناسه درخواست')
   const claim = await tx.returnEntitlement.findUnique({ where: { requestId } })
   if (!claim) return null // explicitly legacy, no fabricated entitlement
+  await assertOrdinaryEntitlementReturn(tx, Number(claim.returnId), Number(claim.invoiceId))
   const amount = secureInt(input.declaredAmount, 'مبلغ اعلامی')
   if (claim.state === 'UNKNOWN_BANK') {
     const previous = await tx.returnEntitlementEvent.findUnique({ where: { eventKey: `declared:${requestId}` } })
@@ -139,6 +140,7 @@ export async function markBankCancellationUnknown(
   const requestId = safeId(input.requestId, 'شناسه درخواست')
   const claim = await tx.returnEntitlement.findUnique({ where: { requestId } })
   if (!claim) return false
+  await assertOrdinaryEntitlementReturn(tx, Number(claim.returnId), Number(claim.invoiceId))
   if (claim.state !== 'OPEN') throw stale()
   const changed = await tx.returnEntitlement.updateMany({
     where: { id: claim.id, version: claim.version, state: 'OPEN' },

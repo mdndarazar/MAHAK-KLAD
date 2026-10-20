@@ -21,7 +21,8 @@ const { periodLockService } = await import('../../src/main/services/PeriodLockSe
 const { shiftService } = await import('../../src/main/services/ShiftService.ts')
 const { recordExchangeFundingReturnLineAllocation } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
 const { openCardTransferEntitlement, convertCashRight, confirmCreditDelivery,
-  reconcileBankDocument, correctPendingEntitlement } = await import('../../src/main/services/ReturnEntitlementService.ts')
+  reconcileBankDocument, correctPendingEntitlement, markBankDeclaration,
+  markBankCancellationUnknown } = await import('../../src/main/services/ReturnEntitlementService.ts')
 const { planCreditReturn, applyCreditReturn } = await import('../../src/main/services/CreditReturnService.ts')
 const { remainingOf } = await import('../../src/shared/settlement.ts')
 const { toJalaliDate } = await import('@shared/jalali')
@@ -273,6 +274,59 @@ assert.deepEqual({
   version: seed.one('SELECT version FROM "ReturnEntitlement" WHERE id=?', pendingChildClaimId).version,
   events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
 }, pendingChildCorrectionBefore, 'blocked child right correction changes neither projection nor journal')
+const extraChildReturn = () => seed.insert('SaleReturn', {
+  invoiceId: child.id, isFull: false, total: 1000, returnedAt: now,
+  returnedAtJalali: toJalaliDate(now), returnedAtTime: now.toTimeString().slice(0, 8),
+  kind: 'RETURN', userId, shiftId, refundMethod: 'NONE', refundAmount: 0
+})
+const declarationReturnId = extraChildReturn()
+const declarationRequestId = 919191
+const declarationClaimId = seed.insert('ReturnEntitlement', {
+  returnId: declarationReturnId, invoiceId: child.id, requestId: declarationRequestId,
+  cashRight: 100, cashReserved: 100, cashPaid: 0, cashConverted: 0,
+  giftOpportunity: 0, debtReduced: 0, state: 'OPEN', version: 0
+})
+const declarationBefore = {
+  state: seed.one('SELECT state FROM "ReturnEntitlement" WHERE id=?', declarationClaimId).state,
+  reserved: seed.one('SELECT cashReserved FROM "ReturnEntitlement" WHERE id=?', declarationClaimId).cashReserved,
+  version: seed.one('SELECT version FROM "ReturnEntitlement" WHERE id=?', declarationClaimId).version,
+  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
+}
+await assert.rejects(() => markBankDeclaration(db, {
+  requestId: declarationRequestId, declaredAmount: 100, actorUserId: userId
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'a manager payout declaration must not mutate an exchange child claim')
+assert.deepEqual({
+  state: seed.one('SELECT state FROM "ReturnEntitlement" WHERE id=?', declarationClaimId).state,
+  reserved: seed.one('SELECT cashReserved FROM "ReturnEntitlement" WHERE id=?', declarationClaimId).cashReserved,
+  version: seed.one('SELECT version FROM "ReturnEntitlement" WHERE id=?', declarationClaimId).version,
+  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
+}, declarationBefore, 'blocked child bank declaration leaves state, reservation, version, and journal unchanged')
+
+const cancellationReturnId = extraChildReturn()
+const cancellationRequestId = 929292
+const cancellationClaimId = seed.insert('ReturnEntitlement', {
+  returnId: cancellationReturnId, invoiceId: child.id, requestId: cancellationRequestId,
+  cashRight: 100, cashReserved: 100, cashPaid: 0, cashConverted: 0,
+  giftOpportunity: 0, debtReduced: 0, state: 'OPEN', version: 0
+})
+const cancellationBefore = {
+  state: seed.one('SELECT state FROM "ReturnEntitlement" WHERE id=?', cancellationClaimId).state,
+  reserved: seed.one('SELECT cashReserved FROM "ReturnEntitlement" WHERE id=?', cancellationClaimId).cashReserved,
+  version: seed.one('SELECT version FROM "ReturnEntitlement" WHERE id=?', cancellationClaimId).version,
+  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
+}
+await assert.rejects(() => markBankCancellationUnknown(db, {
+  requestId: cancellationRequestId, reason: 'legacy child bank request cancellation', actorUserId: userId
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'a bank cancellation must not transition an exchange child claim to unknown')
+assert.deepEqual({
+  state: seed.one('SELECT state FROM "ReturnEntitlement" WHERE id=?', cancellationClaimId).state,
+  reserved: seed.one('SELECT cashReserved FROM "ReturnEntitlement" WHERE id=?', cancellationClaimId).cashReserved,
+  version: seed.one('SELECT version FROM "ReturnEntitlement" WHERE id=?', cancellationClaimId).version,
+  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
+}, cancellationBefore, 'blocked child cancellation leaves state, reservation, version, and journal unchanged')
+
 const conversionEffectsBefore = {
   credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
   events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n,
@@ -436,7 +490,8 @@ await rejectAfterShiftMarkerRace(() => salesService.returnReconcileVoid({
 }), 'returnReconcileVoid must recheck lineage inside its transaction')
 sql.prepare('UPDATE "SaleInvoice" SET orderType=? WHERE id=?').run('EXCHANGE', child.id)
 
-assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=? AND voidedAt IS NULL', child.id).n, 3)
+assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=? AND voidedAt IS NULL', child.id).n, 5,
+  'three correction fixtures and two bank declaration/cancellation fixtures remain active')
 assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation" WHERE childInvoiceId=? AND eventKind=?',
   child.id, 'ALLOCATION').n, 3)
 assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation" WHERE childInvoiceId=? AND eventKind=?',
