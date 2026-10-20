@@ -540,7 +540,25 @@ assert.deepEqual({
   codeStatus: seed.one('SELECT status FROM "StoreCredit" WHERE id=?', importedCashCodeId).status,
   deliveryStatus: seed.one('SELECT status FROM "CreditDelivery" WHERE creditId=?', importedCashCodeId).status,
   eventCount: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
-}, cashDeliveryBefore, 'blocked legacy cash-right delivery remains DRAFT and unhanded')
+}, cashDeliveryBefore, 'blocked legacy child cash-right delivery remains DRAFT and unhanded')
+const replayedChildCodeId = seed.insert('StoreCredit', {
+  code: 'CHILD-DELIVERED-REPLAY', amount: 100, usedAmount: 0, usedCount: 0,
+  status: 'ACTIVE', expiresAt: null
+})
+const deliveredWitnessRef = 'legacy child barcode was already handed over'
+seed.insert('CreditDelivery', {
+  creditId: replayedChildCodeId, sourceKind: 'CASH_RIGHT_CONVERSION', status: 'DELIVERED', version: 1,
+  deliveredAt: now, deliveredByUserId: userId, witnessKind: 'CUSTOMER_HANDOFF', witnessRef: deliveredWitnessRef
+})
+seed.insert('ReturnEntitlementEvent', {
+  entitlementId: legacyChildClaimId, eventKey: 'child-delivered-replay-conversion',
+  kind: 'CASH_RIGHT_CONVERTED', amount: 100, creditId: replayedChildCodeId
+})
+await assert.rejects(() => confirmCreditDelivery({
+  creditId: replayedChildCodeId, witnessKind: 'CUSTOMER_HANDOFF', witnessRef: deliveredWitnessRef,
+  managerPassword: DEFAULT_MANAGER_PASSWORD, actorUserId: userId
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'a delivered-child idempotency replay must revalidate the return lineage before claiming success')
 const entitlementStateWithImportedChildClaim = {
   claims: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlement"').n,
   events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n

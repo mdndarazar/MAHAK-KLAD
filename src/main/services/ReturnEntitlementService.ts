@@ -363,8 +363,33 @@ export async function convertCashRight(input: {
   })
 }
 
+async function assertCreditDeliverySourceLineage(tx: Client, delivery: any, credit: any) {
+  if (delivery.originCreditId != null) {
+    const replaced = await tx.creditReplacement.findUnique({ where: { successorCreditId: credit.id } })
+    const old = await tx.storeCredit.findUnique({ where: { id: delivery.originCreditId } })
+    if (!replaced || replaced.originalCreditId !== delivery.originCreditId || old?.status !== 'CANCELED')
+      throw new BusinessError('زنجیرهٔ جانشینی کد/ابطال مبدأ قابل تأیید نیست؛ تحویل دوباره تأیید نشد.')
+  } else if (delivery.sourceKind === 'CASH_RIGHT_CONVERSION') {
+    const event = await tx.returnEntitlementEvent.findFirst({ where: { creditId: credit.id, kind: 'CASH_RIGHT_CONVERTED' } })
+    const claim = event ? await tx.returnEntitlement.findUnique({ where: { id: event.entitlementId } }) : null
+    if (!claim || claim.state !== 'OPEN' || toNumberRial(claim.cashConverted) < toNumberRial(credit.amount))
+      throw new BusinessError('حق نقدی منشأ این اعتبار در وضعیت امن نیست؛ تحویل/فعال‌سازی تا تطبیق مدیر متوقف است.')
+    await assertOrdinaryReturnLineage(tx, Number(claim.returnId), Number(claim.invoiceId))
+  } else if (delivery.sourceKind === 'CREDIT_RETURN_OPPORTUNITY') {
+    const branch = await tx.creditReturnAllocation.findUnique({ where: { successorCreditId: credit.id } })
+    const ret = branch
+      ? await assertOrdinaryReturnLineage(tx, Number(branch.returnId), Number(branch.invoiceId))
+      : null
+    if (!branch || !ret || ret.voidedAt != null || ret.invoiceId !== branch.invoiceId ||
+        toNumberRial(branch.amount) + toNumberRial(branch.supplementUnspent) !== toNumberRial(credit.amount) ||
+        (branch.originalExpiresAt?.getTime() ?? null) !== (credit.expiresAt?.getTime() ?? null))
+      throw new BusinessError('منشأ B/E یا مبلغ/انقضای اصلی قابل تطبیق نیست؛ کد فعال نشد.')
+  }
+}
+
 /** Print != delivery. A DRAFT replacement/conversion cannot be spent before
- * this witnessed handoff. Replayed confirmations do not reactivate twice.
+ * this witnessed handoff. Replayed confirmations revalidate provenance and do
+ * not reactivate twice.
  */
 export async function confirmCreditDelivery(input: {
   creditId: number
@@ -382,6 +407,9 @@ export async function confirmCreditDelivery(input: {
     const delivery = await tx.creditDelivery.findUnique({ where: { creditId } })
     if (!delivery) throw new BusinessError('برای این اعتبار پروندهٔ تحویل کنترل‌شده وجود ندارد.')
     if (delivery.status === 'DELIVERED') {
+      const deliveredCredit = await tx.storeCredit.findUnique({ where: { id: creditId } })
+      if (!deliveredCredit) throw new BusinessError('کد تحویل‌شده پیدا نشد؛ سابقهٔ تحویل را برای رسیدگی بررسی کنید.')
+      await assertCreditDeliverySourceLineage(tx, delivery, deliveredCredit)
       if (delivery.witnessKind === input.witnessKind && delivery.witnessRef === ref)
         return { creditId, status: 'DELIVERED', replayed: true }
       throw stale()
