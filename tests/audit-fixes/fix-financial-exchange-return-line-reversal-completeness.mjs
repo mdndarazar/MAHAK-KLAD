@@ -124,4 +124,44 @@ assert.equal(seed.one(`SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocati
   WHERE returnId=?`, returnId).n, rowsBeforeOrphanReplay)
 assert.ok(orphanReversalId > 0)
 
-console.log('✓ exchange-child return allocation reversal requires every return item, rejects orphan reversals, and replays exactly')
+const scopedReturnId = seed.insert('SaleReturn', {
+  invoiceId: childId, isFull: false, total: 1000, returnedAt: now,
+  returnedAtJalali: toJalaliDate(now), returnedAtTime: now.toTimeString().slice(0, 8),
+  kind: 'RETURN', userId, shiftId, refundMethod: 'NONE', refundAmount: 0
+})
+const scopedReturnItemId = seed.insert('SaleReturnItem', {
+  returnId: scopedReturnId, saleItemId: Number(childItems[0].id),
+  variantId: Number(childItems[0].variantId), qty: 1, unitPrice: 1000,
+  lineTotal: 1000, restockedQty: 0
+})
+await db.$transaction((tx) => recordExchangeFundingReturnLineAllocation(tx, {
+  returnId: scopedReturnId, returnItemId: scopedReturnItemId
+}))
+const scopedAllocation = seed.one(`SELECT * FROM "ExchangeFundingReturnLineAllocation"
+  WHERE returnItemId=? AND eventKind='ALLOCATION'`, scopedReturnItemId)
+assert.ok(scopedAllocation)
+const mismatchedSourceInvoiceId = 999999
+const unknownSourceEventId = 999999
+assert.notEqual(mismatchedSourceInvoiceId, childId)
+seed.insert('ExchangeFundingReturnLineAllocation', {
+  eventKey: `exchange-return-item:${scopedReturnItemId}:source:${unknownSourceEventId}:allocation:v1`,
+  eventKind: 'ALLOCATION', returnId: scopedReturnId, returnItemId: scopedReturnItemId,
+  sourceInvoiceId: mismatchedSourceInvoiceId, childInvoiceId: childId,
+  saleItemId: Number(childItems[0].id), sourceEventId: unknownSourceEventId,
+  sourceKind: 'SOURCE_CASH', saleItemQty: Number(scopedAllocation.saleItemQty),
+  saleItemValue: Number(scopedAllocation.saleItemValue),
+  sourceItemAmount: Number(scopedAllocation.sourceItemAmount),
+  returnedQtyBefore: 0, returningQty: 1, returnedQtyAfter: 1,
+  priorReturnValue: 0, returnValue: 1000, cumulativeReturnValue: 1000,
+  priorAmount: 0, amountDelta: 0, cumulativeAmount: 0,
+  allocationVersion: 1, reversesAllocationId: null
+})
+await assert.rejects(() => db.$transaction((tx) =>
+  reverseExchangeFundingReturnLineAllocationsForReturn(tx, { returnId: scopedReturnId })),
+/snapshot|scope|lineage|تخصیص|source/iu,
+'a child-return allocation must be tied to the immutable source line for that exact child item')
+assert.equal(seed.one(`SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation"
+  WHERE returnId=? AND eventKind='REVERSAL'`, scopedReturnId).n, 0,
+'a source-scope mismatch must not append any reversals')
+
+console.log('✓ exchange-child return allocation reversal requires every return item, rejects orphan or out-of-scope ledger rows, and replays exactly')

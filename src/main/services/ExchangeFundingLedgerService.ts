@@ -1104,6 +1104,36 @@ export async function reverseExchangeFundingReturnLineAllocationsForReturn(tx: L
       !Number.isSafeInteger(Number(childInvoice.exchangeReturnId)) || Number(childInvoice.exchangeReturnId) <= 0)
     throw new BusinessError('scope فاکتور/برگشت فرزند با دفتر تخصیص سازگار نیست؛ reversal ثبت نشد.')
 
+  const childLineAllocations = await tx.exchangeFundingLineAllocation.findMany({
+    where: { childInvoiceId: Number(childInvoice.id) },
+    orderBy: [{ sourceEventId: 'asc' }, { saleItemId: 'asc' }]
+  }) as any[]
+  const sourceKinds = new Set(['SOURCE_GIFT', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
+  const lineAllocationByCell = new Map<string, any>()
+  for (const source of childLineAllocations) {
+    const sourceInvoiceId = Number(source.sourceInvoiceId)
+    const childInvoiceId = Number(source.childInvoiceId)
+    const returnId = Number(source.returnId)
+    const saleItemId = Number(source.saleItemId)
+    const sourceEventId = Number(source.sourceEventId)
+    const saleItemQty = Number(source.saleItemQty)
+    const saleItemValue = toNumberRial(source.saleItemValue)
+    const amount = toNumberRial(source.amount)
+    const key = `${saleItemId}:${sourceEventId}`
+    if (!Number.isSafeInteger(sourceInvoiceId) || sourceInvoiceId !== Number(childInvoice.sourceInvoiceId) ||
+        childInvoiceId !== Number(childInvoice.id) || returnId !== Number(childInvoice.exchangeReturnId) ||
+        !Number.isSafeInteger(saleItemId) || saleItemId <= 0 ||
+        !Number.isSafeInteger(sourceEventId) || sourceEventId <= 0 ||
+        !Number.isSafeInteger(saleItemQty) || saleItemQty <= 0 ||
+        !Number.isSafeInteger(saleItemValue) || saleItemValue <= 0 ||
+        !Number.isSafeInteger(amount) || amount <= 0 || amount > saleItemValue ||
+        !sourceKinds.has(String(source.sourceKind)) || lineAllocationByCell.has(key))
+      throw new BusinessError('ماتریس immutable منشأ قلم فرزند ناسازگار است؛ reversal ثبت نشد.')
+    lineAllocationByCell.set(key, source)
+  }
+  if (childLineAllocations.length === 0)
+    throw new BusinessError('ماتریس immutable منشأ قلم فرزند پیدا نشد؛ reversal ثبت نشد.')
+
   const returnItems = (ret.items as any[]).slice().sort((a, b) => Number(a.id) - Number(b.id))
   const returnItemIds = returnItems.map((item) => Number(item.id))
   const uniqueReturnItemIds = new Set(returnItemIds)
@@ -1139,11 +1169,24 @@ export async function reverseExchangeFundingReturnLineAllocationsForReturn(tx: L
   let replayed = true
   for (const row of rows) {
     const rowItem = items.find((item) => Number(item.id) === Number(row.returnItemId))
-    if (!rowItem || Number(row.saleItemId) !== Number(rowItem.saleItemId) ||
+    const sourceLine = lineAllocationByCell.get(`${Number(row.saleItemId)}:${Number(row.sourceEventId)}`)
+    const amountDelta = toNumberRial(row.amountDelta)
+    if (!rowItem || !sourceLine || Number(row.returnId) !== input.returnId ||
+        Number(row.returnItemId) !== Number(rowItem.id) ||
+        Number(row.saleItemId) !== Number(rowItem.saleItemId) ||
+        Number(row.sourceInvoiceId) !== Number(childInvoice.sourceInvoiceId) ||
         Number(row.childInvoiceId) !== Number(ret.invoiceId) ||
+        String(row.sourceKind) !== String(sourceLine.sourceKind) ||
+        Number(row.saleItemQty) !== Number(sourceLine.saleItemQty) ||
+        toNumberRial(row.saleItemValue) !== toNumberRial(sourceLine.saleItemValue) ||
+        toNumberRial(row.sourceItemAmount) !== toNumberRial(sourceLine.amount) ||
+        Number(row.returningQty) !== Number(rowItem.qty) ||
+        toNumberRial(row.returnValue) !== toNumberRial(rowItem.lineTotal) ||
+        Number(row.allocationVersion) !== 1 ||
         String(row.eventKey) !== exchangeFundingReturnLineAllocationEventKey(Number(row.returnItemId), Number(row.sourceEventId)) ||
-        !Number.isSafeInteger(toNumberRial(row.amountDelta)) || toNumberRial(row.amountDelta) < 0)
-      throw new BusinessError('snapshot تخصیص برگشت معتبر نیست؛ reversal ثبت نشد.')
+        !Number.isSafeInteger(amountDelta) || amountDelta < 0 || amountDelta > toNumberRial(sourceLine.amount) ||
+        toNumberRial(row.cumulativeAmount) > toNumberRial(sourceLine.amount))
+      throw new BusinessError('snapshot تخصیص برگشت با ماتریس immutable منشأ ناسازگار است؛ reversal ثبت نشد.')
     const reversalKey = exchangeFundingReturnLineReversalEventKey(Number(row.returnItemId), Number(row.sourceEventId))
     const existing = await tx.exchangeFundingReturnLineAllocation.findUnique({ where: { reversesAllocationId: Number(row.id) } })
     const reversal = {
