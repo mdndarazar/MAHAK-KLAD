@@ -245,6 +245,7 @@ export async function reconcileBankDocument(input: {
   return prisma.$transaction(async (tx) => {
     const claim = await tx.returnEntitlement.findUnique({ where: { requestId } })
     if (!claim) throw new BusinessError('این درخواست فاقد حق مالیِ قابل‌تبدیل است؛ پروندهٔ قدیمی به رسیدگی مدیر نیاز دارد.')
+    await assertOrdinaryEntitlementReturn(tx, Number(claim.returnId), Number(claim.invoiceId))
     const existing = await tx.bankStatementEvidence.findUnique({ where: { requestId } })
     if (existing) {
       if (existing.sha256 !== digest || toNumberRial(existing.confirmedAmount) !== amount) throw stale()

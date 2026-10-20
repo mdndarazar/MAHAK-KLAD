@@ -20,7 +20,8 @@ const { salesService } = await import('../../src/main/services/SalesService.ts')
 const { periodLockService } = await import('../../src/main/services/PeriodLockService.ts')
 const { shiftService } = await import('../../src/main/services/ShiftService.ts')
 const { recordExchangeFundingReturnLineAllocation } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
-const { openCardTransferEntitlement, convertCashRight, confirmCreditDelivery } = await import('../../src/main/services/ReturnEntitlementService.ts')
+const { openCardTransferEntitlement, convertCashRight, confirmCreditDelivery,
+  reconcileBankDocument } = await import('../../src/main/services/ReturnEntitlementService.ts')
 const { planCreditReturn, applyCreditReturn } = await import('../../src/main/services/CreditReturnService.ts')
 const { remainingOf } = await import('../../src/shared/settlement.ts')
 const { toJalaliDate } = await import('@shared/jalali')
@@ -219,6 +220,37 @@ const legacyChildClaimId = seed.insert('ReturnEntitlement', {
   cashPaid: 0, cashConverted: 0, giftOpportunity: 0, debtReduced: 0, state: 'OPEN', version: 0
 })
 assert.ok(legacyChildClaimId > 0)
+const bankRequestId = seed.insert('CardTransferRequest', {
+  kind: 'REQUEST', status: 'PAID', operationKind: 'RETURN', returnId: returnIds[0],
+  sourceInvoiceId: child.id, amount: 100, paidAmount: 100, paidAt: new Date()
+})
+const legacyChildBankClaimId = seed.insert('ReturnEntitlement', {
+  returnId: returnIds[0], invoiceId: child.id, requestId: bankRequestId,
+  cashRight: 100, cashReserved: 100, cashPaid: 0, cashConverted: 0,
+  giftOpportunity: 0, debtReduced: 0, state: 'UNKNOWN_BANK', version: 0
+})
+assert.ok(legacyChildBankClaimId > 0)
+const bankReconciliationEffectsBefore = {
+  cashPaid: seed.one('SELECT cashPaid FROM "ReturnEntitlement" WHERE id=?', legacyChildBankClaimId).cashPaid,
+  cashReserved: seed.one('SELECT cashReserved FROM "ReturnEntitlement" WHERE id=?', legacyChildBankClaimId).cashReserved,
+  state: seed.one('SELECT state FROM "ReturnEntitlement" WHERE id=?', legacyChildBankClaimId).state,
+  evidence: seed.one('SELECT COUNT(*) n FROM "BankStatementEvidence" WHERE requestId=?', bankRequestId).n,
+  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
+}
+await assert.rejects(() => reconcileBankDocument({
+  requestId: bankRequestId, confirmedAmount: 100,
+  document: { name: 'child-bank.pdf', bytes: Buffer.from('%PDF-1.7\\nstatement child 100\\n%%EOF\\n') },
+  reviewNote: 'تطبیق حساب و تاریخ و مبلغ سند بانکی فرزند',
+  attestedBankAccountReview: true, managerPassword: DEFAULT_MANAGER_PASSWORD, actorUserId: userId
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'a bank document must not settle a legacy child claim as paid cash')
+assert.deepEqual({
+  cashPaid: seed.one('SELECT cashPaid FROM "ReturnEntitlement" WHERE id=?', legacyChildBankClaimId).cashPaid,
+  cashReserved: seed.one('SELECT cashReserved FROM "ReturnEntitlement" WHERE id=?', legacyChildBankClaimId).cashReserved,
+  state: seed.one('SELECT state FROM "ReturnEntitlement" WHERE id=?', legacyChildBankClaimId).state,
+  evidence: seed.one('SELECT COUNT(*) n FROM "BankStatementEvidence" WHERE requestId=?', bankRequestId).n,
+  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
+}, bankReconciliationEffectsBefore, 'rejected child bank review creates no payout evidence or paid amount')
 const conversionEffectsBefore = {
   credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
   events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n,
