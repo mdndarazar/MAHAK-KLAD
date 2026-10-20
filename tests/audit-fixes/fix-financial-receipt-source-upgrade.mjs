@@ -117,8 +117,54 @@ const before = (db) => ({
 const snapshot = before(installed.db)
 const copy = join(dir, 'upgrade-copy.db')
 const corrupt = join(dir, 'corrupt-copy.db')
+const corruptQuantity = join(dir, 'corrupt-quantity-copy.db')
+const corruptUnsafeQuantity = join(dir, 'corrupt-unsafe-quantity-copy.db')
+const corruptReturnQuantity = join(dir, 'corrupt-return-quantity-copy.db')
 copyFileSync(file, copy)
 copyFileSync(file, corrupt)
+copyFileSync(file, corruptQuantity)
+copyFileSync(file, corruptUnsafeQuantity)
+copyFileSync(file, corruptReturnQuantity)
+const badQuantityDb = open(corruptQuantity)
+badQuantityDb.db.prepare(`INSERT INTO "SaleInvoiceItem"
+  (invoiceId, variantId, qty, unitPrice, discount, tax, lineTotal)
+  VALUES (?, ?, 1.5, 100, 0, 0, 150)`).run(retailSale, retailVariant)
+await assert.rejects(() => applyMigrations(badQuantityDb.client, corruptQuantity, { touchFile: false }),
+  (e) => e.message.includes('20271020690000_safe_integer_return_quantity_domain_guard') && e.message.includes('نسخه‌ی پشتیبان'),
+  'upgrading an installed DB with fractional historical sold quantity must fail closed')
+assert.equal(read(badQuantityDb.db, 'SELECT COUNT(*) n FROM "_prisma_migrations" WHERE migration_name=? AND finished_at IS NOT NULL',
+  '20271020690000_safe_integer_return_quantity_domain_guard')[0].n, 0,
+'corrupt quantity migration failure must not be recorded as finished')
+assert.equal(read(badQuantityDb.db, 'SELECT qty FROM "SaleInvoiceItem" WHERE invoiceId=? AND qty=1.5', retailSale).length, 1,
+'failed migration does not rewrite or silently round an invalid historical quantity')
+assert.equal(read(badQuantityDb.db, 'PRAGMA integrity_check')[0].integrity_check, 'ok')
+badQuantityDb.db.close()
+const badUnsafeQuantityDb = open(corruptUnsafeQuantity)
+badUnsafeQuantityDb.db.prepare(`INSERT INTO "SaleInvoiceItem"
+  (invoiceId, variantId, qty, unitPrice, discount, tax, lineTotal)
+  VALUES (?, ?, 9007199254740992, 100, 0, 0, 0)`).run(retailSale, retailVariant)
+await assert.rejects(() => applyMigrations(badUnsafeQuantityDb.client, corruptUnsafeQuantity, { touchFile: false }),
+  (e) => e.message.includes('20271020690000_safe_integer_return_quantity_domain_guard') && e.message.includes('نسخه‌ی پشتیبان'),
+  'upgrading an installed DB with a historical quantity beyond MAX_SAFE_INTEGER must fail closed')
+assert.equal(read(badUnsafeQuantityDb.db, 'SELECT COUNT(*) n FROM "_prisma_migrations" WHERE migration_name=? AND finished_at IS NOT NULL',
+  '20271020690000_safe_integer_return_quantity_domain_guard')[0].n, 0,
+'unsafe quantity migration failure must not be recorded as finished')
+assert.equal(read(badUnsafeQuantityDb.db, 'SELECT CAST(qty AS TEXT) AS qty FROM "SaleInvoiceItem" WHERE invoiceId=? AND qty=9007199254740992', retailSale)[0].qty,
+  '9007199254740992', 'failed migration preserves the exact historical out-of-range value for reconciliation')
+assert.equal(read(badUnsafeQuantityDb.db, 'PRAGMA integrity_check')[0].integrity_check, 'ok')
+badUnsafeQuantityDb.db.close()
+const badReturnQuantityDb = open(corruptReturnQuantity)
+badReturnQuantityDb.db.prepare('UPDATE "SaleReturnItem" SET qty=1.5 WHERE id=?').run(retailRetItem)
+await assert.rejects(() => applyMigrations(badReturnQuantityDb.client, corruptReturnQuantity, { touchFile: false }),
+  (e) => e.message.includes('20271020690000_safe_integer_return_quantity_domain_guard') && e.message.includes('نسخه‌ی پشتیبان'),
+  'upgrading an installed DB with fractional historical return quantity must fail closed')
+assert.equal(read(badReturnQuantityDb.db, 'SELECT COUNT(*) n FROM "_prisma_migrations" WHERE migration_name=? AND finished_at IS NOT NULL',
+  '20271020690000_safe_integer_return_quantity_domain_guard')[0].n, 0,
+'corrupt return quantity migration failure must not be recorded as finished')
+assert.equal(read(badReturnQuantityDb.db, 'SELECT qty FROM "SaleReturnItem" WHERE id=? AND qty=1.5', retailRetItem).length, 1,
+'failed migration does not rewrite or silently round an invalid historical return quantity')
+assert.equal(read(badReturnQuantityDb.db, 'PRAGMA integrity_check')[0].integrity_check, 'ok')
+badReturnQuantityDb.db.close()
 const broken = open(corrupt)
 broken.db.exec('CREATE TABLE \"ReturnGoodsReceiptSource\" (\"id\" INTEGER PRIMARY KEY)')
 await assert.rejects(() => applyMigrations(broken.client, corrupt, { touchFile: false }),
