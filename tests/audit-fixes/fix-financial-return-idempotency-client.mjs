@@ -19,9 +19,24 @@ assert.match(first.fingerprint, /^[a-f0-9]{64}$/)
 assert.equal(values.size, 1)
 assert.equal(values.values().next().value.includes('same intent'), false,
   'session storage contains only an opaque key and SHA-256 digest, not the return payload')
+await assert.rejects(() => resolveReturnRequestIdentity(intent, null, null, webcrypto),
+  /ذخیره|storage|persist/i,
+  'a request must not be submitted with an identity that cannot survive a same-tab reload')
+const failingStorage = {
+  getItem: () => null,
+  setItem: () => { throw new Error('storage quota unavailable') },
+  removeItem: () => {}
+}
+await assert.rejects(() => resolveReturnRequestIdentity(intent, null, failingStorage, webcrypto),
+  /ذخیره|storage|persist/i,
+  'a failed session persistence must be detected before IPC')
 
 const sameInMemory = await resolveReturnRequestIdentity(intent, first, storage, webcrypto)
 assert.equal(sameInMemory.key, first.key)
+values.clear()
+const restoredFromMemory = await resolveReturnRequestIdentity(intent, sameInMemory, storage, webcrypto)
+assert.equal(restoredFromMemory.key, first.key)
+assert.equal(values.size, 1, 'a retry re-persists the matching key before submitting')
 const sameAfterReload = await resolveReturnRequestIdentity(intent, null, storage, webcrypto)
 assert.equal(sameAfterReload.key, first.key, 'same intent recovers the key after a renderer reload')
 

@@ -24,7 +24,16 @@ function readStored(storage: IdentityStorage | null): ReturnRequestIdentity | nu
 }
 
 function store(identity: ReturnRequestIdentity, storage: IdentityStorage | null): void {
-  try { storage?.setItem(STORAGE_KEY, JSON.stringify(identity)) } catch { /* browser storage is optional */ }
+  if (!storage)
+    throw new Error('ذخیرهٔ امن کلید برگشت در همین تب در دسترس نیست؛ برای جلوگیری از ثبت تکراری، درخواست ارسال نشد.')
+  try {
+    storage.setItem(STORAGE_KEY, JSON.stringify(identity))
+    const persisted = readStored(storage)
+    if (persisted?.key !== identity.key || persisted.fingerprint !== identity.fingerprint)
+      throw new Error('persisted return identity did not match')
+  } catch {
+    throw new Error('ذخیرهٔ امن کلید برگشت در همین تب ممکن نشد؛ برای جلوگیری از ثبت تکراری، درخواست ارسال نشد.')
+  }
 }
 
 function newKey(cryptoApi: Crypto): string {
@@ -41,6 +50,8 @@ function newKey(cryptoApi: Crypto): string {
  * Reuse one caller-held key for exact payload retries, including after a page
  * reload in the same tab. Only a SHA-256 fingerprint and the opaque key are
  * stored; changing any intent field rotates the key before invoking IPC.
+ * Persistence is mandatory: if session storage cannot be verified, reject
+ * before IPC instead of silently losing the reload-retry guarantee.
  */
 export async function resolveReturnRequestIdentity(
   intentPayload: string,
@@ -50,13 +61,16 @@ export async function resolveReturnRequestIdentity(
 ): Promise<ReturnRequestIdentity> {
   const digest = await cryptoApi.subtle.digest('SHA-256', new TextEncoder().encode(intentPayload))
   const fingerprint = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
-  if (current?.fingerprint === fingerprint && KEY_PATTERN.test(current.key)) return current
-
   const retained = readStored(storage)
-  const identity = {
-    fingerprint,
-    key: retained?.fingerprint === fingerprint ? retained.key : newKey(cryptoApi)
-  }
+  const identity = current?.fingerprint === fingerprint && KEY_PATTERN.test(current.key)
+    ? current
+    : {
+        fingerprint,
+        key: retained?.fingerprint === fingerprint ? retained.key : newKey(cryptoApi)
+      }
+  // Persist and read back even on the in-memory fast path. If same-tab storage
+  // disappeared since the previous attempt, fail before IPC rather than
+  // silently weakening reload retry safety.
   store(identity, storage)
   return identity
 }
