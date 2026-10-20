@@ -3055,6 +3055,10 @@ export interface MaintenancePreview {
   saleInvoices: number
   saleItems: number
   saleReturns: number
+  /** Old sale documents whose ReturnCorrection ledger must retain the full invoice graph. */
+  saleInvoicesRetained: number
+  saleItemsRetained: number
+  saleReturnsRetained: number
   purchaseInvoices: number
   /** تعداد ردیف‌های قدیمی ledger که عمداً حفظ می‌شوند؛ هرگز حذف نمی‌شوند */
   stockMovements: number

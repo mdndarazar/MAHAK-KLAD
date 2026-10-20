@@ -5024,6 +5024,11 @@ export default function Settings() {
                   <Info label="فاکتور فروش" value={faDigits(slimPreview.saleInvoices)} strong />
                   <Info label="اقلام فاکتور" value={faDigits(slimPreview.saleItems)} />
                   <Info label="برگشت از فروش" value={faDigits(slimPreview.saleReturns)} />
+                  {(slimPreview.saleInvoicesRetained ?? 0) > 0 && <>
+                    <Info label="فاکتورهای متصل به اصلاح برگشت (حفظ می‌شود)" value={faDigits(slimPreview.saleInvoicesRetained)} />
+                    <Info label="اقلامِ فاکتورهای حفظ‌شده" value={faDigits(slimPreview.saleItemsRetained)} />
+                    <Info label="برگشت‌های دارای اصلاح (حفظ می‌شود)" value={faDigits(slimPreview.saleReturnsRetained)} />
+                  </>}
                   <Info label="فاکتور خرید" value={faDigits(slimPreview.purchaseInvoices)} />
                   <Info label="حرکت انبار قدیمی (حفظ می‌شود)" value={faDigits(slimPreview.stockMovements)} />
                   <Info label="لاگ عملیات (پاک می‌شود)" value={faDigits(slimPreview.auditLogs)} />
@@ -5421,7 +5426,7 @@ export default function Settings() {
         }
       >
         <p className="font-bold text-base">
-          همه‌ی داده‌ی قبل از {faDigits(slimBefore)} برای همیشه از جدول‌های اصلی پاک می‌شود.
+          داده‌های مشمول پاک‌سازی و قدیمی‌تر از {faDigits(slimBefore)} حذف می‌شوند؛ موارد محافظت‌شده‌ی پایین حفظ خواهند شد.
         </p>
         <p className="leading-7">
           {faDigits(slimPreview?.saleInvoices ?? 0)} فاکتور فروش · {faDigits(slimPreview?.purchaseInvoices ?? 0)} فاکتور
@@ -5429,6 +5434,12 @@ export default function Settings() {
           {faDigits(slimPreview?.stockMovements ?? 0)} حرکت انبار قدیمی (دفتر append-only، حفظ می‌شود) · جمع فروش{' '}
           {money(slimPreview?.grandTotal ?? 0)} ریال
         </p>
+        {(slimPreview?.saleInvoicesRetained ?? 0) > 0 && (
+          <p className="leading-7 text-amber-800">
+            {faDigits(slimPreview?.saleInvoicesRetained ?? 0)} فاکتور، {faDigits(slimPreview?.saleItemsRetained ?? 0)} قلم و
+            {' '}{faDigits(slimPreview?.saleReturnsRetained ?? 0)} برگشتِ متصل به «اصلاح جبرانی» حذف نمی‌شوند تا دفتر مالی و سند مرجع سالم بمانند.
+          </p>
+        )}
         <p className="leading-7">
           {slimBackup ? (
             <b>اول یک بکاپ کامل گرفته می‌شود</b>

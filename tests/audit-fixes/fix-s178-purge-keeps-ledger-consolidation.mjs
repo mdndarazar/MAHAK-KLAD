@@ -4,10 +4,11 @@
  * (PRAGMA foreign_keys = ON) اجرا می‌کند ⇒ حذف تجمیع، ستون consolidationId ردیف‌های دفتر گردش انبار را NULL می‌کرد، یعنی
  * همان دفتری که قاعده‌ی بند ۳ و متن خود MaintenanceService می‌گوید «نه حذف می‌شود و نه update».
  * رفع: تجمیعی که هنوز حرکت انباری به آن وصل است حفظ می‌شود (پیش‌نمایش = عملیات؛ شیفت همان تجمیع هم حفظ و در پیش‌نمایش
- * شمرده نمی‌شود)، تعداد حفظ‌شده در پیش‌نمایش/نتیجه و هشدار فارسی می‌آید.
+ * شمرده نمی‌شود)، تعداد حفظ‌شده در پیش‌نمایش/نتیجه و هشدار فارسی می‌آید. همچنین فاکتور، قلم و برگشت متصل به
+ * ReturnCorrection در پاک‌سازی آرشیو حفظ می‌شوند تا سند مرجع و سابقه‌ی مالی حذف یا از برگشت جدا نشود.
  * این تست کلید خارجی هارنس را روشن می‌کند تا رفتار Prisma واقعی را بازسازی کند.
  */
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 let ok = 0, bad = 0
@@ -16,6 +17,8 @@ const eq = (label, got, want) => {
   else { bad++; console.log(`  ✗ ${label} · دریافت ${JSON.stringify(got)?.slice(0, 300)} · انتظار ${JSON.stringify(want)}`) }
 }
 const root = process.env.MAHAK_ROOT ? resolve(process.env.MAHAK_ROOT) : resolve('.')
+const maintenanceTypes = readFileSync(join(root, 'src/shared/types.ts'), 'utf8')
+const maintenanceUi = readFileSync(join(root, 'src/renderer/src/pages/Settings.tsx'), 'utf8')
 process.env.HARNESS_DIR = mkdtempSync(join(tmpdir(), 'mahak-s178-'))
 process.env.HARNESS_DB = join(process.env.HARNESS_DIR, 'shop.db')
 const { harnessClient } = await import(join(root, 'test/harness/stubs/prismaClient.mjs'))
@@ -38,18 +41,33 @@ const sale = async () => salesService.create({ userId, shiftId, lines: [{ varian
 const oldInv = await sale()
 const newInv = await sale()
 const oldT = Date.now() - 1100 * DAY; const oldJ = toJalaliDate(new Date(oldT))
-sql.prepare('UPDATE "SaleInvoice" SET issuedAt = ?, issuedAtJalali = ? WHERE id = ?').run(oldT, oldJ, oldInv.id)
-sql.prepare('UPDATE "Payment" SET paidAt = ?, paidAtJalali = ? WHERE invoiceId = ?').run(oldT, oldJ, oldInv.id)
-sql.prepare(`UPDATE "StockMovement" SET createdAt = ? WHERE refType = 'SaleInvoice' AND refId = ?`).run(oldT, oldInv.id)
-const oldSaleItem = sql.prepare('SELECT id, variantId FROM "SaleInvoiceItem" WHERE invoiceId = ?').get(oldInv.id)
-const oldReturnId = seed.insert('SaleReturn', {
-  invoiceId: oldInv.id, userId, shiftId, kind: 'RETURN', total: 500_000,
-  returnedAt: oldT, returnedAtJalali: oldJ, refundMethod: 'NONE', refundAmount: 0
+const correctedInv = await sale()
+for (const oldInvoiceId of [oldInv.id, correctedInv.id]) {
+  sql.prepare('UPDATE "SaleInvoice" SET issuedAt = ?, issuedAtJalali = ? WHERE id = ?').run(oldT, oldJ, oldInvoiceId)
+  sql.prepare('UPDATE "Payment" SET paidAt = ?, paidAtJalali = ? WHERE invoiceId = ?').run(oldT, oldJ, oldInvoiceId)
+  sql.prepare(`UPDATE "StockMovement" SET createdAt = ? WHERE refType = 'SaleInvoice' AND refId = ?`).run(oldT, oldInvoiceId)
+}
+const makeOldReturn = (invoiceId) => {
+  const oldSaleItem = sql.prepare('SELECT id, variantId FROM "SaleInvoiceItem" WHERE invoiceId = ?').get(invoiceId)
+  const id = seed.insert('SaleReturn', {
+    invoiceId, userId, shiftId, kind: 'RETURN', total: 500_000,
+    returnedAt: oldT, returnedAtJalali: oldJ, refundMethod: 'NONE', refundAmount: 0
+  })
+  const itemId = seed.insert('SaleReturnItem', {
+    returnId: id, saleItemId: Number(oldSaleItem.id), variantId: Number(oldSaleItem.variantId),
+    qty: 1, unitPrice: 500_000, lineTotal: 500_000
+  })
+  return { id, itemId }
+}
+const { id: oldReturnId } = makeOldReturn(oldInv.id)
+const { id: correctedReturnId, itemId: correctedReturnItemId } = makeOldReturn(correctedInv.id)
+const correctionId = seed.insert('ReturnCorrection', {
+  returnId: correctedReturnId, kind: 'VOID_RECONCILIATION', status: 'POSTED',
+  reason: 'purge must preserve this linked financial correction',
+  correctingUserId: userId, correctingShiftId: shiftId,
+  originalDayJalali: oldJ, operationalDayJalali: oldJ
 })
-seed.insert('SaleReturnItem', {
-  returnId: oldReturnId, saleItemId: Number(oldSaleItem.id), variantId: Number(oldSaleItem.variantId),
-  qty: 1, unitPrice: 500_000, lineTotal: 500_000
-})
+eq('پیش‌شرط: اصلاح جبرانی به برگشت فعال قدیمی متصل است', correctedReturnItemId > 0 && correctionId > 0, true)
 // دو شیفت قدیمی: A مالک تجمیعِ دارای حرکت انبار، B مالک تجمیعِ بی‌حرکت
 const shiftA = seed.insert('Shift', { name: 'شب', number: 1, dayJalali: oldJ, openedAt: oldT - 3600_000, userId })
 const shiftB = seed.insert('Shift', { name: 'صبح', number: 1, dayJalali: oldJ, openedAt: oldT - 7200_000, userId })
@@ -70,8 +88,17 @@ sql.exec('PRAGMA foreign_keys = ON')
 eq('پیش‌شرط: کلید خارجی هارنس روشن شد', Number(Object.values(sql.prepare('PRAGMA foreign_keys').get())[0]), 1)
 
 console.log('\n— ۱) پیش‌نمایش = عملیات')
+eq('قرارداد MaintenancePreview شمارنده‌های retention را منتشر می‌کند',
+  ['saleInvoicesRetained', 'saleItemsRetained', 'saleReturnsRetained'].every((field) =>
+    new RegExp(`interface MaintenancePreview[\\s\\S]{0,900}\\b${field}\\s*:\\s*number`).test(maintenanceTypes)), true)
+eq('صفحه‌ی آرشیو موارد متصل به اصلاح جبرانی را در پیش‌نمایش نشان می‌دهد',
+  maintenanceUi.includes('slimPreview.saleInvoicesRetained') && maintenanceUi.includes('اصلاح جبرانی'), true)
 const pv = await safe(() => maintenanceService.preview({ beforeJalali: minCut }))
 eq('پیش‌نمایش بدون خطا', pv?.__error ?? null, null)
+eq('پیش‌نمایش فقط فاکتورهای بدون اصلاح جبرانی را purgeable می‌شمارد',
+  [pv?.saleInvoices, pv?.saleItems, pv?.saleReturns], [1, 1, 1])
+eq('پیش‌نمایش فاکتور/قلم/برگشت متصل به اصلاح جبرانی را جداگانه حفظ‌شده می‌شمارد',
+  [pv?.saleInvoicesRetained, pv?.saleItemsRetained, pv?.saleReturnsRetained], [1, 1, 1])
 eq('پیش‌نمایش فقط تجمیع بی‌حرکت (B) را «حذف‌شونده» می‌شمارد', pv?.consolidations, 1)
 eq('پیش‌نمایش تجمیع دارای حرکت انبار (A) را «حفظ‌شونده» می‌شمارد', pv?.consolidationsRetained, 1)
 eq('پیش‌نمایش شیفت مالک تجمیع حفظ‌شده (A) را حذف‌شونده نمی‌شمارد (فقط B)', pv?.shifts, 1)
@@ -79,9 +106,20 @@ eq('پیش‌نمایش شیفت مالک تجمیع حفظ‌شده (A) را ح
 console.log('\n— ۲) پاک‌سازی واقعی')
 const res = await safe(() => maintenanceService.archivePurge({ beforeJalali: minCut, backup: false, vacuum: false, purgeAudit: false, managerPassword: PW }))
 eq('archivePurge بدون خطا', res?.__error ?? null, null)
-eq('فاکتور قدیمی حذف، فاکتور امروز باقی', [seed.count('SaleInvoice', 'id = ?', oldInv.id), seed.count('SaleInvoice', 'id = ?', newInv.id)], [0, 1])
-eq('پاک‌سازی برگشت فعال را در تراکنش void و سپس حذف می‌کند',
-  [seed.count('SaleReturn', 'id = ?', oldReturnId), seed.count('SaleReturnItem', 'returnId = ?', oldReturnId)], [0, 0])
+eq('فاکتور عادی قدیمی حذف؛ فاکتور جدید و فاکتور دارای اصلاح جبرانی حفظ',
+  [seed.count('SaleInvoice', 'id = ?', oldInv.id), seed.count('SaleInvoice', 'id = ?', newInv.id),
+    seed.count('SaleInvoice', 'id = ?', correctedInv.id)], [0, 1, 1])
+eq('برگشت عادی پاک می‌شود، اما برگشت و قلم متصل به اصلاح جبرانی باقی می‌ماند',
+  [seed.count('SaleReturn', 'id = ?', oldReturnId), seed.count('SaleReturnItem', 'returnId = ?', oldReturnId),
+    seed.count('SaleReturn', 'id = ?', correctedReturnId), seed.count('SaleReturnItem', 'returnId = ?', correctedReturnId),
+    seed.count('ReturnCorrection', 'id = ?', correctionId)], [0, 0, 1, 1, 1])
+eq('نتیجه شمارش purge و retention را جدا و دقیق نشان می‌دهد',
+  [res?.saleInvoices, res?.saleItems, res?.saleReturns, res?.saleInvoicesRetained, res?.saleItemsRetained, res?.saleReturnsRetained],
+  [1, 1, 1, 1, 1, 1])
+eq('هشدار درباره‌ی سند متصل به اصلاح جبرانی نمایش داده می‌شود',
+  (res?.warnings ?? []).some((w) => /اصلاح جبرانی/.test(w)), true)
+eq('برگشت متصل به اصلاح جبرانی فعال باقی می‌ماند',
+  seed.one('SELECT voidedAt FROM "SaleReturn" WHERE id=?', correctedReturnId).voidedAt, null)
 eq('تعداد کل StockMovement دست‌نخورده', seed.count('StockMovement'), movesBefore)
 eq('consolidationId حرکت‌های دفتر انبار دست‌نخورده (NULL نشد)',
   sql.prepare('SELECT id FROM "StockMovement" WHERE consolidationId = ? ORDER BY id').all(consA).map((r) => Number(r.id)), linkedIds)
@@ -97,7 +135,8 @@ console.log('\n— ۳) اجرای دوباره: تجمیع حفظ‌شده «د�
 const pv2 = await safe(() => maintenanceService.preview({ beforeJalali: minCut }))
 eq('پیش‌نمایش دوم: ۰ تجمیع حذف‌شونده، ۱ حفظ‌شونده، ۰ شیفت', [pv2?.consolidations, pv2?.consolidationsRetained, pv2?.shifts], [0, 1, 0])
 const res2 = await safe(() => maintenanceService.archivePurge({ beforeJalali: minCut, backup: false, vacuum: false, purgeAudit: false, managerPassword: PW }))
-eq('اجرای دوم با پیام «داده‌ای برای پاک‌سازی وجود ندارد» رد', /داده‌ای برای پاک‌سازی وجود ندارد/.test(res2?.__error ?? ''), true)
+eq('اجرای دوم با پیام «داده‌ای برای پاک‌سازی وجود ندارد» رد',
+  /داده‌ای برای پاک‌سازی وجود ندارد|داده‌ی قابل پاک‌سازی وجود ندارد/.test(res2?.__error ?? ''), true)
 eq('بعد از اجرای دوم: تجمیع A و پیوند دفتر همچنان باقی', [seed.count('Consolidation', 'id = ?', consA), seed.count('StockMovement', 'consolidationId = ?', consA)], [1, linkedIds.length])
 
 console.log(`\n${bad ? '✗' : '✓'} ${ok} بررسی موفق · ${bad} ناموفق`)

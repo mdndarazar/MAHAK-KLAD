@@ -72,6 +72,22 @@ const WEIGHT_TABLES = [
   'Customer'
 ]
 
+/** Keep a corrected return and its invoice graph: ReturnCorrection is an
+ * independent financial record, so purging only its source document would
+ * leave a dangling returnId and destroy the evidence the correction explains.
+ * Also retain a direct exchange invoice linked to that corrected return/source.
+ */
+const CORRECTION_LINKED_SALE_INVOICE_SQL = `EXISTS (
+  SELECT 1 FROM "ReturnCorrection" rc
+  JOIN "SaleReturn" correctedReturn ON correctedReturn.id = rc."returnId"
+  WHERE correctedReturn."invoiceId" = si.id
+     OR correctedReturn."exchangeInvoiceId" = si.id
+     OR si."exchangeReturnId" = correctedReturn.id
+     OR si."sourceInvoiceId" = correctedReturn."invoiceId"
+)`
+const salesInvoiceFilter = (retainCorrectionLinked: boolean) =>
+  `SELECT si.id FROM "SaleInvoice" si WHERE si."issuedAtJalali" < ? AND ${retainCorrectionLinked ? '' : 'NOT '}${CORRECTION_LINKED_SALE_INVOICE_SQL}`
+
 /**
  * ⚠️ نشست ۱۸۱ — شاخه‌ی `bigint` این تابع **بی‌اثر** بود (هر دو طرف ternary
  * همان `Number(v)`). همین الگو در `MergeService` هم بود و آن‌جا هم رفع شد.
@@ -208,7 +224,8 @@ export const maintenanceService = {
   async preview(input: { beforeJalali?: string } = {}): Promise<MaintenancePreview> {
     const beforeJalali = enforceMaintenanceCutoff(input?.beforeJalali)
     const cutoffDate = jalaliStartOfDay(beforeJalali)
-    const invFilter = `SELECT id FROM "SaleInvoice" WHERE "issuedAtJalali" < ?`
+    const invFilter = salesInvoiceFilter(false)
+    const correctedInvFilter = salesInvoiceFilter(true)
     const purFilter = `SELECT id FROM "PurchaseInvoice" WHERE "issuedAtJalali" < ?`
     /**
      * بند ۸ · §۱۰ (جلسه ۳۱) — لاگ دو عدد دارد، نه یکی: «پاک می‌شود» و
@@ -222,6 +239,9 @@ export const maintenanceService = {
       saleInvoices,
       saleItems,
       saleReturns,
+      saleInvoicesRetained,
+      saleItemsRetained,
+      saleReturnsRetained,
       purchaseInvoices,
       stockMovements,
       auditLogs,
@@ -232,9 +252,12 @@ export const maintenanceService = {
       shifts,
       totals
     ] = await Promise.all([
-      countRaw(`SELECT COUNT(*) AS c FROM "SaleInvoice" WHERE "issuedAtJalali" < ?`, beforeJalali),
+      countRaw(`SELECT COUNT(*) AS c FROM "SaleInvoice" WHERE id IN (${invFilter})`, beforeJalali),
       countRaw(`SELECT COUNT(*) AS c FROM "SaleInvoiceItem" WHERE "invoiceId" IN (${invFilter})`, beforeJalali),
       countRaw(`SELECT COUNT(*) AS c FROM "SaleReturn" WHERE "invoiceId" IN (${invFilter})`, beforeJalali),
+      countRaw(`SELECT COUNT(*) AS c FROM "SaleInvoice" WHERE id IN (${correctedInvFilter})`, beforeJalali),
+      countRaw(`SELECT COUNT(*) AS c FROM "SaleInvoiceItem" WHERE "invoiceId" IN (${correctedInvFilter})`, beforeJalali),
+      countRaw(`SELECT COUNT(*) AS c FROM "SaleReturn" WHERE "invoiceId" IN (${correctedInvFilter})`, beforeJalali),
       countRaw(`SELECT COUNT(*) AS c FROM "PurchaseInvoice" WHERE "issuedAtJalali" < ?`, beforeJalali),
       countRaw(`SELECT COUNT(*) AS c FROM "StockMovement" WHERE "createdAt" < ?`, cutoffDate),
       // فقط ردیف‌هایی که *واقعاً* پاک می‌شوند
@@ -247,7 +270,7 @@ export const maintenanceService = {
       countRaw(`SELECT COUNT(*) AS c FROM "Consolidation" WHERE "toDate" < ? AND ${CONSOLIDATION_LEDGER_LINKED_SQL}`, cutoffDate),
       countRaw(`SELECT COUNT(*) AS c FROM "Shift" WHERE "dayJalali" <> '' AND "dayJalali" < ? AND ${purgeableShiftRefsSql()}`, beforeJalali, ...purgeableShiftRefParams(beforeJalali, cutoffDate)),
       prisma.$queryRawUnsafe<{ g: number | null }[]>(
-        `SELECT SUM("grandTotal") AS g FROM "SaleInvoice" WHERE "issuedAtJalali" < ?`,
+        `SELECT SUM("grandTotal") AS g FROM "SaleInvoice" WHERE id IN (${invFilter})`,
         beforeJalali
       ).catch(() => [{ g: 0 }])
     ])
@@ -259,6 +282,9 @@ export const maintenanceService = {
       saleInvoices,
       saleItems,
       saleReturns,
+      saleInvoicesRetained,
+      saleItemsRetained,
+      saleReturnsRetained,
       purchaseInvoices,
       stockMovements,
       auditLogs,
@@ -313,7 +339,10 @@ export const maintenanceService = {
       !before.shifts
     )
       throw new BusinessError(
-        `قبل از ${faDigits(beforeJalali)} داده‌ای برای پاک‌سازی وجود ندارد؛ چیزی حذف نشد.`
+        before.saleInvoicesRetained > 0
+          ? `قبل از ${faDigits(beforeJalali)} داده‌ی قابل پاک‌سازی وجود ندارد؛ چیزی حذف نشد. ` +
+            `${faDigits(before.saleInvoicesRetained)} فاکتور قدیمی همراه با برگشت و اصلاح جبرانیِ متصل، برای حفظ سابقه نگه داشته شده است.`
+          : `قبل از ${faDigits(beforeJalali)} داده‌ای برای پاک‌سازی وجود ندارد؛ چیزی حذف نشد.`
       )
 
     /**
@@ -322,6 +351,10 @@ export const maintenanceService = {
      */
     const auditPurged = input?.purgeAudit !== false
     const warnings: string[] = []
+    if (before.saleInvoicesRetained > 0)
+      warnings.push(
+        `${faDigits(before.saleInvoicesRetained)} فاکتور قدیمی، ${faDigits(before.saleItemsRetained)} قلم و ${faDigits(before.saleReturnsRetained)} برگشت حفظ شد چون برگشتِ متصل به اصلاح جبرانی، سابقه‌ی مالی مستقل دارد.`
+      )
     if (before.stockMovements > 0)
       warnings.push(
         `دفتر گردش انبار شامل ${faDigits(before.stockMovements)} ردیف قدیمی است؛ این دفتر append-only است و هیچ ردیفی حذف نمی‌شود.`
@@ -337,7 +370,7 @@ export const maintenanceService = {
     }
 
     const cutoffDate = jalaliStartOfDay(beforeJalali)
-    const invFilter = `SELECT id FROM "SaleInvoice" WHERE "issuedAtJalali" < ?`
+    const invFilter = salesInvoiceFilter(false)
     const purFilter = `SELECT id FROM "PurchaseInvoice" WHERE "issuedAtJalali" < ?`
 
     // ۲) حذف، از برگ به ریشه، در یک تراکنش
@@ -359,7 +392,7 @@ export const maintenanceService = {
         await run(`DELETE FROM "SaleReturn" WHERE "invoiceId" IN (${invFilter})`, beforeJalali)
         await run(`DELETE FROM "Payment" WHERE "invoiceId" IN (${invFilter})`, beforeJalali)
         await run(`DELETE FROM "SaleInvoiceItem" WHERE "invoiceId" IN (${invFilter})`, beforeJalali)
-        await run(`DELETE FROM "SaleInvoice" WHERE "issuedAtJalali" < ?`, beforeJalali)
+        await run(`DELETE FROM "SaleInvoice" WHERE id IN (${invFilter})`, beforeJalali)
 
         // فاکتورهای خرید قدیمی
         await run(`DELETE FROM "PurchaseInvoiceItem" WHERE "invoiceId" IN (${purFilter})`, beforeJalali)
