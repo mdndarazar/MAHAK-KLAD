@@ -19,7 +19,8 @@ const stages = [
   '20271020660000_sale_return_item_scope_quantity_guards',
   '20271020670000_sale_return_request_idempotency',
   '20271020680000_sale_invoice_item_quantity_domain_guard',
-  '20271020690000_safe_integer_return_quantity_domain_guard'
+  '20271020690000_safe_integer_return_quantity_domain_guard',
+  '20271020700000_validate_sale_return_history'
 ]
 const allNames = readdirSync(join(root, 'prisma/migrations'))
   .filter((n) => n !== 'migration_lock.toml').sort()
@@ -120,11 +121,15 @@ const corrupt = join(dir, 'corrupt-copy.db')
 const corruptQuantity = join(dir, 'corrupt-quantity-copy.db')
 const corruptUnsafeQuantity = join(dir, 'corrupt-unsafe-quantity-copy.db')
 const corruptReturnQuantity = join(dir, 'corrupt-return-quantity-copy.db')
+const corruptReturnScope = join(dir, 'corrupt-return-scope-copy.db')
+const corruptReturnCap = join(dir, 'corrupt-return-cap-copy.db')
 copyFileSync(file, copy)
 copyFileSync(file, corrupt)
 copyFileSync(file, corruptQuantity)
 copyFileSync(file, corruptUnsafeQuantity)
 copyFileSync(file, corruptReturnQuantity)
+copyFileSync(file, corruptReturnScope)
+copyFileSync(file, corruptReturnCap)
 const badQuantityDb = open(corruptQuantity)
 badQuantityDb.db.prepare(`INSERT INTO "SaleInvoiceItem"
   (invoiceId, variantId, qty, unitPrice, discount, tax, lineTotal)
@@ -165,6 +170,40 @@ assert.equal(read(badReturnQuantityDb.db, 'SELECT qty FROM "SaleReturnItem" WHER
 'failed migration does not rewrite or silently round an invalid historical return quantity')
 assert.equal(read(badReturnQuantityDb.db, 'PRAGMA integrity_check')[0].integrity_check, 'ok')
 badReturnQuantityDb.db.close()
+const badReturnScopeDb = open(corruptReturnScope)
+const badScopeReturnId = Number(badReturnScopeDb.db.prepare(`INSERT INTO "SaleReturn"
+  (invoiceId, returnedAtJalali, kind, refundMethod, refundAmount)
+  VALUES (?, ?, 'RETURN', 'NONE', 0)`).run(retailSale, day).lastInsertRowid)
+const badScopeReturnItemId = Number(badReturnScopeDb.db.prepare(`INSERT INTO "SaleReturnItem"
+  (returnId, saleItemId, variantId, qty, unitPrice, lineTotal)
+  VALUES (?, ?, ?, 1, 100, 100)`).run(badScopeReturnId, saleItemId, warehouseVariant).lastInsertRowid)
+await assert.rejects(() => applyMigrations(badReturnScopeDb.client, corruptReturnScope, { touchFile: false }),
+  (e) => e.message.includes('20271020700000_validate_sale_return_history') && e.message.includes('نسخه‌ی پشتیبان'),
+  'upgrading an installed DB with a return item linked to another invoice must fail closed')
+assert.equal(read(badReturnScopeDb.db, 'SELECT COUNT(*) n FROM "_prisma_migrations" WHERE migration_name=? AND finished_at IS NOT NULL',
+  '20271020700000_validate_sale_return_history')[0].n, 0,
+'bad invoice scope migration failure must not be recorded as finished')
+assert.equal(Number(read(badReturnScopeDb.db, 'SELECT COUNT(*) n FROM "SaleReturnItem" WHERE id=?', badScopeReturnItemId)[0].n), 1,
+'failed scope validation preserves the source row for reconciliation')
+assert.equal(read(badReturnScopeDb.db, 'PRAGMA integrity_check')[0].integrity_check, 'ok')
+badReturnScopeDb.db.close()
+const badReturnCapDb = open(corruptReturnCap)
+const overCapReturnId = Number(badReturnCapDb.db.prepare(`INSERT INTO "SaleReturn"
+  (invoiceId, returnedAtJalali, kind, refundMethod, refundAmount)
+  VALUES (?, ?, 'RETURN', 'NONE', 0)`).run(retailSale, day).lastInsertRowid)
+const overCapReturnItemId = Number(badReturnCapDb.db.prepare(`INSERT INTO "SaleReturnItem"
+  (returnId, saleItemId, variantId, qty, unitPrice, lineTotal)
+  VALUES (?, ?, ?, 1, 100, 100)`).run(overCapReturnId, retailItem, retailVariant).lastInsertRowid)
+await assert.rejects(() => applyMigrations(badReturnCapDb.client, corruptReturnCap, { touchFile: false }),
+  (e) => e.message.includes('20271020700000_validate_sale_return_history') && e.message.includes('نسخه‌ی پشتیبان'),
+  'upgrading an installed DB with active return quantity above sold quantity must fail closed')
+assert.equal(read(badReturnCapDb.db, 'SELECT COUNT(*) n FROM "_prisma_migrations" WHERE migration_name=? AND finished_at IS NOT NULL',
+  '20271020700000_validate_sale_return_history')[0].n, 0,
+'over-cap migration failure must not be recorded as finished')
+assert.equal(Number(read(badReturnCapDb.db, 'SELECT COUNT(*) n FROM "SaleReturnItem" WHERE id=?', overCapReturnItemId)[0].n), 1,
+'failed active-cap validation preserves historical evidence')
+assert.equal(read(badReturnCapDb.db, 'PRAGMA integrity_check')[0].integrity_check, 'ok')
+badReturnCapDb.db.close()
 const broken = open(corrupt)
 broken.db.exec('CREATE TABLE \"ReturnGoodsReceiptSource\" (\"id\" INTEGER PRIMARY KEY)')
 await assert.rejects(() => applyMigrations(broken.client, corrupt, { touchFile: false }),
