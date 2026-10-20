@@ -18,7 +18,7 @@ const names = readdirSync(join(root, 'prisma/migrations'))
   .filter((name) => name !== 'migration_lock.toml').sort()
 const historicNames = names.filter((name) => name < cutover)
 const newNames = names.filter((name) => name >= cutover)
-assert.equal(newNames.length, 20, 'update this test when the financial cutover gains another migration')
+assert.equal(newNames.length, 21, 'update this test when the financial cutover gains another migration')
 const dir = mkdtempSync(join(tmpdir(), 'mahak-real-migration-upgrade-'))
 process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'unused-harness.db')
@@ -147,6 +147,13 @@ addFundingEvent.run('migration-test:source', 'SOURCE_CASH', 100, 'payment:1', 'p
 assert.throws(() => addFundingEvent.run('migration-test:source', 'SOURCE_CASH', 100,
   'payment:2', 'payment:2', 'PAYMENT_ROW'), /UNIQUE constraint failed/,
   'event keys enforce idempotency at the database boundary')
+const fundingEventId = one('SELECT id FROM "ExchangeFundingEvent" WHERE eventKey=?', 'migration-test:source').id
+assert.throws(() => db.prepare('UPDATE "ExchangeFundingEvent" SET shareId=? WHERE id=?')
+  .run('rewritten-share', fundingEventId), /append-only/,
+'funding lineage events cannot be rewritten at the SQLite boundary')
+assert.throws(() => db.prepare('DELETE FROM "ExchangeFundingEvent" WHERE id=?')
+  .run(fundingEventId), /append-only/,
+'funding lineage events cannot be erased at the SQLite boundary')
 db.prepare(`INSERT INTO "ExchangeFundingEvent"
   (eventKey, kind, amount, shareId, rootShareId, sourceInvoiceId, evidenceKind)
   VALUES (?, ?, ?, ?, ?, ?, ?)`)
