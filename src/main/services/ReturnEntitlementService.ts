@@ -390,10 +390,12 @@ export async function confirmCreditDelivery(input: {
       const claim = event ? await tx.returnEntitlement.findUnique({ where: { id: event.entitlementId } }) : null
       if (!claim || claim.state !== 'OPEN' || claim.cashConverted < credit.amount)
         throw new BusinessError('حق نقدی منشأ این اعتبار در وضعیت امن نیست؛ تحویل/فعال‌سازی تا تطبیق مدیر متوقف است.')
+      await assertOrdinaryEntitlementReturn(tx, Number(claim.returnId), Number(claim.invoiceId))
     } else if (delivery.sourceKind === 'CREDIT_RETURN_OPPORTUNITY') {
       const branch = await tx.creditReturnAllocation.findUnique({ where: { successorCreditId: creditId } })
-      const ret = branch ? await tx.saleReturn.findUnique({ where: { id: branch.returnId },
-        select: { voidedAt: true, invoiceId: true } }) : null
+      const ret = branch
+        ? await assertOrdinaryEntitlementReturn(tx, Number(branch.returnId), Number(branch.invoiceId))
+        : null
       if (!branch || !ret || ret.voidedAt != null || ret.invoiceId !== branch.invoiceId ||
           toNumberRial(branch.amount) + toNumberRial(branch.supplementUnspent) !== toNumberRial(credit.amount) ||
           (branch.originalExpiresAt?.getTime() ?? null) !== (credit.expiresAt?.getTime() ?? null))

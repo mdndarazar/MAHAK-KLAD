@@ -20,7 +20,7 @@ const { salesService } = await import('../../src/main/services/SalesService.ts')
 const { periodLockService } = await import('../../src/main/services/PeriodLockService.ts')
 const { shiftService } = await import('../../src/main/services/ShiftService.ts')
 const { recordExchangeFundingReturnLineAllocation } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
-const { openCardTransferEntitlement, convertCashRight } = await import('../../src/main/services/ReturnEntitlementService.ts')
+const { openCardTransferEntitlement, convertCashRight, confirmCreditDelivery } = await import('../../src/main/services/ReturnEntitlementService.ts')
 const { planCreditReturn, applyCreditReturn } = await import('../../src/main/services/CreditReturnService.ts')
 const { remainingOf } = await import('../../src/shared/settlement.ts')
 const { toJalaliDate } = await import('@shared/jalali')
@@ -184,15 +184,41 @@ assert.deepEqual({
   allocations: seed.one('SELECT COUNT(*) n FROM "CreditReturnAllocation"').n,
   deliveries: seed.one('SELECT COUNT(*) n FROM "CreditDelivery"').n
 }, directCreditEffectsBefore, 'child credit-return rejection writes no successor, allocation, or delivery')
+const importedChildBranchCreditId = seed.insert('StoreCredit', {
+  code: 'CHILD-DIRECT-BRANCH', amount: 100, usedAmount: 0, usedCount: 0,
+  status: 'DRAFT', expiresAt: null
+})
+seed.insert('CreditDelivery', { creditId: importedChildBranchCreditId,
+  sourceKind: 'CREDIT_RETURN_OPPORTUNITY', status: 'PENDING_DELIVERY' })
+seed.insert('CreditReturnAllocation', {
+  returnId: returnIds[2], invoiceId: child.id, redemptionId: syntheticRedemptionId,
+  parentCreditId: syntheticGiftId, rootCreditId: syntheticGiftId, originNominal: 100,
+  amount: 100, supplementUnspent: 0, successorCreditId: importedChildBranchCreditId,
+  kind: 'BRANCH', originalExpiresAt: null
+})
+const deliveryEffectsBefore = {
+  status: seed.one('SELECT status FROM "StoreCredit" WHERE id=?', importedChildBranchCreditId).status,
+  deliveryStatus: seed.one('SELECT status FROM "CreditDelivery" WHERE creditId=?', importedChildBranchCreditId).status,
+  delivered: seed.one('SELECT COUNT(*) n FROM "CreditDelivery" WHERE creditId=? AND status=?',
+    importedChildBranchCreditId, 'DELIVERED').n
+}
+await assert.rejects(() => confirmCreditDelivery({
+  creditId: importedChildBranchCreditId, witnessKind: 'CUSTOMER_HANDOFF',
+  witnessRef: 'customer received printed child code',
+  managerPassword: DEFAULT_MANAGER_PASSWORD, actorUserId: userId
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'a legacy child-return B/E cannot become spendable through direct witnessed delivery')
+assert.deepEqual({
+  status: seed.one('SELECT status FROM "StoreCredit" WHERE id=?', importedChildBranchCreditId).status,
+  deliveryStatus: seed.one('SELECT status FROM "CreditDelivery" WHERE creditId=?', importedChildBranchCreditId).status,
+  delivered: seed.one('SELECT COUNT(*) n FROM "CreditDelivery" WHERE creditId=? AND status=?',
+    importedChildBranchCreditId, 'DELIVERED').n
+}, deliveryEffectsBefore, 'blocked child delivery does not activate the code or record a handoff')
 const legacyChildClaimId = seed.insert('ReturnEntitlement', {
   returnId: returnIds[1], invoiceId: child.id, cashRight: 100, cashReserved: 0,
   cashPaid: 0, cashConverted: 0, giftOpportunity: 0, debtReduced: 0, state: 'OPEN', version: 0
 })
 assert.ok(legacyChildClaimId > 0)
-const entitlementStateWithImportedChildClaim = {
-  claims: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlement"').n,
-  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
-}
 const conversionEffectsBefore = {
   credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
   events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n,
@@ -210,6 +236,39 @@ assert.deepEqual({
   deliveries: seed.one('SELECT COUNT(*) n FROM "CreditDelivery"').n,
   converted: seed.one('SELECT cashConverted FROM "ReturnEntitlement" WHERE id=?', legacyChildClaimId).cashConverted
 }, conversionEffectsBefore, 'blocked child conversion changes no claim projection, event, code, or delivery')
+// Simulate an already-imported child conversion (a legacy/forged entitlement
+// and DRAFT code) and ensure handoff cannot activate it either.
+sql.prepare('UPDATE "ReturnEntitlement" SET cashConverted=? WHERE id=?').run(100, legacyChildClaimId)
+const importedCashCodeId = seed.insert('StoreCredit', {
+  code: 'CHILD-DIRECT-CASH', amount: 100, usedAmount: 0, usedCount: 0,
+  status: 'DRAFT', expiresAt: null
+})
+seed.insert('CreditDelivery', { creditId: importedCashCodeId,
+  sourceKind: 'CASH_RIGHT_CONVERSION', status: 'PENDING_DELIVERY' })
+seed.insert('ReturnEntitlementEvent', {
+  entitlementId: legacyChildClaimId, eventKey: 'child-imported-cash-conversion',
+  kind: 'CASH_RIGHT_CONVERTED', amount: 100, creditId: importedCashCodeId
+})
+const cashDeliveryBefore = {
+  codeStatus: seed.one('SELECT status FROM "StoreCredit" WHERE id=?', importedCashCodeId).status,
+  deliveryStatus: seed.one('SELECT status FROM "CreditDelivery" WHERE creditId=?', importedCashCodeId).status,
+  eventCount: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
+}
+await assert.rejects(() => confirmCreditDelivery({
+  creditId: importedCashCodeId, witnessKind: 'CUSTOMER_HANDOFF',
+  witnessRef: 'customer received old converted code',
+  managerPassword: DEFAULT_MANAGER_PASSWORD, actorUserId: userId
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'a legacy child cash-right conversion cannot be activated by direct handoff')
+assert.deepEqual({
+  codeStatus: seed.one('SELECT status FROM "StoreCredit" WHERE id=?', importedCashCodeId).status,
+  deliveryStatus: seed.one('SELECT status FROM "CreditDelivery" WHERE creditId=?', importedCashCodeId).status,
+  eventCount: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
+}, cashDeliveryBefore, 'blocked legacy cash-right delivery remains DRAFT and unhanded')
+const entitlementStateWithImportedChildClaim = {
+  claims: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlement"').n,
+  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
+}
 // A corrupted/misclassified orderType must not bypass the direct entitlement
 // service guard; either lineage marker independently preserves the hold.
 sql.prepare('UPDATE "SaleInvoice" SET orderType=? WHERE id=?').run('INTERNAL', child.id)
