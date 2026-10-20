@@ -215,20 +215,21 @@ truthy('سند تعویض فعال ماند', invRow(exE?.exchangeInvoiceId ?? -
 eq('ردیف «رسیدگی مدیر»', reviewRows(exE?.returnId ?? -1), 1)
 
 // ===========================================================================
-console.log('\n۶) روی خودِ سند تعویض برگشت ثبت شده ⇒ ابطال ناممکن')
+console.log('\n۶) برگشت روی فاکتور فرزند تعویض تا تکمیل lineage و entitlement مسدود است')
 const F = await safe('نسیه‌ی ۱٬۰۰۰', () => twoItems(0))
 const exF = await safe('تعویض ۶۰۰ با ۲۰۰', () => exchange(F.inv.id, F.items[0].id, variant(200), 'CASH'))
 const exItems = itemsOf(exF?.exchangeInvoiceId ?? -1)
-await safe('برگشت کالای جایگزین از سند تعویض', () => salesService.createReturn({ invoiceId: exF.exchangeInvoiceId, full: false, lines: [{ saleItemId: exItems[0].id, qty: 1 }], refundMethod: 'STORE_CREDIT', refundAmount: 200, userId }))
-await throwsWith('ابطال رد می‌شود (برگشت روی سند تعویض)', () => voidIt(exF?.returnId), 'سند تعویض')
-truthy('سند تعویض فعال ماند', invRow(exF?.exchangeInvoiceId ?? -1)?.voidedAt == null)
-await throwsWith('اصلاح جبرانی هم روی گراف دارای برگشت بعدی رد می‌شود', () =>
-  salesService.returnReconcileVoid({
-    id: exF?.returnId, userId, reason: 'تلاش اصلاح با برگشت جایگزین',
-    cashRecovered: 0, cardRecovered: 0, cashPaidOut: 0, cardPaidOut: 0, creditOutcome: 'NONE'
-  }),
-  'برگشت فعال'
-)
+const childReturnCountBefore = seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', exF.exchangeInvoiceId).n
+await throwsWith('برگشت اعتبارمحور روی سند تعویض fail-closed می‌ماند', () => salesService.createReturn({
+  invoiceId: exF.exchangeInvoiceId, full: false,
+  lines: [{ saleItemId: exItems[0].id, qty: 1 }],
+  refundMethod: 'STORE_CREDIT', refundAmount: 200, userId
+}), 'تخصیص منشأ به قلم')
+eq('درخواست ردشده هیچ برگشتی روی فرزند نساخت',
+  seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', exF.exchangeInvoiceId).n, childReturnCountBefore)
+const safeChildGraphVoid = await safe('ابطال گراف تعویض وقتی برگشت فرزند مسدود مانده', () => voidIt(exF?.returnId))
+truthy('تعویض بدون برگشت فرزند باطل شد', safeChildGraphVoid?.exchangeVoided === true)
+truthy('فاکتور فرزند باطل شد', invRow(exF?.exchangeInvoiceId ?? -1)?.voidedAt != null)
 
 // ===========================================================================
 console.log('\n۷) کارت‌به‌کارت در انتظار ⇒ ابطال + لغو درخواست، کالای معلق وارد موجودی نمی‌شود')

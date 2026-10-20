@@ -1,0 +1,150 @@
+/**
+ * A synthetic/legacy ordinary return directly attached to an EXCHANGE child
+ * invoice must not use correction paths that do not yet reverse child-line
+ * provenance or prove settlement entitlement. Normal createReturn on such an
+ * invoice remains closed; these rows model legacy or direct-DB data.
+ *
+ * node --import ./test/harness/register.mjs tests/audit-fixes/fix-financial-exchange-child-return-correction-guard.mjs
+ */
+import assert from 'node:assert/strict'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+const dir = mkdtempSync(join(tmpdir(), 'mahak-child-return-correction-'))
+process.env.HARNESS_DIR = dir
+process.env.HARNESS_DB = join(dir, 'shop.db')
+const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
+const { makeSeeder } = await import('../../test/harness/seed.mjs')
+const { salesService } = await import('../../src/main/services/SalesService.ts')
+const { recordExchangeFundingReturnLineAllocation } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
+const { toJalaliDate } = await import('@shared/jalali')
+const { DEFAULT_MANAGER_PASSWORD } = await import('@shared/receipt')
+const db = harnessClient()
+const seed = makeSeeder(db)
+const sql = db.$harness.db
+const userId = seed.user('child return correction guard')
+const categoryId = seed.category('child return correction guard')
+const productId = seed.product('child return correction guard', categoryId)
+const cashMethodId = seed.insert('PaymentMethod', {
+  key: 'CASH', label: 'Cash', kind: 'CASH', isActive: 1, sortOrder: 1
+})
+const now = new Date()
+const shiftId = seed.insert('Shift', {
+  name: 'child return correction shift', number: 1, userId,
+  dayJalali: toJalaliDate(now), openedAt: now.getTime() - 10_000
+})
+const variant = (label) => {
+  const id = seed.variant(productId, label)
+  sql.prepare('UPDATE "ProductVariant" SET stock=20, salePrice=1000 WHERE id=?').run(id)
+  return id
+}
+const sourceVariant = variant('source')
+const replacementVariant = variant('replacement')
+const sale = await salesService.create({
+  userId, shiftId,
+  lines: [{ variantId: sourceVariant, qty: 3, unitPrice: 1000, discount: 0, tax: 0 }],
+  payments: [{ methodId: cashMethodId, amount: 3000, destination: 'CASH' }]
+})
+const sourceItemId = Number(seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', sale.id).id)
+const exchange = await salesService.createExchange({
+  invoiceId: sale.id,
+  lines: [{ saleItemId: sourceItemId, qty: 3 }],
+  replacements: [{ variantId: replacementVariant, qty: 3 }],
+  refundMode: 'STORE_CREDIT', userId, shiftId, managerPassword: DEFAULT_MANAGER_PASSWORD
+})
+const child = seed.one('SELECT id, orderType FROM "SaleInvoice" WHERE id=?', exchange.exchangeInvoiceId)
+assert.equal(child.orderType, 'EXCHANGE')
+const childItem = seed.one('SELECT id, variantId FROM "SaleInvoiceItem" WHERE invoiceId=?', child.id)
+const misclassifiedBefore = {
+  returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', child.id).n,
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
+  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
+}
+sql.prepare('UPDATE "SaleInvoice" SET orderType=? WHERE id=?').run('INTERNAL', child.id)
+await assert.rejects(() => salesService.returnProvenancePreview({
+  invoiceId: child.id, lines: [{ saleItemId: Number(childItem.id), qty: 1 }]
+}), /تخصیص منشأ به قلم/,
+'provenance preview must not expose ordinary-sale refund rights for an exchange child with a corrupted orderType')
+await assert.rejects(() => salesService.createReturn({
+  invoiceId: child.id, full: false,
+  lines: [{ saleItemId: Number(childItem.id), qty: 1 }],
+  refundMethod: 'CASH', refundAmount: 1000, userId, shiftId
+}), /تخصیص منشأ به قلم/,
+'non-null exchange lineage markers keep the ordinary-return gate closed even if orderType is corrupted')
+assert.deepEqual({
+  returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', child.id).n,
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
+  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
+}, misclassifiedBefore)
+sql.prepare('UPDATE "SaleInvoice" SET orderType=? WHERE id=?').run('EXCHANGE', child.id)
+const returnIds = []
+for (let index = 0; index < 3; index++) {
+  const id = seed.insert('SaleReturn', {
+    invoiceId: child.id, isFull: false, total: 1000, returnedAt: now,
+    returnedAtJalali: toJalaliDate(now), returnedAtTime: now.toTimeString().slice(0, 8),
+    kind: 'RETURN', userId, shiftId, refundMethod: 'NONE', refundAmount: 0
+  })
+  const returnItemId = seed.insert('SaleReturnItem', {
+    returnId: id, saleItemId: Number(childItem.id), variantId: Number(childItem.variantId),
+    qty: 1, unitPrice: 1000, lineTotal: 1000, restockedQty: 0
+  })
+  returnIds.push(id)
+  await db.$transaction((tx) => recordExchangeFundingReturnLineAllocation(tx, {
+    returnId: id, returnItemId
+  }))
+}
+assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=? AND voidedAt IS NULL', child.id).n, 3)
+assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation" WHERE childInvoiceId=? AND eventKind=?',
+  child.id, 'ALLOCATION').n, 3,
+  'the child returns have valid descriptive source allocation but no financial entitlement')
+sql.prepare('UPDATE "SaleInvoice" SET orderType=? WHERE id=?').run('INTERNAL', child.id)
+
+const blocked = /برگشت فرزند|تخصیص منشأ|تعویض/iu
+const mutationEffectsBefore = {
+  stock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', replacementVariant).stock),
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
+  corrections: seed.one('SELECT COUNT(*) n FROM "ReturnCorrection"').n,
+  correctionEffects: seed.one('SELECT COUNT(*) n FROM "ReturnCorrectionEffect"').n,
+  audits: seed.one('SELECT COUNT(*) n FROM "AuditLog"').n
+}
+const beforeUpdate = seed.one('SELECT total, voidedAt FROM "SaleReturn" WHERE id=?', returnIds[0])
+await assert.rejects(() => salesService.returnUpdate({
+  id: returnIds[0], lines: [{ saleItemId: Number(childItem.id), qty: 1 }],
+  userId, panelPassword: DEFAULT_MANAGER_PASSWORD, overrideReason: 'guard regression test'
+}), blocked, 'direct edit must remain closed for a return attached to an exchange child')
+assert.deepEqual(seed.one('SELECT total, voidedAt FROM "SaleReturn" WHERE id=?', returnIds[0]), beforeUpdate)
+
+const beforeDelete = seed.one('SELECT voidedAt, voidReason FROM "SaleReturn" WHERE id=?', returnIds[1])
+await assert.rejects(() => salesService.returnDelete({
+  id: returnIds[1], userId, reason: 'guard regression test', panelPassword: DEFAULT_MANAGER_PASSWORD
+}), blocked, 'direct void must remain closed until child attribution reversal is wired')
+assert.deepEqual(seed.one('SELECT voidedAt, voidReason FROM "SaleReturn" WHERE id=?', returnIds[1]), beforeDelete)
+
+const correctionCountBefore = seed.one('SELECT COUNT(*) n FROM "ReturnCorrection"').n
+await assert.rejects(() => salesService.returnReconcileVoid({
+  id: returnIds[2], userId, reason: 'guard regression test', panelPassword: DEFAULT_MANAGER_PASSWORD,
+  cashRecovered: 0, cardRecovered: 0, creditOutcome: 'NONE'
+}), blocked, 'reconciliation must not create an ordinary-return correction on an exchange child')
+assert.equal(seed.one('SELECT COUNT(*) n FROM "ReturnCorrection"').n, correctionCountBefore)
+assert.equal(seed.one('SELECT voidedAt FROM "SaleReturn" WHERE id=?', returnIds[2]).voidedAt, null)
+sql.prepare('UPDATE "SaleInvoice" SET orderType=? WHERE id=?').run('EXCHANGE', child.id)
+
+assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=? AND voidedAt IS NULL', child.id).n, 3)
+assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation" WHERE childInvoiceId=? AND eventKind=?',
+  child.id, 'ALLOCATION').n, 3)
+assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation" WHERE childInvoiceId=? AND eventKind=?',
+  child.id, 'REVERSAL').n, 0,
+  'blocked correction paths did not write the missing reversal rows')
+assert.deepEqual({
+  stock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', replacementVariant).stock),
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
+  corrections: seed.one('SELECT COUNT(*) n FROM "ReturnCorrection"').n,
+  correctionEffects: seed.one('SELECT COUNT(*) n FROM "ReturnCorrectionEffect"').n,
+  audits: seed.one('SELECT COUNT(*) n FROM "AuditLog"').n
+}, mutationEffectsBefore, 'all child-return correction attempts leave stock, cash, credit, ledger, and audit effects untouched')
+console.log('✓ exchange-child return correction paths fail closed for update, void, and reconciliation')
