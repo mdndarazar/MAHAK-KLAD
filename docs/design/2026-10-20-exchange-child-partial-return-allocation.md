@@ -1,6 +1,6 @@
 # برگشت جزئیِ قلمِ فرزند تعویض — تخصیص منشأ و دفترِ اصلاح
 
-**وضعیت: گام ایمنی/طراحی؛ تسویهٔ فرزند هنوز بسته است.** این یادداشت مجوز بازکردن گیت تعویض اعتبارمحور یا پرداخت وجه/صدور اعتبار نیست. گارد موقت باید تا پیاده‌سازی و آزمون دفتر append-only، entitlement، انقضا، idempotency و اصلاح باقی بماند؛ گاردِ رد دائمیِ برگشت سالم هم هدف نهایی نیست.
+**وضعیت: دفتر انتساب حسابداری و guardهای append-only پیاده‌سازی شده‌اند؛ تسویهٔ فرزند هنوز بسته است.** این یادداشت مجوز بازکردن گیت تعویض اعتبارمحور یا پرداخت وجه/صدور اعتبار نیست. گارد موقت تا تکمیل و آزمون entitlement، انقضا، idempotency و اصلاح در چرخهٔ کامل باقی می‌ماند؛ گاردِ رد دائمیِ برگشت سالم هم هدف نهایی نیست.
 
 ## نتیجهٔ آزمون SQLite موقت
 
@@ -18,12 +18,17 @@
 - `src/shared/integerRialApportionment.ts`، Webster/Sainte‑Laguë صحیحِ ریالی و tie-break با شناسهٔ پایدار را مشترک می‌کند.
 - `src/shared/exchangeFundingLineReturn.ts` سهم هر منبع از برگشت یک قلم را از snapshot تعداد/ارزش و مقدار تجمعیِ پیشین محاسبه می‌کند. انواع اثبات‌شدهٔ `SOURCE_GIFT`، `SOURCE_CASH`، `SOURCE_CARD` و `SOURCE_CHEQUE` حفظ می‌شوند؛ نوع نامعلوم مجاز نیست. ماتریس منبع باید با ارزش قلم برابر باشد؛ تاریخچهٔ ناقص/متناقض، شناسهٔ تکراری یا برگشت بیش از تعداد fail-closed می‌شود. خروجی فقط **انتساب حسابداری** است.
 - `returnValueOf` برای ورودی‌های صحیح/ایمن ریالی، ضرب و گردکردن تجمعی را با `BigInt` انجام می‌دهد؛ `allocateLineNet` نیز ضرب/باقی‌مانده را BigInt نگه می‌دارد تا در نزدیکی `Number.MAX_SAFE_INTEGER` خطای IEEE‑754 snapshot قلم را جابه‌جا نکند.
-- `SalesService.returnProvenancePreview` و `runReturn(..., applyRefund: true)` هر برگشت از فاکتور نوع `EXCHANGE` را تا آماده‌شدن مسیر تخصیص و تسویه متوقف می‌کنند. این گارد موقت است؛ مسیر داخلی `createExchange(..., applyRefund: false)` از آن مستثناست.
-- این مرحله هنوز allocation هر `SaleReturnItem` را در دیتابیس ذخیره نمی‌کند؛ helper خالص به‌تنهایی سابقهٔ برگشت نیست و مجوز تسویه هم نیست.
+- `SalesService.returnProvenancePreview` برای فرزند با lineage و ماتریس سالم فقط انتساب حسابداریِ prospective برمی‌گرداند؛ `cashRight` و `giftOpportunity` صفر و `settlementReady=false` می‌مانند. lineage، ماتریس یا تخصیص برگشتِ فعالِ ناقص/ناسازگار fail-closed است.
+- `runReturn(..., applyRefund: true)` هنوز همهٔ برگشت‌های اجرایی از فاکتور نوع `EXCHANGE` را پیش از اثر مالی متوقف می‌کند. مسیر داخلی `createExchange(..., applyRefund: false)` از این گارد جداست. گارد موقت است؛ مسیر ثبت برگشتِ مشتری هنوز به تسویه و entitlement امن وصل نشده.
+- `ExchangeFundingReturnLineAllocation` اکنون snapshot سهم تجمعی هر `SaleReturnItem` را به‌صورت append-only ذخیره می‌کند. `recordExchangeFundingReturnLineAllocation` آن را از ردیف‌های فیزیکی و ماتریس immutable دوباره محاسبه می‌کند؛ reversal کاملِ همهٔ اقلام با replay/LIFO در `reverseExchangeFundingReturnLineAllocationsForReturn` ثبت می‌شود. این توابع در آزمون‌های SQLite پوشش دارند، اما مسیر برگشت عادیِ فرزند هنوز عمداً gate است؛ دفتر انتساب مجوز تسویه نیست.
 
-## قرارداد دفتر پیشنهادی پیش از اتصال تسویه
+## دفتر انتساب پیاده‌سازی‌شده؛ تسویه هنوز بسته است
 
-نام مدل هنوز نهایی نشده؛ ابتدا قیدها/رفتار تثبیت شوند، سپس migration افزایشی ساخته شود. طرح پیشنهادی، ردیف‌های immutable برای **تمام منابع مثبتِ ماتریس قلم** است؛ حتی اگر share همین برگشت صفر باشد تا پوشش تاریخی ناقص با «سهم صفر» اشتباه نشود:
+Migration افزایشی `20271020650000_exchange_funding_return_line_allocations` ردیف‌های immutable با پیوندهای scalar و snapshotهای تعداد/ارزش/سهم می‌سازد. صفر فقط به‌عنوان delta قانونیِ یک منبع ثبت می‌شود؛ منبع نامعلوم پذیرفته نیست. triggerهای migration `20271020650000` و `20271020720000` به‌ترتیب `UPDATE`/`DELETE` را منع و key/reversal را با allocation اصلی تطبیق می‌دهند. هر reversal باید به allocation موجود، همان scope و snapshotها وصل باشد و `amountDelta` دقیقاً منفی delta اصلی باشد؛ unique key از reversal دوباره جلوگیری می‌کند.
+
+- سهم پیشین فقط از برگشت‌های فیزیکیِ فعال و ledger rowهای کاملِ تطبیق‌شده بازسازی می‌شود. مقدار تجمعی باید با تعداد برگشت فعالِ `SaleReturnItem` و target قطعی helper برابر باشد؛ اختلاف در تعداد، مبلغ، set منبع، lineage یا event key fail-closed است.
+- reversal ردیف allocation را حذف/ویرایش نمی‌کند؛ برای هر allocation یک ردیف معکوس با key یکتا، ارجاع دقیق به اصل و delta منفی اضافه می‌شود. گارد DB و reader سرویس هر دو orphan/cross-link را رد می‌کنند.
+
 
 - پیوندهای scalar: `returnId`, `returnItemId`, `childInvoiceId`, `saleItemId`, `sourceEventId` (رویداد `TRANSFER_IN` همان فرزند). FK/cascade نباید تاریخچهٔ مالی را حذف کند.
 - snapshotهای immutable: `saleItemQty`, `saleItemValue`, تعداد برگشتی فعال پیش از این قلم، تعداد این برگشت، تعداد تجمعی بعد از آن، ارزش تجمعی قلم و سهم تجمعی هر منبع پیش/پس از برگشت.

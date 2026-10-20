@@ -18,7 +18,7 @@ const names = readdirSync(join(root, 'prisma/migrations'))
   .filter((name) => name !== 'migration_lock.toml').sort()
 const historicNames = names.filter((name) => name < cutover)
 const newNames = names.filter((name) => name >= cutover)
-assert.equal(newNames.length, 17, 'update this test when the financial cutover gains another migration')
+assert.equal(newNames.length, 18, 'update this test when the financial cutover gains another migration')
 const dir = mkdtempSync(join(tmpdir(), 'mahak-real-migration-upgrade-'))
 process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'unused-harness.db')
@@ -208,6 +208,61 @@ assert.throws(() => db.prepare('UPDATE "ExchangeFundingLineAllocation" SET amoun
   .run(lineAllocationId), /append-only/, 'line allocations are immutable evidence')
 assert.throws(() => db.prepare('DELETE FROM "ExchangeFundingLineAllocation" WHERE id=?')
   .run(lineAllocationId), /append-only/, 'line allocations cannot be erased')
+const returnLineAllocation = {
+  eventKey: 'exchange-return-item:302:source:9001:allocation:v1', eventKind: 'ALLOCATION',
+  returnId: 301, returnItemId: 302, sourceInvoiceId: firstInvoiceId, childInvoiceId: secondInvoiceId,
+  saleItemId, sourceEventId: 9001, sourceKind: 'SOURCE_CASH', saleItemQty: 2,
+  saleItemValue: 1000, sourceItemAmount: 1000, returnedQtyBefore: 0,
+  returningQty: 1, returnedQtyAfter: 1, priorReturnValue: 0, returnValue: 500,
+  cumulativeReturnValue: 500, priorAmount: 0, amountDelta: 500,
+  cumulativeAmount: 500, allocationVersion: 1, reversesAllocationId: null
+}
+const insertReturnLineRow = db.prepare(`INSERT INTO "ExchangeFundingReturnLineAllocation" (
+  eventKey, eventKind, returnId, returnItemId, sourceInvoiceId, childInvoiceId, saleItemId,
+  sourceEventId, sourceKind, saleItemQty, saleItemValue, sourceItemAmount,
+  returnedQtyBefore, returningQty, returnedQtyAfter, priorReturnValue, returnValue,
+  cumulativeReturnValue, priorAmount, amountDelta, cumulativeAmount, allocationVersion,
+  reversesAllocationId
+) VALUES (${Array(23).fill('?').join(', ')})`)
+const returnLineParams = (row) => [row.eventKey, row.eventKind, row.returnId, row.returnItemId,
+  row.sourceInvoiceId, row.childInvoiceId, row.saleItemId, row.sourceEventId, row.sourceKind,
+  row.saleItemQty, row.saleItemValue, row.sourceItemAmount, row.returnedQtyBefore,
+  row.returningQty, row.returnedQtyAfter, row.priorReturnValue, row.returnValue,
+  row.cumulativeReturnValue, row.priorAmount, row.amountDelta, row.cumulativeAmount,
+  row.allocationVersion, row.reversesAllocationId]
+insertReturnLineRow.run(...returnLineParams(returnLineAllocation))
+const returnLineAllocationId = one(`SELECT id FROM "ExchangeFundingReturnLineAllocation"
+  WHERE eventKey=?`, returnLineAllocation.eventKey).id
+assert.throws(() => insertReturnLineRow.run(...returnLineParams({
+  ...returnLineAllocation, eventKey: 'wrong-return-allocation-key'
+})), /integrity check failed|CHECK constraint failed/,
+'allocation event keys bind to the exact return-item/source cell')
+const inverse = {
+  ...returnLineAllocation,
+  eventKey: 'exchange-return-item:302:source:9001:reversal:v1', eventKind: 'REVERSAL',
+  priorAmount: 500, amountDelta: -500, cumulativeAmount: 0,
+  reversesAllocationId: returnLineAllocationId
+}
+assert.throws(() => insertReturnLineRow.run(...returnLineParams({
+  ...inverse, eventKey: 'exchange-return-item:302:source:9001:reversal:v1',
+  reversesAllocationId: 999999
+})), /integrity check failed/,
+'database rejects an orphan reversal even when all scalar columns satisfy the table CHECK')
+assert.throws(() => insertReturnLineRow.run(...returnLineParams({
+  ...inverse, amountDelta: -499
+})), /integrity check failed/,
+'database rejects a reversal whose amount is not the exact negative source delta')
+assert.throws(() => insertReturnLineRow.run(...returnLineParams({
+  ...inverse, returnId: inverse.returnId + 1
+})), /integrity check failed/,
+'database rejects a reversal cross-linked to another physical return')
+insertReturnLineRow.run(...returnLineParams(inverse))
+assert.equal(one(`SELECT reversesAllocationId FROM "ExchangeFundingReturnLineAllocation"
+  WHERE eventKind='REVERSAL' AND returnItemId=?`, inverse.returnItemId).reversesAllocationId,
+  returnLineAllocationId, 'database accepts the exact inverse of the persisted allocation')
+assert.throws(() => insertReturnLineRow.run(...returnLineParams(inverse)), /UNIQUE constraint failed/,
+  'one return attribution row cannot be reversed twice')
+
 assert.equal(one('PRAGMA integrity_check').integrity_check, 'ok')
 assert.deepEqual(rows('PRAGMA foreign_key_check'), [])
 assert.equal(one('SELECT COUNT(*) AS n FROM "_prisma_migrations" WHERE finished_at IS NOT NULL').n, names.length)

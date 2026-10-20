@@ -6,9 +6,9 @@
  * node --import ./test/harness/register.mjs tests/audit-fixes/fix-financial-exchange-return-line-reversal-completeness.mjs
  */
 import assert from 'node:assert/strict'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 const dir = mkdtempSync(join(tmpdir(), 'mahak-return-line-reversal-'))
 process.env.HARNESS_DIR = dir
@@ -26,6 +26,23 @@ const { DEFAULT_MANAGER_PASSWORD } = await import('@shared/receipt')
 const db = harnessClient()
 const seed = makeSeeder(db)
 const sql = db.$harness.db
+const integrityMigration = readFileSync(resolve(process.cwd(),
+  'prisma/migrations/20271020720000_guard_exchange_return_line_reversals/migration.sql'), 'utf8')
+const triggerStart = integrityMigration.indexOf('CREATE TRIGGER "exchange_funding_return_line_allocation_integrity_insert"')
+const triggerEnd = integrityMigration.indexOf('END;', triggerStart) + 'END;'.length
+if (triggerStart < 0 || triggerEnd < 'END;'.length)
+  throw new Error('exchange-return-line integrity trigger SQL is missing')
+const integrityTriggerSql = integrityMigration.slice(triggerStart, triggerEnd)
+const insertCorruptReversalForDefenseTest = (row) => {
+  assert.throws(() => seed.insert('ExchangeFundingReturnLineAllocation', row), /integrity check failed/,
+    'SQLite trigger rejects the corrupt row at the database boundary')
+  sql.exec('DROP TRIGGER "exchange_funding_return_line_allocation_integrity_insert"')
+  try {
+    return seed.insert('ExchangeFundingReturnLineAllocation', row)
+  } finally {
+    sql.exec(integrityTriggerSql)
+  }
+}
 const userId = seed.user('return line reversal completeness')
 const categoryId = seed.category('return line reversal completeness')
 const productId = seed.product('return line reversal completeness', categoryId)
@@ -104,7 +121,7 @@ assert.equal(seed.one(`SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocati
 
 const originalAllocation = seed.one(`SELECT * FROM "ExchangeFundingReturnLineAllocation"
   WHERE returnItemId=? AND eventKind='ALLOCATION'`, returnItemIds[0])
-const orphanReversalId = seed.insert('ExchangeFundingReturnLineAllocation', {
+const orphanReversalId = insertCorruptReversalForDefenseTest({
   eventKey: `test-orphan-reversal:${returnItemIds[0]}:source:999999`,
   eventKind: 'REVERSAL', returnId, returnItemId: returnItemIds[0],
   sourceInvoiceId: originalAllocation.sourceInvoiceId, childInvoiceId: childId,
@@ -185,7 +202,7 @@ const foreignReturnId = 999997
 const foreignSourceEventId = 999998
 assert.notEqual(foreignReturnId, crossLinkedReturnId)
 assert.notEqual(foreignSourceEventId, Number(crossLinkedAllocation.id))
-seed.insert('ExchangeFundingReturnLineAllocation', {
+insertCorruptReversalForDefenseTest({
   eventKey: `exchange-return-item:${crossLinkedItemId}:source:${foreignSourceEventId}:reversal:v1`,
   eventKind: 'REVERSAL', returnId: foreignReturnId, returnItemId: crossLinkedItemId,
   sourceInvoiceId: Number(crossLinkedAllocation.sourceInvoiceId), childInvoiceId: childId,
