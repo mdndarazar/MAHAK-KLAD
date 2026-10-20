@@ -491,7 +491,13 @@ const mixedChildReturnBefore = {
   credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
   creditAllocations: seed.one('SELECT COUNT(*) n FROM "CreditReturnAllocation"').n,
   fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n,
-  lineAllocations: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingLineAllocation" WHERE childInvoiceId=?', mixedChildInvoiceId).n
+  entitlements: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlement"').n,
+  entitlementEvents: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n,
+  creditDeliveries: seed.one('SELECT COUNT(*) n FROM "CreditDelivery"').n,
+  lineAllocations: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingLineAllocation" WHERE childInvoiceId=?', mixedChildInvoiceId).n,
+  returnLineAllocations: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation" WHERE childInvoiceId=?', mixedChildInvoiceId).n,
+  stockMovements: seed.one('SELECT COUNT(*) n FROM "StockMovement"').n,
+  replacementStock: seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', mixedReplacementVariant).stock
 }
 const mixedChildPreview = await salesService.returnProvenancePreview({
   invoiceId: mixedChildInvoiceId, lines: [{ saleItemId: mixedChildItemId, qty: 1 }]
@@ -525,9 +531,38 @@ assert.deepEqual({
   credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
   creditAllocations: seed.one('SELECT COUNT(*) n FROM "CreditReturnAllocation"').n,
   fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n,
-  lineAllocations: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingLineAllocation" WHERE childInvoiceId=?', mixedChildInvoiceId).n
+  entitlements: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlement"').n,
+  entitlementEvents: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n,
+  creditDeliveries: seed.one('SELECT COUNT(*) n FROM "CreditDelivery"').n,
+  lineAllocations: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingLineAllocation" WHERE childInvoiceId=?', mixedChildInvoiceId).n,
+  returnLineAllocations: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation" WHERE childInvoiceId=?', mixedChildInvoiceId).n,
+  stockMovements: seed.one('SELECT COUNT(*) n FROM "StockMovement"').n,
+  replacementStock: seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', mixedReplacementVariant).stock
 }, mixedChildReturnBefore,
 'mixed exchange-child return is held before cash, credit, return-row, or ledger side effects')
+await assert.rejects(() => salesService.createReturn({
+  invoiceId: mixedChildInvoiceId, lines: [{ saleItemId: mixedChildItemId, qty: 1 }],
+  refundMethod: 'STORE_CREDIT', refundAmount: 500,
+  printedHolderFirstName: 'Mixed', printedHolderLastName: 'Source', printedHolderPhone: '355690000001',
+  userId, shiftId
+}), /تخصیص منشأ به قلم/,
+'a mixed gift/cash child return must not mint a generic STORE_CREDIT from accounting attribution')
+assert.deepEqual({
+  returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', mixedChildInvoiceId).n,
+  payments: seed.one('SELECT COUNT(*) n FROM "Payment" WHERE invoiceId=?', mixedChildInvoiceId).n,
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
+  creditAllocations: seed.one('SELECT COUNT(*) n FROM "CreditReturnAllocation"').n,
+  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n,
+  entitlements: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlement"').n,
+  entitlementEvents: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n,
+  creditDeliveries: seed.one('SELECT COUNT(*) n FROM "CreditDelivery"').n,
+  lineAllocations: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingLineAllocation" WHERE childInvoiceId=?', mixedChildInvoiceId).n,
+  returnLineAllocations: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation" WHERE childInvoiceId=?', mixedChildInvoiceId).n,
+  stockMovements: seed.one('SELECT COUNT(*) n FROM "StockMovement"').n,
+  replacementStock: seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', mixedReplacementVariant).stock
+}, mixedChildReturnBefore,
+'mixed gift/cash STORE_CREDIT rejection creates no entitlement, credit, payment, stock or ledger effect')
 
 // The accounting writer can persist source attribution for a mixed child line,
 // but this remains descriptive only: gift value never becomes refund money.
