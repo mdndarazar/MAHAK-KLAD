@@ -83,6 +83,42 @@ assert.deepEqual(s1MultipleRoots, {
   ]
 }, 'cumulative floors partition a source kind across multiple immutable roots')
 
+let s1FloorCases = 0
+for (let giftAvailable = 0; giftAvailable <= 6; giftAvailable++) {
+  for (let cashAvailable = 0; cashAvailable <= 6; cashAvailable++) {
+    const totalAvailable = giftAvailable + cashAvailable
+    for (let target = 0; target <= totalAvailable; target++) {
+      const sources = [
+        { sourceEventId: 10, sourceKind: 'SOURCE_GIFT', available: giftAvailable },
+        { sourceEventId: 20, sourceKind: 'SOURCE_CASH', available: cashAvailable }
+      ]
+      const plan = allocateExchangeFundingProportionalFloor({ replacementTotal: target, sources })
+      const expectedGift = totalAvailable === 0 ? 0 : Math.floor(giftAvailable * target / totalAvailable)
+      assert.equal(plan.giftCarry, expectedGift)
+      assert.equal(plan.cashCarry, target - expectedGift)
+      assert.equal(plan.allocations.reduce((sum, row) => sum + row.carry, 0), target)
+      assert.equal(plan.allocations.reduce((sum, row) => sum + row.remainder, 0), totalAvailable - target)
+      assert.ok(plan.allocations.every((row) => row.carry >= 0 && row.remainder >= 0))
+      assert.deepEqual(allocateExchangeFundingProportionalFloor({
+        replacementTotal: target, sources: [...sources].reverse()
+      }), plan, 'input order cannot alter a fixed source-ID allocation')
+      s1FloorCases++
+    }
+  }
+}
+assert.equal(s1FloorCases, 343, 'all bounded gift/cash/target combinations are checked')
+assert.throws(() => allocateExchangeFundingProportionalFloor({
+  replacementTotal: 1,
+  sources: [{ sourceEventId: 1, sourceKind: 'SOURCE_UNKNOWN', available: 1 }]
+}), /proven/i, 'unknown sources cannot enter the S1 gift/cash planner')
+assert.throws(() => allocateExchangeFundingProportionalFloor({
+  replacementTotal: 1,
+  sources: [
+    { sourceEventId: 1, sourceKind: 'SOURCE_GIFT', available: 1 },
+    { sourceEventId: 1, sourceKind: 'SOURCE_CASH', available: 1 }
+  ]
+}), /unique/i, 'a duplicate source event cannot be allocated twice')
+
 const lineFunding = allocateExchangeFundingByLine(
   [
     { saleItemId: 22, amount: 14_000_000 },
@@ -284,4 +320,4 @@ assert.throws(() => allocateExchangeFundingProRata(1, [
   { id: 1, available: 1 }, { id: 1, available: 1 }
 ]), RangeError)
 
-console.log('✓ exchange funding allocation: separate gift-first example, S1 proportional-floor split and multi-root cumulative floors, exact per-item attribution, shortfall/unknown quarantine, invalid-input rejection')
+console.log(`✓ exchange funding allocation: separate gift-first example, S1 floor split, ${s1FloorCases} exhaustive bounded cases, multi-root cumulative floors, exact per-item attribution and invalid-input rejection`)

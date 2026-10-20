@@ -50,11 +50,15 @@ node --import ./test/harness/register.mjs tests/audit-fixes/fix-financial-exchan
 
 بر پایهٔ انتخاب صریح کاربر برای **S1**، مثال قبلی gift-first دست‌نخورده و جدا باقی می‌ماند؛ تابع جدید `allocateExchangeFundingProportionalFloor` عدد هدیه را با floor تجمعی محاسبه می‌کند و مابه‌التفاوت یک‌ریالی را به منبع وجه تخصیص می‌دهد. helper در حد برنامه‌ریزی محض است: lineage یا entitlement تازه نمی‌سازد. Integration آن را روی سهم‌های reader عادی موجود، پس از اثبات root sourceها، اجرا می‌کند؛ reader جدید یا مسیر lineage موازی ایجاد نشده است.
 
-در 2026-10-21 این دو تست اجرا و PASS شدند:
+در 2026-10-21 دو تست S1 و دو regression مرتبط اجرا و PASS شدند:
 
 ```sh
 node --import ./test/harness/register.mjs tests/audit-fixes/fix-financial-exchange-funding-gift-first-allocation.mjs
 node --import ./test/harness/register.mjs tests/audit-fixes/fix-financial-credit-funded-exchange-scenario.mjs
+node --import ./test/harness/register.mjs tests/audit-fixes/fix-financial-exchange-s4-three-line-integration.mjs
+node --import ./test/harness/register.mjs tests/audit-fixes/fix-financial-exchange-funding-sales-integration.mjs
 ```
 
-ثابت‌شده در همین گام: carry هدیه 1,877,346، carry وجه 13,122,654، remainder هدیه/B برابر 122,654، remainder وجه/N برابر 857,346؛ جمع‌ها 15M/980K/15.98M دقیق‌اند، جابه‌جایی ترتیب ورودی نتیجه را عوض نمی‌کند و چند root از هر نوع با cumulative floor partition می‌شوند. Integration هم mixed exchange را همچنان رد می‌کند و ثابت می‌کند این محاسبه هیچ event، redemption، credit، stock یا cash movement ایجاد نکرده است. نتیجه فقط **planner + source-reader evidence** است؛ تعویض مختلط، B/N، مصرف‌های بعدی، expiry/reversal و هر ۱۲ سناریو همچنان باز و گیت settlement بسته می‌ماند. مرحلهٔ بعد باید این split را در transaction واقعی createExchange جا دهد و تست‌های پیش/پس و rollback را قبل از ادامه به‌روز کند.
+ثابت‌شده در همین گام: carry هدیه 1,877,346، carry وجه 13,122,654، remainder هدیه/B برابر 122,654، remainder وجه/N برابر 857,346؛ جمع‌ها 15M/980K/15.98M دقیق‌اند، جابه‌جایی ترتیب ورودی نتیجه را عوض نمی‌کند و چند root از هر نوع با cumulative floor partition می‌شوند. 343 ترکیب کوچکِ gift/cash/target نیز به‌صورت exhaustive برای جمع‌ها، سقف source، عدم منفی‌شدن و ثبات ترتیب ورودی آزموده شد. Integration هم mixed exchange را همچنان رد می‌کند و ثابت می‌کند این محاسبه هیچ event، redemption، credit، stock یا cash movement ایجاد نکرده است. پس از این تغییر، integrationهای S4 سه‌قلمی و funding-sales نیز به‌عنوان regression اجرا و PASS شدند؛ این‌ها فقط حفاظت مسیرهای قبلی‌اند. نتیجه فقط **planner + source-reader evidence** است؛ تعویض مختلط، B/N، مصرف‌های بعدی، expiry/reversal و هر ۱۲ سناریو همچنان باز و گیت settlement بسته می‌ماند.
+
+مرحلهٔ بعد صرفاً «اجازه‌دادن به transfer جزئی» نیست: تا وقتی B/N هرکدام provenance، expiry/مانده، مصرف در فروش و reversal مستقل و اتمیک ندارند، بازکردن diff منفی می‌تواند حق 980K را گم یا دوباره‌شماری کند. پیش از اتصال این split به transaction واقعی createExchange باید قرارداد و storage/eventهای B/N و استفادهٔ آن‌ها به‌طور مشخص پیاده و با rollback، replay و side-effect assertions پوشش داده شوند؛ تا آن موقع گیت mixed exchange باز نمی‌شود.
