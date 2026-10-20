@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import {
   allocateExchangeFundingByLine,
   allocateExchangeFundingGiftFirst,
+  allocateExchangeFundingProportionalFloor,
   allocateExchangeFundingProRata
 } from '../../src/shared/exchangeFundingAllocation.ts'
 import { allocateExchangeFundingLineReturn } from '../../src/shared/exchangeFundingLineReturn.ts'
@@ -28,6 +29,59 @@ assert.equal(
   13_980_000,
   'real-money source is partitioned exactly; the 980,000 remainder is not gift'
 )
+
+// S1 follows the user's accepted FINAL-DESIGN-BASIS split, not the separate
+// gift-first example above: floor the cumulative gift proportion, then cash
+// is the exact balancing amount. B/N remain separate source-kind remainders.
+const s1Floor = allocateExchangeFundingProportionalFloor({
+  replacementTotal: 15_000_000,
+  sources: [
+    { sourceEventId: 101, sourceKind: 'SOURCE_GIFT', available: 2_000_000 },
+    { sourceEventId: 202, sourceKind: 'SOURCE_CASH', available: 13_980_000 }
+  ]
+})
+assert.deepEqual(s1Floor, {
+  giftCarry: 1_877_346,
+  cashCarry: 13_122_654,
+  allocations: [
+    { sourceEventId: 101, sourceKind: 'SOURCE_GIFT', carry: 1_877_346, remainder: 122_654 },
+    { sourceEventId: 202, sourceKind: 'SOURCE_CASH', carry: 13_122_654, remainder: 857_346 }
+  ]
+})
+assert.deepEqual(allocateExchangeFundingProportionalFloor({
+  replacementTotal: 15_000_000,
+  sources: [
+    { sourceEventId: 202, sourceKind: 'SOURCE_CASH', available: 13_980_000 },
+    { sourceEventId: 101, sourceKind: 'SOURCE_GIFT', available: 2_000_000 }
+  ]
+}), s1Floor, 'S1 allocation is independent of source input ordering')
+assert.equal(s1Floor.allocations.reduce((sum, row) => sum + row.carry + row.remainder, 0), 15_980_000)
+assert.equal(s1Floor.allocations.reduce((sum, row) => sum + row.carry, 0), 15_000_000)
+assert.equal(s1Floor.allocations.reduce((sum, row) => sum + row.remainder, 0), 980_000)
+assert.throws(() => allocateExchangeFundingProportionalFloor({
+  replacementTotal: 15_980_001,
+  sources: [
+    { sourceEventId: 101, sourceKind: 'SOURCE_GIFT', available: 2_000_000 },
+    { sourceEventId: 202, sourceKind: 'SOURCE_CASH', available: 13_980_000 }
+  ]
+}), /proven/i, 'unfunded replacement value cannot be classified as gift or cash')
+const s1MultipleRoots = allocateExchangeFundingProportionalFloor({
+  replacementTotal: 7,
+  sources: [
+    { sourceEventId: 1, sourceKind: 'SOURCE_GIFT', available: 1 },
+    { sourceEventId: 2, sourceKind: 'SOURCE_GIFT', available: 2 },
+    { sourceEventId: 3, sourceKind: 'SOURCE_CASH', available: 7 }
+  ]
+})
+assert.deepEqual(s1MultipleRoots, {
+  giftCarry: 2,
+  cashCarry: 5,
+  allocations: [
+    { sourceEventId: 1, sourceKind: 'SOURCE_GIFT', carry: 0, remainder: 1 },
+    { sourceEventId: 2, sourceKind: 'SOURCE_GIFT', carry: 2, remainder: 0 },
+    { sourceEventId: 3, sourceKind: 'SOURCE_CASH', carry: 5, remainder: 2 }
+  ]
+}, 'cumulative floors partition a source kind across multiple immutable roots')
 
 const lineFunding = allocateExchangeFundingByLine(
   [
@@ -230,4 +284,4 @@ assert.throws(() => allocateExchangeFundingProRata(1, [
   { id: 1, available: 1 }, { id: 1, available: 1 }
 ]), RangeError)
 
-console.log('✓ exchange funding allocation: gift-first carry, exact per-item gift/cash attribution, deterministic rial rounding, shortfall/unknown quarantine, invalid-input rejection')
+console.log('✓ exchange funding allocation: separate gift-first example, S1 proportional-floor split and multi-root cumulative floors, exact per-item attribution, shortfall/unknown quarantine, invalid-input rejection')

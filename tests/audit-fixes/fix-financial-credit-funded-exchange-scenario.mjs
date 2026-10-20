@@ -16,7 +16,8 @@ process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
-const { getCurrentExchangeFundingSources } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
+const { getCurrentExchangeFundingSources, getCurrentSaleFundingSources } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
+const { allocateExchangeFundingProportionalFloor } = await import('../../src/shared/exchangeFundingAllocation.ts')
 const { issueStoreCredit, findRedeemable } = await import('../../src/main/services/StoreCreditService.ts')
 const { toJalaliDate } = await import('@shared/jalali')
 const { DEFAULT_MANAGER_PASSWORD } = await import('@shared/receipt')
@@ -65,7 +66,7 @@ assert.equal(redeemed.amount, 2_000_000)
 assert.equal(redeemed.reversedAt, null)
 assert.equal(redeemed.compensatedAt, null)
 assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', gift.id).status, 'USED')
-const originalFunding = seed.rows(`SELECT kind, amount, shareId, rootShareId, sourceCreditId
+const originalFunding = seed.rows(`SELECT id, kind, amount, shareId, rootShareId, sourceCreditId
   FROM "ExchangeFundingEvent" WHERE sourceInvoiceId=? AND eventKey LIKE ? ORDER BY id`,
   original.id, `sale:${original.id}:r1:%`).filter((row) => row.kind.startsWith('SOURCE_'))
 assert.deepEqual(originalFunding.map(({ kind, amount, sourceCreditId }) => ({ kind, amount, sourceCreditId }))
@@ -75,6 +76,22 @@ assert.deepEqual(originalFunding.map(({ kind, amount, sourceCreditId }) => ({ ki
 ], 'the actual create transaction keeps the 2m gift separate from 13.98m real cash')
 assert.equal(originalFunding.find((row) => row.kind === 'SOURCE_GIFT')?.rootShareId, `credit:${gift.id}`)
 assert.equal(originalFunding.reduce((sum, row) => sum + Number(row.amount), 0), original.grandTotal)
+const provenSaleFunding = await getCurrentSaleFundingSources(db, original.id)
+assert.equal(provenSaleFunding.unresolved.length, 0, 'the existing ordinary-sale reader proves all S1 source rows')
+const s1Allocation = allocateExchangeFundingProportionalFloor({
+  replacementTotal: 15_000_000,
+  sources: provenSaleFunding.sources.map((source) => ({
+    sourceEventId: Number(source.event.id),
+    sourceKind: source.sourceKind,
+    available: source.available
+  }))
+})
+assert.deepEqual(s1Allocation.allocations.map(({ sourceKind, carry, remainder }) => ({ sourceKind, carry, remainder })), [
+  { sourceKind: 'SOURCE_GIFT', carry: 1_877_346, remainder: 122_654 },
+  { sourceKind: 'SOURCE_CASH', carry: 13_122_654, remainder: 857_346 }
+], 'the FINAL-DESIGN S1 values are derived from the existing proven root-source reader')
+assert.equal(s1Allocation.giftCarry + s1Allocation.cashCarry, 15_000_000)
+assert.equal(s1Allocation.allocations.reduce((sum, row) => sum + row.remainder, 0), 980_000)
 const stockBefore = seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?) ORDER BY id', source, replacement)
 const attemptedExchange = (invoiceId, saleItemId) => salesService.createExchange({
   invoiceId, lines: [{ saleItemId, qty: 1 }], replacements: [{ variantId: replacement, qty: 1 }],
