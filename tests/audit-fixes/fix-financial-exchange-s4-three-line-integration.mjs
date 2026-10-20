@@ -174,4 +174,41 @@ assert.deepEqual({
   stockMovements: seed.count('StockMovement', '1=1')
 }, beforeChildReturn, 'child return is attributable but still cannot settle cash/credit or change stock/ledger')
 
-console.log('✓ S4 integration: zero-diff 5M gift + 20M cash transfer persists exact 3-line matrix; later child return is attribution-only and side-effect-free')
+// S12/S4 reversal probe: void the untouched exchange pair and verify both source
+// balances and stock return exactly, while the original gift redemption stays USED.
+const sourceFundingBeforeVoid = await getCurrentSaleFundingSources(db, sourceSale.id)
+assert.deepEqual(sourceFundingBeforeVoid.activeReturnIds, [exchange.returnId])
+assert.equal(sourceFundingBeforeVoid.sources.reduce((sum, row) => sum + row.available, 0), 0)
+const sourceAndReplacementStockBeforeVoid = seed.rows(
+  'SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?, ?, ?, ?, ?) ORDER BY id',
+  ...sourceVariants, ...replacementVariants
+)
+const cashMovementsBeforeVoid = seed.count('CashMovement', '1=1')
+const voidedExchange = await salesService.returnDelete({
+  id: exchange.returnId, userId, reason: 'S4 mixed transfer reversal integration',
+  managerPassword: DEFAULT_MANAGER_PASSWORD, overrideReason: 'S4 mixed transfer reversal integration'
+})
+assert.equal(voidedExchange.exchangeVoided, true)
+assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', gift.id).status, 'USED',
+  'voiding the exchange restores the original sale, not a second spendable gift balance')
+assert.equal(seed.count(`ExchangeFundingEvent`, 'returnId=? AND kind IN (?, ?)', exchange.returnId,
+  'VOID_TRANSFER_OUT', 'VOID_TRANSFER_IN'), 4, 'both mixed-source transfer pairs are reversed append-only')
+const sourceFundingAfterVoid = await getCurrentSaleFundingSources(db, sourceSale.id)
+assert.deepEqual(sourceFundingAfterVoid.activeReturnIds, [])
+assert.deepEqual(sourceFundingAfterVoid.sources.map(({ sourceKind, available }) => ({ sourceKind, available })), [
+  { sourceKind: 'SOURCE_CASH', available: 20_000_000 },
+  { sourceKind: 'SOURCE_GIFT', available: 5_000_000 }
+])
+assert.deepEqual(seed.rows(
+  'SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?, ?, ?, ?, ?) ORDER BY id',
+  ...sourceVariants, ...replacementVariants
+), sourceAndReplacementStockBeforeVoid.map((row, index) => ({
+  ...row,
+  stock: Number(row.stock) + (index < sourceVariants.length ? 0 : 1)
+})), 'void preserves the unreceived source return and reverses the replacement sale exactly once')
+assert.equal(seed.count('CashMovement', '1=1'), cashMovementsBeforeVoid,
+  'zero-difference exchange reversal moves no cash')
+assert.equal(seed.one('SELECT voidedAt IS NOT NULL AS voided FROM "SaleInvoice" WHERE id=?', exchange.exchangeInvoiceId).voided, 1)
+assert.equal(seed.one('SELECT voidedAt IS NOT NULL AS voided FROM "SaleReturn" WHERE id=?', exchange.returnId).voided, 1)
+
+console.log('✓ S4 integration: exact zero-diff mixed-source carry, persisted 3-line matrix, child return stays attribution-only, and exchange void reverses both pairs without reactivating the gift')

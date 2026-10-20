@@ -1636,3 +1636,8 @@ S142-6 — سؤال: گیت نبودن رمز مدیر روی issueManual/bulkIs
 - تصمیم اجرایی محدود: فقط `createExchange` با diff=0، بازگشت کامل اقلام فاکتور مبدأ، snapshot تازه و بدون unresolved/debt/overpay، تمام سهم‌های مثبت و قابل‌انتقال که جمعشان دقیقاً با مبلغ برگشت و تعویض برابر است، و تطبیق یک‌به‌یک redemptionهای فعال با SOURCE_GIFT مجاز است. transferها جفتی و ماتریس قلمی در همان transaction ثبت می‌شوند.
 - `runReturn` فقط در مسیر داخلی createExchange گیت شواهد را تا preflight همان transaction عقب می‌اندازد؛ در تعویض، redemption هدیهٔ مبدأ USED می‌ماند تا ارزشش دوباره spendable نشود. اثبات از reader موجود و `provenSourceRootEvent` reuse می‌شود؛ lineage جدید یا ادعای کانال ساخته نمی‌شود.
 - حد گیت: delta مختلط، snapshot کهنه/ناقص، مبدأ/lineage نامعتبر، redemption نامنطبق، debt/overpay، برگشت ناقص/قدیمی، و settlement/entitlement برگشت فرزند همچنان fail-closed/بسته‌اند. این زیرمسیر S2/S4 را نمی‌پذیرد؛ همهٔ ۱۲ سناریو هنوز NOT ACCEPTED هستند.
+
+### S190-D7 — ابطال pair مختلط پیش از مصرف downstream و شاهد کالا
+- شاهد integration تعویض واقعی S4 را void می‌کند، هر دو pair انتقال را معکوس و منابع مبدأ را دقیقاً بازیابی می‌کند؛ redemption هدیه USED می‌ماند چون فروش اصلی پس از ابطال دوباره برقرار است.
+- طبق `goodsReceiptRequired`، کالای برگشتی source هنوز دریافت فیزیکی نشده؛ ابطال سند برگشت نیز حق افزایش stock ندارد. فقط replacement sale معکوس می‌شود و موجودی جایگزین یک‌بار برمی‌گردد. Void cash movement نمی‌سازد.
+- محدودهٔ اثبات محدود به pair استفاده‌نشده است؛ downstream redemption/consumption/payout و idempotent retry کل exchange هنوز پوشش تجاری کامل ندارد.
