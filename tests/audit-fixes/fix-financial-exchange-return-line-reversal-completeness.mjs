@@ -164,4 +164,52 @@ assert.equal(seed.one(`SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocati
   WHERE returnId=? AND eventKind='REVERSAL'`, scopedReturnId).n, 0,
 'a source-scope mismatch must not append any reversals')
 
-console.log('✓ exchange-child return allocation reversal requires every return item, rejects orphan or out-of-scope ledger rows, and replays exactly')
+const crossLinkedReturnId = seed.insert('SaleReturn', {
+  invoiceId: childId, isFull: false, total: 1000, returnedAt: now,
+  returnedAtJalali: toJalaliDate(now), returnedAtTime: now.toTimeString().slice(0, 8),
+  kind: 'RETURN', userId, shiftId, refundMethod: 'NONE', refundAmount: 0
+})
+const crossLinkedItemId = seed.insert('SaleReturnItem', {
+  returnId: crossLinkedReturnId, saleItemId: Number(childItems[1].id),
+  variantId: Number(childItems[1].variantId), qty: 1, unitPrice: 1000,
+  lineTotal: 1000, restockedQty: 0
+})
+await db.$transaction((tx) => recordExchangeFundingReturnLineAllocation(tx, {
+  returnId: crossLinkedReturnId, returnItemId: crossLinkedItemId
+}))
+const crossLinkedAllocation = seed.one(`SELECT * FROM "ExchangeFundingReturnLineAllocation"
+  WHERE returnItemId=? AND eventKind='ALLOCATION'`, crossLinkedItemId)
+assert.ok(crossLinkedAllocation)
+const foreignReturnId = 999997
+const foreignSourceEventId = 999998
+assert.notEqual(foreignReturnId, crossLinkedReturnId)
+assert.notEqual(foreignSourceEventId, Number(crossLinkedAllocation.id))
+seed.insert('ExchangeFundingReturnLineAllocation', {
+  eventKey: `exchange-return-item:${crossLinkedItemId}:source:${foreignSourceEventId}:reversal:v1`,
+  eventKind: 'REVERSAL', returnId: foreignReturnId, returnItemId: crossLinkedItemId,
+  sourceInvoiceId: Number(crossLinkedAllocation.sourceInvoiceId), childInvoiceId: childId,
+  saleItemId: Number(crossLinkedAllocation.saleItemId), sourceEventId: foreignSourceEventId,
+  sourceKind: String(crossLinkedAllocation.sourceKind),
+  saleItemQty: Number(crossLinkedAllocation.saleItemQty),
+  saleItemValue: Number(crossLinkedAllocation.saleItemValue),
+  sourceItemAmount: Number(crossLinkedAllocation.sourceItemAmount),
+  returnedQtyBefore: Number(crossLinkedAllocation.returnedQtyBefore),
+  returningQty: Number(crossLinkedAllocation.returningQty),
+  returnedQtyAfter: Number(crossLinkedAllocation.returnedQtyAfter),
+  priorReturnValue: Number(crossLinkedAllocation.priorReturnValue),
+  returnValue: Number(crossLinkedAllocation.returnValue),
+  cumulativeReturnValue: Number(crossLinkedAllocation.cumulativeReturnValue),
+  priorAmount: Number(crossLinkedAllocation.cumulativeAmount),
+  amountDelta: -Number(crossLinkedAllocation.amountDelta),
+  cumulativeAmount: Number(crossLinkedAllocation.priorAmount),
+  allocationVersion: 1, reversesAllocationId: foreignSourceEventId
+})
+await assert.rejects(() => db.$transaction((tx) =>
+  reverseExchangeFundingReturnLineAllocationsForReturn(tx, { returnId: crossLinkedReturnId })),
+/orphan|scope|reversal|تخصیص|پیوند/iu,
+'a reversal row linked to this return item cannot be hidden under another return id')
+assert.equal(seed.one(`SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation"
+  WHERE returnId=? AND eventKind='REVERSAL'`, crossLinkedReturnId).n, 0,
+'a cross-return orphan must not cause a partial or duplicate reversal')
+
+console.log('✓ exchange-child return allocation reversal requires every return item, rejects orphan and cross-scope rows, and replays exactly')

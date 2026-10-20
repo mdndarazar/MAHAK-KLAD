@@ -1154,6 +1154,15 @@ export async function reverseExchangeFundingReturnLineAllocationsForReturn(tx: L
   const items = await tx.saleReturnItem.findMany({ where: { id: { in: returnItemIds } } }) as any[]
   if (items.length !== returnItemIds.length || items.some((item) => Number(item.returnId) !== input.returnId))
     throw new BusinessError('پیوند ردیف‌های دفتر با قلم فیزیکی برگشت ناسازگار است؛ reversal ثبت نشد.')
+  const returnItemLedgerRows = await tx.exchangeFundingReturnLineAllocation.findMany({
+    where: { returnItemId: { in: returnItemIds } },
+    orderBy: [{ returnItemId: 'asc' }, { sourceEventId: 'asc' }, { id: 'asc' }]
+  }) as any[]
+  const returnLedgerRowIds = new Set(ledgerRows.map((row) => Number(row.id)))
+  if (returnItemLedgerRows.length !== ledgerRows.length ||
+      returnItemLedgerRows.some((row) => Number(row.returnId) !== input.returnId ||
+        !returnLedgerRowIds.has(Number(row.id))))
+    throw new BusinessError('ردیف دفتر برگشت زیر شناسهٔ برگشت یا قلم دیگری پنهان شده است؛ reversal ثبت نشد.')
   const saleItemIds = [...new Set(items.map((item) => Number(item.saleItemId)))]
   const laterActive = await tx.saleReturnItem.findMany({
     where: {
