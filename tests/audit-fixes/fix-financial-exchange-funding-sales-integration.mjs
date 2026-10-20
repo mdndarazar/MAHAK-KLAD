@@ -536,6 +536,25 @@ assert.deepEqual(mixedAfterOneActiveReturnPreview.remainingAttributionBySource.m
 ])
 assert.equal(mixedAfterOneActiveReturnPreview.settlementReady, false)
 assert.equal(mixedAfterOneActiveReturnPreview.cashRight, 0)
+const mixedPreviewEffectsBeforeStoreCredit = {
+  returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', mixedChildInvoiceId).n,
+  payments: seed.one('SELECT COUNT(*) n FROM "Payment" WHERE invoiceId=?', mixedChildInvoiceId).n,
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n
+}
+sql.prepare('UPDATE "SaleReturn" SET refundMethod=? WHERE id=?').run('STORE_CREDIT', mixedChildReturn1)
+await assert.rejects(() => salesService.returnProvenancePreview({
+  invoiceId: mixedChildInvoiceId, lines: [{ saleItemId: mixedChildItemId, qty: 1 }]
+}), /تخصیص منشأ به قلم/,
+'an active STORE_CREDIT child return has uncertain entitlement and cannot yield a normal preview')
+assert.deepEqual({
+  returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', mixedChildInvoiceId).n,
+  payments: seed.one('SELECT COUNT(*) n FROM "Payment" WHERE invoiceId=?', mixedChildInvoiceId).n,
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n
+}, mixedPreviewEffectsBeforeStoreCredit,
+'a rejected STORE_CREDIT provenance preview remains read-only')
+sql.prepare('UPDATE "SaleReturn" SET refundMethod=? WHERE id=?').run('NONE', mixedChildReturn1)
 const mixedChildReturn2 = makeMixedChildReturn()
 const mixedChildReturnItem2 = seed.insert('SaleReturnItem', {
   returnId: mixedChildReturn2, saleItemId: mixedChildItemId, variantId: mixedReplacementVariant,
