@@ -18,7 +18,7 @@ const names = readdirSync(join(root, 'prisma/migrations'))
   .filter((name) => name !== 'migration_lock.toml').sort()
 const historicNames = names.filter((name) => name < cutover)
 const newNames = names.filter((name) => name >= cutover)
-assert.equal(newNames.length, 22, 'update this test when the financial cutover gains another migration')
+assert.equal(newNames.length, 23, 'update this test when the financial cutover gains another migration')
 const dir = mkdtempSync(join(tmpdir(), 'mahak-real-migration-upgrade-'))
 process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'unused-harness.db')
@@ -339,6 +339,16 @@ const returnLineParams = (row) => [row.eventKey, row.eventKind, row.returnId, ro
   row.cumulativeReturnValue, row.priorAmount, row.amountDelta, row.cumulativeAmount,
   row.allocationVersion, row.reversesAllocationId]
 insertReturnLineRow.run(...returnLineParams(returnLineAllocation))
+assert.throws(() => db.prepare('UPDATE "SaleReturnItem" SET lineTotal=lineTotal+1 WHERE id=?')
+  .run(childReturnItemId), /snapshot is immutable/,
+'allocated child-return value snapshots cannot be changed below the immutable journal')
+assert.throws(() => db.prepare('UPDATE "SaleReturnItem" SET qty=qty+1 WHERE id=?')
+  .run(childReturnItemId), /snapshot is immutable/,
+'allocated child-return quantity snapshots cannot be changed below the immutable journal')
+assert.throws(() => db.prepare('UPDATE "SaleReturn" SET kind=? WHERE id=?')
+  .run('EXCHANGE', childReturnId), /kind is immutable/,
+'an allocated physical return cannot be reclassified out of RETURN scope')
+db.prepare('UPDATE "SaleReturnItem" SET restockedQty=restockedQty WHERE id=?').run(childReturnItemId)
 const returnLineAllocationId = one(`SELECT id FROM "ExchangeFundingReturnLineAllocation"
   WHERE eventKey=?`, returnLineAllocation.eventKey).id
 assert.throws(() => insertReturnLineRow.run(...returnLineParams({
