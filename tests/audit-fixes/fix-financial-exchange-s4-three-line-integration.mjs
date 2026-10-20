@@ -182,6 +182,33 @@ for (const incoming of transferRows.filter(({ kind }) => kind === 'TRANSFER_IN')
     Number(outgoing.amount) === -Number(incoming.amount)), 'every gift/cash transfer-in has its exact paired transfer-out')
 }
 
+// Reconcile the actual exchange row with the report and the persisted funding
+// journal. Carried ExchangeCredit is not a new cash/card receipt.
+const reportBefore = await salesService.exchangeList({ returnId: exchange.returnId, take: 1 })
+assert.equal(reportBefore.rows.length, 1)
+const reportRow = reportBefore.rows[0]
+assert.equal(reportRow.returnTotal, 25_000_000)
+assert.equal(reportRow.exchangeTotal, 25_000_000)
+assert.equal(reportRow.diff, 0)
+assert.equal(reportRow.returnedItems.reduce((sum, row) => sum + row.lineTotal, 0), 25_000_000)
+assert.equal(reportRow.replacementItems.reduce((sum, row) => sum + row.lineTotal, 0), 25_000_000)
+assert.equal(reportRow.cashReceived, 0, 'the child ExchangeCredit is not reported as cash received')
+assert.equal(reportRow.cardReceived, 0, 'carried source funding is not reported as a new card receipt')
+assert.equal(reportBefore.totals.returnTotal, 25_000_000)
+assert.equal(reportBefore.totals.exchangeTotal, 25_000_000)
+assert.equal(reportBefore.totals.diffTotal, 0)
+assert.equal(reportBefore.totals.cashReceivedTotal, 0)
+assert.equal(reportBefore.totals.cardReceivedTotal, 0)
+assert.equal(childView.sources.reduce((sum, source) => sum + source.available, 0), reportRow.exchangeTotal,
+  'the report replacement amount reconciles to proven child funding, without claiming a new tender')
+const reportDetail = await salesService.exchangeGet({ id: exchange.returnId })
+assert.deepEqual({ returnTotal: reportDetail.returnTotal, exchangeTotal: reportDetail.exchangeTotal,
+  diff: reportDetail.diff, cashReceived: reportDetail.cashReceived, cardReceived: reportDetail.cardReceived },
+{ returnTotal: reportRow.returnTotal, exchangeTotal: reportRow.exchangeTotal,
+  diff: reportRow.diff, cashReceived: reportRow.cashReceived, cardReceived: reportRow.cardReceived })
+assert.equal(seed.count('CashMovement', '1=1'), afterFirstExchange.cashMovements,
+  'reading exchange report/detail is side-effect free')
+
 const thirdChildItemId = childItems[2].id
 const preview = await salesService.returnProvenancePreview({
   invoiceId: exchange.exchangeInvoiceId,
