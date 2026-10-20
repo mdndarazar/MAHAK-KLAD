@@ -2908,3 +2908,38 @@ model BankStatementEvidence {
 
   @@index([sha256])
 }
+
+/// Append-only ledger for the B/N surplus produced by an exchange. The OPENED
+/// event freezes source/root lineage and B expiry; subsequent reservation and
+/// consumption events never edit or reuse that evidence. This is a liability
+/// ledger only, not a StoreCredit code, bank payout, or permission to settle.
+model ExchangeResidualRightEvent {
+  id               Int      @id @default(autoincrement())
+  eventKey         String   @unique
+  rightKey         String
+  rightKind        String   // B | N
+  eventKind        String   // OPENED | RESERVED | COMMITTED | CANCELLED | RESTORED | VOIDED
+  amount           BigInt
+  availableDelta   BigInt
+  reservedDelta    BigInt
+  spentDelta       BigInt
+  sourceInvoiceId  Int
+  childInvoiceId   Int
+  returnId         Int
+  sourceEventId    Int
+  rootShareId      String
+  expiresAt        DateTime?
+  operationKey     String?
+  relatedInvoiceId Int?
+  relatedPaymentId Int?
+  actorUserId      Int?
+  evidenceKind     String   @default("SYSTEM")
+  evidenceRef      String?
+  reversesEventId  Int?     @unique
+  createdAt        DateTime @default(now())
+
+  @@index([rightKey, id])
+  @@index([returnId, id])
+  @@index([sourceEventId, id])
+  @@index([sourceInvoiceId, childInvoiceId, id])
+}
