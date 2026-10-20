@@ -161,8 +161,10 @@ export async function correctPendingEntitlement(
   tx: Client,
   input: { returnId: number; requestId: number; newRight: number; reason: string; actorUserId?: number | null }
 ): Promise<boolean> {
-  const claim = await tx.returnEntitlement.findUnique({ where: { returnId: safeId(input.returnId, 'شناسه برگشت') } })
+  const returnId = safeId(input.returnId, 'شناسه برگشت')
+  const claim = await tx.returnEntitlement.findUnique({ where: { returnId } })
   if (!claim) return false
+  await assertOrdinaryEntitlementReturn(tx, returnId, Number(claim.invoiceId))
   const right = secureInt(input.newRight, 'حق اصلاح‌شده')
   if (claim.requestId !== input.requestId || claim.state !== 'OPEN' ||
       toNumberRial(claim.cashPaid) !== 0 || toNumberRial(claim.cashConverted) !== 0 ||

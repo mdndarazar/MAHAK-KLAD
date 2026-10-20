@@ -21,7 +21,7 @@ const { periodLockService } = await import('../../src/main/services/PeriodLockSe
 const { shiftService } = await import('../../src/main/services/ShiftService.ts')
 const { recordExchangeFundingReturnLineAllocation } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
 const { openCardTransferEntitlement, convertCashRight, confirmCreditDelivery,
-  reconcileBankDocument } = await import('../../src/main/services/ReturnEntitlementService.ts')
+  reconcileBankDocument, correctPendingEntitlement } = await import('../../src/main/services/ReturnEntitlementService.ts')
 const { planCreditReturn, applyCreditReturn } = await import('../../src/main/services/CreditReturnService.ts')
 const { remainingOf } = await import('../../src/shared/settlement.ts')
 const { toJalaliDate } = await import('@shared/jalali')
@@ -251,6 +251,28 @@ assert.deepEqual({
   evidence: seed.one('SELECT COUNT(*) n FROM "BankStatementEvidence" WHERE requestId=?', bankRequestId).n,
   events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
 }, bankReconciliationEffectsBefore, 'rejected child bank review creates no payout evidence or paid amount')
+const pendingChildClaimId = seed.insert('ReturnEntitlement', {
+  returnId: returnIds[2], invoiceId: child.id, requestId: 818181,
+  cashRight: 100, cashReserved: 100, cashPaid: 0, cashConverted: 0,
+  giftOpportunity: 0, debtReduced: 0, state: 'OPEN', version: 0
+})
+const pendingChildCorrectionBefore = {
+  cashRight: seed.one('SELECT cashRight FROM "ReturnEntitlement" WHERE id=?', pendingChildClaimId).cashRight,
+  cashReserved: seed.one('SELECT cashReserved FROM "ReturnEntitlement" WHERE id=?', pendingChildClaimId).cashReserved,
+  version: seed.one('SELECT version FROM "ReturnEntitlement" WHERE id=?', pendingChildClaimId).version,
+  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
+}
+await assert.rejects(() => correctPendingEntitlement(db, {
+  returnId: returnIds[2], requestId: 818181, newRight: 500,
+  reason: 'attempt to enlarge imported child cash right', actorUserId: userId
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'a pending-right correction must not enlarge a legacy child claim')
+assert.deepEqual({
+  cashRight: seed.one('SELECT cashRight FROM "ReturnEntitlement" WHERE id=?', pendingChildClaimId).cashRight,
+  cashReserved: seed.one('SELECT cashReserved FROM "ReturnEntitlement" WHERE id=?', pendingChildClaimId).cashReserved,
+  version: seed.one('SELECT version FROM "ReturnEntitlement" WHERE id=?', pendingChildClaimId).version,
+  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
+}, pendingChildCorrectionBefore, 'blocked child right correction changes neither projection nor journal')
 const conversionEffectsBefore = {
   credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
   events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n,
