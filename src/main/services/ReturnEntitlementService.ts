@@ -31,14 +31,17 @@ const safeView = (row: any) => ({
   version: Number(row.version)
 })
 
-async function assertOrdinaryEntitlementReturn(tx: Client, returnId: number, invoiceId: number) {
-  const ret = await tx.saleReturn.findUnique({ where: { id: returnId }, select: {
+export async function assertOrdinaryReturnLineage(tx: Client, returnId: number, invoiceId?: number) {
+  const checkedReturnId = safeId(returnId, 'شناسه برگشت')
+  const checkedInvoiceId = invoiceId == null ? null : safeId(invoiceId, 'شناسه فاکتور')
+  const ret = await tx.saleReturn.findUnique({ where: { id: checkedReturnId }, select: {
     id: true, invoiceId: true, voidedAt: true,
     invoice: { select: { orderType: true, sourceInvoiceId: true, exchangeReturnId: true } }
   } })
-  if (!ret || ret.invoiceId !== invoiceId || ret.invoice?.orderType === 'EXCHANGE' ||
-      ret.invoice?.sourceInvoiceId != null || ret.invoice?.exchangeReturnId != null)
-    throw new BusinessError('حق مالی برگشت فرزند تعویض تا تکمیل جریان مستقل قابل تبدیل یا تسویه نیست.')
+  if (!ret || (checkedInvoiceId != null && ret.invoiceId !== checkedInvoiceId) ||
+      ret.invoice?.orderType === 'EXCHANGE' || ret.invoice?.sourceInvoiceId != null ||
+      ret.invoice?.exchangeReturnId != null)
+    throw new BusinessError('برگشت فرزند تعویض تا تکمیل lineage و جریان مستقل قابل ثبت یا تغییر نیست.')
   return ret
 }
 
@@ -106,7 +109,7 @@ export async function markBankDeclaration(
   const requestId = safeId(input.requestId, 'شناسه درخواست')
   const claim = await tx.returnEntitlement.findUnique({ where: { requestId } })
   if (!claim) return null // explicitly legacy, no fabricated entitlement
-  await assertOrdinaryEntitlementReturn(tx, Number(claim.returnId), Number(claim.invoiceId))
+  await assertOrdinaryReturnLineage(tx, Number(claim.returnId), Number(claim.invoiceId))
   const amount = secureInt(input.declaredAmount, 'مبلغ اعلامی')
   if (claim.state === 'UNKNOWN_BANK') {
     const previous = await tx.returnEntitlementEvent.findUnique({ where: { eventKey: `declared:${requestId}` } })
@@ -140,7 +143,7 @@ export async function markBankCancellationUnknown(
   const requestId = safeId(input.requestId, 'شناسه درخواست')
   const claim = await tx.returnEntitlement.findUnique({ where: { requestId } })
   if (!claim) return false
-  await assertOrdinaryEntitlementReturn(tx, Number(claim.returnId), Number(claim.invoiceId))
+  await assertOrdinaryReturnLineage(tx, Number(claim.returnId), Number(claim.invoiceId))
   if (claim.state !== 'OPEN') throw stale()
   const changed = await tx.returnEntitlement.updateMany({
     where: { id: claim.id, version: claim.version, state: 'OPEN' },
@@ -166,7 +169,7 @@ export async function correctPendingEntitlement(
   const returnId = safeId(input.returnId, 'شناسه برگشت')
   const claim = await tx.returnEntitlement.findUnique({ where: { returnId } })
   if (!claim) return false
-  await assertOrdinaryEntitlementReturn(tx, returnId, Number(claim.invoiceId))
+  await assertOrdinaryReturnLineage(tx, returnId, Number(claim.invoiceId))
   const right = secureInt(input.newRight, 'حق اصلاح‌شده')
   if (claim.requestId !== input.requestId || claim.state !== 'OPEN' ||
       toNumberRial(claim.cashPaid) !== 0 || toNumberRial(claim.cashConverted) !== 0 ||
@@ -195,8 +198,10 @@ export async function quarantineEntitlement(
   tx: Client,
   input: { returnId: number; reason: string; actorUserId?: number | null }
 ): Promise<boolean> {
-  const claim = await tx.returnEntitlement.findUnique({ where: { returnId: input.returnId } })
+  const returnId = safeId(input.returnId, 'شناسه برگشت')
+  const claim = await tx.returnEntitlement.findUnique({ where: { returnId } })
   if (!claim) return false
+  await assertOrdinaryReturnLineage(tx, returnId, Number(claim.invoiceId))
   if (claim.state === 'QUARANTINED') return true
   const changed = await tx.returnEntitlement.updateMany({
     where: { id: claim.id, version: claim.version, state: claim.state },
@@ -249,7 +254,7 @@ export async function reconcileBankDocument(input: {
   return prisma.$transaction(async (tx) => {
     const claim = await tx.returnEntitlement.findUnique({ where: { requestId } })
     if (!claim) throw new BusinessError('این درخواست فاقد حق مالیِ قابل‌تبدیل است؛ پروندهٔ قدیمی به رسیدگی مدیر نیاز دارد.')
-    await assertOrdinaryEntitlementReturn(tx, Number(claim.returnId), Number(claim.invoiceId))
+    await assertOrdinaryReturnLineage(tx, Number(claim.returnId), Number(claim.invoiceId))
     const existing = await tx.bankStatementEvidence.findUnique({ where: { requestId } })
     if (existing) {
       if (existing.sha256 !== digest || toNumberRial(existing.confirmedAmount) !== amount) throw stale()
@@ -320,7 +325,7 @@ export async function convertCashRight(input: {
       if (toNumberRial(previous.amount) !== amount || !previous.creditId) throw stale()
       const priorClaim = await tx.returnEntitlement.findUnique({ where: { id: previous.entitlementId } })
       if (!priorClaim) throw stale()
-      await assertOrdinaryEntitlementReturn(tx, returnId, Number(priorClaim.invoiceId))
+      await assertOrdinaryReturnLineage(tx, returnId, Number(priorClaim.invoiceId))
       const delivery = await tx.creditDelivery.findUnique({ where: { creditId: previous.creditId } })
       return { creditId: previous.creditId, publicReference: `اعتبار #${previous.creditId}`,
         deliveryStatus: delivery?.status ?? 'PENDING_DELIVERY', replayed: true }
@@ -328,7 +333,7 @@ export async function convertCashRight(input: {
     const claim = await tx.returnEntitlement.findUnique({ where: { returnId } })
     if (!claim || claim.state !== 'OPEN' || claim.version !== version)
       throw new BusinessError('حق مالی هنوز باز/تطبیق‌شده نیست یا نسخهٔ آن تغییر کرده است؛ تبدیل انجام نشد.')
-    const ret = await assertOrdinaryEntitlementReturn(tx, returnId, Number(claim.invoiceId))
+    const ret = await assertOrdinaryReturnLineage(tx, returnId, Number(claim.invoiceId))
     const balance = cashClaimBalance(claim)
     if (balance.overAllocated || amount > balance.open)
       throw new BusinessError('مبلغ مورد درخواست از حق نقدی باز بیشتر است؛ کدی صادر نشد. پرداخت و رزرو بانک را بررسی کنید.')
@@ -395,11 +400,11 @@ export async function confirmCreditDelivery(input: {
       const claim = event ? await tx.returnEntitlement.findUnique({ where: { id: event.entitlementId } }) : null
       if (!claim || claim.state !== 'OPEN' || claim.cashConverted < credit.amount)
         throw new BusinessError('حق نقدی منشأ این اعتبار در وضعیت امن نیست؛ تحویل/فعال‌سازی تا تطبیق مدیر متوقف است.')
-      await assertOrdinaryEntitlementReturn(tx, Number(claim.returnId), Number(claim.invoiceId))
+      await assertOrdinaryReturnLineage(tx, Number(claim.returnId), Number(claim.invoiceId))
     } else if (delivery.sourceKind === 'CREDIT_RETURN_OPPORTUNITY') {
       const branch = await tx.creditReturnAllocation.findUnique({ where: { successorCreditId: creditId } })
       const ret = branch
-        ? await assertOrdinaryEntitlementReturn(tx, Number(branch.returnId), Number(branch.invoiceId))
+        ? await assertOrdinaryReturnLineage(tx, Number(branch.returnId), Number(branch.invoiceId))
         : null
       if (!branch || !ret || ret.voidedAt != null || ret.invoiceId !== branch.invoiceId ||
           toNumberRial(branch.amount) + toNumberRial(branch.supplementUnspent) !== toNumberRial(credit.amount) ||

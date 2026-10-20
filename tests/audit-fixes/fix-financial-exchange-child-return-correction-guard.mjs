@@ -17,12 +17,13 @@ process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
+const { cardTransferService } = await import('../../src/main/services/CardTransferService.ts')
 const { periodLockService } = await import('../../src/main/services/PeriodLockService.ts')
 const { shiftService } = await import('../../src/main/services/ShiftService.ts')
 const { recordExchangeFundingReturnLineAllocation } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
 const { openCardTransferEntitlement, convertCashRight, confirmCreditDelivery,
   reconcileBankDocument, correctPendingEntitlement, markBankDeclaration,
-  markBankCancellationUnknown } = await import('../../src/main/services/ReturnEntitlementService.ts')
+  markBankCancellationUnknown, quarantineEntitlement } = await import('../../src/main/services/ReturnEntitlementService.ts')
 const { planCreditReturn, applyCreditReturn } = await import('../../src/main/services/CreditReturnService.ts')
 const { remainingOf } = await import('../../src/shared/settlement.ts')
 const { toJalaliDate } = await import('@shared/jalali')
@@ -221,6 +222,20 @@ const legacyChildClaimId = seed.insert('ReturnEntitlement', {
   cashPaid: 0, cashConverted: 0, giftOpportunity: 0, debtReduced: 0, state: 'OPEN', version: 0
 })
 assert.ok(legacyChildClaimId > 0)
+const quarantineBefore = {
+  state: seed.one('SELECT state FROM "ReturnEntitlement" WHERE id=?', legacyChildClaimId).state,
+  version: seed.one('SELECT version FROM "ReturnEntitlement" WHERE id=?', legacyChildClaimId).version,
+  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
+}
+await assert.rejects(() => quarantineEntitlement(db, {
+  returnId: returnIds[1], reason: 'attempt to quarantine exchange child claim', actorUserId: userId
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'a source quarantine must not mutate an exchange child entitlement directly')
+assert.deepEqual({
+  state: seed.one('SELECT state FROM "ReturnEntitlement" WHERE id=?', legacyChildClaimId).state,
+  version: seed.one('SELECT version FROM "ReturnEntitlement" WHERE id=?', legacyChildClaimId).version,
+  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
+}, quarantineBefore, 'blocked child quarantine leaves state, version, and journal unchanged')
 const bankRequestId = seed.insert('CardTransferRequest', {
   kind: 'REQUEST', status: 'PAID', operationKind: 'RETURN', returnId: returnIds[0],
   sourceInvoiceId: child.id, amount: 100, paidAmount: 100, paidAt: new Date()
@@ -326,6 +341,55 @@ assert.deepEqual({
   version: seed.one('SELECT version FROM "ReturnEntitlement" WHERE id=?', cancellationClaimId).version,
   events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
 }, cancellationBefore, 'blocked child cancellation leaves state, reservation, version, and journal unchanged')
+
+const legacyChildReturnWithoutClaim = extraChildReturn()
+const makeLegacyChildRequest = (returnId, status = 'PENDING') => seed.insert('CardTransferRequest', {
+  kind: 'REQUEST', status, operationKind: 'RETURN', returnId, sourceInvoiceId: child.id,
+  amount: 100, returnTotal: 100, paidAmount: status === 'PAID' ? 100 : null,
+  paidAt: status === 'PAID' ? now : null
+})
+const legacyPayRequestId = makeLegacyChildRequest(legacyChildReturnWithoutClaim)
+const payRequestBefore = seed.one('SELECT status, paidAmount, paidAt FROM "CardTransferRequest" WHERE id=?', legacyPayRequestId)
+const legacyPayEffectsBefore = {
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n,
+  audits: seed.one('SELECT COUNT(*) n FROM "AuditLog"').n
+}
+await assert.rejects(() => cardTransferService.pay({
+  id: legacyPayRequestId, paidAmount: 100, managerPassword: DEFAULT_MANAGER_PASSWORD, userId
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'a legacy child transfer with no entitlement must not use the payout declaration fallback')
+assert.deepEqual(seed.one('SELECT status, paidAmount, paidAt FROM "CardTransferRequest" WHERE id=?', legacyPayRequestId),
+  payRequestBefore, 'blocked legacy child payout leaves request payment fields unchanged')
+assert.deepEqual({
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n,
+  audits: seed.one('SELECT COUNT(*) n FROM "AuditLog"').n
+}, legacyPayEffectsBefore, 'blocked legacy child payout writes no stock, claim, or audit effects')
+
+const legacyCancelReturn = extraChildReturn()
+const legacyCancelRequestId = makeLegacyChildRequest(legacyCancelReturn)
+const cancelRequestBefore = seed.one('SELECT status, canceledAt, cancelReason FROM "CardTransferRequest" WHERE id=?', legacyCancelRequestId)
+await assert.rejects(() => cardTransferService.cancel({
+  id: legacyCancelRequestId, reason: 'cancel child legacy payout',
+  managerPassword: DEFAULT_MANAGER_PASSWORD, userId
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'a legacy child transfer without an entitlement must not be canceled as if its outcome were ordinary')
+assert.deepEqual(seed.one('SELECT status, canceledAt, cancelReason FROM "CardTransferRequest" WHERE id=?', legacyCancelRequestId),
+  cancelRequestBefore, 'blocked legacy child cancellation leaves the request unchanged')
+
+const legacyAdjustReturn = extraChildReturn()
+const legacyAdjustRequestId = makeLegacyChildRequest(legacyAdjustReturn, 'PAID')
+const adjustmentCountBefore = seed.one('SELECT COUNT(*) n FROM "CardTransferRequest" WHERE adjustsRequestId=?', legacyAdjustRequestId).n
+await assert.rejects(() => cardTransferService.adjust({
+  id: legacyAdjustRequestId, amount: -10, reason: 'reverse legacy child payout',
+  managerPassword: DEFAULT_MANAGER_PASSWORD, userId
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'a legacy child payout must not accept a manual correction outside the entitlement ledger')
+assert.equal(seed.one('SELECT COUNT(*) n FROM "CardTransferRequest" WHERE adjustsRequestId=?', legacyAdjustRequestId).n,
+  adjustmentCountBefore, 'blocked legacy child adjustment creates no correction event')
+assert.equal(seed.one('SELECT status FROM "CardTransferRequest" WHERE id=?', legacyAdjustRequestId).status, 'PAID',
+  'blocked legacy child adjustment leaves the original request unchanged')
 
 const conversionEffectsBefore = {
   credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
@@ -490,8 +554,8 @@ await rejectAfterShiftMarkerRace(() => salesService.returnReconcileVoid({
 }), 'returnReconcileVoid must recheck lineage inside its transaction')
 sql.prepare('UPDATE "SaleInvoice" SET orderType=? WHERE id=?').run('EXCHANGE', child.id)
 
-assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=? AND voidedAt IS NULL', child.id).n, 5,
-  'three correction fixtures and two bank declaration/cancellation fixtures remain active')
+assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=? AND voidedAt IS NULL', child.id).n, 8,
+  'three correction fixtures, two bank fixtures, and three legacy transfer-route fixtures remain active')
 assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation" WHERE childInvoiceId=? AND eventKind=?',
   child.id, 'ALLOCATION').n, 3)
 assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation" WHERE childInvoiceId=? AND eventKind=?',

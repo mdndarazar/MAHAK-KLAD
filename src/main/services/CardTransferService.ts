@@ -12,7 +12,7 @@ import { PANEL_KEYS } from '@shared/panels'
 import { releasedStockNote } from '@shared/pendingRestock'
 import { assertPanelPassword } from './AuthService'
 import { pendingRestockService } from './PendingRestockService'
-import { markBankDeclaration, markBankCancellationUnknown } from './ReturnEntitlementService'
+import { assertOrdinaryReturnLineage, markBankDeclaration, markBankCancellationUnknown } from './ReturnEntitlementService'
 import { toNumberRial } from '@shared/money'
 
 /**
@@ -365,6 +365,7 @@ export const cardTransferService = {
       if (!row) throw new Error('این درخواست کارت‌به‌کارت پیدا نشد.')
       if (row.kind !== CardTransferKind.REQUEST)
         throw new Error('رویداد اصلاحی خودش قابل پرداخت نیست؛ روی درخواست اصلی اقدام کنید.')
+      await assertOrdinaryReturnLineage(tx, Number(row.returnId))
       if (row.status !== CardTransferStatus.PENDING)
         throw new Error(
           'این درخواست قبلاً پرداخت شده است. رکورد پرداخت‌شده ویرایش نمی‌شود؛ ' +
@@ -522,6 +523,7 @@ export const cardTransferService = {
       if (!row) throw new Error('این درخواست کارت‌به‌کارت پیدا نشد.')
       if (row.kind !== CardTransferKind.REQUEST)
         throw new Error('رویداد اصلاحی خودش لغو نمی‌شود؛ روی درخواست اصلی اقدام کنید.')
+      await assertOrdinaryReturnLineage(tx, Number(row.returnId))
       const managed = await tx.returnEntitlement.findUnique({ where: { requestId: id } })
       if (managed && release)
         throw new Error('دریافت کالای این برگشت مستقل از وضعیت بانک و فقط با شاهد مقدارمحور ثبت می‌شود؛ این دکمه کالا را آزاد نمی‌کند.')
@@ -644,6 +646,7 @@ export const cardTransferService = {
     return prisma.$transaction(async (tx) => {
       const base = await tx.cardTransferRequest.findUnique({ where: { id } })
       if (!base) throw new Error('درخواست مرجع این اصلاح پیدا نشد.')
+      await assertOrdinaryReturnLineage(tx, Number(base.returnId))
       // Do not let an adjustment bypass the CAS-protected new entitlement.
       // Legacy requests keep their existing append-only correction path.
       const managed = await tx.returnEntitlement.findUnique({ where: { requestId: id }, select: { id: true } })
