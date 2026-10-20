@@ -4,6 +4,7 @@ import { inventoryService } from './InventoryService'
 import { SecondaryStockAction } from '@shared/enums'
 import { toClock, toJalaliDate } from '@shared/jalali'
 import { DEFAULT_CENTRAL_WAREHOUSE_LABEL, StockSourceKind } from '@shared/stockSource'
+import { assertOrdinaryReturnLineage } from './ReturnEntitlementService'
 
 /** Only the *actually received* units are reversed. Source rows are evidence,
  * not a request from the cashier. Historic receipts without that evidence may
@@ -55,6 +56,7 @@ export async function prepareGoodsCorrection(
   tx: Prisma.TransactionClient,
   ret: ReturnForCorrection
 ): Promise<GoodsCorrectionPlan> {
+  await assertOrdinaryReturnLineage(tx, ret.id, ret.invoiceId)
   const receipts = await tx.returnGoodsReceipt.findMany({ where: { returnId: ret.id }, orderBy: { id: 'asc' } })
   const stored = receipts.length ? await tx.returnGoodsReceiptSource.findMany({
     where: { receiptId: { in: receipts.map((r) => r.id) } }, orderBy: { id: 'asc' }
@@ -167,6 +169,7 @@ export async function applyGoodsCorrection(
   plan: GoodsCorrectionPlan,
   ctx: { correctionId: number; receiptNo: number | null; userId: number; reason: string; at: Date }
 ): Promise<{ type: string; qty: number; variantId: number; referenceType: string; referenceId: number; detailsJson: string }[]> {
+  await assertOrdinaryReturnLineage(tx, ret.id, ret.invoiceId)
   const store = new Map<number, number>()
   for (const s of plan.sources) if (s.sourceKind === StockSourceKind.STORE)
     store.set(s.variantId, (store.get(s.variantId) ?? 0) + s.qty)

@@ -18,6 +18,9 @@ const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mj
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
 const { cardTransferService } = await import('../../src/main/services/CardTransferService.ts')
+const { pendingRestockService } = await import('../../src/main/services/PendingRestockService.ts')
+const { returnGoodsService } = await import('../../src/main/services/ReturnGoodsService.ts')
+const { prepareGoodsCorrection, applyGoodsCorrection } = await import('../../src/main/services/ReturnGoodsCorrectionService.ts')
 const { periodLockService } = await import('../../src/main/services/PeriodLockService.ts')
 const { shiftService } = await import('../../src/main/services/ShiftService.ts')
 const { recordExchangeFundingReturnLineAllocation } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
@@ -272,6 +275,72 @@ const pendingChildClaimId = seed.insert('ReturnEntitlement', {
   cashRight: 100, cashReserved: 100, cashPaid: 0, cashConverted: 0,
   giftOpportunity: 0, debtReduced: 0, state: 'OPEN', version: 0
 })
+seed.insert('CardTransferRequest', {
+  id: 818181, kind: 'REQUEST', status: 'PENDING', operationKind: 'RETURN',
+  returnId: returnIds[2], sourceInvoiceId: child.id, amount: 100, returnTotal: 100
+})
+sql.prepare('UPDATE "SaleReturn" SET restockPending=1, goodsReceiptRequired=1 WHERE id=?').run(returnIds[2])
+const childGoodsItemId = seed.one('SELECT id FROM "SaleReturnItem" WHERE returnId=?', returnIds[2]).id
+const childGoodsBefore = {
+  stock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', childItem.variantId).stock),
+  restockedQty: seed.one('SELECT restockedQty FROM "SaleReturnItem" WHERE id=?', childGoodsItemId).restockedQty,
+  pending: seed.one('SELECT restockPending FROM "SaleReturn" WHERE id=?', returnIds[2]).restockPending,
+  receipts: seed.one('SELECT COUNT(*) n FROM "ReturnGoodsReceipt" WHERE returnId=?', returnIds[2]).n
+}
+await assert.rejects(() => returnGoodsService.receive({
+  returnId: returnIds[2], returnItemId: Number(childGoodsItemId), qty: 1,
+  eventKey: 'child-goods-receipt-blocked', witnessKind: 'SELECTED_CONFIRMED',
+  witnessRef: 'physical child return item verified', physicalConfirmed: true, actorUserId: userId
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'a physical-goods receipt must not bypass unsupported exchange-child return lineage')
+assert.deepEqual({
+  stock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', childItem.variantId).stock),
+  restockedQty: seed.one('SELECT restockedQty FROM "SaleReturnItem" WHERE id=?', childGoodsItemId).restockedQty,
+  pending: seed.one('SELECT restockPending FROM "SaleReturn" WHERE id=?', returnIds[2]).restockPending,
+  receipts: seed.one('SELECT COUNT(*) n FROM "ReturnGoodsReceipt" WHERE returnId=?', returnIds[2]).n
+}, childGoodsBefore, 'blocked physical child receipt adds no inventory or receipt row')
+const importedChildReceiptKey = 'imported-child-goods-replay'
+seed.insert('ReturnGoodsReceipt', {
+  eventKey: importedChildReceiptKey, returnId: returnIds[2], returnItemId: Number(childGoodsItemId),
+  variantId: Number(childItem.variantId), qty: 1, actorUserId: userId,
+  witnessKind: 'SELECTED_CONFIRMED', witnessRef: 'legacy physical receipt witness'
+})
+await assert.rejects(() => returnGoodsService.receive({
+  returnId: returnIds[2], returnItemId: Number(childGoodsItemId), qty: 1,
+  eventKey: importedChildReceiptKey, witnessKind: 'SELECTED_CONFIRMED',
+  witnessRef: 'legacy physical receipt witness', physicalConfirmed: true, actorUserId: userId
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'a stored child receipt idempotency key must not replay as valid after lineage is checked')
+const childGoodsView = await returnGoodsService.items(returnIds[2])
+assert.equal(childGoodsView.unsupportedLineage, true,
+  'the physical intake reader must mark unsupported exchange-child lineage')
+assert.deepEqual(childGoodsView.items, [],
+  'the physical intake reader must not expose selectable/receivable child return quantities')
+const childCorrectionReturn = {
+  id: returnIds[2], invoiceId: child.id, goodsReceiptRequired: true,
+  items: [{ id: Number(childGoodsItemId), saleItemId: Number(childItem.id),
+    variantId: Number(childItem.variantId), qty: 1, restockedQty: 0 }]
+}
+await assert.rejects(() => prepareGoodsCorrection(db, childCorrectionReturn),
+  /فرزند تعویض|lineage|تخصیص منشأ/iu,
+  'a direct goods-correction plan must not be built for unsupported exchange-child lineage')
+const childApplyBefore = {
+  stock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', childItem.variantId).stock),
+  movements: seed.one('SELECT COUNT(*) n FROM "StockMovement"').n
+}
+await assert.rejects(() => applyGoodsCorrection(db,
+  { id: returnIds[2], invoiceId: child.id },
+  { sources: [{ id: null, receiptId: null, returnItemId: Number(childGoodsItemId),
+    variantId: Number(childItem.variantId), allocationId: null, sourceKind: 'STORE',
+    warehouseId: null, warehouseName: '', secondaryStockItemId: null,
+    stockItemName: null, stockItemCode: null, qty: 1 }], allocationDebits: [] },
+  { correctionId: 999999, receiptNo: null, userId, reason: 'direct child goods correction', at: now }
+), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'a direct goods-correction apply must not reverse stock for an exchange-child return')
+assert.deepEqual({
+  stock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', childItem.variantId).stock),
+  movements: seed.one('SELECT COUNT(*) n FROM "StockMovement"').n
+}, childApplyBefore, 'blocked child goods correction writes no inventory movement')
 const pendingChildCorrectionBefore = {
   cashRight: seed.one('SELECT cashRight FROM "ReturnEntitlement" WHERE id=?', pendingChildClaimId).cashRight,
   cashReserved: seed.one('SELECT cashReserved FROM "ReturnEntitlement" WHERE id=?', pendingChildClaimId).cashReserved,
@@ -341,6 +410,41 @@ assert.deepEqual({
   version: seed.one('SELECT version FROM "ReturnEntitlement" WHERE id=?', cancellationClaimId).version,
   events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
 }, cancellationBefore, 'blocked child cancellation leaves state, reservation, version, and journal unchanged')
+
+const restockProbeSale = await salesService.create({
+  userId, shiftId,
+  lines: [{ variantId: replacementVariant, qty: 1, unitPrice: 1000, discount: 0, tax: 0 }],
+  payments: [{ methodId: cashMethodId, amount: 1000, destination: 'CASH' }]
+})
+sql.prepare('UPDATE "SaleInvoice" SET orderType=?, sourceInvoiceId=?, exchangeReturnId=? WHERE id=?')
+  .run('EXCHANGE', sale.id, exchange.returnId, restockProbeSale.id)
+const restockProbeItem = seed.one('SELECT id, variantId FROM "SaleInvoiceItem" WHERE invoiceId=?', restockProbeSale.id)
+const restockChildReturn = seed.insert('SaleReturn', {
+  invoiceId: restockProbeSale.id, isFull: false, total: 1000, returnedAt: now,
+  returnedAtJalali: toJalaliDate(now), returnedAtTime: now.toTimeString().slice(0, 8),
+  kind: 'RETURN', userId, shiftId, refundMethod: 'NONE', refundAmount: 0, restockPending: true
+})
+const restockChildItemId = seed.insert('SaleReturnItem', {
+  returnId: restockChildReturn, saleItemId: Number(restockProbeItem.id),
+  variantId: Number(restockProbeItem.variantId), qty: 1, unitPrice: 1000, lineTotal: 1000, restockedQty: 0
+})
+sql.prepare('UPDATE "SaleReturn" SET restockPending=1, goodsReceiptRequired=0 WHERE id=?').run(restockChildReturn)
+const restockBefore = {
+  stock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', restockProbeItem.variantId).stock),
+  restockedQty: seed.one('SELECT restockedQty FROM "SaleReturnItem" WHERE id=?', restockChildItemId).restockedQty,
+  restockPending: seed.one('SELECT restockPending FROM "SaleReturn" WHERE id=?', restockChildReturn).restockPending,
+  audits: seed.one('SELECT COUNT(*) n FROM "AuditLog"').n
+}
+await assert.rejects(() => pendingRestockService.releaseReturnStock(db, {
+  returnId: restockChildReturn, reason: 'direct legacy child stock release'
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'a direct legacy restock release must not bypass the exchange-child return hold')
+assert.deepEqual({
+  stock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', restockProbeItem.variantId).stock),
+  restockedQty: seed.one('SELECT restockedQty FROM "SaleReturnItem" WHERE id=?', restockChildItemId).restockedQty,
+  restockPending: seed.one('SELECT restockPending FROM "SaleReturn" WHERE id=?', restockChildReturn).restockPending,
+  audits: seed.one('SELECT COUNT(*) n FROM "AuditLog"').n
+}, restockBefore, 'blocked child restock release leaves inventory and return state unchanged')
 
 const legacyChildReturnWithoutClaim = extraChildReturn()
 const makeLegacyChildRequest = (returnId, status = 'PENDING') => seed.insert('CardTransferRequest', {

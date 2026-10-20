@@ -4,7 +4,7 @@ import { faDigits } from '@shared/jalali'
 
 type Item = { id: number; variantId: number; variantCode: string | null; variantName: string | null;
   qty: number; received: number; pending: number }
-type Goods = { managed: boolean; state?: string | null; voided?: boolean; corrected?: boolean;
+type Goods = { managed: boolean; unsupportedLineage?: boolean; state?: string | null; voided?: boolean; corrected?: boolean;
   restockPending?: boolean; items: Item[] }
 
 /** Cashier: scan or explicitly select + count the physical goods. This form
@@ -59,10 +59,11 @@ export default function ReturnGoodsIntake({ returnId, onReceived }: { returnId: 
     <section className="rounded border-2 border-sky-400 bg-sky-50 p-3 space-y-2">
       <h3 className="font-bold">دریافت فیزیکی کالای برگشتی · سند #{faDigits(returnId)}</h3>
       <p className="text-sm">کالا فقط پس از اسکن یا انتخابِ قلم، شمارش و تأیید واقعی وارد موجودی می‌شود؛ نه با «پرداخت شد»، لغو درخواست یا چاپ رسید.</p>
-      {goods && !goods.managed && <p className="text-amber-800">این پروندهٔ قدیمی دفتر دریافت مقدارمحور ندارد؛ رسیدگی مدیر لازم است. حضور فیزیکی از سند مالی حدس زده نمی‌شود.</p>}
+      {goods?.unsupportedLineage && <p className="text-rose-700">این برگشت به فاکتور فرزند تعویض متصل است؛ تا تکمیل lineage، سهم منشأ و دامنهٔ قلم، دریافت موجودی از این مسیر مسدود است.</p>}
+      {goods && !goods.managed && !goods.unsupportedLineage && <p className="text-amber-800">این پروندهٔ قدیمی دفتر دریافت مقدارمحور ندارد؛ رسیدگی مدیر لازم است. حضور فیزیکی از سند مالی حدس زده نمی‌شود.</p>}
       {goods?.voided && <p className="text-rose-700">سند باطل شده است؛ دریافت تازه مجاز نیست.</p>}
       {goods?.corrected && <p className="text-rose-700">اصلاح جبرانی برای این برگشت ثبت شده است؛ سند اصلی تاریخی است و دیگر دریافت تازه روی آن مجاز نیست.</p>}
-      {!!goods?.managed && !goods.voided && !goods.corrected && <>
+      {!!goods?.managed && !goods.unsupportedLineage && !goods.voided && !goods.corrected && <>
         {goods.items.map((i) => <div key={i.id} className="flex items-center gap-2">
           <input type="radio" name={`goods-${returnId}`} checked={i.id === itemId} disabled={!i.pending}
             onChange={() => { change(); setItemId(i.id) }} />

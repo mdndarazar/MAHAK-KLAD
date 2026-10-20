@@ -12,6 +12,7 @@ import {
 } from '@shared/pendingRestock'
 import { inventoryService } from './InventoryService'
 import { stockAllocationService } from './StockAllocationService'
+import { assertOrdinaryReturnLineage } from './ReturnEntitlementService'
 import { toNumberRial } from '@shared/money'
 
 const PENDING_RESTOCK_READ_PAGE = 2000
@@ -269,6 +270,7 @@ export const pendingRestockService = {
       include: { items: true, invoice: { select: { id: true, receiptNo: true, deductInventory: true } } }
     })
     if (!ret) throw new Error('سند برگشت مرجع پیدا نشد، پس کالایی به انبار برنگشت.')
+    await assertOrdinaryReturnLineage(tx, returnId, Number(ret.invoiceId))
     if (await tx.returnCorrection.findUnique({ where: { returnId }, select: { id: true } }))
       throw new Error('این برگشت اصلاح جبرانی ثبت‌شده دارد؛ سند اصلی تاریخی است و کالایی از این مسیر آزاد نمی‌شود.')
     const managed = await tx.returnEntitlement.findUnique({ where: { returnId } })

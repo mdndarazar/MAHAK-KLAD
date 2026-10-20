@@ -4,6 +4,7 @@ import { stockAllocationService } from './StockAllocationService'
 import { inventoryService } from './InventoryService'
 import { AuditAction } from '@shared/enums'
 import { toJalaliDate } from '@shared/jalali'
+import { assertOrdinaryReturnLineage } from './ReturnEntitlementService'
 
 const positive = (value: unknown, label: string) => {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0)
@@ -42,6 +43,7 @@ export const returnGoodsService = {
       throw new BusinessError('برای انتخاب بدون اسکن، توضیح کوتاهِ مشاهدهٔ فیزیکی کالا را بنویسید.')
 
     return prisma.$transaction(async (tx) => {
+      await assertOrdinaryReturnLineage(tx, returnId)
       const previous = await tx.returnGoodsReceipt.findUnique({ where: { eventKey: key } })
       if (previous) {
         if (previous.returnId !== returnId || previous.returnItemId !== returnItemId || previous.qty !== qty ||
@@ -154,15 +156,21 @@ export const returnGoodsService = {
   async items(returnIdRaw: number) {
     const returnId = positive(returnIdRaw, 'شناسه برگشت')
     const ret = await prisma.saleReturn.findUnique({ where: { id: returnId },
-      select: { voidedAt: true, restockPending: true, goodsReceiptRequired: true, items: { select: {
-        id: true, qty: true, restockedQty: true, variantCode: true, variantName: true, variantId: true
-      } } } })
+      select: { voidedAt: true, restockPending: true, goodsReceiptRequired: true,
+        invoice: { select: { orderType: true, sourceInvoiceId: true, exchangeReturnId: true } },
+        items: { select: {
+          id: true, qty: true, restockedQty: true, variantCode: true, variantName: true, variantId: true
+        } } } })
     const claim = await prisma.returnEntitlement.findUnique({ where: { returnId }, select: { id: true, state: true } })
     const corrected = !!(await prisma.returnCorrection.findUnique({ where: { returnId }, select: { id: true } }))
-    const managed = !!claim || !!ret?.goodsReceiptRequired
-    return { managed, state: claim?.state ?? (ret?.goodsReceiptRequired ? 'GOODS_ONLY' : null),
+    const unsupportedLineage = !!ret?.invoice && (ret.invoice.orderType === 'EXCHANGE' ||
+      ret.invoice.sourceInvoiceId != null || ret.invoice.exchangeReturnId != null)
+    const managed = !unsupportedLineage && (!!claim || !!ret?.goodsReceiptRequired)
+    return { managed, unsupportedLineage,
+      state: unsupportedLineage ? 'UNSUPPORTED_LINEAGE' : claim?.state ?? (ret?.goodsReceiptRequired ? 'GOODS_ONLY' : null),
       corrected, voided: !!ret?.voidedAt, restockPending: !!ret?.restockPending,
-      // An old return has no new witness protocol, regardless of its data.
+      // An old return has no new witness protocol, and child lineage is held
+      // until its source shares and active line scope are proven end-to-end.
       items: managed ? (ret?.items ?? []).map((r) => ({ id: r.id, variantId: r.variantId,
         variantCode: r.variantCode, variantName: r.variantName, qty: r.qty,
         received: r.restockedQty, pending: Math.max(0, r.qty - r.restockedQty) })) : [] }
