@@ -149,23 +149,23 @@ assert.throws(() => addFundingEvent.run('migration-test:source', 'SOURCE_CASH', 
   'event keys enforce idempotency at the database boundary')
 const fundingEventId = one('SELECT id FROM "ExchangeFundingEvent" WHERE eventKey=?', 'migration-test:source').id
 const insertFundingReversal = db.prepare(`INSERT INTO "ExchangeFundingEvent"
-  (eventKey, kind, amount, shareId, rootShareId, sourceInvoiceId, sourcePaymentId,
-   sourceRedemptionId, sourceCreditId, parentEventId, returnId, debtId, sourceMethodKind,
-   sourceDestination, evidenceKind, evidenceRef, reversesEventId)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+  (eventKey, kind, amount, shareId, rootShareId, sourceInvoiceId, childInvoiceId,
+   sourcePaymentId, sourceRedemptionId, sourceCreditId, parentEventId, returnId, debtId,
+   sourceMethodKind, sourceDestination, evidenceKind, evidenceRef, reversesEventId)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 const fundingReversalParams = (overrides = {}) => {
   const row = {
     eventKey: 'migration-test:source:void:r2', kind: 'VOID_SOURCE_CASH', amount: -100,
-    shareId: 'payment:1', rootShareId: 'payment:1', sourceInvoiceId: null, sourcePaymentId: null,
-    sourceRedemptionId: null, sourceCreditId: null, parentEventId: null, returnId: null, debtId: null,
-    sourceMethodKind: null, sourceDestination: null,
+    shareId: 'payment:1', rootShareId: 'payment:1', sourceInvoiceId: null, childInvoiceId: null,
+    sourcePaymentId: null, sourceRedemptionId: null, sourceCreditId: null,
+    parentEventId: null, returnId: null, debtId: null, sourceMethodKind: null, sourceDestination: null,
     evidenceKind: 'PAYMENT_SNAPSHOT_REVISION', evidenceRef: 'snapshot:1:r2', reversesEventId: fundingEventId,
     ...overrides
   }
   return [row.eventKey, row.kind, row.amount, row.shareId, row.rootShareId,
-    row.sourceInvoiceId, row.sourcePaymentId, row.sourceRedemptionId, row.sourceCreditId,
-    row.parentEventId, row.returnId, row.debtId, row.sourceMethodKind, row.sourceDestination,
-    row.evidenceKind, row.evidenceRef, row.reversesEventId]
+    row.sourceInvoiceId, row.childInvoiceId, row.sourcePaymentId, row.sourceRedemptionId,
+    row.sourceCreditId, row.parentEventId, row.returnId, row.debtId, row.sourceMethodKind,
+    row.sourceDestination, row.evidenceKind, row.evidenceRef, row.reversesEventId]
 }
 assert.throws(() => insertFundingReversal.run(...fundingReversalParams({ amount: -99 })),
   /reversal mismatch/, 'SQLite rejects an incorrect inverse amount')
@@ -179,6 +179,52 @@ assert.throws(() => insertFundingReversal.run(...fundingReversalParams({ reverse
   /reversal mismatch/, 'SQLite rejects orphan VOID events without an original row')
 insertFundingReversal.run(...fundingReversalParams())
 const fundingReversalId = one('SELECT id FROM "ExchangeFundingEvent" WHERE reversesEventId=?', fundingEventId).id
+const insertTransferEvent = db.prepare(`INSERT INTO "ExchangeFundingEvent"
+  (eventKey, kind, amount, shareId, rootShareId, sourceInvoiceId, childInvoiceId,
+   returnId, parentEventId, evidenceKind, evidenceRef)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+const transferScope = {
+  sourceInvoiceId: firstInvoiceId, childInvoiceId: secondInvoiceId,
+  returnId, parentEventId: fundingEventId
+}
+insertTransferEvent.run('migration-test:transfer:out', 'TRANSFER_OUT', -50,
+  'payment:transfer-test', 'payment:transfer-test', transferScope.sourceInvoiceId,
+  transferScope.childInvoiceId, transferScope.returnId, transferScope.parentEventId,
+  'EXCHANGE_TRANSFER', 'SaleReturn:test')
+insertTransferEvent.run('migration-test:transfer:in', 'TRANSFER_IN', 50,
+  'exchange:transfer-test', 'payment:transfer-test', transferScope.sourceInvoiceId,
+  transferScope.childInvoiceId, transferScope.returnId, transferScope.parentEventId,
+  'EXCHANGE_TRANSFER', 'SaleReturn:test')
+const transferOut = one('SELECT * FROM "ExchangeFundingEvent" WHERE eventKey=?', 'migration-test:transfer:out')
+const transferIn = one('SELECT * FROM "ExchangeFundingEvent" WHERE eventKey=?', 'migration-test:transfer:in')
+const transferReversalParams = (source, overrides = {}) => {
+  const row = {
+    eventKey: `migration-test:transfer:${source.kind === 'TRANSFER_OUT' ? 'out' : 'in'}:void`,
+    kind: `VOID_${source.kind}`, amount: -source.amount,
+    shareId: source.shareId, rootShareId: source.rootShareId,
+    sourceInvoiceId: source.sourceInvoiceId, childInvoiceId: source.childInvoiceId,
+    sourcePaymentId: source.sourcePaymentId, sourceRedemptionId: source.sourceRedemptionId,
+    sourceCreditId: source.sourceCreditId, parentEventId: source.parentEventId,
+    returnId: source.returnId, debtId: source.debtId, sourceMethodKind: source.sourceMethodKind,
+    sourceDestination: source.sourceDestination, evidenceKind: 'SALE_INVOICE_VOID',
+    evidenceRef: 'SaleReturn:test:void', reversesEventId: source.id,
+    ...overrides
+  }
+  return [row.eventKey, row.kind, row.amount, row.shareId, row.rootShareId,
+    row.sourceInvoiceId, row.childInvoiceId, row.sourcePaymentId, row.sourceRedemptionId,
+    row.sourceCreditId, row.parentEventId, row.returnId, row.debtId, row.sourceMethodKind,
+    row.sourceDestination, row.evidenceKind, row.evidenceRef, row.reversesEventId]
+}
+assert.throws(() => insertFundingReversal.run(...transferReversalParams(transferOut, { amount: 49 })),
+  /reversal mismatch/, 'SQLite requires the exact inverse amount for transfer reversal')
+assert.throws(() => insertFundingReversal.run(...transferReversalParams(transferOut, {
+  eventKey: 'migration-test:transfer:in:void'
+})), /reversal mismatch/, 'SQLite binds transfer-out reversal keys to the out side')
+assert.throws(() => insertFundingReversal.run(...transferReversalParams(transferIn, {
+  evidenceKind: 'PAYMENT_SNAPSHOT_REVISION'
+})), /reversal mismatch/, 'SQLite requires sale-void evidence for transfer reversals')
+insertFundingReversal.run(...transferReversalParams(transferOut))
+insertFundingReversal.run(...transferReversalParams(transferIn))
 assert.throws(() => db.prepare('UPDATE "ExchangeFundingEvent" SET shareId=? WHERE id=?')
   .run('rewritten-share', fundingEventId), /append-only/,
 'funding lineage events cannot be rewritten at the SQLite boundary')
