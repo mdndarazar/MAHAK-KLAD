@@ -18,7 +18,7 @@ const names = readdirSync(join(root, 'prisma/migrations'))
   .filter((name) => name !== 'migration_lock.toml').sort()
 const historicNames = names.filter((name) => name < cutover)
 const newNames = names.filter((name) => name >= cutover)
-assert.equal(newNames.length, 18, 'update this test when the financial cutover gains another migration')
+assert.equal(newNames.length, 19, 'update this test when the financial cutover gains another migration')
 const dir = mkdtempSync(join(tmpdir(), 'mahak-real-migration-upgrade-'))
 process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'unused-harness.db')
@@ -208,10 +208,39 @@ assert.throws(() => db.prepare('UPDATE "ExchangeFundingLineAllocation" SET amoun
   .run(lineAllocationId), /append-only/, 'line allocations are immutable evidence')
 assert.throws(() => db.prepare('DELETE FROM "ExchangeFundingLineAllocation" WHERE id=?')
   .run(lineAllocationId), /append-only/, 'line allocations cannot be erased')
+const exchangeReturnId = seed.insert('SaleReturn', {
+  invoiceId: secondInvoiceId, kind: 'EXCHANGE', total: 1000, exchangeTotal: 1000,
+  exchangeDiff: 0, returnedAt: new Date(), returnedAtJalali: '1405/07/20', userId
+})
+const childInvoiceId = seed.insert('SaleInvoice', {
+  receiptNo: 903, issuedAt: new Date(), issuedAtJalali: '1405/07/20', userId, customerId,
+  status: 'SETTLED', orderType: 'EXCHANGE', goodsTotal: 1000, grandTotal: 1000, paidTotal: 1000,
+  sourceInvoiceId: secondInvoiceId, exchangeReturnId
+})
+db.prepare('UPDATE "SaleReturn" SET exchangeInvoiceId=?, exchangeReceiptNo=? WHERE id=?')
+  .run(childInvoiceId, 903, exchangeReturnId)
+const childSaleItemId = seed.insert('SaleInvoiceItem', {
+  invoiceId: childInvoiceId, variantId, qty: 2, unitPrice: 500, lineTotal: 1000
+})
+const childSourceEventId = 9002
+insertLineAllocation.run(
+  `exchange-line:${childInvoiceId}:source:${childSourceEventId}:item:${childSaleItemId}`,
+  secondInvoiceId, childInvoiceId, exchangeReturnId, childSourceEventId, childSaleItemId,
+  2, 1000, 'SOURCE_CASH', 1000
+)
+const childReturnId = seed.insert('SaleReturn', {
+  invoiceId: childInvoiceId, kind: 'RETURN', total: 500, returnedAt: new Date(),
+  returnedAtJalali: '1405/07/20', userId, refundMethod: 'NONE', refundAmount: 0
+})
+const childReturnItemId = seed.insert('SaleReturnItem', {
+  returnId: childReturnId, saleItemId: childSaleItemId, variantId, qty: 1,
+  unitPrice: 500, lineTotal: 500
+})
 const returnLineAllocation = {
-  eventKey: 'exchange-return-item:302:source:9001:allocation:v1', eventKind: 'ALLOCATION',
-  returnId: 301, returnItemId: 302, sourceInvoiceId: firstInvoiceId, childInvoiceId: secondInvoiceId,
-  saleItemId, sourceEventId: 9001, sourceKind: 'SOURCE_CASH', saleItemQty: 2,
+  eventKey: `exchange-return-item:${childReturnItemId}:source:${childSourceEventId}:allocation:v1`,
+  eventKind: 'ALLOCATION', returnId: childReturnId, returnItemId: childReturnItemId,
+  sourceInvoiceId: secondInvoiceId, childInvoiceId, saleItemId: childSaleItemId,
+  sourceEventId: childSourceEventId, sourceKind: 'SOURCE_CASH', saleItemQty: 2,
   saleItemValue: 1000, sourceItemAmount: 1000, returnedQtyBefore: 0,
   returningQty: 1, returnedQtyAfter: 1, priorReturnValue: 0, returnValue: 500,
   cumulativeReturnValue: 500, priorAmount: 0, amountDelta: 500,
@@ -234,17 +263,31 @@ insertReturnLineRow.run(...returnLineParams(returnLineAllocation))
 const returnLineAllocationId = one(`SELECT id FROM "ExchangeFundingReturnLineAllocation"
   WHERE eventKey=?`, returnLineAllocation.eventKey).id
 assert.throws(() => insertReturnLineRow.run(...returnLineParams({
+  ...returnLineAllocation, sourceItemAmount: 999
+})), /scope mismatch/,
+'database ties the allocated source amount to the immutable child-item matrix')
+assert.throws(() => insertReturnLineRow.run(...returnLineParams({
+  ...returnLineAllocation, amountDelta: 1001, cumulativeAmount: 1001
+})), /scope mismatch/,
+'database rejects a return share that exceeds its proven source item amount')
+assert.throws(() => insertReturnLineRow.run(...returnLineParams({
+  ...returnLineAllocation,
+  returnItemId: returnLineAllocation.returnItemId + 1,
+  eventKey: `exchange-return-item:${returnLineAllocation.returnItemId + 1}:source:${returnLineAllocation.sourceEventId}:allocation:v1`
+})), /scope mismatch/,
+'database rejects a provenance row that has no matching physical return item')
+assert.throws(() => insertReturnLineRow.run(...returnLineParams({
   ...returnLineAllocation, eventKey: 'wrong-return-allocation-key'
 })), /integrity check failed|CHECK constraint failed/,
 'allocation event keys bind to the exact return-item/source cell')
 const inverse = {
   ...returnLineAllocation,
-  eventKey: 'exchange-return-item:302:source:9001:reversal:v1', eventKind: 'REVERSAL',
+  eventKey: `exchange-return-item:${returnLineAllocation.returnItemId}:source:${returnLineAllocation.sourceEventId}:reversal:v1`, eventKind: 'REVERSAL',
   priorAmount: 500, amountDelta: -500, cumulativeAmount: 0,
   reversesAllocationId: returnLineAllocationId
 }
 assert.throws(() => insertReturnLineRow.run(...returnLineParams({
-  ...inverse, eventKey: 'exchange-return-item:302:source:9001:reversal:v1',
+  ...inverse, eventKey: `exchange-return-item:${returnLineAllocation.returnItemId}:source:${returnLineAllocation.sourceEventId}:reversal:v1`,
   reversesAllocationId: 999999
 })), /integrity check failed/,
 'database rejects an orphan reversal even when all scalar columns satisfy the table CHECK')
@@ -268,7 +311,7 @@ assert.deepEqual(rows('PRAGMA foreign_key_check'), [])
 assert.equal(one('SELECT COUNT(*) AS n FROM "_prisma_migrations" WHERE finished_at IS NOT NULL').n, names.length)
 const again = await applyMigrations(client, file, { touchFile: false })
 assert.deepEqual(again.applied, [], 'startup retry does not reapply any migration')
-assert.equal(one('SELECT COUNT(*) AS n FROM "SaleInvoice"').n, 2)
+assert.equal(one('SELECT COUNT(*) AS n FROM "SaleInvoice"').n, 3)
 assert.equal(one('SELECT COUNT(*) AS n FROM "ReceiptCodeReservation"').n, 1)
 db.close()
 console.log(`✓ real migration runner: ${historicNames.length} older stages + ${newNames.length} cutover stages; legacy documents preserved; duplicate code reserved; corrupt copy rolled back; restart idempotent`)

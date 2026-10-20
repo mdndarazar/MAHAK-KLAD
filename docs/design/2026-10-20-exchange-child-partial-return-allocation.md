@@ -24,7 +24,7 @@
 
 ## دفتر انتساب پیاده‌سازی‌شده؛ تسویه هنوز بسته است
 
-Migration افزایشی `20271020650000_exchange_funding_return_line_allocations` ردیف‌های immutable با پیوندهای scalar و snapshotهای تعداد/ارزش/سهم می‌سازد. صفر فقط به‌عنوان delta قانونیِ یک منبع ثبت می‌شود؛ منبع نامعلوم پذیرفته نیست. triggerهای migration `20271020650000` و `20271020720000` به‌ترتیب `UPDATE`/`DELETE` را منع و key/reversal را با allocation اصلی تطبیق می‌دهند. هر reversal باید به allocation موجود، همان scope و snapshotها وصل باشد و `amountDelta` دقیقاً منفی delta اصلی باشد؛ unique key از reversal دوباره جلوگیری می‌کند.
+Migration افزایشی `20271020650000_exchange_funding_return_line_allocations` ردیف‌های immutable با پیوندهای scalar و snapshotهای تعداد/ارزش/سهم می‌سازد. صفر فقط به‌عنوان delta قانونیِ یک منبع ثبت می‌شود؛ منبع نامعلوم پذیرفته نیست. triggerهای migrationهای `20271020650000`، `20271020720000` و `20271020730000` به‌ترتیب `UPDATE`/`DELETE` را منع، key/reversal را با allocation اصلی تطبیق و هر allocation را به برگشت فیزیکیِ فعال و ماتریس immutable همان قلم/منبع مقید می‌کنند. هر reversal باید به allocation موجود، همان scope و snapshotها وصل باشد و `amountDelta` دقیقاً منفی delta اصلی باشد؛ unique key از reversal دوباره جلوگیری می‌کند. row تخصیص با مبلغ منبع یا قلم cross-linked در مرز SQLite رد می‌شود.
 
 - سهم پیشین فقط از برگشت‌های فیزیکیِ فعال و ledger rowهای کاملِ تطبیق‌شده بازسازی می‌شود. مقدار تجمعی باید با تعداد برگشت فعالِ `SaleReturnItem` و target قطعی helper برابر باشد؛ اختلاف در تعداد، مبلغ، set منبع، lineage یا event key fail-closed است.
 - reversal ردیف allocation را حذف/ویرایش نمی‌کند؛ برای هر allocation یک ردیف معکوس با key یکتا، ارجاع دقیق به اصل و delta منفی اضافه می‌شود. گارد DB و reader سرویس هر دو orphan/cross-link را رد می‌کنند.

@@ -33,6 +33,23 @@ const triggerEnd = integrityMigration.indexOf('END;', triggerStart) + 'END;'.len
 if (triggerStart < 0 || triggerEnd < 'END;'.length)
   throw new Error('exchange-return-line integrity trigger SQL is missing')
 const integrityTriggerSql = integrityMigration.slice(triggerStart, triggerEnd)
+const scopeMigration = readFileSync(resolve(process.cwd(),
+  'prisma/migrations/20271020730000_guard_exchange_return_line_allocation_scope/migration.sql'), 'utf8')
+const scopeTriggerStart = scopeMigration.indexOf('CREATE TRIGGER "exchange_funding_return_line_allocation_scope_insert"')
+const scopeTriggerEnd = scopeMigration.indexOf('END;', scopeTriggerStart) + 'END;'.length
+if (scopeTriggerStart < 0 || scopeTriggerEnd < 'END;'.length)
+  throw new Error('exchange-return-line scope trigger SQL is missing')
+const scopeTriggerSql = scopeMigration.slice(scopeTriggerStart, scopeTriggerEnd)
+const insertCorruptAllocationForDefenseTest = (row) => {
+  assert.throws(() => seed.insert('ExchangeFundingReturnLineAllocation', row), /scope mismatch/,
+    'SQLite trigger rejects a cross-linked allocation at the database boundary')
+  sql.exec('DROP TRIGGER "exchange_funding_return_line_allocation_scope_insert"')
+  try {
+    return seed.insert('ExchangeFundingReturnLineAllocation', row)
+  } finally {
+    sql.exec(scopeTriggerSql)
+  }
+}
 const insertCorruptReversalForDefenseTest = (row) => {
   assert.throws(() => seed.insert('ExchangeFundingReturnLineAllocation', row), /integrity check failed/,
     'SQLite trigger rejects the corrupt row at the database boundary')
@@ -161,7 +178,7 @@ assert.ok(scopedAllocation)
 const mismatchedSourceInvoiceId = 999999
 const unknownSourceEventId = 999999
 assert.notEqual(mismatchedSourceInvoiceId, childId)
-seed.insert('ExchangeFundingReturnLineAllocation', {
+insertCorruptAllocationForDefenseTest({
   eventKey: `exchange-return-item:${scopedReturnItemId}:source:${unknownSourceEventId}:allocation:v1`,
   eventKind: 'ALLOCATION', returnId: scopedReturnId, returnItemId: scopedReturnItemId,
   sourceInvoiceId: mismatchedSourceInvoiceId, childInvoiceId: childId,
