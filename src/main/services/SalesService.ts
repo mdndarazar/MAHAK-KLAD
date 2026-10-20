@@ -4293,7 +4293,9 @@ async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
   const childInvoiceId = invoiceId
   let funding: any
   try {
-    funding = await getCurrentExchangeFundingSources(tx, invoiceId, { allowReturnBalanceChanges: true })
+    funding = await getCurrentExchangeFundingSources(tx, invoiceId, {
+      allowReturnBalanceChanges: true, allowExpiredGiftForReturnAttribution: true
+    })
   } catch {
     throw new BusinessError(exchangeReturnFundingBlockedMessage())
   }

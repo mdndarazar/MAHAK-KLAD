@@ -195,7 +195,11 @@ async function latestSaleFundingRevision(tx: LedgerClient, invoiceId: number): P
   }, 0)
 }
 
-async function hasPersistedSourcePayment(tx: LedgerClient, event: any): Promise<boolean> {
+async function hasPersistedSourcePayment(
+  tx: LedgerClient,
+  event: any,
+  options: { allowExpiredGiftForReturnAttribution?: boolean } = {}
+): Promise<boolean> {
   const invoiceId = Number(event?.sourceInvoiceId)
   const paymentId = Number(event?.sourcePaymentId)
   if (!Number.isSafeInteger(invoiceId) || invoiceId <= 0 || !Number.isSafeInteger(paymentId) || paymentId <= 0 ||
@@ -258,7 +262,7 @@ async function hasPersistedSourcePayment(tx: LedgerClient, event: any): Promise<
       return false
     const activeRedemptions = await tx.storeCreditRedemption.findMany({
       where: { invoiceId, paymentId, reversedAt: null },
-      select: { id: true, creditId: true, amount: true, compensatedAt: true, expiryCaptured: true, expiryAtRedeem: true }
+      select: { id: true, creditId: true, amount: true, compensatedAt: true, expiryCaptured: true, expiryAtRedeem: true, at: true }
     })
     if (activeRedemptions.length !== 1) return false
     const redemption = activeRedemptions[0]
@@ -271,10 +275,17 @@ async function hasPersistedSourcePayment(tx: LedgerClient, event: any): Promise<
     } })
     const capturedExpiry = dateMillis(redemption.expiryAtRedeem)
     const currentExpiry = dateMillis(credit?.expiresAt)
-    if (!credit || credit.voidedAt != null || credit.deletedAt != null ||
-        !['USED', 'PARTIALLY_USED'].includes(String(credit.status)) ||
+    const redeemedAt = dateMillis(redemption.at)
+    const allowExpiredGiftForReturnAttribution = options.allowExpiredGiftForReturnAttribution === true
+    const expiredNow = capturedExpiry != null && Number.isFinite(capturedExpiry) && capturedExpiry <= Date.now()
+    const status = String(credit?.status ?? '')
+    const statusProven = ['USED', 'PARTIALLY_USED'].includes(status) ||
+      (allowExpiredGiftForReturnAttribution && expiredNow && status === 'EXPIRED')
+    if (!credit || credit.voidedAt != null || credit.deletedAt != null || !statusProven ||
         toNumberRial(credit.usedAmount) < paymentAmount || toNumberRial(credit.amount) < toNumberRial(credit.usedAmount) ||
-        capturedExpiry !== currentExpiry || (capturedExpiry != null && capturedExpiry <= Date.now()))
+        capturedExpiry !== currentExpiry ||
+        (capturedExpiry != null && (!Number.isFinite(capturedExpiry) || !Number.isFinite(redeemedAt) || redeemedAt >= capturedExpiry)) ||
+        (expiredNow && !allowExpiredGiftForReturnAttribution))
       return false
     return true
   }
@@ -424,9 +435,14 @@ async function hasActiveTransferPair(tx: LedgerClient, into: any): Promise<boole
   return !!(await activeExchangeLink(tx, Number(into.sourceInvoiceId), Number(into.childInvoiceId), Number(into.returnId)))
 }
 
-async function provenSourceRootEvent(tx: LedgerClient, event: any): Promise<any | null> {
+async function provenSourceRootEvent(
+  tx: LedgerClient,
+  event: any,
+  options: { allowExpiredGiftForReturnAttribution?: boolean } = {}
+): Promise<any | null> {
   let current = event
   const seen = new Set<number>()
+  const transferInTimes: Array<number | null> = []
   for (let depth = 0; depth < 50; depth++) {
     const id = Number(current?.id)
     const shareId = typeof current?.shareId === 'string' ? current.shareId : ''
@@ -436,7 +452,18 @@ async function provenSourceRootEvent(tx: LedgerClient, event: any): Promise<any 
       const rootAmount = toNumberRial(current.amount)
       if (!Number.isSafeInteger(rootAmount) || rootAmount <= 0) return null
       if (await eventHasReversal(tx, id)) return null
-      if (!await hasPersistedSourcePayment(tx, current)) return null
+      if (!await hasPersistedSourcePayment(tx, current, options)) return null
+      if (String(current.kind) === 'SOURCE_GIFT' &&
+          options.allowExpiredGiftForReturnAttribution === true) {
+        const redemption = await tx.storeCreditRedemption.findUnique({
+          where: { id: Number(current.sourceRedemptionId) }, select: { expiryAtRedeem: true }
+        })
+        const expiry = dateMillis(redemption?.expiryAtRedeem)
+        if (expiry != null && expiry <= Date.now() &&
+            (!Number.isFinite(expiry) || transferInTimes.length === 0 ||
+              transferInTimes.some((at) => at == null || !Number.isFinite(at) || at >= expiry)))
+          return null
+      }
       const rootBalance = await exchangeFundingBalance(tx, shareId)
       if (!Number.isSafeInteger(rootBalance) || rootBalance < 0) return null
       return current
@@ -447,6 +474,7 @@ async function provenSourceRootEvent(tx: LedgerClient, event: any): Promise<any 
     if (!await hasActiveTransferPair(tx, current)) return null
     const carriedBalance = await exchangeFundingBalance(tx, shareId)
     if (!Number.isSafeInteger(carriedBalance) || carriedBalance < 0) return null
+    transferInTimes.push(dateMillis(current.createdAt))
     current = await tx.exchangeFundingEvent.findUnique({ where: { id: Number(current.parentEventId) } })
     if (!current) return null
   }
@@ -579,7 +607,10 @@ function exchangeFundingLineAllocationEventKey(childInvoiceId: number, sourceEve
  * tenders, debt, missing pairs, and mismatched invoice totals stay unresolved.
  */
 export async function getCurrentExchangeFundingSources(
-  tx: LedgerClient, invoiceId: number, options: { allowReturnBalanceChanges?: boolean } = {}
+  tx: LedgerClient, invoiceId: number, options: {
+    allowReturnBalanceChanges?: boolean
+    allowExpiredGiftForReturnAttribution?: boolean
+  } = {}
 ) {
   if (!Number.isSafeInteger(invoiceId) || invoiceId <= 0) throw invalid()
   const invoice = await tx.saleInvoice.findUnique({
@@ -662,7 +693,10 @@ export async function getCurrentExchangeFundingSources(
       continue
     }
     incomingTotal += BigInt(amount)
-    const root = await provenSourceRootEvent(tx, into)
+    const root = await provenSourceRootEvent(tx, into, {
+      allowExpiredGiftForReturnAttribution: options.allowReturnBalanceChanges === true &&
+        options.allowExpiredGiftForReturnAttribution === true
+    })
     if (!root) {
       base.unresolved.push({ eventId, kind: 'UNPROVEN_EXCHANGE_LINEAGE', amount })
       continue
@@ -955,7 +989,9 @@ export async function recordExchangeFundingReturnLineAllocation(tx: LedgerClient
       Number(returnItem.variantId) !== Number(saleItem.variantId))
     throw new BusinessError('فاکتور/قلم برگشتی فرزند با scope دفتر منشأ سازگار نیست؛ هیچ انتسابی ثبت نشد.')
 
-  const funding = await getCurrentExchangeFundingSources(tx, childInvoiceId, { allowReturnBalanceChanges: true })
+  const funding = await getCurrentExchangeFundingSources(tx, childInvoiceId, {
+    allowReturnBalanceChanges: true, allowExpiredGiftForReturnAttribution: true
+  })
   if (!funding.snapshotExists || funding.unresolved.length > 0 ||
       funding.lineAllocationStatus !== 'PERSISTED_RECONCILED' ||
       funding.sourceInvoiceId == null || funding.returnId == null ||

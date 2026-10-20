@@ -564,6 +564,59 @@ assert.deepEqual({
 }, mixedChildReturnBefore,
 'mixed gift/cash STORE_CREDIT rejection creates no entitlement, credit, payment, stock or ledger effect')
 
+// Expiry closes future transferability, not historical source attribution for
+// a returned child item. Advance only the clock used by the reader; keep the
+// captured redemption/credit expiry snapshot unchanged.
+const mixedGiftExpiry = seed.one('SELECT id, status, expiresAt FROM "StoreCredit" WHERE code=?', mixedGift.code)
+const mixedGiftExpiresAt = new Date(mixedGiftExpiry.expiresAt).getTime()
+assert.ok(Number.isFinite(mixedGiftExpiresAt) && mixedGiftExpiresAt > Date.now(),
+  'the source gift is live when the exchange transfer is created')
+const actualDateNow = Date.now
+try {
+  Date.now = () => mixedGiftExpiresAt + 1
+  sql.prepare('UPDATE "StoreCredit" SET status=? WHERE id=?').run('EXPIRED', mixedGiftExpiry.id)
+  const transferViewAfterExpiry = await getCurrentExchangeFundingSources(db, mixedChildInvoiceId)
+  assert.ok(transferViewAfterExpiry.unresolved.some((row) => row.kind === 'UNPROVEN_EXCHANGE_LINEAGE'),
+    'the ordinary transfer reader no longer treats an expired gift as transferable')
+  const expiredGiftPreview = await salesService.returnProvenancePreview({
+    invoiceId: mixedChildInvoiceId, lines: [{ saleItemId: mixedChildItemId, qty: 1 }]
+  })
+  assert.equal(expiredGiftPreview.returnTotal, 500)
+  assert.deepEqual(expiredGiftPreview.shares.map(({ sourceKind, amount }) => ({ sourceKind, amount }))
+    .sort((a, b) => a.sourceKind.localeCompare(b.sourceKind)), [
+    { sourceKind: 'SOURCE_CASH', amount: 300 }, { sourceKind: 'SOURCE_GIFT', amount: 200 }
+  ], 'expired gift remains labeled as historical gift attribution, never as cash')
+  assert.equal(expiredGiftPreview.cashRight, 0)
+  assert.equal(expiredGiftPreview.giftOpportunity, 0)
+  assert.equal(expiredGiftPreview.settlementReady, false)
+  await assert.rejects(() => salesService.createReturn({
+    invoiceId: mixedChildInvoiceId, lines: [{ saleItemId: mixedChildItemId, qty: 1 }],
+    refundMethod: 'STORE_CREDIT', refundAmount: 500,
+    printedHolderFirstName: 'Expired', printedHolderLastName: 'Gift', printedHolderPhone: '355690000002',
+    userId, shiftId
+  }), /تخصیص منشأ به قلم/,
+  'expired gift attribution must not mint replacement credit from a physical child return')
+  assert.deepEqual({
+    returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', mixedChildInvoiceId).n,
+    payments: seed.one('SELECT COUNT(*) n FROM "Payment" WHERE invoiceId=?', mixedChildInvoiceId).n,
+    cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+    credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
+    creditAllocations: seed.one('SELECT COUNT(*) n FROM "CreditReturnAllocation"').n,
+    fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n,
+    entitlements: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlement"').n,
+    entitlementEvents: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n,
+    creditDeliveries: seed.one('SELECT COUNT(*) n FROM "CreditDelivery"').n,
+    lineAllocations: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingLineAllocation" WHERE childInvoiceId=?', mixedChildInvoiceId).n,
+    returnLineAllocations: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation" WHERE childInvoiceId=?', mixedChildInvoiceId).n,
+    stockMovements: seed.one('SELECT COUNT(*) n FROM "StockMovement"').n,
+    replacementStock: seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', mixedReplacementVariant).stock
+  }, mixedChildReturnBefore,
+  'historical expired-gift preview is read-only and creates no entitlement or return side effect')
+} finally {
+  Date.now = actualDateNow
+  sql.prepare('UPDATE "StoreCredit" SET status=? WHERE id=?').run(mixedGiftExpiry.status, mixedGiftExpiry.id)
+}
+
 // The accounting writer can persist source attribution for a mixed child line,
 // but this remains descriptive only: gift value never becomes refund money.
 // Two one-unit chunks prove cumulative history; reversal is strictly LIFO.
