@@ -1,8 +1,8 @@
 /**
- * نشست ۱۹۷ — باگ بحرانی ممیزی کلاد:
- * برگشت کالای تعویضی روی فاکتور نسیه نباید نقد از کشو بدهد.
- * سقف = پول واقعی (نقد/کارت/چک پاس‌شده)، نه paidTotal و نه EXCHANGE_CREDIT.
- * اگر فاکتور اصلی نقد بوده، خروج نقد مجاز است.
+ * Regression for the still-closed exchange-child return policy. Neither a
+ * credit-funded/debt source nor an ordinary cash source may turn attribution
+ * into a payout until child entitlement and reversal invariants are complete.
+ * Preview may show attribution only, but must issue no cash/credit/debt right.
  *
  *     node --import ./test/harness/register.mjs tests/audit-fixes/fix-s197-exchange-nasiyeh-cash-refund.mjs
  */
@@ -41,6 +41,19 @@ const safe = async (label, fn) => {
     return null
   }
 }
+const expectChildClosed = async (label, fn) => {
+  try {
+    await fn()
+    bad++; console.log(`  ✗ ${label} — child settlement unexpectedly opened`)
+  } catch (e) {
+    const message = String(e?.message ?? e)
+    if (/تخصیص منشأ|تعویض|entitlement|reversal/iu.test(message)) {
+      ok++; console.log(`  ✓ ${label} — fail-closed`)
+    } else {
+      bad++; console.log(`  ✗ ${label} — unexpected error: ${message.split('\n')[0]}`)
+    }
+  }
+}
 
 const userId = seed.user('مدیر تست ۱۹۷ تعویض-نسیه')
 const cat = seed.category('پوشاک')
@@ -55,19 +68,17 @@ const variant = (price) => {
   return id
 }
 const itemsOf = (invoiceId) => seed.rows('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId = ? ORDER BY id', invoiceId)
-const refundSum = (type) => {
-  const row = seed.one('SELECT COALESCE(SUM(amount), 0) AS t FROM "CashMovement" WHERE type = ?', type)
-  return Number(row?.t ?? 0)
-}
+const refundSum = (type) => Number(seed.one('SELECT COALESCE(SUM(amount), 0) AS t FROM "CashMovement" WHERE type = ?', type)?.t ?? 0)
 
-console.log('\n۰) قرارداد منبع: سقف برگشت از پول واقعی است نه paidTotal')
+console.log('\n۰) مرجع پول نقد درست است، اما attribution به‌تنهایی مجوز تسویهٔ فرزند نیست')
 {
   const SALES = readFileSync(resolve('src/main/services/SalesService.ts'), 'utf8')
-  truthy('cashLikeRefundableOf تعریف شده', /async function cashLikeRefundableOf/.test(SALES))
-  truthy('runReturn سقف را از cashLikeRefundableOf می‌گیرد', /receivedOnInvoice = await cashLikeRefundableOf/.test(SALES))
+  truthy('cashLikeRefundableOf همچنان تعریف شده', /async function cashLikeRefundableOf/.test(SALES))
+  truthy('منبع پول واقعی cashLikeRefundableOf است', /receivedOnInvoice = await cashLikeRefundableOf/.test(SALES))
+  truthy('گیت تعویضِ فرزند پیش از مسیر بازپرداخت فعال است', /opts\.applyRefund && isExchangeChildInvoice/.test(SALES))
 }
 
-const exchangeThenReturnCash = async (label, paid) => {
+const exchangeThenAttemptChildRefund = async (label, paid) => {
   const srcVar = variant(1_000_000)
   const sale = await safe(`${label}: فروش ${paid ? 'نقد' : 'نسیه'} ۱M`, () => salesService.create({
     userId, shiftId,
@@ -84,39 +95,55 @@ const exchangeThenReturnCash = async (label, paid) => {
   }))
   if (!ex) return null
   eq(`${label}: سند تعویض ساخته شد`, typeof ex.exchangeInvoiceId, 'number')
-  const retBefore = refundSum('RETURN_REFUND')
-  const ret = await safe(`${label}: برگشت نقد کالای تعویضی`, () => salesService.createReturn({
-    invoiceId: ex.exchangeInvoiceId,
-    full: false,
-    lines: [{ saleItemId: itemsOf(ex.exchangeInvoiceId)[0].id, qty: 1 }],
-    refundMethod: RefundMethod.CASH,
-    refundAmount: 600_000,
-    userId, shiftId
+
+  const childItemId = itemsOf(ex.exchangeInvoiceId)[0].id
+  const effects = () => ({
+    childReturns: Number(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', ex.exchangeInvoiceId).n),
+    childReturnItems: Number(seed.one(`SELECT COUNT(*) n FROM "SaleReturnItem" ri
+      JOIN "SaleReturn" r ON r.id=ri.returnId WHERE r.invoiceId=?`, ex.exchangeInvoiceId).n),
+    returnRefundCash: refundSum('RETURN_REFUND'),
+    cashMovements: Number(seed.one('SELECT COUNT(*) n FROM "CashMovement"').n),
+    credits: Number(seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n),
+    fundingEvents: Number(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n)
+  })
+  const before = effects()
+  let preview = null
+  let previewBlocked = false
+  try {
+    preview = await salesService.returnProvenancePreview({
+      invoiceId: ex.exchangeInvoiceId, lines: [{ saleItemId: childItemId, qty: 1 }]
+    })
+  } catch (error) {
+    previewBlocked = /تخصیص منشأ|تعویض|entitlement|reversal/iu.test(String(error?.message ?? error))
+  }
+  const previewClosed = previewBlocked || (preview?.attributionOnly === true && preview.settlementReady === false &&
+    Number(preview.cashRight) === 0 && Number(preview.giftOpportunity) === 0 && Number(preview.debtReduced) === 0)
+  truthy(`${label}: preview بسته است یا فقط attribution بدون حق مالی می‌دهد`, previewClosed)
+  if (preview) {
+    eq(`${label}: preview حق نقد نمی‌سازد`, Number(preview.cashRight), 0)
+    eq(`${label}: preview حق اعتبار نمی‌سازد`, Number(preview.giftOpportunity), 0)
+    eq(`${label}: preview بدهی مادر را تغییر نمی‌دهد`, Number(preview.debtReduced), 0)
+  }
+
+  await expectChildClosed(`${label}: برگشت CASH روی فرزند تعویض fail-closed است`, () => salesService.createReturn({
+    invoiceId: ex.exchangeInvoiceId, full: false,
+    lines: [{ saleItemId: childItemId, qty: 1 }],
+    refundMethod: RefundMethod.CASH, refundAmount: 600_000, userId, shiftId
   }))
-  const row = ret ? seed.one('SELECT refundAmount, refundMethod FROM "SaleReturn" WHERE id = ?', ret.id) : null
-  const cashOut = refundSum('RETURN_REFUND') - retBefore
-  return { sale, ex, ret, row, cashOut }
+  const after = effects()
+  eq(`${label}: تلاش فرزند اثر جانبی ندارد`, JSON.stringify(after), JSON.stringify(before))
+  return { sale, ex }
 }
 
-console.log('\n۱) نسیه ۱M → تعویض ۶۰۰k → برگشت نقد ⇒ خروج صفر، روش NONE')
+console.log('\n۱) نسیه ۱M → تعویض ۶۰۰k → تلاش برگشت فرزند هیچ حق تسویه نمی‌سازد')
 {
-  const r = await exchangeThenReturnCash('نسیه', 0)
-  if (r) {
-    eq('خروج نقد صفر', r.cashOut, 0)
-    eq('روش NONE شد', String(r.row?.refundMethod ?? ''), RefundMethod.NONE)
-    eq('مبلغ بازپرداخت صفر', Number(r.row?.refundAmount ?? -1), 0)
-  }
+  const result = await exchangeThenAttemptChildRefund('نسیه', 0)
+  if (result) eq('ماندهٔ مادر پس از رد برگشت فرزند همچنان ۶۰۰k',
+    Number((await salesService.payments({ invoiceId: result.sale.id })).remaining), 600_000)
 }
 
-console.log('\n۲) نقد ۱M → تعویض ۶۰۰k → برگشت نقد ⇒ خروج ۶۰۰k مجاز است')
-{
-  const r = await exchangeThenReturnCash('نقد', 1_000_000)
-  if (r) {
-    eq('خروج نقد ۶۰۰k', r.cashOut, 600_000)
-    eq('روش CASH ماند', String(r.row?.refundMethod ?? ''), RefundMethod.CASH)
-    eq('مبلغ بازپرداخت ۶۰۰k', Number(r.row?.refundAmount ?? -1), 600_000)
-  }
-}
+console.log('\n۲) نقد ۱M → تعویض ۶۰۰k → حتی lineage نقدی فعلاً مجوز payout نیست')
+await exchangeThenAttemptChildRefund('نقد', 1_000_000)
 
 console.log(`\nنتیجه: ${ok} موفق · ${bad} ناموفق`)
 if (bad) process.exit(1)

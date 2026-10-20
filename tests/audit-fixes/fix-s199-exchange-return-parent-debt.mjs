@@ -1,7 +1,8 @@
 /**
- * نشست ۱۹۹ — برگشت کالای جایگزین از سند تعویضِ نسیه، بدهی مادر را کم می‌کند.
- * نسیه ۱۰۰۰ (۶۰۰+۴۰۰) → تعویض ۶۰۰ با ۲۰۰ → برگشت همان ۲۰۰ (STORE_CREDIT→NONE)
- * ⇒ مانده مادر ۴۰۰، پل بسته.
+ * Legacy expectation that a replacement-child return directly reduces the
+ * source invoice debt is intentionally retired. Until child entitlement and
+ * reversal are complete, both preview and mutation must fail closed and leave
+ * the parent debt, funding evidence, inventory and credits unchanged.
  *
  *     node --import ./test/harness/register.mjs tests/audit-fixes/fix-s199-exchange-return-parent-debt.mjs
  */
@@ -74,20 +75,57 @@ const ex = await safe('تعویض ۶۰۰ با ۲۰۰', () => salesService.create
 }))
 eq('بعد از تعویض مانده ۶۰۰', sale ? await remainingOf(sale.id) : -1, 600)
 
-const ret = await safe('برگشت کالای جایگزین ۲۰۰', () => salesService.createReturn({
-  invoiceId: ex.exchangeInvoiceId,
-  full: false,
-  lines: [{ saleItemId: itemsOf(ex.exchangeInvoiceId)[0].id, qty: 1 }],
-  refundMethod: RefundMethod.STORE_CREDIT,
-  refundAmount: 200,
-  userId, shiftId
-}))
-eq('روش NONE شد (نقدی در کار نبود)', String(seed.one('SELECT refundMethod FROM "SaleReturn" WHERE id = ?', ret?.id)?.refundMethod ?? ''), RefundMethod.NONE)
-eq('مانده مادر ۴۰۰ (نه ۶۰۰)', sale ? await remainingOf(sale.id) : -1, 400)
+const childItemId = itemsOf(ex.exchangeInvoiceId)[0].id
+const effectsBeforeChildAttempt = {
+  childReturns: Number(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', ex.exchangeInvoiceId).n),
+  returnItems: Number(seed.one(`SELECT COUNT(*) n FROM "SaleReturnItem" ri
+    JOIN "SaleReturn" r ON r.id=ri.returnId WHERE r.invoiceId=?`, ex.exchangeInvoiceId).n),
+  credits: Number(seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n),
+  cashMovements: Number(seed.one('SELECT COUNT(*) n FROM "CashMovement"').n),
+  fundingEvents: Number(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n)
+}
+const expectClosed = async (label, action) => {
+  try {
+    await action()
+    bad++
+    console.log(`  ✗ ${label} — مسیر تعویضِ بدون entitlement/reversal هنوز باید بسته بماند`)
+  } catch (error) {
+    const message = String(error?.message ?? error)
+    if (/تخصیص منشأ|تعویض|entitlement|reversal/iu.test(message)) {
+      ok++
+      console.log(`  ✓ ${label} رد شد و مسیر fail-closed ماند`)
+    } else {
+      bad++
+      console.log(`  ✗ ${label} — خطای نامنتظره: ${message.split('\\n')[0]}`)
+    }
+  }
+}
+await expectClosed('پیش‌نمایش برگشت کالای جایگزین entitlement صادر نمی‌کند', () =>
+  salesService.returnProvenancePreview({ invoiceId: ex.exchangeInvoiceId, lines: [{ saleItemId: childItemId, qty: 1 }] }))
+await expectClosed('ثبت برگشت STORE_CREDIT روی فرزند تعویض fail-closed است', () =>
+  salesService.createReturn({
+    invoiceId: ex.exchangeInvoiceId, full: false,
+    lines: [{ saleItemId: childItemId, qty: 1 }],
+    refundMethod: RefundMethod.STORE_CREDIT, refundAmount: 200, userId, shiftId
+  }))
+const effectsAfterChildAttempt = {
+  childReturns: Number(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', ex.exchangeInvoiceId).n),
+  returnItems: Number(seed.one(`SELECT COUNT(*) n FROM "SaleReturnItem" ri
+    JOIN "SaleReturn" r ON r.id=ri.returnId WHERE r.invoiceId=?`, ex.exchangeInvoiceId).n),
+  credits: Number(seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n),
+  cashMovements: Number(seed.one('SELECT COUNT(*) n FROM "CashMovement"').n),
+  fundingEvents: Number(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n)
+}
+if (JSON.stringify(effectsAfterChildAttempt) === JSON.stringify(effectsBeforeChildAttempt)) {
+  ok++; console.log('  ✓ تلاش فرزند هیچ برگشت، قلم، اعتبار، حرکت صندوق یا رویداد تأمین مالی نساخت')
+} else {
+  bad++; console.log('  ✗ تلاش فرزند اثر جانبی داشت:', effectsAfterChildAttempt)
+}
+eq('مانده مادر با برگشت فرزند فرضی تغییر نمی‌کند', sale ? await remainingOf(sale.id) : -1, 600)
 
 const credit = await safe('فهرست نسیه', () => salesService.creditList({ fromJalali: today, toJalali: today, includeSettled: true }))
 const row = (credit?.rows ?? []).find((r) => r.id === sale?.id)
-eq('creditList مانده ۴۰۰', Number(row?.remaining ?? -1), 400)
+eq('creditList مانده پس از رد فرزند', Number(row?.remaining ?? -1), 600)
 
 const filter = { fromJalali: today, toJalali: today }
 const { statements } = await buildStatements({
