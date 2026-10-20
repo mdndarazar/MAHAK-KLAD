@@ -4,6 +4,7 @@
  */
 import assert from 'node:assert/strict'
 import { webcrypto } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { resolveReturnRequestIdentity, clearStoredReturnRequestIdentity } from '../../src/renderer/src/lib/returnIdempotency.ts'
 
 const values = new Map()
@@ -64,4 +65,19 @@ assert.equal(values.size, 1, 'completion of an older request cannot clear a newe
 clearStoredReturnRequestIdentity(changed.key, storage)
 assert.equal(values.size, 0, 'completion clears only the matching pending intent')
 
-console.log('✓ renderer return identity: same-intent retry survives reload, payload changes rotate key, completion clears exact key')
+const salesReturnPage = readFileSync(new URL('../../src/renderer/src/pages/SalesReturn.tsx', import.meta.url), 'utf8')
+const submitStart = salesReturnPage.indexOf('const doSubmit = useCallback(')
+const exchangeStart = salesReturnPage.indexOf('const doExchange = useCallback(', submitStart)
+assert.ok(submitStart >= 0 && exchangeStart > submitStart, 'find the return submit handler')
+const submitHandler = salesReturnPage.slice(submitStart, exchangeStart)
+const persistenceIndex = submitHandler.indexOf('await resolveReturnRequestIdentity(')
+const ipcIndex = submitHandler.indexOf('call<any>(CH.saleReturn,')
+assert.ok(persistenceIndex >= 0 && ipcIndex > persistenceIndex,
+  'verified session persistence and key resolution must happen before the return IPC')
+assert.ok(submitHandler.indexOf('returnIdempotencyRef.current = requestIdentity') > persistenceIndex &&
+  submitHandler.indexOf('returnIdempotencyRef.current = requestIdentity') < ipcIndex,
+'a retry key is retained in memory before IPC starts')
+assert.ok(submitHandler.indexOf('clearStoredReturnRequestIdentity(idempotencyKey)') > ipcIndex,
+'only a completed return request clears its persisted identity')
+
+console.log('✓ renderer return identity: storage is verified before IPC; same-intent retry survives reload, payload changes rotate key, completion clears exact key')
