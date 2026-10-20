@@ -40,14 +40,23 @@ const scopeTriggerEnd = scopeMigration.indexOf('END;', scopeTriggerStart) + 'END
 if (scopeTriggerStart < 0 || scopeTriggerEnd < 'END;'.length)
   throw new Error('exchange-return-line scope trigger SQL is missing')
 const scopeTriggerSql = scopeMigration.slice(scopeTriggerStart, scopeTriggerEnd)
-const insertCorruptAllocationForDefenseTest = (row) => {
-  assert.throws(() => seed.insert('ExchangeFundingReturnLineAllocation', row), /scope mismatch/,
-    'SQLite trigger rejects a cross-linked allocation at the database boundary')
+const cumulativeMigration = readFileSync(resolve(process.cwd(),
+  'prisma/migrations/20271020740000_guard_exchange_return_line_cumulative_snapshots/migration.sql'), 'utf8')
+const cumulativeTriggerStart = cumulativeMigration.indexOf('CREATE TRIGGER "exchange_funding_return_line_allocation_cumulative_insert"')
+const cumulativeTriggerEnd = cumulativeMigration.indexOf('END;', cumulativeTriggerStart) + 'END;'.length
+if (cumulativeTriggerStart < 0 || cumulativeTriggerEnd < 'END;'.length)
+  throw new Error('exchange-return-line cumulative trigger SQL is missing')
+const cumulativeTriggerSql = cumulativeMigration.slice(cumulativeTriggerStart, cumulativeTriggerEnd)
+const insertCorruptAllocationForDefenseTest = (row, expectedPattern = /scope mismatch/) => {
+  assert.throws(() => seed.insert('ExchangeFundingReturnLineAllocation', row), expectedPattern,
+    'SQLite trigger rejects the corrupt allocation at the database boundary')
   sql.exec('DROP TRIGGER "exchange_funding_return_line_allocation_scope_insert"')
+  sql.exec('DROP TRIGGER "exchange_funding_return_line_allocation_cumulative_insert"')
   try {
     return seed.insert('ExchangeFundingReturnLineAllocation', row)
   } finally {
     sql.exec(scopeTriggerSql)
+    sql.exec(cumulativeTriggerSql)
   }
 }
 const insertCorruptReversalForDefenseTest = (row) => {
@@ -307,7 +316,7 @@ const secondForgedChunk = allocateExchangeFundingLineReturn({
 })
 for (const share of secondForgedChunk.shares) {
   const source = forgedSourceRows.find((row) => Number(row.sourceEventId) === share.sourceEventId)
-  seed.insert('ExchangeFundingReturnLineAllocation', {
+  insertCorruptAllocationForDefenseTest({
     eventKey: `exchange-return-item:${forgedHistoryItemId}:source:${share.sourceEventId}:allocation:v1`,
     eventKind: 'ALLOCATION', returnId: forgedHistoryReturnId, returnItemId: forgedHistoryItemId,
     sourceInvoiceId: Number(source.sourceInvoiceId), childInvoiceId: childId,
@@ -320,7 +329,7 @@ for (const share of secondForgedChunk.shares) {
     cumulativeReturnValue: secondForgedChunk.cumulativeReturnValue,
     priorAmount: share.prior, amountDelta: share.amount, cumulativeAmount: share.cumulative,
     allocationVersion: 1, reversesAllocationId: null
-  })
+  }, /cumulative allocation mismatch/)
 }
 await assert.rejects(() => db.$transaction((tx) =>
   reverseExchangeFundingReturnLineAllocationsForReturn(tx, { returnId: forgedHistoryReturnId })),

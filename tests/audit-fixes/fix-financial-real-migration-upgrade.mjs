@@ -18,7 +18,7 @@ const names = readdirSync(join(root, 'prisma/migrations'))
   .filter((name) => name !== 'migration_lock.toml').sort()
 const historicNames = names.filter((name) => name < cutover)
 const newNames = names.filter((name) => name >= cutover)
-assert.equal(newNames.length, 19, 'update this test when the financial cutover gains another migration')
+assert.equal(newNames.length, 20, 'update this test when the financial cutover gains another migration')
 const dir = mkdtempSync(join(tmpdir(), 'mahak-real-migration-upgrade-'))
 process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'unused-harness.db')
@@ -280,6 +280,33 @@ assert.throws(() => insertReturnLineRow.run(...returnLineParams({
   ...returnLineAllocation, eventKey: 'wrong-return-allocation-key'
 })), /integrity check failed|CHECK constraint failed/,
 'allocation event keys bind to the exact return-item/source cell')
+const secondChildReturnId = seed.insert('SaleReturn', {
+  invoiceId: childInvoiceId, kind: 'RETURN', total: 500, returnedAt: new Date(),
+  returnedAtJalali: '1405/07/20', userId, refundMethod: 'NONE', refundAmount: 0
+})
+const secondChildReturnItemId = seed.insert('SaleReturnItem', {
+  returnId: secondChildReturnId, saleItemId: childSaleItemId, variantId, qty: 1,
+  unitPrice: 500, lineTotal: 500
+})
+const secondReturnAllocation = {
+  ...returnLineAllocation,
+  eventKey: `exchange-return-item:${secondChildReturnItemId}:source:${childSourceEventId}:allocation:v1`,
+  returnId: secondChildReturnId, returnItemId: secondChildReturnItemId,
+  returnedQtyBefore: 1, returnedQtyAfter: 2, priorReturnValue: 500,
+  cumulativeReturnValue: 1000, priorAmount: 500, cumulativeAmount: 1000
+}
+assert.throws(() => insertReturnLineRow.run(...returnLineParams({
+  ...secondReturnAllocation,
+  returnedQtyBefore: 0, returnedQtyAfter: 1, priorReturnValue: 0,
+  cumulativeReturnValue: 500, priorAmount: 0, cumulativeAmount: 500
+})), /cumulative allocation mismatch/,
+'database rejects a cumulative quantity/value snapshot that ignores the earlier active physical return')
+assert.throws(() => insertReturnLineRow.run(...returnLineParams({
+  ...secondReturnAllocation, priorAmount: 0, cumulativeAmount: 500
+})), /cumulative allocation mismatch/,
+'database rejects a source-share snapshot that ignores the previous active source allocation')
+insertReturnLineRow.run(...returnLineParams(secondReturnAllocation))
+
 const inverse = {
   ...returnLineAllocation,
   eventKey: `exchange-return-item:${returnLineAllocation.returnItemId}:source:${returnLineAllocation.sourceEventId}:reversal:v1`, eventKind: 'REVERSAL',
