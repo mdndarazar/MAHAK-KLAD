@@ -60,25 +60,21 @@ await assert.rejects(() => db.$transaction((tx) => appendExchangeFundingEvent(tx
   ...base, eventKey: 'bad:unsafe:source', amount: Number.MAX_SAFE_INTEGER + 1
 })), /رویداد منشأ مالی معتبر نیست/)
 
-const voidEvent = await db.$transaction((tx) => appendExchangeFundingEvent(tx, {
-  ...base, eventKey: 'void:71:payment:301', kind: 'VOID_SOURCE', amount: -13_980_000,
-  evidenceKind: 'SALE_INVOICE_VOID', reversesEventId: first.event.id
-}))
+const voidEventInput = {
+  ...base, eventKey: `${base.eventKey}:void:r2`, kind: 'VOID_SOURCE_CASH', amount: -13_980_000,
+  evidenceKind: 'PAYMENT_SNAPSHOT_REVISION', evidenceRef: 'snapshot:71:r2', reversesEventId: first.event.id
+}
+const voidEvent = await db.$transaction((tx) => appendExchangeFundingEvent(tx, voidEventInput))
 assert.equal(voidEvent.replayed, false)
 assert.equal(await exchangeFundingBalance(db, 'payment:301'), 0)
-const voidReplay = await db.$transaction((tx) => appendExchangeFundingEvent(tx, {
-  ...base, eventKey: 'void:71:payment:301', kind: 'VOID_SOURCE', amount: -13_980_000,
-  evidenceKind: 'SALE_INVOICE_VOID', reversesEventId: first.event.id
-}))
+const voidReplay = await db.$transaction((tx) => appendExchangeFundingEvent(tx, voidEventInput))
 assert.equal(voidReplay.replayed, true)
 await assert.rejects(() => db.$transaction((tx) => appendExchangeFundingEvent(tx, {
-  ...base, eventKey: 'void:71:payment:301:again', kind: 'VOID_SOURCE', amount: -13_980_000,
-  evidenceKind: 'SALE_INVOICE_VOID', reversesEventId: first.event.id
+  ...voidEventInput, eventKey: `${base.eventKey}:void:r3`
 })), /UNIQUE constraint failed|رویداد منشأ مالی معتبر نیست/,
 'a source event cannot be reversed twice')
 await assert.rejects(() => db.$transaction((tx) => appendExchangeFundingEvent(tx, {
-  ...base, eventKey: 'void:wrong:sign', kind: 'VOID_SOURCE', amount: -1,
-  evidenceKind: 'SALE_INVOICE_VOID', reversesEventId: first.event.id
+  ...voidEventInput, eventKey: `${base.eventKey}:void:r3`, amount: -1
 })), /رویداد منشأ مالی معتبر نیست/)
 
 async function cashSource(amount) {
@@ -528,18 +524,18 @@ assert.ok(offsettingSourceBalances.unresolved.some((row) => row.kind === 'EXCHAN
   'offsetting per-source balance errors cannot pass merely because their grand total reconciles')
 await db.$transaction(async (tx) => {
   await appendExchangeFundingEvent(tx, {
-    eventKey: 'test:line-balance:gift-plus:void', kind: 'VOID_TEST_BALANCE_SHIFT', amount: -10,
+    eventKey: `${shiftedGiftBalance.event.eventKey}:void:r2`, kind: 'VOID_TEST_BALANCE_SHIFT', amount: -10,
     shareId: mixedGiftSource.event.shareId, rootShareId: mixedGiftSource.event.rootShareId,
     sourceInvoiceId: mixedSale.invoiceId, childInvoiceId: mixedGraph.childInvoiceId,
     returnId: mixedGraph.returnId, parentEventId: mixedGiftIncomingEventId,
-    evidenceKind: 'TEST_REVERSAL', reversesEventId: shiftedGiftBalance.event.id
+    evidenceKind: 'PAYMENT_SNAPSHOT_REVISION', reversesEventId: shiftedGiftBalance.event.id
   })
   await appendExchangeFundingEvent(tx, {
-    eventKey: 'test:line-balance:cash-minus:void', kind: 'VOID_TEST_BALANCE_SHIFT', amount: 10,
+    eventKey: `${shiftedCashBalance.event.eventKey}:void:r2`, kind: 'VOID_TEST_BALANCE_SHIFT', amount: 10,
     shareId: mixedCashSource.event.shareId, rootShareId: mixedCashSource.event.rootShareId,
     sourceInvoiceId: mixedSale.invoiceId, childInvoiceId: mixedGraph.childInvoiceId,
     returnId: mixedGraph.returnId, parentEventId: mixedCashIncomingEventId,
-    evidenceKind: 'TEST_REVERSAL', reversesEventId: shiftedCashBalance.event.id
+    evidenceKind: 'PAYMENT_SNAPSHOT_REVISION', reversesEventId: shiftedCashBalance.event.id
   })
 })
 assert.equal((await getCurrentExchangeFundingSources(db, mixedGraph.childInvoiceId)).lineAllocationStatus,
@@ -674,7 +670,7 @@ assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n, before
 
 const voidedSource = await cashSource(300)
 await db.$transaction((tx) => appendExchangeFundingEvent(tx, {
-  eventKey: `void:source:${voidedSource.invoiceId}:${voidedSource.paymentId}`,
+  eventKey: `${voidedSource.sourceEvent.eventKey}:void:r2`,
   kind: 'VOID_SOURCE_CASH', amount: -300, shareId: `payment:${voidedSource.paymentId}`,
   rootShareId: `payment:${voidedSource.paymentId}`, sourceInvoiceId: voidedSource.invoiceId,
   sourcePaymentId: voidedSource.paymentId, sourceMethodKind: 'CASH', sourceDestination: 'CASH',

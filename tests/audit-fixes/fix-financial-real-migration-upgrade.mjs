@@ -18,7 +18,7 @@ const names = readdirSync(join(root, 'prisma/migrations'))
   .filter((name) => name !== 'migration_lock.toml').sort()
 const historicNames = names.filter((name) => name < cutover)
 const newNames = names.filter((name) => name >= cutover)
-assert.equal(newNames.length, 21, 'update this test when the financial cutover gains another migration')
+assert.equal(newNames.length, 22, 'update this test when the financial cutover gains another migration')
 const dir = mkdtempSync(join(tmpdir(), 'mahak-real-migration-upgrade-'))
 process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'unused-harness.db')
@@ -148,12 +148,48 @@ assert.throws(() => addFundingEvent.run('migration-test:source', 'SOURCE_CASH', 
   'payment:2', 'payment:2', 'PAYMENT_ROW'), /UNIQUE constraint failed/,
   'event keys enforce idempotency at the database boundary')
 const fundingEventId = one('SELECT id FROM "ExchangeFundingEvent" WHERE eventKey=?', 'migration-test:source').id
+const insertFundingReversal = db.prepare(`INSERT INTO "ExchangeFundingEvent"
+  (eventKey, kind, amount, shareId, rootShareId, sourceInvoiceId, sourcePaymentId,
+   sourceRedemptionId, sourceCreditId, parentEventId, returnId, debtId, sourceMethodKind,
+   sourceDestination, evidenceKind, evidenceRef, reversesEventId)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+const fundingReversalParams = (overrides = {}) => {
+  const row = {
+    eventKey: 'migration-test:source:void:r2', kind: 'VOID_SOURCE_CASH', amount: -100,
+    shareId: 'payment:1', rootShareId: 'payment:1', sourceInvoiceId: null, sourcePaymentId: null,
+    sourceRedemptionId: null, sourceCreditId: null, parentEventId: null, returnId: null, debtId: null,
+    sourceMethodKind: null, sourceDestination: null,
+    evidenceKind: 'PAYMENT_SNAPSHOT_REVISION', evidenceRef: 'snapshot:1:r2', reversesEventId: fundingEventId,
+    ...overrides
+  }
+  return [row.eventKey, row.kind, row.amount, row.shareId, row.rootShareId,
+    row.sourceInvoiceId, row.sourcePaymentId, row.sourceRedemptionId, row.sourceCreditId,
+    row.parentEventId, row.returnId, row.debtId, row.sourceMethodKind, row.sourceDestination,
+    row.evidenceKind, row.evidenceRef, row.reversesEventId]
+}
+assert.throws(() => insertFundingReversal.run(...fundingReversalParams({ amount: -99 })),
+  /reversal mismatch/, 'SQLite rejects an incorrect inverse amount')
+assert.throws(() => insertFundingReversal.run(...fundingReversalParams({ kind: 'VOID_TRANSFER_IN' })),
+  /reversal mismatch/, 'SQLite requires the exact reversal kind for the source event')
+assert.throws(() => insertFundingReversal.run(...fundingReversalParams({ sourceInvoiceId: firstInvoiceId })),
+  /reversal mismatch/, 'SQLite prevents a reversal from crossing source invoice scope')
+assert.throws(() => insertFundingReversal.run(...fundingReversalParams({ eventKey: 'migration-test:forged-void' })),
+  /reversal mismatch/, 'SQLite binds source-event reversal keys to the original event')
+assert.throws(() => insertFundingReversal.run(...fundingReversalParams({ reversesEventId: null })),
+  /reversal mismatch/, 'SQLite rejects orphan VOID events without an original row')
+insertFundingReversal.run(...fundingReversalParams())
+const fundingReversalId = one('SELECT id FROM "ExchangeFundingEvent" WHERE reversesEventId=?', fundingEventId).id
 assert.throws(() => db.prepare('UPDATE "ExchangeFundingEvent" SET shareId=? WHERE id=?')
   .run('rewritten-share', fundingEventId), /append-only/,
 'funding lineage events cannot be rewritten at the SQLite boundary')
 assert.throws(() => db.prepare('DELETE FROM "ExchangeFundingEvent" WHERE id=?')
   .run(fundingEventId), /append-only/,
 'funding lineage events cannot be erased at the SQLite boundary')
+assert.throws(() => db.prepare('UPDATE "ExchangeFundingEvent" SET amount=amount-1 WHERE id=?')
+  .run(fundingReversalId), /append-only/,
+'funding reversals are immutable too')
+assert.throws(() => insertFundingReversal.run(...fundingReversalParams()), /UNIQUE constraint failed/,
+  'one source event cannot be reversed twice')
 db.prepare(`INSERT INTO "ExchangeFundingEvent"
   (eventKey, kind, amount, shareId, rootShareId, sourceInvoiceId, evidenceKind)
   VALUES (?, ?, ?, ?, ?, ?, ?)`)
@@ -168,16 +204,6 @@ assert.throws(() => db.prepare(`INSERT INTO "ExchangeFundingEvent"
   .run('snapshot-migration-test:invalid', 'SNAPSHOT_STALE', 1,
     `snapshot:${firstInvoiceId}`, `snapshot:${firstInvoiceId}`, firstInvoiceId, 'SYSTEM'),
   /CHECK constraint failed/, 'snapshot-state markers cannot fabricate a Rial balance')
-db.prepare(`INSERT INTO "ExchangeFundingEvent"
-  (eventKey, kind, amount, shareId, rootShareId, evidenceKind, reversesEventId)
-  VALUES (?, ?, ?, ?, ?, ?, ?)`)
-  .run('migration-test:void', 'VOID_SOURCE', -100, 'payment:1', 'payment:1', 'SALE_INVOICE_VOID', 1)
-assert.throws(() => db.prepare(`INSERT INTO "ExchangeFundingEvent"
-  (eventKey, kind, amount, shareId, rootShareId, evidenceKind, reversesEventId)
-  VALUES (?, ?, ?, ?, ?, ?, ?)`)
-  .run('migration-test:duplicate-void', 'VOID_SOURCE', -100, 'payment:1', 'payment:1', 'SALE_INVOICE_VOID', 1),
-  /UNIQUE constraint failed/, 'one source event cannot be reversed twice')
-
 const insertLineAllocation = db.prepare(`INSERT INTO "ExchangeFundingLineAllocation"
   (eventKey, sourceInvoiceId, childInvoiceId, returnId, sourceEventId, saleItemId,
    saleItemQty, saleItemValue, sourceKind, amount)
