@@ -79,6 +79,37 @@ assert.deepEqual({
   credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
   fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
 }, misclassifiedBefore)
+// Either lineage marker alone is enough to route to the child-return hold;
+// a corrupt orderType must never fall through to the ordinary refund preview.
+sql.prepare('UPDATE "SaleInvoice" SET exchangeReturnId=NULL WHERE id=?').run(child.id)
+await assert.rejects(() => salesService.returnProvenancePreview({
+  invoiceId: child.id, lines: [{ saleItemId: Number(childItem.id), qty: 1 }]
+}), /تخصیص منشأ به قلم/,
+'sourceInvoiceId alone must identify a misclassified exchange child')
+await assert.rejects(() => salesService.createReturn({
+  invoiceId: child.id, lines: [{ saleItemId: Number(childItem.id), qty: 1 }],
+  refundMethod: 'CASH', refundAmount: 1000, userId, shiftId
+}), /تخصیص منشأ به قلم/,
+'sourceInvoiceId alone must block the ordinary refund mutation too')
+sql.prepare('UPDATE "SaleInvoice" SET sourceInvoiceId=NULL, exchangeReturnId=? WHERE id=?')
+  .run(exchange.returnId, child.id)
+await assert.rejects(() => salesService.returnProvenancePreview({
+  invoiceId: child.id, lines: [{ saleItemId: Number(childItem.id), qty: 1 }]
+}), /تخصیص منشأ به قلم/,
+'exchangeReturnId alone must identify a misclassified exchange child')
+await assert.rejects(() => salesService.createReturn({
+  invoiceId: child.id, lines: [{ saleItemId: Number(childItem.id), qty: 1 }],
+  refundMethod: 'CASH', refundAmount: 1000, userId, shiftId
+}), /تخصیص منشأ به قلم/,
+'exchangeReturnId alone must block the ordinary refund mutation too')
+assert.deepEqual({
+  returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', child.id).n,
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
+  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
+}, misclassifiedBefore, 'marker-only child paths leave the ordinary refund system untouched')
+sql.prepare('UPDATE "SaleInvoice" SET sourceInvoiceId=?, exchangeReturnId=? WHERE id=?')
+  .run(sale.id, exchange.returnId, child.id)
 sql.prepare('UPDATE "SaleInvoice" SET orderType=? WHERE id=?').run('EXCHANGE', child.id)
 const returnIds = []
 for (let index = 0; index < 3; index++) {
