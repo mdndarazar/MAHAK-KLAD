@@ -17,7 +17,8 @@ const stages = [
   '20271020640000_exchange_funding_line_allocations',
   '20271020650000_exchange_funding_return_line_allocations',
   '20271020660000_sale_return_item_scope_quantity_guards',
-  '20271020670000_sale_return_request_idempotency'
+  '20271020670000_sale_return_request_idempotency',
+  '20271020680000_sale_invoice_item_quantity_domain_guard'
 ]
 const allNames = readdirSync(join(root, 'prisma/migrations'))
   .filter((n) => n !== 'migration_lock.toml').sort()

@@ -45,6 +45,14 @@ const updateFailure = (label, sql, params, pattern) => insertFailure(label,
   () => db.prepare(sql).run(...params), pattern)
 
 // Invoice/variant scope is checked in SQLite, independently of service code.
+insertFailure('fractional sold quantity cannot enter the database',
+  () => db.prepare(`INSERT INTO "SaleInvoiceItem" (invoiceId, variantId, qty, unitPrice, discount, tax, lineTotal)
+    VALUES (?, ?, 1.5, 1000, 0, 0, 1500)`).run(otherInvoiceId, otherVariantId), /sale invoice item quantity/)
+updateFailure('unreturned sold quantity cannot become fractional',
+  'UPDATE "SaleInvoiceItem" SET qty=1.5 WHERE id=?', [otherSaleItemId], /sale invoice item quantity/)
+updateFailure('unreturned sold quantity cannot become zero',
+  'UPDATE "SaleInvoiceItem" SET qty=0 WHERE id=?', [otherSaleItemId], /sale invoice item quantity/)
+
 const firstReturnId = makeReturn()
 insertFailure('sale item from another invoice cannot be linked to this return',
   () => addItem(firstReturnId, otherSaleItemId, 1, otherVariantId), /scope mismatch/)
