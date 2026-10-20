@@ -327,7 +327,13 @@ const childReturnBefore = {
   cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
   credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
   creditAllocations: seed.one('SELECT COUNT(*) n FROM "CreditReturnAllocation"').n,
-  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
+  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n,
+  entitlements: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlement"').n,
+  entitlementEvents: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n,
+  creditDeliveries: seed.one('SELECT COUNT(*) n FROM "CreditDelivery"').n,
+  returnLineAllocations: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation"').n,
+  stockMovements: seed.one('SELECT COUNT(*) n FROM "StockMovement"').n,
+  replacementStock: seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', exactReplacementVariant).stock
 }
 const exactChildPreview = await salesService.returnProvenancePreview({
   invoiceId: exactExchange.exchangeInvoiceId, lines: [{ saleItemId: exactChildItemId, qty: 1 }]
@@ -354,8 +360,38 @@ assert.deepEqual({
   cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
   credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
   creditAllocations: seed.one('SELECT COUNT(*) n FROM "CreditReturnAllocation"').n,
-  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
+  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n,
+  entitlements: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlement"').n,
+  entitlementEvents: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n,
+  creditDeliveries: seed.one('SELECT COUNT(*) n FROM "CreditDelivery"').n,
+  returnLineAllocations: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation"').n,
+  stockMovements: seed.one('SELECT COUNT(*) n FROM "StockMovement"').n,
+  replacementStock: seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', exactReplacementVariant).stock
 }, childReturnBefore, 'exchange-child return hold has no settlement, right, or ledger side effects')
+
+await assert.rejects(() => salesService.createReturn({
+  invoiceId: exactExchange.exchangeInvoiceId,
+  lines: [{ saleItemId: exactChildItemId, qty: 1 }],
+  refundMethod: 'STORE_CREDIT', refundAmount: 1_000,
+  printedHolderFirstName: 'Test', printedHolderLastName: 'Customer', printedHolderPhone: '355690000000',
+  userId, shiftId
+}), /تخصیص منشأ به قلم/,
+'exchange-child source attribution cannot be converted into an ordinary store-credit entitlement')
+assert.deepEqual({
+  returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', exactExchange.exchangeInvoiceId).n,
+  activePayments: seed.one('SELECT COUNT(*) n FROM "Payment" WHERE invoiceId=? AND voidedAt IS NULL', exactExchange.exchangeInvoiceId).n,
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
+  creditAllocations: seed.one('SELECT COUNT(*) n FROM "CreditReturnAllocation"').n,
+  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n,
+  entitlements: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlement"').n,
+  entitlementEvents: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n,
+  creditDeliveries: seed.one('SELECT COUNT(*) n FROM "CreditDelivery"').n,
+  returnLineAllocations: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation"').n,
+  stockMovements: seed.one('SELECT COUNT(*) n FROM "StockMovement"').n,
+  replacementStock: seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', exactReplacementVariant).stock
+}, childReturnBefore,
+'exchange-child STORE_CREDIT hold has no entitlement, payment, inventory, or ledger side effects')
 
 // A disposable, manually assembled mixed-source child proves why the generic
 // return planner cannot be used for an EXCHANGE invoice. The real SQLite
