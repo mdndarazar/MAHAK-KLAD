@@ -6,6 +6,8 @@
  * node --import ./test/harness/register.mjs tests/audit-fixes/fix-financial-exchange-funding-sales-integration.mjs
  */
 import assert from 'node:assert/strict'
+import { spawn } from 'node:child_process'
+import { createInterface } from 'node:readline'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -23,6 +25,8 @@ const {
   getCurrentExchangeFundingSources,
   getCurrentSaleFundingSources,
   recordExchangeFundingLineAllocations,
+  recordExchangeFundingReturnLineAllocation,
+  reverseExchangeFundingReturnLineAllocationsForReturn,
   reverseExchangeFundingTransfersForReturn,
   transferExchangeFundingShare
 } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
@@ -325,10 +329,19 @@ const childReturnBefore = {
   creditAllocations: seed.one('SELECT COUNT(*) n FROM "CreditReturnAllocation"').n,
   fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
 }
-await assert.rejects(() => salesService.returnProvenancePreview({
+const exactChildPreview = await salesService.returnProvenancePreview({
   invoiceId: exactExchange.exchangeInvoiceId, lines: [{ saleItemId: exactChildItemId, qty: 1 }]
-}), /تخصیص منشأ به قلم/,
-"preview must not plan cash/credit settlement for an exchange child before item-level checks")
+})
+assert.equal(exactChildPreview.returnTotal, 1_000)
+assert.deepEqual(exactChildPreview.shares.map(({ sourceKind, amount }) => ({ sourceKind, amount })), [
+  { sourceKind: 'SOURCE_CASH', amount: 1_000 }
+])
+assert.equal(exactChildPreview.settlementReady, false)
+assert.equal(exactChildPreview.cashRight, 0,
+  'proven cash-origin attribution is not exposed as a payout entitlement')
+assert.deepEqual(exactChildPreview.remainingAttributionBySource.map(({ remainingAttribution, ledgerBalance }) =>
+  ({ remainingAttribution, ledgerBalance })), [{ remainingAttribution: 1_000, ledgerBalance: 1_000 }],
+  'remaining attribution is separate from the selected prospective return and unchanged ledger balance')
 await assert.rejects(() => salesService.createReturn({
   invoiceId: exactExchange.exchangeInvoiceId,
   lines: [{ saleItemId: exactChildItemId, qty: 1 }],
@@ -444,9 +457,27 @@ const mixedChildReturnBefore = {
   fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n,
   lineAllocations: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingLineAllocation" WHERE childInvoiceId=?', mixedChildInvoiceId).n
 }
-await assert.rejects(() => salesService.returnProvenancePreview({
+const mixedChildPreview = await salesService.returnProvenancePreview({
   invoiceId: mixedChildInvoiceId, lines: [{ saleItemId: mixedChildItemId, qty: 1 }]
-}), /تخصیص منشأ به قلم/)
+})
+assert.equal(mixedChildPreview.returnTotal, 500)
+assert.deepEqual(mixedChildPreview.shares.map(({ sourceKind, amount }) => ({ sourceKind, amount }))
+  .sort((a, b) => a.sourceKind.localeCompare(b.sourceKind)), [
+  { sourceKind: 'SOURCE_CASH', amount: 300 }, { sourceKind: 'SOURCE_GIFT', amount: 200 }
+])
+assert.equal(mixedChildPreview.cashRight, 0)
+assert.equal(mixedChildPreview.giftOpportunity, 0,
+  'gift provenance is not a new credit entitlement')
+assert.equal(mixedChildPreview.settlementReady, false)
+assert.deepEqual(mixedChildPreview.remainingAttributionBySource.map(({ sourceKind, attributedAmount,
+  alreadyReturnedAttribution, remainingAttribution, ledgerBalance }) => ({ sourceKind, attributedAmount,
+  alreadyReturnedAttribution, remainingAttribution, ledgerBalance }))
+  .sort((a, b) => a.sourceKind.localeCompare(b.sourceKind)), [
+  { sourceKind: 'SOURCE_CASH', attributedAmount: 600, alreadyReturnedAttribution: 0,
+    remainingAttribution: 600, ledgerBalance: 600 },
+  { sourceKind: 'SOURCE_GIFT', attributedAmount: 400, alreadyReturnedAttribution: 0,
+    remainingAttribution: 400, ledgerBalance: 400 }
+])
 await assert.rejects(() => salesService.createReturn({
   invoiceId: mixedChildInvoiceId, lines: [{ saleItemId: mixedChildItemId, qty: 1 }],
   refundMethod: 'CASH', refundAmount: 500, userId, shiftId
@@ -461,6 +492,85 @@ assert.deepEqual({
   lineAllocations: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingLineAllocation" WHERE childInvoiceId=?', mixedChildInvoiceId).n
 }, mixedChildReturnBefore,
 'mixed exchange-child return is held before cash, credit, return-row, or ledger side effects')
+
+// The accounting writer can persist source attribution for a mixed child line,
+// but this remains descriptive only: gift value never becomes refund money.
+// Two one-unit chunks prove cumulative history; reversal is strictly LIFO.
+const makeMixedChildReturn = () => seed.insert('SaleReturn', {
+  invoiceId: mixedChildInvoiceId, total: 500, returnedAt: new Date(),
+  returnedAtJalali: toJalaliDate(new Date()), returnedAtTime: '12:30:00',
+  kind: 'RETURN', refundMethod: 'NONE', refundAmount: 0, userId, shiftId
+})
+const mixedChildReturn1 = makeMixedChildReturn()
+const mixedChildReturnItem1 = seed.insert('SaleReturnItem', {
+  returnId: mixedChildReturn1, saleItemId: mixedChildItemId, variantId: mixedReplacementVariant,
+  qty: 1, unitPrice: 500, lineTotal: 500
+})
+await assert.rejects(() => salesService.returnProvenancePreview({
+  invoiceId: mixedChildInvoiceId, lines: [{ saleItemId: mixedChildItemId, qty: 1 }]
+}), /تخصیص منشأ به قلم/,
+'preview fails closed while an active return lacks its persisted source-attribution snapshot')
+assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation" WHERE childInvoiceId=?',
+  mixedChildInvoiceId).n, 0, 'a read-only preview never repairs or writes missing attribution')
+const mixedChildAllocation1 = await db.$transaction((tx) => recordExchangeFundingReturnLineAllocation(tx, {
+  returnId: mixedChildReturn1, returnItemId: mixedChildReturnItem1
+}))
+assert.deepEqual(mixedChildAllocation1.shares.map(({ sourceKind, amount }) => ({ sourceKind, amount }))
+  .sort((a, b) => a.sourceKind.localeCompare(b.sourceKind)), [
+  { sourceKind: 'SOURCE_CASH', amount: 300 }, { sourceKind: 'SOURCE_GIFT', amount: 200 }
+])
+assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent" WHERE returnId=?', mixedChildReturn1).n, 0,
+  'accounting attribution alone creates no settlement or cash-right event')
+const mixedAfterOneActiveReturnPreview = await salesService.returnProvenancePreview({
+  invoiceId: mixedChildInvoiceId, lines: [{ saleItemId: mixedChildItemId, qty: 1 }]
+})
+assert.deepEqual(mixedAfterOneActiveReturnPreview.shares.map(({ sourceKind, amount }) => ({ sourceKind, amount }))
+  .sort((a, b) => a.sourceKind.localeCompare(b.sourceKind)), [
+  { sourceKind: 'SOURCE_CASH', amount: 300 }, { sourceKind: 'SOURCE_GIFT', amount: 200 }
+])
+assert.deepEqual(mixedAfterOneActiveReturnPreview.remainingAttributionBySource.map(({ sourceKind,
+  alreadyReturnedAttribution, remainingAttribution }) => ({ sourceKind, alreadyReturnedAttribution,
+  remainingAttribution })).sort((a, b) => a.sourceKind.localeCompare(b.sourceKind)), [
+  { sourceKind: 'SOURCE_CASH', alreadyReturnedAttribution: 300, remainingAttribution: 300 },
+  { sourceKind: 'SOURCE_GIFT', alreadyReturnedAttribution: 200, remainingAttribution: 200 }
+])
+assert.equal(mixedAfterOneActiveReturnPreview.settlementReady, false)
+assert.equal(mixedAfterOneActiveReturnPreview.cashRight, 0)
+const mixedChildReturn2 = makeMixedChildReturn()
+const mixedChildReturnItem2 = seed.insert('SaleReturnItem', {
+  returnId: mixedChildReturn2, saleItemId: mixedChildItemId, variantId: mixedReplacementVariant,
+  qty: 1, unitPrice: 500, lineTotal: 500
+})
+const mixedChildAllocation2 = await db.$transaction((tx) => recordExchangeFundingReturnLineAllocation(tx, {
+  returnId: mixedChildReturn2, returnItemId: mixedChildReturnItem2
+}))
+assert.deepEqual(mixedChildAllocation2.shares.map(({ prior, amount, cumulative }) => ({ prior, amount, cumulative }))
+  .sort((a, b) => a.prior - b.prior), [
+  { prior: 200, amount: 200, cumulative: 400 }, { prior: 300, amount: 300, cumulative: 600 }
+])
+assert.equal(seed.count('ExchangeFundingReturnLineAllocation', 'returnItemId=? AND eventKind=?', mixedChildReturnItem1, 'ALLOCATION'), 2)
+await assert.rejects(() => db.$transaction((tx) =>
+  reverseExchangeFundingReturnLineAllocationsForReturn(tx, { returnId: mixedChildReturn1 })), /LIFO/)
+const secondAllocationReversal = await db.$transaction((tx) =>
+  reverseExchangeFundingReturnLineAllocationsForReturn(tx, { returnId: mixedChildReturn2 }))
+assert.deepEqual(secondAllocationReversal, { reversed: 2, items: 1, replayed: false })
+sql.prepare('UPDATE "SaleReturn" SET voidedAt=?, voidReason=? WHERE id=?')
+  .run(Date.now(), 'test reverse newest mixed child allocation', mixedChildReturn2)
+const secondAllocationReplay = await db.$transaction((tx) =>
+  reverseExchangeFundingReturnLineAllocationsForReturn(tx, { returnId: mixedChildReturn2 }))
+assert.deepEqual(secondAllocationReplay, { reversed: 2, items: 1, replayed: true })
+const firstAllocationReversal = await db.$transaction((tx) =>
+  reverseExchangeFundingReturnLineAllocationsForReturn(tx, { returnId: mixedChildReturn1 }))
+assert.deepEqual(firstAllocationReversal, { reversed: 2, items: 1, replayed: false })
+sql.prepare('UPDATE "SaleReturn" SET voidedAt=?, voidReason=? WHERE id=?')
+  .run(Date.now(), 'test reverse oldest mixed child allocation', mixedChildReturn1)
+assert.equal(seed.one(`SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation"
+  WHERE childInvoiceId=? AND eventKind='REVERSAL'`, mixedChildInvoiceId).n, 4)
+await assert.rejects(() => salesService.returnProvenancePreview({
+  invoiceId: mixedChildInvoiceId, full: true
+}), /تخصیص منشأ به قلم/,
+'preview stays fail-closed when historical void/reversal rows exist until their full lifecycle is validated')
+assert.equal(seed.one('SELECT status FROM "SaleInvoice" WHERE id=?', mixedChildInvoiceId).status, 'SETTLED')
 const childInvoiceTotal = seed.one('SELECT grandTotal FROM "SaleInvoice" WHERE id=?', exactExchange.exchangeInvoiceId).grandTotal
 sql.prepare('UPDATE "SaleInvoice" SET paidTotal=? WHERE id=?').run(childInvoiceTotal - 1, exactExchange.exchangeInvoiceId)
 const debtfulChildFunding = await getCurrentExchangeFundingSources(db, exactExchange.exchangeInvoiceId)
@@ -530,4 +640,118 @@ const exactFundingAfterVoid = await getCurrentSaleFundingSources(db, exactSale.i
 assert.deepEqual(exactFundingAfterVoid.activeReturnIds, [])
 assert.equal(exactFundingAfterVoid.sources[0].available, 1_000)
 
-console.log('✓ SalesService funding integration: snapshot revisions, cheque transitions, atomic exact-cash exchange line allocation, append-only reversal and stale-share hold')
+// A caller-held return key is replay-safe and bound to the complete business
+// payload; same-key concurrent retries produce one physical/financial effect.
+const idempotentReturnVariant = variant(500)
+const idempotentReturnSale = await salesService.create({
+  userId, shiftId, lines: [{ ...line(idempotentReturnVariant, 500), qty: 2 }], payments: []
+})
+const idempotentReturnItemId = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?',
+  idempotentReturnSale.id).id
+const returnRequest = {
+  invoiceId: idempotentReturnSale.id, full: false,
+  lines: [{ saleItemId: idempotentReturnItemId, qty: 1 }],
+  refundMethod: RefundMethod.NONE, note: 'idempotency integration', userId, shiftId,
+  idempotencyKey: 'return-request:integration-race-0001'
+}
+const stockBeforeReturnRequest = Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?',
+  idempotentReturnVariant).stock)
+const startReturnRaceWorker = () => {
+  const child = spawn(process.execPath, [
+    '--import', './test/harness/register.mjs',
+    'tests/audit-fixes/helpers/return-idempotency-worker.mjs',
+    String(idempotentReturnSale.id), String(idempotentReturnItemId), String(userId), String(shiftId),
+    returnRequest.idempotencyKey
+  ], { cwd: process.cwd(), env: {
+    ...process.env, HARNESS_DIR: dir, HARNESS_DB: process.env.HARNESS_DB, HARNESS_DB_EXISTING: '1'
+  }, stdio: ['pipe', 'pipe', 'pipe'] })
+  let stderr = '', sawReady = false, sawResult = false
+  let resolveReady, rejectReady, resolveResult, rejectResult, resolveClose, rejectClose
+  const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject })
+  const result = new Promise((resolve, reject) => { resolveResult = resolve; rejectResult = reject })
+  const closed = new Promise((resolve, reject) => { resolveClose = resolve; rejectClose = reject })
+  const lines = createInterface({ input: child.stdout })
+  lines.on('line', (line) => {
+    try {
+      const message = JSON.parse(line)
+      if (message.ready) { sawReady = true; resolveReady() }
+      else if (typeof message.ok === 'boolean') {
+        sawResult = true
+        if (!message.ok && !sawReady) rejectReady(new Error(`return race worker failed before ready: ${JSON.stringify(message)}`))
+        resolveResult(message)
+      }
+    } catch { /* ignore non-JSON diagnostics */ }
+  })
+  child.stderr.on('data', (chunk) => { stderr += String(chunk) })
+  child.on('error', (error) => {
+    rejectReady(error); rejectResult(error); rejectClose(error)
+  })
+  child.on('close', (code) => {
+    if (code === 0) {
+      if (!sawReady) rejectReady(new Error(`return race worker exited before ready: ${stderr}`))
+      if (!sawResult) rejectResult(new Error(`return race worker exited before result: ${stderr}`))
+      resolveClose()
+    } else {
+      const error = new Error(`return race worker exited ${code}: ${stderr}`)
+      rejectReady(error); rejectResult(error); rejectClose(error)
+    }
+  })
+  return { child, ready, result, closed }
+}
+const returnRaceWorkers = [startReturnRaceWorker(), startReturnRaceWorker()]
+await Promise.all(returnRaceWorkers.map((worker) => worker.ready))
+for (const worker of returnRaceWorkers) worker.child.stdin.end('go')
+const concurrentReturnResults = await Promise.all(returnRaceWorkers.map((worker) => worker.result))
+await Promise.all(returnRaceWorkers.map((worker) => worker.closed))
+assert.ok(concurrentReturnResults.every((result) => result.ok), JSON.stringify(concurrentReturnResults))
+assert.equal(concurrentReturnResults[0].returnId, concurrentReturnResults[1].returnId)
+assert.deepEqual(concurrentReturnResults.map((result) => result.replayed).sort(), [false, true])
+assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE idempotencyKey=?',
+  returnRequest.idempotencyKey).n, 1)
+assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturnItem" WHERE returnId=?',
+  concurrentReturnResults[0].returnId).n, 1)
+assert.equal(Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', idempotentReturnVariant).stock),
+  stockBeforeReturnRequest, 'goods-receipt-required return retries do not mutate stock before physical intake')
+const storedReturnRequest = seed.one('SELECT idempotencyFingerprint, idempotencyResponseJson FROM "SaleReturn" WHERE id=?',
+  concurrentReturnResults[0].returnId)
+assert.match(storedReturnRequest.idempotencyFingerprint, /^[a-f0-9]{64}$/)
+assert.equal(JSON.parse(storedReturnRequest.idempotencyResponseJson).id, concurrentReturnResults[0].returnId)
+assert.equal(storedReturnRequest.idempotencyResponseJson.includes('managerPassword'), false,
+  'the immutable replay snapshot excludes manager credentials')
+const sequentialReturnReplay = await salesService.createReturn(returnRequest)
+assert.equal(sequentialReturnReplay.id, concurrentReturnResults[0].returnId)
+assert.equal(sequentialReturnReplay.replayed, true)
+const returnCountBeforeMismatch = seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?',
+  idempotentReturnSale.id).n
+await assert.rejects(() => salesService.createReturn({ ...returnRequest, note: 'different payload' }),
+  /کلید درخواست برگشت قبلاً برای payload متفاوت/)
+assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?',
+  idempotentReturnSale.id).n, returnCountBeforeMismatch,
+'same key with a changed note is rejected without a second return')
+
+const safeSnapshotVariant = variant(500)
+const safeSnapshotSale = await salesService.create({
+  userId, shiftId, lines: [{ ...line(safeSnapshotVariant, 500), qty: 2 }],
+  payments: [{ methodId: cashMethodId, amount: 1_000, destination: 'CASH' }]
+})
+const safeSnapshotItemId = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', safeSnapshotSale.id).id
+const safeSnapshotRequest = {
+  invoiceId: safeSnapshotSale.id, full: false,
+  lines: [{ saleItemId: safeSnapshotItemId, qty: 1 }], refundMethod: RefundMethod.STORE_CREDIT,
+  refundAmount: 500, userId, shiftId, idempotencyKey: 'return-request:safe-snapshot-0001'
+}
+const safeSnapshotResponse = await salesService.createReturn(safeSnapshotRequest)
+const issuedCredit = seed.one('SELECT id, code FROM "StoreCredit" WHERE returnId=?', safeSnapshotResponse.id)
+const safeSnapshotJson = seed.one('SELECT idempotencyResponseJson FROM "SaleReturn" WHERE id=?',
+  safeSnapshotResponse.id).idempotencyResponseJson
+assert.ok(issuedCredit?.code)
+assert.equal(JSON.stringify(safeSnapshotResponse).includes(issuedCredit.code), false)
+assert.equal(safeSnapshotJson.includes(issuedCredit.code), false, 'replay snapshots never persist redeemable credit codes')
+assert.equal(safeSnapshotJson.includes('storeCreditCode'), false)
+assert.equal(safeSnapshotJson.includes('managerPassword'), false)
+const safeSnapshotReplay = await salesService.createReturn(safeSnapshotRequest)
+assert.equal(safeSnapshotReplay.id, safeSnapshotResponse.id)
+assert.equal(safeSnapshotReplay.storeCredit.id, issuedCredit.id)
+assert.equal(safeSnapshotReplay.replayed, true)
+
+console.log('✓ SalesService funding integration: snapshot revisions, child attribution preview, retry-safe returns, safe snapshots, exact-cash lineage and reversal holds')

@@ -1,15 +1,19 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { prisma } from '../db/client'
 import { createCardTransferRequest } from './CardTransferService'
 import {
+  getCurrentExchangeFundingSources,
   getCurrentSaleFundingSources,
   recordExchangeFundingLineAllocations,
+  recordExchangeFundingReturnLineAllocation,
   recordSaleFundingSnapshot,
   reviseLatestSaleFundingSnapshot,
+  reverseExchangeFundingReturnLineAllocationsForReturn,
   reverseExchangeFundingTransfersForReturn,
   transferExchangeFundingShare
 } from './ExchangeFundingLedgerService'
 import { allocateExchangeFundingProRata } from '@shared/exchangeFundingAllocation'
+import { allocateExchangeFundingLineReturn, type ExchangeReturnSourceKind } from '@shared/exchangeFundingLineReturn'
 import {
   openCardTransferEntitlement,
   correctPendingEntitlement,
@@ -1405,6 +1409,97 @@ async function replayPaymentAdd(idempotencyKey: string, fingerprint: string): Pr
       replayed: true
     }
   }, TX_OPTIONS)
+}
+
+const RETURN_REQUEST_KEY_PATTERN = /^[A-Za-z0-9._:-]{16,200}$/
+
+function returnRequestIdempotencyKey(value: unknown, required: boolean): string {
+  const key = typeof value === 'string' ? value.trim() : ''
+  if (!key && required)
+    throw new BusinessError('کلید یکتای درخواست برگشت لازم است؛ صفحه را تازه کنید و دوباره ثبت کنید.')
+  if (key && !RETURN_REQUEST_KEY_PATTERN.test(key))
+    throw new BusinessError('کلید یکتای درخواست برگشت نامعتبر است.')
+  // Non-IPC/service test callers retain compatibility, but production IPC
+  // requires a caller-held key so a timeout retry can identify the same intent.
+  return key || `return-request:${randomUUID()}`
+}
+
+function returnRequestFingerprint(input: ReturnSaleInput, goodsReceiptRequired: boolean): string {
+  const lines = mergeReturnTargets(input.lines ?? []).sort((a, b) => a.saleItemId - b.saleItemId)
+  const cardPos = input.cardPosOverride == null ? null : {
+    acknowledgedNoReverse: input.cardPosOverride.acknowledgedNoReverse === true,
+    reason: String(input.cardPosOverride.reason ?? '').trim()
+  }
+  const stable = {
+    version: 1,
+    invoiceId: Number(input.invoiceId),
+    full: input.full === true,
+    lines,
+    note: input.note ?? null,
+    force: input.force === true,
+    allowRemoved: input.allowRemoved === true,
+    refundMethod: input.refundMethod == null ? null : String(input.refundMethod).toUpperCase(),
+    refundAmount: input.refundAmount ?? null,
+    managerFullRefund: input.managerFullRefund === true,
+    refundReference: input.refundReference ?? null,
+    refundNote: input.refundNote ?? null,
+    creditDays: input.creditDays ?? null,
+    printedHolderFirstName: input.printedHolderFirstName ?? null,
+    printedHolderLastName: input.printedHolderLastName ?? null,
+    printedHolderPhone: input.printedHolderPhone ?? null,
+    confirmOverpay: input.confirmOverpay === true,
+    overpayAsCredit: input.overpayAsCredit === true,
+    cardPos,
+    overrideReason: String(input.overrideReason ?? '').trim() || null,
+    userId: input.userId ?? null,
+    goodsReceiptRequired
+  }
+  return createHash('sha256').update(JSON.stringify(stable)).digest('hex')
+}
+
+async function replayReturnRequestInTx(tx: any, idempotencyKey: string, fingerprint: string): Promise<any | null> {
+  const prior: any = await tx.saleReturn.findUnique({ where: { idempotencyKey } })
+  if (!prior) return null
+  if (prior.idempotencyFingerprint !== fingerprint)
+    throw new BusinessError('این کلید درخواست برگشت قبلاً برای payload متفاوت استفاده شده است؛ درخواست تازه را با کلید جدید ثبت کنید.')
+  if (typeof prior.idempotencyResponseJson !== 'string' || !prior.idempotencyResponseJson)
+    throw new BusinessError('درخواست برگشت قبلاً ثبت شده، اما snapshot پاسخ قابل‌خواندن نیست؛ برگشت تازه نسازید و پرونده را تطبیق دهید.')
+  let response: any
+  try { response = JSON.parse(prior.idempotencyResponseJson) } catch {
+    throw new BusinessError('snapshot پاسخ درخواست برگشت خراب است؛ برگشت تازه نسازید و پرونده را تطبیق دهید.')
+  }
+  if (!response || Number(response.id) !== Number(prior.id) ||
+      Number(response.invoiceId) !== Number(prior.invoiceId))
+    throw new BusinessError('پیوند snapshot پاسخ با برگشت ثبت‌شده ناسازگار است؛ برگشت تازه نسازید و پرونده را تطبیق دهید.')
+  return { ...response, replayed: true }
+}
+
+function returnRequestResponseJson(response: any): string {
+  let json: string
+  try {
+    json = JSON.stringify(response, (_key, value) => {
+      if (typeof value !== 'bigint') return value
+      const number = Number(value)
+      if (!Number.isSafeInteger(number)) throw new RangeError('Return response exceeds safe Rial serialization')
+      return number
+    })
+  } catch {
+    throw new BusinessError('snapshot امن پاسخ برگشت ساخته نشد؛ تراکنش بدون ثبت commit نشد.')
+  }
+  if (!json || json.length > 2_000_000)
+    throw new BusinessError('snapshot پاسخ برگشت از سقف امن بزرگ‌تر است؛ تراکنش بدون ثبت commit نشد.')
+  return json
+}
+
+function isReturnIdempotencyConflict(error: any): boolean {
+  const details = `${String(error?.message ?? '')} ${JSON.stringify(error?.meta ?? {})}`
+  return error?.code === 'P2002' && /idempotencyKey|SaleReturn_idempotencyKey_key/i.test(details) ||
+    /UNIQUE constraint failed: SaleReturn\.idempotencyKey/i.test(details)
+}
+
+function isRetryableReturnRequestContention(error: any): boolean {
+  const details = `${String(error?.message ?? '')} ${String(error?.code ?? '')} ${JSON.stringify(error?.meta ?? {})}`
+  return error?.code === 'P2034' || /SQLITE_BUSY|SQLITE_LOCKED|database is locked|database is busy/i.test(details)
 }
 
 /** جمع پرداختی‌های دریافت‌شده از یک فهرست ردیف پرداختی. */
@@ -3381,6 +3476,8 @@ async function runReturn(
     fullRefundOverride?: boolean
     /** نشست ۱۸۹ — رمز سقف اعتبار اضافه‌دریافت، بیرون از تراکنش سنجیده شده */
     overpayManagerApproved?: boolean
+    /** Server-derived identity; never renderer-controlled fingerprint data. */
+    idempotency?: { key: string; fingerprint: string }
   } = {}
 ) {
     const now = new Date()
@@ -3820,6 +3917,10 @@ async function runReturn(
     const ret = await tx.saleReturn.create({
       data: {
         invoiceId: invoice.id,
+        ...(opts.idempotency ? {
+          idempotencyKey: opts.idempotency.key,
+          idempotencyFingerprint: opts.idempotency.fingerprint
+        } : {}),
         isFull: !!input.full,
         total: returnTotal,
         // Proven gift opportunity snapshot for aggregate reports. The B/E
@@ -4148,8 +4249,294 @@ function creditPaymentEditBlockedMessage(amount: number): string {
 }
 
 function exchangeReturnFundingBlockedMessage(): string {
-  return 'برگشت از فاکتور تعویض تا ثبت و مصرف و تطبیق تخصیص منشأ به قلم، انقضا و مسیر ابطال کامل نشده متوقف است؛ ' +
-    'هیچ وجه یا اعتبار تازه‌ای ثبت نشد.'
+  return 'تخصیص منشأ به قلم، lineage فرزند، تاریخچهٔ برگشت فعال و ماندهٔ هر سهم باید جداگانه و کامل تطبیق شود؛ ' +
+    'این مسیر فعلاً تسویه، entitlement یا اثبات پرداخت صادر نمی‌کند و هیچ اثر مالی تازه‌ای ثبت نشد.'
+}
+
+/** Read-only, accounting-attribution preview for an ordinary return from a
+ * child exchange invoice. The result is deliberately NOT a settlement plan:
+ * cashRight/giftOpportunity/debtReduced stay zero until entitlement, tender
+ * evidence, return mutation, and every reversal path are implemented together.
+ */
+async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
+  invoiceId: number; full?: boolean; lines?: { saleItemId: number; qty: number }[]
+}) {
+  const invoiceId = Number(input.invoiceId)
+  const childInvoiceId = invoiceId
+  let funding: any
+  try {
+    funding = await getCurrentExchangeFundingSources(tx, invoiceId, { allowReturnBalanceChanges: true })
+  } catch {
+    throw new BusinessError(exchangeReturnFundingBlockedMessage())
+  }
+  if (invoice.orderType !== OrderType.EXCHANGE || Number(invoice.id) !== invoiceId ||
+      invoice.voidedAt != null || !funding.snapshotExists ||
+      !Number.isSafeInteger(funding.debt) || funding.debt !== 0 ||
+      !Number.isSafeInteger(funding.overpay) || funding.overpay !== 0 ||
+      funding.unresolved.length > 0 || funding.lineAllocationStatus !== 'PERSISTED_RECONCILED' ||
+      funding.sources.length === 0 || !Number.isSafeInteger(funding.sourceInvoiceId) || funding.sourceInvoiceId <= 0 ||
+      !Number.isSafeInteger(funding.returnId) || funding.returnId <= 0 ||
+      Number(invoice.sourceInvoiceId) !== funding.sourceInvoiceId ||
+      Number(invoice.exchangeReturnId) !== funding.returnId)
+    throw new BusinessError(exchangeReturnFundingBlockedMessage())
+
+  let lineNet: Map<number, number>
+  try { lineNet = allocateLineNet(invoice as any) } catch {
+    throw new BusinessError(exchangeReturnFundingBlockedMessage())
+  }
+  const lineSnapshots = (invoice.items as any[]).map((item) => ({
+    saleItemId: Number(item.id), qty: Number(item.qty), variantId: Number(item.variantId),
+    invoiceId: Number(item.invoiceId), amount: Number(lineNet.get(Number(item.id)) ?? 0)
+  }))
+  const lineById = new Map(lineSnapshots.map((line) => [line.saleItemId, line]))
+  const invoiceTotal = toNumberRial(invoice.grandTotal)
+  if (!Number.isSafeInteger(invoiceTotal) || invoiceTotal < 0 ||
+      lineSnapshots.length === 0 || lineById.size !== lineSnapshots.length ||
+      lineSnapshots.some((line) => !Number.isSafeInteger(line.saleItemId) || line.saleItemId <= 0 ||
+        line.invoiceId !== invoiceId || !Number.isSafeInteger(line.variantId) || line.variantId <= 0 ||
+        !Number.isSafeInteger(line.qty) || line.qty <= 0 || !Number.isSafeInteger(line.amount) || line.amount < 0) ||
+      lineSnapshots.reduce((sum, line) => sum + BigInt(line.amount), 0n) !== BigInt(invoiceTotal))
+    throw new BusinessError(exchangeReturnFundingBlockedMessage())
+
+  const provenKinds = new Set<ExchangeReturnSourceKind>([
+    'SOURCE_GIFT', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'
+  ])
+  const fundingSourceById = new Map<number, any>()
+  const sourceById = new Map<number, { sourceKind: ExchangeReturnSourceKind; amount: number }>()
+  for (const source of funding.sources as any[]) {
+    const sourceEventId = Number(source.event?.id)
+    const originalAmount = toNumberRial(source.event?.amount)
+    if (!Number.isSafeInteger(sourceEventId) || sourceEventId <= 0 || fundingSourceById.has(sourceEventId) ||
+        !provenKinds.has(String(source.sourceKind) as ExchangeReturnSourceKind) ||
+        !Number.isSafeInteger(originalAmount) || originalAmount <= 0 ||
+        !Number.isSafeInteger(source.available) || source.available !== originalAmount)
+      throw new BusinessError(exchangeReturnFundingBlockedMessage())
+    // Attribution rows do not debit the funding ledger. A changed child-share
+    // balance means value was transferred/consumed outside this return reader;
+    // do not infer that it was returned or remains payable.
+    fundingSourceById.set(sourceEventId, source)
+  }
+
+  const matrixByItem = new Map<number, Array<{
+    sourceEventId: number; sourceKind: ExchangeReturnSourceKind; amount: number
+  }>>()
+  const seenCells = new Set<string>()
+  const sourceTotals = new Map<number, number>()
+  for (const row of funding.lineAllocations as any[]) {
+    const saleItemId = Number(row.saleItemId)
+    const sourceEventId = Number(row.sourceEventId)
+    const amount = Number(row.amount)
+    const source = fundingSourceById.get(sourceEventId)
+    const line = lineById.get(saleItemId)
+    const cell = `${saleItemId}:${sourceEventId}`
+    if (!line || !source || seenCells.has(cell) || !Number.isSafeInteger(amount) || amount <= 0 ||
+        !provenKinds.has(String(row.sourceKind) as ExchangeReturnSourceKind) ||
+        String(row.sourceKind) !== String(source.sourceKind))
+      throw new BusinessError(exchangeReturnFundingBlockedMessage())
+    seenCells.add(cell)
+    const list = matrixByItem.get(saleItemId) ?? []
+    list.push({ sourceEventId, sourceKind: String(row.sourceKind) as ExchangeReturnSourceKind, amount })
+    matrixByItem.set(saleItemId, list)
+    const sourceTotal = (sourceTotals.get(sourceEventId) ?? 0) + amount
+    if (!Number.isSafeInteger(sourceTotal)) throw new BusinessError(exchangeReturnFundingBlockedMessage())
+    sourceTotals.set(sourceEventId, sourceTotal)
+  }
+  for (const line of lineSnapshots) {
+    const itemSources = matrixByItem.get(line.saleItemId) ?? []
+    if (itemSources.reduce((sum, source) => sum + BigInt(source.amount), 0n) !== BigInt(line.amount) ||
+        (line.amount > 0 && itemSources.length === 0) || (line.amount === 0 && itemSources.length !== 0))
+      throw new BusinessError(exchangeReturnFundingBlockedMessage())
+  }
+  for (const [sourceEventId, source] of fundingSourceById) {
+    if (sourceTotals.get(sourceEventId) !== toNumberRial(source.event.amount))
+      throw new BusinessError(exchangeReturnFundingBlockedMessage())
+  }
+
+  const allReturnHistory = await tx.saleReturn.findMany({ where: { invoiceId }, select: { id: true, voidedAt: true } })
+  // The preview does not yet validate ReturnCorrection / void-reversal history.
+  // Do not let an older voided row disappear from the provenance calculation
+  // until its full immutable reversal can be checked here as well.
+  if ((allReturnHistory as any[]).some((ret) => ret.voidedAt != null))
+    throw new BusinessError(exchangeReturnFundingBlockedMessage())
+  const activeReturns = (invoice.returns ?? []).filter((ret: any) => ret.voidedAt == null)
+    .slice().sort((a: any, b: any) => Number(a.id) - Number(b.id))
+  const activeReturnIds = activeReturns.map((ret: any) => Number(ret.id))
+  const readerReturnIds = [...(funding.activeReturnIds as number[])].sort((a, b) => a - b)
+  if (activeReturnIds.some((id: number, index: number) => !Number.isSafeInteger(id) || id <= 0 ||
+      id !== readerReturnIds[index]) || activeReturnIds.length !== readerReturnIds.length)
+    throw new BusinessError(exchangeReturnFundingBlockedMessage())
+
+  const returnedQtyByItem = new Map<number, number>()
+  const priorAllocationsByItem = new Map<number, Array<{ sourceEventId: number; amount: number }>>()
+  const activeShareDebits = new Map<number, number>()
+  const allocationNumericFields = new Set([
+    'returnId', 'returnItemId', 'childInvoiceId', 'saleItemId', 'sourceEventId', 'saleItemQty',
+    'saleItemValue', 'sourceItemAmount', 'returnedQtyBefore', 'returningQty', 'returnedQtyAfter',
+    'priorReturnValue', 'returnValue', 'cumulativeReturnValue', 'priorAmount', 'amountDelta',
+    'cumulativeAmount', 'allocationVersion'
+  ])
+  const persistedRowMatches = (actual: any, expected: Record<string, any>) =>
+    Object.entries(expected).every(([field, value]) => {
+      const actualValue = allocationNumericFields.has(field) ? toNumberRial(actual[field])
+        : field === 'reversesAllocationId' ? actual[field] ?? null : String(actual[field] ?? '')
+      return actualValue === value
+    })
+
+  for (const ret of activeReturns) {
+    const retId = Number(ret.id)
+    if (!Number.isSafeInteger(retId) || retId <= 0 || Number(ret.invoiceId) !== invoiceId ||
+        String(ret.kind) !== ReturnKind.RETURN || ret.refundMethod !== RefundMethod.NONE ||
+        toNumberRial(ret.refundAmount) !== 0 || ret.refundPaymentId != null || ret.refundedAt != null ||
+        toNumberRial(ret.debtReduction ?? 0) !== 0 || ret.exchangeInvoiceId != null ||
+        toNumberRial(ret.exchangeTotal ?? 0) !== 0 || ret.exchangeSettlement != null || ret.storeCreditId != null)
+      throw new BusinessError(exchangeReturnFundingBlockedMessage())
+    const correction = await tx.returnCorrection.findUnique({ where: { returnId: retId }, select: { id: true } })
+    if (correction)
+      throw new BusinessError(exchangeReturnFundingBlockedMessage())
+
+    const seenItems = new Set<number>()
+    let returnItemTotal = 0n
+    const returnItems = (ret.items ?? []).slice().sort((a: any, b: any) => Number(a.id) - Number(b.id))
+    if (returnItems.length === 0) throw new BusinessError(exchangeReturnFundingBlockedMessage())
+    for (const item of returnItems) {
+      const returnItemId = Number(item.id)
+      const saleItemId = Number(item.saleItemId)
+      const line = lineById.get(saleItemId)
+      const saleItem = (invoice.items as any[]).find((candidate) => Number(candidate.id) === saleItemId)
+      const qty = Number(item.qty)
+      const lineTotal = toNumberRial(item.lineTotal)
+      if (!Number.isSafeInteger(returnItemId) || returnItemId <= 0 || seenItems.has(saleItemId) || !line || !saleItem ||
+          Number(item.returnId) !== retId || Number(saleItem.invoiceId) !== invoiceId ||
+          Number(item.variantId) !== Number(saleItem.variantId) ||
+          !Number.isSafeInteger(qty) || qty <= 0 || !Number.isSafeInteger(lineTotal) || lineTotal < 0)
+        throw new BusinessError(exchangeReturnFundingBlockedMessage())
+      seenItems.add(saleItemId)
+
+      const sources = matrixByItem.get(saleItemId) ?? []
+      const priorQty = returnedQtyByItem.get(saleItemId) ?? 0
+      const priorAllocations = priorAllocationsByItem.get(saleItemId) ?? []
+      let allocation
+      try {
+        allocation = allocateExchangeFundingLineReturn({
+          saleItemId, saleItemQty: line.qty, saleItemValue: line.amount,
+          previouslyReturnedQty: priorQty, returningQty: qty, sources,
+          ...(priorQty > 0 && line.amount > 0 ? { priorAllocations } : {})
+        })
+      } catch { throw new BusinessError(exchangeReturnFundingBlockedMessage()) }
+      if (allocation.returnValue !== lineTotal)
+        throw new BusinessError(exchangeReturnFundingBlockedMessage())
+
+      const persisted = await tx.exchangeFundingReturnLineAllocation.findMany({
+        where: { returnItemId }, orderBy: [{ sourceEventId: 'asc' }, { id: 'asc' }]
+      }) as any[]
+      const expected = allocation.shares.map((share: any) => ({
+        eventKey: `exchange-return-item:${returnItemId}:source:${share.sourceEventId}:allocation:v1`,
+        eventKind: 'ALLOCATION', returnId: retId, returnItemId, childInvoiceId, saleItemId,
+        sourceEventId: share.sourceEventId, sourceKind: share.sourceKind,
+        saleItemQty: line.qty, saleItemValue: line.amount,
+        sourceItemAmount: sources.find((source) => source.sourceEventId === share.sourceEventId)?.amount,
+        returnedQtyBefore: priorQty, returningQty: qty, returnedQtyAfter: allocation.returnedQtyAfter,
+        priorReturnValue: allocation.cumulativeReturnValue - allocation.returnValue,
+        returnValue: allocation.returnValue, cumulativeReturnValue: allocation.cumulativeReturnValue,
+        priorAmount: share.prior, amountDelta: share.amount, cumulativeAmount: share.cumulative,
+        allocationVersion: 1, reversesAllocationId: null
+      }))
+      if (persisted.length !== expected.length || expected.some((want: any) =>
+          !persisted.some((actual: any) => actual.eventKind === 'ALLOCATION' && persistedRowMatches(actual, want))) ||
+          persisted.some((row: any) => row.eventKind !== 'ALLOCATION'))
+        throw new BusinessError(exchangeReturnFundingBlockedMessage())
+
+      for (const share of allocation.shares) {
+        const priorDebit = activeShareDebits.get(share.sourceEventId) ?? 0
+        const nextDebit = priorDebit + share.amount
+        if (!Number.isSafeInteger(nextDebit)) throw new BusinessError(exchangeReturnFundingBlockedMessage())
+        activeShareDebits.set(share.sourceEventId, nextDebit)
+      }
+      returnItemTotal += BigInt(lineTotal)
+      returnedQtyByItem.set(saleItemId, allocation.returnedQtyAfter)
+      priorAllocationsByItem.set(saleItemId, allocation.shares.map((share: any) => ({
+        sourceEventId: share.sourceEventId, amount: share.cumulative
+      })))
+    }
+    const persistedReturnTotal = toNumberRial(ret.total)
+    if (!Number.isSafeInteger(persistedReturnTotal) || persistedReturnTotal < 0 ||
+        returnItemTotal !== BigInt(persistedReturnTotal))
+      throw new BusinessError(exchangeReturnFundingBlockedMessage())
+  }
+
+  const remainingAttributionBySource = new Map<number, number>()
+  for (const [sourceEventId, source] of fundingSourceById) {
+    const totalAttributed = sourceTotals.get(sourceEventId) ?? 0
+    const alreadyAttributed = activeShareDebits.get(sourceEventId) ?? 0
+    const remaining = totalAttributed - alreadyAttributed
+    if (!Number.isSafeInteger(remaining) || remaining < 0 ||
+        alreadyAttributed > toNumberRial(source.event.amount))
+      throw new BusinessError(exchangeReturnFundingBlockedMessage())
+    remainingAttributionBySource.set(sourceEventId, remaining)
+  }
+
+  const targets = mergeReturnTargets(input.full
+    ? (invoice.items as any[]).map((item: any) => ({ saleItemId: Number(item.id),
+        qty: Math.max(0, Number(item.qty) - (returnedQtyByItem.get(Number(item.id)) ?? 0)) }))
+    : input.lines ?? [])
+  if (!targets.length) throw new BusinessError('حداقل یک قلم و تعداد معتبر برای پیش‌نمایش انتخاب کنید.')
+
+  let returnTotal = 0n
+  const returnShares = new Map<number, { kind: ExchangeReturnSourceKind; amount: number }>()
+  for (const target of targets) {
+    const saleItemId = Number(target.saleItemId)
+    const line = lineById.get(saleItemId)
+    const saleItem = (invoice.items as any[]).find((item: any) => Number(item.id) === saleItemId)
+    const priorQty = returnedQtyByItem.get(saleItemId) ?? 0
+    if (!line || !saleItem || Number(saleItem.invoiceId) !== invoiceId ||
+        !Number.isSafeInteger(target.qty) || target.qty <= 0 || target.qty > line.qty - priorQty)
+      throw new BusinessError('تعداد/قلم برگشتی تغییر کرده است؛ فاکتور را تازه کنید.')
+    const sources = matrixByItem.get(saleItemId) ?? []
+    const priorAllocations = priorAllocationsByItem.get(saleItemId) ?? []
+    let current
+    try {
+      current = allocateExchangeFundingLineReturn({
+        saleItemId, saleItemQty: line.qty, saleItemValue: line.amount,
+        previouslyReturnedQty: priorQty, returningQty: Number(target.qty), sources,
+        ...(priorQty > 0 && line.amount > 0 ? { priorAllocations } : {})
+      })
+    } catch { throw new BusinessError(exchangeReturnFundingBlockedMessage()) }
+    returnTotal += BigInt(current.returnValue)
+    if (returnTotal > BigInt(Number.MAX_SAFE_INTEGER)) throw new BusinessError(exchangeReturnFundingBlockedMessage())
+    for (const share of current.shares) {
+      const previous = returnShares.get(share.sourceEventId)
+      const nextAmount = (previous?.amount ?? 0) + share.amount
+      if ((previous && previous.kind !== share.sourceKind) || !Number.isSafeInteger(nextAmount))
+        throw new BusinessError(exchangeReturnFundingBlockedMessage())
+      returnShares.set(share.sourceEventId, { kind: share.sourceKind, amount: nextAmount })
+    }
+  }
+  for (const [sourceEventId, share] of returnShares) {
+    const remaining = remainingAttributionBySource.get(sourceEventId)
+    if (remaining == null || share.amount > remaining)
+      throw new BusinessError(exchangeReturnFundingBlockedMessage())
+  }
+
+  return {
+    returnTotal: Number(returnTotal),
+    debtReduced: 0,
+    giftOpportunity: 0,
+    cashRight: 0,
+    attributionOnly: true,
+    settlementReady: false,
+    settlementState: 'BLOCKED_UNTIL_ENTITLEMENT_AND_REVERSAL',
+    shares: [...returnShares].map(([sourceEventId, share]) => ({
+      sourceEventId, sourceKind: share.kind, amount: share.amount
+    })),
+    remainingAttributionBySource: [...remainingAttributionBySource].map(([sourceEventId, amount]) => ({
+      sourceEventId, sourceKind: fundingSourceById.get(sourceEventId).sourceKind,
+      attributedAmount: sourceTotals.get(sourceEventId),
+      alreadyReturnedAttribution: activeShareDebits.get(sourceEventId) ?? 0,
+      remainingAttribution: amount,
+      ledgerBalance: fundingSourceById.get(sourceEventId).available
+    })),
+    previewOnly: true
+  }
 }
 
 export const salesService = {
@@ -4166,7 +4553,7 @@ export const salesService = {
       if (!invoice || !isReturnableStatus(invoice.status))
         throw new BusinessError('این فاکتور برای پیش‌نمایش برگشت معتبر نیست؛ دوباره رسید را اسکن کنید.')
       if (invoice.orderType === OrderType.EXCHANGE)
-        throw new BusinessError(exchangeReturnFundingBlockedMessage())
+        return previewExchangeReturnFunding(tx, invoice, { ...input, invoiceId })
       const already = new Map<number, number>()
       for (const r of invoice.returns) for (const it of r.items)
         already.set(it.saleItemId, (already.get(it.saleItemId) ?? 0) + it.qty)
@@ -6270,8 +6657,16 @@ export const salesService = {
    *   • وضعیت فاکتور بر اساس *جمع* برگشت‌ها به‌روز می‌شود: همه‌ی اقلام برگشته
    *     ⇒ RETURNED، وگرنه PARTIALLY_RETURNED.
    */
-  async createReturn(input: ReturnSaleInput, protocol: { goodsReceiptRequired?: boolean } = {}) {
+  async createReturn(input: ReturnSaleInput, protocol: {
+    goodsReceiptRequired?: boolean; requireIdempotencyKey?: boolean
+  } = {}) {
     validateReturnMutation(input)
+    const goodsReceiptRequired = protocol.goodsReceiptRequired !== false
+    const idempotencyKey = returnRequestIdempotencyKey(input?.idempotencyKey, protocol.requireIdempotencyKey === true)
+    const idempotencyFingerprint = returnRequestFingerprint(input, goodsReceiptRequired)
+    const idempotency = { key: idempotencyKey, fingerprint: idempotencyFingerprint }
+    const priorRequest = await replayReturnRequestInTx(prisma, idempotencyKey, idempotencyFingerprint)
+    if (priorRequest) return priorRequest
     const fullRefundOverride = input.managerFullRefund === true
     if (fullRefundOverride) {
       if (String(input.overrideReason ?? '').trim().length < 3)
@@ -6302,7 +6697,9 @@ export const salesService = {
       input.overpayAsCredit === true
         ? await preverifyOverpayManager(input, 'صدور اعتبار از اضافه‌دریافت برگشت (بالاتر از سقف اعتبار)')
         : false
-    return prisma.$transaction(async (tx) => {
+    const runReturnTransaction = () => prisma.$transaction(async (tx) => {
+      const prior = await replayReturnRequestInTx(tx, idempotencyKey, idempotencyFingerprint)
+      if (prior) return prior
       /**
        * بند ۱۷ — برگشت *همین حالا* ثبت می‌شود، پس تاریخِ بررسی «امروز» است: اگر
        * صندوق امروز قبلاً بسته شده باشد، این برگشت اعداد آن صندوق را عوض می‌کند
@@ -6322,7 +6719,7 @@ export const salesService = {
       // بند ۱۱ — مسیر برگشت ساده همیشه روش بازپرداخت را اجباری می‌کند
       const full = await runReturn(tx, input, {
         applyRefund: true, fullRefundOverride, overpayManagerApproved,
-        goodsReceiptRequired: protocol.goodsReceiptRequired !== false
+        goodsReceiptRequired, idempotency
       })
       // دادهٔ خام فقط برای ادامهٔ تراکنش است؛ پاسخ استاندارد هیچ credential ندارد.
       const {
@@ -6412,7 +6809,7 @@ export const salesService = {
           }
         })
       }
-      return {
+      const response = {
         ...res,
         /** فقط مرجع امنِ اعتبار صادرشده برای برگشت. */
         storeCredit: rawStoreCredit ? shapeStoreCreditSafe(rawStoreCredit) : null,
@@ -6420,7 +6817,33 @@ export const salesService = {
         overpayCredit: shapeOverpayCreditSafe(rawOverpayCredit),
         cardTransfer
       }
+      await tx.saleReturn.update({
+        where: { id: Number(_rec.id) },
+        data: { idempotencyResponseJson: returnRequestResponseJson(response) }
+      })
+      return response
     }, TX_OPTIONS)
+    for (let attempt = 0; attempt < 8; attempt++) {
+      try {
+        return await runReturnTransaction()
+      } catch (error) {
+        const conflict = isReturnIdempotencyConflict(error)
+        const contention = isRetryableReturnRequestContention(error)
+        if (!conflict && !contention) throw error
+        try {
+          // A competing SQLite writer may still be committing; reads are
+          // retried too, but never repeat a mutation until the unique key has
+          // been checked again.
+          const replay = await replayReturnRequestInTx(prisma, idempotencyKey, idempotencyFingerprint)
+          if (replay) return replay
+        } catch (readError) {
+          if (!isRetryableReturnRequestContention(readError)) throw readError
+        }
+        if (!contention || attempt === 7) throw error
+        await new Promise((resolve) => setTimeout(resolve, Math.min(25 * (2 ** attempt), 500)))
+      }
+    }
+    throw new BusinessError('ثبت برگشت به‌دلیل رقابت نوشتن کامل نشد؛ با همان کلید درخواست دوباره تلاش کنید.')
   },
 
   // =========================================================================

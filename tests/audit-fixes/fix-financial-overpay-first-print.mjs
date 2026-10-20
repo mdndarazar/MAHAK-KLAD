@@ -152,10 +152,21 @@ try {
   ])
   const itemId = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id DESC', afterReturnInvoice.id).id
   runWithPanelSessionOwner(sender.id, () => notePanelUnlocked(PANEL_KEYS.salesReturn, 'PANEL'))
-  const returned = assertOk(await ipc(IPC.saleReturn, { invoiceId: afterReturnInvoice.id, full: false,
+  const returnRequest = { invoiceId: afterReturnInvoice.id, full: false,
     lines: [{ saleItemId: itemId, qty: 1 }], refundMethod: 'NONE', confirmOverpay: true,
-    overpayAsCredit: true }))
+    overpayAsCredit: true, idempotencyKey: 'return-request:overpay-first-print-0001' }
+  const returned = assertOk(await ipc(IPC.saleReturn, returnRequest))
+  const replayedReturn = assertOk(await ipc(IPC.saleReturn, returnRequest))
+  assert.equal(replayedReturn.replayed, true)
+  assert.equal(replayedReturn.overpayCredit.firstPrintGrant, undefined,
+    'replay does not issue another OVERPAY first-print grant')
   assert.ok(returned.overpayCredit)
+  const returnSnapshot = seed.one('SELECT idempotencyResponseJson FROM "SaleReturn" WHERE id=?', returned.id)
+    .idempotencyResponseJson
+  assert.equal(returnSnapshot.includes('"firstPrintGrant"'), false,
+    'print permits are ephemeral and never enter the persisted response snapshot')
+  assert.equal(returnSnapshot.includes('"code"'), false,
+    'OVERPAY snapshot does not persist the redeemable code')
   assert.equal(returned.overpayCredit.invoiceId, afterReturnInvoice.id)
   assert.match(returned.overpayCredit.firstPrintGrant, /^[0-9a-f]{64}$/)
   assert.equal(returned.firstPrintGrant, null, 'ordinary return credit and OVERPAY credit have different grants')

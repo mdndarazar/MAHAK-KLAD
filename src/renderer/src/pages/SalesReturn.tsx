@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { call, CH } from '../lib/api'
+import {
+  clearStoredReturnRequestIdentity,
+  resolveReturnRequestIdentity,
+  type ReturnRequestIdentity
+} from '../lib/returnIdempotency'
 // نشست ۳۱۶ — جداکننده‌ی هزارگانِ زنده در ورودی «مبلغ بازپرداخت» (state همچنان رقمِ خام)
 import { digitsOnly, groupThousands } from '../lib/moneyInput'
 // نشست ۲۲۲ · فاز ۳ — نقطه‌ی مشترک چاپ (پرسش/بی‌پرس + چاپگر)
@@ -200,6 +205,7 @@ export default function SalesReturn() {
   const [busy, setBusy] = useState(false)
   const [printing, setPrinting] = useState(false)
   const printingRef = useRef(false)
+  const returnIdempotencyRef = useRef<ReturnRequestIdentity | null>(null)
   const [ordinaryCreditPrint, setOrdinaryCreditPrint] = useState<{
     creditId: number; returnId: number; firstPrintGrant: string | null
   } | null>(null)
@@ -231,7 +237,11 @@ export default function SalesReturn() {
   /** نتیجه‌ی برگشت ساده‌ی تازه ثبت‌شده — برای دکمه‌ی «چاپ رسید برگشت» (بند ۱۳) */
   const [retResult, setRetResult] = useState<any | null>(null)
   const [creditPreview, setCreditPreview] = useState<{
-    returnTotal: number; debtReduced: number; giftOpportunity: number; cashRight: number; previewOnly: true; previewKey: string
+    returnTotal: number; debtReduced: number; giftOpportunity: number; cashRight: number;
+    previewOnly: true; previewKey: string; settlementReady?: boolean; attributionOnly?: boolean;
+    settlementState?: string; shares?: { sourceEventId: number; sourceKind: string; amount: number }[];
+    remainingAttributionBySource?: { sourceEventId: number; sourceKind: string; attributedAmount: number;
+      alreadyReturnedAttribution: number; remainingAttribution: number; ledgerBalance: number }[]
   } | null>(null)
   const [creditPreviewError, setCreditPreviewError] = useState<string | null>(null)
   /** نشست ۱۸۹ · بند ۴-۳۵ — فلو چهارمرحله‌ای اضافه‌دریافت ساخته‌شده با برگشت */
@@ -626,7 +636,11 @@ export default function SalesReturn() {
     let canceled = false
     setCreditPreview(null); setCreditPreviewError(null)
     if (!lookup || !selectedKey || exchangeMode) return () => { canceled = true }
-    void call<{ returnTotal: number; debtReduced: number; giftOpportunity: number; cashRight: number; previewOnly: true }>(
+    void call<{ returnTotal: number; debtReduced: number; giftOpportunity: number; cashRight: number;
+      previewOnly: true; settlementReady?: boolean; attributionOnly?: boolean; settlementState?: string;
+      shares?: { sourceEventId: number; sourceKind: string; amount: number }[];
+      remainingAttributionBySource?: { sourceEventId: number; sourceKind: string; attributedAmount: number;
+        alreadyReturnedAttribution: number; remainingAttribution: number; ledgerBalance: number }[] }>(
       CH.saleReturnProvenancePreview,
       { invoiceId: lookup.invoiceId, full: isFull,
         lines: selected.map((i) => ({ saleItemId: i.saleItemId, qty: qty[i.saleItemId] })) }
@@ -682,6 +696,8 @@ export default function SalesReturn() {
       if (creditPreviewError) return setErr(`منشأ این برگشت هنوز قابل تطبیق نیست: ${creditPreviewError}`)
       if (!creditPreview || creditPreview.previewKey !== selectedKey)
         return setErr('تقسیم منشأ و بدهی در حال محاسبه است؛ چند لحظه صبر کنید و دوباره تأیید کنید.')
+      if (creditPreview.settlementReady === false)
+        return setErr('این پیش‌نمایش فقط انتساب حسابداری است؛ برگشت فرزند تعویض تا تکمیل entitlement، حق تسویه و reversal در سرور بسته می‌ماند.')
       if (creditPreview.giftOpportunity > 0 && refundAmount.trim() !== '' &&
           Number(refundAmount) !== creditPreview.cashRight)
         return setErr(`از این برگشت فقط ${money(creditPreview.cashRight)} ریال پول واقعی و ${money(creditPreview.giftOpportunity)} ریال سهم اعتبار است؛ مبلغ نقد را مطابق پیش‌نمایش وارد کنید.`)
@@ -699,7 +715,7 @@ export default function SalesReturn() {
         )
       setBusy(true)
       try {
-        const res = await call<any>(CH.saleReturn, {
+        const returnPayload = {
           invoiceId: lookup.invoiceId,
           full: isFull,
           lines: selected.map((i) => ({ saleItemId: i.saleItemId, qty: qty[i.saleItemId] ?? 0 })),
@@ -722,7 +738,19 @@ export default function SalesReturn() {
           ...req,
           managerPassword: req.managerPassword || (managerFullRefund ? fullRefundPw : lockPw).trim() || undefined,
           overrideReason: (managerFullRefund ? fullRefundReason : lockReason).trim() || undefined
+        }
+        const { managerPassword: _managerPassword, cardPosOverride: posOverride, ...intent } = returnPayload
+        const intentPayload = JSON.stringify({
+          ...intent,
+          cardPosOverride: posOverride ? {
+            acknowledgedNoReverse: posOverride.acknowledgedNoReverse === true,
+            reason: String(posOverride.reason ?? '').trim()
+          } : null
         })
+        const requestIdentity = await resolveReturnRequestIdentity(intentPayload, returnIdempotencyRef.current)
+        returnIdempotencyRef.current = requestIdentity
+        const idempotencyKey = requestIdentity.key
+        const res = await call<any>(CH.saleReturn, { ...returnPayload, idempotencyKey })
         setOverpayFlow(null)
         setOverpayReq({})
         setRetResult(res)
@@ -746,13 +774,15 @@ export default function SalesReturn() {
                 ? ` · مبلغ اضافه‌ی دریافتی: ${money(res.overpayAmount)} ریال (ردیف «دریافت پول اضافه»)`
                 : '')
         )
-        if (res.overpayCredit?.id) {
+        if (res.overpayCredit?.id && res.replayed !== true) {
           issuedOverpayCreditOpenRef.current = true
           setIssuedOverpayCredit(res.overpayCredit)
           await printIssuedOverpayCredit(res.overpayCredit)
         }
         await lookupCode(lookup.returnCode)
         await loadHistory()
+        clearStoredReturnRequestIdentity(idempotencyKey)
+        if (returnIdempotencyRef.current?.key === idempotencyKey) returnIdempotencyRef.current = null
       } catch (e: any) {
         const message = String(e.message ?? '')
         // پیام «بیشتر از تعداد قابل برگشت» یک هشدار قابل‌تایید است، نه دیوار
@@ -1986,6 +2016,27 @@ export default function SalesReturn() {
                   <span className="kbd block">این فقط پیش‌نمایش است؛ سرور هنگام ثبت دوباره با وضعیت روز محاسبه می‌کند.</span>
                 </p>
               )}
+              {creditPreview?.settlementReady === false && creditPreview.previewKey === selectedKey && (
+                <div role="alert" className="rounded border-2 border-rose-400 bg-rose-50 p-3 text-rose-900">
+                  <b>برگشت فرزند تعویض فعلاً قابل تسویه یا ثبت نیست.</b> ارقام زیر فقط سهم‌بندی منشأ حسابداری‌اند؛
+                  منشأ نقدی اثبات‌کنندهٔ بازپرداخت مجاز نیست و سهم هدیه به اعتبار تازه تبدیل نمی‌شود.
+                  {creditPreview.shares?.length ? <ul className="mt-2 list-disc ps-6">
+                    {creditPreview.shares.map((share) => <li key={share.sourceEventId}>
+                      {share.sourceKind === 'SOURCE_GIFT' ? 'منشأ هدیه' :
+                        share.sourceKind === 'SOURCE_CASH' ? 'منشأ وجه نقد' :
+                          share.sourceKind === 'SOURCE_CARD' ? 'منشأ کارت' : 'منشأ چک پاس‌شده'}:
+                      {' '}{money(share.amount)} ریال از قلم/اقلام انتخاب‌شده
+                    </li>)}
+                  </ul> : null}
+                  {creditPreview.remainingAttributionBySource?.length ? <p className="mt-2 text-sm">
+                    ماندهٔ انتسابی پیش از این انتخاب:{' '}
+                    {creditPreview.remainingAttributionBySource.map((share) =>
+                      `${share.sourceKind} ${money(share.remainingAttribution)} ریال`).join(' · ')}.
+                    این مانده نه حق دریافت است و نه موجودی تسویه.
+                  </p> : null}
+                  <p className="mt-2 font-bold">تسویه، entitlement و reversal هنوز fail-closed هستند؛ دکمهٔ ثبت غیرفعال است.</p>
+                </div>
+              )}
               {refundMethod && refundMethod !== 'NONE' && (
                 <div className="flex flex-wrap gap-2 items-end">
                   <label>
@@ -2106,8 +2157,10 @@ export default function SalesReturn() {
               <button
                 className="btn btn-primary"
                 onClick={() => void doSubmit(false)}
-                disabled={busy || lookupLocked || !totals.count || !refundMethod}
-                title={refundMethod ? undefined : 'اول «روش بازپرداخت» را انتخاب کنید (بند ۱۱)'}
+                disabled={busy || lookupLocked || !totals.count || !refundMethod || creditPreview?.settlementReady === false}
+                title={creditPreview?.settlementReady === false
+                  ? 'پیش‌نمایش فقط انتساب منشأ است؛ تسویه و ثبت برگشت فرزند تعویض بسته است.'
+                  : refundMethod ? undefined : 'اول «روش بازپرداخت» را انتخاب کنید (بند ۱۱)'}
               >
                 {busy ? 'در حال ثبت…' : 'ثبت برگشت از فروش'}
               </button>

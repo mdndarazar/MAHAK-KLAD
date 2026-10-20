@@ -41,6 +41,7 @@ const sale = await salesService.create({ userId, shiftId,
 const saleItemId = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', sale.id).id
 const result = await invoke(IPC.saleReturn, { invoiceId: sale.id, full: true,
   lines: [{ saleItemId, qty: 1 }], refundMethod: 'NONE',
+  idempotencyKey: 'return-request:goods-ipc-cutover-0001',
   userId: 999_999, goodsReceiptRequired: false,
   protocol: { goodsReceiptRequired: false } })
 assert.equal(result.ok, true, JSON.stringify(result))

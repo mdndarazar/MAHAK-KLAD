@@ -687,12 +687,14 @@ export function registerIpcHandlers(): void {
   handle(IPC.saleReturn, async (p) => {
     await assertPanelUnlocked(PANEL_KEYS.salesReturn, 'ثبت برگشت از فروش')
     const input = await withSessionActor(p ?? {}, 'ثبت برگشت از فروش')
-    const result = await salesService.createReturn(input)
+    const result = await salesService.createReturn(input, { requireIdempotencyKey: true })
+    // Replays must not mint another first-print or overpay-credit grant.
     const creditId = result.storeCredit?.id
-    const firstPrintGrant = result.refundMethod === 'STORE_CREDIT' && creditId
+    const firstPrintGrant = result.replayed !== true && result.refundMethod === 'STORE_CREDIT' && creditId
       ? issueCreditFirstPrintGrant(currentPanelSessionOwner(), input.userId, result.id, creditId) : null
     return { ...result, firstPrintGrant,
-      overpayCredit: grantOverpayPaper(result.overpayCredit, result.invoiceId, input.userId) }
+      overpayCredit: result.replayed === true ? result.overpayCredit
+        : grantOverpayPaper(result.overpayCredit, result.invoiceId, input.userId) }
   })
   handle(IPC.saleReturnProvenancePreview, async (p) => {
     await assertPanelUnlocked(PANEL_KEYS.salesReturn, 'پیش‌نمایش سهم برگشت')

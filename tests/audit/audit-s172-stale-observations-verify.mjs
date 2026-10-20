@@ -57,7 +57,8 @@ seed.setting(SETTING_KEYS.discountPolicy, { mode: 'FREE', fixedMode: 'PERCENT', 
 
 console.log('\n— ۱) نشست ۱۴۰: actor برگشت از نشست باز، نه userId renderer')
 {
-  const r0 = await ipc(IPC.saleReturn, { invoiceId: 1, full: true, refundMethod: 'NONE', userId: forged })
+  const r0 = await ipc(IPC.saleReturn, { invoiceId: 1, full: true, refundMethod: 'NONE', userId: forged,
+    idempotencyKey: 'return-request:audit-s172-no-shift-001' })
   eq('بی‌نشست باز: برگشت IPC با پیام فارسی «نشست باز» رد', r0?.ok === false && /نشست بازِ کارمند/.test(String(r0?.error)), true)
 }
 const shiftId = seed.insert('Shift', { name: 'صبح', number: 1, dayJalali: today, openedAt: Date.now() - 3600_000, userId: A, staffConfirmed: 1 })
@@ -71,6 +72,7 @@ const shiftId = seed.insert('Shift', { name: 'صبح', number: 1, dayJalali: tod
     lines: [{ saleItemId: itemsOf(s.id)[0], qty: 1 }],
     refundMethod: 'NONE',
     confirmOverpay: true,
+    idempotencyKey: 'return-request:audit-s172-valid-001',
     userId: forged
   })
   eq('برگشت ثبت شد', r?.ok ? true : r?.error, true)

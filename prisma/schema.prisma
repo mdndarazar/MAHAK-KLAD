@@ -841,6 +841,11 @@ model SaleReturn {
   /// پرداخت/آزادسازیِ تاریخی مدیر باشد. فقط سابقه و گزارش، نه شاهد بانک.
   restockReleasedAt       DateTime?
   restockReleasedAtJalali String?
+  /// Immutable request identity for retry-safe return creation. Historical rows are NULL.
+  idempotencyKey          String?   @unique
+  idempotencyFingerprint   String?
+  /// Sanitized result snapshot; never contains manager credentials or redeemable credit codes.
+  idempotencyResponseJson  String?
 
   items SaleReturnItem[]
   /// دفتر جبرانیِ مستقل: سند برگشت اصلی دست‌نخورده می‌ماند و اثر اصلاحی جداست.
@@ -2822,6 +2827,44 @@ model ExchangeFundingLineAllocation {
   @@index([childInvoiceId, saleItemId])
   @@index([returnId, id])
   @@index([sourceInvoiceId, id])
+}
+
+/// Immutable accounting provenance of a returned item from an exchange child.
+/// It records the cumulative source split and exact reversals, but never grants
+/// a cash refund, gift restoration, or store-credit entitlement. Scalar links
+/// intentionally have no FKs so business-record deletion cannot rewrite history.
+model ExchangeFundingReturnLineAllocation {
+  id                    Int      @id @default(autoincrement())
+  eventKey              String   @unique
+  eventKind             String
+  returnId              Int
+  returnItemId          Int
+  sourceInvoiceId       Int
+  childInvoiceId        Int
+  saleItemId            Int
+  sourceEventId          Int
+  sourceKind             String
+  saleItemQty            Int
+  saleItemValue          BigInt
+  sourceItemAmount       BigInt
+  returnedQtyBefore      Int
+  returningQty           Int
+  returnedQtyAfter       Int
+  priorReturnValue       BigInt
+  returnValue            BigInt
+  cumulativeReturnValue  BigInt
+  priorAmount            BigInt
+  amountDelta            BigInt
+  cumulativeAmount       BigInt
+  allocationVersion      Int      @default(1)
+  reversesAllocationId   Int?     @unique
+  createdAt              DateTime @default(now())
+
+  @@unique([returnItemId, sourceEventId, eventKind])
+  @@index([childInvoiceId, saleItemId])
+  @@index([returnId, id])
+  @@index([returnItemId, id])
+  @@index([sourceEventId, id])
 }
 
 /// سهم واقعیِ هر رسید فیزیکی از منابع فروش: STORE یا ردیف *مشخص* انبار

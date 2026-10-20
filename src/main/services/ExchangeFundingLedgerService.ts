@@ -1,17 +1,20 @@
 import type { Prisma } from '@prisma/client'
 import { BusinessError } from '../errors'
 import { allocateExchangeFundingByLine } from '@shared/exchangeFundingAllocation'
+import { allocateExchangeFundingLineReturn, type ExchangeReturnSourceKind } from '@shared/exchangeFundingLineReturn'
 import { allocateLineNet } from '@shared/returnValue'
 import { toNumberRial } from '@shared/money'
 
 type LedgerClient = Prisma.TransactionClient | {
   exchangeFundingEvent: any
   exchangeFundingLineAllocation: any
+  exchangeFundingReturnLineAllocation: any
   saleInvoice: any
   payment: any
   storeCreditRedemption: any
   storeCredit: any
   saleReturn: any
+  saleReturnItem: any
 }
 
 type FundingEventInput = {
@@ -572,7 +575,9 @@ function exchangeFundingLineAllocationEventKey(childInvoiceId: number, sourceEve
  * those transfers; it is never promoted to an independent cash source. New
  * tenders, debt, missing pairs, and mismatched invoice totals stay unresolved.
  */
-export async function getCurrentExchangeFundingSources(tx: LedgerClient, invoiceId: number) {
+export async function getCurrentExchangeFundingSources(
+  tx: LedgerClient, invoiceId: number, options: { allowReturnBalanceChanges?: boolean } = {}
+) {
   if (!Number.isSafeInteger(invoiceId) || invoiceId <= 0) throw invalid()
   const invoice = await tx.saleInvoice.findUnique({
     where: { id: invoiceId },
@@ -727,47 +732,49 @@ export async function getCurrentExchangeFundingSources(tx: LedgerClient, invoice
   if (!base.snapshotExists && Number.isSafeInteger(invoiceTotal) && invoiceTotal > 0)
     base.unresolved.push({ eventId: 0, kind: 'MISSING_EXCHANGE_TRANSFER_SNAPSHOT', amount: invoiceTotal })
 
-  // This projection never acts as a return permit. Only expose it for an
-  // untouched, fully funded child; if an immutable persisted matrix exists,
-  // reconcile it below before returning the current source-to-item view.
-  if (base.unresolved.length === 0 && base.activeReturnIds.length === 0 &&
+  // This projection is descriptive, not a return or nested-exchange permit.
+  // The opt-in path is only for the dedicated return reader, which separately
+  // validates every active return allocation and its settlement events. The
+  // default view continues to require untouched balances and no active returns.
+  const allowReturnBalanceChanges = options.allowReturnBalanceChanges === true
+  if (base.unresolved.length === 0 && (allowReturnBalanceChanges || base.activeReturnIds.length === 0) &&
       Number.isSafeInteger(invoiceTotal) && invoiceTotal > 0 && base.sources.length > 0) {
-    const sourceBalancesMatchEvents = base.sources.every((source) =>
-      Number.isSafeInteger(source.available) && source.available === toNumberRial(source.event.amount))
-    if (!sourceBalancesMatchEvents) {
-      base.unresolved.push({ eventId: 0, kind: 'EXCHANGE_LINE_SOURCE_BALANCE_MISMATCH', amount: 0 })
+    const sourceTotal = base.sources.reduce((sum, source) =>
+      sum + BigInt(toNumberRial(source.event.amount)), 0n)
+    const availableTotal = base.sources.reduce((sum, source) => sum + BigInt(source.available), 0n)
+    const sourceAmountsValid = sourceTotal <= BigInt(Number.MAX_SAFE_INTEGER) && sourceTotal === BigInt(invoiceTotal)
+    const untouchedBalancesValid = allowReturnBalanceChanges || (
+      base.sources.every((source) => source.available === toNumberRial(source.event.amount)) &&
+      availableTotal === BigInt(invoiceTotal)
+    )
+    if (!sourceAmountsValid || !untouchedBalancesValid) {
+      const outOfRange = sourceTotal > BigInt(Number.MAX_SAFE_INTEGER) || availableTotal > BigInt(Number.MAX_SAFE_INTEGER)
+      base.unresolved.push({ eventId: 0,
+        kind: outOfRange ? 'INVALID_EXCHANGE_LINE_SCOPE_BALANCE' : 'EXCHANGE_LINE_SOURCE_BALANCE_MISMATCH',
+        amount: outOfRange ? 0 : Number(availableTotal - BigInt(invoiceTotal)) })
     } else {
-      const availableTotal = base.sources.reduce((sum, source) => sum + BigInt(source.available), 0n)
-      if (availableTotal > BigInt(Number.MAX_SAFE_INTEGER) || availableTotal !== BigInt(invoiceTotal)) {
-        base.unresolved.push({ eventId: 0,
-          kind: availableTotal > BigInt(Number.MAX_SAFE_INTEGER)
-            ? 'INVALID_EXCHANGE_LINE_SCOPE_BALANCE' : 'EXCHANGE_LINE_SCOPE_BALANCE_MISMATCH',
-          amount: availableTotal > BigInt(Number.MAX_SAFE_INTEGER)
-            ? 0 : Number(availableTotal - BigInt(invoiceTotal)) })
-      } else {
-        try {
-          const lineNet = allocateLineNet(invoice as any)
-          const lineItemSnapshots = (invoice.items as any[]).map((item) => ({
-            saleItemId: Number(item.id),
-            qty: Number(item.qty),
-            netValue: Number(lineNet.get(Number(item.id)) ?? 0)
-          }))
-          if (!lineItemSnapshots.every((item) => Number.isSafeInteger(item.saleItemId) && item.saleItemId > 0 &&
-              Number.isSafeInteger(item.qty) && item.qty > 0 && Number.isSafeInteger(item.netValue) && item.netValue >= 0))
-            throw new RangeError('Exchange item quantity/value snapshot is invalid')
-          base.lineItemSnapshots = lineItemSnapshots
-          const lines = lineItemSnapshots.map(({ saleItemId, netValue }) => ({ saleItemId, amount: netValue }))
-          base.lineAllocations = allocateExchangeFundingByLine(lines, base.sources.map((source) => ({
-            sourceEventId: Number(source.event.id),
-            sourceKind: source.sourceKind as 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE',
-            amount: toNumberRial(source.event.amount)
-          })))
-          base.lineAllocationStatus = 'READ_ONLY_RECONCILED'
-        } catch {
-          base.lineItemSnapshots = []
-          base.lineAllocations = []
-          base.unresolved.push({ eventId: 0, kind: 'EXCHANGE_LINE_ALLOCATION_UNRESOLVED', amount: invoiceTotal })
-        }
+      try {
+        const lineNet = allocateLineNet(invoice as any)
+        const lineItemSnapshots = (invoice.items as any[]).map((item) => ({
+          saleItemId: Number(item.id),
+          qty: Number(item.qty),
+          netValue: Number(lineNet.get(Number(item.id)) ?? 0)
+        }))
+        if (!lineItemSnapshots.every((item) => Number.isSafeInteger(item.saleItemId) && item.saleItemId > 0 &&
+            Number.isSafeInteger(item.qty) && item.qty > 0 && Number.isSafeInteger(item.netValue) && item.netValue >= 0))
+          throw new RangeError('Exchange item quantity/value snapshot is invalid')
+        base.lineItemSnapshots = lineItemSnapshots
+        const lines = lineItemSnapshots.map(({ saleItemId, netValue }) => ({ saleItemId, amount: netValue }))
+        base.lineAllocations = allocateExchangeFundingByLine(lines, base.sources.map((source) => ({
+          sourceEventId: Number(source.event.id),
+          sourceKind: source.sourceKind as 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE',
+          amount: toNumberRial(source.event.amount)
+        })))
+        base.lineAllocationStatus = 'READ_ONLY_RECONCILED'
+      } catch {
+        base.lineItemSnapshots = []
+        base.lineAllocations = []
+        base.unresolved.push({ eventId: 0, kind: 'EXCHANGE_LINE_ALLOCATION_UNRESOLVED', amount: invoiceTotal })
       }
     }
   }
@@ -870,6 +877,275 @@ export async function recordExchangeFundingLineAllocations(tx: LedgerClient, inv
     })
   }
   return { invoiceId, allocationCount: view.lineAllocations.length, replayed: false }
+}
+
+function exchangeFundingReturnLineAllocationEventKey(returnItemId: number, sourceEventId: number) {
+  return `exchange-return-item:${returnItemId}:source:${sourceEventId}:allocation:v1`
+}
+
+function exchangeFundingReturnLineReversalEventKey(returnItemId: number, sourceEventId: number) {
+  return `exchange-return-item:${returnItemId}:source:${sourceEventId}:reversal:v1`
+}
+
+const RETURN_ALLOCATION_NUMERIC_FIELDS = new Set([
+  'returnId', 'returnItemId', 'sourceInvoiceId', 'childInvoiceId', 'saleItemId', 'sourceEventId',
+  'saleItemQty', 'saleItemValue', 'sourceItemAmount', 'returnedQtyBefore', 'returningQty',
+  'returnedQtyAfter', 'priorReturnValue', 'returnValue', 'cumulativeReturnValue',
+  'priorAmount', 'amountDelta', 'cumulativeAmount', 'allocationVersion', 'reversesAllocationId'
+])
+
+function returnAllocationRowMatches(row: any, expected: Record<string, any>) {
+  return Object.entries(expected).every(([field, value]) => {
+    if (field === 'reversesAllocationId' && value == null)
+      return row[field] == null
+    const actual = RETURN_ALLOCATION_NUMERIC_FIELDS.has(field)
+      ? (row[field] == null ? null : toNumberRial(row[field]))
+      : String(row[field] ?? '')
+    return actual === value
+  })
+}
+
+/** Persist source attribution for one already-created child return item.
+ * The helper re-reads the immutable child matrix and all earlier active return
+ * allocations; no renderer-supplied source IDs or amounts are trusted. It only
+ * writes descriptive accounting attribution, never settlement or entitlement.
+ */
+export async function recordExchangeFundingReturnLineAllocation(tx: LedgerClient, input: {
+  returnId: number
+  returnItemId: number
+}) {
+  if (!Number.isSafeInteger(input?.returnId) || input.returnId <= 0 ||
+      !Number.isSafeInteger(input?.returnItemId) || input.returnItemId <= 0)
+    throw invalid()
+  const [ret, returnItem] = await Promise.all([
+    tx.saleReturn.findUnique({ where: { id: input.returnId } }),
+    tx.saleReturnItem.findUnique({ where: { id: input.returnItemId } })
+  ])
+  if (!ret || !returnItem || Number(returnItem.returnId) !== Number(ret.id) ||
+      ret.kind !== 'RETURN' || ret.voidedAt != null)
+    throw new BusinessError('پیوند برگشتِ قلم فرزند معتبر یا فعال نیست؛ هیچ انتسابی ثبت نشد.')
+
+  const childInvoiceId = Number(ret.invoiceId)
+  const [invoice, saleItem] = await Promise.all([
+    tx.saleInvoice.findUnique({ where: { id: childInvoiceId }, include: { items: true } }),
+    tx.saleInvoiceItem.findUnique({ where: { id: Number(returnItem.saleItemId) } })
+  ])
+  if (!invoice || invoice.orderType !== 'EXCHANGE' || invoice.voidedAt != null ||
+      !saleItem || Number(saleItem.invoiceId) !== childInvoiceId ||
+      Number(returnItem.variantId) !== Number(saleItem.variantId))
+    throw new BusinessError('فاکتور/قلم برگشتی فرزند با scope دفتر منشأ سازگار نیست؛ هیچ انتسابی ثبت نشد.')
+
+  const funding = await getCurrentExchangeFundingSources(tx, childInvoiceId, { allowReturnBalanceChanges: true })
+  if (!funding.snapshotExists || funding.unresolved.length > 0 ||
+      funding.lineAllocationStatus !== 'PERSISTED_RECONCILED' ||
+      funding.sourceInvoiceId == null || funding.returnId == null ||
+      Number(invoice.sourceInvoiceId) !== funding.sourceInvoiceId ||
+      Number(invoice.exchangeReturnId) !== funding.returnId)
+    throw new BusinessError('lineage یا ماتریس immutable فرزند قابل تطبیق نیست؛ هیچ انتساب برگشتی ثبت نشد.')
+
+  const lineSnapshot = funding.lineItemSnapshots.find((row) => row.saleItemId === Number(returnItem.saleItemId))
+  if (!lineSnapshot || lineSnapshot.qty !== Number(saleItem.qty) ||
+      !Number.isSafeInteger(lineSnapshot.netValue) || lineSnapshot.netValue < 0 ||
+      toNumberRial(returnItem.lineTotal) < 0)
+    throw new BusinessError('snapshot تعداد/ارزش قلم فرزند نامعتبر است؛ هیچ انتسابی ثبت نشد.')
+  const sourceRows = funding.lineAllocations.filter((row) => row.saleItemId === Number(returnItem.saleItemId))
+  const sources = sourceRows.map((row) => ({
+    sourceEventId: Number(row.sourceEventId),
+    sourceKind: String(row.sourceKind) as ExchangeReturnSourceKind,
+    amount: Number(row.amount)
+  }))
+  if (sources.reduce((sum, row) => sum + row.amount, 0) !== lineSnapshot.netValue)
+    throw new BusinessError('جمع سهم‌های منشأ قلم فرزند با snapshot قیمت برابر نیست؛ هیچ انتسابی ثبت نشد.')
+
+  const activeReturns = await tx.saleReturn.findMany({
+    where: { invoiceId: childInvoiceId, voidedAt: null },
+    include: { items: true }, orderBy: { id: 'asc' }
+  })
+  const history = (activeReturns as any[]).flatMap((activeReturn) =>
+    (activeReturn.items as any[]).filter((item) => Number(item.saleItemId) === Number(returnItem.saleItemId))
+      .map((item) => ({ ret: activeReturn, item })))
+  if (!history.some((entry) => Number(entry.item.id) === Number(returnItem.id)) ||
+      history.some((entry) => Number(entry.ret.id) > Number(ret.id)))
+    throw new BusinessError('ترتیب/وضعیت برگشت‌های فعال قلم فرزند ناسازگار است؛ هیچ انتسابی ثبت نشد.')
+
+  let returnedQty = 0
+  let priorAllocations: Array<{ sourceEventId: number; amount: number }> = []
+  for (const entry of history.filter((candidate) => Number(candidate.ret.id) < Number(ret.id))) {
+    const priorQty = Number(entry.item.qty)
+    let allocation
+    try {
+      allocation = allocateExchangeFundingLineReturn({
+        saleItemId: Number(returnItem.saleItemId), saleItemQty: lineSnapshot.qty,
+        saleItemValue: lineSnapshot.netValue, previouslyReturnedQty: returnedQty,
+        returningQty: priorQty, sources,
+        ...(returnedQty > 0 && lineSnapshot.netValue > 0 ? { priorAllocations } : {})
+      })
+    } catch {
+      throw new BusinessError('تاریخچهٔ تجمعی تخصیص برگشت قلم فرزند ناقص یا ناسازگار است؛ هیچ انتسابی ثبت نشد.')
+    }
+    if (allocation.returnValue !== toNumberRial(entry.item.lineTotal))
+      throw new BusinessError('مبلغ تاریخی برگشت قلم با snapshot تجمعی سازگار نیست؛ هیچ انتسابی ثبت نشد.')
+    const persisted = await tx.exchangeFundingReturnLineAllocation.findMany({
+      where: { returnItemId: Number(entry.item.id) },
+      orderBy: [{ sourceEventId: 'asc' }, { id: 'asc' }]
+    }) as any[]
+    const expected = allocation.shares.map((share) => ({
+      eventKey: exchangeFundingReturnLineAllocationEventKey(Number(entry.item.id), share.sourceEventId),
+      eventKind: 'ALLOCATION', returnId: Number(entry.ret.id), returnItemId: Number(entry.item.id),
+      sourceInvoiceId: funding.sourceInvoiceId, childInvoiceId, saleItemId: Number(returnItem.saleItemId),
+      sourceEventId: share.sourceEventId, sourceKind: share.sourceKind,
+      saleItemQty: lineSnapshot.qty, saleItemValue: lineSnapshot.netValue,
+      sourceItemAmount: sources.find((source) => source.sourceEventId === share.sourceEventId)?.amount,
+      returnedQtyBefore: returnedQty, returningQty: priorQty, returnedQtyAfter: allocation.returnedQtyAfter,
+      priorReturnValue: allocation.cumulativeReturnValue - allocation.returnValue,
+      returnValue: allocation.returnValue, cumulativeReturnValue: allocation.cumulativeReturnValue,
+      priorAmount: share.prior, amountDelta: share.amount, cumulativeAmount: share.cumulative,
+      allocationVersion: 1, reversesAllocationId: null
+    }))
+    if (persisted.length !== expected.length || expected.some((row) =>
+      !persisted.some((candidate) => candidate.eventKind === 'ALLOCATION' && returnAllocationRowMatches(candidate, row))))
+      throw new BusinessError('ردیف تخصیص قبلی برگشت فرزند مفقود/متناقض است؛ هیچ تخصیص تازه‌ای ثبت نشد.')
+    returnedQty = allocation.returnedQtyAfter
+    priorAllocations = allocation.shares.map((share) => ({ sourceEventId: share.sourceEventId, amount: share.cumulative }))
+  }
+
+  let current
+  try {
+    current = allocateExchangeFundingLineReturn({
+      saleItemId: Number(returnItem.saleItemId), saleItemQty: lineSnapshot.qty,
+      saleItemValue: lineSnapshot.netValue, previouslyReturnedQty: returnedQty,
+      returningQty: Number(returnItem.qty), sources,
+      ...(returnedQty > 0 && lineSnapshot.netValue > 0 ? { priorAllocations } : {})
+    })
+  } catch {
+    throw new BusinessError('تعداد/سهم تجمعی برگشت قلم فرزند نامعتبر یا فاقد سابقهٔ لازم است؛ هیچ انتسابی ثبت نشد.')
+  }
+  if (current.returnValue !== toNumberRial(returnItem.lineTotal))
+    throw new BusinessError('ارزش قلم برگشتی با مقدار تجمعی ریالی برابر نیست؛ هیچ انتسابی ثبت نشد.')
+
+  const expectedRows = current.shares.map((share) => ({
+    eventKey: exchangeFundingReturnLineAllocationEventKey(Number(returnItem.id), share.sourceEventId),
+    eventKind: 'ALLOCATION', returnId: Number(ret.id), returnItemId: Number(returnItem.id),
+    sourceInvoiceId: funding.sourceInvoiceId, childInvoiceId, saleItemId: Number(returnItem.saleItemId),
+    sourceEventId: share.sourceEventId, sourceKind: share.sourceKind,
+    saleItemQty: lineSnapshot.qty, saleItemValue: lineSnapshot.netValue,
+    sourceItemAmount: sources.find((source) => source.sourceEventId === share.sourceEventId)?.amount,
+    returnedQtyBefore: returnedQty, returningQty: Number(returnItem.qty),
+    returnedQtyAfter: current.returnedQtyAfter,
+    priorReturnValue: current.cumulativeReturnValue - current.returnValue,
+    returnValue: current.returnValue, cumulativeReturnValue: current.cumulativeReturnValue,
+    priorAmount: share.prior, amountDelta: share.amount, cumulativeAmount: share.cumulative,
+    allocationVersion: 1, reversesAllocationId: null
+  }))
+  const existing = await tx.exchangeFundingReturnLineAllocation.findMany({
+    where: { returnItemId: Number(returnItem.id) },
+    orderBy: [{ sourceEventId: 'asc' }, { id: 'asc' }]
+  }) as any[]
+  if (existing.length > 0) {
+    if (existing.length !== expectedRows.length || expectedRows.some((row) =>
+      !existing.some((candidate) => candidate.eventKind === 'ALLOCATION' && returnAllocationRowMatches(candidate, row))))
+      throw mismatch()
+    return { returnId: Number(ret.id), returnItemId: Number(returnItem.id),
+      allocationCount: expectedRows.length, replayed: true, shares: current.shares }
+  }
+  for (const row of expectedRows) {
+    await tx.exchangeFundingReturnLineAllocation.create({
+      data: {
+        ...row,
+        saleItemValue: BigInt(row.saleItemValue), sourceItemAmount: BigInt(row.sourceItemAmount),
+        priorReturnValue: BigInt(row.priorReturnValue), returnValue: BigInt(row.returnValue),
+        cumulativeReturnValue: BigInt(row.cumulativeReturnValue), priorAmount: BigInt(row.priorAmount),
+        amountDelta: BigInt(row.amountDelta), cumulativeAmount: BigInt(row.cumulativeAmount)
+      }
+    })
+  }
+  return { returnId: Number(ret.id), returnItemId: Number(returnItem.id),
+    allocationCount: expectedRows.length, replayed: false, shares: current.shares }
+}
+
+/** Append the exact inverse rows for one child-return attribution. This only
+ * reverses the descriptive source allocation; the caller separately proves
+ * that cash/credit settlement and physical stock can also be voided.
+ */
+export async function reverseExchangeFundingReturnLineAllocationsForReturn(tx: LedgerClient, input: {
+  returnId: number
+}) {
+  if (!Number.isSafeInteger(input?.returnId) || input.returnId <= 0) throw invalid()
+  const ret = await tx.saleReturn.findUnique({ where: { id: input.returnId } })
+  if (!ret) throw new BusinessError('برگشت برای reversal دفتر تخصیص پیدا نشد.')
+  const rows = await tx.exchangeFundingReturnLineAllocation.findMany({
+    where: { returnId: input.returnId, eventKind: 'ALLOCATION' },
+    orderBy: [{ returnItemId: 'asc' }, { sourceEventId: 'asc' }, { id: 'asc' }]
+  }) as any[]
+  if (rows.length === 0) return { reversed: 0, items: 0, replayed: false }
+  const allocationByReturnItem = new Map<number, any[]>()
+  for (const row of rows) {
+    const key = Number(row.returnItemId)
+    const bucket = allocationByReturnItem.get(key) ?? []
+    bucket.push(row)
+    allocationByReturnItem.set(key, bucket)
+  }
+  const returnItemIds = [...allocationByReturnItem.keys()]
+  const items = await tx.saleReturnItem.findMany({ where: { id: { in: returnItemIds } } }) as any[]
+  if (items.length !== returnItemIds.length || items.some((item) => Number(item.returnId) !== input.returnId))
+    throw new BusinessError('پیوند ردیف‌های دفتر با قلم فیزیکی برگشت ناسازگار است؛ reversal ثبت نشد.')
+  const saleItemIds = [...new Set(items.map((item) => Number(item.saleItemId)))]
+  const laterActive = await tx.saleReturnItem.findMany({
+    where: {
+      saleItemId: { in: saleItemIds },
+      returnId: { not: input.returnId },
+      return: { voidedAt: null, id: { gt: input.returnId } }
+    }, select: { id: true, saleItemId: true, returnId: true }
+  }) as any[]
+  if (laterActive.length > 0)
+    throw new BusinessError('برگشت قدیمی‌ترِ همین قلم قابل ابطال نیست؛ ابتدا برگشت فعالِ جدیدتر را تعیین‌تکلیف کنید (LIFO).')
+
+  let reversed = 0
+  let replayed = true
+  for (const row of rows) {
+    const rowItem = items.find((item) => Number(item.id) === Number(row.returnItemId))
+    if (!rowItem || Number(row.saleItemId) !== Number(rowItem.saleItemId) ||
+        Number(row.childInvoiceId) !== Number(ret.invoiceId) ||
+        String(row.eventKey) !== exchangeFundingReturnLineAllocationEventKey(Number(row.returnItemId), Number(row.sourceEventId)) ||
+        !Number.isSafeInteger(toNumberRial(row.amountDelta)) || toNumberRial(row.amountDelta) < 0)
+      throw new BusinessError('snapshot تخصیص برگشت معتبر نیست؛ reversal ثبت نشد.')
+    const reversalKey = exchangeFundingReturnLineReversalEventKey(Number(row.returnItemId), Number(row.sourceEventId))
+    const existing = await tx.exchangeFundingReturnLineAllocation.findUnique({ where: { reversesAllocationId: Number(row.id) } })
+    const reversal = {
+      eventKey: reversalKey, eventKind: 'REVERSAL', returnId: Number(row.returnId),
+      returnItemId: Number(row.returnItemId), sourceInvoiceId: Number(row.sourceInvoiceId),
+      childInvoiceId: Number(row.childInvoiceId), saleItemId: Number(row.saleItemId),
+      sourceEventId: Number(row.sourceEventId), sourceKind: String(row.sourceKind),
+      saleItemQty: Number(row.saleItemQty), saleItemValue: toNumberRial(row.saleItemValue),
+      sourceItemAmount: toNumberRial(row.sourceItemAmount),
+      returnedQtyBefore: Number(row.returnedQtyBefore), returningQty: Number(row.returningQty),
+      returnedQtyAfter: Number(row.returnedQtyAfter), priorReturnValue: toNumberRial(row.priorReturnValue),
+      returnValue: toNumberRial(row.returnValue), cumulativeReturnValue: toNumberRial(row.cumulativeReturnValue),
+      priorAmount: toNumberRial(row.cumulativeAmount), amountDelta: -toNumberRial(row.amountDelta),
+      cumulativeAmount: toNumberRial(row.priorAmount), allocationVersion: Number(row.allocationVersion),
+      reversesAllocationId: Number(row.id)
+    }
+    if (existing) {
+      if (existing.eventKind !== 'REVERSAL' || !returnAllocationRowMatches(existing, reversal))
+        throw mismatch()
+      reversed++
+      continue
+    }
+    const byKey = await tx.exchangeFundingReturnLineAllocation.findUnique({ where: { eventKey: reversalKey } })
+    if (byKey) throw mismatch()
+    await tx.exchangeFundingReturnLineAllocation.create({
+      data: {
+        ...reversal,
+        saleItemValue: BigInt(reversal.saleItemValue), sourceItemAmount: BigInt(reversal.sourceItemAmount),
+        priorReturnValue: BigInt(reversal.priorReturnValue), returnValue: BigInt(reversal.returnValue),
+        cumulativeReturnValue: BigInt(reversal.cumulativeReturnValue), priorAmount: BigInt(reversal.priorAmount),
+        amountDelta: BigInt(reversal.amountDelta), cumulativeAmount: BigInt(reversal.cumulativeAmount)
+      }
+    })
+    reversed++
+    replayed = false
+  }
+  return { reversed, items: returnItemIds.length, replayed }
 }
 
 /** Capture persisted tender/redemption rows for an ordinary sale. This does not

@@ -48,10 +48,22 @@ runWithPanelSessionOwner(sender.id, () => {
 })
 
 const sale = await makeSale(v100, 100)
-const raw = await ipc(IPC.saleReturn, { invoiceId: sale.id, full: true,
+const returnRequest = { invoiceId: sale.id, full: true,
   lines: [{ saleItemId: itemId(sale.id), qty: 1 }], refundMethod: 'STORE_CREDIT',
   refundAmount: 100, printedHolderFirstName: 'لیلا', printedHolderPhone: '۰۹۱۲۲۲۲۲۲۲۲',
-  userId: -1, shiftId })
+  userId: -1, shiftId }
+const missingKey = await ipc(IPC.saleReturn, returnRequest)
+assert.equal(missingKey.ok, false)
+assert.match(missingKey.error, /کلید یکتای درخواست برگشت لازم است/)
+assert.equal(seed.count('SaleReturn', 'invoiceId=?', sale.id), 0, 'IPC rejects missing idempotency keys before mutation')
+const idempotencyKey = 'return-request:ordinary-paper-first-0001'
+const raw = await ipc(IPC.saleReturn, { ...returnRequest, idempotencyKey })
+const replay = await ipc(IPC.saleReturn, { ...returnRequest, idempotencyKey })
+assert.equal(replay.ok, true, replay.error)
+assert.equal(replay.data.replayed, true)
+assert.equal(replay.data.id, raw.data.id)
+assert.equal(replay.data.storeCredit.id, raw.data.storeCredit.id)
+assert.equal(replay.data.firstPrintGrant, null, 'a replay cannot mint another first-print permit')
 assert.equal(raw.ok, true, raw.error)
 assert.equal(raw.data.storeCredit.code, undefined)
 assert.equal(raw.data.storeCreditCode, undefined)
@@ -154,7 +166,8 @@ try {
   assert.deepEqual([still.amount, still.usedAmount, still.status], [100, 0, 'ACTIVE'])
   const retrySale = await makeSale(v100, 100)
   const retry = await ipc(IPC.saleReturn, { invoiceId: retrySale.id, full: true,
-    lines: [{ saleItemId: itemId(retrySale.id), qty: 1 }], refundMethod: 'STORE_CREDIT', refundAmount: 100 })
+    lines: [{ saleItemId: itemId(retrySale.id), qty: 1 }], refundMethod: 'STORE_CREDIT', refundAmount: 100,
+    idempotencyKey: 'return-request:ordinary-paper-retry-0001' })
   assert.equal(retry.ok, true, retry.error)
   const retryFirst = { creditId: retry.data.storeCredit.id, returnId: retry.data.id,
     firstPrintGrant: retry.data.firstPrintGrant }

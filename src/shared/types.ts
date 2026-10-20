@@ -547,6 +547,8 @@ export interface PrintLabel {
 export interface ReturnSaleInput {
   invoiceId: number
   full: boolean
+  /** Required by the production IPC boundary; retained across retries of one intent. */
+  idempotencyKey?: string
   lines?: { saleItemId: number; qty: number }[]
   note?: string
   userId?: number | null

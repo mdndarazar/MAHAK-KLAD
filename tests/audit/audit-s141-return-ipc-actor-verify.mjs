@@ -53,7 +53,8 @@ let saleNoShift
   saleNoShift = await salesService.create({ userId: A, shiftId: shift0, lines: [{ variantId: v1, qty: 1, unitPrice: 500_000, discount: 0, tax: 0 }], payments: [{ methodId: cash, amount: 500_000, destination: 'CASH' }] })
   db.$harness.db.prepare('UPDATE "Shift" SET closedAt = ? WHERE id = ?').run(Date.now() - 3600_000, shift0)
   const [i1] = itemsOf(saleNoShift.id)
-  const r = await ipc(IPC.saleReturn, { invoiceId: saleNoShift.id, full: false, lines: [{ saleItemId: i1, qty: 1 }], refundMethod: 'NONE', userId: forged })
+  const r = await ipc(IPC.saleReturn, { invoiceId: saleNoShift.id, full: false, lines: [{ saleItemId: i1, qty: 1 }], refundMethod: 'NONE', userId: forged,
+    idempotencyKey: 'return-request:audit-s141-no-shift-001' })
   eq('بی‌نشست باز: برگشت رد با پیام «نشست باز»', r?.ok === false && /نشست بازِ کارمند/.test(String(r?.error)), true)
   eq('هیچ سند برگشتی ساخته نشد', seed.count('SaleReturn', 'invoiceId = ?', saleNoShift.id), 0)
 }
@@ -71,6 +72,7 @@ let retId, sale
     lines: [{ saleItemId: i1, qty: 1 }],
     refundMethod: 'NONE',
     confirmOverpay: true,
+    idempotencyKey: 'return-request:audit-s141-valid-001',
     userId: forged
   })
   eq('برگشت ثبت شد', r?.ok ? true : r?.error, true)
