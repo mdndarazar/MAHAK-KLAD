@@ -20,7 +20,7 @@ const { salesService } = await import('../../src/main/services/SalesService.ts')
 const { periodLockService } = await import('../../src/main/services/PeriodLockService.ts')
 const { shiftService } = await import('../../src/main/services/ShiftService.ts')
 const { recordExchangeFundingReturnLineAllocation } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
-const { openCardTransferEntitlement } = await import('../../src/main/services/ReturnEntitlementService.ts')
+const { openCardTransferEntitlement, convertCashRight } = await import('../../src/main/services/ReturnEntitlementService.ts')
 const { planCreditReturn, applyCreditReturn } = await import('../../src/main/services/CreditReturnService.ts')
 const { remainingOf } = await import('../../src/shared/settlement.ts')
 const { toJalaliDate } = await import('@shared/jalali')
@@ -184,6 +184,32 @@ assert.deepEqual({
   allocations: seed.one('SELECT COUNT(*) n FROM "CreditReturnAllocation"').n,
   deliveries: seed.one('SELECT COUNT(*) n FROM "CreditDelivery"').n
 }, directCreditEffectsBefore, 'child credit-return rejection writes no successor, allocation, or delivery')
+const legacyChildClaimId = seed.insert('ReturnEntitlement', {
+  returnId: returnIds[1], invoiceId: child.id, cashRight: 100, cashReserved: 0,
+  cashPaid: 0, cashConverted: 0, giftOpportunity: 0, debtReduced: 0, state: 'OPEN', version: 0
+})
+assert.ok(legacyChildClaimId > 0)
+const entitlementStateWithImportedChildClaim = {
+  claims: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlement"').n,
+  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
+}
+const conversionEffectsBefore = {
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
+  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n,
+  deliveries: seed.one('SELECT COUNT(*) n FROM "CreditDelivery"').n,
+  converted: seed.one('SELECT cashConverted FROM "ReturnEntitlement" WHERE id=?', legacyChildClaimId).cashConverted
+}
+await assert.rejects(() => convertCashRight({
+  returnId: returnIds[1], amount: 1, expectedVersion: 0,
+  idempotencyKey: 'child-cash-right-conversion', managerPassword: DEFAULT_MANAGER_PASSWORD, actorUserId: userId
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'a pre-existing or imported child claim cannot be converted into spendable credit')
+assert.deepEqual({
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
+  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n,
+  deliveries: seed.one('SELECT COUNT(*) n FROM "CreditDelivery"').n,
+  converted: seed.one('SELECT cashConverted FROM "ReturnEntitlement" WHERE id=?', legacyChildClaimId).cashConverted
+}, conversionEffectsBefore, 'blocked child conversion changes no claim projection, event, code, or delivery')
 // A corrupted/misclassified orderType must not bypass the direct entitlement
 // service guard; either lineage marker independently preserves the hold.
 sql.prepare('UPDATE "SaleInvoice" SET orderType=? WHERE id=?').run('INTERNAL', child.id)
@@ -209,7 +235,7 @@ await assert.rejects(() => openCardTransferEntitlement(db, {
 assert.deepEqual({
   claims: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlement"').n,
   events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
-}, entitlementStateBeforeDirectOpen, 'misclassified child markers still cannot create cash-right events')
+}, entitlementStateWithImportedChildClaim, 'misclassified child markers still cannot create cash-right events')
 sql.prepare('UPDATE "SaleInvoice" SET sourceInvoiceId=?, exchangeReturnId=? WHERE id=?')
   .run(sale.id, exchange.returnId, child.id)
 

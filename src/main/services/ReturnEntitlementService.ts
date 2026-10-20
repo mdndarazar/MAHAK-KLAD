@@ -31,6 +31,17 @@ const safeView = (row: any) => ({
   version: Number(row.version)
 })
 
+async function assertOrdinaryEntitlementReturn(tx: Client, returnId: number, invoiceId: number) {
+  const ret = await tx.saleReturn.findUnique({ where: { id: returnId }, select: {
+    id: true, invoiceId: true, voidedAt: true,
+    invoice: { select: { orderType: true, sourceInvoiceId: true, exchangeReturnId: true } }
+  } })
+  if (!ret || ret.invoiceId !== invoiceId || ret.invoice?.orderType === 'EXCHANGE' ||
+      ret.invoice?.sourceInvoiceId != null || ret.invoice?.exchangeReturnId != null)
+    throw new BusinessError('حق مالی برگشت فرزند تعویض تا تکمیل جریان مستقل قابل تبدیل یا تسویه نیست.')
+  return ret
+}
+
 /** New returns only. Existing legacy requests are not guessed into a cash
  * claim; their history remains available for manager-controlled cutover.
  * Caller MUST pass the same tx that creates the SaleReturn and REQUEST.
@@ -302,6 +313,9 @@ export async function convertCashRight(input: {
     const previous = await tx.returnEntitlementEvent.findUnique({ where: { eventKey } })
     if (previous) {
       if (toNumberRial(previous.amount) !== amount || !previous.creditId) throw stale()
+      const priorClaim = await tx.returnEntitlement.findUnique({ where: { id: previous.entitlementId } })
+      if (!priorClaim) throw stale()
+      await assertOrdinaryEntitlementReturn(tx, returnId, Number(priorClaim.invoiceId))
       const delivery = await tx.creditDelivery.findUnique({ where: { creditId: previous.creditId } })
       return { creditId: previous.creditId, publicReference: `اعتبار #${previous.creditId}`,
         deliveryStatus: delivery?.status ?? 'PENDING_DELIVERY', replayed: true }
@@ -309,11 +323,11 @@ export async function convertCashRight(input: {
     const claim = await tx.returnEntitlement.findUnique({ where: { returnId } })
     if (!claim || claim.state !== 'OPEN' || claim.version !== version)
       throw new BusinessError('حق مالی هنوز باز/تطبیق‌شده نیست یا نسخهٔ آن تغییر کرده است؛ تبدیل انجام نشد.')
+    const ret = await assertOrdinaryEntitlementReturn(tx, returnId, Number(claim.invoiceId))
     const balance = cashClaimBalance(claim)
     if (balance.overAllocated || amount > balance.open)
       throw new BusinessError('مبلغ مورد درخواست از حق نقدی باز بیشتر است؛ کدی صادر نشد. پرداخت و رزرو بانک را بررسی کنید.')
-    const ret = await tx.saleReturn.findUnique({ where: { id: returnId }, select: { id: true, invoiceId: true, voidedAt: true } })
-    if (!ret || ret.voidedAt != null || ret.invoiceId !== claim.invoiceId)
+    if (ret.voidedAt != null)
       throw new BusinessError('سند برگشت معتبر برای تبدیل حق مالی وجود ندارد؛ کدی صادر نشد.')
     const invoice = await tx.saleInvoice.findUnique({ where: { id: ret.invoiceId }, select: { customerId: true } })
     const changed = await tx.returnEntitlement.updateMany({
