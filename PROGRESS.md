@@ -1232,3 +1232,11 @@ Prisma Client تولیدی، `npm install`، `npx prisma generate`، `npm run ty
 - تست‌های متمرکز lineage/funding/expiry/correction/reversal/provenance/F5/S197 که پس از ماتریس اجرا شدند PASS شدند؛ سپس دو تست S4 (helper و integration-characterization) جداگانه اجرا و PASS شدند.
 - پس از افزودن تست S4 جدید، `check-test-coverage` تعداد audit-fixes را ۴۵۹ دید و PASS شد؛ `git diff --check` و دو تست S4 هم PASS شدند. رگرسیون کامل ۱۹:۲۷–۱۹:۴۰ UTC از قبل از افزودن این دو تست S4 بود؛ در این گام production code عوض نشد، ولی رگرسیون کامل پس از افزودن آن‌ها دوباره اجرا نشده است.
 - گام بعدی: پیش از هر تغییر production در S2/S4، طراحی و آزمون fail-first برای preflight اتمیک `createExchange` بنویس که *پیش از* `runReturn` هر دو طرف (delta + source/line matrix + settlement plan) را بداند؛ پذیرش فقط transfer جفت‌شده و immutable برای sourceهای prove‌شده مجاز باشد، و هر diff/حقِ فاقد lifecycle همچنان no-side-effect رد شود. سپس مرحله‌به‌مرحله، هر تغییر را با همین تست و رگرسیون متمرکز بسنج. گیت تسویه باز نشود.
+
+## ادامهٔ S190 — گام محدود S2/S4 صفر-اختلاف
+- fail-first نسخهٔ پذیرش تست S4 اجرا شد و پیش از تغییر کد، به redemption gate برخورد کرد؛ پس از پیاده‌سازی محدود زیر، تست واقعی ۵M هدیه + ۲۰M وجه در سه قلم PASS شد.
+- فقط exchange با diff=0، برگشت تمام قلم‌های مبدأ، snapshot تازه/کامل، zero debt/overpay/unresolved، source amount دقیقاً برابر total، هر سهم pristine و تطبیق دقیق redemptionها مجاز به transfer است. paired TRANSFER_OUT/IN و ماتریس SOURCE_CASH/SOURCE_GIFT در child persisted شدند.
+- مسیر `runReturn` در exchange redemption هدیه را USED نگه می‌دارد؛ برگشت ساده همچنان آن را طبق lifecycle قبلی برمی‌گرداند. گیت شواهد deferشده در همان transaction قبل از commit یا با transfer plan دقیق تخلیه می‌شود یا خطا می‌دهد.
+- برگشت جزئی child همچنان فقط provenance preview می‌دهد؛ settlement/حق/وجه/اعتبار/stock/ledger effect رد و صفر اثر assert شد. Delta مختلط و مبدأ آلوده نیز fail-closed ماندند.
+- تست‌های هدفمند funding/ledger/expiry/idempotency/reversal/correction/provenance و credit-funded scenario PASS شدند (جزییات در TESTLOG). هیچ‌کدام به معنی تکمیل S1–S12 نیست؛ evidence matrix و تصمیم S190-D6 وضعیت را PARTIAL/NOT ACCEPTED نگه می‌دارند.
+- Typecheck این گام اجرا نشد: `tsc` نصب نیست (exit 127). `check:syntax` به‌دلیل نبود esbuild SKIPPED است؛ هر دو نتیجه غیر-PASS هستند.

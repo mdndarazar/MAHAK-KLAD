@@ -3475,6 +3475,41 @@ function optionalPrintedHolder(input: {
   return { name: name || null, phone: part(input.printedHolderPhone) || null }
 }
 
+/** Shared conservative evidence gate for exchange-funded source invoices.
+ * A proven ledger snapshot can discharge this gate only in createExchange's
+ * later, same-transaction exact-value preflight. */
+async function hasUnresolvedExchangeFundingEvidence(
+  tx: Prisma.TransactionClient,
+  invoiceId: number
+): Promise<boolean> {
+  const [livePayments, activeRedemptions] = await Promise.all([
+    tx.payment.findMany({
+      where: { invoiceId, voidedAt: null },
+      select: {
+        storeCreditId: true,
+        amount: true,
+        kind: true,
+        chequeStatus: true,
+        method: { select: { kind: true, key: true } }
+      }
+    }),
+    tx.storeCreditRedemption.count({ where: { invoiceId, reversedAt: null } })
+  ])
+  return activeRedemptions > 0 || livePayments.some((payment) => {
+    const methodKind = String(payment.method?.kind ?? '').toUpperCase()
+    const methodKey = String(payment.method?.key ?? '').toUpperCase()
+    const paymentKind = String(payment.kind ?? PaymentEntryKind.CASH).toUpperCase()
+    const hasCreditSignal = payment.storeCreditId != null ||
+      methodKind === PaymentKind.STORE_CREDIT || methodKind === PaymentKind.EXCHANGE_CREDIT ||
+      methodKey === PaymentKind.STORE_CREDIT || methodKey === PaymentKind.EXCHANGE_CREDIT
+    if (hasCreditSignal || toNumberRial(payment.amount) <= 0) return true
+    if (paymentKind === PaymentEntryKind.CHEQUE)
+      return String(payment.chequeStatus ?? '').toUpperCase() !== ChequeStatus.CLEARED
+    if (paymentKind !== PaymentEntryKind.CASH) return true
+    return methodKind !== PaymentKind.CASH && methodKind !== PaymentKind.CARD
+  })
+}
+
 /**
  * ===========================================================================
  * هسته‌ی «برگشت از فروش» — مشترک بین برگشت ساده و تعویض کالا (بخش ۶).
@@ -3521,6 +3556,9 @@ async function runReturn(
     fullRefundOverride?: boolean
     /** نشست ۱۸۹ — رمز سقف اعتبار اضافه‌دریافت، بیرون از تراکنش سنجیده شده */
     overpayManagerApproved?: boolean
+    /** createExchange must discharge this in its same-transaction exact-value
+     * preflight after it knows both return and replacement totals. */
+    deferExchangeFundingGateToPreflight?: boolean
     /** Server-derived identity; never renderer-controlled fingerprint data. */
     idempotency?: { key: string; fingerprint: string }
   } = {}
@@ -3709,47 +3747,16 @@ async function runReturn(
      */
     let refund: { method: string; amount: number; note: string } | null = null
     let creditReturnPlan: CreditReturnPlan | null = null
-    if (!opts.applyRefund) {
-      // The exchange gate stays fail-closed until per-line source allocation,
-      // child-lineage use, and the separate rights lifecycle are fully integrated
-      // and tested. A lineage reader alone is not authorization. Do not key it only on
-      // Payment.storeCreditId: legacy/malformed rows can identify credit via
-      // method kind/key, or an active redemption with no linked Payment. Only
-      // cash/card rows and cleared cheques are known ordinary funding here;
-      // custom/credit tenders and uncleared cheques stay unresolved.
-      const [livePayments, activeRedemptions] = await Promise.all([
-        tx.payment.findMany({
-          where: { invoiceId: invoice.id, voidedAt: null },
-          select: {
-            storeCreditId: true,
-            amount: true,
-            kind: true,
-            chequeStatus: true,
-            method: { select: { kind: true, key: true } }
-          }
-        }),
-        tx.storeCreditRedemption.count({ where: { invoiceId: invoice.id, reversedAt: null } })
-      ])
-      const hasUnresolvedFundingEvidence = activeRedemptions > 0 || livePayments.some((payment) => {
-        const methodKind = String(payment.method?.kind ?? '').toUpperCase()
-        const methodKey = String(payment.method?.key ?? '').toUpperCase()
-        const paymentKind = String(payment.kind ?? PaymentEntryKind.CASH).toUpperCase()
-        const hasCreditSignal = payment.storeCreditId != null ||
-          methodKind === PaymentKind.STORE_CREDIT || methodKind === PaymentKind.EXCHANGE_CREDIT ||
-          methodKey === PaymentKind.STORE_CREDIT || methodKey === PaymentKind.EXCHANGE_CREDIT
-        if (hasCreditSignal || toNumberRial(payment.amount) <= 0) return true
-        if (paymentKind === PaymentEntryKind.CHEQUE)
-          return String(payment.chequeStatus ?? '').toUpperCase() !== ChequeStatus.CLEARED
-        if (paymentKind !== PaymentEntryKind.CASH) return true
-        return methodKind !== PaymentKind.CASH && methodKind !== PaymentKind.CARD
-      })
-      if (hasUnresolvedFundingEvidence)
-        throw new BusinessError(
-          'تعویضِ این فاکتور به‌دلیل وجود پرداخت اعتباری/ارزش برگشتی، منشأ پرداخت نامعلوم، چکِ پاس‌نشده یا ردپای ردمپشن فعال، ' +
-          'تا تطبیق کامل منشأ و زنجیرهٔ حق متوقف است؛ ' +
-          'هیچ سهمی به وجه نقد یا اعتبار تازه تبدیل نشد.'
-        )
-    }
+    if (opts.deferExchangeFundingGateToPreflight === true &&
+        (opts.applyRefund === true || opts.kind !== ReturnKind.EXCHANGE))
+      throw new Error('exchange funding gate may only be deferred by createExchange')
+    if (!opts.applyRefund && opts.deferExchangeFundingGateToPreflight !== true &&
+        await hasUnresolvedExchangeFundingEvidence(tx, invoice.id))
+      throw new BusinessError(
+        'تعویضِ این فاکتور به‌دلیل وجود پرداخت اعتباری/ارزش برگشتی، منشأ پرداخت نامعلوم، چکِ پاس‌نشده یا ردپای ردمپشن فعال، ' +
+        'تا تطبیق کامل منشأ و زنجیرهٔ حق متوقف است؛ ' +
+        'هیچ سهمی به وجه نقد یا اعتبار تازه تبدیل نشد.'
+      )
     if (opts.applyRefund) {
       creditReturnPlan = await planCreditReturn(tx, {
         invoiceId: invoice.id, grandTotal: toNumberRial(invoice.grandTotal),
@@ -4157,9 +4164,13 @@ async function runReturn(
           userId: input.userId ?? null, plan: creditReturnPlan
         })
       : null
+    // In an exchange the original sold item is replaced by the child invoice;
+    // the original gift redemption remains consumed and its value is carried by
+    // the proven paired funding transfer. Reactivating it here would duplicate
+    // the same gift share. A simple full return still reverses the redemption.
     const reversedCreditRedemptions = creditRestoration
       ? creditRestoration.reversedOriginal
-      : fullyReturned
+      : fullyReturned && opts.kind !== ReturnKind.EXCHANGE
         ? await reverseInvoiceRedemptions(tx, {
             invoiceId: invoice.id,
             reason: `برگشت کامل فاکتور ${faDigits(invoice.receiptNo)}`,
@@ -7087,6 +7098,7 @@ export const salesService = {
         {
           kind: ReturnKind.EXCHANGE,
           applyRefund: false,
+          deferExchangeFundingGateToPreflight: true,
           /**
            * جلسه ۴۰ · کار ب — اگر *قصد* تسویه «کارت‌به‌کارت مدیر» است، کالای
            * برگشتی از همین لحظه معلق می‌ماند. مابه‌التفاوت هنوز حساب نشده، پس
@@ -7219,15 +7231,16 @@ export const salesService = {
       const diff = exchangeTotal - returnTotal
 
       /**
-       * Exact-value exchanges with a current, fully proven, homogeneous real-
-       * money snapshot can move their shares without creating a refund right or
-       * new tender. Other cases remain on their existing path and receive no
-       * ledger transfer here; in particular this does NOT open the credit-funded
-       * exchange gate or reconstruct missing historical provenance.
+       * A no-difference exchange may carry a fully proven, complete source set
+       * (including a matched, live gift redemption) only when the whole original
+       * invoice is returned, every source Rial is transferred, and no debt,
+       * overpay, older return, unresolved tender, or stale snapshot exists.
+       * This is provenance carry only: diff != 0 never enters this path, so no
+       * CASH_RIGHT, B/N entitlement, payout, or new tender is inferred here.
        */
       let fundingSourcesForTransfer: Array<{ event: any; available: number }> | null = null
-      if (diff === 0 && returnTotal > 0) {
-        let funding: Awaited<ReturnType<typeof getCurrentSaleFundingSources>> | null = null
+      let funding: Awaited<ReturnType<typeof getCurrentSaleFundingSources>> | null = null
+      if (returnTotal > 0) {
         try {
           funding = await getCurrentSaleFundingSources(tx, source.id)
         } catch (error) {
@@ -7235,20 +7248,60 @@ export const salesService = {
           // ordinary-sale snapshot can be read, do not fabricate one here.
           if (!(error instanceof BusinessError)) throw error
         }
-        if (funding?.snapshotExists && !funding.stale &&
-            !funding.activeReturnIds.some((id) => id !== back.id) &&
-            funding.debt === 0 && funding.unresolved.length === 0 && funding.sources.length > 0 &&
-            funding.sources.every((sourceShare) => sourceShare.available > 0)) {
-          const realKinds = new Set(['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
-          const sourceClasses = new Set(funding.sources.map(({ sourceKind, sourceMethodKind, sourceDestination }) =>
-            `${sourceKind}:${String(sourceMethodKind ?? '')}:${String(sourceDestination ?? '')}`
-          ))
-          const available = funding.sources.reduce((sum, row) => sum + row.available, 0)
-          if (funding.sources.every(({ sourceKind }) => realKinds.has(sourceKind)) && sourceClasses.size === 1 &&
-              Number.isSafeInteger(available) && available >= returnTotal)
-            fundingSourcesForTransfer = funding.sources
-        }
       }
+      const fundingSnapshotInvalid = Boolean(funding?.snapshotExists && (funding.stale || funding.unresolved.length > 0))
+      if (diff === 0 && returnTotal > 0) {
+        const activeRedemptions = await tx.storeCreditRedemption.findMany({
+          where: { invoiceId: source.id, reversedAt: null }, select: { id: true }
+        })
+        const sourceGiftRedemptionIds = (funding?.sources ?? [])
+          .filter(({ sourceKind }) => sourceKind === 'SOURCE_GIFT')
+          .map(({ event }) => Number(event.sourceRedemptionId))
+        const activeRedemptionIds = activeRedemptions.map((row) => Number(row.id))
+        const redemptionSetMatches = activeRedemptionIds.length === sourceGiftRedemptionIds.length &&
+          activeRedemptionIds.every((id) => sourceGiftRedemptionIds.includes(id)) &&
+          sourceGiftRedemptionIds.every((id) => activeRedemptionIds.includes(id))
+        const returnedQtyByItem = new Map<number, number>()
+        for (const returnedLine of back.returnedLines ?? []) {
+          const saleItemId = Number(returnedLine.saleItemId)
+          const qty = Number(returnedLine.qty)
+          if (!Number.isSafeInteger(saleItemId) || saleItemId <= 0 ||
+              !Number.isSafeInteger(qty) || qty <= 0 || returnedQtyByItem.has(saleItemId)) {
+            returnedQtyByItem.clear()
+            break
+          }
+          returnedQtyByItem.set(saleItemId, qty)
+        }
+        const returnedEverySourceItem = Array.isArray(source.items) && source.items.length > 0 &&
+          source.items.length === returnedQtyByItem.size && source.items.every((saleItem: any) =>
+            returnedQtyByItem.get(Number(saleItem.id)) === Number(saleItem.qty))
+        const totalAvailable = (funding?.sources ?? []).reduce((sum, row) => sum + row.available, 0)
+        const sourceKinds = new Set(['SOURCE_GIFT', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
+        if (funding?.snapshotExists && !funding.stale &&
+            funding.activeReturnIds.length === 1 && funding.activeReturnIds[0] === back.id &&
+            funding.debt === 0 && funding.overpay === 0 && funding.unresolved.length === 0 &&
+            funding.sources.length > 0 && redemptionSetMatches && returnedEverySourceItem &&
+            Number.isSafeInteger(totalAvailable) && totalAvailable === returnTotal && returnTotal === exchangeTotal &&
+            funding.sources.every((sourceShare) => sourceKinds.has(sourceShare.sourceKind) &&
+              sourceShare.available > 0 && sourceShare.available === toNumberRial(sourceShare.event.amount)))
+          fundingSourcesForTransfer = funding.sources
+      }
+      // A present but stale/unresolved snapshot is not downgraded to the legacy
+      // exchange path: it is an explicit incomplete-lineage signal.
+      if (fundingSourcesForTransfer == null && fundingSnapshotInvalid)
+        throw new BusinessError(
+          'تعویضِ این فاکتور به‌دلیل وجود منشأ مالی کهنه/ناقص یا lineage نامعتبر، تا تطبیق کامل منبع و زنجیرهٔ حق متوقف است؛ ' +
+          'هیچ سهمی به وجه نقد یا اعتبار تازه تبدیل نشد.'
+        )
+      // runReturn defers only this evidence decision. Discharge the exact same
+      // guard here, before the transaction can commit; a proven transfer plan is
+      // the sole exemption. Nonzero-diff mixed credit remains no-effect blocked.
+      if (await hasUnresolvedExchangeFundingEvidence(tx, source.id) && !fundingSourcesForTransfer)
+        throw new BusinessError(
+          'تعویضِ این فاکتور به‌دلیل وجود پرداخت اعتباری/ارزش برگشتی، منشأ پرداخت نامعلوم، چکِ پاس‌نشده یا ردپای ردمپشن فعال، ' +
+          'تا تطبیق کامل منشأ و زنجیرهٔ حق متوقف است؛ ' +
+          'هیچ سهمی به وجه نقد یا اعتبار تازه تبدیل نشد.'
+        )
 
       // ---------- ۴) سند تعویض (SaleInvoice با orderType = EXCHANGE) ----------
       const defaults = await saleDefaultsWith(tx)

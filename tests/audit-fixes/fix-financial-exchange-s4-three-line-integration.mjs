@@ -1,7 +1,6 @@
-/** S4 characterization: actual 5M gift + 20M cash sale across 3 lines.
- * The source snapshot is proven and the exact line matrix is calculable, but
- * createExchange must currently remain gated until mixed-source settlement and
- * rights are integrated. Assert that the gate has no side effects.
+/** S4 zero-difference integration: actual 5M gift + 20M cash sale across 3 lines.
+ * Proves source roots, paired transfer, persisted item matrix, and keeps later
+ * child-return settlement closed. This is not sign-off for nonzero exchange diff.
  *
  * node --import ./test/harness/register.mjs tests/audit-fixes/fix-financial-exchange-s4-three-line-integration.mjs
  */
@@ -17,7 +16,7 @@ const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mj
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
 const { issueStoreCredit } = await import('../../src/main/services/StoreCreditService.ts')
-const { getCurrentSaleFundingSources } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
+const { getCurrentSaleFundingSources, getCurrentExchangeFundingSources } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
 const { allocateExchangeFundingByLine } = await import('../../src/shared/exchangeFundingAllocation.ts')
 const { DEFAULT_MANAGER_PASSWORD } = await import('@shared/receipt')
 const { toJalaliDate } = await import('@shared/jalali')
@@ -94,34 +93,85 @@ assert.deepEqual(candidateByLineAndKind, [
 ], 'candidate matrix reconciles each of the three replacement lines exactly')
 
 const sourceItems = seed.rows('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id', sourceSale.id)
-const before = {
-  returns: seed.count('SaleReturn', '1=1'),
-  children: seed.count('SaleInvoice', 'sourceInvoiceId=?', sourceSale.id),
-  sourcePayments: seed.count('Payment', 'invoiceId=?', sourceSale.id),
-  redemptions: seed.count('StoreCreditRedemption', 'invoiceId=?', sourceSale.id),
-  allCredits: seed.count('StoreCredit', '1=1'),
-  cashMovements: seed.count('CashMovement', '1=1'),
-  sourceEvents: seed.count('ExchangeFundingEvent', 'sourceInvoiceId=?', sourceSale.id),
-  stock: seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?, ?, ?, ?, ?) ORDER BY id', ...sourceVariants, ...replacementVariants)
-}
-await assert.rejects(() => salesService.createExchange({
+const creditsBeforeExchange = seed.count('StoreCredit', '1=1')
+const exchange = await salesService.createExchange({
   invoiceId: sourceSale.id,
   lines: sourceItems.map(({ id }) => ({ saleItemId: id, qty: 1 })),
   replacements: replacementVariants.map((variantId, index) => item(variantId, sourcePrices[index])),
   refundMode: 'STORE_CREDIT', userId, shiftId,
   managerPassword: DEFAULT_MANAGER_PASSWORD,
-  overrideReason: 'S4 characterization'
-}), /تعویضِ این فاکتور/,
-'mixed funding with an active but fully proven gift redemption remains gated until settlement integration')
-assert.deepEqual({
-  returns: seed.count('SaleReturn', '1=1'),
-  children: seed.count('SaleInvoice', 'sourceInvoiceId=?', sourceSale.id),
-  sourcePayments: seed.count('Payment', 'invoiceId=?', sourceSale.id),
-  redemptions: seed.count('StoreCreditRedemption', 'invoiceId=?', sourceSale.id),
-  allCredits: seed.count('StoreCredit', '1=1'),
-  cashMovements: seed.count('CashMovement', '1=1'),
-  sourceEvents: seed.count('ExchangeFundingEvent', 'sourceInvoiceId=?', sourceSale.id),
-  stock: seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?, ?, ?, ?, ?) ORDER BY id', ...sourceVariants, ...replacementVariants)
-}, before, 'the blocked mixed-source exchange changes no return, credit, payment, ledger, cash, or inventory state')
+  overrideReason: 'S4 equal-value mixed-source integration'
+})
+assert.equal(exchange.returnTotal, 25_000_000)
+assert.equal(exchange.exchangeTotal, 25_000_000)
+assert.equal(exchange.diff, 0)
+assert.equal(seed.count('StoreCredit', '1=1'), creditsBeforeExchange,
+  'a zero-difference exchange issues no new B/N balance')
+assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', gift.id).status, 'USED',
+  'the original gift root is carried, never reactivated')
 
-console.log('✓ S4 characterization: real mixed source and exact candidate matrix; createExchange remains safely gated with zero side effects')
+const childItems = seed.rows('SELECT id, qty FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id', exchange.exchangeInvoiceId)
+const childView = await getCurrentExchangeFundingSources(db, exchange.exchangeInvoiceId)
+assert.equal(childView.snapshotExists, true)
+assert.equal(childView.lineAllocationStatus, 'PERSISTED_RECONCILED')
+assert.deepEqual(childView.unresolved, [])
+assert.deepEqual(childView.sources.map(({ sourceKind, available }) => ({ sourceKind, available })), [
+  { sourceKind: 'SOURCE_CASH', available: 20_000_000 },
+  { sourceKind: 'SOURCE_GIFT', available: 5_000_000 }
+])
+assert.deepEqual(childView.lineAllocations.map(({ saleItemId, sourceKind, amount }) => ({ saleItemId, sourceKind, amount })), [
+  { saleItemId: childItems[0].id, sourceKind: 'SOURCE_CASH', amount: 8_000_000 },
+  { saleItemId: childItems[1].id, sourceKind: 'SOURCE_CASH', amount: 8_000_000 },
+  { saleItemId: childItems[2].id, sourceKind: 'SOURCE_CASH', amount: 4_000_000 },
+  { saleItemId: childItems[0].id, sourceKind: 'SOURCE_GIFT', amount: 2_000_000 },
+  { saleItemId: childItems[1].id, sourceKind: 'SOURCE_GIFT', amount: 2_000_000 },
+  { saleItemId: childItems[2].id, sourceKind: 'SOURCE_GIFT', amount: 1_000_000 }
+])
+const transferRows = seed.rows(`SELECT kind, amount, parentEventId FROM "ExchangeFundingEvent"
+  WHERE returnId=? AND kind IN ('TRANSFER_OUT','TRANSFER_IN') ORDER BY id`, exchange.returnId)
+assert.equal(transferRows.filter(({ kind }) => kind === 'TRANSFER_OUT').length, 2)
+assert.equal(transferRows.filter(({ kind }) => kind === 'TRANSFER_IN').length, 2)
+assert.equal(transferRows.filter(({ kind }) => kind === 'TRANSFER_OUT').reduce((sum, row) => sum + Number(row.amount), 0), -25_000_000)
+assert.equal(transferRows.filter(({ kind }) => kind === 'TRANSFER_IN').reduce((sum, row) => sum + Number(row.amount), 0), 25_000_000)
+for (const incoming of transferRows.filter(({ kind }) => kind === 'TRANSFER_IN')) {
+  assert.ok(transferRows.some((outgoing) => outgoing.kind === 'TRANSFER_OUT' &&
+    Number(outgoing.parentEventId) === Number(incoming.parentEventId) &&
+    Number(outgoing.amount) === -Number(incoming.amount)), 'every gift/cash transfer-in has its exact paired transfer-out')
+}
+
+const thirdChildItemId = childItems[2].id
+const preview = await salesService.returnProvenancePreview({
+  invoiceId: exchange.exchangeInvoiceId,
+  lines: [{ saleItemId: thirdChildItemId, qty: 1 }]
+})
+assert.equal(preview.returnTotal, 5_000_000)
+assert.deepEqual(preview.shares.map(({ sourceKind, amount }) => ({ sourceKind, amount })), [
+  { sourceKind: 'SOURCE_CASH', amount: 4_000_000 },
+  { sourceKind: 'SOURCE_GIFT', amount: 1_000_000 }
+])
+assert.equal(preview.settlementReady, false)
+assert.equal(preview.cashRight, 0)
+assert.equal(preview.giftOpportunity, 0)
+const beforeChildReturn = {
+  returns: seed.count('SaleReturn', 'invoiceId=?', exchange.exchangeInvoiceId),
+  cashMovements: seed.count('CashMovement', '1=1'),
+  credits: seed.count('StoreCredit', '1=1'),
+  entitlements: seed.count('ReturnEntitlement', '1=1'),
+  events: seed.count('ExchangeFundingEvent', '1=1'),
+  stockMovements: seed.count('StockMovement', '1=1')
+}
+await assert.rejects(() => salesService.createReturn({
+  invoiceId: exchange.exchangeInvoiceId,
+  lines: [{ saleItemId: thirdChildItemId, qty: 1 }],
+  refundMethod: 'CASH', refundAmount: 5_000_000, userId, shiftId
+}), /تخصیص منشأ به قلم/)
+assert.deepEqual({
+  returns: seed.count('SaleReturn', 'invoiceId=?', exchange.exchangeInvoiceId),
+  cashMovements: seed.count('CashMovement', '1=1'),
+  credits: seed.count('StoreCredit', '1=1'),
+  entitlements: seed.count('ReturnEntitlement', '1=1'),
+  events: seed.count('ExchangeFundingEvent', '1=1'),
+  stockMovements: seed.count('StockMovement', '1=1')
+}, beforeChildReturn, 'child return is attributable but still cannot settle cash/credit or change stock/ledger')
+
+console.log('✓ S4 integration: zero-diff 5M gift + 20M cash transfer persists exact 3-line matrix; later child return is attribution-only and side-effect-free')
