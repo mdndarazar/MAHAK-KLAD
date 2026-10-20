@@ -473,17 +473,13 @@ assert.equal(mixedPartialAttribution.shares.find((share) => share.sourceKind ===
 assert.equal(mixedPartialAttribution.shares.find((share) => share.sourceKind === 'SOURCE_CASH')?.amount, 300)
 assert.equal('cashRight' in mixedPartialAttribution, false,
   'item allocation records source only; the result schema cannot grant a cash or credit entitlement')
-const genericMixedReturnPlan = await planCreditReturn(db, {
+await assert.rejects(() => planCreditReturn(db, {
   invoiceId: mixedChildInvoiceId, grandTotal: 1_000, paidTotal: 1_000, returnedValue: 500,
   debtBefore: { remaining: 0, refundFromReceived: 0 }, activeReturns: []
-})
-assert.deepEqual([genericMixedReturnPlan.credit, genericMixedReturnPlan.cash], [0, 500],
-  'the old generic planner sees EXCHANGE_CREDIT but not the child item matrix, so it calls all 500 cash')
-assert.ok(genericMixedReturnPlan.cash > mixedPartialAttribution.shares
-  .find((share) => share.sourceKind === 'SOURCE_CASH').amount,
-'generic settlement candidate exceeds the real-cash provenance attributable to this half-item return')
+}), /فرزند تعویض|EXCHANGE_CREDIT/iu,
+'ordinary settlement planning must reject a child rather than misclassify all 500 as received cash')
 assert.equal(mixedSourceFunding.sources.find((source) => source.event.kind === 'SOURCE_CASH')?.available, 600,
-  'the old sourceInvoiceId-chain cash cap would cover the 500 candidate despite 200 gift value in the returned item')
+  'the reader can show lineage cash but that aggregate balance is not a child-item payout cap')
 const mixedChildReturnBefore = {
   returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', mixedChildInvoiceId).n,
   payments: seed.one('SELECT COUNT(*) n FROM "Payment" WHERE invoiceId=?', mixedChildInvoiceId).n,

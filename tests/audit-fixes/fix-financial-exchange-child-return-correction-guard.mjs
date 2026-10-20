@@ -20,6 +20,9 @@ const { salesService } = await import('../../src/main/services/SalesService.ts')
 const { periodLockService } = await import('../../src/main/services/PeriodLockService.ts')
 const { shiftService } = await import('../../src/main/services/ShiftService.ts')
 const { recordExchangeFundingReturnLineAllocation } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
+const { openCardTransferEntitlement } = await import('../../src/main/services/ReturnEntitlementService.ts')
+const { planCreditReturn } = await import('../../src/main/services/CreditReturnService.ts')
+const { remainingOf } = await import('../../src/shared/settlement.ts')
 const { toJalaliDate } = await import('@shared/jalali')
 const { DEFAULT_MANAGER_PASSWORD } = await import('@shared/receipt')
 const db = harnessClient()
@@ -133,7 +136,52 @@ assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=? AND
 assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation" WHERE childInvoiceId=? AND eventKind=?',
   child.id, 'ALLOCATION').n, 3,
   'the child returns have valid descriptive source allocation but no financial entitlement')
+const entitlementStateBeforeDirectOpen = {
+  claims: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlement"').n,
+  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
+}
+await assert.rejects(() => openCardTransferEntitlement(db, {
+  returnId: returnIds[0], invoiceId: child.id, requestId: 987654321, amount: 1
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'direct entitlement service calls must not convert descriptive child provenance into a cash right')
+assert.deepEqual({
+  claims: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlement"').n,
+  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
+}, entitlementStateBeforeDirectOpen, 'the rejected child claim attempt leaves no financial events')
+await assert.rejects(() => planCreditReturn(db, {
+  invoiceId: child.id, grandTotal: 3000, paidTotal: 3000, returnedValue: 1000,
+  debtBefore: remainingOf({ grandTotal: 3000, received: 3000 }),
+  activeReturns: [{ id: returnIds[0], kind: 'RETURN', total: 1000 }]
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'direct return planning must not treat EXCHANGE_CREDIT as received cash')
+// A corrupted/misclassified orderType must not bypass the direct entitlement
+// service guard; either lineage marker independently preserves the hold.
 sql.prepare('UPDATE "SaleInvoice" SET orderType=? WHERE id=?').run('INTERNAL', child.id)
+await assert.rejects(() => openCardTransferEntitlement(db, {
+  returnId: returnIds[0], invoiceId: child.id, requestId: 987654322, amount: 1
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu)
+await assert.rejects(() => planCreditReturn(db, {
+  invoiceId: child.id, grandTotal: 3000, paidTotal: 3000, returnedValue: 1000,
+  debtBefore: remainingOf({ grandTotal: 3000, received: 3000 }), activeReturns: []
+}), /فرزند تعویض|EXCHANGE_CREDIT/iu,
+'source markers must also protect the planner when orderType is corrupted')
+sql.prepare('UPDATE "SaleInvoice" SET exchangeReturnId=NULL WHERE id=?').run(child.id)
+await assert.rejects(() => openCardTransferEntitlement(db, {
+  returnId: returnIds[0], invoiceId: child.id, requestId: 987654323, amount: 1
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'sourceInvoiceId alone must preserve the entitlement hold')
+sql.prepare('UPDATE "SaleInvoice" SET sourceInvoiceId=NULL, exchangeReturnId=? WHERE id=?')
+  .run(exchange.returnId, child.id)
+await assert.rejects(() => openCardTransferEntitlement(db, {
+  returnId: returnIds[0], invoiceId: child.id, requestId: 987654324, amount: 1
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'exchangeReturnId alone must preserve the entitlement hold')
+assert.deepEqual({
+  claims: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlement"').n,
+  events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
+}, entitlementStateBeforeDirectOpen, 'misclassified child markers still cannot create cash-right events')
+sql.prepare('UPDATE "SaleInvoice" SET sourceInvoiceId=?, exchangeReturnId=? WHERE id=?')
+  .run(sale.id, exchange.returnId, child.id)
 
 const blocked = /برگشت فرزند|تخصیص منشأ|تعویض/iu
 const mutationEffectsBefore = {

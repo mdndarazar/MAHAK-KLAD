@@ -46,7 +46,16 @@ export async function openCardTransferEntitlement(
   const amount = secureInt(input.amount, 'حق نقدی')
   const debtReduced = secureInt(input.debtReduced ?? 0, 'کاهش بدهی', 0)
   const giftOpportunity = secureInt(input.giftOpportunity ?? 0, 'سهم اعتبار غیرنقدی', 0)
-  const ret = await tx.saleReturn.findUnique({ where: { id: returnId }, select: { invoiceId: true, total: true } })
+  const ret = await tx.saleReturn.findUnique({ where: { id: returnId }, select: {
+    invoiceId: true, total: true,
+    invoice: { select: { orderType: true, sourceInvoiceId: true, exchangeReturnId: true } }
+  } })
+  // Defense in depth: this exported write service must not turn descriptive
+  // child-line provenance into a financial claim, even if a caller bypasses
+  // SalesService's normal child-return gate or orderType was misclassified.
+  if (ret?.invoice?.orderType === 'EXCHANGE' || ret?.invoice?.sourceInvoiceId != null ||
+      ret?.invoice?.exchangeReturnId != null)
+    throw new BusinessError('انتساب منشأ برگشت فرزند تعویض به‌تنهایی حق نقدی نمی‌سازد؛ تسویهٔ مالی آن تا تکمیل lineage و entitlement مسدود است.')
   if (!ret || ret.invoiceId !== invoiceId || amount + debtReduced + giftOpportunity > toNumberRial(ret.total))
     throw new BusinessError('حق نقدی، سهم اعتبار و کاهش بدهی با سند برگشت منطبق نیستند؛ حق تازه باز نشد.')
   const existing = await tx.returnEntitlement.findUnique({ where: { returnId } })

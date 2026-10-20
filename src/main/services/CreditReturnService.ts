@@ -36,6 +36,17 @@ export async function planCreditReturn(
     activeReturns: { id: number; kind: string; total: number | bigint }[]
   }
 ): Promise<CreditReturnPlan> {
+  const invoice = await tx.saleInvoice.findUnique({ where: { id: input.invoiceId }, select: {
+    id: true, orderType: true, sourceInvoiceId: true, exchangeReturnId: true
+  } })
+  // EXCHANGE_CREDIT is carried value, not received cash. A child return needs
+  // its own fully proven settlement lifecycle (not yet enabled); descriptive
+  // funding attribution alone must never make this ordinary-sale planner issue
+  // a cash or credit refund plan.
+  if (!invoice || invoice.orderType === 'EXCHANGE' || invoice.sourceInvoiceId != null ||
+      invoice.exchangeReturnId != null)
+    throw new BusinessError('برگشت فرزند تعویض هنوز مسیر تسویهٔ مستقل ندارد؛ EXCHANGE_CREDIT وجه دریافتی نیست و حق بازپرداخت محاسبه نشد.')
+
   const rows = await tx.payment.findMany({
     where: { invoiceId: input.invoiceId, voidedAt: null },
     select: { id: true, storeCreditId: true, amount: true, kind: true, chequeStatus: true,
