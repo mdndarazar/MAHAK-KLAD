@@ -1071,13 +1071,42 @@ export async function reverseExchangeFundingReturnLineAllocationsForReturn(tx: L
   returnId: number
 }) {
   if (!Number.isSafeInteger(input?.returnId) || input.returnId <= 0) throw invalid()
-  const ret = await tx.saleReturn.findUnique({ where: { id: input.returnId } })
-  if (!ret) throw new BusinessError('برگشت برای reversal دفتر تخصیص پیدا نشد.')
-  const rows = await tx.exchangeFundingReturnLineAllocation.findMany({
-    where: { returnId: input.returnId, eventKind: 'ALLOCATION' },
+  const ret = await tx.saleReturn.findUnique({
+    where: { id: input.returnId },
+    include: { items: true, invoice: { select: {
+      id: true, orderType: true, sourceInvoiceId: true, exchangeReturnId: true
+    } } }
+  })
+  if (!ret) throw new BusinessError('برگشت برای reversal دفتر تخصیص پیدا نکرد.')
+  const childInvoice = ret.invoice as any
+  const isExchangeChild = childInvoice?.orderType === 'EXCHANGE' ||
+    childInvoice?.sourceInvoiceId != null || childInvoice?.exchangeReturnId != null
+  const ledgerRows = await tx.exchangeFundingReturnLineAllocation.findMany({
+    where: { returnId: input.returnId },
     orderBy: [{ returnItemId: 'asc' }, { sourceEventId: 'asc' }, { id: 'asc' }]
   }) as any[]
-  if (rows.length === 0) return { reversed: 0, items: 0, replayed: false }
+  const rows = ledgerRows.filter((row) => row.eventKind === 'ALLOCATION')
+  if (ledgerRows.some((row) => row.eventKind !== 'ALLOCATION' && row.eventKind !== 'REVERSAL'))
+    throw mismatch()
+  const allocationIds = new Set(rows.map((row) => Number(row.id)))
+  const reversalRows = ledgerRows.filter((row) => row.eventKind === 'REVERSAL')
+  if (reversalRows.some((row) => !Number.isSafeInteger(Number(row.reversesAllocationId)) ||
+      Number(row.reversesAllocationId) <= 0 || !allocationIds.has(Number(row.reversesAllocationId))))
+    throw new BusinessError('ردیف reversal یتیم یا متصل به تخصیص دیگری است؛ دفتر برگشت قابل تطبیق نیست.')
+  if (rows.length === 0) {
+    if (isExchangeChild && ret.kind === 'RETURN' && (ret.items as any[]).length > 0)
+      throw new BusinessError('برگشت فرزند فاقد تخصیص قلمی است؛ reversal کامل اثبات نمی‌شود.')
+    return { reversed: 0, items: 0, replayed: false }
+  }
+  if (ret.kind !== 'RETURN' || !childInvoice || childInvoice.orderType !== 'EXCHANGE' ||
+      Number(childInvoice.id) !== Number(ret.invoiceId) ||
+      !Number.isSafeInteger(Number(childInvoice.sourceInvoiceId)) || Number(childInvoice.sourceInvoiceId) <= 0 ||
+      !Number.isSafeInteger(Number(childInvoice.exchangeReturnId)) || Number(childInvoice.exchangeReturnId) <= 0)
+    throw new BusinessError('scope فاکتور/برگشت فرزند با دفتر تخصیص سازگار نیست؛ reversal ثبت نشد.')
+
+  const returnItems = (ret.items as any[]).slice().sort((a, b) => Number(a.id) - Number(b.id))
+  const returnItemIds = returnItems.map((item) => Number(item.id))
+  const uniqueReturnItemIds = new Set(returnItemIds)
   const allocationByReturnItem = new Map<number, any[]>()
   for (const row of rows) {
     const key = Number(row.returnItemId)
@@ -1085,7 +1114,13 @@ export async function reverseExchangeFundingReturnLineAllocationsForReturn(tx: L
     bucket.push(row)
     allocationByReturnItem.set(key, bucket)
   }
-  const returnItemIds = [...allocationByReturnItem.keys()]
+  if (returnItems.length === 0 || uniqueReturnItemIds.size !== returnItems.length ||
+      returnItems.some((item) => Number(item.returnId) !== input.returnId ||
+        !Number.isSafeInteger(Number(item.id)) || Number(item.id) <= 0 ||
+        !Number.isSafeInteger(Number(item.saleItemId)) || Number(item.saleItemId) <= 0) ||
+      allocationByReturnItem.size !== returnItems.length ||
+      returnItemIds.some((returnItemId) => !allocationByReturnItem.has(returnItemId)))
+    throw new BusinessError('برگشت فرزند حداقل یک قلمِ فاقد تخصیص منشأ دارد؛ reversal کامل ثبت نشد.')
   const items = await tx.saleReturnItem.findMany({ where: { id: { in: returnItemIds } } }) as any[]
   if (items.length !== returnItemIds.length || items.some((item) => Number(item.returnId) !== input.returnId))
     throw new BusinessError('پیوند ردیف‌های دفتر با قلم فیزیکی برگشت ناسازگار است؛ reversal ثبت نشد.')
