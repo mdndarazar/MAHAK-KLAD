@@ -31,6 +31,19 @@ await assert.rejects(() => resolveReturnRequestIdentity(intent, null, failingSto
   /ذخیره|storage|persist/i,
   'a failed session persistence must be detected before IPC')
 
+const concurrentValues = new Map()
+const concurrentStorage = {
+  getItem: (key) => concurrentValues.get(key) ?? null,
+  setItem: (key, value) => concurrentValues.set(key, String(value)),
+  removeItem: (key) => concurrentValues.delete(key)
+}
+const [simultaneousA, simultaneousB] = await Promise.all([
+  resolveReturnRequestIdentity(intent, null, concurrentStorage, webcrypto),
+  resolveReturnRequestIdentity(intent, null, concurrentStorage, webcrypto)
+])
+assert.equal(simultaneousA.key, simultaneousB.key,
+  'overlapping same-intent submit handlers converge on one persisted key before IPC')
+
 const sameInMemory = await resolveReturnRequestIdentity(intent, first, storage, webcrypto)
 assert.equal(sameInMemory.key, first.key)
 values.clear()
