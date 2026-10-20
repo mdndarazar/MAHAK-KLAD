@@ -73,6 +73,12 @@ const correctionId = seed.insert('ReturnCorrection', {
 assert.ok(correctionId > 0 && firstItemId > 0 && secondItemId > 0)
 insertFailure('third active unit is rejected at the DB cap',
   () => addItem(makeReturn(), saleItemId, 1, variantId), /quantity exceeds sold quantity/)
+updateFailure('active return-item quantity cannot become fractional',
+  'UPDATE "SaleReturnItem" SET qty=1.5 WHERE id=?', [firstItemId], /positive integer/)
+updateFailure('active return-item quantity cannot become zero',
+  'UPDATE "SaleReturnItem" SET qty=0 WHERE id=?', [firstItemId], /positive integer/)
+updateFailure('editing a return item cannot exceed sold quantity',
+  'UPDATE "SaleReturnItem" SET qty=2 WHERE id=?', [firstItemId], /quantity exceeds sold quantity/)
 
 // A mismatched parent invoice cannot be edited under an already-linked return.
 updateFailure('SaleReturn.invoiceId cannot move below linked items',
