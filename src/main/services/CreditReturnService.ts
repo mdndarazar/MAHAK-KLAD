@@ -64,18 +64,23 @@ export async function planCreditReturn(
   const fundedPreviouslyReturned = input.debtBefore.refundFromReceived
   const debtReduced = Math.min(input.returnedValue, input.debtBefore.remaining)
   const fundedReturning = input.returnedValue - debtReduced
+  const priorShares: { redemptionId: number; amount: number }[] = []
+  for (const redemption of redemptions) {
+    const prior = await tx.creditReturnAllocation.aggregate({
+      where: { redemptionId: redemption.id }, _sum: { amount: true }
+    })
+    priorShares.push({ redemptionId: redemption.id, amount: toNumberRial(prior._sum.amount ?? 0) })
+  }
   let result: ReturnType<typeof allocateCreditReturn>
   try {
     result = allocateCreditReturn({ fundedPurchase, fundedPreviouslyReturned, fundedReturning,
-      redemptions: redemptions.map((r) => ({ id: r.id, amount: toNumberRial(r.amount) })) })
+      redemptions: redemptions.map((r) => ({ id: r.id, amount: toNumberRial(r.amount) })), priorShares })
   } catch { throw unknown() }
   // A legacy return with no allocation may already have paid out the gift as
   // cash. Never mint B/E on top of that historic claim without reconciliation.
+  const priorByRedemption = new Map(priorShares.map((share) => [share.redemptionId, share.amount]))
   for (const share of result.shares) {
-    const prior = await tx.creditReturnAllocation.aggregate({
-      where: { redemptionId: share.redemptionId }, _sum: { amount: true }
-    })
-    if (toNumberRial(prior._sum.amount ?? 0) !== share.prior) throw unknown()
+    if (priorByRedemption.get(share.redemptionId) !== share.prior) throw unknown()
   }
   return { credit: result.credit, cash: result.cash, fundedReturning,
     shares: result.shares.map((s, i) => ({ ...s, parentCreditId: redemptions[i].creditId })) }
