@@ -808,4 +808,40 @@ assert.equal(safeSnapshotReplay.id, safeSnapshotResponse.id)
 assert.equal(safeSnapshotReplay.storeCredit.id, issuedCredit.id)
 assert.equal(safeSnapshotReplay.replayed, true)
 
+// A damaged one-time replay snapshot must never cause a second return/credit.
+// Drop the immutable-field trigger only to model an out-of-band DB corruption;
+// production writes cannot alter the committed response.
+const stableSnapshotEffects = {
+  returns: Number(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', safeSnapshotSale.id).n),
+  items: Number(seed.one(`SELECT COUNT(*) n FROM "SaleReturnItem" ri
+    JOIN "SaleReturn" r ON r.id=ri.returnId WHERE r.invoiceId=?`, safeSnapshotSale.id).n),
+  credits: Number(seed.one('SELECT COUNT(*) n FROM "StoreCredit" WHERE returnId=?', safeSnapshotResponse.id).n),
+  refundCash: Number(seed.one('SELECT COALESCE(SUM(amount),0) n FROM "CashMovement" WHERE refType=? AND refId=?',
+    'SaleReturn', safeSnapshotResponse.id).n)
+}
+sql.exec('DROP TRIGGER "sale_return_idempotency_immutable"')
+sql.prepare('UPDATE "SaleReturn" SET idempotencyResponseJson=? WHERE id=?').run('{', safeSnapshotResponse.id)
+await assert.rejects(() => salesService.createReturn(safeSnapshotRequest), /snapshot پاسخ درخواست برگشت خراب است/,
+  'corrupt replay JSON fails closed')
+assert.deepEqual({
+  returns: Number(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', safeSnapshotSale.id).n),
+  items: Number(seed.one(`SELECT COUNT(*) n FROM "SaleReturnItem" ri
+    JOIN "SaleReturn" r ON r.id=ri.returnId WHERE r.invoiceId=?`, safeSnapshotSale.id).n),
+  credits: Number(seed.one('SELECT COUNT(*) n FROM "StoreCredit" WHERE returnId=?', safeSnapshotResponse.id).n),
+  refundCash: Number(seed.one('SELECT COALESCE(SUM(amount),0) n FROM "CashMovement" WHERE refType=? AND refId=?',
+    'SaleReturn', safeSnapshotResponse.id).n)
+}, stableSnapshotEffects, 'corrupt replay JSON cannot duplicate return, item, credit or cash effects')
+sql.prepare('UPDATE "SaleReturn" SET idempotencyResponseJson=? WHERE id=?')
+  .run(JSON.stringify({ id: safeSnapshotResponse.id + 100, invoiceId: safeSnapshotSale.id }), safeSnapshotResponse.id)
+await assert.rejects(() => salesService.createReturn(safeSnapshotRequest), /پیوند snapshot پاسخ با برگشت ثبت‌شده ناسازگار است/,
+  'snapshot bound to a different return cannot be replayed')
+assert.deepEqual({
+  returns: Number(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', safeSnapshotSale.id).n),
+  items: Number(seed.one(`SELECT COUNT(*) n FROM "SaleReturnItem" ri
+    JOIN "SaleReturn" r ON r.id=ri.returnId WHERE r.invoiceId=?`, safeSnapshotSale.id).n),
+  credits: Number(seed.one('SELECT COUNT(*) n FROM "StoreCredit" WHERE returnId=?', safeSnapshotResponse.id).n),
+  refundCash: Number(seed.one('SELECT COALESCE(SUM(amount),0) n FROM "CashMovement" WHERE refType=? AND refId=?',
+    'SaleReturn', safeSnapshotResponse.id).n)
+}, stableSnapshotEffects, 'mismatched snapshot binding cannot cause any duplicate financial effects')
+
 console.log('✓ SalesService funding integration: snapshot revisions, child attribution preview, retry-safe returns, safe snapshots, exact-cash lineage and reversal holds')
