@@ -152,6 +152,14 @@ assert.throws(() => upgraded.db.prepare(`INSERT INTO "SaleInvoiceItem"
   (invoiceId, variantId, qty, unitPrice, discount, tax, lineTotal)
   VALUES (?, ?, 1.5, 100, 0, 0, 150)`).run(retailSale, retailVariant), /sale invoice item quantity/,
 'upgraded databases reject fractional sold quantity on insert')
+const upgradedOverCapReturnId = Number(upgraded.db.prepare(`INSERT INTO "SaleReturn"
+  (invoiceId, returnedAtJalali, kind, refundMethod, refundAmount)
+  VALUES (?, ?, 'RETURN', 'NONE', 0)`).run(retailSale, day).lastInsertRowid)
+assert.throws(() => upgraded.db.prepare(`INSERT INTO "SaleReturnItem"
+  (returnId, saleItemId, variantId, qty, unitPrice, lineTotal)
+  VALUES (?, ?, ?, 1, 100, 100)`).run(upgradedOverCapReturnId, retailItem, retailVariant),
+/active sale return quantity exceeds sold quantity/,
+'upgraded databases enforce the active return cap on a second physical return')
 installed.db.close()
 upgraded.db.close()
 // Separate process: migrator imports a DB client at module load; the runtime
