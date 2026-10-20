@@ -13,6 +13,19 @@ const unknown = () => new BusinessError(
   'منشأ اعتبار این خرید یا تقسیم برگشت‌های قبلی کامل و قابل اثبات نیست؛ بازپرداخت نقدی/اعتباری متوقف شد. پرونده را بدون حدس به مدیر برای تطبیق ارجاع دهید.'
 )
 const stale = () => new BusinessError('سهم اعتبار این فاکتور هم‌زمان تغییر کرد؛ هیچ حق تازه‌ای صادر نشد. فاکتور را تازه کنید.')
+const childReturnBlocked = () => new BusinessError(
+  'برگشت فرزند تعویض هنوز مسیر تسویهٔ مستقل ندارد؛ EXCHANGE_CREDIT وجه دریافتی نیست و حق بازپرداخت محاسبه نشد.'
+)
+
+async function assertOrdinaryReturnInvoice(tx: Client, invoiceId: number) {
+  const invoice = await tx.saleInvoice.findUnique({ where: { id: invoiceId }, select: {
+    id: true, orderType: true, sourceInvoiceId: true, exchangeReturnId: true
+  } })
+  if (!invoice || invoice.orderType === 'EXCHANGE' || invoice.sourceInvoiceId != null ||
+      invoice.exchangeReturnId != null)
+    throw childReturnBlocked()
+  return invoice
+}
 
 export interface CreditReturnPlan {
   credit: number
@@ -36,16 +49,9 @@ export async function planCreditReturn(
     activeReturns: { id: number; kind: string; total: number | bigint }[]
   }
 ): Promise<CreditReturnPlan> {
-  const invoice = await tx.saleInvoice.findUnique({ where: { id: input.invoiceId }, select: {
-    id: true, orderType: true, sourceInvoiceId: true, exchangeReturnId: true
-  } })
-  // EXCHANGE_CREDIT is carried value, not received cash. A child return needs
-  // its own fully proven settlement lifecycle (not yet enabled); descriptive
-  // funding attribution alone must never make this ordinary-sale planner issue
-  // a cash or credit refund plan.
-  if (!invoice || invoice.orderType === 'EXCHANGE' || invoice.sourceInvoiceId != null ||
-      invoice.exchangeReturnId != null)
-    throw new BusinessError('برگشت فرزند تعویض هنوز مسیر تسویهٔ مستقل ندارد؛ EXCHANGE_CREDIT وجه دریافتی نیست و حق بازپرداخت محاسبه نشد.')
+  // EXCHANGE_CREDIT is carried value, not received cash. Descriptive child
+  // provenance alone cannot make this ordinary-sale planner issue a refund plan.
+  await assertOrdinaryReturnInvoice(tx, input.invoiceId)
 
   const rows = await tx.payment.findMany({
     where: { invoiceId: input.invoiceId, voidedAt: null },
@@ -149,6 +155,8 @@ export async function applyCreditReturn(
   tx: Client,
   input: { invoiceId: number; returnId: number; full: boolean; userId?: number | null; plan: CreditReturnPlan }
 ): Promise<{ restored: number; expiredShare: number; reversedOriginal: number; credits: { creditId: number; amount: number; status: string }[] }> {
+  // Keep the write primitive safe independently of its planner/caller.
+  await assertOrdinaryReturnInvoice(tx, input.invoiceId)
   const credits: { creditId: number; amount: number; status: string }[] = []
   // 'restored' is the non-cash accounting share, including an expired
   // opportunity. Only restored - expiredShare can be spendable again.

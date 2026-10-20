@@ -21,7 +21,7 @@ const { periodLockService } = await import('../../src/main/services/PeriodLockSe
 const { shiftService } = await import('../../src/main/services/ShiftService.ts')
 const { recordExchangeFundingReturnLineAllocation } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
 const { openCardTransferEntitlement } = await import('../../src/main/services/ReturnEntitlementService.ts')
-const { planCreditReturn } = await import('../../src/main/services/CreditReturnService.ts')
+const { planCreditReturn, applyCreditReturn } = await import('../../src/main/services/CreditReturnService.ts')
 const { remainingOf } = await import('../../src/shared/settlement.ts')
 const { toJalaliDate } = await import('@shared/jalali')
 const { DEFAULT_MANAGER_PASSWORD } = await import('@shared/receipt')
@@ -154,6 +154,36 @@ await assert.rejects(() => planCreditReturn(db, {
   activeReturns: [{ id: returnIds[0], kind: 'RETURN', total: 1000 }]
 }), /فرزند تعویض|lineage|تخصیص منشأ/iu,
 'direct return planning must not treat EXCHANGE_CREDIT as received cash')
+const giftMethodId = seed.insert('PaymentMethod', {
+  key: 'CHILD-DIRECT-GIFT', label: 'Synthetic child gift', kind: 'STORE_CREDIT', isActive: 1
+})
+const syntheticGiftId = seed.insert('StoreCredit', {
+  code: 'CHILD-DIRECT-ROOT', amount: 100, usedAmount: 100, usedCount: 1, status: 'USED', expiresAt: null
+})
+const syntheticPaymentId = seed.insert('Payment', {
+  invoiceId: child.id, methodId: giftMethodId, amount: 100, kind: 'CASH', storeCreditId: syntheticGiftId
+})
+const syntheticRedemptionId = seed.insert('StoreCreditRedemption', {
+  creditId: syntheticGiftId, code: 'CHILD-DIRECT-ROOT', amount: 100, remainderAfter: 0,
+  invoiceId: child.id, paymentId: syntheticPaymentId, idempotencyKey: 'child-direct-redemption',
+  expiryCaptured: true, expiryAtRedeem: null
+})
+const directCreditEffectsBefore = {
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
+  allocations: seed.one('SELECT COUNT(*) n FROM "CreditReturnAllocation"').n,
+  deliveries: seed.one('SELECT COUNT(*) n FROM "CreditDelivery"').n
+}
+await assert.rejects(() => applyCreditReturn(db, {
+  invoiceId: child.id, returnId: returnIds[0], full: false, userId,
+  plan: { credit: 100, cash: 0, fundedReturning: 100,
+    shares: [{ redemptionId: syntheticRedemptionId, parentCreditId: syntheticGiftId, amount: 100, prior: 0 }] }
+}), /فرزند تعویض|lineage|تخصیص منشأ/iu,
+'direct credit-return application must not issue a DRAFT B/E for an exchange child')
+assert.deepEqual({
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
+  allocations: seed.one('SELECT COUNT(*) n FROM "CreditReturnAllocation"').n,
+  deliveries: seed.one('SELECT COUNT(*) n FROM "CreditDelivery"').n
+}, directCreditEffectsBefore, 'child credit-return rejection writes no successor, allocation, or delivery')
 // A corrupted/misclassified orderType must not bypass the direct entitlement
 // service guard; either lineage marker independently preserves the hold.
 sql.prepare('UPDATE "SaleInvoice" SET orderType=? WHERE id=?').run('INTERNAL', child.id)
