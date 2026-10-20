@@ -16,9 +16,13 @@ process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
+const { issueStoreCredit } = await import('../../src/main/services/StoreCreditService.ts')
+const { planCreditReturn } = await import('../../src/main/services/CreditReturnService.ts')
+const { allocateExchangeFundingLineReturn } = await import('../../src/shared/exchangeFundingLineReturn.ts')
 const {
   getCurrentExchangeFundingSources,
   getCurrentSaleFundingSources,
+  recordExchangeFundingLineAllocations,
   reverseExchangeFundingTransfersForReturn,
   transferExchangeFundingShare
 } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
@@ -313,6 +317,150 @@ assert.throws(() => sql.prepare('UPDATE "ExchangeFundingLineAllocation" SET amou
   .run(exactLineAllocationRowId), /append-only/, 'persisted line allocations cannot be edited')
 assert.throws(() => sql.prepare('DELETE FROM "ExchangeFundingLineAllocation" WHERE id=?')
   .run(exactLineAllocationRowId), /append-only/, 'persisted line allocations cannot be deleted')
+const childReturnBefore = {
+  returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', exactExchange.exchangeInvoiceId).n,
+  activePayments: seed.one('SELECT COUNT(*) n FROM "Payment" WHERE invoiceId=? AND voidedAt IS NULL', exactExchange.exchangeInvoiceId).n,
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
+  creditAllocations: seed.one('SELECT COUNT(*) n FROM "CreditReturnAllocation"').n,
+  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
+}
+await assert.rejects(() => salesService.returnProvenancePreview({
+  invoiceId: exactExchange.exchangeInvoiceId, lines: [{ saleItemId: exactChildItemId, qty: 1 }]
+}), /تخصیص منشأ به قلم/,
+"preview must not plan cash/credit settlement for an exchange child before item-level checks")
+await assert.rejects(() => salesService.createReturn({
+  invoiceId: exactExchange.exchangeInvoiceId,
+  lines: [{ saleItemId: exactChildItemId, qty: 1 }],
+  refundMethod: 'CASH', refundAmount: 1_000, userId, shiftId
+}), /تخصیص منشأ به قلم/,
+'ordinary return must not bypass exchange-line source allocation and issue a cash refund')
+assert.deepEqual({
+  returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', exactExchange.exchangeInvoiceId).n,
+  activePayments: seed.one('SELECT COUNT(*) n FROM "Payment" WHERE invoiceId=? AND voidedAt IS NULL', exactExchange.exchangeInvoiceId).n,
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
+  creditAllocations: seed.one('SELECT COUNT(*) n FROM "CreditReturnAllocation"').n,
+  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
+}, childReturnBefore, 'exchange-child return hold has no settlement, right, or ledger side effects')
+
+// A disposable, manually assembled mixed-source child proves why the generic
+// return planner cannot be used for an EXCHANGE invoice. The real SQLite
+// source sale has 400 gift + 600 cash; the replacement is 2 units / 1,000 and
+// the persisted line matrix assigns those same origins to its one item.
+const mixedGift = await db.$transaction((tx) => issueStoreCredit(tx, {
+  source: 'MANUAL', amount: 400, multiUse: false, maxUses: 1, carryRemainder: false,
+  days: 30, note: 'isolated mixed-source return fixture', userId
+}))
+const mixedSourceVariant = variant(1_000)
+const mixedSourceSale = await salesService.create({
+  userId, shiftId, lines: [line(mixedSourceVariant, 1_000)],
+  payments: [{ methodId: cashMethodId, amount: 600, destination: 'CASH' }],
+  storeCreditCode: mixedGift.code, storeCreditAmount: 400,
+  storeCreditIdempotencyKey: 'mixed-exchange-child-return-fixture'
+})
+assert.equal(mixedSourceSale.grandTotal, 1_000)
+assert.equal(mixedSourceSale.storeCreditApplied, 400)
+const mixedSourceFunding = await getCurrentSaleFundingSources(db, mixedSourceSale.id)
+assert.deepEqual(mixedSourceFunding.unresolved, [])
+assert.equal(mixedSourceFunding.sources.find((source) => source.event.kind === 'SOURCE_GIFT')?.available, 400)
+assert.equal(mixedSourceFunding.sources.find((source) => source.event.kind === 'SOURCE_CASH')?.available, 600)
+const mixedSourceItem = seed.one('SELECT id, variantId FROM "SaleInvoiceItem" WHERE invoiceId=?', mixedSourceSale.id)
+const mixedExchangeReturnId = seed.insert('SaleReturn', {
+  invoiceId: mixedSourceSale.id, total: 1_000, returnedAt: new Date(),
+  returnedAtJalali: toJalaliDate(new Date()), returnedAtTime: '12:00:00',
+  kind: 'EXCHANGE', exchangeTotal: 1_000, exchangeDiff: 0, userId, shiftId
+})
+const mixedChildReceiptNo = 880_001
+const mixedChildInvoiceId = seed.insert('SaleInvoice', {
+  receiptNo: mixedChildReceiptNo, issuedAt: new Date(), issuedAtJalali: toJalaliDate(new Date()),
+  status: 'SETTLED', orderType: 'EXCHANGE', goodsTotal: 1_000, grandTotal: 1_000,
+  paidTotal: 1_000, sourceInvoiceId: mixedSourceSale.id, exchangeReturnId: mixedExchangeReturnId
+})
+sql.prepare('UPDATE "SaleReturn" SET exchangeInvoiceId=?, exchangeReceiptNo=? WHERE id=?')
+  .run(mixedChildInvoiceId, mixedChildReceiptNo, mixedExchangeReturnId)
+seed.insert('SaleReturnItem', {
+  returnId: mixedExchangeReturnId, saleItemId: mixedSourceItem.id, variantId: mixedSourceItem.variantId,
+  qty: 1, unitPrice: 1_000, lineTotal: 1_000
+})
+const mixedReplacementVariant = variant(500)
+const mixedChildItemId = seed.insert('SaleInvoiceItem', {
+  invoiceId: mixedChildInvoiceId, variantId: mixedReplacementVariant, qty: 2,
+  unitPrice: 500, discount: 0, tax: 0, lineTotal: 1_000, variantName: 'mixed-source replacement'
+})
+const exchangeCreditMethodId = seed.one('SELECT id FROM "PaymentMethod" WHERE key=?', 'EXCHANGE_CREDIT').id
+seed.insert('Payment', {
+  invoiceId: mixedChildInvoiceId, methodId: exchangeCreditMethodId, amount: 1_000,
+  kind: 'CASH', seq: 1, destination: null
+})
+await db.$transaction(async (tx) => {
+  for (const source of mixedSourceFunding.sources) {
+    await transferExchangeFundingShare(tx, {
+      eventKey: `test:mixed-return:${mixedExchangeReturnId}:source:${source.event.id}`,
+      sourceEventId: source.event.id, sourceShareId: source.event.shareId,
+      destinationShareId: `test:mixed-child:${mixedChildInvoiceId}:source:${source.event.id}`,
+      rootShareId: source.event.rootShareId, amount: source.available,
+      sourceInvoiceId: mixedSourceSale.id, childInvoiceId: mixedChildInvoiceId,
+      returnId: mixedExchangeReturnId, actorUserId: userId, evidenceRef: `SaleReturn:${mixedExchangeReturnId}`
+    })
+  }
+  await recordExchangeFundingLineAllocations(tx, mixedChildInvoiceId)
+})
+const mixedChildFunding = await getCurrentExchangeFundingSources(db, mixedChildInvoiceId)
+assert.deepEqual(mixedChildFunding.unresolved, [])
+assert.equal(mixedChildFunding.lineAllocationStatus, 'PERSISTED_RECONCILED')
+assert.deepEqual(mixedChildFunding.lineAllocations.map(({ sourceKind, amount }) => ({ sourceKind, amount }))
+  .sort((a, b) => a.sourceKind.localeCompare(b.sourceKind)), [
+  { sourceKind: 'SOURCE_CASH', amount: 600 }, { sourceKind: 'SOURCE_GIFT', amount: 400 }
+])
+const mixedPartialAttribution = allocateExchangeFundingLineReturn({
+  saleItemId: mixedChildItemId, saleItemQty: 2, saleItemValue: 1_000,
+  previouslyReturnedQty: 0, returningQty: 1,
+  sources: mixedChildFunding.lineAllocations.map(({ sourceEventId, sourceKind, amount }) =>
+    ({ sourceEventId, sourceKind, amount }))
+})
+assert.equal(mixedPartialAttribution.returnValue, 500)
+assert.equal(mixedPartialAttribution.shares.find((share) => share.sourceKind === 'SOURCE_GIFT')?.amount, 200)
+assert.equal(mixedPartialAttribution.shares.find((share) => share.sourceKind === 'SOURCE_CASH')?.amount, 300)
+assert.equal('cashRight' in mixedPartialAttribution, false,
+  'item allocation records source only; the result schema cannot grant a cash or credit entitlement')
+const genericMixedReturnPlan = await planCreditReturn(db, {
+  invoiceId: mixedChildInvoiceId, grandTotal: 1_000, paidTotal: 1_000, returnedValue: 500,
+  debtBefore: { remaining: 0, refundFromReceived: 0 }, activeReturns: []
+})
+assert.deepEqual([genericMixedReturnPlan.credit, genericMixedReturnPlan.cash], [0, 500],
+  'the old generic planner sees EXCHANGE_CREDIT but not the child item matrix, so it calls all 500 cash')
+assert.ok(genericMixedReturnPlan.cash > mixedPartialAttribution.shares
+  .find((share) => share.sourceKind === 'SOURCE_CASH').amount,
+'generic settlement candidate exceeds the real-cash provenance attributable to this half-item return')
+assert.equal(mixedSourceFunding.sources.find((source) => source.event.kind === 'SOURCE_CASH')?.available, 600,
+  'the old sourceInvoiceId-chain cash cap would cover the 500 candidate despite 200 gift value in the returned item')
+const mixedChildReturnBefore = {
+  returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', mixedChildInvoiceId).n,
+  payments: seed.one('SELECT COUNT(*) n FROM "Payment" WHERE invoiceId=?', mixedChildInvoiceId).n,
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
+  creditAllocations: seed.one('SELECT COUNT(*) n FROM "CreditReturnAllocation"').n,
+  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n,
+  lineAllocations: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingLineAllocation" WHERE childInvoiceId=?', mixedChildInvoiceId).n
+}
+await assert.rejects(() => salesService.returnProvenancePreview({
+  invoiceId: mixedChildInvoiceId, lines: [{ saleItemId: mixedChildItemId, qty: 1 }]
+}), /تخصیص منشأ به قلم/)
+await assert.rejects(() => salesService.createReturn({
+  invoiceId: mixedChildInvoiceId, lines: [{ saleItemId: mixedChildItemId, qty: 1 }],
+  refundMethod: 'CASH', refundAmount: 500, userId, shiftId
+}), /تخصیص منشأ به قلم/)
+assert.deepEqual({
+  returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', mixedChildInvoiceId).n,
+  payments: seed.one('SELECT COUNT(*) n FROM "Payment" WHERE invoiceId=?', mixedChildInvoiceId).n,
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
+  creditAllocations: seed.one('SELECT COUNT(*) n FROM "CreditReturnAllocation"').n,
+  fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n,
+  lineAllocations: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingLineAllocation" WHERE childInvoiceId=?', mixedChildInvoiceId).n
+}, mixedChildReturnBefore,
+'mixed exchange-child return is held before cash, credit, return-row, or ledger side effects')
 const childInvoiceTotal = seed.one('SELECT grandTotal FROM "SaleInvoice" WHERE id=?', exactExchange.exchangeInvoiceId).grandTotal
 sql.prepare('UPDATE "SaleInvoice" SET paidTotal=? WHERE id=?').run(childInvoiceTotal - 1, exactExchange.exchangeInvoiceId)
 const debtfulChildFunding = await getCurrentExchangeFundingSources(db, exactExchange.exchangeInvoiceId)

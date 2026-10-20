@@ -3422,6 +3422,13 @@ async function runReturn(
           (invoice.status === 'CANCELED' ? 'لغو شده است' : 'هنوز پیش‌نویس است و نهایی نشده') +
           '؛ روی آن هیچ برگشت یا تعویضی ثبت نمی‌شود.'
       )
+    // Temporary fail-closed hold, not the final return policy: EXCHANGE_CREDIT
+    // is returned-goods value, not a tender. Until item-level carry, cumulative
+    // source-return allocations, expiry and reversal are consumed by the
+    // settlement path, the generic planner must not turn mixed provenance into
+    // cash or new credit. Remove this only with the full lifecycle tests green.
+    if (opts.applyRefund && invoice.orderType === OrderType.EXCHANGE)
+      throw new BusinessError(exchangeReturnFundingBlockedMessage())
 
     // Historical/corrected quantities still reserve their sold units against
     // automatic re-return; only non-corrected returns determine invoice status
@@ -4140,6 +4147,11 @@ function creditPaymentEditBlockedMessage(amount: number): string {
   )
 }
 
+function exchangeReturnFundingBlockedMessage(): string {
+  return 'برگشت از فاکتور تعویض تا ثبت و مصرف و تطبیق تخصیص منشأ به قلم، انقضا و مسیر ابطال کامل نشده متوقف است؛ ' +
+    'هیچ وجه یا اعتبار تازه‌ای ثبت نشد.'
+}
+
 export const salesService = {
   /** Read-only server preview. Recalculated inside createReturn's transaction;
    * never a permission or a bank/physical-receipt attestation. No credit code
@@ -4153,6 +4165,8 @@ export const salesService = {
         include: { items: true, returns: { where: { voidedAt: null }, include: { items: true } } } })
       if (!invoice || !isReturnableStatus(invoice.status))
         throw new BusinessError('این فاکتور برای پیش‌نمایش برگشت معتبر نیست؛ دوباره رسید را اسکن کنید.')
+      if (invoice.orderType === OrderType.EXCHANGE)
+        throw new BusinessError(exchangeReturnFundingBlockedMessage())
       const already = new Map<number, number>()
       for (const r of invoice.returns) for (const it of r.items)
         already.set(it.saleItemId, (already.get(it.saleItemId) ?? 0) + it.qty)

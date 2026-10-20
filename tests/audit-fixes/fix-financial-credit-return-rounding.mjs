@@ -169,6 +169,16 @@ const large = allocateCreditReturn({
 assert.equal(large.credit + large.cash, 1_000_000)
 assert.ok(large.shares.every((share) => share.amount >= 0))
 assert.equal(large.shares.reduce((sum, share) => sum + share.amount, 0), large.credit)
+const maxSafe = Number.MAX_SAFE_INTEGER
+const nearSafe = allocateCreditReturn({
+  fundedPurchase: maxSafe,
+  fundedPreviouslyReturned: 0,
+  fundedReturning: Math.floor(maxSafe / 2),
+  redemptions: [{ id: 1, amount: maxSafe - 1_000 }, { id: 2, amount: 1_000 }]
+})
+assert.equal(nearSafe.credit + nearSafe.cash, Math.floor(maxSafe / 2))
+assert.equal(nearSafe.shares.reduce((sum, share) => sum + share.amount, 0), nearSafe.credit)
+assert.ok(nearSafe.shares.every((share) => share.amount >= 0))
 
 const paymentRows = [
   { id: 31, storeCreditId: 41, amount: 3, method: { kind: 'CASH' } },

@@ -3,72 +3,16 @@
  * non-cash store credit can be restored as a credit opportunity. The rest is
  * a *real-money right*, never inferred from the face value of a gift code.
  */
+import { allocateRialSharesWebster, type RialApportionmentWeight } from './integerRialApportionment'
 
-type RedemptionShare = { id: number; amount: number }
+type RedemptionShare = RialApportionmentWeight
 
-/** Webster/Sainte-Lague apportionment over integer Rial units. The priorities
- * amount / (2 * seat - 1) form one fixed sequence per redemption. Selecting the
- * top `seats` priorities makes allocations house-monotone; the finite sequence
- * also guarantees no source can exceed its original amount at full return.
- * Webster denominators are below 2 * MAX_SAFE_INTEGER, so distinct rational
- * priorities differ by at least 1/(4 * MAX_SAFE_INTEGER^2); a 128-bit threshold
- * separates them exactly. Runtime depends on source count and log(amount).
- */
 function allocateWebster(weights: readonly RedemptionShare[], seats: number): number[] {
-  if (!Number.isSafeInteger(seats) || seats < 0) throw new Error('INVALID_CREDIT_RETURN_BASIS')
-  let capacity = 0
-  let maxWeight = 0
-  for (const weight of weights) {
-    if (!Number.isSafeInteger(weight.id) || weight.id <= 0 ||
-        !Number.isSafeInteger(weight.amount) || weight.amount < 0)
-      throw new Error('INVALID_CREDIT_RETURN_BASIS')
-    capacity += weight.amount
-    if (!Number.isSafeInteger(capacity)) throw new Error('INVALID_CREDIT_RETURN_BASIS')
-    maxWeight = Math.max(maxWeight, weight.amount)
-  }
-  if (seats > capacity) throw new Error('INVALID_CREDIT_RETURN_BASIS')
-  const counts = weights.map(() => 0)
-  if (seats === 0) return counts
-
-  const scale = 1n << 128n
-  const countPrioritiesAbove = (threshold: bigint) => {
-    const allocated = weights.map((weight) => {
-      if (weight.amount === 0) return 0
-      if (threshold === 0n) return weight.amount
-      const scaledWeight = BigInt(weight.amount) * scale
-      // amount / (2k-1) > threshold / scale
-      const maxOddDenominator = (scaledWeight - 1n) / threshold
-      const count = (maxOddDenominator + 1n) / 2n
-      return count >= BigInt(weight.amount) ? weight.amount : Number(count)
-    })
-    return { allocated, total: allocated.reduce((sum, amount) => sum + amount, 0) }
-  }
-
-  let low = 0n
-  let high = BigInt(maxWeight) * scale + 1n
-  while (low + 1n < high) {
-    const middle = (low + high) >> 1n
-    if (countPrioritiesAbove(middle).total >= seats) low = middle
-    else high = middle
-  }
-
-  const boundary = countPrioritiesAbove(high)
-  for (let index = 0; index < counts.length; index++) counts[index] = boundary.allocated[index]
-  let remaining = seats - boundary.total
-  const candidates = weights.map((weight, index) => ({ weight, index }))
-    .filter(({ weight, index }) => counts[index] < weight.amount)
-    .sort((left, right) => {
-      const leftDenominator = 2n * BigInt(counts[left.index]) + 1n
-      const rightDenominator = 2n * BigInt(counts[right.index]) + 1n
-      const leftPriority = BigInt(left.weight.amount) * rightDenominator
-      const rightPriority = BigInt(right.weight.amount) * leftDenominator
-      if (leftPriority !== rightPriority) return leftPriority > rightPriority ? -1 : 1
-      return left.weight.id < right.weight.id ? -1 : left.weight.id > right.weight.id ? 1 : 0
-    })
-  if (remaining < 0 || remaining > candidates.length)
+  try {
+    return allocateRialSharesWebster(weights, seats)
+  } catch {
     throw new Error('INVALID_CREDIT_RETURN_BASIS')
-  for (let index = 0; index < remaining; index++) counts[candidates[index].index]++
-  return counts
+  }
 }
 
 export function allocateCreditReturn(input: {
