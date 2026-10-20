@@ -17,6 +17,8 @@ process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
+const { periodLockService } = await import('../../src/main/services/PeriodLockService.ts')
+const { shiftService } = await import('../../src/main/services/ShiftService.ts')
 const { recordExchangeFundingReturnLineAllocation } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
 const { toJalaliDate } = await import('@shared/jalali')
 const { DEFAULT_MANAGER_PASSWORD } = await import('@shared/receipt')
@@ -145,23 +147,76 @@ const mutationEffectsBefore = {
 const beforeUpdate = seed.one('SELECT total, voidedAt FROM "SaleReturn" WHERE id=?', returnIds[0])
 await assert.rejects(() => salesService.returnUpdate({
   id: returnIds[0], lines: [{ saleItemId: Number(childItem.id), qty: 1 }],
-  userId, panelPassword: DEFAULT_MANAGER_PASSWORD, overrideReason: 'guard regression test'
-}), blocked, 'direct edit must remain closed for a return attached to an exchange child')
+  userId, overrideReason: 'guard regression test'
+}), blocked, 'child lineage must be rejected before the edit password gate')
 assert.deepEqual(seed.one('SELECT total, voidedAt FROM "SaleReturn" WHERE id=?', returnIds[0]), beforeUpdate)
 
 const beforeDelete = seed.one('SELECT voidedAt, voidReason FROM "SaleReturn" WHERE id=?', returnIds[1])
 await assert.rejects(() => salesService.returnDelete({
-  id: returnIds[1], userId, reason: 'guard regression test', panelPassword: DEFAULT_MANAGER_PASSWORD
-}), blocked, 'direct void must remain closed until child attribution reversal is wired')
+  id: returnIds[1], userId, reason: 'guard regression test'
+}), blocked, 'child lineage must be rejected before the void password gate')
 assert.deepEqual(seed.one('SELECT voidedAt, voidReason FROM "SaleReturn" WHERE id=?', returnIds[1]), beforeDelete)
 
 const correctionCountBefore = seed.one('SELECT COUNT(*) n FROM "ReturnCorrection"').n
 await assert.rejects(() => salesService.returnReconcileVoid({
-  id: returnIds[2], userId, reason: 'guard regression test', panelPassword: DEFAULT_MANAGER_PASSWORD,
+  id: returnIds[2], userId, reason: 'guard regression test',
   cashRecovered: 0, cardRecovered: 0, creditOutcome: 'NONE'
-}), blocked, 'reconciliation must not create an ordinary-return correction on an exchange child')
+}), blocked, 'child lineage must be rejected before the reconciliation password gate')
 assert.equal(seed.one('SELECT COUNT(*) n FROM "ReturnCorrection"').n, correctionCountBefore)
 assert.equal(seed.one('SELECT voidedAt FROM "SaleReturn" WHERE id=?', returnIds[2]).voidedAt, null)
+
+// Simulate lineage markers appearing after the preflight read but before the
+// mutation transaction. The in-transaction guard must re-read and reject too.
+sql.prepare('UPDATE "SaleInvoice" SET sourceInvoiceId=NULL, exchangeReturnId=NULL WHERE id=?').run(child.id)
+const originalPreverify = periodLockService.preverify
+periodLockService.preverify = async (...args) => {
+  const result = await originalPreverify.apply(periodLockService, args)
+  sql.prepare('UPDATE "SaleInvoice" SET sourceInvoiceId=?, exchangeReturnId=? WHERE id=?')
+    .run(sale.id, exchange.returnId, child.id)
+  return result
+}
+try {
+  await assert.rejects(() => salesService.returnUpdate({
+    id: returnIds[0], lines: [{ saleItemId: Number(childItem.id), qty: 1 }],
+    userId, panelPassword: DEFAULT_MANAGER_PASSWORD, overrideReason: 'lineage changed before transaction'
+  }), blocked, 'the transaction must reject lineage added after preflight')
+} finally {
+  periodLockService.preverify = originalPreverify
+  sql.prepare('UPDATE "SaleInvoice" SET sourceInvoiceId=NULL, exchangeReturnId=NULL WHERE id=?').run(child.id)
+}
+assert.deepEqual({
+  stock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', replacementVariant).stock),
+  cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
+  credits: seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n,
+  corrections: seed.one('SELECT COUNT(*) n FROM "ReturnCorrection"').n,
+  correctionEffects: seed.one('SELECT COUNT(*) n FROM "ReturnCorrectionEffect"').n,
+  audits: seed.one('SELECT COUNT(*) n FROM "AuditLog"').n
+}, mutationEffectsBefore, 'the in-transaction lineage recheck is side-effect-free')
+
+const rejectAfterShiftMarkerRace = async (action, label) => {
+  sql.prepare('UPDATE "SaleInvoice" SET sourceInvoiceId=NULL, exchangeReturnId=NULL WHERE id=?').run(child.id)
+  const originalShiftForNow = shiftService.shiftForNow
+  shiftService.shiftForNow = async (...args) => {
+    const shift = await originalShiftForNow.apply(shiftService, args)
+    sql.prepare('UPDATE "SaleInvoice" SET sourceInvoiceId=?, exchangeReturnId=? WHERE id=?')
+      .run(sale.id, exchange.returnId, child.id)
+    return shift
+  }
+  try {
+    await assert.rejects(action, blocked, label)
+  } finally {
+    shiftService.shiftForNow = originalShiftForNow
+    sql.prepare('UPDATE "SaleInvoice" SET sourceInvoiceId=NULL, exchangeReturnId=NULL WHERE id=?').run(child.id)
+  }
+}
+await rejectAfterShiftMarkerRace(() => salesService.returnDelete({
+  id: returnIds[1], userId, reason: 'lineage changed before delete transaction',
+  panelPassword: DEFAULT_MANAGER_PASSWORD
+}), 'returnDelete must recheck lineage inside its transaction')
+await rejectAfterShiftMarkerRace(() => salesService.returnReconcileVoid({
+  id: returnIds[2], userId, reason: 'lineage changed before reconciliation transaction',
+  panelPassword: DEFAULT_MANAGER_PASSWORD, cashRecovered: 0, cardRecovered: 0, creditOutcome: 'NONE'
+}), 'returnReconcileVoid must recheck lineage inside its transaction')
 sql.prepare('UPDATE "SaleInvoice" SET orderType=? WHERE id=?').run('EXCHANGE', child.id)
 
 assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=? AND voidedAt IS NULL', child.id).n, 3)
