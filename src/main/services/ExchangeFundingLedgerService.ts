@@ -1043,20 +1043,25 @@ export async function recordExchangeFundingReturnLineAllocation(tx: LedgerClient
   if (current.returnValue !== toNumberRial(returnItem.lineTotal))
     throw new BusinessError('ارزش قلم برگشتی با مقدار تجمعی ریالی برابر نیست؛ هیچ انتسابی ثبت نشد.')
 
-  const expectedRows = current.shares.map((share) => ({
-    eventKey: exchangeFundingReturnLineAllocationEventKey(Number(returnItem.id), share.sourceEventId),
-    eventKind: 'ALLOCATION', returnId: Number(ret.id), returnItemId: Number(returnItem.id),
-    sourceInvoiceId: funding.sourceInvoiceId, childInvoiceId, saleItemId: Number(returnItem.saleItemId),
-    sourceEventId: share.sourceEventId, sourceKind: share.sourceKind,
-    saleItemQty: lineSnapshot.qty, saleItemValue: lineSnapshot.netValue,
-    sourceItemAmount: sources.find((source) => source.sourceEventId === share.sourceEventId)?.amount,
-    returnedQtyBefore: returnedQty, returningQty: Number(returnItem.qty),
-    returnedQtyAfter: current.returnedQtyAfter,
-    priorReturnValue: current.cumulativeReturnValue - current.returnValue,
-    returnValue: current.returnValue, cumulativeReturnValue: current.cumulativeReturnValue,
-    priorAmount: share.prior, amountDelta: share.amount, cumulativeAmount: share.cumulative,
-    allocationVersion: 1, reversesAllocationId: null
-  }))
+  const expectedRows = current.shares.map((share) => {
+    const sourceItemAmount = sources.find((source) => source.sourceEventId === share.sourceEventId)?.amount
+    if (sourceItemAmount == null || !Number.isSafeInteger(sourceItemAmount) || sourceItemAmount <= 0)
+      throw new BusinessError('سهم منبع در ماتریس immutable قلم پیدا نشد؛ هیچ انتسابی ثبت نشد.')
+    return {
+      eventKey: exchangeFundingReturnLineAllocationEventKey(Number(returnItem.id), share.sourceEventId),
+      eventKind: 'ALLOCATION', returnId: Number(ret.id), returnItemId: Number(returnItem.id),
+      sourceInvoiceId: funding.sourceInvoiceId, childInvoiceId, saleItemId: Number(returnItem.saleItemId),
+      sourceEventId: share.sourceEventId, sourceKind: share.sourceKind,
+      saleItemQty: lineSnapshot.qty, saleItemValue: lineSnapshot.netValue,
+      sourceItemAmount,
+      returnedQtyBefore: returnedQty, returningQty: Number(returnItem.qty),
+      returnedQtyAfter: current.returnedQtyAfter,
+      priorReturnValue: current.cumulativeReturnValue - current.returnValue,
+      returnValue: current.returnValue, cumulativeReturnValue: current.cumulativeReturnValue,
+      priorAmount: share.prior, amountDelta: share.amount, cumulativeAmount: share.cumulative,
+      allocationVersion: 1, reversesAllocationId: null
+    }
+  })
   const existing = await tx.exchangeFundingReturnLineAllocation.findMany({
     where: { returnItemId: Number(returnItem.id) },
     orderBy: [{ sourceEventId: 'asc' }, { id: 'asc' }]
