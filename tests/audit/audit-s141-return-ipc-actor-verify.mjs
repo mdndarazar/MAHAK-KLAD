@@ -100,7 +100,7 @@ console.log('\n— ۳) saleExchangeCreate با userId جعلی')
 {
   const s2 = await salesService.create({ userId: A, shiftId: shiftA, lines: [{ variantId: v1, qty: 1, unitPrice: 500_000, discount: 0, tax: 0 }], payments: [{ methodId: cash, amount: 500_000, destination: 'CASH' }] })
   const [i1] = itemsOf(s2.id)
-  const r = await ipc(IPC.saleExchangeCreate, { invoiceId: s2.id, lines: [{ saleItemId: i1, qty: 1 }], replacements: [{ variantId: vr, qty: 1 }], userId: forged })
+  const r = await ipc(IPC.saleExchangeCreate, { invoiceId: s2.id, lines: [{ saleItemId: i1, qty: 1 }], replacements: [{ variantId: vr, qty: 1 }], idempotencyKey: 'exchange-request:audit-s141-actor-01', userId: forged })
   eq('تعویض ثبت شد', r?.ok ? true : r?.error, true)
   const row = seed.one('SELECT userId, exchangeInvoiceId FROM "SaleReturn" WHERE invoiceId = ? ORDER BY id DESC', s2.id)
   eq('برگشتِ تعویض: userId = کارمند نشست باز', Number(row?.userId), A)

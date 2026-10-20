@@ -1475,7 +1475,7 @@ async function replayReturnRequestInTx(tx: any, idempotencyKey: string, fingerpr
   return { ...response, replayed: true }
 }
 
-function returnRequestResponseJson(response: any): string {
+function returnRequestResponseJson(response: any, operation = 'برگشت'): string {
   let json: string
   try {
     json = JSON.stringify(response, (_key, value) => {
@@ -1485,11 +1485,81 @@ function returnRequestResponseJson(response: any): string {
       return number
     })
   } catch {
-    throw new BusinessError('snapshot امن پاسخ برگشت ساخته نشد؛ تراکنش بدون ثبت commit نشد.')
+    throw new BusinessError(`snapshot امن پاسخ ${operation} ساخته نشد؛ تراکنش بدون ثبت commit نشد.`)
   }
   if (!json || json.length > 2_000_000)
-    throw new BusinessError('snapshot پاسخ برگشت از سقف امن بزرگ‌تر است؛ تراکنش بدون ثبت commit نشد.')
+    throw new BusinessError(`snapshot پاسخ ${operation} از سقف امن بزرگ‌تر است؛ تراکنش بدون ثبت commit نشد.`)
   return json
+}
+
+function exchangeRequestIdempotencyKey(value: unknown, required: boolean): string {
+  const key = typeof value === 'string' ? value.trim() : ''
+  if (!key && required)
+    throw new BusinessError('کلید یکتای درخواست تعویض لازم است؛ صفحه را تازه کنید و دوباره ثبت کنید.')
+  if (key && !RETURN_REQUEST_KEY_PATTERN.test(key))
+    throw new BusinessError('کلید یکتای درخواست تعویض نامعتبر است.')
+  return key || `exchange-request:${randomUUID()}`
+}
+
+function exchangeRequestFingerprint(input: ExchangeSaleInput, goodsReceiptRequired: boolean): string {
+  const cardPos = input.cardPosOverride == null ? null : {
+    acknowledgedNoReverse: input.cardPosOverride.acknowledgedNoReverse === true,
+    reason: String(input.cardPosOverride.reason ?? '').trim()
+  }
+  const stable = {
+    version: 1,
+    invoiceId: Number(input.invoiceId),
+    full: input.full === true,
+    lines: mergeReturnTargets(input.lines ?? []).sort((a, b) => a.saleItemId - b.saleItemId),
+    replacements: (input.replacements ?? []).map((line) => ({
+      variantId: Number(line.variantId), qty: Number(line.qty),
+      unitPrice: line.unitPrice == null ? null : Number(line.unitPrice),
+      discount: Number(line.discount ?? 0), tax: line.tax == null ? null : Number(line.tax)
+    })),
+    note: input.note ?? null,
+    force: input.force === true,
+    allowRemoved: input.allowRemoved === true,
+    methodId: input.methodId ?? null,
+    destination: input.destination ?? null,
+    splitPayment: input.splitPayment === true,
+    payments: (input.payments ?? []).map((payment) => ({
+      methodId: Number(payment.methodId), amount: Number(payment.amount), destination: payment.destination ?? null
+    })),
+    invoiceDiscount: Number(input.invoiceDiscount ?? 0),
+    invoiceTax: Number(input.invoiceTax ?? 0),
+    serviceCharge: Number(input.serviceCharge ?? 0),
+    refundMode: input.refundMode == null ? null : String(input.refundMode).toUpperCase(),
+    creditDays: input.creditDays ?? null,
+    printedHolderFirstName: input.printedHolderFirstName ?? null,
+    printedHolderLastName: input.printedHolderLastName ?? null,
+    printedHolderPhone: input.printedHolderPhone ?? null,
+    autoCentralWithdraw: input.autoCentralWithdraw === true,
+    cardPos,
+    overrideReason: String(input.overrideReason ?? '').trim() || null,
+    userId: input.userId ?? null,
+    goodsReceiptRequired
+  }
+  return createHash('sha256').update(JSON.stringify(stable)).digest('hex')
+}
+
+async function replayExchangeRequestInTx(tx: any, idempotencyKey: string, fingerprint: string): Promise<any | null> {
+  const prior: any = await tx.saleReturn.findUnique({ where: { idempotencyKey } })
+  if (!prior) return null
+  if ((prior.kind ?? 'RETURN') !== ReturnKind.EXCHANGE && prior.exchangeInvoiceId == null)
+    throw new BusinessError('این کلید تعویض قبلاً برای عملیات دیگری استفاده شده است؛ کلید تازه بسازید.')
+  if (prior.idempotencyFingerprint !== fingerprint)
+    throw new BusinessError('این کلید درخواست تعویض قبلاً برای payload متفاوت استفاده شده است؛ درخواست تازه را با کلید جدید ثبت کنید.')
+  if (typeof prior.idempotencyResponseJson !== 'string' || !prior.idempotencyResponseJson)
+    throw new BusinessError('تعویض قبلاً ثبت شده، اما snapshot پاسخ قابل‌خواندن نیست؛ تعویض تازه نسازید و پرونده را تطبیق دهید.')
+  let response: any
+  try { response = JSON.parse(prior.idempotencyResponseJson) } catch {
+    throw new BusinessError('snapshot پاسخ تعویض خراب است؛ تعویض تازه نسازید و پرونده را تطبیق دهید.')
+  }
+  if (!response || Number(response.returnId) !== Number(prior.id) ||
+      Number(response.invoiceId) !== Number(prior.invoiceId) ||
+      Number(response.exchangeInvoiceId) !== Number(prior.exchangeInvoiceId))
+    throw new BusinessError('پیوند snapshot پاسخ با برگشت/سند تعویض ثبت‌شده ناسازگار است؛ تعویض تازه نسازید و پرونده را تطبیق دهید.')
+  return { ...response, replayed: true }
 }
 
 function isReturnIdempotencyConflict(error: any): boolean {
@@ -6942,7 +7012,10 @@ export const salesService = {
    * تعویض‌های صوری، پول نقد صندوق را جابه‌جا کند.
    * -------------------------------------------------------------------------
    */
-  async createExchange(input: ExchangeSaleInput, protocol: { goodsReceiptRequired?: boolean } = {}): Promise<ExchangeSaleResult> {
+  async createExchange(input: ExchangeSaleInput, protocol: {
+    goodsReceiptRequired?: boolean
+    requireIdempotencyKey?: boolean
+  } = {}): Promise<ExchangeSaleResult> {
     validateExchangeMutation(input)
     if (!input?.invoiceId) throw new BusinessError('فاکتور اصلی مشتری برای تعویض مشخص نشده است.')
     const replacements = (input.replacements ?? []).filter((r) => r?.variantId && r.qty > 0)
@@ -6950,6 +7023,11 @@ export const salesService = {
       throw new BusinessError('برای تعویض، حداقل یک «کالای جایگزین» با تعداد بزرگ‌تر از صفر انتخاب کنید.')
     if (!input.full && !(input.lines ?? []).some((l) => l.qty > 0))
       throw new BusinessError('برای تعویض، تعداد حداقل یک «کالای برگشتی» را بزرگ‌تر از صفر بگذارید.')
+    const idempotencyKey = exchangeRequestIdempotencyKey(input.idempotencyKey, protocol.requireIdempotencyKey === true)
+    const idempotencyFingerprint = exchangeRequestFingerprint(input, protocol.goodsReceiptRequired !== false)
+    const exchangeIdempotency = { key: idempotencyKey, fingerprint: idempotencyFingerprint }
+    const replayedExchange = await replayExchangeRequestInTx(prisma, idempotencyKey, idempotencyFingerprint)
+    if (replayedExchange) return replayedExchange
 
     /**
      * ---------------- بند ۱۲ — انتخاب اجباری، نه پیش‌فرض ضمنی ----------------
@@ -7061,7 +7139,9 @@ export const salesService = {
     if (!exchangeManagerVerified && String(input.managerPassword ?? ''))
       exchangeManagerVerified = await preverifyOverpayManager(input, 'تایید مدیر در تعویض کالا (سقف اعتبار خرید)')
 
-    return prisma.$transaction(async (tx) => {
+    const runExchangeTransaction = () => prisma.$transaction(async (tx) => {
+      const replay = await replayExchangeRequestInTx(tx, idempotencyKey, idempotencyFingerprint)
+      if (replay) return replay
       // بند ۱۷ — تعویض هم یک سند مالی است و در دوره‌ی بسته گیت مدیر می‌خواهد
       await periodLockService.assertOpen(tx, {
         at: new Date(),
@@ -7099,6 +7179,7 @@ export const salesService = {
           kind: ReturnKind.EXCHANGE,
           applyRefund: false,
           deferExchangeFundingGateToPreflight: true,
+          idempotency: exchangeIdempotency,
           /**
            * جلسه ۴۰ · کار ب — اگر *قصد* تسویه «کارت‌به‌کارت مدیر» است، کالای
            * برگشتی از همین لحظه معلق می‌ماند. مابه‌التفاوت هنوز حساب نشده، پس
@@ -7908,7 +7989,7 @@ export const salesService = {
           (centralSentence ? ` · ${centralSentence}` : '')
       })
 
-      return {
+      const exchangeResponse = {
         returnId: back.id,
         invoiceId: source.id,
         receiptNo: source.receiptNo,
@@ -7958,7 +8039,33 @@ export const salesService = {
         paidTotal: settle.paidTotal,
         settled: settle.settled
       } as ExchangeSaleResult
+      await tx.saleReturn.update({
+        where: { id: back.id },
+        data: { idempotencyResponseJson: returnRequestResponseJson(exchangeResponse, 'تعویض') }
+      })
+      return exchangeResponse
     }, TX_OPTIONS)
+    for (let attempt = 0; attempt < 8; attempt++) {
+      try {
+        return await runExchangeTransaction()
+      } catch (error) {
+        const conflict = isReturnIdempotencyConflict(error)
+        const contention = isRetryableReturnRequestContention(error)
+        if (!conflict && !contention) throw error
+        try {
+          const replay = await replayExchangeRequestInTx(prisma, idempotencyKey, idempotencyFingerprint)
+          if (replay) return replay
+        } catch (readError) {
+          if (!isRetryableReturnRequestContention(readError)) throw readError
+        }
+        if ((!contention && !conflict) || attempt === 7) throw error
+        // A unique-key winner may still be committing its response snapshot when
+        // the loser observes the constraint. Re-read on bounded backoff; never
+        // repeat business mutations until the caller-held key is checked again.
+        await new Promise((resolve) => setTimeout(resolve, Math.min(25 * (2 ** attempt), 500)))
+      }
+    }
+    throw new BusinessError('ثبت تعویض به‌دلیل رقابت نوشتن کامل نشد؛ با همان کلید درخواست دوباره تلاش کنید.')
   },
 
   /**

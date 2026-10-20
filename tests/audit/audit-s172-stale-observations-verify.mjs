@@ -96,12 +96,12 @@ console.log('\n— ۲) نشست ۱۴۱: سقف تخفیف روی کالای جا
   const s = await salesService.create({ userId: A, shiftId, lines: [line()], payments: [{ methodId: cash, amount: 1_000_000, destination: 'CASH' }] })
   const it = itemsOf(s.id)[0]
   const c0 = counts()
-  const r1 = await ipc(IPC.saleExchangeCreate, { invoiceId: s.id, lines: [{ saleItemId: it, qty: 1 }], replacements: [{ variantId: vr, qty: 1, unitPrice: 1_000_000, discount: 300_000 }], refundMode: 'STORE_CREDIT', userId: forged })
+  const r1 = await ipc(IPC.saleExchangeCreate, { invoiceId: s.id, lines: [{ saleItemId: it, qty: 1 }], replacements: [{ variantId: vr, qty: 1, unitPrice: 1_000_000, discount: 300_000 }], refundMode: 'STORE_CREDIT', idempotencyKey: 'exchange-request:audit-s172-r1', userId: forged })
   eq('تخفیف ۳۰٪ روی جایگزین با سقف ۱۰٪ ⇒ رد با «سقف مجاز»', r1?.ok === false && /سقف مجاز/.test(String(r1?.error)), true)
-  const r2 = await ipc(IPC.saleExchangeCreate, { invoiceId: s.id, lines: [{ saleItemId: it, qty: 1 }], replacements: [{ variantId: vr, qty: 1, unitPrice: 1_000_000, discount: 300_000 }], refundMode: 'STORE_CREDIT', managerPassword: PW, userId: forged })
+  const r2 = await ipc(IPC.saleExchangeCreate, { invoiceId: s.id, lines: [{ saleItemId: it, qty: 1 }], replacements: [{ variantId: vr, qty: 1, unitPrice: 1_000_000, discount: 300_000 }], refundMode: 'STORE_CREDIT', managerPassword: PW, idempotencyKey: 'exchange-request:audit-s172-r2', userId: forged })
   eq('با رمز مدیر هم رد (بند ۴-۲۶)', r2?.ok === false && /سقف مجاز/.test(String(r2?.error)), true)
   eq('هیچ سند/اعتبار/پرداختی ساخته نشد', counts(), c0)
-  const r3 = await ipc(IPC.saleExchangeCreate, { invoiceId: s.id, lines: [{ saleItemId: it, qty: 1 }], replacements: [{ variantId: vr, qty: 1, unitPrice: 1_000_000, discount: 100_000 }], refundMode: 'STORE_CREDIT', userId: forged })
+  const r3 = await ipc(IPC.saleExchangeCreate, { invoiceId: s.id, lines: [{ saleItemId: it, qty: 1 }], replacements: [{ variantId: vr, qty: 1, unitPrice: 1_000_000, discount: 100_000 }], refundMode: 'STORE_CREDIT', idempotencyKey: 'exchange-request:audit-s172-r3', userId: forged })
   eq('کنترل: تخفیف دقیقاً ۱۰٪ پذیرفته', r3?.ok ? true : r3?.error, true)
 }
 

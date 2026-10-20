@@ -1990,6 +1990,8 @@ export interface ExchangeReplacementLine {
  * در یک تراکنش اتمیک.
  */
 export interface ExchangeSaleInput {
+  /** کلید caller-held برای replay امن همان درخواست تعویض پس از timeout */
+  idempotencyKey?: string
   /** فاکتور اصلی مشتری */
   invoiceId: number
   /** اقلام برگشتی (همان ورودی برگشت از فروش) */
@@ -2317,6 +2319,8 @@ export interface CreditDashboard {
 
 /** نتیجه‌ی ثبت یک تعویض کالا. */
 export interface ExchangeSaleResult {
+  /** true وقتی کلید درخواست قبلاً ثبت شده و پاسخ همان تعویض replay می‌شود */
+  replayed?: boolean
   returnId: number
   /** فاکتور اصلی */
   invoiceId: number

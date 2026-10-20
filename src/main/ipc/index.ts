@@ -760,9 +760,9 @@ export function registerIpcHandlers(): void {
   handle(IPC.saleExchangeCreate, async (p) => {
     await assertPanelUnlocked(PANEL_KEYS.salesReturn, 'ثبت تعویض کالا')
     const input = await withSessionActor(p ?? {}, 'ثبت تعویض کالا')
-    const result = await salesService.createExchange(input)
+    const result = await salesService.createExchange(input, { requireIdempotencyKey: true })
     const creditId = result.storeCredit?.id
-    const firstPrintGrant = result.settlement === 'CREDIT' && creditId
+    const firstPrintGrant = result.replayed !== true && result.settlement === 'CREDIT' && creditId
       ? issueCreditFirstPrintGrant(currentPanelSessionOwner(), input.userId, result.returnId, creditId) : null
     return { ...result, firstPrintGrant }
   })

@@ -5,7 +5,10 @@
 import assert from 'node:assert/strict'
 import { webcrypto } from 'node:crypto'
 import { readFileSync } from 'node:fs'
-import { resolveReturnRequestIdentity, clearStoredReturnRequestIdentity } from '../../src/renderer/src/lib/returnIdempotency.ts'
+import {
+  resolveReturnRequestIdentity, clearStoredReturnRequestIdentity,
+  resolveExchangeRequestIdentity, clearStoredExchangeRequestIdentity
+} from '../../src/renderer/src/lib/returnIdempotency.ts'
 
 const values = new Map()
 const storage = {
@@ -65,6 +68,32 @@ assert.equal(values.size, 1, 'completion of an older request cannot clear a newe
 clearStoredReturnRequestIdentity(changed.key, storage)
 assert.equal(values.size, 0, 'completion clears only the matching pending intent')
 
+const exchangeValues = new Map()
+const exchangeStorage = {
+  getItem: (key) => exchangeValues.get(key) ?? null,
+  setItem: (key, value) => exchangeValues.set(key, String(value)),
+  removeItem: (key) => exchangeValues.delete(key)
+}
+const exchangeIntent = JSON.stringify({ invoiceId: 84, lines: [{ saleItemId: 12, qty: 1 }], replacements: [{ variantId: 31 }] })
+const firstExchange = await resolveExchangeRequestIdentity(exchangeIntent, null, exchangeStorage, webcrypto)
+assert.match(firstExchange.key, /^exchange-request:[A-Za-z0-9-]{36}$/)
+assert.match(firstExchange.fingerprint, /^[a-f0-9]{64}$/)
+assert.equal(exchangeValues.has('mahak.sales-exchange.idempotency.v1'), true)
+assert.equal(exchangeValues.has('mahak.sales-return.idempotency.v1'), false,
+  'exchange retries use a separate session identity namespace from ordinary returns')
+assert.equal(exchangeValues.values().next().value.includes('replacements'), false,
+  'exchange session storage keeps only the opaque key and digest, never the business payload')
+await assert.rejects(() => resolveExchangeRequestIdentity(exchangeIntent, null, null, webcrypto),
+  /ذخیره|storage|persist/i, 'exchange IPC must not run if same-tab retry persistence cannot be verified')
+const sameExchangeAfterReload = await resolveExchangeRequestIdentity(exchangeIntent, null, exchangeStorage, webcrypto)
+assert.equal(sameExchangeAfterReload.key, firstExchange.key)
+const changedExchange = await resolveExchangeRequestIdentity(`${exchangeIntent} `, firstExchange, exchangeStorage, webcrypto)
+assert.notEqual(changedExchange.key, firstExchange.key, 'changed exchange intent rotates the key')
+clearStoredExchangeRequestIdentity(firstExchange.key, exchangeStorage)
+assert.equal(exchangeValues.size, 1, 'completion of an old exchange cannot clear the newer pending identity')
+clearStoredExchangeRequestIdentity(changedExchange.key, exchangeStorage)
+assert.equal(exchangeValues.size, 0)
+
 const salesReturnPage = readFileSync(new URL('../../src/renderer/src/pages/SalesReturn.tsx', import.meta.url), 'utf8')
 const submitStart = salesReturnPage.indexOf('const doSubmit = useCallback(')
 const exchangeStart = salesReturnPage.indexOf('const doExchange = useCallback(', submitStart)
@@ -80,4 +109,21 @@ assert.ok(submitHandler.indexOf('returnIdempotencyRef.current = requestIdentity'
 assert.ok(submitHandler.indexOf('clearStoredReturnRequestIdentity(idempotencyKey)') > ipcIndex,
 'only a completed return request clears its persisted identity')
 
-console.log('✓ renderer return identity: storage is verified before IPC; same-intent retry survives reload, payload changes rotate key, completion clears exact key')
+const exchangeHandlerEnd = salesReturnPage.indexOf('/**\n   * ---------------------- بند ۱۳', exchangeStart)
+assert.ok(exchangeHandlerEnd > exchangeStart, 'find the end of the exchange submit handler')
+const exchangeHandler = salesReturnPage.slice(exchangeStart, exchangeHandlerEnd)
+const exchangePersistenceIndex = exchangeHandler.indexOf('await resolveExchangeRequestIdentity(')
+const exchangeIpcIndex = exchangeHandler.indexOf('CH.saleExchangeCreate')
+assert.ok(exchangePersistenceIndex >= 0 && exchangeIpcIndex > exchangePersistenceIndex,
+  'verified exchange identity persistence must happen before the exchange IPC')
+assert.ok(exchangeHandler.includes('idempotencyKey: requestIdentity.key'),
+  'the caller-held exchange key is sent to the service')
+assert.ok(exchangeHandler.indexOf('clearStoredExchangeRequestIdentity(requestIdentity.key)') > exchangeIpcIndex,
+  'only a completed exchange clears its persisted identity')
+const ipcSource = readFileSync(new URL('../../src/main/ipc/index.ts', import.meta.url), 'utf8')
+const exchangeIpc = ipcSource.slice(ipcSource.indexOf('handle(IPC.saleExchangeCreate'), ipcSource.indexOf('handle(IPC.saleExchangeList'))
+assert.match(exchangeIpc, /requireIdempotencyKey:\s*true/)
+assert.match(exchangeIpc, /result\.replayed\s*!==\s*true/,
+  'replay cannot mint another first-print grant')
+
+console.log('✓ renderer return/exchange identity: storage is verified before IPC; same-intent retry survives reload, payload changes rotate key, completion clears exact key')

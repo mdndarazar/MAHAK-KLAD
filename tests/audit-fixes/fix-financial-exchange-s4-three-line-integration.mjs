@@ -94,14 +94,57 @@ assert.deepEqual(candidateByLineAndKind, [
 
 const sourceItems = seed.rows('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id', sourceSale.id)
 const creditsBeforeExchange = seed.count('StoreCredit', '1=1')
-const exchange = await salesService.createExchange({
+const exchangeRequest = {
   invoiceId: sourceSale.id,
   lines: sourceItems.map(({ id }) => ({ saleItemId: id, qty: 1 })),
   replacements: replacementVariants.map((variantId, index) => item(variantId, sourcePrices[index])),
   refundMode: 'STORE_CREDIT', userId, shiftId,
   managerPassword: DEFAULT_MANAGER_PASSWORD,
-  overrideReason: 'S4 equal-value mixed-source integration'
-})
+  overrideReason: 'S4 equal-value mixed-source integration',
+  idempotencyKey: 'exchange-request:integration-s4-0001'
+}
+const exchange = await salesService.createExchange(exchangeRequest)
+const afterFirstExchange = {
+  returns: seed.count('SaleReturn', 'invoiceId=?', sourceSale.id),
+  children: seed.count('SaleInvoice', 'sourceInvoiceId=?', sourceSale.id),
+  events: seed.count('ExchangeFundingEvent', '1=1'),
+  payments: seed.count('Payment', '1=1'),
+  credits: seed.count('StoreCredit', '1=1'),
+  cashMovements: seed.count('CashMovement', '1=1'),
+  stock: seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?, ?, ?, ?, ?) ORDER BY id',
+    ...sourceVariants, ...replacementVariants)
+}
+const replayedExchange = await salesService.createExchange(exchangeRequest)
+assert.equal(replayedExchange.replayed, true, 'same exchange request key/payload replays instead of retrying mutations')
+assert.equal(replayedExchange.returnId, exchange.returnId)
+assert.equal(replayedExchange.exchangeInvoiceId, exchange.exchangeInvoiceId)
+assert.deepEqual({
+  returns: seed.count('SaleReturn', 'invoiceId=?', sourceSale.id),
+  children: seed.count('SaleInvoice', 'sourceInvoiceId=?', sourceSale.id),
+  events: seed.count('ExchangeFundingEvent', '1=1'),
+  payments: seed.count('Payment', '1=1'),
+  credits: seed.count('StoreCredit', '1=1'),
+  cashMovements: seed.count('CashMovement', '1=1'),
+  stock: seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?, ?, ?, ?, ?) ORDER BY id',
+    ...sourceVariants, ...replacementVariants)
+}, afterFirstExchange, 'same-key replay must have no duplicate return, child, tender, transfer, credit, or stock effects')
+const afterMismatchProbe = {
+  returns: seed.count('SaleReturn', 'invoiceId=?', sourceSale.id),
+  children: seed.count('SaleInvoice', 'sourceInvoiceId=?', sourceSale.id),
+  events: seed.count('ExchangeFundingEvent', '1=1'),
+  stock: seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?, ?, ?, ?, ?) ORDER BY id',
+    ...sourceVariants, ...replacementVariants)
+}
+await assert.rejects(() => salesService.createExchange({ ...exchangeRequest, note: 'different economic request' }),
+  /کلید.*درخواست متفاوت|payload متفاوت|fingerprint/iu,
+  'same key bound to a different exchange payload must be rejected as an idempotency conflict')
+assert.deepEqual({
+  returns: seed.count('SaleReturn', 'invoiceId=?', sourceSale.id),
+  children: seed.count('SaleInvoice', 'sourceInvoiceId=?', sourceSale.id),
+  events: seed.count('ExchangeFundingEvent', '1=1'),
+  stock: seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?, ?, ?, ?, ?) ORDER BY id',
+    ...sourceVariants, ...replacementVariants)
+}, afterMismatchProbe, 'mismatched-key rejection must have no transactional effects')
 assert.equal(exchange.returnTotal, 25_000_000)
 assert.equal(exchange.exchangeTotal, 25_000_000)
 assert.equal(exchange.diff, 0)
@@ -210,5 +253,29 @@ assert.equal(seed.count('CashMovement', '1=1'), cashMovementsBeforeVoid,
   'zero-difference exchange reversal moves no cash')
 assert.equal(seed.one('SELECT voidedAt IS NOT NULL AS voided FROM "SaleInvoice" WHERE id=?', exchange.exchangeInvoiceId).voided, 1)
 assert.equal(seed.one('SELECT voidedAt IS NOT NULL AS voided FROM "SaleReturn" WHERE id=?', exchange.returnId).voided, 1)
+const effectsAfterVoid = {
+  returns: seed.count('SaleReturn', 'invoiceId=?', sourceSale.id),
+  children: seed.count('SaleInvoice', 'sourceInvoiceId=?', sourceSale.id),
+  events: seed.count('ExchangeFundingEvent', '1=1'),
+  payments: seed.count('Payment', '1=1'),
+  credits: seed.count('StoreCredit', '1=1'),
+  cashMovements: seed.count('CashMovement', '1=1'),
+  stock: seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?, ?, ?, ?, ?) ORDER BY id',
+    ...sourceVariants, ...replacementVariants)
+}
+const replayAfterVoid = await salesService.createExchange(exchangeRequest)
+assert.equal(replayAfterVoid.replayed, true)
+assert.equal(replayAfterVoid.returnId, exchange.returnId)
+assert.equal(replayAfterVoid.exchangeInvoiceId, exchange.exchangeInvoiceId)
+assert.deepEqual({
+  returns: seed.count('SaleReturn', 'invoiceId=?', sourceSale.id),
+  children: seed.count('SaleInvoice', 'sourceInvoiceId=?', sourceSale.id),
+  events: seed.count('ExchangeFundingEvent', '1=1'),
+  payments: seed.count('Payment', '1=1'),
+  credits: seed.count('StoreCredit', '1=1'),
+  cashMovements: seed.count('CashMovement', '1=1'),
+  stock: seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?, ?, ?, ?, ?) ORDER BY id',
+    ...sourceVariants, ...replacementVariants)
+}, effectsAfterVoid, 'retry of the original key after a later void must replay, never resurrect the exchange')
 
-console.log('✓ S4 integration: exact zero-diff mixed-source carry, persisted 3-line matrix, child return stays attribution-only, and exchange void reverses both pairs without reactivating the gift')
+console.log('✓ S4 integration: mixed-source carry/matrix, same-key replay and mismatch, child return remains attribution-only, pair void reverses once, post-void retry cannot resurrect')

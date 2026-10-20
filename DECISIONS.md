@@ -1641,3 +1641,8 @@ S142-6 — سؤال: گیت نبودن رمز مدیر روی issueManual/bulkIs
 - شاهد integration تعویض واقعی S4 را void می‌کند، هر دو pair انتقال را معکوس و منابع مبدأ را دقیقاً بازیابی می‌کند؛ redemption هدیه USED می‌ماند چون فروش اصلی پس از ابطال دوباره برقرار است.
 - طبق `goodsReceiptRequired`، کالای برگشتی source هنوز دریافت فیزیکی نشده؛ ابطال سند برگشت نیز حق افزایش stock ندارد. فقط replacement sale معکوس می‌شود و موجودی جایگزین یک‌بار برمی‌گردد. Void cash movement نمی‌سازد.
 - محدودهٔ اثبات محدود به pair استفاده‌نشده است؛ downstream redemption/consumption/payout و idempotent retry کل exchange هنوز پوشش تجاری کامل ندارد.
+
+### S190-D8 — idempotency caller-held برای createExchange
+- تصمیم: کل درخواست تعویض با کلید caller-held و fingerprint اقتصادی bind می‌شود؛ snapshot پاسخ در همان transaction با SaleReturn ثبت می‌شود تا retry همان intent فقط replay باشد و reuse کلید برای payload دیگر رد شود. IPC کلید را اجباری می‌کند؛ sessionStorage فقط opaque key+digest نگه می‌دارد و تا موفقیت پاک نمی‌شود.
+- رمزهای مدیر در fingerprint یا storage قرار نمی‌گیرند؛ actor و policy دریافت کالا در fingerprint سرور لحاظ می‌شوند. IPC روی replay مجوز first-print تازه صادر نمی‌کند.
+- گیت آزمون: same-key/no-duplicate، mismatch-key/no-effect، replay پس از void/no-resurrection و client reload/key rotation پوشش دارند. concurrency واقعی هنوز اثبات نشده؛ PrismaLite Promise.all به‌علت رفتار shared state شاهد قابل اتکا نداد و از ادعای قبولی حذف شد.

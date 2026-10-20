@@ -2,8 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { call, CH } from '../lib/api'
 import {
+  clearStoredExchangeRequestIdentity,
   clearStoredReturnRequestIdentity,
+  resolveExchangeRequestIdentity,
   resolveReturnRequestIdentity,
+  type ExchangeRequestIdentity,
   type ReturnRequestIdentity
 } from '../lib/returnIdempotency'
 // نشست ۳۱۶ — جداکننده‌ی هزارگانِ زنده در ورودی «مبلغ بازپرداخت» (state همچنان رقمِ خام)
@@ -206,6 +209,7 @@ export default function SalesReturn() {
   const [printing, setPrinting] = useState(false)
   const printingRef = useRef(false)
   const returnIdempotencyRef = useRef<ReturnRequestIdentity | null>(null)
+  const exchangeIdempotencyRef = useRef<ExchangeRequestIdentity | null>(null)
   const [ordinaryCreditPrint, setOrdinaryCreditPrint] = useState<{
     creditId: number; returnId: number; firstPrintGrant: string | null
   } | null>(null)
@@ -856,52 +860,62 @@ export default function SalesReturn() {
         )
       setBusy(true)
       try {
+        const exchangePayload = {
+          invoiceId: lookup.invoiceId,
+          lines: selected.map((i) => ({ saleItemId: i.saleItemId, qty: qty[i.saleItemId] ?? 0 })),
+          replacements: reps.map((l, i) => ({
+            variantId: l.variantId,
+            qty: l.qty,
+            unitPrice: l.unitPrice,
+            discount: Math.max(0, Math.round(l.discount)),
+            // نشست ۱۵۸ (Y16) — خرده: عوارض روی ردیف؛ عمده: ردیف صفر
+            tax: exCharges.taxPerLine[i] != null && exScope === 'pos' ? exCharges.taxPerLine[i] : 0
+          })),
+          invoiceTax: exScope === 'wholesale' ? exCharges.taxTotal : 0,
+          serviceCharge: exCharges.serviceTotal,
+          note: note.trim() || undefined,
+          allowRemoved: allowRemoved || undefined,
+          force: force || undefined,
+          // پرداخت تک‌روشِ قبلی دقیقاً همان payload قبلی است؛ split فقط مسیر افزوده است.
+          methodId: exTotals.diff > 0 && !exSplitPayment ? methodId : null,
+          splitPayment: exTotals.diff > 0 && exSplitPayment ? true : undefined,
+          payments:
+            exTotals.diff > 0 && exSplitPayment
+              ? [
+                  { methodId: exSplitCashMethodId!, amount: exSplitCashAmount!, destination: 'CASH' },
+                  { methodId: exSplitCardMethodId!, amount: exSplitCardAmount!, destination: 'CARD' }
+                ]
+              : undefined,
+          autoCentralWithdraw: repAutoCentral || undefined,
+          // ---- بند ۱۲: تسویه‌ی مابه‌التفاوت منفی (انتخاب انحصاری کاربر) ----
+          refundMode: exTotals.diff < 0 ? exRefundMode : undefined,
+          ...(exTotals.diff < 0 && exRefundMode === 'STORE_CREDIT' ? {
+            printedHolderFirstName, printedHolderLastName, printedHolderPhone
+          } : {}),
+          cardPosOverride: exRefundMode === 'CARD' ? cardPosOverride : undefined,
+          // ---- بند ۱۸: رمز مدیر، فقط وقتی قیمت دستی باز شده باشد ----
+          managerPassword: (priceOverrideOn ? managerPw.trim() : lockPw.trim()) || undefined,
+          overrideReason: lockReason.trim() || undefined
+        }
+        const { managerPassword: _managerPassword, cardPosOverride: posOverride, ...exchangeIntent } = exchangePayload
+        const intentPayload = JSON.stringify({
+          ...exchangeIntent,
+          cardPosOverride: posOverride ? {
+            acknowledgedNoReverse: posOverride.acknowledgedNoReverse === true,
+            reason: String(posOverride.reason ?? '').trim()
+          } : null
+        })
+        const requestIdentity = await resolveExchangeRequestIdentity(intentPayload, exchangeIdempotencyRef.current)
+        exchangeIdempotencyRef.current = requestIdentity
         const res = await call<
           ExchangeSaleResult & {
             cashReceived?: number
             exchangeCreditApplied?: number
             cardTransfer?: { id: number; amount: number; status: string } | null
           }
-        >(
-          CH.saleExchangeCreate,
-          {
-            invoiceId: lookup.invoiceId,
-            lines: selected.map((i) => ({ saleItemId: i.saleItemId, qty: qty[i.saleItemId] ?? 0 })),
-            replacements: reps.map((l, i) => ({
-              variantId: l.variantId,
-              qty: l.qty,
-              unitPrice: l.unitPrice,
-              discount: Math.max(0, Math.round(l.discount)),
-              // نشست ۱۵۸ (Y16) — خرده: عوارض روی ردیف؛ عمده: ردیف صفر
-              tax: exCharges.taxPerLine[i] != null && exScope === 'pos' ? exCharges.taxPerLine[i] : 0
-            })),
-            invoiceTax: exScope === 'wholesale' ? exCharges.taxTotal : 0,
-            serviceCharge: exCharges.serviceTotal,
-            note: note.trim() || undefined,
-            allowRemoved: allowRemoved || undefined,
-            force: force || undefined,
-            // پرداخت تک‌روشِ قبلی دقیقاً همان payload قبلی است؛ split فقط مسیر افزوده است.
-            methodId: exTotals.diff > 0 && !exSplitPayment ? methodId : null,
-            splitPayment: exTotals.diff > 0 && exSplitPayment ? true : undefined,
-            payments:
-              exTotals.diff > 0 && exSplitPayment
-                ? [
-                    { methodId: exSplitCashMethodId!, amount: exSplitCashAmount!, destination: 'CASH' },
-                    { methodId: exSplitCardMethodId!, amount: exSplitCardAmount!, destination: 'CARD' }
-                  ]
-                : undefined,
-            autoCentralWithdraw: repAutoCentral || undefined,
-            // ---- بند ۱۲: تسویه‌ی مابه‌التفاوت منفی (انتخاب انحصاری کاربر) ----
-            refundMode: exTotals.diff < 0 ? exRefundMode : undefined,
-            ...(exTotals.diff < 0 && exRefundMode === 'STORE_CREDIT' ? {
-              printedHolderFirstName, printedHolderLastName, printedHolderPhone
-            } : {}),
-            cardPosOverride: exRefundMode === 'CARD' ? cardPosOverride : undefined,
-            // ---- بند ۱۸: رمز مدیر، فقط وقتی قیمت دستی باز شده باشد ----
-            managerPassword: (priceOverrideOn ? managerPw.trim() : lockPw.trim()) || undefined,
-            overrideReason: lockReason.trim() || undefined
-          }
-        )
+        >(CH.saleExchangeCreate, { ...exchangePayload, idempotencyKey: requestIdentity.key })
+        clearStoredExchangeRequestIdentity(requestIdentity.key)
+        if (exchangeIdempotencyRef.current?.key === requestIdentity.key) exchangeIdempotencyRef.current = null
         setExResult(res)
         setReps([])
         setQty({})

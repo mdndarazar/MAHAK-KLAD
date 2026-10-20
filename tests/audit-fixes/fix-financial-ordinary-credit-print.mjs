@@ -113,13 +113,48 @@ try {
     'a manager print password is not a persistent manager session')
 
   const source = await makeSale(v200, 200)
-  const changed = await ipc(IPC.saleExchangeCreate, { invoiceId: source.id,
+  const exchangeRequest = { invoiceId: source.id,
     lines: [{ saleItemId: itemId(source.id), qty: 1 }],
     replacements: [{ variantId: v100, qty: 1 }], refundMode: 'STORE_CREDIT',
-    printedHolderLastName: 'اکبری', userId: -1, shiftId })
+    printedHolderLastName: 'اکبری', idempotencyKey: 'exchange-request:credit-print-e2e-01', userId: -1, shiftId }
+  const beforeMissingExchangeKey = {
+    returns: seed.count('SaleReturn', 'invoiceId=?', source.id),
+    children: seed.count('SaleInvoice', 'sourceInvoiceId=?', source.id),
+    credits: seed.count('StoreCredit', '1=1'), events: seed.count('ExchangeFundingEvent', '1=1')
+  }
+  const missingExchangeKey = await ipc(IPC.saleExchangeCreate, { ...exchangeRequest, idempotencyKey: undefined })
+  assert.equal(missingExchangeKey.ok, false)
+  assert.match(missingExchangeKey.error, /کلید یکتای درخواست تعویض لازم است/)
+  assert.deepEqual({
+    returns: seed.count('SaleReturn', 'invoiceId=?', source.id),
+    children: seed.count('SaleInvoice', 'sourceInvoiceId=?', source.id),
+    credits: seed.count('StoreCredit', '1=1'), events: seed.count('ExchangeFundingEvent', '1=1')
+  }, beforeMissingExchangeKey, 'IPC rejects missing exchange idempotency before any mutation')
+  const changed = await ipc(IPC.saleExchangeCreate, exchangeRequest)
   assert.equal(changed.ok, true, changed.error)
   assert.equal(changed.data.storeCredit.code, undefined)
   assert.match(changed.data.firstPrintGrant, /^[0-9a-f]{64}$/)
+  const afterExchangeCommit = {
+    returns: seed.count('SaleReturn', 'invoiceId=?', source.id),
+    children: seed.count('SaleInvoice', 'sourceInvoiceId=?', source.id),
+    credits: seed.count('StoreCredit', '1=1'),
+    payments: seed.count('Payment', '1=1'),
+    events: seed.count('ExchangeFundingEvent', '1=1')
+  }
+  const exchangeReplay = await ipc(IPC.saleExchangeCreate, exchangeRequest)
+  assert.equal(exchangeReplay.ok, true, exchangeReplay.error)
+  assert.equal(exchangeReplay.data.replayed, true)
+  assert.equal(exchangeReplay.data.returnId, changed.data.returnId)
+  assert.equal(exchangeReplay.data.exchangeInvoiceId, changed.data.exchangeInvoiceId)
+  assert.equal(exchangeReplay.data.firstPrintGrant, null,
+    'same-key replay cannot mint a second process-local first-print grant')
+  assert.deepEqual({
+    returns: seed.count('SaleReturn', 'invoiceId=?', source.id),
+    children: seed.count('SaleInvoice', 'sourceInvoiceId=?', source.id),
+    credits: seed.count('StoreCredit', '1=1'),
+    payments: seed.count('Payment', '1=1'),
+    events: seed.count('ExchangeFundingEvent', '1=1')
+  }, afterExchangeCommit, 'IPC exchange retry has no duplicate financial or ledger effects')
   const exchangeReq = { creditId: changed.data.storeCredit.id, returnId: changed.data.returnId,
     managerPassword: DEFAULT_MANAGER_PASSWORD }
   const exchangeFirst = { creditId: exchangeReq.creditId, returnId: exchangeReq.returnId,
