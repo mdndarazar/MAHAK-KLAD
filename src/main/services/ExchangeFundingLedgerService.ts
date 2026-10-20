@@ -1200,6 +1200,25 @@ export async function reverseExchangeFundingReturnLineAllocationsForReturn(tx: L
   if (laterActive.length > 0)
     throw new BusinessError('برگشت قدیمی‌ترِ همین قلم قابل ابطال نیست؛ ابتدا برگشت فعالِ جدیدتر را تعیین‌تکلیف کنید (LIFO).')
 
+  // Re-derive every active allocation from the immutable child matrix and the
+  // preceding active physical returns before writing any inverse. The ledger
+  // rows are append-only, but a structurally valid forged row must not be
+  // treated as proof of its own cumulative history.
+  if (ret.voidedAt != null) {
+    if (reversalRows.length !== rows.length)
+      throw new BusinessError('برگشت ابطال‌شده reversal کامل ندارد؛ هیچ ردیف معکوسی افزوده نشد.')
+  } else {
+    for (const item of returnItems) {
+      try {
+        await recordExchangeFundingReturnLineAllocation(tx, {
+          returnId: input.returnId, returnItemId: Number(item.id)
+        })
+      } catch {
+        throw new BusinessError('تاریخچه/سهم تجمعی دفتر برگشت با برگشت‌های فیزیکی فعال سازگار نیست؛ reversal ثبت نشد.')
+      }
+    }
+  }
+
   let reversed = 0
   let replayed = true
   for (const row of rows) {
