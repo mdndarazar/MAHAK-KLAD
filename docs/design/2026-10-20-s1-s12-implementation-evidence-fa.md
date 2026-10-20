@@ -1,0 +1,45 @@
+# ماتریس شواهد پیاده‌سازی S1–S12
+
+**وضعیت: تریاژ اولیه؛ هیچ سناریویی end-to-end پذیرفته نشده است.** این ماتریس عمداً «تست سبزِ جزء» را از «تحقق سناریوی تجاری» جدا می‌کند. مبنای اعداد و قواعد `docs/design/FINAL-DESIGN-BASIS-fa.md` است. برگشت جزئی فرزند تعویض نیز طبق `docs/design/2026-10-20-exchange-child-partial-return-allocation.md` فعلاً فقط انتساب حسابداری دارد؛ settlement gate بسته است.
+
+## روش خواندن
+
+- **شاهد فعلی** فقط ادعای دقیق همان تست/کد را می‌پوشاند؛ fixture دستی یا ledger planner به‌تنهایی اثبات اجرای واقعی فلو فروش/تعویض نیست.
+- **باقی‌مانده برای پذیرش** حداقل آزمون/اثر تجاریِ مفقود را می‌گوید، نه اینکه همهٔ جزئیات اجرا نشده‌اند.
+- همهٔ ردیف‌ها فعلاً **PARTIAL / NOT ACCEPTED** هستند. برای PASS سناریو باید اعداد پیش/پس، persisted events، گزارش/کانال، retry و reversal مرتبط در فلو واقعی همان سناریو assert شوند.
+
+| سناریو | شاهد کد/آزمون فعلی | آنچه هنوز برای پذیرش سناریو لازم است | وضعیت |
+|---|---|---|---|
+| **S1 فروش مختلط، تعویض، فروش‌های بعدی و برگشت** | `fix-financial-exchange-funding-gift-first-allocation.mjs` مثال مالک ۲M هدیه + ۱۳٫۹۸M وجه در تعویض ۱۵M را در planner خالص می‌سنجد؛ `fix-financial-credit-funded-exchange-scenario.mjs` فلو واقعی مختلط را فعلاً رد و نبود اثر را assert می‌کند. | فلو واقعی ۱۵٫۹۸M → تعویض ۱۵M → مازاد B/N با مقادیر مصوب → دو فروش مصرف‌کننده → رد تلاش ۱ ریالی → تفکیک برگشت فرزند و فروش‌ها، با ledger/entitlement/گزارش و مبلغ نهایی. آزمون فعلی عمداً مسیر اصلی را نمی‌پذیرد. | **PARTIAL / NOT ACCEPTED** |
+| **S2 تعویض مختلط هم‌قیمت** | `fix-financial-exchange-funding-sales-integration.mjs` آزمون واقعیِ هم‌ارزشِ نقدی را دارد؛ `fix-financial-exchange-s4-three-line-integration.mjs` نشان می‌دهد source snapshot مختلط و candidate matrix معتبر است، اما createExchange فعلی به‌دلیل redemption gate رد می‌شود و هیچ اثر نمی‌نویسد. | سناریوی مختلط واقعی از ابتدا تا USEDشدن مبدأ، بدون B/N تازه، دوباره‌خرج، ردیف EXCHANGE_CREDIT کاذب یا اثر اضافه؛ گزارش و retry همان فلو. | **PARTIAL / NOT ACCEPTED** |
+| **S3 تعویض زنجیره‌ای** | `fix-financial-exchange-funding-ledger-service.mjs` parentEventId/root و انتقال چندنسلی را با graph آزمایشی می‌سنجد؛ آزمون integration تصریحاً nested exchange واقعی را تا تکمیل تخصیص/حق رد می‌کند. | ساخت واقعی فرزند→نوه با tender/lineage معتبر، root واحد، انتقال فقط سهم باقی‌مانده، جلوگیری از خرج دوبارهٔ نسل قبلی، برگشت و اصلاح واقعی چندنسلی. | **PARTIAL / NOT ACCEPTED** |
+| **S4 سه قلم، ۵M هدیه + ۲۰M وجه** | `fix-financial-exchange-funding-gift-first-allocation.mjs` مقادیر exact helper را می‌سنجد: سه خط ۱۰M/۱۰M/۵M، به‌ترتیب ۲M/۲M/۱M هدیه و ۸M/۸M/۴M وجه؛ برگشت یک واحد از خط ۵M = ۲۰۰K هدیه + ۸۰۰K وجه و chunk بعدی تکمیل دقیق. `fix-financial-exchange-s4-three-line-integration.mjs` فروش واقعی را می‌سازد، rootها را ثابت می‌کند، candidate matrix را محاسبه می‌کند و رد امن createExchange با صفر اثر را assert می‌کند؛ matrix هنوز در child واقعی persist نمی‌شود. | پس از پیاده‌سازی مجاز، همان ماتریس در child واقعی persist شود؛ برگشت فیزیکی و چند ترتیب برگشت روی SaleReturnItem/ledger/report تطبیق یابد. خلوص helper و رد امن gate، پذیرش تجاری نیستند. | **PARTIAL / NOT ACCEPTED** |
+| **S5 برگشت ۵M از فروش ۱۵M mixed** | `fix-financial-credit-return-provenance.mjs` و `fix-financial-exchange-funding-line-return.mjs` انتساب‌های جزئی، منبع هدیه/وجه، chunking و ریشهٔ هدیه را می‌آزمایند؛ دفتر child return نیز allocation را حفظ می‌کند. | پذیرش واقعی `GIFT=666,666` و `CASH_RIGHT_OPEN=4,333,334`، Branch B تا تحویل، expiry، reservation و payout/refund واقعی با شاهد و کانال؛ انتساب نباید حق پرداخت بسازد. | **PARTIAL / NOT ACCEPTED** |
+| **S6 انقضای سهم هدیه** | `fix-financial-exchange-expired-gift-lineage-attribution.mjs` و `fix-financial-credit-return-provenance.mjs` انقضای root را بدون صدور وجه/اعتبار جدید می‌آزمایند؛ child physical-return attribution پس از expiry هم حفظ می‌شود. | فلو کامل B/N: B مصرف‌ناپذیر بعد موعد، N بدون انقضا، کد/ماندهٔ زنده، برگشت کامل/جزئی و payout؛ اثبات مستقل هر branch و گزارش پس از expiry. | **PARTIAL / NOT ACCEPTED** |
+| **S7 مبدأ نامعلوم، اصلاح حق و کد یتیم** | `fix-financial-credit-funded-exchange-scenario.mjs` و `fix-financial-credit-return-provenance.mjs` UNKNOWN را نقد نمی‌گیرند، redemption یتیم را quarantine می‌کنند و بعضی حالت‌های correction را پوشش می‌دهند. | شاخه‌های شاهددار `RIGHT_ADJUST`، DISPUTED_RECOVERY، reattribute و برگشت پس از مصرف با کد فعال؛ ثابت شود کاهش یک tender آلوده بقیهٔ tender و فروش‌های نامرتبط را مسدود/تغییر نمی‌دهد. | **PARTIAL / NOT ACCEPTED** |
+| **S8 زنجیرهٔ مختلط، مصرف نسل بعد و برگشت جزئی** | ledger service/integration و expiry tests lineage/root و انتساب فرزند را می‌آزمایند؛ ordinary return replay و correction guard نیز جدا تست شده‌اند. | ساخت و مصرف واقعی `N_CARRY`/`B_CARRY` به‌عنوان tender در فرزند، eligibleشدن همان سهم در نسل بعد، برگشت ۱M از C با exact 133,334/866,666، entitlement/payout و UNKNOWN branch. | **PARTIAL / NOT ACCEPTED** |
+| **S9 مابه‌التفاوت با N/B موجود** | `fix-financial-f5-entitlement.mjs` reserve/تبدیل حق، receipt شاهددار و entitlement را در محدودهٔ خودش می‌سنجد؛ provenance تست جداگانه N را نامعلوم/ریشه‌دار نگه می‌دارد. | تعویض واقعی delta=300K با N=500K: reserve/commit فقط 300K، مانده 200K، بدون CashMovement؛ فرزند N_CARRY=300K؛ برگشت 1M با 800K cash right + 200K همان N؛ retry/void و گزارش. | **PARTIAL / NOT ACCEPTED** |
+| **S10 چک مابه‌التفاوت برگشتی** | integration funding میان `PENDING/CLEARED/BOUNCED` تمایز می‌گذارد؛ `fix-s197-exchange-nasiyeh-cash-refund.mjs` ثابت می‌کند نسبت‌دادن به‌تنهایی مجوز refund فرزند نیست. | بدهی 300K پشت چک، bounce بدون debt/right تکراری، تسویهٔ debt با نقد/کارت و شاهد، سقف، محدودیت چک جدید، و دیررسیدن چک پس از offset با `SUSPENSE` و عدم پرداخت دوباره. | **PARTIAL / NOT ACCEPTED** |
+| **S11 تعویض ارزان‌تر با بدهی** | guardهای funding/debt و correction وجود دارند، اما در رگرسیون هدفمند فعلی شاهد عددیِ end-to-end برای این مورد پیدا/اجرا نشد. | مثال 1.5M = 1.2M paid carry + 300K debt، برگشت به 1M، debt offset 300K، provenance 200K باقیمانده و نوهٔ 1M؛ کنترل جمع 1.5M و اثبات عدم ساخت حق از بدهی. | **NO ACCEPTANCE EVIDENCE** |
+| **S12 ابطال مشروط pair تعویض** | `fix-financial-exchange-child-return-correction-guard.mjs` مسیر update/void/reconcile را محافظه‌کارانه می‌بندد؛ ledger/reversal tests pair و LIFO را می‌سنجند. | matrix کامل downstream effects: فروش/تعویض/برگشت، B/N consumption/reservation، payout/recovery، نقد/کارت، debt/cheque/offset و stock؛ void فقط وقتی همهٔ اثرها لغو/بازیافت شده و retry دقیقاً یک‌بار باشد. | **PARTIAL / NOT ACCEPTED** |
+
+## گیت‌های مشترک تجاری
+
+- **Lineage:** `provenSourceRootEvent` در `ExchangeFundingLedgerService.ts` reuse شود؛ `TRANSFER_IN.parentEventId` تا ریشه، paired transfers/reversals و root/share/scope تطبیق داده شوند. reader فعلی منبع ordinary sale را می‌شناسد؛ این به‌تنهایی پشتیبانی settlement چندنسلی را ثابت نمی‌کند.
+- **Expiry:** attribution تاریخی هدیهٔ منقضی با transferability/entitlement پس از انقضا اشتباه نشود؛ B منقضی به نقد/N تبدیل نشود.
+- **Idempotency:** کلید و fingerprint اقتصادی در کل createReturn، transfer، entitlement، payout و reversal یکپارچه باشد؛ یکتایی allocation به‌تنهایی کل درخواست برگشت را نمی‌بندد.
+- **Reversal:** append-only reversal به event اصل، delta دقیق، scope و شاهد وصل باشد؛ void کامل effects واقعی را نیز تسویه کند، نه فقط projection/ledger.
+- **Invariants:** integer Rial، سقف تعداد/مبلغ، جمع source-to-line، cumulative floors، ماندهٔ nonnegative، reservation/commit/cancel، source kinds، UNKNOWN quarantine، وعدم دوباره‌شماری report/cash movement.
+- **آزمون بستر:** SQLite harness اثبات migration/trigger و business flow کمکی است؛ هنوز به‌تنهایی Prisma Client واقعی، Electron production، restart/crash یا رفتار چندپردازه‌ایِ DB واقعی را تأیید نمی‌کند.
+
+## مرحلهٔ انجام‌شده در ادامهٔ ماتریس
+
+مورد S4 فقط در لایهٔ خالص allocation/return اضافه شد و بلافاصله این فرمان PASS شد:
+
+```sh
+node --import ./test/harness/register.mjs tests/audit-fixes/fix-financial-exchange-funding-gift-first-allocation.mjs
+```
+
+این نتیجه وضعیت S4 را از «بدون fixture عددی صریح» به «جزء helper آزموده» ارتقا می‌دهد، اما آن را **قبول تجاری** نمی‌کند. گیت تسویهٔ فرزند و ادعای PASS برای S1–S12 همچنان بسته است.
+
+در گام بعد، `fix-financial-exchange-s4-three-line-integration.mjs` یک فروش واقعی ۵M هدیه + ۲۰M وجه را ساخت و نشان داد `getCurrentSaleFundingSources` هر دو ریشه را بدون unresolved اثبات می‌کند. با این وجود، `SalesService.createExchange` هنوز به‌علت active redemption gate تعویض مختلط را پیش از نوشتن اثر رد می‌کند؛ آزمون candidate matrix دقیق را صرفاً محاسبه می‌کند و ردشدن را با صفر تغییر return/credit/payment/ledger/cash/stock کنترل می‌کند. این تست PASS یعنی **گارد امن برقرار است**، نه اینکه S2/S4 پذیرفته شده باشد. بازکردن این مسیر نیازمند طراحی اتمیکِ preflight شامل delta، funding plan، line matrix و settlement effects است؛ نباید فقط شرط `activeRedemptions` حذف شود، چون در آن صورت مسیر فعلی هنوز هیچ transfer جفت‌شده‌ای برای منبع mixed نمی‌نویسد.

@@ -1625,3 +1625,9 @@ S142-6 — سؤال: گیت نبودن رمز مدیر روی issueManual/bulkIs
 ### S190-D4 — purge با triggerهای وابسته
 - تصمیم اجرایی: هنگام بازسازی جدول‌های فروش/برگشت، DDL triggerهای وابسته در همان تراکنش موقتاً برداشته و عیناً بازگردانده می‌شوند؛ تست purge علاوه بر snapshot تاریخچه، برابری DDL triggerهای پیش/پس را می‌سنجد.
 - دلیل: SQLite هنگام حذف/بازسازی جدول referenced، trigger باقی‌مانده را اجرا می‌کرد و به `no such table` می‌رسید؛ خاموش‌کردن دائمی گاردها پذیرفته نیست.
+
+### S190-D5 — تریاژ S4 و گیت تعویض مختلط
+- شاهد جدید: فروش SQLite واقعیِ ۵M اعتبار هدیه + ۲۰M وجه در سه قلم، از `getCurrentSaleFundingSources` هر دو ریشه را بی‌ابهام می‌گیرد و candidate matrix دقیق ۲/۸، ۲/۸ و ۱/۴ میلیون است؛ با این حال `createExchange` فعلی به‌علت redemption gate رد می‌شود.
+- تصمیم: شرط `activeRedemptions` یا فیلتر منبع‌های انتقال فعلی را جداگانه حذف/شل نکنیم. در مسیر فعلی `runReturn(applyRefund:false)` پیش از محاسبهٔ کامل delta گیت می‌کند و postflight فقط منبع‌های واقعیِ هم‌کلاس را transfer می‌کند؛ برداشتن guard تنها می‌تواند سند فرزندِ دارای EXCHANGE_CREDIT ولی فاقد جفت انتقال mixed بسازد.
+- گام مجاز بعدی: preflight اتمیکِ `createExchange` باید پیش از برگشت/هر اثر، delta، source proof، line matrix، جفت transfer و settlement/rights plan را یکجا تثبیت کند؛ zero-delta mixed transfer می‌تواند جدا از هر refund/entitlement بررسی شود، اما هیچ مسیر diff یا payout تا تکمیل دفتر حق و آزمون‌های مربوط باز نشود.
+- ثبت شواهد ۱۲ سناریو: `docs/design/2026-10-20-s1-s12-implementation-evidence-fa.md`. وضعیت همهٔ سناریوها هنوز PARTIAL/NOT ACCEPTED است.

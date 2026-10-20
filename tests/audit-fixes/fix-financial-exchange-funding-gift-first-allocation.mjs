@@ -4,6 +4,7 @@ import {
   allocateExchangeFundingGiftFirst,
   allocateExchangeFundingProRata
 } from '../../src/shared/exchangeFundingAllocation.ts'
+import { allocateExchangeFundingLineReturn } from '../../src/shared/exchangeFundingLineReturn.ts'
 
 const ownerExample = allocateExchangeFundingGiftFirst({
   giftAvailable: 2_000_000,
@@ -55,6 +56,55 @@ assert.deepEqual(
   lineFunding,
   'line and source input order do not change the stable per-item attribution'
 )
+// FINAL-DESIGN S4 exact fixture: 5M gift + 20M cash apportioned across
+// 10M / 10M / 5M replacement lines. Then return one unit of the 5M line.
+const s4LineFunding = allocateExchangeFundingByLine(
+  [
+    { saleItemId: 41, amount: 10_000_000 },
+    { saleItemId: 42, amount: 10_000_000 },
+    { saleItemId: 43, amount: 5_000_000 }
+  ],
+  [
+    { sourceEventId: 301, sourceKind: 'SOURCE_GIFT', amount: 5_000_000 },
+    { sourceEventId: 302, sourceKind: 'SOURCE_CASH', amount: 20_000_000 }
+  ]
+)
+assert.deepEqual(s4LineFunding, [
+  { sourceEventId: 301, saleItemId: 41, sourceKind: 'SOURCE_GIFT', amount: 2_000_000 },
+  { sourceEventId: 301, saleItemId: 42, sourceKind: 'SOURCE_GIFT', amount: 2_000_000 },
+  { sourceEventId: 301, saleItemId: 43, sourceKind: 'SOURCE_GIFT', amount: 1_000_000 },
+  { sourceEventId: 302, saleItemId: 41, sourceKind: 'SOURCE_CASH', amount: 8_000_000 },
+  { sourceEventId: 302, saleItemId: 42, sourceKind: 'SOURCE_CASH', amount: 8_000_000 },
+  { sourceEventId: 302, saleItemId: 43, sourceKind: 'SOURCE_CASH', amount: 4_000_000 }
+], 'S4 source and item margins match exactly; gift is never relabelled as cash')
+const s4ThirdLineSources = [
+  { sourceEventId: 301, sourceKind: 'SOURCE_GIFT', amount: 1_000_000 },
+  { sourceEventId: 302, sourceKind: 'SOURCE_CASH', amount: 4_000_000 }
+]
+const s4OneUnitReturn = allocateExchangeFundingLineReturn({
+  saleItemId: 43, saleItemQty: 5, saleItemValue: 5_000_000,
+  previouslyReturnedQty: 0, returningQty: 1, sources: s4ThirdLineSources
+})
+assert.deepEqual(s4OneUnitReturn.shares.map(({ sourceKind, amount }) => ({ sourceKind, amount })), [
+  { sourceKind: 'SOURCE_GIFT', amount: 200_000 },
+  { sourceKind: 'SOURCE_CASH', amount: 800_000 }
+], 'S4 one-unit partial return preserves 20% gift / 80% cash attribution exactly')
+let s4ReturnedQty = 1
+let s4Prior = s4OneUnitReturn.shares.map(({ sourceEventId, cumulative }) => ({ sourceEventId, amount: cumulative }))
+const s4RestReturn = allocateExchangeFundingLineReturn({
+  saleItemId: 43, saleItemQty: 5, saleItemValue: 5_000_000,
+  previouslyReturnedQty: s4ReturnedQty, returningQty: 4,
+  sources: s4ThirdLineSources, priorAllocations: s4Prior
+})
+assert.deepEqual(s4RestReturn.shares.map(({ sourceKind, amount }) => ({ sourceKind, amount })), [
+  { sourceKind: 'SOURCE_GIFT', amount: 800_000 },
+  { sourceKind: 'SOURCE_CASH', amount: 3_200_000 }
+], 'S4 later return chunk completes the exact 1M gift / 4M cash line totals')
+assert.deepEqual(s4RestReturn.shares.map(({ sourceKind, cumulative }) => ({ sourceKind, cumulative })), [
+  { sourceKind: 'SOURCE_GIFT', cumulative: 1_000_000 },
+  { sourceKind: 'SOURCE_CASH', cumulative: 4_000_000 }
+])
+
 const balancedRialTie = allocateExchangeFundingByLine(
   [{ saleItemId: 2, amount: 1 }, { saleItemId: 1, amount: 1 }],
   [
