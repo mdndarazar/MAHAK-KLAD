@@ -833,4 +833,41 @@ assert.equal(wrongParentFunding.sources.length, 0,
   'a valid root payment cannot bypass the direct source-invoice transfer parent')
 assert.ok(wrongParentFunding.unresolved.some((row) => row.kind === 'INVALID_EXCHANGE_TRANSFER_LINK'))
 
+// A transfer parent must be on the direct source invoice, not merely another
+// valid transfer-in with the same root and a usable share balance.
+const siblingGraph = exchangeGraph(source.invoiceId, 100)
+const siblingTransfer = await db.$transaction((tx) => transferExchangeFundingShare(tx, {
+  eventKey: `test:sibling-parent:${siblingGraph.returnId}`,
+  sourceEventId: source.sourceEvent.id, sourceShareId: `payment:${source.paymentId}`,
+  destinationShareId: `exchange:sibling-parent:${siblingGraph.childInvoiceId}`,
+  rootShareId: `payment:${source.paymentId}`, amount: 100,
+  sourceInvoiceId: source.invoiceId, childInvoiceId: siblingGraph.childInvoiceId,
+  returnId: siblingGraph.returnId
+}))
+const wrongTransferParentGraph = exchangeGraph(chainedGraph.childInvoiceId, 100)
+await db.$transaction(async (tx) => {
+  const common = {
+    sourceInvoiceId: chainedGraph.childInvoiceId,
+    childInvoiceId: wrongTransferParentGraph.childInvoiceId,
+    returnId: wrongTransferParentGraph.returnId,
+    parentEventId: siblingTransfer.inEvent.id,
+    evidenceKind: 'EXCHANGE_TRANSFER',
+    evidenceRef: `SaleReturn:${wrongTransferParentGraph.returnId}`
+  }
+  await appendExchangeFundingEvent(tx, {
+    ...common, eventKey: `test:wrong-transfer-parent:${wrongTransferParentGraph.returnId}:out`,
+    kind: 'TRANSFER_OUT', amount: -100, shareId: siblingTransfer.inEvent.shareId,
+    rootShareId: `payment:${source.paymentId}`
+  })
+  await appendExchangeFundingEvent(tx, {
+    ...common, eventKey: `test:wrong-transfer-parent:${wrongTransferParentGraph.returnId}:in`,
+    kind: 'TRANSFER_IN', amount: 100, shareId: `exchange:wrong-transfer-parent:${wrongTransferParentGraph.childInvoiceId}`,
+    rootShareId: `payment:${source.paymentId}`
+  })
+})
+const wrongTransferParentFunding = await getCurrentExchangeFundingSources(db, wrongTransferParentGraph.childInvoiceId)
+assert.equal(wrongTransferParentFunding.sources.length, 0,
+  'a valid transfer from a sibling invoice cannot stand in for the direct source invoice parent')
+assert.ok(wrongTransferParentFunding.unresolved.some((row) => row.kind === 'INVALID_EXCHANGE_TRANSFER_LINK'))
+
 console.log('✓ exchange funding journal: persisted-source proof, expiry, exact transfer pairs, immutable gift/cash per-item allocation, scoped parent lineage, downstream balance, reversal, cap, stale/orphan guards and idempotency')
