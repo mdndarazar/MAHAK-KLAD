@@ -303,7 +303,10 @@ async function matchingTransferOutForIn(tx: LedgerClient, into: any): Promise<an
   const out = await tx.exchangeFundingEvent.findUnique({
     where: { eventKey: `${eventKey.slice(0, -3)}:out` }
   })
-  if (!parent || !out || out.kind !== 'TRANSFER_OUT' || out.shareId !== parent.shareId ||
+  const parentScopeMatches = parent && (PROVEN_SOURCE_KINDS.has(String(parent.kind))
+    ? Number(parent.sourceInvoiceId) === sourceInvoiceId
+    : parent.kind === 'TRANSFER_IN' && Number(parent.childInvoiceId) === sourceInvoiceId)
+  if (!parent || !parentScopeMatches || !out || out.kind !== 'TRANSFER_OUT' || out.shareId !== parent.shareId ||
       out.shareId === into.shareId || parent.rootShareId !== into.rootShareId ||
       out.rootShareId !== into.rootShareId || !sameNullableId(out.parentEventId, into.parentEventId) ||
       !sameNullableId(out.sourceInvoiceId, into.sourceInvoiceId) ||

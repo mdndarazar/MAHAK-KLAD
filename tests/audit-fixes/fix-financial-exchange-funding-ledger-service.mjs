@@ -803,4 +803,34 @@ assert.equal(await exchangeFundingBalance(db, `payment:${source.paymentId}`), 2_
 assert.equal(await exchangeFundingBalance(db,
   `exchange:${chainedGraph.childInvoiceId}:return:${chainedGraph.returnId}:share:${source.paymentId}`), 0)
 
-console.log('✓ exchange funding journal: persisted-source proof, expiry, exact transfer pairs, immutable gift/cash per-item allocation, downstream balance, reversal, cap, stale/orphan guards and idempotency')
+// A nested child must name the transfer-in on its direct source invoice as its
+// parent. A valid root payment and matching transfer pair are not enough when
+// the pair skips that direct source invoice in parentEventId.
+const wrongParentGraph = exchangeGraph(chainedGraph.childInvoiceId, 100)
+const wrongParentShareId = `exchange:wrong-parent:${wrongParentGraph.childInvoiceId}`
+await db.$transaction(async (tx) => {
+  const common = {
+    sourceInvoiceId: chainedGraph.childInvoiceId,
+    childInvoiceId: wrongParentGraph.childInvoiceId,
+    returnId: wrongParentGraph.returnId,
+    parentEventId: source.sourceEvent.id,
+    evidenceKind: 'EXCHANGE_TRANSFER',
+    evidenceRef: `SaleReturn:${wrongParentGraph.returnId}`
+  }
+  await appendExchangeFundingEvent(tx, {
+    ...common, eventKey: `test:wrong-parent:${wrongParentGraph.returnId}:out`,
+    kind: 'TRANSFER_OUT', amount: -100, shareId: `payment:${source.paymentId}`,
+    rootShareId: `payment:${source.paymentId}`
+  })
+  await appendExchangeFundingEvent(tx, {
+    ...common, eventKey: `test:wrong-parent:${wrongParentGraph.returnId}:in`,
+    kind: 'TRANSFER_IN', amount: 100, shareId: wrongParentShareId,
+    rootShareId: `payment:${source.paymentId}`
+  })
+})
+const wrongParentFunding = await getCurrentExchangeFundingSources(db, wrongParentGraph.childInvoiceId)
+assert.equal(wrongParentFunding.sources.length, 0,
+  'a valid root payment cannot bypass the direct source-invoice transfer parent')
+assert.ok(wrongParentFunding.unresolved.some((row) => row.kind === 'INVALID_EXCHANGE_TRANSFER_LINK'))
+
+console.log('✓ exchange funding journal: persisted-source proof, expiry, exact transfer pairs, immutable gift/cash per-item allocation, scoped parent lineage, downstream balance, reversal, cap, stale/orphan guards and idempotency')
