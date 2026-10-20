@@ -89,6 +89,10 @@ const correctionId = seed.insert('ReturnCorrection', {
   originalDayJalali: day, operationalDayJalali: day
 })
 assert.ok(correctionId > 0 && firstItemId > 0 && secondItemId > 0)
+insertFailure('active return-item deletion cannot release quantity outside a void',
+  () => db.prepare('DELETE FROM "SaleReturnItem" WHERE id=?').run(firstItemId), /active sale return item deletion/)
+insertFailure('active return deletion cannot cascade physical quantity away',
+  () => db.prepare('DELETE FROM "SaleReturn" WHERE id=?').run(secondReturnId), /active sale return deletion/)
 insertFailure('third active unit is rejected at the DB cap',
   () => addItem(makeReturn(), saleItemId, 1, variantId), /quantity exceeds sold quantity/)
 updateFailure('active return-item quantity cannot become fractional',
@@ -155,6 +159,10 @@ const independent = new DatabaseSync(process.env.HARNESS_DB)
 try {
   assert.throws(() => independent.prepare('UPDATE "SaleReturn" SET invoiceId=? WHERE id=?')
     .run(otherInvoiceId, thirdReturnId), /invoice scope mismatch/)
+  assert.throws(() => independent.prepare('DELETE FROM "SaleReturnItem" WHERE id=?').run(firstItemId),
+    /active sale return item deletion/)
+  assert.throws(() => independent.prepare('DELETE FROM "SaleReturn" WHERE id=?').run(thirdReturnId),
+    /active sale return deletion/)
 } finally {
   independent.close()
 }

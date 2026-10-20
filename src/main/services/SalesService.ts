@@ -9133,10 +9133,24 @@ export const salesService = {
         note: `revision اقلام برگشت ${faDigits(ret.id)} · snapshot پیش از جایگزینی ردیف‌ها`
       })
 
+      // گارد پایگاه‌داده حذف شاهدِ قلمِ برگشت فعال را منع می‌کند. این مهر ابطال
+      // موقت فقط در همین تراکنش است: اقلام در حالت غیرفعال جایگزین می‌شوند و
+      // trigger فعال‌سازی دوباره، دامنه و سقف کامل تعداد فروش را پیش از commit می‌سنجد.
+      await tx.saleReturn.update({
+        where: { id: ret.id },
+        data: {
+          voidedAt: new Date(),
+          voidedByUserId: input.userId ?? ret.userId ?? null,
+          voidReason: 'ویرایش اتمیک اقلام برگشت'
+        }
+      })
       await tx.saleReturnItem.deleteMany({ where: { returnId: ret.id } })
       const updatedReturn = await tx.saleReturn.update({
         where: { id: ret.id },
         data: {
+          voidedAt: null,
+          voidedByUserId: null,
+          voidReason: null,
           total,
           isFull: returnedHere + otherReturned >= soldQtyAll,
           hasRemovedItems: rows.some((r) => r.removedFromStock),

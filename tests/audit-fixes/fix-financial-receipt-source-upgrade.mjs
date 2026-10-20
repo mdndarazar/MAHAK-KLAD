@@ -20,7 +20,8 @@ const stages = [
   '20271020670000_sale_return_request_idempotency',
   '20271020680000_sale_invoice_item_quantity_domain_guard',
   '20271020690000_safe_integer_return_quantity_domain_guard',
-  '20271020700000_validate_sale_return_history'
+  '20271020700000_validate_sale_return_history',
+  '20271020710000_guard_active_return_deletion'
 ]
 const allNames = readdirSync(join(root, 'prisma/migrations'))
   .filter((n) => n !== 'migration_lock.toml').sort()
@@ -293,6 +294,12 @@ const upgradedSafeReturnItemId = Number(upgraded.db.prepare(`INSERT INTO "SaleRe
 assert.throws(() => upgraded.db.prepare('UPDATE "SaleReturnItem" SET qty=9007199254740992 WHERE id=?')
   .run(upgradedSafeReturnItemId), /sale return item quantity/,
 'upgraded databases reject unsafe returned quantity on update')
+assert.throws(() => upgraded.db.prepare('DELETE FROM "SaleReturnItem" WHERE id=?').run(retailRetItem),
+  /active sale return item deletion/,
+'upgraded databases preserve active return-item evidence against direct deletion')
+assert.throws(() => upgraded.db.prepare('DELETE FROM "SaleReturn" WHERE id=?').run(retailRet),
+  /active sale return deletion/,
+'upgraded databases preserve active return parent and cascade evidence against deletion')
 installed.db.close()
 upgraded.db.close()
 // Separate process: migrator imports a DB client at module load; the runtime

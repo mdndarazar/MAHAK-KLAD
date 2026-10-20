@@ -41,6 +41,15 @@ const oldT = Date.now() - 1100 * DAY; const oldJ = toJalaliDate(new Date(oldT))
 sql.prepare('UPDATE "SaleInvoice" SET issuedAt = ?, issuedAtJalali = ? WHERE id = ?').run(oldT, oldJ, oldInv.id)
 sql.prepare('UPDATE "Payment" SET paidAt = ?, paidAtJalali = ? WHERE invoiceId = ?').run(oldT, oldJ, oldInv.id)
 sql.prepare(`UPDATE "StockMovement" SET createdAt = ? WHERE refType = 'SaleInvoice' AND refId = ?`).run(oldT, oldInv.id)
+const oldSaleItem = sql.prepare('SELECT id, variantId FROM "SaleInvoiceItem" WHERE invoiceId = ?').get(oldInv.id)
+const oldReturnId = seed.insert('SaleReturn', {
+  invoiceId: oldInv.id, userId, shiftId, kind: 'RETURN', total: 500_000,
+  returnedAt: oldT, returnedAtJalali: oldJ, refundMethod: 'NONE', refundAmount: 0
+})
+seed.insert('SaleReturnItem', {
+  returnId: oldReturnId, saleItemId: Number(oldSaleItem.id), variantId: Number(oldSaleItem.variantId),
+  qty: 1, unitPrice: 500_000, lineTotal: 500_000
+})
 // دو شیفت قدیمی: A مالک تجمیعِ دارای حرکت انبار، B مالک تجمیعِ بی‌حرکت
 const shiftA = seed.insert('Shift', { name: 'شب', number: 1, dayJalali: oldJ, openedAt: oldT - 3600_000, userId })
 const shiftB = seed.insert('Shift', { name: 'صبح', number: 1, dayJalali: oldJ, openedAt: oldT - 7200_000, userId })
@@ -50,6 +59,9 @@ const consB = seed.insert('Consolidation', { dayJalali: oldJ, fromDate: oldT - D
 sql.prepare(`UPDATE "StockMovement" SET consolidationId = ?, state = 'FINAL' WHERE refType = 'SaleInvoice' AND refId = ?`).run(consA, oldInv.id)
 const linkedIds = sql.prepare('SELECT id FROM "StockMovement" WHERE consolidationId = ? ORDER BY id').all(consA).map((r) => Number(r.id))
 eq('پیش‌شرط: حرکت انبار به تجمیع A وصل است', linkedIds.length >= 1, true)
+eq('پیش‌شرط: برگشت فعال و قلم فیزیکی آن روی فاکتور قدیمی وجود دارد',
+  [seed.one('SELECT voidedAt FROM "SaleReturn" WHERE id=?', oldReturnId).voidedAt,
+    seed.count('SaleReturnItem', 'returnId = ?', oldReturnId)], [null, 1])
 const movesBefore = seed.count('StockMovement')
 const auditBefore = seed.count('AuditLog')
 
@@ -68,6 +80,8 @@ console.log('\n— ۲) پاک‌سازی واقعی')
 const res = await safe(() => maintenanceService.archivePurge({ beforeJalali: minCut, backup: false, vacuum: false, purgeAudit: false, managerPassword: PW }))
 eq('archivePurge بدون خطا', res?.__error ?? null, null)
 eq('فاکتور قدیمی حذف، فاکتور امروز باقی', [seed.count('SaleInvoice', 'id = ?', oldInv.id), seed.count('SaleInvoice', 'id = ?', newInv.id)], [0, 1])
+eq('پاک‌سازی برگشت فعال را در تراکنش void و سپس حذف می‌کند',
+  [seed.count('SaleReturn', 'id = ?', oldReturnId), seed.count('SaleReturnItem', 'returnId = ?', oldReturnId)], [0, 0])
 eq('تعداد کل StockMovement دست‌نخورده', seed.count('StockMovement'), movesBefore)
 eq('consolidationId حرکت‌های دفتر انبار دست‌نخورده (NULL نشد)',
   sql.prepare('SELECT id FROM "StockMovement" WHERE consolidationId = ? ORDER BY id').all(consA).map((r) => Number(r.id)), linkedIds)

@@ -345,7 +345,13 @@ export const maintenanceService = {
       async (tx) => {
         const run = (sql: string, ...params: unknown[]) => tx.$executeRawUnsafe(sql, ...params)
 
-        // برگشت‌های فروشِ فاکتورهای قدیمی
+        // برگشت‌های فروشِ فاکتورهای قدیمی. گارد دیتابیس حذف شاهدِ برگشت فعال را
+        // منع می‌کند؛ این purge یک‌تراکنشی و از پیش مجاز/بکاپ‌شده است، پس پیش از
+        // حذف فیزیکیِ مدیریتی، برگشت‌های فعال را آگاهانه باطل می‌کنیم.
+        await run(
+          `UPDATE "SaleReturn" SET "voidedAt" = COALESCE("voidedAt", ?) WHERE "invoiceId" IN (${invFilter})`,
+          Date.now(), beforeJalali
+        )
         await run(
           `DELETE FROM "SaleReturnItem" WHERE "returnId" IN (SELECT id FROM "SaleReturn" WHERE "invoiceId" IN (${invFilter}))`,
           beforeJalali
