@@ -656,12 +656,15 @@ const returnRequest = {
 }
 const stockBeforeReturnRequest = Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?',
   idempotentReturnVariant).stock)
-const startReturnRaceWorker = () => {
+const startReturnRaceWorker = ({
+  invoiceId = idempotentReturnSale.id, saleItemId = idempotentReturnItemId,
+  idempotencyKey = returnRequest.idempotencyKey, quantity = 1, note = returnRequest.note
+} = {}) => {
   const child = spawn(process.execPath, [
     '--import', './test/harness/register.mjs',
     'tests/audit-fixes/helpers/return-idempotency-worker.mjs',
-    String(idempotentReturnSale.id), String(idempotentReturnItemId), String(userId), String(shiftId),
-    returnRequest.idempotencyKey
+    String(invoiceId), String(saleItemId), String(userId), String(shiftId),
+    idempotencyKey, String(quantity), note
   ], { cwd: process.cwd(), env: {
     ...process.env, HARNESS_DIR: dir, HARNESS_DB: process.env.HARNESS_DB, HARNESS_DB_EXISTING: '1'
   }, stdio: ['pipe', 'pipe', 'pipe'] })
@@ -728,6 +731,38 @@ await assert.rejects(() => salesService.createReturn({ ...returnRequest, note: '
 assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?',
   idempotentReturnSale.id).n, returnCountBeforeMismatch,
 'same key with a changed note is rejected without a second return')
+
+// Concurrent payloads may race to claim a fresh key, but only the winner may
+// create a return. The loser must observe the persisted fingerprint and reject
+// rather than replaying the winner's response as if its own intent matched.
+const conflictingReturnVariant = variant(500)
+const conflictingReturnSale = await salesService.create({
+  userId, shiftId, lines: [{ ...line(conflictingReturnVariant, 500), qty: 2 }], payments: []
+})
+const conflictingReturnItemId = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?',
+  conflictingReturnSale.id).id
+const conflictingReturnKey = 'return-request:integration-conflicting-race-0001'
+const conflictingWorkers = [
+  startReturnRaceWorker({ invoiceId: conflictingReturnSale.id, saleItemId: conflictingReturnItemId,
+    idempotencyKey: conflictingReturnKey, quantity: 1, note: 'concurrent intent one' }),
+  startReturnRaceWorker({ invoiceId: conflictingReturnSale.id, saleItemId: conflictingReturnItemId,
+    idempotencyKey: conflictingReturnKey, quantity: 2, note: 'concurrent intent two' })
+]
+await Promise.all(conflictingWorkers.map((worker) => worker.ready))
+for (const worker of conflictingWorkers) worker.child.stdin.end('go')
+const conflictingResults = await Promise.all(conflictingWorkers.map((worker) => worker.result))
+await Promise.all(conflictingWorkers.map((worker) => worker.closed))
+assert.equal(conflictingResults.filter((result) => result.ok).length, 1,
+  JSON.stringify(conflictingResults))
+const conflictingLoser = conflictingResults.find((result) => !result.ok)
+assert.match(conflictingLoser.error, /payload متفاوت/)
+assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE idempotencyKey=?', conflictingReturnKey).n, 1)
+const conflictingWinnerId = seed.one('SELECT id FROM "SaleReturn" WHERE idempotencyKey=?', conflictingReturnKey).id
+const conflictingWinnerItems = seed.rows('SELECT qty FROM "SaleReturnItem" WHERE returnId=?', conflictingWinnerId)
+assert.equal(conflictingWinnerItems.length, 1)
+assert.ok([1, 2].includes(Number(conflictingWinnerItems[0].qty)))
+assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?',
+  conflictingReturnSale.id).n, 1, 'the losing concurrent payload cannot append another physical return')
 
 const safeSnapshotVariant = variant(500)
 const safeSnapshotSale = await salesService.create({
