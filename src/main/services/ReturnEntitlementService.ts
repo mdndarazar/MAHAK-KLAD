@@ -370,11 +370,20 @@ async function assertCreditDeliverySourceLineage(tx: Client, delivery: any, cred
     if (!replaced || replaced.originalCreditId !== delivery.originCreditId || old?.status !== 'CANCELED')
       throw new BusinessError('زنجیرهٔ جانشینی کد/ابطال مبدأ قابل تأیید نیست؛ تحویل دوباره تأیید نشد.')
   } else if (delivery.sourceKind === 'CASH_RIGHT_CONVERSION') {
-    const event = await tx.returnEntitlementEvent.findFirst({ where: { creditId: credit.id, kind: 'CASH_RIGHT_CONVERTED' } })
-    const claim = event ? await tx.returnEntitlement.findUnique({ where: { id: event.entitlementId } }) : null
-    if (!claim || claim.state !== 'OPEN' || toNumberRial(claim.cashConverted) < toNumberRial(credit.amount))
-      throw new BusinessError('حق نقدی منشأ این اعتبار در وضعیت امن نیست؛ تحویل/فعال‌سازی تا تطبیق مدیر متوقف است.')
-    await assertOrdinaryReturnLineage(tx, Number(claim.returnId), Number(claim.invoiceId))
+    const events = await tx.returnEntitlementEvent.findMany({ where: { creditId: credit.id, kind: 'CASH_RIGHT_CONVERTED' } })
+    if (events.length !== 1)
+      throw new BusinessError('رویداد منشأ تبدیل این کد مفقود یا چندگانه است؛ تحویل/بازپخش امن نیست.')
+    const event = events[0]
+    const claim = await tx.returnEntitlement.findUnique({ where: { id: event.entitlementId } })
+    const creditAmount = toNumberRial(credit.amount)
+    if (!claim || claim.state !== 'OPEN' || toNumberRial(event.amount) !== creditAmount ||
+        toNumberRial(claim.cashConverted) < creditAmount ||
+        Number(credit.returnId) !== Number(claim.returnId) ||
+        Number(credit.sourceInvoiceId) !== Number(claim.invoiceId))
+      throw new BusinessError('منشأ/lineage حق نقدی و کد جانشین یکتا/سازگار نیست؛ تحویل تا تطبیق مدیر متوقف است.')
+    const ret = await assertOrdinaryReturnLineage(tx, Number(claim.returnId), Number(claim.invoiceId))
+    if (ret.voidedAt != null)
+      throw new BusinessError('سند مرجع کد تبدیل‌شده باطل است؛ تحویل یا بازپخش کد مجاز نیست.')
   } else if (delivery.sourceKind === 'CREDIT_RETURN_OPPORTUNITY') {
     const branch = await tx.creditReturnAllocation.findUnique({ where: { successorCreditId: credit.id } })
     const ret = branch
@@ -406,39 +415,17 @@ export async function confirmCreditDelivery(input: {
   return prisma.$transaction(async (tx) => {
     const delivery = await tx.creditDelivery.findUnique({ where: { creditId } })
     if (!delivery) throw new BusinessError('برای این اعتبار پروندهٔ تحویل کنترل‌شده وجود ندارد.')
+    const credit = await tx.storeCredit.findUnique({ where: { id: creditId } })
+    if (!credit) throw new BusinessError('کد اعتبار پیدا نشد؛ سابقهٔ تحویل را برای رسیدگی بررسی کنید.')
+    await assertCreditDeliverySourceLineage(tx, delivery, credit)
     if (delivery.status === 'DELIVERED') {
-      const deliveredCredit = await tx.storeCredit.findUnique({ where: { id: creditId } })
-      if (!deliveredCredit) throw new BusinessError('کد تحویل‌شده پیدا نشد؛ سابقهٔ تحویل را برای رسیدگی بررسی کنید.')
-      await assertCreditDeliverySourceLineage(tx, delivery, deliveredCredit)
       if (delivery.witnessKind === input.witnessKind && delivery.witnessRef === ref)
         return { creditId, status: 'DELIVERED', replayed: true }
       throw stale()
     }
     if (delivery.status !== 'PENDING_DELIVERY') throw stale()
-    const credit = await tx.storeCredit.findUnique({ where: { id: creditId } })
-    if (!credit || credit.status !== 'DRAFT' || credit.deletedAt != null || credit.voidedAt != null)
+    if (credit.status !== 'DRAFT' || credit.deletedAt != null || credit.voidedAt != null)
       throw new BusinessError('کد اعتبار دیگر در حالت انتظار تحویل نیست؛ تحویل ثبت نشد.')
-    if (delivery.originCreditId != null) {
-      const replaced = await tx.creditReplacement.findUnique({ where: { successorCreditId: creditId } })
-      const old = await tx.storeCredit.findUnique({ where: { id: delivery.originCreditId } })
-      if (!replaced || replaced.originalCreditId !== delivery.originCreditId || old?.status !== 'CANCELED')
-        throw new BusinessError('زنجیرهٔ جانشینی کد/ابطال مبدأ قابل تأیید نیست؛ کد فعال نشد.')
-    } else if (delivery.sourceKind === 'CASH_RIGHT_CONVERSION') {
-      const event = await tx.returnEntitlementEvent.findFirst({ where: { creditId, kind: 'CASH_RIGHT_CONVERTED' } })
-      const claim = event ? await tx.returnEntitlement.findUnique({ where: { id: event.entitlementId } }) : null
-      if (!claim || claim.state !== 'OPEN' || claim.cashConverted < credit.amount)
-        throw new BusinessError('حق نقدی منشأ این اعتبار در وضعیت امن نیست؛ تحویل/فعال‌سازی تا تطبیق مدیر متوقف است.')
-      await assertOrdinaryReturnLineage(tx, Number(claim.returnId), Number(claim.invoiceId))
-    } else if (delivery.sourceKind === 'CREDIT_RETURN_OPPORTUNITY') {
-      const branch = await tx.creditReturnAllocation.findUnique({ where: { successorCreditId: creditId } })
-      const ret = branch
-        ? await assertOrdinaryReturnLineage(tx, Number(branch.returnId), Number(branch.invoiceId))
-        : null
-      if (!branch || !ret || ret.voidedAt != null || ret.invoiceId !== branch.invoiceId ||
-          toNumberRial(branch.amount) + toNumberRial(branch.supplementUnspent) !== toNumberRial(credit.amount) ||
-          (branch.originalExpiresAt?.getTime() ?? null) !== (credit.expiresAt?.getTime() ?? null))
-        throw new BusinessError('منشأ B/E یا مبلغ/انقضای اصلی قابل تطبیق نیست؛ کد فعال نشد.')
-    }
     const at = new Date()
     if (credit.expiresAt && credit.expiresAt <= at)
       throw new BusinessError('انقضای اصلی این اعتبار گذشته است؛ تحویل کد، فرصت منقضی را احیا نمی‌کند.')

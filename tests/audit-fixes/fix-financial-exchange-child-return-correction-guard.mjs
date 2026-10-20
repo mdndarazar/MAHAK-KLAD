@@ -559,6 +559,38 @@ await assert.rejects(() => confirmCreditDelivery({
   managerPassword: DEFAULT_MANAGER_PASSWORD, actorUserId: userId
 }), /فرزند تعویض|lineage|تخصیص منشأ/iu,
 'a delivered-child idempotency replay must revalidate the return lineage before claiming success')
+const ordinaryReplayReturnId = seed.insert('SaleReturn', {
+  invoiceId: sale.id, isFull: false, total: 100, returnedAt: now,
+  returnedAtJalali: toJalaliDate(now), returnedAtTime: now.toTimeString().slice(0, 8),
+  kind: 'RETURN', userId, shiftId, refundMethod: 'NONE', refundAmount: 0
+})
+const ordinaryReplayClaimId = seed.insert('ReturnEntitlement', {
+  returnId: ordinaryReplayReturnId, invoiceId: sale.id, requestId: 939393,
+  cashRight: 100, cashReserved: 0, cashPaid: 0, cashConverted: 100,
+  giftOpportunity: 0, debtReduced: 0, state: 'OPEN', version: 1
+})
+const ambiguousReplayCodeId = seed.insert('StoreCredit', {
+  code: 'AMBIGUOUS-DELIVERY-ORIGIN', amount: 100, usedAmount: 0, usedCount: 0,
+  status: 'ACTIVE', expiresAt: null
+})
+const ambiguousWitnessRef = 'same delivered legacy code witness'
+seed.insert('CreditDelivery', {
+  creditId: ambiguousReplayCodeId, sourceKind: 'CASH_RIGHT_CONVERSION', status: 'DELIVERED', version: 1,
+  deliveredAt: now, deliveredByUserId: userId, witnessKind: 'CUSTOMER_HANDOFF', witnessRef: ambiguousWitnessRef
+})
+seed.insert('ReturnEntitlementEvent', {
+  entitlementId: ordinaryReplayClaimId, eventKey: 'ordinary-first-ambiguous-delivered-origin',
+  kind: 'CASH_RIGHT_CONVERTED', amount: 100, creditId: ambiguousReplayCodeId
+})
+seed.insert('ReturnEntitlementEvent', {
+  entitlementId: legacyChildClaimId, eventKey: 'child-second-ambiguous-delivered-origin',
+  kind: 'CASH_RIGHT_CONVERTED', amount: 100, creditId: ambiguousReplayCodeId
+})
+await assert.rejects(() => confirmCreditDelivery({
+  creditId: ambiguousReplayCodeId, witnessKind: 'CUSTOMER_HANDOFF', witnessRef: ambiguousWitnessRef,
+  managerPassword: DEFAULT_MANAGER_PASSWORD, actorUserId: userId
+}), /ابهام|چند|فرزند تعویض|lineage|تخصیص منشأ/iu,
+'a delivered code with conflicting ordinary and exchange-child origins must not choose one origin by findFirst')
 const entitlementStateWithImportedChildClaim = {
   claims: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlement"').n,
   events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
