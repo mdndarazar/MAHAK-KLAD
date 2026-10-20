@@ -18,7 +18,8 @@ const stages = [
   '20271020650000_exchange_funding_return_line_allocations',
   '20271020660000_sale_return_item_scope_quantity_guards',
   '20271020670000_sale_return_request_idempotency',
-  '20271020680000_sale_invoice_item_quantity_domain_guard'
+  '20271020680000_sale_invoice_item_quantity_domain_guard',
+  '20271020690000_safe_integer_return_quantity_domain_guard'
 ]
 const allNames = readdirSync(join(root, 'prisma/migrations'))
   .filter((n) => n !== 'migration_lock.toml').sort()
@@ -152,6 +153,14 @@ assert.throws(() => upgraded.db.prepare(`INSERT INTO "SaleInvoiceItem"
   (invoiceId, variantId, qty, unitPrice, discount, tax, lineTotal)
   VALUES (?, ?, 1.5, 100, 0, 0, 150)`).run(retailSale, retailVariant), /sale invoice item quantity/,
 'upgraded databases reject fractional sold quantity on insert')
+assert.throws(() => upgraded.db.prepare('UPDATE "SaleInvoiceItem" SET qty=9007199254740992 WHERE id=?')
+  .run(upgradedNoReturnItemId), /sale invoice item quantity/,
+'upgraded databases reject sold quantities outside the JavaScript exact-integer range')
+assert.throws(() => upgraded.db.prepare(`INSERT INTO "SaleInvoiceItem"
+  (invoiceId, variantId, qty, unitPrice, discount, tax, lineTotal)
+  VALUES (?, ?, 9007199254740992, 100, 0, 0, 0)`).run(retailSale, retailVariant),
+/sale invoice item quantity/,
+'upgraded databases reject unsafe sold quantities on insert')
 const upgradedOverCapReturnId = Number(upgraded.db.prepare(`INSERT INTO "SaleReturn"
   (invoiceId, returnedAtJalali, kind, refundMethod, refundAmount)
   VALUES (?, ?, 'RETURN', 'NONE', 0)`).run(retailSale, day).lastInsertRowid)
@@ -160,6 +169,22 @@ assert.throws(() => upgraded.db.prepare(`INSERT INTO "SaleReturnItem"
   VALUES (?, ?, ?, 1, 100, 100)`).run(upgradedOverCapReturnId, retailItem, retailVariant),
 /active sale return quantity exceeds sold quantity/,
 'upgraded databases enforce the active return cap on a second physical return')
+const upgradedVoidedReturnId = Number(upgraded.db.prepare(`INSERT INTO "SaleReturn"
+  (invoiceId, returnedAtJalali, kind, refundMethod, refundAmount, voidedAt)
+  VALUES (?, ?, 'RETURN', 'NONE', 0, ?)`).run(retailSale, day, Date.now()).lastInsertRowid)
+assert.throws(() => upgraded.db.prepare(`INSERT INTO "SaleReturnItem"
+  (returnId, saleItemId, variantId, qty, unitPrice, lineTotal)
+  VALUES (?, ?, ?, 9007199254740992, 100, 100)`)
+  .run(upgradedVoidedReturnId, upgradedNoReturnItemId, retailVariant),
+/sale return item quantity/,
+'upgraded databases reject unsafe quantity even in a voided historical row')
+const upgradedSafeReturnItemId = Number(upgraded.db.prepare(`INSERT INTO "SaleReturnItem"
+  (returnId, saleItemId, variantId, qty, unitPrice, lineTotal)
+  VALUES (?, ?, ?, 1, 100, 100)`)
+  .run(upgradedVoidedReturnId, upgradedNoReturnItemId, retailVariant).lastInsertRowid)
+assert.throws(() => upgraded.db.prepare('UPDATE "SaleReturnItem" SET qty=9007199254740992 WHERE id=?')
+  .run(upgradedSafeReturnItemId), /sale return item quantity/,
+'upgraded databases reject unsafe returned quantity on update')
 installed.db.close()
 upgraded.db.close()
 // Separate process: migrator imports a DB client at module load; the runtime

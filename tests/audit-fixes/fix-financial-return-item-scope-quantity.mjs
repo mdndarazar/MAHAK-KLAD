@@ -52,6 +52,24 @@ updateFailure('unreturned sold quantity cannot become fractional',
   'UPDATE "SaleInvoiceItem" SET qty=1.5 WHERE id=?', [otherSaleItemId], /sale invoice item quantity/)
 updateFailure('unreturned sold quantity cannot become zero',
   'UPDATE "SaleInvoiceItem" SET qty=0 WHERE id=?', [otherSaleItemId], /sale invoice item quantity/)
+insertFailure('unsafe sold quantity cannot enter the database',
+  () => db.prepare(`INSERT INTO "SaleInvoiceItem" (invoiceId, variantId, qty, unitPrice, discount, tax, lineTotal)
+    VALUES (?, ?, 9007199254740992, 0, 0, 0, 0)`).run(otherInvoiceId, otherVariantId), /sale invoice item quantity/)
+updateFailure('sold quantity above JavaScript exact-integer range is rejected',
+  'UPDATE "SaleInvoiceItem" SET qty=9007199254740992 WHERE id=?', [otherSaleItemId], /sale invoice item quantity/)
+db.prepare('UPDATE "SaleInvoiceItem" SET qty=9007199254740991 WHERE id=?').run(otherSaleItemId)
+db.prepare('UPDATE "SaleInvoiceItem" SET qty=1 WHERE id=?').run(otherSaleItemId)
+const voidedDomainReturnId = makeReturn(otherInvoiceId)
+db.prepare('UPDATE "SaleReturn" SET voidedAt=? WHERE id=?').run(Date.now(), voidedDomainReturnId)
+insertFailure('unsafe returned quantity cannot enter even a voided evidence row',
+  () => db.prepare(`INSERT INTO "SaleReturnItem" (returnId, saleItemId, variantId, qty, unitPrice, lineTotal)
+    VALUES (?, ?, ?, 9007199254740992, 1000, 1000)`).run(voidedDomainReturnId, otherSaleItemId, otherVariantId),
+  /sale return item quantity/)
+const voidedDomainItemId = addItem(voidedDomainReturnId, otherSaleItemId, 1, otherVariantId)
+updateFailure('returned quantity above JavaScript exact-integer range is rejected',
+  'UPDATE "SaleReturnItem" SET qty=9007199254740992 WHERE id=?', [voidedDomainItemId], /sale return item quantity/)
+db.prepare('UPDATE "SaleReturnItem" SET qty=9007199254740991 WHERE id=?').run(voidedDomainItemId)
+db.prepare('UPDATE "SaleReturnItem" SET qty=1 WHERE id=?').run(voidedDomainItemId)
 
 const firstReturnId = makeReturn()
 insertFailure('sale item from another invoice cannot be linked to this return',
