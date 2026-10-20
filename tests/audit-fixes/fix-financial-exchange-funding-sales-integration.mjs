@@ -783,6 +783,37 @@ assert.ok([1, 2].includes(Number(conflictingWinnerItems[0].qty)))
 assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?',
   conflictingReturnSale.id).n, 1, 'the losing concurrent payload cannot append another physical return')
 
+// Distinct idempotency keys are distinct user intents, but they still cannot
+// race past the final physical unit on the same sold line.
+const capRaceVariant = variant(500)
+const capRaceSale = await salesService.create({
+  userId, shiftId, lines: [{ ...line(capRaceVariant, 500), qty: 1 }], payments: []
+})
+const capRaceSaleItemId = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', capRaceSale.id).id
+const capRaceKeys = [
+  'return-request:cap-race-distinct-a0001',
+  'return-request:cap-race-distinct-b0001'
+]
+const capRaceWorkers = capRaceKeys.map((idempotencyKey, index) => startReturnRaceWorker({
+  invoiceId: capRaceSale.id, saleItemId: capRaceSaleItemId,
+  idempotencyKey, quantity: 1, note: `different last-unit intent ${index}`
+}))
+await Promise.all(capRaceWorkers.map((worker) => worker.ready))
+for (const worker of capRaceWorkers) worker.child.stdin.end('go')
+const capRaceResults = await Promise.all(capRaceWorkers.map((worker) => worker.result))
+await Promise.all(capRaceWorkers.map((worker) => worker.closed))
+assert.equal(capRaceResults.filter((result) => result.ok).length, 1,
+  JSON.stringify(capRaceResults))
+const capRaceLoser = capRaceResults.find((result) => !result.ok)
+assert.match(capRaceLoser.error, /تعداد.*قابل برگشت|تعداد برگشتی|quantity exceeds sold quantity/iu)
+assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', capRaceSale.id).n, 1,
+  'distinct keys cannot create two returns for the last sold unit')
+assert.equal(Number(seed.one(`SELECT COALESCE(SUM(ri.qty),0) n FROM "SaleReturnItem" ri
+  JOIN "SaleReturn" r ON r.id=ri.returnId WHERE ri.saleItemId=? AND r.voidedAt IS NULL`, capRaceSaleItemId).n), 1,
+'active physical return quantity remains exactly at the sold cap')
+assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE idempotencyKey IN (?, ?)', ...capRaceKeys).n, 1,
+'only the winning distinct request key is committed')
+
 const safeSnapshotVariant = variant(500)
 const safeSnapshotSale = await salesService.create({
   userId, shiftId, lines: [{ ...line(safeSnapshotVariant, 500), qty: 2 }],
