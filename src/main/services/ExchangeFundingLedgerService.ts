@@ -925,6 +925,23 @@ export async function recordExchangeFundingReturnLineAllocation(tx: LedgerClient
       ret.kind !== 'RETURN' || ret.voidedAt != null)
     throw new BusinessError('پیوند برگشتِ قلم فرزند معتبر یا فعال نیست؛ هیچ انتسابی ثبت نشد.')
 
+  const returnItems = await tx.saleReturnItem.findMany({
+    where: { returnId: Number(ret.id) }, select: { id: true, saleItemId: true }
+  }) as any[]
+  const returnItemIds = new Set<number>()
+  const saleItemIds = new Set<number>()
+  for (const item of returnItems) {
+    const itemId = Number(item.id)
+    const saleItemId = Number(item.saleItemId)
+    if (!Number.isSafeInteger(itemId) || itemId <= 0 || returnItemIds.has(itemId) ||
+        !Number.isSafeInteger(saleItemId) || saleItemId <= 0 || saleItemIds.has(saleItemId))
+      throw new BusinessError('برگشت برای یک قلم فروش چند ردیف تکراری دارد؛ تخصیص تجمعی مبهم است و چیزی ثبت نشد.')
+    returnItemIds.add(itemId)
+    saleItemIds.add(saleItemId)
+  }
+  if (!returnItemIds.has(input.returnItemId))
+    throw new BusinessError('قلم انتخاب‌شده در همین برگشت نیست؛ هیچ انتسابی ثبت نشد.')
+
   const childInvoiceId = Number(ret.invoiceId)
   const [invoice, saleItem] = await Promise.all([
     tx.saleInvoice.findUnique({ where: { id: childInvoiceId }, include: { items: true } }),
@@ -1081,6 +1098,15 @@ export async function reverseExchangeFundingReturnLineAllocationsForReturn(tx: L
   const childInvoice = ret.invoice as any
   const isExchangeChild = childInvoice?.orderType === 'EXCHANGE' ||
     childInvoice?.sourceInvoiceId != null || childInvoice?.exchangeReturnId != null
+  if (isExchangeChild && ret.kind === 'RETURN') {
+    const seenSaleItemIds = new Set<number>()
+    for (const item of ret.items as any[]) {
+      const saleItemId = Number(item.saleItemId)
+      if (!Number.isSafeInteger(saleItemId) || saleItemId <= 0 || seenSaleItemIds.has(saleItemId))
+        throw new BusinessError('برگشت فرزند برای یک قلم فروش چند ردیف تکراری دارد؛ تخصیص تجمعی مبهم است.')
+      seenSaleItemIds.add(saleItemId)
+    }
+  }
   const ledgerRows = await tx.exchangeFundingReturnLineAllocation.findMany({
     where: { returnId: input.returnId },
     orderBy: [{ returnItemId: 'asc' }, { sourceEventId: 'asc' }, { id: 'asc' }]

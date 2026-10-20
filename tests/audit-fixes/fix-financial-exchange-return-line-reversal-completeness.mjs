@@ -46,22 +46,22 @@ const replacementA = variant('replacement A')
 const replacementB = variant('replacement B')
 const sale = await salesService.create({
   userId, shiftId,
-  lines: [{ variantId: sourceVariant, qty: 2, unitPrice: 1000, discount: 0, tax: 0 }],
-  payments: [{ methodId: cashMethodId, amount: 2000, destination: 'CASH' }]
+  lines: [{ variantId: sourceVariant, qty: 3, unitPrice: 1000, discount: 0, tax: 0 }],
+  payments: [{ methodId: cashMethodId, amount: 3000, destination: 'CASH' }]
 })
 const sourceItemId = Number(seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', sale.id).id)
 const exchange = await salesService.createExchange({
   invoiceId: sale.id,
-  lines: [{ saleItemId: sourceItemId, qty: 2 }],
-  replacements: [{ variantId: replacementA, qty: 1 }, { variantId: replacementB, qty: 1 }],
+  lines: [{ saleItemId: sourceItemId, qty: 3 }],
+  replacements: [{ variantId: replacementA, qty: 2 }, { variantId: replacementB, qty: 1 }],
   refundMode: 'STORE_CREDIT', userId, shiftId, managerPassword: DEFAULT_MANAGER_PASSWORD
 })
 const childId = exchange.exchangeInvoiceId
-const childItems = seed.rows('SELECT id, variantId FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id', childId)
+const childItems = seed.rows('SELECT id, variantId, qty FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id', childId)
 assert.equal(childItems.length, 2)
 
 const returnId = seed.insert('SaleReturn', {
-  invoiceId: childId, isFull: true, total: 2000, returnedAt: now,
+  invoiceId: childId, isFull: false, total: 2000, returnedAt: now,
   returnedAtJalali: toJalaliDate(now), returnedAtTime: now.toTimeString().slice(0, 8),
   kind: 'RETURN', userId, shiftId, refundMethod: 'NONE', refundAmount: 0
 })
@@ -212,4 +212,29 @@ assert.equal(seed.one(`SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocati
   WHERE returnId=? AND eventKind='REVERSAL'`, crossLinkedReturnId).n, 0,
 'a cross-return orphan must not cause a partial or duplicate reversal')
 
-console.log('✓ exchange-child return allocation reversal requires every return item, rejects orphan and cross-scope rows, and replays exactly')
+sql.prepare('UPDATE "SaleReturn" SET voidedAt=?, voidReason=? WHERE id=?')
+  .run(Date.now(), 'release quantity for duplicate-item test', scopedReturnId)
+const duplicateItemReturnId = seed.insert('SaleReturn', {
+  invoiceId: childId, isFull: true, total: 2000, returnedAt: now,
+  returnedAtJalali: toJalaliDate(now), returnedAtTime: now.toTimeString().slice(0, 8),
+  kind: 'RETURN', userId, shiftId, refundMethod: 'NONE', refundAmount: 0
+})
+const duplicateReturnItemIds = [1, 2].map(() => seed.insert('SaleReturnItem', {
+  returnId: duplicateItemReturnId, saleItemId: Number(childItems[0].id),
+  variantId: Number(childItems[0].variantId), qty: 1, unitPrice: 1000,
+  lineTotal: 1000, restockedQty: 0
+}))
+await assert.rejects(() => db.$transaction((tx) => recordExchangeFundingReturnLineAllocation(tx, {
+  returnId: duplicateItemReturnId, returnItemId: duplicateReturnItemIds[0]
+})),
+/duplicate|same item|تکراری|یک قلم/iu,
+'a return with duplicate physical item rows must not get ambiguous cumulative attribution')
+assert.equal(seed.one(`SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation"
+  WHERE returnId=?`, duplicateItemReturnId).n, 0,
+'duplicate-item rejection must not persist a partial allocation')
+await assert.rejects(() => db.$transaction((tx) =>
+  reverseExchangeFundingReturnLineAllocationsForReturn(tx, { returnId: duplicateItemReturnId })),
+/duplicate|same item|تکراری|یک قلم/iu,
+'a duplicate-item return must be rejected explicitly before reversal')
+
+console.log('✓ exchange-child return line reversals require complete unique item scope and reject orphan/cross-linked rows')
