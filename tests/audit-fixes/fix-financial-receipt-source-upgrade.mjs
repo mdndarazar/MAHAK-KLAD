@@ -142,6 +142,16 @@ const replay = await applyMigrations(upgraded.client, copy, { touchFile: false }
 assert.deepEqual(replay.applied, [])
 assert.deepEqual(replay.skipped, [])
 assert.deepEqual(before(upgraded.db), snapshot)
+const upgradedNoReturnItemId = Number(upgraded.db.prepare(`INSERT INTO "SaleInvoiceItem"
+  (invoiceId, variantId, qty, unitPrice, discount, tax, lineTotal)
+  VALUES (?, ?, 1, 100, 0, 0, 100)`).run(retailSale, retailVariant).lastInsertRowid)
+assert.throws(() => upgraded.db.prepare('UPDATE "SaleInvoiceItem" SET qty=1.5 WHERE id=?')
+  .run(upgradedNoReturnItemId), /sale invoice item quantity/,
+'upgraded databases enforce sold-quantity domain on an item without returns')
+assert.throws(() => upgraded.db.prepare(`INSERT INTO "SaleInvoiceItem"
+  (invoiceId, variantId, qty, unitPrice, discount, tax, lineTotal)
+  VALUES (?, ?, 1.5, 100, 0, 0, 150)`).run(retailSale, retailVariant), /sale invoice item quantity/,
+'upgraded databases reject fractional sold quantity on insert')
 installed.db.close()
 upgraded.db.close()
 // Separate process: migrator imports a DB client at module load; the runtime
