@@ -122,6 +122,7 @@ const corruptQuantity = join(dir, 'corrupt-quantity-copy.db')
 const corruptUnsafeQuantity = join(dir, 'corrupt-unsafe-quantity-copy.db')
 const corruptReturnQuantity = join(dir, 'corrupt-return-quantity-copy.db')
 const corruptReturnScope = join(dir, 'corrupt-return-scope-copy.db')
+const corruptReturnVariant = join(dir, 'corrupt-return-variant-copy.db')
 const corruptReturnCap = join(dir, 'corrupt-return-cap-copy.db')
 copyFileSync(file, copy)
 copyFileSync(file, corrupt)
@@ -129,6 +130,7 @@ copyFileSync(file, corruptQuantity)
 copyFileSync(file, corruptUnsafeQuantity)
 copyFileSync(file, corruptReturnQuantity)
 copyFileSync(file, corruptReturnScope)
+copyFileSync(file, corruptReturnVariant)
 copyFileSync(file, corruptReturnCap)
 const badQuantityDb = open(corruptQuantity)
 badQuantityDb.db.prepare(`INSERT INTO "SaleInvoiceItem"
@@ -187,7 +189,28 @@ assert.equal(Number(read(badReturnScopeDb.db, 'SELECT COUNT(*) n FROM "SaleRetur
 'failed scope validation preserves the source row for reconciliation')
 assert.equal(read(badReturnScopeDb.db, 'PRAGMA integrity_check')[0].integrity_check, 'ok')
 badReturnScopeDb.db.close()
+const badReturnVariantDb = open(corruptReturnVariant)
+const badVariantReturnId = Number(badReturnVariantDb.db.prepare(`INSERT INTO "SaleReturn"
+  (invoiceId, returnedAtJalali, kind, refundMethod, refundAmount)
+  VALUES (?, ?, 'RETURN', 'NONE', 0)`).run(retailSale, day).lastInsertRowid)
+const badVariantReturnItemId = Number(badReturnVariantDb.db.prepare(`INSERT INTO "SaleReturnItem"
+  (returnId, saleItemId, variantId, qty, unitPrice, lineTotal)
+  VALUES (?, ?, ?, 1, 100, 100)`).run(badVariantReturnId, retailItem, warehouseVariant).lastInsertRowid)
+await assert.rejects(() => applyMigrations(badReturnVariantDb.client, corruptReturnVariant, { touchFile: false }),
+  (e) => e.message.includes('20271020700000_validate_sale_return_history') && e.message.includes('نسخه‌ی پشتیبان'),
+  'upgrading an installed DB with a return item variant mismatch must fail closed')
+assert.equal(read(badReturnVariantDb.db, 'SELECT COUNT(*) n FROM "_prisma_migrations" WHERE migration_name=? AND finished_at IS NOT NULL',
+  '20271020700000_validate_sale_return_history')[0].n, 0,
+'bad variant scope migration failure must not be recorded as finished')
+assert.equal(Number(read(badReturnVariantDb.db, 'SELECT COUNT(*) n FROM "SaleReturnItem" WHERE id=?', badVariantReturnItemId)[0].n), 1,
+'failed variant validation preserves historical evidence')
+assert.equal(read(badReturnVariantDb.db, 'PRAGMA integrity_check')[0].integrity_check, 'ok')
+badReturnVariantDb.db.close()
 const badReturnCapDb = open(corruptReturnCap)
+badReturnCapDb.db.prepare(`INSERT INTO "ReturnCorrection"
+  (returnId, kind, status, reason, correctingUserId, correctingShiftId, originalDayJalali, operationalDayJalali)
+  VALUES (?, 'VOID_RECONCILIATION', 'POSTED', 'correction does not void physical return', ?, ?, ?, ?)`)
+  .run(retailRet, userId, shiftId, day, day)
 const overCapReturnId = Number(badReturnCapDb.db.prepare(`INSERT INTO "SaleReturn"
   (invoiceId, returnedAtJalali, kind, refundMethod, refundAmount)
   VALUES (?, ?, 'RETURN', 'NONE', 0)`).run(retailSale, day).lastInsertRowid)
