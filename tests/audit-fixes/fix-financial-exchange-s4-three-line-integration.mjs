@@ -305,4 +305,93 @@ assert.deepEqual({
     ...sourceVariants, ...replacementVariants)
 }, effectsAfterVoid, 'retry of the original key after a later void must replay, never resurrect the exchange')
 
-console.log('✓ S4 integration: mixed-source carry/matrix, same-key replay and mismatch, child return remains attribution-only, pair void reverses once, post-void retry cannot resurrect')
+// S4 variation: repeat the exact three-line exchange after the first pair is
+// safely voided, but reverse both source-line order and replacement-line order.
+// Persisted per-item allocations must remain tied to value/root, not request order.
+const reversedSourceItems = [...sourceItems].reverse()
+const reversedReplacementVariants = [...replacementVariants].reverse()
+const reversedRequest = {
+  ...exchangeRequest,
+  lines: reversedSourceItems.map(({ id }) => ({ saleItemId: id, qty: 1 })),
+  replacements: reversedReplacementVariants.map((variantId) => {
+    const match = replacementVariants.indexOf(variantId)
+    return item(variantId, sourcePrices[match])
+  }),
+  idempotencyKey: 'exchange-request:integration-s4-reversed-order-0001',
+  note: 'S4 reordered three-line exchange regression'
+}
+const reversedExchangeBefore = {
+  returns: seed.count('SaleReturn', 'invoiceId=?', sourceSale.id),
+  children: seed.count('SaleInvoice', 'sourceInvoiceId=?', sourceSale.id),
+  events: seed.count('ExchangeFundingEvent', '1=1'),
+  payments: seed.count('Payment', '1=1'),
+  credits: seed.count('StoreCredit', '1=1'),
+  cash: seed.count('CashMovement', '1=1')
+}
+const reversedExchange = await salesService.createExchange(reversedRequest, { goodsReceiptRequired: false })
+assert.equal(reversedExchange.returnTotal, 25_000_000)
+assert.equal(reversedExchange.exchangeTotal, 25_000_000)
+assert.equal(reversedExchange.diff, 0)
+const reorderedChildView = await getCurrentExchangeFundingSources(db, reversedExchange.exchangeInvoiceId)
+assert.deepEqual(reorderedChildView.unresolved, [])
+assert.equal(reorderedChildView.lineAllocationStatus, 'PERSISTED_RECONCILED')
+const reorderedItems = seed.rows(`SELECT id, variantId, lineTotal FROM "SaleInvoiceItem"
+  WHERE invoiceId=? ORDER BY id`, reversedExchange.exchangeInvoiceId)
+for (const lineRow of reorderedItems) {
+  const lineValue = Number(lineRow.lineTotal)
+  const giftShare = Number(5_000_000n * BigInt(lineValue) / 25_000_000n)
+  const cashShare = lineValue - giftShare
+  const cells = reorderedChildView.lineAllocations.filter((row) => row.saleItemId === Number(lineRow.id))
+  assert.deepEqual(cells.map(({ sourceKind, amount }) => ({ sourceKind, amount }))
+    .sort((a, b) => a.sourceKind.localeCompare(b.sourceKind)), [
+    { sourceKind: 'SOURCE_CASH', amount: cashShare },
+    { sourceKind: 'SOURCE_GIFT', amount: giftShare }
+  ], 'reordered S4 items retain the canonical per-line gift/cash shares')
+}
+assert.deepEqual(reorderedChildView.sources.map(({ sourceKind, available }) => ({ sourceKind, available })), [
+  { sourceKind: 'SOURCE_CASH', available: 20_000_000 },
+  { sourceKind: 'SOURCE_GIFT', available: 5_000_000 }
+])
+assert.equal(seed.count('StoreCredit', '1=1'), reversedExchangeBefore.credits,
+  'reordered S4 exchange issues no credit barcode')
+assert.equal(seed.count('CashMovement', '1=1'), reversedExchangeBefore.cash,
+  'reordered S4 exchange moves no cash')
+const reorderedReport = await salesService.exchangeGet({ id: reversedExchange.returnId })
+assert.equal(reorderedReport.returnTotal, 25_000_000)
+assert.equal(reorderedReport.exchangeTotal, 25_000_000)
+assert.equal(reorderedReport.diff, 0)
+assert.equal(reorderedReport.cashReceived, 0)
+assert.equal(reorderedReport.cardReceived, 0)
+const reversedExchangeReplay = await salesService.createExchange(reversedRequest, { goodsReceiptRequired: false })
+assert.equal(reversedExchangeReplay.replayed, true)
+assert.equal(reversedExchangeReplay.exchangeInvoiceId, reversedExchange.exchangeInvoiceId)
+assert.deepEqual({
+  returns: seed.count('SaleReturn', 'invoiceId=?', sourceSale.id),
+  children: seed.count('SaleInvoice', 'sourceInvoiceId=?', sourceSale.id),
+  events: seed.count('ExchangeFundingEvent', '1=1'),
+  payments: seed.count('Payment', '1=1'),
+  credits: seed.count('StoreCredit', '1=1'),
+  cash: seed.count('CashMovement', '1=1')
+}, {
+  returns: reversedExchangeBefore.returns + 1,
+  children: reversedExchangeBefore.children + 1,
+  events: reversedExchangeBefore.events + 4,
+  payments: reversedExchangeBefore.payments + 1,
+  credits: reversedExchangeBefore.credits,
+  cash: reversedExchangeBefore.cash
+}, 'reordered same-key retry has one source return, one child, and exactly two transfer pairs')
+const reversedVoid = await salesService.returnDelete({
+  id: reversedExchange.returnId, userId, reason: 'S4 reordered exchange safe void',
+  managerPassword: DEFAULT_MANAGER_PASSWORD, overrideReason: 'S4 reordered exchange safe void'
+})
+assert.equal(reversedVoid.exchangeVoided, true)
+assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', gift.id).status, 'USED')
+const rootFundingAfterReorderedVoid = await getCurrentSaleFundingSources(db, sourceSale.id)
+assert.deepEqual(rootFundingAfterReorderedVoid.unresolved, [])
+assert.deepEqual(rootFundingAfterReorderedVoid.sources.map(({ sourceKind, available }) => ({ sourceKind, available })), [
+  { sourceKind: 'SOURCE_CASH', available: 20_000_000 },
+  { sourceKind: 'SOURCE_GIFT', available: 5_000_000 }
+])
+assert.equal(seed.count('CashMovement', '1=1'), reversedExchangeBefore.cash)
+
+console.log('✓ S4 integration: exact 5M/20M three-line matrix, reordered request stability, same-key replay/mismatch, source/report reconciliation, no credit/cash, safe pair reversal')
