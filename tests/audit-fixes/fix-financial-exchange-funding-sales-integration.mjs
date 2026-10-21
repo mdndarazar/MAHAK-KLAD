@@ -353,7 +353,7 @@ await assert.rejects(() => salesService.createReturn({
   invoiceId: exactExchange.exchangeInvoiceId,
   lines: [{ saleItemId: exactChildItemId, qty: 1 }],
   refundMethod: 'CASH', refundAmount: 1_000, userId, shiftId
-}), /تخصیص منشأ به قلم/,
+}), /فقط carry خود را برمی‌گرداند/,
 'ordinary return must not bypass exchange-line source allocation and issue a cash refund')
 assert.deepEqual({
   returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', exactExchange.exchangeInvoiceId).n,
@@ -376,7 +376,7 @@ await assert.rejects(() => salesService.createReturn({
   refundMethod: 'STORE_CREDIT', refundAmount: 1_000,
   printedHolderFirstName: 'Test', printedHolderLastName: 'Customer', printedHolderPhone: '355690000000',
   userId, shiftId
-}), /تخصیص منشأ به قلم/,
+}), /(?:تخصیص منشأ به قلم|فقط carry خود را برمی‌گرداند)/,
 'exchange-child source attribution cannot be converted into an ordinary store-credit entitlement')
 assert.deepEqual({
   returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', exactExchange.exchangeInvoiceId).n,
@@ -508,6 +508,8 @@ assert.equal(mixedChildPreview.cashRight, 0)
 assert.equal(mixedChildPreview.giftOpportunity, 0,
   'gift provenance is not a new credit entitlement')
 assert.equal(mixedChildPreview.settlementReady, false)
+assert.equal(mixedChildPreview.exchangeCarryRestoration, false,
+  'only the exact accepted S1 carry matrix opens the child-return route')
 assert.deepEqual(mixedChildPreview.remainingAttributionBySource.map(({ sourceKind, attributedAmount,
   alreadyReturnedAttribution, remainingAttribution, ledgerBalance }) => ({ sourceKind, attributedAmount,
   alreadyReturnedAttribution, remainingAttribution, ledgerBalance }))
@@ -520,7 +522,7 @@ assert.deepEqual(mixedChildPreview.remainingAttributionBySource.map(({ sourceKin
 await assert.rejects(() => salesService.createReturn({
   invoiceId: mixedChildInvoiceId, lines: [{ saleItemId: mixedChildItemId, qty: 1 }],
   refundMethod: 'CASH', refundAmount: 500, userId, shiftId
-}), /تخصیص منشأ به قلم/)
+}), /(?:تخصیص منشأ به قلم|فقط carry خود را برمی‌گرداند)/)
 assert.deepEqual({
   returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', mixedChildInvoiceId).n,
   payments: seed.one('SELECT COUNT(*) n FROM "Payment" WHERE invoiceId=?', mixedChildInvoiceId).n,
@@ -542,7 +544,7 @@ await assert.rejects(() => salesService.createReturn({
   refundMethod: 'STORE_CREDIT', refundAmount: 500,
   printedHolderFirstName: 'Mixed', printedHolderLastName: 'Source', printedHolderPhone: '355690000001',
   userId, shiftId
-}), /تخصیص منشأ به قلم/,
+}), /(?:تخصیص منشأ به قلم|فقط carry خود را برمی‌گرداند)/,
 'a mixed gift/cash child return must not mint a generic STORE_CREDIT from accounting attribution')
 assert.deepEqual({
   returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', mixedChildInvoiceId).n,
@@ -586,12 +588,14 @@ try {
   assert.equal(expiredGiftPreview.cashRight, 0)
   assert.equal(expiredGiftPreview.giftOpportunity, 0)
   assert.equal(expiredGiftPreview.settlementReady, false)
+  assert.equal(expiredGiftPreview.exchangeCarryRestoration, false,
+    'non-S1 mixed gift/cash provenance remains attribution-only even after gift expiry')
   await assert.rejects(() => salesService.createReturn({
     invoiceId: mixedChildInvoiceId, lines: [{ saleItemId: mixedChildItemId, qty: 1 }],
     refundMethod: 'STORE_CREDIT', refundAmount: 500,
     printedHolderFirstName: 'Expired', printedHolderLastName: 'Gift', printedHolderPhone: '355690000002',
     userId, shiftId
-  }), /تخصیص منشأ به قلم/,
+  }), /(?:تخصیص منشأ به قلم|فقط carry خود را برمی‌گرداند)/,
   'expired gift attribution must not mint replacement credit from a physical child return')
   assert.deepEqual({
     returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', mixedChildInvoiceId).n,
@@ -629,7 +633,7 @@ const mixedChildReturnItem1 = seed.insert('SaleReturnItem', {
 })
 await assert.rejects(() => salesService.returnProvenancePreview({
   invoiceId: mixedChildInvoiceId, lines: [{ saleItemId: mixedChildItemId, qty: 1 }]
-}), /تخصیص منشأ به قلم/,
+}), /(?:تخصیص منشأ به قلم|فقط carry خود را برمی‌گرداند)/,
 'preview fails closed while an active return lacks its persisted source-attribution snapshot')
 assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingReturnLineAllocation" WHERE childInvoiceId=?',
   mixedChildInvoiceId).n, 0, 'a read-only preview never repairs or writes missing attribution')
@@ -663,6 +667,8 @@ assert.deepEqual(mixedAfterOneActiveReturnPreview.remainingAttributionBySource.m
   { sourceKind: 'SOURCE_GIFT', alreadyReturnedAttribution: 200, remainingAttribution: 200 }
 ])
 assert.equal(mixedAfterOneActiveReturnPreview.settlementReady, false)
+assert.equal(mixedAfterOneActiveReturnPreview.exchangeCarryRestoration, false,
+  'legacy descriptive allocation without a paired carry release is not settlement-ready')
 assert.equal(mixedAfterOneActiveReturnPreview.cashRight, 0)
 const mixedPreviewEffectsBeforeStoreCredit = {
   returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', mixedChildInvoiceId).n,
@@ -673,7 +679,7 @@ const mixedPreviewEffectsBeforeStoreCredit = {
 sql.prepare('UPDATE "SaleReturn" SET refundMethod=? WHERE id=?').run('STORE_CREDIT', mixedChildReturn1)
 await assert.rejects(() => salesService.returnProvenancePreview({
   invoiceId: mixedChildInvoiceId, lines: [{ saleItemId: mixedChildItemId, qty: 1 }]
-}), /تخصیص منشأ به قلم/,
+}), /(?:تخصیص منشأ به قلم|فقط carry خود را برمی‌گرداند)/,
 'an active STORE_CREDIT child return has uncertain entitlement and cannot yield a normal preview')
 assert.deepEqual({
   returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', mixedChildInvoiceId).n,
@@ -765,7 +771,7 @@ assert.equal(returnReportAfterChunkVoids.some((row) =>
 'voided physical chunks and their reversed attribution are absent from the active report')
 await assert.rejects(() => salesService.returnProvenancePreview({
   invoiceId: mixedChildInvoiceId, full: true
-}), /تخصیص منشأ به قلم/,
+}), /(?:تخصیص منشأ به قلم|فقط carry خود را برمی‌گرداند)/,
 'preview stays fail-closed when historical void/reversal rows exist until their full lifecycle is validated')
 assert.equal(seed.one('SELECT status FROM "SaleInvoice" WHERE id=?', mixedChildInvoiceId).status, 'SETTLED')
 const childInvoiceTotal = seed.one('SELECT grandTotal FROM "SaleInvoice" WHERE id=?', exactExchange.exchangeInvoiceId).grandTotal

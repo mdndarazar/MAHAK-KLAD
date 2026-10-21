@@ -26,6 +26,7 @@ type FundingEventInput = {
   sourceInvoiceId?: number | null
   childInvoiceId?: number | null
   returnId?: number | null
+  relatedReturnId?: number | null
   sourcePaymentId?: number | null
   sourceRedemptionId?: number | null
   sourceCreditId?: number | null
@@ -61,7 +62,8 @@ const normalized = (row: any) => ({
   eventKey: String(row.eventKey), kind: String(row.kind), amount: toNumberRial(row.amount),
   shareId: String(row.shareId), rootShareId: String(row.rootShareId),
   sourceInvoiceId: nullableNumber(row.sourceInvoiceId), childInvoiceId: nullableNumber(row.childInvoiceId),
-  returnId: nullableNumber(row.returnId), sourcePaymentId: nullableNumber(row.sourcePaymentId),
+  returnId: nullableNumber(row.returnId), relatedReturnId: nullableNumber(row.relatedReturnId),
+  sourcePaymentId: nullableNumber(row.sourcePaymentId),
   sourceRedemptionId: nullableNumber(row.sourceRedemptionId), sourceCreditId: nullableNumber(row.sourceCreditId),
   parentEventId: nullableNumber(row.parentEventId), debtId: nullableNumber(row.debtId),
   sourceMethodKind: row.sourceMethodKind == null ? null : String(row.sourceMethodKind),
@@ -78,12 +80,12 @@ function prepare(input: FundingEventInput) {
       typeof input.shareId !== 'string' || !input.shareId.trim() || input.shareId.length > 200 ||
       typeof input.rootShareId !== 'string' || !input.rootShareId.trim() || input.rootShareId.length > 200)
     throw invalid()
-  const ids = [input.sourceInvoiceId, input.childInvoiceId, input.returnId, input.sourcePaymentId,
+  const ids = [input.sourceInvoiceId, input.childInvoiceId, input.returnId, input.relatedReturnId, input.sourcePaymentId,
     input.sourceRedemptionId, input.sourceCreditId, input.parentEventId, input.debtId,
     input.actorUserId, input.reversesEventId]
   if (!ids.every((value) => value == null || (Number.isSafeInteger(value) && value > 0))) throw invalid()
   if (isSnapshotState && (input.sourceInvoiceId == null || input.childInvoiceId != null || input.returnId != null ||
-      input.sourcePaymentId != null || input.sourceRedemptionId != null || input.sourceCreditId != null ||
+      input.relatedReturnId != null || input.sourcePaymentId != null || input.sourceRedemptionId != null || input.sourceCreditId != null ||
       input.parentEventId != null || input.debtId != null || input.reversesEventId != null ||
       input.shareId !== `snapshot:${input.sourceInvoiceId}` || input.rootShareId !== `snapshot:${input.sourceInvoiceId}`))
     throw invalid()
@@ -93,7 +95,8 @@ function prepare(input: FundingEventInput) {
     eventKey: input.eventKey.trim(), kind: input.kind, amount: BigInt(input.amount),
     shareId: input.shareId.trim(), rootShareId: input.rootShareId.trim(),
     sourceInvoiceId: input.sourceInvoiceId ?? null, childInvoiceId: input.childInvoiceId ?? null,
-    returnId: input.returnId ?? null, sourcePaymentId: input.sourcePaymentId ?? null,
+    returnId: input.returnId ?? null, relatedReturnId: input.relatedReturnId ?? null,
+    sourcePaymentId: input.sourcePaymentId ?? null,
     sourceRedemptionId: input.sourceRedemptionId ?? null, sourceCreditId: input.sourceCreditId ?? null,
     parentEventId: input.parentEventId ?? null, debtId: input.debtId ?? null,
     sourceMethodKind: input.sourceMethodKind ?? null, sourceDestination: input.sourceDestination ?? null,
@@ -107,7 +110,8 @@ function sameEvent(row: any, data: ReturnType<typeof prepare>) {
   return actual.eventKey === data.eventKey && actual.kind === data.kind && actual.amount === Number(data.amount) &&
     actual.shareId === data.shareId && actual.rootShareId === data.rootShareId &&
     actual.sourceInvoiceId === data.sourceInvoiceId && actual.childInvoiceId === data.childInvoiceId &&
-    actual.returnId === data.returnId && actual.sourcePaymentId === data.sourcePaymentId &&
+    actual.returnId === data.returnId && actual.relatedReturnId === data.relatedReturnId &&
+    actual.sourcePaymentId === data.sourcePaymentId &&
     actual.sourceRedemptionId === data.sourceRedemptionId && actual.sourceCreditId === data.sourceCreditId &&
     actual.parentEventId === data.parentEventId && actual.debtId === data.debtId &&
     actual.sourceMethodKind === data.sourceMethodKind && actual.sourceDestination === data.sourceDestination &&
@@ -296,7 +300,8 @@ async function hasPersistedSourcePayment(
     if (!credit || credit.voidedAt != null || credit.deletedAt != null || !statusProven ||
         toNumberRial(credit.usedAmount) < paymentAmount || toNumberRial(credit.amount) < toNumberRial(credit.usedAmount) ||
         capturedExpiry !== currentExpiry ||
-        (capturedExpiry != null && (!Number.isFinite(capturedExpiry) || !Number.isFinite(redeemedAt) || redeemedAt >= capturedExpiry)) ||
+        (capturedExpiry != null && (!Number.isFinite(capturedExpiry) || redeemedAt == null ||
+          !Number.isFinite(redeemedAt) || redeemedAt >= capturedExpiry)) ||
         (expiredNow && !allowExpiredGiftForReturnAttribution))
       return false
     return true
@@ -1634,6 +1639,145 @@ export async function transferExchangeFundingShare(tx: LedgerClient, input: Tran
     shareId: input.destinationShareId, rootShareId: input.rootShareId
   })
   return { outEvent: out.event, inEvent: into.event, replayed: out.replayed && into.replayed }
+}
+
+/** Release one validated portion of replacement carry back to its exact
+ * parent share when a replacement item is returned. The event pair is separate
+ * from the original transfer pair and never means cash was received.
+ */
+export async function returnExchangeFundingShareForChildReturn(tx: LedgerClient, input: {
+  returnId: number; returnItemId: number; sourceEventId: number; amount: number; actorUserId?: number | null
+}) {
+  if (!input || ![input.returnId, input.returnItemId, input.sourceEventId].every((value) =>
+      Number.isSafeInteger(value) && value > 0) || !Number.isSafeInteger(input.amount) || input.amount <= 0)
+    throw invalid()
+  const [ret, returnItem] = await Promise.all([
+    tx.saleReturn.findUnique({ where: { id: input.returnId } }),
+    tx.saleReturnItem.findUnique({ where: { id: input.returnItemId } })
+  ])
+  if (!ret || !returnItem || ret.kind !== 'RETURN' || ret.voidedAt != null ||
+      Number(returnItem.returnId) !== Number(ret.id) || Number(ret.invoiceId) <= 0)
+    throw invalid()
+  const childInvoiceId = Number(ret.invoiceId)
+  const child = await tx.saleInvoice.findUnique({ where: { id: childInvoiceId }, select: {
+    id: true, orderType: true, sourceInvoiceId: true, exchangeReturnId: true
+  } })
+  if (!child || child.orderType !== 'EXCHANGE' || !Number.isSafeInteger(Number(child.sourceInvoiceId)) ||
+      !Number.isSafeInteger(Number(child.exchangeReturnId))) throw invalid()
+  const [allocationRows, funding] = await Promise.all([
+    tx.exchangeFundingReturnLineAllocation.findMany({ where: {
+      returnItemId: input.returnItemId, sourceEventId: input.sourceEventId, eventKind: 'ALLOCATION'
+    } }),
+    getCurrentExchangeFundingSources(tx, childInvoiceId, {
+      allowReturnBalanceChanges: true, allowExpiredGiftForReturnAttribution: true
+    })
+  ])
+  const allocation = (allocationRows as any[]).length === 1 ? allocationRows[0] : null
+  const source = funding.sources.find((row: any) => Number(row.event.id) === input.sourceEventId)
+  const returnLineAmount = toNumberRial(allocation?.amountDelta)
+  if (!allocation || !source || returnLineAmount !== input.amount ||
+      Number(allocation.returnId) !== input.returnId || Number(allocation.childInvoiceId) !== childInvoiceId ||
+      Number(allocation.saleItemId) !== Number(returnItem.saleItemId) ||
+      String(allocation.sourceKind) !== source.sourceKind ||
+      Number(source.event.kind === 'TRANSFER_IN' ? source.event.childInvoiceId : 0) !== childInvoiceId)
+    throw invalid()
+  const into = source.event
+  const out = await matchingTransferOutForIn(tx, into)
+  if (!out || await transferPairReversalState(tx, out, into) !== 'ACTIVE') throw invalid()
+  const childBalance = await exchangeFundingBalance(tx, String(into.shareId))
+  if (!Number.isSafeInteger(childBalance) || childBalance < input.amount) throw insufficient()
+
+  const baseKey = `child-return:${input.returnId}:item:${input.returnItemId}:source:${input.sourceEventId}`
+  const common = {
+    sourceInvoiceId: Number(ret.invoiceId) === childInvoiceId ? Number(child.sourceInvoiceId) : null,
+    childInvoiceId, returnId: Number(child.exchangeReturnId), relatedReturnId: input.returnId,
+    parentEventId: Number(into.id), rootShareId: String(into.rootShareId),
+    evidenceKind: 'EXCHANGE_CHILD_RETURN',
+    evidenceRef: `SaleReturn:${input.returnId}:SaleReturnItem:${input.returnItemId}:Source:${input.sourceEventId}`,
+    actorUserId: input.actorUserId ?? null
+  }
+  const returnedOut = await appendExchangeFundingEvent(tx, {
+    ...common, eventKey: `${baseKey}:out`, kind: 'RETURN_TRANSFER_OUT', amount: -input.amount,
+    shareId: String(into.shareId)
+  })
+  const returnedIn = await appendExchangeFundingEvent(tx, {
+    ...common, eventKey: `${baseKey}:in`, kind: 'RETURN_TRANSFER_IN', amount: input.amount,
+    shareId: String(out.shareId)
+  })
+  return { outEvent: returnedOut.event, inEvent: returnedIn.event,
+    replayed: returnedOut.replayed && returnedIn.replayed }
+}
+
+async function matchingReturnTransferOutForIn(tx: LedgerClient, into: any) {
+  if (!into || into.kind !== 'RETURN_TRANSFER_IN') return null
+  const out = await tx.exchangeFundingEvent.findUnique({ where: { eventKey: `${String(into.eventKey).slice(0, -3)}:out` } })
+  if (!out || out.kind !== 'RETURN_TRANSFER_OUT' || toNumberRial(out.amount) >= 0 ||
+      toNumberRial(into.amount) !== -toNumberRial(out.amount) || out.shareId === into.shareId ||
+      out.rootShareId !== into.rootShareId || out.sourceInvoiceId !== into.sourceInvoiceId ||
+      out.childInvoiceId !== into.childInvoiceId || out.returnId !== into.returnId ||
+      out.relatedReturnId !== into.relatedReturnId || out.parentEventId !== into.parentEventId ||
+      out.evidenceKind !== 'EXCHANGE_CHILD_RETURN' || into.evidenceKind !== 'EXCHANGE_CHILD_RETURN' ||
+      out.evidenceRef !== into.evidenceRef || out.reversesEventId != null || into.reversesEventId != null)
+    return null
+  return out
+}
+
+/** Reverse the carry-release pairs for a voided child return. A later spend or
+ * reservation of returned carry prevents this reversal from reopening stale state.
+ */
+export async function reverseExchangeFundingReturnTransfersForChildReturn(tx: LedgerClient, input: {
+  returnId: number; actorUserId?: number | null
+}) {
+  if (!Number.isSafeInteger(input?.returnId) || input.returnId <= 0) throw invalid()
+  const ret = await tx.saleReturn.findUnique({ where: { id: input.returnId }, select: {
+    id: true, invoiceId: true, kind: true, voidedAt: true
+  } })
+  if (!ret || ret.kind !== 'RETURN' || ret.voidedAt != null) throw invalid()
+  const events = await tx.exchangeFundingEvent.findMany({ where: {
+    relatedReturnId: input.returnId, kind: { in: ['RETURN_TRANSFER_OUT', 'RETURN_TRANSFER_IN'] }
+  }, orderBy: { id: 'asc' } }) as any[]
+  const outs = events.filter((event) => event.kind === 'RETURN_TRANSFER_OUT')
+  const ins = events.filter((event) => event.kind === 'RETURN_TRANSFER_IN')
+  if (outs.length !== ins.length) throw mismatch()
+  let reversed = 0
+  for (const into of ins) {
+    const out = await matchingReturnTransferOutForIn(tx, into)
+    if (!out || !outs.some((candidate) => Number(candidate.id) === Number(out.id)) ||
+        Number(into.relatedReturnId) !== input.returnId) throw mismatch()
+    const [outReversal, inReversal] = await Promise.all([
+      tx.exchangeFundingEvent.findUnique({ where: { reversesEventId: Number(out.id) } }),
+      tx.exchangeFundingEvent.findUnique({ where: { reversesEventId: Number(into.id) } })
+    ])
+    if (!!outReversal !== !!inReversal) throw mismatch()
+    if (outReversal) {
+      if (outReversal.kind !== 'VOID_RETURN_TRANSFER_OUT' || inReversal.kind !== 'VOID_RETURN_TRANSFER_IN') throw mismatch()
+      continue
+    }
+    const amount = toNumberRial(into.amount)
+    // The returned child share has already been debited by this exact release;
+    // it can legitimately be zero (for a full item return). Only the parent
+    // balance proves the released carry is still present and reversible.
+    const parentShareBalance = await exchangeFundingBalance(tx, String(into.shareId))
+    if (parentShareBalance < amount)
+      throw new BusinessError('carry برگشتی پس از برگشت مصرف یا دوباره منتقل شده است؛ ابطال برگشت بدون مغایرت ممکن نیست.')
+    const common = {
+      sourceInvoiceId: out.sourceInvoiceId, childInvoiceId: out.childInvoiceId,
+      returnId: out.returnId, relatedReturnId: input.returnId,
+      parentEventId: out.parentEventId, rootShareId: out.rootShareId,
+      evidenceKind: 'SALE_RETURN_VOID', evidenceRef: `SaleReturn:${input.returnId}:ReturnTransfer:${Number(out.id)}`,
+      actorUserId: input.actorUserId ?? null
+    }
+    await appendExchangeFundingEvent(tx, {
+      ...common, eventKey: `void:${input.returnId}:return-transfer:${Number(out.id)}:out`,
+      kind: 'VOID_RETURN_TRANSFER_OUT', amount, shareId: String(out.shareId), reversesEventId: Number(out.id)
+    })
+    await appendExchangeFundingEvent(tx, {
+      ...common, eventKey: `void:${input.returnId}:return-transfer:${Number(into.id)}:in`,
+      kind: 'VOID_RETURN_TRANSFER_IN', amount: -amount, shareId: String(into.shareId), reversesEventId: Number(into.id)
+    })
+    reversed++
+  }
+  return { returnId: input.returnId, reversed, pairs: ins.length }
 }
 
 /** Reverse both sides of a prior transfer atomically; a replay cannot reverse

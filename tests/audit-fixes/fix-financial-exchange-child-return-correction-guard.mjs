@@ -102,13 +102,13 @@ const misclassifiedBefore = {
 sql.prepare('UPDATE "SaleInvoice" SET orderType=? WHERE id=?').run('INTERNAL', child.id)
 await assert.rejects(() => salesService.returnProvenancePreview({
   invoiceId: child.id, lines: [{ saleItemId: Number(childItem.id), qty: 1 }]
-}), /تخصیص منشأ به قلم/,
+}), /(?:تخصیص منشأ به قلم|فقط carry خود را برمی‌گرداند)/,
 'provenance preview must not expose ordinary-sale refund rights for an exchange child with a corrupted orderType')
 await assert.rejects(() => salesService.createReturn({
   invoiceId: child.id, full: false,
   lines: [{ saleItemId: Number(childItem.id), qty: 1 }],
   refundMethod: 'CASH', refundAmount: 1000, userId, shiftId
-}), /تخصیص منشأ به قلم/,
+}), /(?:تخصیص منشأ به قلم|فقط carry خود را برمی‌گرداند)/,
 'non-null exchange lineage markers keep the ordinary-return gate closed even if orderType is corrupted')
 assert.deepEqual({
   returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', child.id).n,
@@ -121,23 +121,23 @@ assert.deepEqual({
 sql.prepare('UPDATE "SaleInvoice" SET exchangeReturnId=NULL WHERE id=?').run(child.id)
 await assert.rejects(() => salesService.returnProvenancePreview({
   invoiceId: child.id, lines: [{ saleItemId: Number(childItem.id), qty: 1 }]
-}), /تخصیص منشأ به قلم/,
+}), /(?:تخصیص منشأ به قلم|فقط carry خود را برمی‌گرداند)/,
 'sourceInvoiceId alone must identify a misclassified exchange child')
 await assert.rejects(() => salesService.createReturn({
   invoiceId: child.id, lines: [{ saleItemId: Number(childItem.id), qty: 1 }],
   refundMethod: 'CASH', refundAmount: 1000, userId, shiftId
-}), /تخصیص منشأ به قلم/,
+}), /(?:تخصیص منشأ به قلم|فقط carry خود را برمی‌گرداند)/,
 'sourceInvoiceId alone must block the ordinary refund mutation too')
 sql.prepare('UPDATE "SaleInvoice" SET sourceInvoiceId=NULL, exchangeReturnId=? WHERE id=?')
   .run(exchange.returnId, child.id)
 await assert.rejects(() => salesService.returnProvenancePreview({
   invoiceId: child.id, lines: [{ saleItemId: Number(childItem.id), qty: 1 }]
-}), /تخصیص منشأ به قلم/,
+}), /(?:تخصیص منشأ به قلم|فقط carry خود را برمی‌گرداند)/,
 'exchangeReturnId alone must identify a misclassified exchange child')
 await assert.rejects(() => salesService.createReturn({
   invoiceId: child.id, lines: [{ saleItemId: Number(childItem.id), qty: 1 }],
   refundMethod: 'CASH', refundAmount: 1000, userId, shiftId
-}), /تخصیص منشأ به قلم/,
+}), /(?:تخصیص منشأ به قلم|فقط carry خود را برمی‌گرداند)/,
 'exchangeReturnId alone must block the ordinary refund mutation too')
 assert.deepEqual({
   returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', child.id).n,

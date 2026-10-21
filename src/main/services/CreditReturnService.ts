@@ -16,6 +16,9 @@ const stale = () => new BusinessError('سهم اعتبار این فاکتور �
 const childReturnBlocked = () => new BusinessError(
   'برگشت فرزند تعویض هنوز مسیر تسویهٔ مستقل ندارد؛ EXCHANGE_CREDIT وجه دریافتی نیست و حق بازپرداخت محاسبه نشد.'
 )
+const residualRightReturnBlocked = () => new BusinessError(
+  'این فروش با حق ریشه‌دار B/N تسویه شده است؛ بازگشت همان حق باید با تخصیص تجمعی B→N ثبت شود. بازپرداخت نقدی یا صدور اعتبار عمومی مجاز نیست و هیچ اثری ثبت نشد.'
+)
 
 async function assertOrdinaryReturnInvoice(tx: Client, invoiceId: number) {
   const invoice = await tx.saleInvoice.findUnique({ where: { id: invoiceId }, select: {
@@ -64,6 +67,15 @@ export async function planCreditReturn(
   })
   const byPayment = new Map(rows.map((p) => [p.id, p]))
   const nonCashPayments = rows.filter((p) => p.storeCreditId != null || p.method?.kind === 'STORE_CREDIT')
+  const residualCreditIds = [...new Set(rows.flatMap((payment) => payment.storeCreditId == null
+    ? [] : [Number(payment.storeCreditId)]))]
+  if (residualCreditIds.length) {
+    const linkedCredits = await tx.storeCredit.findMany({
+      where: { id: { in: residualCreditIds } }, select: { id: true, exchangeResidualRightKey: true }
+    })
+    if (linkedCredits.some((credit) => credit.exchangeResidualRightKey != null))
+      throw residualRightReturnBlocked()
+  }
   const redemptions = await tx.storeCreditRedemption.findMany({
     where: { invoiceId: input.invoiceId, reversedAt: null }, orderBy: { id: 'asc' },
     select: { id: true, creditId: true, amount: true, paymentId: true, compensatedAt: true }
@@ -171,6 +183,7 @@ export async function applyCreditReturn(
     if (!s.amount) continue
     const parent = await tx.storeCredit.findUnique({ where: { id: s.parentCreditId } })
     const redemption = await tx.storeCreditRedemption.findUnique({ where: { id: s.redemptionId } })
+    if (parent?.exchangeResidualRightKey != null) throw residualRightReturnBlocked()
     if (!parent || !redemption || redemption.invoiceId !== input.invoiceId ||
         redemption.creditId !== parent.id || redemption.reversedAt || redemption.compensatedAt) throw stale()
     // An old redemption without an expiry snapshot is a legacy UNKNOWN,

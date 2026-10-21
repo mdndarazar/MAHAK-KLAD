@@ -234,7 +234,7 @@ await assert.rejects(() => salesService.createReturn({
   invoiceId: exchange.exchangeInvoiceId,
   lines: [{ saleItemId: thirdChildItemId, qty: 1 }],
   refundMethod: 'CASH', refundAmount: 5_000_000, userId, shiftId
-}), /تخصیص منشأ به قلم/)
+}), /(?:تخصیص منشأ به قلم|فقط carry خود را برمی‌گرداند)/)
 assert.deepEqual({
   returns: seed.count('SaleReturn', 'invoiceId=?', exchange.exchangeInvoiceId),
   cashMovements: seed.count('CashMovement', '1=1'),

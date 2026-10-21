@@ -2786,6 +2786,8 @@ model ExchangeFundingEvent {
   sourceInvoiceId       Int?
   childInvoiceId        Int?
   returnId              Int?
+  /// Direct link to an ordinary return of the child exchange invoice (S1 carry release).
+  relatedReturnId       Int?
   sourcePaymentId       Int?
   sourceRedemptionId    Int?
   sourceCreditId        Int?
@@ -2803,6 +2805,7 @@ model ExchangeFundingEvent {
   @@index([sourceInvoiceId, id])
   @@index([childInvoiceId, id])
   @@index([returnId, id])
+  @@index([relatedReturnId, id])
   @@index([parentEventId])
 }
 
@@ -2931,10 +2934,11 @@ model ExchangeResidualRightEvent {
   sourceEventId    Int
   rootShareId      String
   expiresAt        DateTime?
-  operationKey     String?
+  operationKey    String?
   relatedInvoiceId Int?
   relatedPaymentId Int?
-  actorUserId      Int?
+  relatedReturnId Int?
+  actorUserId     Int?
   evidenceKind     String   @default("SYSTEM")
   evidenceRef      String?
   reversesEventId  Int?     @unique

@@ -34,6 +34,29 @@ assert.deepEqual(channelReturn.shares.map(({ sourceKind }) => sourceKind), ['SOU
   'partial source attribution retains card and cleared-cheque channels rather than relabelling them CASH')
 assert.equal(channelReturn.shares.reduce((sum, share) => sum + share.amount, 0), 50)
 
+const s1CarrySources = [
+  { sourceEventId: 1, sourceKind: 'SOURCE_GIFT', amount: 1_877_346 },
+  { sourceEventId: 2, sourceKind: 'SOURCE_CASH', amount: 13_122_654 }
+]
+const fourteenMillionFirst = allocateExchangeFundingLineReturn({
+  saleItemId: 404, saleItemQty: 15_000, saleItemValue: 15_000_000,
+  previouslyReturnedQty: 0, returningQty: 14_000, sources: s1CarrySources
+})
+assert.deepEqual(fourteenMillionFirst.shares.map(({ sourceKind, amount }) => ({ sourceKind, amount })), [
+  { sourceKind: 'SOURCE_GIFT', amount: 1_752_189 },
+  { sourceKind: 'SOURCE_CASH', amount: 12_247_811 }
+], 'the 14M-first cumulative split preserves the exact documented floor allocation')
+const finalMillion = allocateExchangeFundingLineReturn({
+  saleItemId: 404, saleItemQty: 15_000, saleItemValue: 15_000_000,
+  previouslyReturnedQty: 14_000, returningQty: 1_000, sources: s1CarrySources,
+  priorAllocations: fourteenMillionFirst.shares.map(({ sourceEventId, cumulative }) =>
+    ({ sourceEventId, amount: cumulative }))
+})
+assert.deepEqual(finalMillion.shares.map(({ sourceKind, amount }) => ({ sourceKind, amount })), [
+  { sourceKind: 'SOURCE_GIFT', amount: 125_157 },
+  { sourceKind: 'SOURCE_CASH', amount: 874_843 }
+], 'the last 1M event receives the cumulative rounding delta and both chunks restore exact totals')
+
 let returnedQty = 0
 let priorAllocations
 const chunkTotals = new Map()

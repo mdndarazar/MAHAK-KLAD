@@ -6,6 +6,7 @@ import { toNumberRial } from '@shared/money'
 import { CreditSource } from '@shared/credit'
 import { allocateExchangeFundingProportionalFloor } from '@shared/exchangeFundingAllocation'
 import { getCurrentExchangeFundingSources, getCurrentSaleFundingSources } from './ExchangeFundingLedgerService'
+import { allocateS1ResidualRightReturn } from '@shared/exchangeResidualRightReturn'
 import { issueStoreCredit } from './StoreCreditService'
 
 type Client = Prisma.TransactionClient | typeof prisma
@@ -192,6 +193,151 @@ export async function openS1ExchangeResidualRights(tx: Client, input: {
     rights, replayed: rights.length > 0 && rights.every((r) => r.replayed) }
 }
 
+export async function planS1ResidualRightSaleReturn(tx: Client, input: {
+  invoiceId: number; returnValue: number
+}) {
+  const invoiceId = id(input.invoiceId, 'شناسه فروش')
+  const returnValue = int(input.returnValue, 'مبلغ برگشت')
+  const invoice = await tx.saleInvoice.findUnique({ where: { id: invoiceId }, select: {
+    id: true, grandTotal: true, status: true, voidedAt: true, orderType: true,
+    sourceInvoiceId: true, exchangeReturnId: true
+  } })
+  if (!invoice || invoice.voidedAt != null || invoice.orderType === 'EXCHANGE' ||
+      invoice.sourceInvoiceId != null || invoice.exchangeReturnId != null) throw invalid()
+  const payments = await tx.payment.findMany({ where: { invoiceId, voidedAt: null }, include: { method: true } })
+  const credits = await tx.storeCredit.findMany({ where: { id: { in: payments.flatMap((payment: any) =>
+    payment.storeCreditId == null ? [] : [Number(payment.storeCreditId)]) } } })
+  const creditById = new Map((credits as any[]).map((credit) => [Number(credit.id), credit]))
+  const linked = payments.filter((payment: any) => payment.storeCreditId != null &&
+    creditById.get(Number(payment.storeCreditId))?.exchangeResidualRightKey != null)
+  if (!linked.length) return null
+
+  const blocked = () => new BusinessError('برگشت این فروشِ S1 تا تطبیق کامل سهم B/N، سابقهٔ برگشت و دفتر همان حق متوقف است؛ وجه نقد یا اعتبار عمومی ساخته نشد.')
+  if (linked.length !== payments.length || payments.some((payment: any) =>
+      String(payment.method?.kind ?? '').toUpperCase() !== 'STORE_CREDIT' ||
+      payment.storeCreditId == null || creditById.get(Number(payment.storeCreditId))?.exchangeResidualRightKey == null))
+    throw blocked()
+  const redemptions = await tx.storeCreditRedemption.findMany({
+    where: { invoiceId, reversedAt: null }, orderBy: { id: 'asc' }
+  })
+  if (redemptions.length !== payments.length || !Number.isSafeInteger(toNumberRial(invoice.grandTotal)) ||
+      toNumberRial(invoice.grandTotal) !== payments.reduce((sum: number, payment: any) =>
+        sum + toNumberRial(payment.amount), 0) || returnValue > toNumberRial(invoice.grandTotal)) throw blocked()
+
+  const rights: any[] = []
+  const seenKinds = new Set<string>()
+  for (const payment of payments as any[]) {
+    const credit = creditById.get(Number(payment.storeCreditId))
+    const redemption = (redemptions as any[]).find((row) => Number(row.paymentId) === Number(payment.id))
+    const rightKey = String(credit?.exchangeResidualRightKey ?? '')
+    const state = rightKey ? await readState(tx, rightKey) : null
+    const committed = state?.opening ? (await tx.exchangeResidualRightEvent.findMany({ where: {
+      rightKey, eventKind: 'COMMITTED', relatedInvoiceId: invoiceId, relatedPaymentId: Number(payment.id)
+    } })).reduce((sum: number, row: any) => sum + toNumberRial(row.amount), 0) : 0
+    const delivery = credit ? await tx.creditDelivery.findUnique({ where: { creditId: Number(credit.id) } }) : null
+    if (!credit || !redemption || !state || state.voided ||
+        !['B', 'N'].includes(String(state.opening.rightKind)) || seenKinds.has(String(state.opening.rightKind)) ||
+        credit.source !== CreditSource.EXCHANGE || credit.returnId !== state.opening.returnId ||
+        Number(payment.storeCreditId) !== Number(credit.id) ||
+        String(payment.method?.kind ?? '').toUpperCase() !== 'STORE_CREDIT' ||
+        Number(redemption.creditId) !== Number(credit.id) || Number(redemption.invoiceId) !== invoiceId ||
+        toNumberRial(redemption.amount) !== toNumberRial(payment.amount) ||
+        toNumberRial(credit.amount) !== toNumberRial(state.opening.amount) || committed !== toNumberRial(payment.amount) ||
+        !delivery || delivery.status !== 'DELIVERED' || credit.deletedAt != null || credit.voidedAt != null)
+      throw blocked()
+    seenKinds.add(String(state.opening.rightKind))
+    rights.push({ rightKey, creditId: Number(credit.id), paymentId: Number(payment.id),
+      redemptionId: Number(redemption.id), rightKind: String(state.opening.rightKind),
+      amount: toNumberRial(payment.amount), expiresAt: state.opening.expiresAt ?? null })
+  }
+  if (!seenKinds.has('N') || rights.length < 1 || rights.length > 2) throw blocked()
+  const bRight = rights.find((right) => right.rightKind === 'B') ?? null
+  const nRight = rights.find((right) => right.rightKind === 'N')
+  const bAmount = bRight?.amount ?? 0
+  const nAmount = nRight.amount
+  const total = bAmount + nAmount
+  if (total !== toNumberRial(invoice.grandTotal)) throw blocked()
+
+  const history = await tx.saleReturn.findMany({ where: { invoiceId, voidedAt: null }, orderBy: { id: 'asc' } })
+  let previouslyReturned = 0
+  let priorB = 0
+  let priorN = 0
+  const expectedRestorations: any[] = []
+  for (const priorReturn of history as any[]) {
+    if (priorReturn.kind !== 'RETURN' || String(priorReturn.refundMethod ?? '').toUpperCase() !== 'NONE' ||
+        toNumberRial(priorReturn.refundAmount ?? 0) !== 0 || priorReturn.refundPaymentId != null ||
+        priorReturn.storeCreditId != null || priorReturn.exchangeInvoiceId != null ||
+        toNumberRial(priorReturn.debtReduction ?? 0) !== 0)
+      throw blocked()
+    let allocation
+    try {
+      allocation = allocateS1ResidualRightReturn({ bAmount, nAmount, previouslyReturned,
+        returningAmount: toNumberRial(priorReturn.total),
+        ...(previouslyReturned > 0 ? { priorAllocations: { b: priorB, n: priorN } } : {}) })
+    } catch { throw blocked() }
+    for (const [right, share] of [[bRight, allocation.b.amount], [nRight, allocation.n.amount]] as const) {
+      if (!right || share === 0) continue
+      expectedRestorations.push({ returnId: Number(priorReturn.id), rightKey: right.rightKey,
+        paymentId: right.paymentId, amount: share })
+    }
+    previouslyReturned = allocation.returnedAfter
+    priorB = allocation.b.cumulative
+    priorN = allocation.n.cumulative
+  }
+  const allReturns = await tx.saleReturn.findMany({ where: { invoiceId }, select: { id: true, voidedAt: true } }) as any[]
+  const returnById = new Map<number, any>(allReturns.map((row) => [Number(row.id), row]))
+  const rightKeys = rights.map((right) => right.rightKey)
+  const [restorationEvents, reversalEvents] = await Promise.all([
+    tx.exchangeResidualRightEvent.findMany({ where: {
+      rightKey: { in: rightKeys }, eventKind: 'RESTORED'
+    }, orderBy: { id: 'asc' } }),
+    tx.exchangeResidualRightEvent.findMany({ where: {
+      rightKey: { in: rightKeys }, eventKind: 'RESTORATION_REVERSED'
+    }, orderBy: { id: 'asc' } })
+  ])
+  const restoreById = new Map<number, any>((restorationEvents as any[]).map((row) => [Number(row.id), row]))
+  const reversedRestoreIds = new Set<number>()
+  for (const reversal of reversalEvents as any[]) {
+    const sourceId = Number(reversal.reversesEventId)
+    const source = restoreById.get(sourceId)
+    if (!source || reversedRestoreIds.has(sourceId) ||
+        String(reversal.rightKey) !== String(source.rightKey) ||
+        Number(reversal.relatedReturnId) !== Number(source.relatedReturnId) ||
+        Number(reversal.relatedInvoiceId) !== invoiceId || Number(source.relatedInvoiceId) !== invoiceId ||
+        Number(reversal.relatedPaymentId) !== Number(source.relatedPaymentId) ||
+        toNumberRial(reversal.amount) !== toNumberRial(source.amount) ||
+        !returnById.has(Number(source.relatedReturnId)))
+      throw blocked()
+    reversedRestoreIds.add(sourceId)
+  }
+  const activeRestorations: any[] = []
+  for (const restoration of restorationEvents as any[]) {
+    const returnId = Number(restoration.relatedReturnId)
+    const returnRecord = returnById.get(returnId)
+    const isReversed = reversedRestoreIds.has(Number(restoration.id))
+    if (!returnRecord || Number(restoration.relatedInvoiceId) !== invoiceId ||
+        !rights.some((right) => right.rightKey === restoration.rightKey &&
+          right.paymentId === Number(restoration.relatedPaymentId)) ||
+        !Number.isSafeInteger(toNumberRial(restoration.amount)) || toNumberRial(restoration.amount) <= 0 ||
+        (returnRecord.voidedAt != null) !== isReversed)
+      throw blocked()
+    if (!isReversed) activeRestorations.push(restoration)
+  }
+  if (activeRestorations.length !== expectedRestorations.length || expectedRestorations.some((expected) =>
+      !activeRestorations.some((actual: any) => Number(actual.relatedReturnId) === expected.returnId &&
+        actual.rightKey === expected.rightKey && Number(actual.relatedInvoiceId) === invoiceId &&
+        Number(actual.relatedPaymentId) === expected.paymentId && toNumberRial(actual.amount) === expected.amount)))
+    throw blocked()
+  let current
+  try {
+    current = allocateS1ResidualRightReturn({ bAmount, nAmount, previouslyReturned,
+      returningAmount: returnValue,
+      ...(previouslyReturned > 0 ? { priorAllocations: { b: priorB, n: priorN } } : {}) })
+  } catch { throw blocked() }
+  return { invoiceId, total, previouslyReturned, bAmount, nAmount, bRight, nRight,
+    b: current.b, n: current.n, returnValue, cumulativeReturned: current.returnedAfter }
+}
+
 export async function getExchangeResidualRightBalance(tx: Client, rightKey: string, at = new Date()) {
   if (typeof rightKey !== 'string' || rightKey.length < 8 || rightKey.length > 200 ||
       !(at instanceof Date) || !Number.isFinite(at.getTime())) throw invalid()
@@ -222,7 +368,9 @@ async function appendBalance(tx: Client, opening: any, input: any) {
         toNumberRial(prior.amount) !== input.amount || toNumberRial(prior.availableDelta) !== input.availableDelta ||
         toNumberRial(prior.reservedDelta) !== input.reservedDelta || toNumberRial(prior.spentDelta) !== input.spentDelta ||
         Number(prior.relatedInvoiceId) !== input.relatedInvoiceId ||
-        Number(prior.relatedPaymentId ?? 0) !== Number(input.relatedPaymentId ?? 0)) throw stale()
+        Number(prior.relatedPaymentId ?? 0) !== Number(input.relatedPaymentId ?? 0) ||
+        Number(prior.relatedReturnId ?? 0) !== Number(input.relatedReturnId ?? 0) ||
+        Number(prior.reversesEventId ?? 0) !== Number(input.reversesEventId ?? 0)) throw stale()
     return { event: prior, replayed: true }
   }
   return { event: await tx.exchangeResidualRightEvent.create({ data: {
@@ -233,8 +381,10 @@ async function appendBalance(tx: Client, opening: any, input: any) {
     returnId: Number(opening.returnId), sourceEventId: Number(opening.sourceEventId),
     rootShareId: String(opening.rootShareId), expiresAt: opening.expiresAt ?? null,
     operationKey: input.operationKey, relatedInvoiceId: input.relatedInvoiceId,
-    relatedPaymentId: input.relatedPaymentId ?? null, actorUserId: input.actorUserId ?? null,
-    evidenceKind: 'S1_EXCHANGE_RIGHT_OPERATION', evidenceRef: `SaleInvoice:${input.relatedInvoiceId}`
+    relatedPaymentId: input.relatedPaymentId ?? null, relatedReturnId: input.relatedReturnId ?? null,
+    reversesEventId: input.reversesEventId ?? null, actorUserId: input.actorUserId ?? null,
+    evidenceKind: input.evidenceKind ?? 'S1_EXCHANGE_RIGHT_OPERATION',
+    evidenceRef: input.evidenceRef ?? `SaleInvoice:${input.relatedInvoiceId}`
   } }), replayed: false }
 }
 
@@ -304,6 +454,135 @@ export async function commitS1ExchangeResidualRight(tx: Client, input: {
     availableDelta: 0, reservedDelta: -op.amount, spentDelta: op.amount, operationKey: input.operationKey,
     relatedInvoiceId: op.relatedInvoiceId, relatedPaymentId: paymentId, actorUserId: input.actorUserId })
   return { rightKey: op.rightKey, amount: op.amount, replayed: false }
+}
+
+/** Restore a returned B/N-funded amount to the same residual right. This is
+ * deliberately distinct from issuing a generic successor credit. Caller owns
+ * the SaleReturn transaction and its immutable cumulative allocation evidence.
+ */
+export async function restoreS1ExchangeResidualRight(tx: Client, input: {
+  rightKey: string; operationKey: string; amount: number; relatedInvoiceId: number;
+  relatedPaymentId: number; relatedReturnId: number; actorUserId?: number | null
+}) {
+  const op = operation(input)
+  const paymentId = id(input.relatedPaymentId, 'شناسه پرداخت ریشه‌دار')
+  const returnId = id(input.relatedReturnId, 'شناسه برگشت')
+  if (String(input.operationKey).trim().length < 8) throw invalid()
+  const state = await readState(tx, op.rightKey)
+  const eventKey = `s1-right:restore:${op.rightKey}:${op.hash}`
+  const prior = await tx.exchangeResidualRightEvent.findUnique({ where: { eventKey } })
+  if (prior) {
+    if (prior.eventKind !== 'RESTORED' || toNumberRial(prior.amount) !== op.amount ||
+        Number(prior.relatedInvoiceId) !== op.relatedInvoiceId ||
+        Number(prior.relatedPaymentId) !== paymentId || Number(prior.relatedReturnId) !== returnId ||
+        prior.operationKey !== input.operationKey) throw stale()
+    return { rightKey: op.rightKey, amount: op.amount, replayed: true }
+  }
+  const [payment, code, redemption, events] = await Promise.all([
+    tx.payment.findUnique({ where: { id: paymentId }, include: { method: true } }),
+    tx.storeCredit.findUnique({ where: { exchangeResidualRightKey: op.rightKey } }),
+    tx.storeCreditRedemption.findFirst({ where: { paymentId, invoiceId: op.relatedInvoiceId, reversedAt: null } }),
+    tx.exchangeResidualRightEvent.findMany({ where: { rightKey: op.rightKey }, orderBy: { id: 'asc' } })
+  ])
+  const actualDelivery = code ? await tx.creditDelivery.findUnique({ where: { creditId: Number(code.id) } }) : null
+  const commits = (events as any[]).filter((event) => event.eventKind === 'COMMITTED' &&
+    Number(event.relatedPaymentId) === paymentId).reduce((sum, event) => sum + toNumberRial(event.amount), 0)
+  const alreadyRestored = (events as any[]).filter((event) => event.eventKind === 'RESTORED' &&
+    Number(event.relatedPaymentId) === paymentId).reduce((sum, event) => sum + toNumberRial(event.amount), 0)
+  const usedBefore = code ? toNumberRial(code.usedAmount) : 0
+  if (!payment || !code || !actualDelivery || actualDelivery.status !== 'DELIVERED' || !redemption ||
+      Number(redemption.creditId) !== Number(code.id) || Number(payment.invoiceId) !== op.relatedInvoiceId ||
+      Number(payment.storeCreditId) !== Number(code.id) || payment.voidedAt != null ||
+      String(payment.method?.kind ?? '').toUpperCase() !== 'STORE_CREDIT' ||
+      code.source !== CreditSource.EXCHANGE || code.exchangeResidualRightKey !== op.rightKey ||
+      Number(code.returnId) !== Number(state.opening.returnId) ||
+      toNumberRial(redemption.amount) !== toNumberRial(payment.amount) ||
+      commits <= 0 || alreadyRestored + op.amount > commits || op.amount > state.spent ||
+      op.amount > usedBefore || !['USED', 'PARTIALLY_USED', 'EXPIRED'].includes(String(code.status)) ||
+      code.voidedAt != null || code.deletedAt != null || state.voided)
+    throw invalid()
+  const restored = await appendBalance(tx, state.opening, {
+    eventKey, eventKind: 'RESTORED', amount: op.amount, availableDelta: op.amount,
+    reservedDelta: 0, spentDelta: -op.amount, operationKey: input.operationKey,
+    relatedInvoiceId: op.relatedInvoiceId, relatedPaymentId: paymentId, relatedReturnId: returnId,
+    actorUserId: input.actorUserId, evidenceKind: 'S1_RETURN_RESTORATION',
+    evidenceRef: `SaleReturn:${returnId}:Payment:${paymentId}`
+  })
+  if (!restored.replayed) {
+    const usedAfter = usedBefore - op.amount
+    const expiresAt = code.expiresAt == null ? null : new Date(code.expiresAt)
+    const expired = state.opening.rightKind === 'B' && expiresAt != null && expiresAt.getTime() <= Date.now()
+    const nextStatus = expired ? 'EXPIRED' : usedAfter === 0 ? 'ACTIVE' : 'PARTIALLY_USED'
+    const updated = await tx.storeCredit.updateMany({
+      where: { id: Number(code.id), usedAmount: code.usedAmount, status: code.status },
+      data: { usedAmount: usedAfter, status: nextStatus }
+    })
+    if (updated.count !== 1) throw stale()
+  }
+  return { rightKey: op.rightKey, amount: op.amount, replayed: restored.replayed }
+}
+
+/** Reverse the exact S1 right restorations when a simple return is voided. The
+ * reversal is allowed only while the restored amount is still available; once
+ * a customer has spent/reserved it, the return cannot be silently erased.
+ */
+export async function reverseS1ResidualRightRestorationsForReturn(tx: Client, input: {
+  returnId: number; actorUserId?: number | null
+}) {
+  const returnId = id(input.returnId, 'شناسه برگشت')
+  const ret = await tx.saleReturn.findUnique({ where: { id: returnId }, select: {
+    id: true, invoiceId: true, kind: true, voidedAt: true
+  } })
+  if (!ret || ret.kind !== 'RETURN' || ret.voidedAt != null) throw invalid()
+  const restores = await tx.exchangeResidualRightEvent.findMany({ where: {
+    relatedReturnId: returnId, eventKind: 'RESTORED'
+  }, orderBy: { id: 'asc' } })
+  let reversed = 0
+  for (const restoration of restores as any[]) {
+    const openingState = await readState(tx, String(restoration.rightKey))
+    const existing = await tx.exchangeResidualRightEvent.findUnique({
+      where: { reversesEventId: Number(restoration.id) }
+    })
+    if (existing) {
+      if (existing.eventKind !== 'RESTORATION_REVERSED' ||
+          toNumberRial(existing.amount) !== toNumberRial(restoration.amount) ||
+          Number(existing.relatedReturnId) !== returnId) throw stale()
+      continue
+    }
+    if (openingState.voided || openingState.reserved > 0 ||
+        openingState.available < toNumberRial(restoration.amount))
+      throw new BusinessError('حق برگشتی پس از این برگشت مصرف یا رزرو شده است؛ ابطال برگشت بدون اثر مالی ممکن نیست.')
+    const code = await tx.storeCredit.findUnique({ where: { exchangeResidualRightKey: String(restoration.rightKey) } })
+    if (!code || code.source !== CreditSource.EXCHANGE || code.voidedAt != null || code.deletedAt != null ||
+        Number(code.amount) !== toNumberRial(openingState.opening.amount)) throw stale()
+    const usedBefore = toNumberRial(code.usedAmount)
+    const amount = toNumberRial(restoration.amount)
+    const usedAfter = usedBefore + amount
+    if (!Number.isSafeInteger(usedAfter) || usedAfter > toNumberRial(code.amount)) throw stale()
+    const eventKey = `s1-right:restoration-reversal:${Number(restoration.id)}`
+    const result = await appendBalance(tx, openingState.opening, {
+      eventKey, eventKind: 'RESTORATION_REVERSED', amount,
+      availableDelta: -amount, reservedDelta: 0, spentDelta: amount,
+      operationKey: `void-s1-return:${returnId}:event:${Number(restoration.id)}`,
+      relatedInvoiceId: Number(ret.invoiceId), relatedPaymentId: Number(restoration.relatedPaymentId),
+      relatedReturnId: returnId, reversesEventId: Number(restoration.id),
+      actorUserId: input.actorUserId, evidenceKind: 'S1_RETURN_VOID',
+      evidenceRef: `SaleReturn:${returnId}:RestorationEvent:${Number(restoration.id)}`
+    })
+    if (!result.replayed) {
+      const expiresAt = code.expiresAt == null ? null : new Date(code.expiresAt)
+      const expired = openingState.opening.rightKind === 'B' && expiresAt != null && expiresAt.getTime() <= Date.now()
+      const nextStatus = expired ? 'EXPIRED' : usedAfter === toNumberRial(code.amount) ? 'USED'
+        : usedAfter > 0 ? 'PARTIALLY_USED' : 'ACTIVE'
+      const update = await tx.storeCredit.updateMany({
+        where: { id: Number(code.id), usedAmount: code.usedAmount, status: code.status },
+        data: { usedAmount: usedAfter, status: nextStatus }
+      })
+      if (update.count !== 1) throw stale()
+    }
+    reversed++
+  }
+  return { returnId, reversed }
 }
 
 export async function cancelS1ExchangeResidualRightReservation(tx: Client, input: {

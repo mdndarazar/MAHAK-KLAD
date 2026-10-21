@@ -243,8 +243,9 @@ export default function SalesReturn() {
   const [retResult, setRetResult] = useState<any | null>(null)
   const [creditPreview, setCreditPreview] = useState<{
     returnTotal: number; debtReduced: number; giftOpportunity: number; cashRight: number;
+    s1ResidualRestoration?: { b: number; n: number };
     previewOnly: true; previewKey: string; settlementReady?: boolean; attributionOnly?: boolean;
-    settlementState?: string; shares?: { sourceEventId: number; sourceKind: string; amount: number }[];
+    exchangeCarryRestoration?: boolean; settlementState?: string; shares?: { sourceEventId: number; sourceKind: string; amount: number }[];
     remainingAttributionBySource?: { sourceEventId: number; sourceKind: string; attributedAmount: number;
       alreadyReturnedAttribution: number; remainingAttribution: number; ledgerBalance: number }[]
   } | null>(null)
@@ -642,7 +643,9 @@ export default function SalesReturn() {
     setCreditPreview(null); setCreditPreviewError(null)
     if (!lookup || !selectedKey || exchangeMode) return () => { canceled = true }
     void call<{ returnTotal: number; debtReduced: number; giftOpportunity: number; cashRight: number;
-      previewOnly: true; settlementReady?: boolean; attributionOnly?: boolean; settlementState?: string;
+      s1ResidualRestoration?: { b: number; n: number };
+      previewOnly: true; settlementReady?: boolean; attributionOnly?: boolean;
+      exchangeCarryRestoration?: boolean; settlementState?: string;
       shares?: { sourceEventId: number; sourceKind: string; amount: number }[];
       remainingAttributionBySource?: { sourceEventId: number; sourceKind: string; attributedAmount: number;
         alreadyReturnedAttribution: number; remainingAttribution: number; ledgerBalance: number }[] }>(
@@ -650,7 +653,10 @@ export default function SalesReturn() {
       { invoiceId: lookup.invoiceId, full: isFull,
         lines: selected.map((i) => ({ saleItemId: i.saleItemId, qty: qty[i.saleItemId] })) }
     ).then((res) => {
-      if (!canceled) setCreditPreview({ ...res, previewKey: selectedKey })
+      if (!canceled) {
+        setCreditPreview({ ...res, previewKey: selectedKey })
+        if (res.exchangeCarryRestoration) setRefundMethod('NONE')
+      }
     }).catch((e: Error) => {
       if (!canceled) setCreditPreviewError(e.message)
     })
@@ -692,7 +698,7 @@ export default function SalesReturn() {
        * همین قاعده هست؛ این بررسی فقط برای این است که کاربر پیام را *قبل* از
        * رفت‌وبرگشت ببیند، نه این‌که تصمیم جای دیگری گرفته شود.
        */
-      if (!refundMethod)
+      if (!refundMethod && creditPreview?.exchangeCarryRestoration !== true)
         return setErr(
           'روش بازپرداخت این برگشت را انتخاب کنید:\n' +
             REFUND_CHOICES.map((c) => `• ${c.title} — ${c.hint}`).join('\n') +
@@ -703,10 +709,15 @@ export default function SalesReturn() {
         return setErr('تقسیم منشأ و بدهی در حال محاسبه است؛ چند لحظه صبر کنید و دوباره تأیید کنید.')
       if (creditPreview.settlementReady === false)
         return setErr('این پیش‌نمایش فقط انتساب حسابداری است؛ برگشت فرزند تعویض تا تکمیل entitlement، حق تسویه و reversal در سرور بسته می‌ماند.')
+      const effectiveRefundMethod = creditPreview.exchangeCarryRestoration ? 'NONE' : refundMethod
+      if (creditPreview.exchangeCarryRestoration && refundAmount.trim() !== '' && Number(refundAmount) !== 0)
+        return setErr('برگشت فرزند تعویض فقط carry همان منشأ را بازمی‌گرداند؛ مبلغ نقدی باید صفر باشد.')
+      if (creditPreview.s1ResidualRestoration && effectiveRefundMethod !== 'NONE')
+        return setErr('این برگشت باید سهم B/N را به همان دفتر حق بازگرداند؛ فقط گزینهٔ «بدون بازپرداخت» مجاز است.')
       if (creditPreview.giftOpportunity > 0 && refundAmount.trim() !== '' &&
           Number(refundAmount) !== creditPreview.cashRight)
         return setErr(`از این برگشت فقط ${money(creditPreview.cashRight)} ریال پول واقعی و ${money(creditPreview.giftOpportunity)} ریال سهم اعتبار است؛ مبلغ نقد را مطابق پیش‌نمایش وارد کنید.`)
-      if (creditPreview.giftOpportunity > 0 && creditPreview.cashRight > 0 && refundMethod === 'NONE')
+      if (creditPreview.giftOpportunity > 0 && creditPreview.cashRight > 0 && effectiveRefundMethod === 'NONE')
         return setErr(`این برگشت ${money(creditPreview.cashRight)} ریال حق پول واقعی دارد؛ بدون بازپرداخت آن را بی‌سند رها نکنید.`)
       if (managerFullRefund && !fullRefundPw.trim())
         return setErr('برای بازپرداخت مبلغ کاملِ بدون کسر تخفیف، رمز مدیر را وارد کنید.')
@@ -728,17 +739,17 @@ export default function SalesReturn() {
           allowRemoved: allowRemoved || undefined,
           force: force || undefined,
           // ---- بند ۱۱: روش و مبلغ بازپرداخت روی خودِ سند برگشت می‌نشیند ----
-          refundMethod,
-          ...(refundMethod === 'STORE_CREDIT' ? {
+          refundMethod: effectiveRefundMethod,
+          ...(effectiveRefundMethod === 'STORE_CREDIT' ? {
             printedHolderFirstName, printedHolderLastName, printedHolderPhone
           } : {}),
-          refundAmount: refundAmount.trim() === ''
+          refundAmount: creditPreview.exchangeCarryRestoration ? 0 : refundAmount.trim() === ''
             ? creditPreview.giftOpportunity > 0 ? creditPreview.cashRight : undefined
             : Math.max(0, Math.round(Number(refundAmount.replace(/[^0-9]/g, '')) || 0)),
           managerFullRefund: managerFullRefund || undefined,
           refundReference: refundReference.trim() || undefined,
           refundNote: refundNote.trim() || undefined,
-          cardPosOverride: refundMethod === 'CARD' ? cardPosOverride : undefined,
+          cardPosOverride: effectiveRefundMethod === 'CARD' ? cardPosOverride : undefined,
           // ---- بند ۱۷: فقط وقتی دوره بسته است و کاربر رمز/دلیل داده ----
           ...req,
           managerPassword: req.managerPassword || (managerFullRefund ? fullRefundPw : lockPw).trim() || undefined,
@@ -2020,7 +2031,12 @@ export default function SalesReturn() {
                   سقف پول واقعی از پیش‌نمایش منشأ و سپس دوباره در سرور تعیین می‌شود؛ تمام دریافتی نقد نیست.
                 </span>
               </div>
-              <SmartSettlementPanel
+              {creditPreview?.exchangeCarryRestoration ? (
+                <p className="rounded border border-emerald-400 bg-emerald-50 p-2 text-emerald-900">
+                  این فاکتور فرزند تعویض است: فقط carry متناسب به همان share والد برمی‌گردد؛
+                  پول نقد، کد عمومی و OVERPAY ساخته نمی‌شود. روش بازپرداخت «بدون بازپرداخت» و مبلغ صفر است.
+                </p>
+              ) : <SmartSettlementPanel
                 guidance={guidance}
                 selectedMethod={refundMethod}
                 onSelectMethod={(m) => {
@@ -2028,7 +2044,7 @@ export default function SalesReturn() {
                   if (m !== 'CARD') setCardPosOverride(null)
                 }}
                 onCardPosLocked={() => setCardPosDialog(true)}
-              />
+              />}
               {creditPreviewError && <p className="rounded bg-rose-50 border border-rose-300 p-2 text-rose-800">
                 منشأ اعتبار/بدهی نامعلوم است؛ وجه نقد یا کد تازه ثبت نشود. {creditPreviewError}
               </p>}
@@ -2039,8 +2055,11 @@ export default function SalesReturn() {
                   <b>تقسیم سیستمی همین انتخاب:</b> کاهش بدهی {money(creditPreview.debtReduced)} ریال ·
                   سهم اعتبار غیرنقدی {money(creditPreview.giftOpportunity)} ریال ·
                   سقف سهم پول واقعی {money(creditPreview.cashRight)} ریال.
-                  {creditPreview.giftOpportunity > 0 &&
-                    ' سهم اعتبار به کد شاهددار جدا برمی‌گردد؛ چاپ یا درخواست کارت‌به‌کارت شاهد پرداخت/تحویل نیست.'}
+                  {creditPreview.s1ResidualRestoration
+                    ? ` سهم برگشتی به همان حق‌ها برمی‌گردد: B ${money(creditPreview.s1ResidualRestoration.b)} ریال، N ${money(creditPreview.s1ResidualRestoration.n)} ریال؛ هیچ نقد یا کد عمومی صادر نمی‌شود.`
+                    : creditPreview.giftOpportunity > 0
+                      ? ' سهم اعتبار به کد شاهددار جدا برمی‌گردد؛ چاپ یا درخواست کارت‌به‌کارت شاهد پرداخت/تحویل نیست.'
+                      : ''}
                   <span className="kbd block">این فقط پیش‌نمایش است؛ سرور هنگام ثبت دوباره با وضعیت روز محاسبه می‌کند.</span>
                 </p>
               )}
@@ -2185,10 +2204,10 @@ export default function SalesReturn() {
               <button
                 className="btn btn-primary"
                 onClick={() => void doSubmit(false)}
-                disabled={busy || lookupLocked || !totals.count || !refundMethod || creditPreview?.settlementReady === false}
+                disabled={busy || lookupLocked || !totals.count || (!refundMethod && creditPreview?.exchangeCarryRestoration !== true) || creditPreview?.settlementReady === false}
                 title={creditPreview?.settlementReady === false
                   ? 'پیش‌نمایش فقط انتساب منشأ است؛ تسویه و ثبت برگشت فرزند تعویض بسته است.'
-                  : refundMethod ? undefined : 'اول «روش بازپرداخت» را انتخاب کنید (بند ۱۱)'}
+                  : refundMethod || creditPreview?.exchangeCarryRestoration ? undefined : 'اول «روش بازپرداخت» را انتخاب کنید (بند ۱۱)'}
               >
                 {busy ? 'در حال ثبت…' : 'ثبت برگشت از فروش'}
               </button>

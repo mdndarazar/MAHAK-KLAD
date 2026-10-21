@@ -11,6 +11,7 @@ const {
   getExchangeResidualRightBalance,
   reserveS1ExchangeResidualRight,
   commitS1ExchangeResidualRight,
+  restoreS1ExchangeResidualRight,
   cancelS1ExchangeResidualRightReservation
 } = await import('../../src/main/services/ExchangeResidualRightsService.ts')
 const db = harnessClient()
@@ -20,13 +21,14 @@ const actorUserId = seed.user('S1 residual-right operator')
 const invoice = seed.insert('SaleInvoice', { receiptNo: 989001, issuedAtJalali: '1405/07/29', grandTotal: 1_000_000 })
 const methodId = seed.insert('PaymentMethod', { key: 'STORE_CREDIT', label: 'Store credit', kind: 'STORE_CREDIT', isActive: 1 })
 const nCreditId = seed.insert('StoreCredit', { code: 'S1-N-TEST', amount: 857_346, usedAmount: 400_000,
-  usedCount: 1, status: 'PARTIALLY_USED', source: 'EXCHANGE', multiUse: true, maxUses: 5,
+  usedCount: 1, status: 'PARTIALLY_USED', source: 'EXCHANGE', returnId: 13, multiUse: true, maxUses: 5,
   exchangeResidualRightKey: 's1-right-n-1' })
 const payment = seed.insert('Payment', { invoiceId: invoice, methodId, amount: 400_000,
   storeCreditId: nCreditId, kind: 'STORE_CREDIT' })
 seed.insert('StoreCreditRedemption', { creditId: nCreditId, code: 'S1-N-TEST', amount: 400_000,
   remainderAfter: 457_346, invoiceId: invoice, paymentId: payment,
   idempotencyKey: 's1-n-test-redemption', expiryCaptured: false, expiryAtRedeem: null })
+seed.insert('CreditDelivery', { creditId: nCreditId, sourceKind: 'S1_EXCHANGE_N', status: 'DELIVERED', version: 1 })
 const bExpiry = new Date('2026-11-20T00:00:00.000Z')
 const openRight = (rightKey, rightKind, amount, expiresAt, sourceEventId) => seed.insert('ExchangeResidualRightEvent', {
   eventKey: `open:${rightKey}`, rightKey, rightKind, eventKind: 'OPENED', amount,
@@ -103,4 +105,25 @@ await assert.rejects(db.$transaction((tx) => commitS1ExchangeResidualRight(tx, {
 })), /ناسازگار|پیدا نشد/u)
 assert.equal(sql.prepare('SELECT COUNT(*) n FROM "CashMovement"').get().n, 0,
   'reserve/commit of N is not a physical cash movement')
-console.log('✓ S1 residual-right ledger service: N reserve/commit, replay, cancellation, expiry hold, insufficient balance, and no CashMovement')
+const partialReturn = seed.insert('SaleReturn', { invoiceId: invoice, total: 100_000,
+  kind: 'RETURN', refundMethod: 'NONE', refundAmount: 0 })
+const restored = await db.$transaction((tx) => restoreS1ExchangeResidualRight(tx, {
+  rightKey: 's1-right-n-1', operationKey: 's1-partial-return-n-100k', amount: 100_000,
+  relatedInvoiceId: invoice, relatedPaymentId: payment, relatedReturnId: partialReturn, actorUserId
+}))
+assert.equal(restored.replayed, false)
+assert.equal((await db.$transaction((tx) => getExchangeResidualRightBalance(tx, 's1-right-n-1'))).available, 557_346)
+assert.equal((await db.$transaction((tx) => getExchangeResidualRightBalance(tx, 's1-right-n-1'))).spent, 300_000)
+assert.equal(seed.one('SELECT usedAmount FROM "StoreCredit" WHERE id=?', nCreditId).usedAmount, 300_000,
+  'the same N access code regains the returned unspent balance')
+assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', nCreditId).status, 'PARTIALLY_USED')
+assert.equal((await db.$transaction((tx) => restoreS1ExchangeResidualRight(tx, {
+  rightKey: 's1-right-n-1', operationKey: 's1-partial-return-n-100k', amount: 100_000,
+  relatedInvoiceId: invoice, relatedPaymentId: payment, relatedReturnId: partialReturn, actorUserId
+}))).replayed, true)
+assert.equal(seed.count('ExchangeResidualRightEvent', 'eventKind=? AND relatedReturnId=?', 'RESTORED', partialReturn), 1)
+await assert.rejects(db.$transaction((tx) => restoreS1ExchangeResidualRight(tx, {
+  rightKey: 's1-right-n-1', operationKey: 's1-partial-return-overrestore', amount: 300_001,
+  relatedInvoiceId: invoice, relatedPaymentId: payment, relatedReturnId: partialReturn, actorUserId
+})), /اثبات|سازگار|تغییر/u, 'restoration cannot exceed the spend still held by the right')
+console.log('✓ S1 residual-right ledger service: N reserve/commit, replay, cancellation, restoration to same code, expiry hold, over-restore rejection, no CashMovement')

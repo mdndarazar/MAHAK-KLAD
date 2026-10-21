@@ -103,6 +103,40 @@ export async function debtAdjustmentsByInvoice(client: Client, ids: number[], as
       for (const row of allocated)
         nonCashByReturn.set(Number(row.returnId), toNumberRial(row._sum.amount ?? 0))
     }
+    // S1 B/N restoration is an immutable right-ledger event, not a generic
+    // CreditReturnAllocation successor. Count it as the same non-cash return
+    // adjustment so the sale cannot manufacture OVERPAY from restored rights.
+    const restoredEvents = await (client as any).exchangeResidualRightEvent.findMany({
+      where: { relatedReturnId: { in: activeRets.map((r: any) => Number(r.id)) }, eventKind: 'RESTORED',
+        ...(asOf ? { createdAt: { lte: asOf } } : {}) },
+      select: { relatedReturnId: true, amount: true }
+    })
+    for (const event of restoredEvents) {
+      const returnId = Number(event.relatedReturnId)
+      nonCashByReturn.set(returnId, (nonCashByReturn.get(returnId) ?? 0) + toNumberRial(event.amount))
+    }
+    // A child return releases exchange carry back to its source share; it is a
+    // non-cash settlement adjustment just like restored B/N rights. Only live
+    // RETURN_TRANSFER_OUT rows count (voided returns are excluded above).
+    const activeReturnIds = activeRets.map((r: any) => Number(r.id))
+    const childCarryReturnedByReturn = new Map<number, number>()
+    const carryChunks: number[][] = []
+    for (let j = 0; j < activeReturnIds.length; j += 500)
+      carryChunks.push(activeReturnIds.slice(j, j + 500))
+    for (const ids of carryChunks) {
+      const released = await (client as any).exchangeFundingEvent.findMany({
+        where: { relatedReturnId: { in: ids }, kind: 'RETURN_TRANSFER_OUT', reversesEventId: null,
+          ...(asOf ? { createdAt: { lte: asOf } } : {}) },
+        select: { relatedReturnId: true, amount: true }
+      })
+      for (const event of released) {
+        const returnId = Number(event.relatedReturnId)
+        const amount = Math.abs(toNumberRial(event.amount))
+        nonCashByReturn.set(returnId, (nonCashByReturn.get(returnId) ?? 0) + amount)
+        childCarryReturnedByReturn.set(returnId,
+          (childCarryReturnedByReturn.get(returnId) ?? 0) + amount)
+      }
+    }
     const byInv = new Map<number, any[]>()
     for (const r of activeRets) {
       const list = byInv.get(r.invoiceId) ?? []
@@ -135,14 +169,39 @@ export async function debtAdjustmentsByInvoice(client: Client, ids: number[], as
         voidedAt: null,
         ...(asOf ? { returnedAt: { lte: asOf } } : {})
       },
-      select: { invoiceId: true, kind: true, total: true, refundMethod: true, refundAmount: true }
+      select: { id: true, invoiceId: true, kind: true, total: true, refundMethod: true, refundAmount: true }
     })
+    const childReturnIds = childRets.map((r: any) => Number(r.id))
+    for (let j = 0; j < childReturnIds.length; j += 500) {
+      const carryRows = await (client as any).exchangeFundingEvent.findMany({
+        where: { relatedReturnId: { in: childReturnIds.slice(j, j + 500) },
+          kind: 'RETURN_TRANSFER_OUT', reversesEventId: null,
+          ...(asOf ? { createdAt: { lte: asOf } } : {}) },
+        select: { relatedReturnId: true, amount: true }
+      })
+      for (const event of carryRows) {
+        const returnId = Number(event.relatedReturnId)
+        const amount = Math.abs(toNumberRial(event.amount))
+        childCarryReturnedByReturn.set(returnId,
+          (childCarryReturnedByReturn.get(returnId) ?? 0) + amount)
+      }
+    }
     for (const r of childRets) {
       if (refundFromReceivedOf(r) > 0) continue
       const srcId = sourceOf.get(r.invoiceId)
       if (srcId == null || !Number.isFinite(srcId)) continue
       const prev = out.get(srcId) ?? { returnedValue: 0, refundFromReceived: 0 }
-      prev.returnedValue += Math.max(0, toNumberRial(r.total))
+      const childReturnValue = Math.max(0, toNumberRial(r.total))
+      const returnedCarry = childCarryReturnedByReturn.get(Number(r.id)) ?? 0
+      if (!Number.isSafeInteger(returnedCarry) || returnedCarry > childReturnValue)
+        throw new Error('EXCHANGE_CHILD_CARRY_RETURN_EXCEEDS_RETURN_TOTAL')
+      prev.returnedValue += childReturnValue
+      // Returned carry is non-cash. Reduce the parent invoice's net received
+      // by the same amount as the returned value so recalcSettlement cannot
+      // manufacture OVERPAY on the source when the carry simply moves home.
+      prev.refundFromReceived += returnedCarry
+      if (!Number.isSafeInteger(prev.returnedValue) || !Number.isSafeInteger(prev.refundFromReceived))
+        throw new Error('EXCHANGE_CHILD_RETURN_ADJUSTMENT_OUT_OF_RANGE')
       out.set(srcId, prev)
     }
   }

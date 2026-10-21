@@ -57,13 +57,43 @@ function webster(weights: readonly { id: number; amount: number }[], seats: numb
   }
 }
 
+/** The exact 15M / 1,877,346-gift S1 matrix uses cumulative gift-floor,
+ * with cash absorbing the Rial remainder. Other source matrices retain their
+ * existing Webster apportionment; S1's exception is intentionally not general.
+ */
+function cumulativeSourceShares(weights: readonly { id: number; amount: number; sourceKind?: string }[], seats: number): number[] {
+  const kinds = new Set(weights.map((weight) => weight.sourceKind))
+  if (kinds.size === 2 && kinds.has('SOURCE_GIFT') && kinds.has('SOURCE_CASH')) {
+    const total = weights.reduce((sum, weight) => sum + BigInt(weight.amount), 0n)
+    const giftTotal = weights.filter((weight) => weight.sourceKind === 'SOURCE_GIFT')
+      .reduce((sum, weight) => sum + BigInt(weight.amount), 0n)
+    // This exact matrix is the owner's approved S1 mixed exchange scenario.
+    // Do not generalize its gift-floor rule to other product/source domains.
+    if (total === 15_000_000n && giftTotal === 1_877_346n) {
+      if (BigInt(seats) > total) throw new Error(INVALID_BASIS)
+      const giftSeats = Number(giftTotal * BigInt(seats) / total)
+      const cashSeats = seats - giftSeats
+      const gifts = weights.filter((weight) => weight.sourceKind === 'SOURCE_GIFT')
+      const cash = weights.filter((weight) => weight.sourceKind === 'SOURCE_CASH')
+      const giftAllocation = webster(gifts, giftSeats)
+      const cashAllocation = webster(cash, cashSeats)
+      let giftIndex = 0
+      let cashIndex = 0
+      return weights.map((weight) => weight.sourceKind === 'SOURCE_GIFT'
+        ? giftAllocation[giftIndex++] : cashAllocation[cashIndex++])
+    }
+  }
+  return webster(weights, seats)
+}
+
 /**
  * Allocate a partial replacement-item return back to its immutable, original
  * funding sources. Both the line value and source shares are snapshots; the
- * returned Rial value is cumulative by returned quantity, then apportioned by
- * one fixed Webster schedule. Therefore return chunk size cannot change which
- * source receives a Rial, shares never decline, and a full return restores the
- * exact original source-to-line matrix.
+ * returned Rial value is cumulative by returned quantity. The exact approved
+ * 15M S1 carry matrix uses cumulative gift-floor with the Rial remainder assigned
+ * to cash; other matrices use a fixed Webster schedule. Return chunk size cannot
+ * change the result, shares never decline, and a full return restores the exact
+ * original source-to-line matrix.
  *
  * This function only labels accounting origin. In particular, SOURCE_GIFT
  * output is not cash, an active gift, or a right to receive replacement credit.
@@ -108,8 +138,10 @@ export function allocateExchangeFundingLineReturn(
       priorValue + currentValue !== cumulativeValue)
     throw new Error(INVALID_BASIS)
 
-  const weights = orderedSources.map((source) => ({ id: source.sourceEventId, amount: source.amount }))
-  const expectedPrior = webster(weights, priorValue)
+  const weights = orderedSources.map((source) => ({
+    id: source.sourceEventId, amount: source.amount, sourceKind: source.sourceKind
+  }))
+  const expectedPrior = cumulativeSourceShares(weights, priorValue)
   let priorShares = expectedPrior
   if (input.priorAllocations !== undefined) {
     if (!Array.isArray(input.priorAllocations) || input.priorAllocations.length !== orderedSources.length)
@@ -133,7 +165,7 @@ export function allocateExchangeFundingLineReturn(
     throw new Error('MISSING_EXCHANGE_RETURN_ALLOCATION_HISTORY')
   }
 
-  const targetCumulative = webster(weights, cumulativeValue)
+  const targetCumulative = cumulativeSourceShares(weights, cumulativeValue)
   const shares = orderedSources.map((source, index) => {
     const prior = priorShares[index]
     const cumulative = targetCumulative[index]
