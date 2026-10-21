@@ -478,7 +478,7 @@ async function provenSourceRootEvent(
         })
         const expiry = dateMillis(redemption?.expiryAtRedeem)
         if (expiry != null && expiry <= Date.now() &&
-            (!Number.isFinite(expiry) || transferInTimes.length === 0 ||
+            (!Number.isFinite(expiry) ||
               transferInTimes.some((at) => at == null || !Number.isFinite(at) || at >= expiry)))
           return null
       }
@@ -499,17 +499,23 @@ async function provenSourceRootEvent(
   return null
 }
 
-async function hasProvableTransferLineage(tx: LedgerClient, event: any): Promise<boolean> {
-  return (await provenSourceRootEvent(tx, event)) != null
+async function hasProvableTransferLineage(
+  tx: LedgerClient, event: any, options: { allowExpiredGiftForReturnAttribution?: boolean } = {}
+): Promise<boolean> {
+  return (await provenSourceRootEvent(tx, event, options)) != null
 }
 
 /** Read only the latest persisted-sale snapshot and verify every transferable
  * source against its live Payment/redemption row. This deliberately does not
  * reconstruct provenance for legacy invoices or treat an EXCHANGE_CREDIT
- * payment as a source. Callers must separately decide how debt/unknown shares
- * affect the specific return.
+ * payment as a source. The expired-gift attribution option is for historical
+ * rights/report reconstruction only; transferExchangeFundingShare always
+ * revalidates with the strict default. Callers must separately decide how
+ * debt/unknown shares affect the specific return.
  */
-export async function getCurrentSaleFundingSources(tx: LedgerClient, invoiceId: number) {
+export async function getCurrentSaleFundingSources(
+  tx: LedgerClient, invoiceId: number, options: { allowExpiredGiftForReturnAttribution?: boolean } = {}
+) {
   if (!Number.isSafeInteger(invoiceId) || invoiceId <= 0) throw invalid()
   const invoice = await tx.saleInvoice.findUnique({
     where: { id: invoiceId }, select: {
@@ -570,7 +576,9 @@ export async function getCurrentSaleFundingSources(tx: LedgerClient, invoiceId: 
     if (['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE', 'SOURCE_GIFT', 'SOURCE_UNKNOWN'].includes(kind)) {
       allocatedInvoiceValue += amount
       if (PROVEN_SOURCE_KINDS.has(kind)) {
-        if (!await hasProvableTransferLineage(tx, event)) {
+        if (!await hasProvableTransferLineage(tx, event, {
+          allowExpiredGiftForReturnAttribution: options.allowExpiredGiftForReturnAttribution === true
+        })) {
           base.unresolved.push({ eventId, kind: 'UNPROVEN_SOURCE', amount })
           continue
         }

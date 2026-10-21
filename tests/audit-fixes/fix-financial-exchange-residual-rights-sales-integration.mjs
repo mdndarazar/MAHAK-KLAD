@@ -156,17 +156,18 @@ const deliveredExchange = await salesService.createExchange({
   replacements: [item(secondReplacementVariant, 15_000_000)], userId, shiftId,
   refundMode: 'S1_RESIDUAL_RIGHTS', goodsReceiptRequired: false, idempotencyKey: 's1-delivered-exchange-void-gate-0001'
 })
-for (const right of deliveredExchange.residualRights.rights) {
-  const confirmed = await confirmCreditDelivery({ creditId: right.creditId, witnessKind: 'CUSTOMER_HANDOFF',
-    witnessRef: `S1 witnessed delivery for ${right.rightKind}`, managerPassword: DEFAULT_MANAGER_PASSWORD, actorUserId: userId })
-  assert.equal(confirmed.status, 'DELIVERED')
-}
+// Deliver B while its root is still live, but deliberately leave N pending so
+// the same witnessed-handoff path can be exercised after B expires below.
+const deliveredGiftRight = deliveredExchange.residualRights.rights.find((r) => r.rightKind === 'B')
+const pendingCashRight = deliveredExchange.residualRights.rights.find((r) => r.rightKind === 'N')
+const bHandoff = await confirmCreditDelivery({ creditId: deliveredGiftRight.creditId, witnessKind: 'CUSTOMER_HANDOFF',
+  witnessRef: 'S1 witnessed delivery for B before root expiry', managerPassword: DEFAULT_MANAGER_PASSWORD, actorUserId: userId })
+assert.equal(bHandoff.status, 'DELIVERED')
 await assert.rejects(() => salesService.returnDelete({ id: deliveredExchange.returnId, userId,
   reason: 'S1 delivery already occurred', panelPassword: DEFAULT_MANAGER_PASSWORD }), /تحویل یا مصرف شده/u)
 assert.equal(seed.count('ExchangeResidualRightEvent', 'returnId=? AND eventKind=?', deliveredExchange.returnId, 'VOIDED'), 0)
-assert.equal(seed.count('CreditDelivery', 'creditId IN (?,?) AND status=?',
-  ...deliveredExchange.residualRights.rights.map((r) => r.creditId), 'DELIVERED'), 2,
-  'witnessed handoff is not undone by exchange void')
+assert.equal(seed.count('CreditDelivery', 'creditId=? AND status=?', deliveredGiftRight.creditId, 'DELIVERED'), 1,
+  'witnessed B handoff is not undone by exchange void')
 await assert.rejects(() => deleteCredit({
   id: deliveredExchange.residualRights.rights[0].creditId,
   reason: 'attempt to delete a live S1 right access code', managerPassword: DEFAULT_MANAGER_PASSWORD
@@ -179,8 +180,12 @@ const nRight = deliveredN.rightKey
 const bRight = deliveredB.rightKey
 const deliveredBExpiry = seed.one('SELECT expiresAt FROM "StoreCredit" WHERE id=?', deliveredB.creditId).expiresAt
 assert.ok(deliveredBExpiry, 'S1 B inherits the gift-root expiry')
+const nPurchaseVariant = variant('S1-N-PURCHASE', 400_000)
 const realDateNow = Date.now
 try {
+  // Keep the simulated clock beyond the captured root deadline through both
+  // checks and the real SalesService checkout: the N code must work at that
+  // time, not merely have a live balance when the clock is restored.
   Date.now = () => new Date(deliveredBExpiry).getTime() + 1
   const invoiceCountAtBExpiry = seed.count('SaleInvoice', '1=1')
   await assert.rejects(() => salesService.create({ userId, shiftId,
@@ -198,14 +203,24 @@ try {
   assert.equal(liveNBalance.expired, false)
   assert.equal(liveNBalance.available, 857_346,
     'N remains live and unchanged after the B root expiry')
+
+  const nHandoff = await confirmCreditDelivery({ creditId: pendingCashRight.creditId,
+    witnessKind: 'CUSTOMER_HANDOFF', witnessRef: 'S1 witnessed N handoff after B root expiry',
+    managerPassword: DEFAULT_MANAGER_PASSWORD, actorUserId: userId })
+  assert.equal(nHandoff.status, 'DELIVERED',
+    'N delivery with witness is allowed after root expiry even though B is EXPIRED_B')
+
+  const nPurchase = await salesService.create({ userId, shiftId,
+    lines: [item(nPurchaseVariant, 400_000)], payments: [], storeCreditCode: nCode,
+    storeCreditAmount: 400_000, storeCreditIdempotencyKey: 's1-checkout-n-400000-0001' })
+  assert.equal(nPurchase.storeCreditApplied, 400_000,
+    'the same delivered N code remains consumable after B root expiry')
+  const nBalanceAfterExpirySpend = await db.$transaction((tx) => getExchangeResidualRightBalance(tx, nRight))
+  assert.deepEqual({ available: nBalanceAfterExpirySpend.available, reserved: nBalanceAfterExpirySpend.reserved,
+    spent: nBalanceAfterExpirySpend.spent }, { available: 457_346, reserved: 0, spent: 400_000 })
 } finally {
   Date.now = realDateNow
 }
-const nPurchaseVariant = variant('S1-N-PURCHASE', 400_000)
-const nPurchase = await salesService.create({ userId, shiftId,
-  lines: [item(nPurchaseVariant, 400_000)], payments: [], storeCreditCode: nCode,
-  storeCreditAmount: 400_000, storeCreditIdempotencyKey: 's1-checkout-n-400000-0001' })
-assert.equal(nPurchase.storeCreditApplied, 400_000)
 let nBalance = await db.$transaction((tx) => getExchangeResidualRightBalance(tx, nRight))
 assert.deepEqual({ available: nBalance.available, reserved: nBalance.reserved, spent: nBalance.spent },
   { available: 457_346, reserved: 0, spent: 400_000 })
@@ -510,4 +525,4 @@ assert.equal(seed.count('ExchangeFundingEvent', 'relatedReturnId=? AND kind=?',
   childCarryReturnForConsumedVoid.id, 'VOID_RETURN_TRANSFER_OUT'), transferOutCountBeforeConsumedVoid,
   'failed consumed-carry void appends no partial reversal pair')
 assert.equal(seed.count('CashMovement', '1=1'), 0)
-console.log('✓ S1 production integration: exact gift/cash carry and B/N; B expiry/N survival; same-code return, safe void-before-use/re-return and reject-after-spend; child carry 1M+14M release and LIFO void; no cash, public credit or OVERPAY')
+console.log('✓ S1/S6 production integration: exact gift/cash carry and B/N; expired B rejected; N witnessed and consumed after root expiry; same-code return, safe void-before-use/re-return and reject-after-spend; child carry 1M+14M release and LIFO void; no cash, public credit or OVERPAY')

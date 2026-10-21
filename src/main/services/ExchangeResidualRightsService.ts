@@ -110,8 +110,14 @@ export async function openS1ExchangeResidualRights(tx: Client, input: {
     tx.saleInvoice.findUnique({ where: { id: childInvoiceId }, select: {
       id: true, sourceInvoiceId: true, exchangeReturnId: true, orderType: true, grandTotal: true, voidedAt: true
     } }),
-    getCurrentSaleFundingSources(tx, sourceInvoiceId),
-    getCurrentExchangeFundingSources(tx, childInvoiceId)
+    // This is a historical rights reconstruction, not a spend/transfer gate.
+    // After root expiry, permit gift provenance solely to verify the already
+    // opened B/N pair; the B balance is still expired by the independent
+    // residual-right ledger and N remains unexpired.
+    getCurrentSaleFundingSources(tx, sourceInvoiceId, { allowExpiredGiftForReturnAttribution: true }),
+    getCurrentExchangeFundingSources(tx, childInvoiceId, {
+      allowReturnBalanceChanges: true, allowExpiredGiftForReturnAttribution: true
+    })
   ])
   if (!ret || !child || ret.voidedAt != null || child.voidedAt != null || ret.kind !== 'EXCHANGE' ||
       Number(ret.invoiceId) !== sourceInvoiceId || Number(ret.exchangeInvoiceId) !== childInvoiceId ||
