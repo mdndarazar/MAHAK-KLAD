@@ -970,7 +970,7 @@ export async function getCurrentExchangeFundingSources(
     const amount = toNumberRial(offset.amount)
     const returnId = Number(offset.returnId)
     const paymentId = Number(offset.sourcePaymentId)
-    const [ret, payment, history] = await Promise.all([
+    const [ret, payment, history, reversal] = await Promise.all([
       Number.isSafeInteger(returnId) && returnId > 0
         ? tx.saleReturn.findUnique({ where: { id: returnId }, select: {
             id: true, invoiceId: true, kind: true, debtReduction: true, exchangeInvoiceId: true, voidedAt: true
@@ -978,19 +978,42 @@ export async function getCurrentExchangeFundingSources(
       Number.isSafeInteger(paymentId) && paymentId > 0
         ? tx.payment.findUnique({ where: { id: paymentId }, select: { id: true, invoiceId: true, amount: true, kind: true } }) : null,
       Number.isSafeInteger(paymentId) && paymentId > 0 && tx.paymentChequeStatusHistory
-        ? tx.paymentChequeStatusHistory.findFirst({ where: { paymentId, status: 'DEBT_OFFSET' }, select: { id: true } }) : null
+        ? tx.paymentChequeStatusHistory.findMany({ where: { paymentId }, orderBy: { id: 'asc' } }) : [],
+      tx.exchangeFundingEvent.findUnique({ where: { reversesEventId: Number(offset.id) } })
     ])
-    if (!Number.isSafeInteger(amount) || amount >= 0 || !ret || ret.voidedAt != null || ret.kind !== 'EXCHANGE' ||
-        Number(ret.invoiceId) !== invoiceId || Number(ret.exchangeInvoiceId) !== Number(offset.childInvoiceId) ||
-        toNumberRial(ret.debtReduction) !== -amount || Number(offset.sourceInvoiceId) !== invoiceId ||
-        Number(offset.debtId) !== invoiceId || offset.shareId !== `debt:${invoiceId}` ||
-        offset.evidenceKind !== 'EXCHANGE_DEBT_OFFSET' || offset.evidenceRef !== `SaleReturn:${returnId}` ||
-        !payment || Number(payment.invoiceId) !== invoiceId || payment.kind !== 'CHEQUE' ||
-        toNumberRial(payment.amount) !== -amount || !history) {
+    const baseValid = Number.isSafeInteger(amount) && amount < 0 && !!ret && ret.kind === 'EXCHANGE' &&
+      Number(ret.invoiceId) === invoiceId && Number(ret.exchangeInvoiceId) === Number(offset.childInvoiceId) &&
+      toNumberRial(ret.debtReduction) === -amount && Number(offset.sourceInvoiceId) === invoiceId &&
+      Number(offset.debtId) === invoiceId && offset.shareId === `debt:${invoiceId}` &&
+      offset.evidenceKind === 'EXCHANGE_DEBT_OFFSET' && offset.evidenceRef === `SaleReturn:${returnId}` &&
+      (offset.sourceMethodKind == null || ['PENDING', 'BOUNCED'].includes(String(offset.sourceMethodKind)))
+    const offsetHistoryIndex = (history as any[]).findIndex((row) => row.status === 'DEBT_OFFSET')
+    const restoredStatus = ['PENDING', 'BOUNCED'].includes(String(offset.sourceMethodKind))
+      ? String(offset.sourceMethodKind)
+      : offsetHistoryIndex > 0 ? String((history as any[])[offsetHistoryIndex - 1]?.status ?? '') : null
+    const paymentValid = !!payment && Number(payment.invoiceId) === invoiceId && payment.kind === 'CHEQUE' &&
+      toNumberRial(payment.amount) === -amount && offsetHistoryIndex >= 0
+    let reversalValid = false
+    if (reversal) {
+      const prefix = `sale:${invoiceId}:r1:debt-offset:return:${returnId}`
+      const historyId = Number(String(reversal.evidenceRef ?? '').match(/PaymentChequeStatusHistory:(\d+)$/)?.[1] ?? 0)
+      const restoredHistory = Number.isSafeInteger(historyId) && historyId > 0 && tx.paymentChequeStatusHistory
+        ? await tx.paymentChequeStatusHistory.findUnique({ where: { id: historyId } }) : null
+      reversalValid = reversal.kind === 'VOID_DEBT_OFFSET' && reversal.eventKey === `${prefix}:void` &&
+        toNumberRial(reversal.amount) === -amount && Number(reversal.reversesEventId) === Number(offset.id) &&
+        reversal.shareId === offset.shareId && reversal.rootShareId === offset.rootShareId &&
+        Number(reversal.sourceInvoiceId) === invoiceId && Number(reversal.childInvoiceId) === Number(offset.childInvoiceId) &&
+        Number(reversal.returnId) === returnId && Number(reversal.sourcePaymentId) === paymentId &&
+        Number(reversal.debtId) === invoiceId && reversal.sourceMethodKind === offset.sourceMethodKind &&
+        reversal.evidenceKind === 'EXCHANGE_VOID' &&
+        !!restoredHistory && Number(restoredHistory.paymentId) === paymentId &&
+        restoredStatus != null && restoredHistory.status === restoredStatus
+    }
+    if (!baseValid || !paymentValid || (!reversal && ret?.voidedAt != null) || (reversal && !reversalValid)) {
       base.unresolved.push({ eventId: Number(offset.id) || 0, kind: 'INVALID_DEBT_OFFSET_EVIDENCE', amount })
       continue
     }
-    base.debtOffset += -amount
+    if (!reversal) base.debtOffset += -amount
   }
   if (redemptionCount > (payments as any[]).filter((payment) => payment.storeCreditId != null).length)
     base.unresolved.push({ eventId: 0, kind: 'INVALID_CHILD_REDEMPTION_COUNT', amount: redemptionCount })
@@ -1773,10 +1796,12 @@ export async function recordExchangeDebtOffset(tx: LedgerClient, input: {
   returnId: number
   paymentId: number
   amount: number
+  chequeStatusBefore: 'PENDING' | 'BOUNCED'
   actorUserId?: number | null
 }) {
   if (![input.invoiceId, input.childInvoiceId, input.returnId, input.paymentId, input.amount]
-      .every((value) => Number.isSafeInteger(value) && value > 0)) throw invalid()
+      .every((value) => Number.isSafeInteger(value) && value > 0) ||
+      !['PENDING', 'BOUNCED'].includes(input.chequeStatusBefore)) throw invalid()
   const eventKey = `sale:${input.invoiceId}:r1:debt-offset:return:${input.returnId}`
   const prior = await tx.exchangeFundingEvent.findUnique({ where: { eventKey } })
   if (prior) {
@@ -1784,6 +1809,7 @@ export async function recordExchangeDebtOffset(tx: LedgerClient, input: {
         Number(prior.sourceInvoiceId) !== input.invoiceId || Number(prior.childInvoiceId) !== input.childInvoiceId ||
         Number(prior.returnId) !== input.returnId || Number(prior.sourcePaymentId) !== input.paymentId ||
         Number(prior.debtId) !== input.invoiceId || prior.shareId !== `debt:${input.invoiceId}` ||
+        (prior.sourceMethodKind != null && prior.sourceMethodKind !== input.chequeStatusBefore) ||
         prior.evidenceKind !== 'EXCHANGE_DEBT_OFFSET' || prior.evidenceRef !== `SaleReturn:${input.returnId}`)
       throw mismatch()
     return { event: prior, replayed: true }
@@ -1808,9 +1834,95 @@ export async function recordExchangeDebtOffset(tx: LedgerClient, input: {
     shareId: `debt:${input.invoiceId}`, rootShareId: `debt:${input.invoiceId}`,
     sourceInvoiceId: input.invoiceId, childInvoiceId: input.childInvoiceId,
     returnId: input.returnId, sourcePaymentId: input.paymentId, debtId: input.invoiceId,
+    sourceMethodKind: input.chequeStatusBefore,
     evidenceKind: 'EXCHANGE_DEBT_OFFSET', evidenceRef: `SaleReturn:${input.returnId}`,
     actorUserId: input.actorUserId ?? null
   })
+}
+
+/** Reverse an S11 debt offset only while the original cheque is still in its
+ * offset state. The source cheque status and the debt share are restored by
+ * linked append-only evidence; a later clearance, suspense route, or manual
+ * resolution makes pair void unsafe and is rejected.
+ */
+export async function reverseExchangeDebtOffsetForReturn(tx: LedgerClient, input: {
+  returnId: number
+  actorUserId?: number | null
+}) {
+  if (!Number.isSafeInteger(input?.returnId) || input.returnId <= 0 ||
+      (input.actorUserId != null && (!Number.isSafeInteger(input.actorUserId) || input.actorUserId <= 0))) throw invalid()
+  const ret = await tx.saleReturn.findUnique({ where: { id: input.returnId }, select: {
+    id: true, invoiceId: true, kind: true, debtReduction: true, exchangeInvoiceId: true, voidedAt: true,
+    exchangeSettlement: true
+  } })
+  const eventKey = ret ? `sale:${ret.invoiceId}:r1:debt-offset:return:${ret.id}` : ''
+  const offset = eventKey ? await tx.exchangeFundingEvent.findUnique({ where: { eventKey } }) : null
+  if (!offset) {
+    if (ret && ret.exchangeSettlement === 'S11_DEBT_OFFSET_RIGHTS' && toNumberRial(ret.debtReduction) > 0)
+      throw new BusinessError('ابطال تعویض ممکن نیست: کاهش بدهی S11 شاهد رویداد جبرانیِ قابل‌اثبات ندارد؛ از مسیر تسویه/اصلاح بدهی استفاده کنید.')
+    return { reversed: false, amount: 0, paymentId: null, previousStatus: null }
+  }
+  const amount = -toNumberRial(offset.amount)
+  const paymentId = Number(offset.sourcePaymentId)
+  if (!ret || ret.voidedAt != null || ret.kind !== 'EXCHANGE' ||
+      ret.exchangeSettlement !== 'S11_DEBT_OFFSET_RIGHTS' || !Number.isSafeInteger(amount) || amount <= 0 ||
+      toNumberRial(ret.debtReduction) !== amount || Number(offset.sourceInvoiceId) !== Number(ret.invoiceId) ||
+      Number(offset.childInvoiceId) !== Number(ret.exchangeInvoiceId) || Number(offset.returnId) !== Number(ret.id) ||
+      Number(offset.debtId) !== Number(ret.invoiceId) || offset.shareId !== `debt:${ret.invoiceId}` ||
+      offset.kind !== 'DEBT_OFFSET' || offset.evidenceKind !== 'EXCHANGE_DEBT_OFFSET' ||
+      offset.evidenceRef !== `SaleReturn:${ret.id}` ||
+      (offset.sourceMethodKind != null && !['PENDING', 'BOUNCED'].includes(String(offset.sourceMethodKind))))
+    throw new BusinessError('ابطال تعویض ممکن نیست: رویداد کاهش بدهی/چک با سند برگشت تطبیق ندارد؛ اصلاح شاهددار لازم است.')
+  const priorReversal = await tx.exchangeFundingEvent.findUnique({ where: { reversesEventId: Number(offset.id) } })
+  if (priorReversal) throw new BusinessError('ابطال تعویض ممکن نیست: کاهش بدهی این برگشت قبلاً معکوس شده یا رویداد معکوس آن متعارض است.')
+  const payment = await tx.payment.findUnique({ where: { id: paymentId } })
+  const [history, laterEffects, debtBalance] = await Promise.all([
+    tx.paymentChequeStatusHistory.findMany({ where: { paymentId }, orderBy: { id: 'asc' } }),
+    tx.exchangeFundingEvent.findMany({ where: { sourcePaymentId: paymentId, kind: { in: [
+      'CHEQUE_CLEARED', 'SUSPENSE_CHEQUE_LATE', 'SUSPENSE_CHEQUE_RESOLVED',
+      'SUSPENSE_CHEQUE_REFUNDED', 'DEBT_SETTLE'
+    ] } }, select: { id: true, kind: true } }),
+    exchangeFundingBalance(tx, `debt:${ret.invoiceId}`)
+  ])
+  const latestHistory = history[history.length - 1]
+  const offsetHistoryIndex = history.findIndex((row) => row.status === 'DEBT_OFFSET')
+  const previousStatusValue = ['PENDING', 'BOUNCED'].includes(String(offset.sourceMethodKind))
+    ? String(offset.sourceMethodKind)
+    : offsetHistoryIndex > 0 ? String(history[offsetHistoryIndex - 1]?.status ?? '') : null
+  const previousStatus: 'PENDING' | 'BOUNCED' | null =
+    previousStatusValue === 'PENDING' || previousStatusValue === 'BOUNCED' ? previousStatusValue : null
+  if (!payment || Number(payment.invoiceId) !== Number(ret.invoiceId) || payment.kind !== 'CHEQUE' ||
+      payment.chequeStatus !== 'DEBT_OFFSET' || toNumberRial(payment.amount) !== amount ||
+      latestHistory?.status !== 'DEBT_OFFSET' || previousStatus == null ||
+      !Number.isSafeInteger(debtBalance) || debtBalance < 0 || laterEffects.length > 0)
+    throw new BusinessError(
+      'ابطال تعویض ممکن نیست: چکِ کاهش‌دهندهٔ بدهی پس از offset تسویه، وارد suspense یا اصلاح شده است؛ ' +
+      'رویداد معتبرِ برگشت بدهی موجود نیست. ابتدا از مسیر تسویه/رسیدگی چک اقدام کنید.'
+    )
+  const reversalKey = `${eventKey}:void`
+  const changed = await tx.payment.updateMany({
+    where: { id: paymentId, chequeStatus: 'DEBT_OFFSET' },
+    data: { chequeStatus: previousStatus, clearedAt: null, clearedAtJalali: null,
+      clearedShiftId: null, clearedByUserId: null, destination: null,
+      note: [String(payment.note ?? '').trim(),
+        `S12: offset بدهی با ابطال تعویض ${ret.id} معکوس شد؛ چک منبع پرداخت نیست`]
+        .filter(Boolean).join(' · ') }
+  })
+  if (changed.count !== 1) throw new BusinessError('ابطال تعویض ممکن نیست: وضعیت چک همزمان تغییر کرد؛ دوباره بخوانید و تلاش کنید.')
+  const restoredHistory = await tx.paymentChequeStatusHistory.create({ data: {
+    paymentId, status: previousStatus, userId: input.actorUserId ?? null, changedAt: new Date()
+  } })
+  const appended = await appendExchangeFundingEvent(tx, {
+    eventKey: reversalKey, kind: 'VOID_DEBT_OFFSET', amount,
+    shareId: String(offset.shareId), rootShareId: String(offset.rootShareId),
+    sourceInvoiceId: Number(ret.invoiceId), childInvoiceId: Number(ret.exchangeInvoiceId),
+    returnId: Number(ret.id), sourcePaymentId: paymentId, debtId: Number(ret.invoiceId),
+    sourceMethodKind: offset.sourceMethodKind == null ? null : String(offset.sourceMethodKind), reversesEventId: Number(offset.id),
+    evidenceKind: 'EXCHANGE_VOID',
+    evidenceRef: `SaleReturn:${ret.id}:PaymentChequeStatusHistory:${restoredHistory.id}`,
+    actorUserId: input.actorUserId ?? null
+  })
+  return { reversed: !appended.replayed, amount, paymentId, previousStatus: String(previousStatus) }
 }
 
 /** Record one witnessed payment that settles an exchange-child debt. The signed

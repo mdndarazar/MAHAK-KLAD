@@ -38,7 +38,8 @@ const stages = [
   '20271021300000_s7_residual_right_correction_ledger',
   '20271021400000_s8_exchange_child_return_line_attribution',
   '20271021410000_s8_n_carry_return_attribution',
-  '20271021420000_s9_b_carry_exchange_tender'
+  '20271021420000_s9_b_carry_exchange_tender',
+  '20271021430000_guard_s12_debt_offset_reversal'
 ]
 const allNames = readdirSync(join(root, 'prisma/migrations'))
   .filter((n) => n !== 'migration_lock.toml').sort()

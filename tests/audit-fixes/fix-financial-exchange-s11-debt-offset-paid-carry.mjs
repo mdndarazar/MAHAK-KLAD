@@ -206,4 +206,30 @@ assert.deepEqual([afterLateClearance.debt, afterLateClearance.debtOffset], [0, 3
 assert.equal(afterLateClearance.sources.reduce((sum, source) => sum + source.available, 0), 200_000)
 assert.equal(seed.count('ExchangeFundingEvent', `sourceInvoiceId=${first.exchangeInvoiceId} AND kind='SUSPENSE_CHEQUE_LATE'`), 1)
 
-console.log('S11 exchange debt-offset paid-source carry: PASS (1.5M conservation; 300K debt offset; 250K GIFT + 750K CASH carry; 50K B + 150K N rights; cheque remains non-source; late clearance suspense; idempotent retry)')
+// S12 fail-closed regression: once the offset cheque has late-cleared into
+// suspense, the exchange pair cannot be voided as if the debt were untouched.
+const beforeUnsafeVoid = {
+  returnVoidedAt: seed.one('SELECT voidedAt FROM "SaleReturn" WHERE id=?', down.returnId).voidedAt,
+  childVoidedAt: seed.one('SELECT voidedAt FROM "SaleInvoice" WHERE id=?', down.exchangeInvoiceId).voidedAt,
+  chequeStatus: seed.one('SELECT chequeStatus FROM "Payment" WHERE id=?', cheque.id).chequeStatus,
+  fundingEvents: seed.count('ExchangeFundingEvent', '1=1'),
+  rights: seed.count('ExchangeResidualRightEvent', '1=1'),
+  cashMovements: seed.count('CashMovement', '1=1'),
+  stock: seed.rows('SELECT id, stock FROM "ProductVariant" ORDER BY id')
+}
+await assert.rejects(() => salesService.returnDelete({
+  id: down.returnId, userId, reason: 'S12 late-cleared cheque void guard',
+  managerPassword: DEFAULT_MANAGER_PASSWORD, overrideReason: 'S12 late-cleared cheque void guard'
+}), /چکِ کاهش‌دهندهٔ بدهی پس از offset تسویه/u,
+'late-cleared/suspense cheque is not silently reopened by exchange void')
+assert.deepEqual({
+  returnVoidedAt: seed.one('SELECT voidedAt FROM "SaleReturn" WHERE id=?', down.returnId).voidedAt,
+  childVoidedAt: seed.one('SELECT voidedAt FROM "SaleInvoice" WHERE id=?', down.exchangeInvoiceId).voidedAt,
+  chequeStatus: seed.one('SELECT chequeStatus FROM "Payment" WHERE id=?', cheque.id).chequeStatus,
+  fundingEvents: seed.count('ExchangeFundingEvent', '1=1'),
+  rights: seed.count('ExchangeResidualRightEvent', '1=1'),
+  cashMovements: seed.count('CashMovement', '1=1'),
+  stock: seed.rows('SELECT id, stock FROM "ProductVariant" ORDER BY id')
+}, beforeUnsafeVoid, 'rejected S12 void is atomic and leaves financial, rights, cheque and stock state unchanged')
+
+console.log('S11/S12 exchange debt-offset regression: PASS (S11 paid-source carry and late-clear suspense; S12 safely reverses untouched offsets and rejects late-cleared offsets)')

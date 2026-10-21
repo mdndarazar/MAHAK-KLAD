@@ -1184,13 +1184,13 @@ export async function voidS1ExchangeResidualRightsForReturn(tx: Client, input: {
     const events = await tx.exchangeResidualRightEvent.findMany({ where: { rightKey: opening.rightKey }, orderBy: { id: 'asc' } }) as any[]
     if (state.available !== toNumberRial(opening.amount) || state.reserved !== 0 || state.spent !== 0 ||
         events.some((row) => ['COMMITTED', 'RESTORED'].includes(String(row.eventKind))))
-      throw new BusinessError('حق B/N مصرف یا رزرو شده است؛ ابطال تعویض بدون reversal معتبر مجاز نیست.')
+      throw new BusinessError('حق B/N مصرف یا رزرو شده است؛ ابطال تعویض بدون reversal معتبر مجاز نیست. ابتدا از مسیر برگشت/تسویهٔ همان حق و سپس اصلاح زنجیره اقدام کنید.')
     const credit = await tx.storeCredit.findUnique({ where: { exchangeResidualRightKey: opening.rightKey } })
     const delivery = credit ? await tx.creditDelivery.findUnique({ where: { creditId: Number(credit.id) } }) : null
     if (!credit || !delivery || delivery.status !== 'PENDING_DELIVERY' ||
         toNumberRial(credit.usedAmount) !== 0 || Number(credit.usedCount) !== 0 ||
         credit.status !== 'CANCELED' || credit.voidedAt == null)
-      throw new BusinessError('کد B/N تحویل یا مصرف شده یا به‌درستی لغو نشده است؛ ابطال زنجیره متوقف شد.')
+      throw new BusinessError('کد B/N تحویل یا مصرف شده یا به‌درستی لغو نشده است؛ ابطال زنجیره متوقف شد. از مسیر برگشت/تسویهٔ همان حق یا اصلاح شاهددار مدیر اقدام کنید.')
     const eventKey = `s1-right:void:${opening.rightKey}:${returnId}`
     const prior = await tx.exchangeResidualRightEvent.findUnique({ where: { eventKey } })
     if (prior) {

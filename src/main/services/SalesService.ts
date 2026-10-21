@@ -7,6 +7,7 @@ import {
   exchangeFundingBalance,
   recordExchangeDebtSettlement,
   recordExchangeDebtOffset,
+  reverseExchangeDebtOffsetForReturn,
   recordExchangeChequeStatusEvent,
   recordExchangeSuspenseChequeResolution,
   recordExchangeFundingLineAllocations,
@@ -8596,6 +8597,7 @@ export const salesService = {
         await recordExchangeDebtOffset(tx, {
           invoiceId: source.id, childInvoiceId: exchangeInvoice.id, returnId: back.id,
           paymentId: s11DebtOffsetPaymentId, amount: s11DebtOffsetAmount,
+          chequeStatusBefore: payment.chequeStatus === 'BOUNCED' ? 'BOUNCED' : 'PENDING',
           actorUserId: input.userId ?? null
         })
         await audit(tx, {
@@ -10644,7 +10646,7 @@ export const salesService = {
               `ابطال تعویض ممکن نیست: ${money(amt)} ریال مابه‌التفاوت روی سند تعویض ${faDigits(exInv.receiptNo)} از مشتری دریافت شده است ` +
                 `(${[...new Set(realPaid.map((p: any) => p.method?.label ?? 'پرداخت'))].join('، ')}).\n` +
                 'این پول واقعاً به فروشگاه رسیده و با ابطال سند به مشتری برنمی‌گردد؛ ابطال فقط اضافه‌ی صندوق را پنهان می‌کرد. ' +
-                'موضوع برای رسیدگی مدیر ثبت شد.'
+                'برای اصلاح، از مسیر برگشت/تسویه در همان روش پرداخت اقدام کنید؛ موضوع برای رسیدگی مدیر ثبت شد.'
             )
           }
         }
@@ -10662,21 +10664,22 @@ export const salesService = {
           const amt = cashOut.reduce((t: number, c: any) => t + Math.abs(Number(c.amount ?? 0)), 0) || refundAmt
           throw new BusinessError(
             `ابطال ${docLabel} ممکن نیست: ${money(amt)} ریال بازپرداخت نقد از کشو به مشتری داده شده است.\n` +
-              'این پول واقعاً رفته و با ابطال سند برنمی‌گردد؛ ابطال فقط مغایرت صندوق را پنهان می‌کرد. موضوع برای رسیدگی مدیر ثبت شد.'
+              'این پول واقعاً رفته و با ابطال سند برنمی‌گردد؛ از مسیر برگشت/تسویهٔ هم‌کانال و با شاهد واقعی اقدام کنید. موضوع برای رسیدگی مدیر ثبت شد.'
           )
         }
         if (ret.refundMethod === RefundMethod.CARD && refundAmt > 0)
           throw new BusinessError(
             `ابطال ${docLabel} ممکن نیست: ${money(refundAmt)} ریال با کارت‌خوان به مشتری بازپرداخت شده است ` +
-              '(نه نقد و نه اعتبار؛ پول واقعاً رفته). موضوع برای رسیدگی مدیر ثبت شد.'
+              '(نه نقد و نه اعتبار؛ پول واقعاً رفته). از مسیر برگشت/تسویهٔ کارت‌خوان اقدام کنید؛ موضوع برای رسیدگی مدیر ثبت شد.'
           )
         const paidTransfer = await tx.cardTransferRequest.findFirst({
-          where: { returnId: ret.id, kind: CardTransferKind.REQUEST, status: CardTransferStatus.PAID }
+          where: { returnId: ret.id, kind: CardTransferKind.REQUEST,
+            status: { in: [CardTransferStatus.PAID, CardTransferStatus.ADJUSTED] }, paidAt: { not: null } }
         })
         if (paidTransfer)
           throw new BusinessError(
             `ابطال ${docLabel} ممکن نیست: بازپرداخت کارت‌به‌کارت ${money(Number(paidTransfer.amount ?? 0))} ریال ` +
-              'قبلاً توسط مدیر پرداخت شده است (پول واقعاً رفته). موضوع برای رسیدگی مدیر ثبت شد.'
+              'پرداخت/تعدیلِ پرداخت‌شده دارد (شاهد خروج واقعی پول ثبت شده است). فقط از مسیر RECOVER/اصلاح شاهددار با مدرک واقعی اقدام کنید؛ موضوع برای رسیدگی مدیر ثبت شد.'
           )
         const credits = await tx.storeCredit.findMany({ where: { returnId: ret.id } })
         for (const c of credits) {
@@ -10686,7 +10689,7 @@ export const salesService = {
             throw new BusinessError(
               `ابطال ${docLabel} ممکن نیست: اعتبار خرید #${c.id} که از همین برگشت صادر شده، ` +
                 `${money(used)} ریال مصرف شده است (مصرف اعتبار قابل برگرداندن نیست).\n` +
-                'ابطال سند، اعتبار خرج‌شده را بی‌پشتوانه می‌گذاشت. موضوع برای رسیدگی مدیر ثبت شد.'
+                'ابطال سند، اعتبار خرج‌شده را بی‌پشتوانه می‌گذاشت؛ از مسیر برگشت/تسویهٔ همان اعتبار اقدام کنید. موضوع برای رسیدگی مدیر ثبت شد.'
             )
         }
         if (ret.invoice?.status === SaleStatus.RETURNED) {
@@ -10796,6 +10799,11 @@ export const salesService = {
         }
 
         if (isExchange) {
+          // S12/S11: restore an untouched offset cheque and its debt share only
+          // with a linked reversal event. A cleared/suspense cheque is fail-closed.
+          await reverseExchangeDebtOffsetForReturn(tx, {
+            returnId: ret.id, actorUserId: input.userId ?? null
+          })
           await voidS1ExchangeResidualRightsForReturn(tx, {
             returnId: ret.id, actorUserId: input.userId ?? null
           })
