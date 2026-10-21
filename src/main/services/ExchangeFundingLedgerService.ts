@@ -790,10 +790,10 @@ export async function getCurrentExchangeFundingSources(
   if (!base.snapshotExists && Number.isSafeInteger(invoiceTotal) && invoiceTotal > 0)
     base.unresolved.push({ eventId: 0, kind: 'MISSING_EXCHANGE_TRANSFER_SNAPSHOT', amount: invoiceTotal })
 
-  // This projection is descriptive, not a return or nested-exchange permit.
-  // The opt-in path is only for the dedicated return reader, which separately
-  // validates every active return allocation and its settlement events. The
-  // default view continues to require untouched balances and no active returns.
+  // This projection alone is descriptive, not a return or nested-exchange permit.
+  // The return reader validates its own allocations; createExchange separately
+  // authorizes S3 only after its same-transaction full-source and lineage checks.
+  // The default view continues to require untouched balances and no active returns.
   const allowReturnBalanceChanges = options.allowReturnBalanceChanges === true
   if (base.unresolved.length === 0 && (allowReturnBalanceChanges || base.activeReturnIds.length === 0) &&
       Number.isSafeInteger(invoiceTotal) && invoiceTotal > 0 && base.sources.length > 0) {
@@ -892,8 +892,9 @@ export async function getCurrentExchangeFundingSources(
 }
 
 /** Persist the exact child-item matrix in the caller's exchange transaction.
- * It is immutable descriptive provenance only: it does not create refund rights,
- * authorize chained exchanges, or replace the existing fail-closed gate.
+ * It is immutable descriptive provenance only: it does not create refund rights
+ * or authorize an exchange by itself; S3 authorization belongs to createExchange's
+ * complete same-transaction lineage and balance preflight.
  */
 export async function recordExchangeFundingLineAllocations(tx: LedgerClient, invoiceId: number) {
   if (!Number.isSafeInteger(invoiceId) || invoiceId <= 0) throw invalid()

@@ -710,7 +710,7 @@ await assert.rejects(() => salesService.createExchange({
   replacements: [{ variantId: replacementVariant, qty: 1 }],
   refundMode: 'STORE_CREDIT', userId, shiftId
 }), /فرزند تعویض|lineage|EXCHANGE_CREDIT/iu,
-'a markerless exchange child cannot become the parent of another exchange before chained lineage is supported')
+'a markerless/corrupted exchange child cannot become the parent of a chained exchange')
 assert.deepEqual({
   returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn"').n,
   invoices: seed.one('SELECT COUNT(*) n FROM "SaleInvoice"').n,
@@ -719,7 +719,7 @@ assert.deepEqual({
   fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n,
   stock: Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', replacementVariant).stock)
 }, markerlessNestedExchangeEffectsBefore,
-'blocked nested exchange creates no return, invoice, payment, credit, funding event, or stock movement')
+'markerless/corrupted nested exchange creates no return, invoice, payment, credit, funding event, or stock movement')
 const markerlessParentReturnId = Number(seed.one(
   'SELECT id FROM "SaleReturn" WHERE invoiceId=? AND kind=? ORDER BY id DESC LIMIT 1',
   markerlessParentSale.id, 'EXCHANGE'

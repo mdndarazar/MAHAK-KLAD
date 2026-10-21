@@ -802,28 +802,51 @@ sql.prepare('UPDATE "Payment" SET destination=NULL WHERE invoiceId=? AND voidedA
 const childGateBefore = {
   returns: seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', exactExchange.exchangeInvoiceId).n,
   children: seed.one('SELECT COUNT(*) n FROM "SaleInvoice" WHERE sourceInvoiceId=?', exactExchange.exchangeInvoiceId).n,
+  payments: seed.count('Payment', '1=1'),
+  credits: seed.count('StoreCredit', '1=1'),
   fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n,
+  cashMovements: seed.count('CashMovement', '1=1'),
   stock: seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?) ORDER BY id', exactSourceVariant, exactReplacementVariant)
 }
-await assert.rejects(() => salesService.createExchange({
+const nestedS3 = await salesService.createExchange({
   invoiceId: exactExchange.exchangeInvoiceId,
   lines: [{ saleItemId: exactChildItemId, qty: 1 }],
   replacements: [{ variantId: exactSourceVariant, qty: 1 }],
-  refundMode: 'STORE_CREDIT', userId, shiftId, managerPassword: DEFAULT_MANAGER_PASSWORD
-}), /تعویضِ این فاکتور|lineage فرزند/iu,
-'proved child lineage is readable, but nested exchange stays closed until per-line allocation and rights are integrated')
-assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', exactExchange.exchangeInvoiceId).n, childGateBefore.returns)
-assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleInvoice" WHERE sourceInvoiceId=?', exactExchange.exchangeInvoiceId).n, childGateBefore.children)
-assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n, childGateBefore.fundingEvents)
-assert.deepEqual(seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?) ORDER BY id', exactSourceVariant, exactReplacementVariant), childGateBefore.stock)
+  refundMode: 'STORE_CREDIT', userId, shiftId, managerPassword: DEFAULT_MANAGER_PASSWORD,
+  idempotencyKey: 'exchange-request:s3-funding-sales-child-grandchild'
+}, { goodsReceiptRequired: false })
+assert.equal(nestedS3.diff, 0)
+assert.equal(nestedS3.returnTotal, 1_000)
+assert.equal(nestedS3.exchangeTotal, 1_000)
+assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', exactExchange.exchangeInvoiceId).n,
+  childGateBefore.returns + 1)
+assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleInvoice" WHERE sourceInvoiceId=?', exactExchange.exchangeInvoiceId).n,
+  childGateBefore.children + 1)
+assert.equal(seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n, childGateBefore.fundingEvents + 2,
+  'the nested exchange transfers the one remaining proven source share as one exact OUT/IN pair')
+const nestedS3Funding = await getCurrentExchangeFundingSources(db, nestedS3.exchangeInvoiceId)
+assert.deepEqual(nestedS3Funding.unresolved, [])
+assert.equal(nestedS3Funding.lineAllocationStatus, 'PERSISTED_RECONCILED')
+assert.equal(nestedS3Funding.sources.reduce((sum, source) => sum + source.available, 0), 1_000)
+assert.equal(seed.count('CashMovement', '1=1'), childGateBefore.cashMovements)
 await assert.rejects(() => salesService.returnReconcileVoid({
   id: exactExchange.returnId, userId, reason: 'unsupported funding correction test',
   panelPassword: DEFAULT_MANAGER_PASSWORD, cashRecovered: 0, cardRecovered: 0,
   cashPaidOut: 0, cardPaidOut: 0, creditOutcome: 'NONE'
-}), /دفتر انتقال منشأ مالی/,
-'correction route cannot leave an active funding transfer behind')
+}), /دفتر انتقال منشأ مالی|برگشت فعال ثبت شده است/,
+'correction route cannot leave an active funding transfer or nested exchange child behind')
+assert.equal(seed.count('Payment', '1=1'), childGateBefore.payments + 1)
+assert.equal(seed.count('StoreCredit', '1=1'), childGateBefore.credits)
+assert.equal(seed.count('CashMovement', '1=1'), childGateBefore.cashMovements)
 assert.equal(balance(`payment:${exactSourcePayment.id}`), 0)
-assert.equal(balance(childShareId), 1_000)
+assert.equal(balance(childShareId), 0, 'the middle-generation share is fully forwarded while its grandchild exchange is active')
+
+const nestedVoid = await salesService.returnDelete({
+  id: nestedS3.returnId, userId, reason: 'reverse nested child exchange before use', ...GATE
+})
+assert.equal(nestedVoid.exchangeVoided, true)
+assert.equal(balance(childShareId), 1_000,
+  'voiding the grandchild exchange restores the carry to the immediate parent share')
 
 const exchangeVoid = await salesService.returnDelete({
   id: exactExchange.returnId, userId, reason: 'reverse exact-value ledger test', ...GATE

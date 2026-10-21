@@ -3710,12 +3710,10 @@ async function runReturn(
       )
     const isExchangeChildReturn = opts.applyRefund === true &&
       await isExchangeChildInvoiceWithLineage(tx, invoice as any)
-    // Nested exchange remains closed. Ordinary returns of the child are routed
-    // through the dedicated carry-only planner below, never the generic cash/
-    // credit planner.
-    if (opts.kind === ReturnKind.EXCHANGE &&
-        await isExchangeChildInvoiceWithLineage(tx, invoice as any))
-      throw new BusinessError(exchangeReturnFundingBlockedMessage())
+    // Ordinary returns of an exchange child remain on the dedicated
+    // carry-only path below. A nested exchange is allowed to reach the
+    // same-transaction funding preflight; it must prove complete current
+    // lineage and transfer only the child's still-available source shares.
 
     // Historical/corrected quantities still reserve their sold units against
     // automatic re-return; only non-corrected returns determine invoice status
@@ -7533,13 +7531,33 @@ export const salesService = {
       let s1ResidualRightsEligible = false
       let s1CarryAllocations: Array<{ sourceEventId: number; sourceKind: 'SOURCE_GIFT' | 'SOURCE_CASH'; carry: number; remainder: number }> | null = null
       let s1ResidualRights: any = null
-      let funding: Awaited<ReturnType<typeof getCurrentSaleFundingSources>> | null = null
+      const sourceHasExchangeLineage = await isExchangeChildInvoiceWithLineage(tx, source as any)
+      const sourceIsExchangeChild = source.orderType === OrderType.EXCHANGE &&
+        Number.isSafeInteger(Number(source.sourceInvoiceId)) && Number(source.sourceInvoiceId) > 0 &&
+        Number.isSafeInteger(Number(source.exchangeReturnId)) && Number(source.exchangeReturnId) > 0
+      if (sourceHasExchangeLineage && !sourceIsExchangeChild)
+        throw new BusinessError(exchangeReturnFundingBlockedMessage())
+      type ExchangeSourceFundingView = {
+        snapshotExists: boolean
+        stale: boolean
+        activeReturnIds: number[]
+        sources: Array<{ event: any; available: number; sourceKind: string }>
+        unresolved: Array<{ eventId: number; kind: string; amount: number }>
+        debt: number
+        overpay: number
+        lineAllocationStatus?: string
+      }
+      let funding: ExchangeSourceFundingView | null = null
       if (returnTotal > 0) {
         try {
-          funding = await getCurrentSaleFundingSources(tx, source.id)
+          funding = sourceIsExchangeChild
+            ? await getCurrentExchangeFundingSources(tx, source.id, { allowReturnBalanceChanges: true })
+            : await getCurrentSaleFundingSources(tx, source.id)
         } catch (error) {
-          // The ledger is additive to the legacy exchange path. If no trustworthy
-          // ordinary-sale snapshot can be read, do not fabricate one here.
+          // A nested exchange can use only a reconciled, persisted child ledger;
+          // a malformed or absent child snapshot is never downgraded to cash.
+          // The legacy ordinary-sale path remains unchanged when it has no
+          // proven snapshot.
           if (!(error instanceof BusinessError)) throw error
         }
       }
@@ -7552,9 +7570,11 @@ export const salesService = {
           .filter(({ sourceKind }) => sourceKind === 'SOURCE_GIFT')
           .map(({ event }) => Number(event.sourceRedemptionId))
         const activeRedemptionIds = activeRedemptions.map((row) => Number(row.id))
-        const redemptionSetMatches = activeRedemptionIds.length === sourceGiftRedemptionIds.length &&
-          activeRedemptionIds.every((id) => sourceGiftRedemptionIds.includes(id)) &&
-          sourceGiftRedemptionIds.every((id) => activeRedemptionIds.includes(id))
+        const redemptionSetMatches = sourceIsExchangeChild
+          ? activeRedemptionIds.length === 0
+          : activeRedemptionIds.length === sourceGiftRedemptionIds.length &&
+            activeRedemptionIds.every((id) => sourceGiftRedemptionIds.includes(id)) &&
+            sourceGiftRedemptionIds.every((id) => activeRedemptionIds.includes(id))
         const returnedQtyByItem = new Map<number, number>()
         for (const returnedLine of back.returnedLines ?? []) {
           const saleItemId = Number(returnedLine.saleItemId)
@@ -7575,12 +7595,13 @@ export const salesService = {
           funding.activeReturnIds.length === 1 && funding.activeReturnIds[0] === back.id &&
           funding.debt === 0 && funding.overpay === 0 && funding.unresolved.length === 0 &&
           funding.sources.length > 0 && redemptionSetMatches && returnedEverySourceItem &&
+          (!sourceIsExchangeChild || funding.lineAllocationStatus === 'PERSISTED_RECONCILED') &&
           Number.isSafeInteger(totalAvailable) && totalAvailable === returnTotal &&
           funding.sources.every((sourceShare) => sourceKinds.has(sourceShare.sourceKind) &&
             sourceShare.available > 0 && sourceShare.available === toNumberRial(sourceShare.event.amount))
         if (fullyProvenFullReturn && diff === 0 && returnTotal === exchangeTotal) {
           fundingSourcesForTransfer = funding!.sources
-        } else if (fullyProvenFullReturn && diff < 0 &&
+        } else if (fullyProvenFullReturn && !sourceIsExchangeChild && diff < 0 &&
             funding!.sources.every((sourceShare) => ['SOURCE_GIFT', 'SOURCE_CASH'].includes(sourceShare.sourceKind)) &&
             funding!.sources.some((sourceShare) => sourceShare.sourceKind === 'SOURCE_GIFT') &&
             funding!.sources.some((sourceShare) => sourceShare.sourceKind === 'SOURCE_CASH')) {
@@ -7607,6 +7628,20 @@ export const salesService = {
           }
         }
       }
+      if (sourceIsExchangeChild && diff !== 0 && funding?.snapshotExists && !funding.stale &&
+          funding.unresolved.length === 0 && funding.lineAllocationStatus === 'PERSISTED_RECONCILED' &&
+          funding.activeReturnIds.length === 1 && funding.activeReturnIds[0] === back.id &&
+          funding.debt === 0 && funding.overpay === 0 && funding.sources.length > 0 &&
+          funding.sources.every((share) => share.available > 0 && share.available === toNumberRial(share.event.amount)) &&
+          funding.sources.reduce((sum, share) => sum + share.available, 0) === returnTotal &&
+          Array.isArray(source.items) && source.items.length > 0 &&
+          source.items.length === (back.returnedLines ?? []).length && source.items.every((saleItem: any) =>
+            (back.returnedLines ?? []).some((returnedLine: any) =>
+              Number(returnedLine.saleItemId) === Number(saleItem.id) && Number(returnedLine.qty) === Number(saleItem.qty))))
+        throw new BusinessError(
+          'تعویض زنجیره‌ای فقط وقتی مجاز است که مبلغ جایگزین دقیقاً با carry اثبات‌شده برابر باشد. ' +
+          'این زنجیره مابه‌التفاوت را به نقد، B/N یا اعتبار عمومی تبدیل نمی‌کند؛ هیچ انتقال یا اثر مالی ثبت نشد.'
+        )
       if (refundMode === 'S1_RESIDUAL_RIGHTS' && !s1ResidualRightsEligible)
         throw new BusinessError('گزینهٔ S1 فقط وقتی فعال است که فروش مختلط هدیه/وجه، lineage سالم و carry/remnant قابل اثبات داشته باشد؛ منشأ این تعویض واجد شرایط نیست.')
       if (s1ResidualRightsEligible && refundMode !== 'S1_RESIDUAL_RIGHTS')
@@ -9883,7 +9918,7 @@ export const salesService = {
     assertReturnNotVoided(pre as any, 'ابطال')
     /** نشست ۶۵ (S65-1) — برگشتِ تعویض = ابطال اتمیک کل گراف تعویض (نه مسدود) */
     const preIsExchange = (pre.kind ?? 'RETURN') === ReturnKind.EXCHANGE || pre.exchangeInvoiceId != null
-    if (!await isS1ExchangeCarryReturn(prisma, pre as any))
+    if (!preIsExchange && !await isS1ExchangeCarryReturn(prisma, pre as any))
       await assertExchangeChildReturnMutationBlocked(prisma, pre.invoice as any, 'ابطال')
     const reason = String(input.reason ?? '').trim()
     if (reason.length < 3)
@@ -9959,7 +9994,8 @@ export const salesService = {
         })
         if (!ret) throw new BusinessError('این برگشت از فروش پیدا نشد؛ فهرست را تازه کنید.')
         assertReturnNotVoided(ret as any, 'ابطال')
-        if (!await isS1ExchangeCarryReturn(tx, ret as any))
+        const isExchange = (ret.kind ?? 'RETURN') === ReturnKind.EXCHANGE || ret.exchangeInvoiceId != null
+        if (!isExchange && !await isS1ExchangeCarryReturn(tx, ret as any))
           await assertExchangeChildReturnMutationBlocked(tx, ret.invoice as any, 'ابطال')
         if (await tx.returnCorrection.findUnique({ where: { returnId: ret.id }, select: { id: true } }))
           throw new BusinessError('این سند اصلاح جبرانی ثبت‌شده دارد؛ ابطال دوبارهٔ سند اصلی مجاز نیست.')
@@ -9976,7 +10012,6 @@ export const salesService = {
          * (سند برگشت + سند تعویض + اعتبار + درخواست کارت‌به‌کارت + انبار دو طرف +
          * کاهش بدهی فاکتور اصلی) در همین تراکنش باطل/برگردانده می‌شود.
          */
-        const isExchange = (ret.kind ?? 'RETURN') === ReturnKind.EXCHANGE || ret.exchangeInvoiceId != null
         if (isExchange !== preIsExchange ||
             (preIsExchange && Number(ret.exchangeInvoiceId ?? 0) !== Number(pre.exchangeInvoiceId ?? 0)))
           throw new BusinessError('پیوند برگشت/تعویض هنگام تأیید تغییر کرده است؛ هیچ اثری با مجوز کهنه اعمال نشد. فهرست را تازه کنید.')
@@ -10003,6 +10038,7 @@ export const salesService = {
 
         // ---- ۰-الف) نشست ۶۵ — گراف تعویض: سند تعویض و گاردهای برگشت‌ناپذیرش ----
         let exInv: any = null
+        const nestedExchangeSource = isExchange && await isExchangeChildInvoiceWithLineage(tx, ret.invoice as any)
         if (isExchange) {
           exInv = ret.exchangeInvoiceId
             ? await tx.saleInvoice.findUnique({
@@ -10017,6 +10053,18 @@ export const salesService = {
             )
           if (exInv.voidedAt != null)
             throw new BusinessError(`ابطال این تعویض ممکن نیست: سند تعویض ${faDigits(exInv.receiptNo)} قبلاً باطل شده است.`)
+          if (nestedExchangeSource) {
+            if (ret.invoice?.orderType !== OrderType.EXCHANGE ||
+                !Number.isSafeInteger(Number(ret.invoice?.sourceInvoiceId)) || Number(ret.invoice?.sourceInvoiceId) <= 0 ||
+                !Number.isSafeInteger(Number(ret.invoice?.exchangeReturnId)) || Number(ret.invoice?.exchangeReturnId) <= 0)
+              throw new BusinessError('ابطال زنجیره‌ای ممکن نیست: lineage فاکتور فرزندِ منبع ناقص یا دستکاری شده است؛ هیچ اثری معکوس نشد.')
+            const nestedFunding = await getCurrentExchangeFundingSources(tx, exInv.id)
+            if (!nestedFunding.snapshotExists || nestedFunding.unresolved.length > 0 ||
+                nestedFunding.lineAllocationStatus !== 'PERSISTED_RECONCILED' ||
+                nestedFunding.sourceInvoiceId !== Number(ret.invoiceId) || nestedFunding.returnId !== Number(ret.id) ||
+                nestedFunding.sources.length === 0)
+              throw new BusinessError('ابطال زنجیره‌ای ممکن نیست: سهم‌های فرزند/ریشه و ماتریس اقلام با هم تطبیق ندارند؛ هیچ اثری معکوس نشد.')
+          }
           const liveReturnsOnEx = await tx.saleReturn.count({ where: { invoiceId: exInv.id, voidedAt: null } })
           if (liveReturnsOnEx > 0)
             throw new BusinessError(
@@ -10196,10 +10244,12 @@ export const salesService = {
         // A partial pair, spent child share, or downstream use aborts this whole
         // correction transaction rather than reopening only one ledger side.
         if (isExchange) {
-          await reverseExchangeFundingTransfersForReturn(tx, {
+          const reversedFunding = await reverseExchangeFundingTransfersForReturn(tx, {
             returnId: ret.id,
             actorUserId: input.userId ?? null
           })
+          if (nestedExchangeSource && reversedFunding.pairs === 0)
+            throw new BusinessError('ابطال تعویض زنجیره‌ای ممکن نیست: هیچ جفت انتقالِ قابل‌اثباتی برای فرزند پیدا نشد؛ هیچ اثر مالی معکوس نشد.')
         } else if (await isS1ExchangeCarryReturn(tx, ret as any)) {
           await reverseExchangeFundingReturnTransfersForChildReturn(tx, {
             returnId: ret.id, actorUserId: input.userId ?? null
