@@ -2009,11 +2009,17 @@ export interface ExchangeSaleInput {
   /** روش پرداخت مابه‌التفاوت (وقتی مشتری باید بپردازد) */
   methodId?: number | null
   /**
-   * پرداخت ترکیبیِ مابه‌التفاوت مثبت تعویض. فقط CASH + CARD با مقصدهای متناظر
-   * پذیرفته می‌شود؛ هر سهم Payment مستقل می‌سازد.
+   * پرداخت ترکیبیِ مابه‌التفاوت مثبت تعویض. مسیر قدیمی CASH + CARD با مقصدهای
+   * متناظر حفظ می‌شود. در tender ریشه‌دار، کد N/B فقط با مقدار صریح در
+   * `deltaStoreCreditCode` / `deltaStoreCreditAmount` همراه یک یا چند tender
+   * نقدی/کارتی مصرف می‌شود؛ اعتبار هرگز cash محسوب نمی‌شود.
    */
   splitPayment?: boolean
   payments?: { methodId: number; amount: number; destination?: string | null }[]
+  /** کد حق B/N معتبر برای پرداخت بخشی از مابه‌التفاوت مثبت تعویض */
+  deltaStoreCreditCode?: string | null
+  /** مبلغ دقیق مصرف از کد بالا؛ مصرف جزئی/نامعتبر پیش از commit رد می‌شود */
+  deltaStoreCreditAmount?: number | null
   /**
    * مقصد پول مابه‌التفاوت مثبت. برای نقد/کارت از `kind` روش قابل استنتاج است؛
    * روش CUSTOM بدون این فیلد رد می‌شود (همان قاعده‌ی `addPayment`).

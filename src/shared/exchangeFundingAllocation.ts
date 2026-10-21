@@ -15,7 +15,7 @@ export type ExchangeFundingPlan = {
   unfundedReplacement: number
 }
 
-export type ExchangeFundingRealMoneyKind = 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'
+export type ExchangeFundingRealMoneyKind = 'SOURCE_N' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'
 export type ExchangeFundingFloorShare = {
   sourceEventId: number
   sourceKind: 'SOURCE_GIFT' | ExchangeFundingRealMoneyKind
@@ -50,7 +50,7 @@ export function allocateExchangeFundingProportionalFloor(input: {
   for (const source of sources) {
     if (!source || !Number.isSafeInteger(source.sourceEventId) || source.sourceEventId <= 0 ||
         seen.has(source.sourceEventId) || !Number.isSafeInteger(source.available) || source.available < 0 ||
-        !['SOURCE_GIFT', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(source.sourceKind))
+        !['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(source.sourceKind))
       throw new RangeError('Exchange funding shares must be unique and proven')
     seen.add(source.sourceEventId)
     if (source.sourceKind === 'SOURCE_GIFT') giftTotal += BigInt(source.available)
@@ -174,7 +174,7 @@ export function allocateExchangeFundingProRata(
 export type ExchangeFundingLineAllocation = {
   sourceEventId: number
   saleItemId: number
-  sourceKind: 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'
+  sourceKind: 'SOURCE_GIFT' | 'SOURCE_N' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'
   amount: number
 }
 
@@ -207,7 +207,7 @@ export function allocateExchangeFundingByLine(
 
   const sourceIds = new Set<number>()
   let sourceTotal = 0n
-  const provenKinds = new Set(['SOURCE_GIFT', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
+  const provenKinds = new Set(['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
   for (const source of sources) {
     if (!source || !Number.isSafeInteger(source.sourceEventId) || source.sourceEventId <= 0 ||
         sourceIds.has(source.sourceEventId) || !provenKinds.has(source.sourceKind) ||

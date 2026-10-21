@@ -53,6 +53,50 @@ export async function assertOrdinaryReturnLineage(tx: Client, returnId: number, 
  * claim; their history remains available for manager-controlled cutover.
  * Caller MUST pass the same tx that creates the SaleReturn and REQUEST.
  */
+/** Open a provenance-backed cash claim for a child-exchange return. This is
+ * not a payout, bank reservation, or CashMovement; settlement is a later step.
+ */
+export async function openS8ExchangeChildCashRight(
+  tx: Client,
+  input: { returnId: number; invoiceId: number; amount: number; actorUserId?: number | null }
+) {
+  const returnId = safeId(input.returnId, 'شناسه برگشت')
+  const invoiceId = safeId(input.invoiceId, 'شناسه فرزند')
+  const amount = secureInt(input.amount, 'حق نقدی')
+  const [ret, invoice] = await Promise.all([
+    tx.saleReturn.findUnique({ where: { id: returnId } }),
+    tx.saleInvoice.findUnique({ where: { id: invoiceId }, select: {
+      id: true, orderType: true, sourceInvoiceId: true, exchangeReturnId: true, voidedAt: true
+    } })
+  ])
+  const parentReturn = invoice?.exchangeReturnId
+    ? await tx.saleReturn.findUnique({ where: { id: Number(invoice.exchangeReturnId) }, select: {
+        id: true, invoiceId: true, exchangeInvoiceId: true, voidedAt: true
+      } }) : null
+  if (!ret || !invoice || invoice.orderType !== 'EXCHANGE' || invoice.voidedAt != null ||
+      Number(ret.invoiceId) !== invoiceId || ret.kind !== 'RETURN' || ret.voidedAt != null ||
+      toNumberRial(ret.total) < amount || Number(invoice.sourceInvoiceId) <= 0 ||
+      !parentReturn || parentReturn.voidedAt != null || Number(parentReturn.invoiceId) !== Number(invoice.sourceInvoiceId) ||
+      Number(parentReturn.exchangeInvoiceId) !== invoiceId)
+    throw new BusinessError('منشأ CASH_RIGHT برگشت فرزند تعویض قابل تطبیق نیست؛ حق نقدی باز نشد.')
+  const existing = await tx.returnEntitlement.findUnique({ where: { returnId } })
+  if (existing) {
+    if (Number(existing.invoiceId) !== invoiceId || toNumberRial(existing.cashRight) !== amount ||
+        existing.requestId != null) throw stale()
+    return safeView(existing)
+  }
+  const claim = await tx.returnEntitlement.create({ data: {
+    returnId, invoiceId, requestId: null, cashRight: amount, cashReserved: 0,
+    giftOpportunity: 0, debtReduced: 0, state: 'OPEN'
+  } })
+  await tx.returnEntitlementEvent.create({ data: {
+    entitlementId: claim.id, eventKey: `s8-child-cash-right:${returnId}`, kind: 'CASH_RIGHT_OPENED',
+    amount, actorUserId: input.actorUserId ?? null, evidenceKind: 'S8_PROVEN_CHILD_CARRY_RETURN',
+    reason: 'منشأ وجه به حق نقدی باز تبدیل شد؛ هیچ payout یا movement ثبت نشد.', beforeVersion: 0
+  } })
+  return safeView(claim)
+}
+
 export async function openCardTransferEntitlement(
   tx: Client,
   input: { returnId: number; invoiceId: number; requestId: number; amount: number; debtReduced?: number;

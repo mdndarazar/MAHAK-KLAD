@@ -1,7 +1,7 @@
 import { allocateRialSharesWebster } from './integerRialApportionment'
 import { returnValueOf } from './returnValue'
 
-export type ExchangeReturnSourceKind = 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'
+export type ExchangeReturnSourceKind = 'SOURCE_GIFT' | 'SOURCE_N' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'
 
 /** Provenance attribution for one source's share of one replacement line.
  * It is descriptive accounting lineage only; never a settlement right. */
@@ -27,6 +27,9 @@ export interface ExchangeFundingLineReturnInput {
    * Required once any quantity was previously returned, even if every source
    * allocation is zero. Missing or conflicting history fails closed. */
   priorAllocations?: readonly PriorExchangeReturnLineAllocation[]
+  /** S8 explicitly uses cumulative gift-floor; the default keeps historical
+   * Webster and S1 behavior unchanged for every other caller. */
+  allocationPolicy?: 'PROPORTIONAL_FLOOR'
 }
 
 export interface ExchangeFundingLineReturnShare {
@@ -61,7 +64,38 @@ function webster(weights: readonly { id: number; amount: number }[], seats: numb
  * with cash absorbing the Rial remainder. Other source matrices retain their
  * existing Webster apportionment; S1's exception is intentionally not general.
  */
-function cumulativeSourceShares(weights: readonly { id: number; amount: number; sourceKind?: string }[], seats: number): number[] {
+function cumulativeSourceShares(
+  weights: readonly { id: number; amount: number; sourceKind?: string }[],
+  seats: number,
+  policy?: 'PROPORTIONAL_FLOOR'
+): number[] {
+  if (policy === 'PROPORTIONAL_FLOOR') {
+    const total = weights.reduce((sum, row) => sum + BigInt(row.amount), 0n)
+    const gift = weights.filter((row) => row.sourceKind === 'SOURCE_GIFT')
+    const real = weights.filter((row) => row.sourceKind !== 'SOURCE_GIFT')
+    const giftTotal = gift.reduce((sum, row) => sum + BigInt(row.amount), 0n)
+    const realTotal = real.reduce((sum, row) => sum + BigInt(row.amount), 0n)
+    const giftSeats = total === 0n ? 0 : Number((giftTotal * BigInt(seats)) / total)
+    const realSeats = seats - giftSeats
+    if (BigInt(seats) > total || BigInt(giftSeats) > giftTotal || BigInt(realSeats) > realTotal)
+      throw new Error(INVALID_BASIS)
+    const allocateGroup = (rows: typeof weights, groupTotal: bigint, groupSeats: number) => {
+      let cumulative = 0n
+      let previous = 0n
+      const result = new Map<number, number>()
+      for (const row of rows) {
+        cumulative += BigInt(row.amount)
+        const target = groupTotal === 0n ? 0n : (cumulative * BigInt(groupSeats)) / groupTotal
+        result.set(row.id, Number(target - previous))
+        previous = target
+      }
+      return result
+    }
+    const giftAllocations = allocateGroup(gift, giftTotal, giftSeats)
+    const realAllocations = allocateGroup(real, realTotal, realSeats)
+    return weights.map((row) => row.sourceKind === 'SOURCE_GIFT'
+      ? giftAllocations.get(row.id) ?? 0 : realAllocations.get(row.id) ?? 0)
+  }
   const kinds = new Set(weights.map((weight) => weight.sourceKind))
   if (kinds.size === 2 && kinds.has('SOURCE_GIFT') && kinds.has('SOURCE_CASH')) {
     const total = weights.reduce((sum, weight) => sum + BigInt(weight.amount), 0n)
@@ -119,7 +153,7 @@ export function allocateExchangeFundingLineReturn(
   for (const source of orderedSources) {
     if (!Number.isSafeInteger(source.sourceEventId) || source.sourceEventId <= 0 ||
         seenSources.has(source.sourceEventId) ||
-        !['SOURCE_GIFT', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(source.sourceKind) ||
+        !['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(source.sourceKind) ||
         !Number.isSafeInteger(source.amount) || source.amount <= 0)
       throw new Error(INVALID_BASIS)
     seenSources.add(source.sourceEventId)
@@ -141,7 +175,7 @@ export function allocateExchangeFundingLineReturn(
   const weights = orderedSources.map((source) => ({
     id: source.sourceEventId, amount: source.amount, sourceKind: source.sourceKind
   }))
-  const expectedPrior = cumulativeSourceShares(weights, priorValue)
+  const expectedPrior = cumulativeSourceShares(weights, priorValue, input.allocationPolicy)
   let priorShares = expectedPrior
   if (input.priorAllocations !== undefined) {
     if (!Array.isArray(input.priorAllocations) || input.priorAllocations.length !== orderedSources.length)
@@ -165,7 +199,7 @@ export function allocateExchangeFundingLineReturn(
     throw new Error('MISSING_EXCHANGE_RETURN_ALLOCATION_HISTORY')
   }
 
-  const targetCumulative = cumulativeSourceShares(weights, cumulativeValue)
+  const targetCumulative = cumulativeSourceShares(weights, cumulativeValue, input.allocationPolicy)
   const shares = orderedSources.map((source, index) => {
     const prior = priorShares[index]
     const cumulative = targetCumulative[index]

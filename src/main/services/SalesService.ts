@@ -5,12 +5,14 @@ import {
   getCurrentExchangeFundingSources,
   getCurrentSaleFundingSources,
   recordExchangeFundingLineAllocations,
+  recordExchangeChildTenderFundingSnapshot,
   recordExchangeFundingReturnLineAllocation,
   recordSaleFundingSnapshot,
   reviseLatestSaleFundingSnapshot,
   reverseExchangeFundingReturnLineAllocationsForReturn,
   reverseExchangeFundingTransfersForReturn,
   returnExchangeFundingShareForChildReturn,
+  releaseExchangeFundingTenderForChildReturn,
   reverseExchangeFundingReturnTransfersForChildReturn,
   transferExchangeFundingShare
 } from './ExchangeFundingLedgerService'
@@ -24,6 +26,7 @@ import {
 import { allocateExchangeFundingLineReturn, type ExchangeReturnSourceKind } from '@shared/exchangeFundingLineReturn'
 import {
   openCardTransferEntitlement,
+  openS8ExchangeChildCashRight,
   correctPendingEntitlement,
   quarantineEntitlement
 } from './ReturnEntitlementService'
@@ -3853,6 +3856,7 @@ async function runReturn(
     let creditReturnPlan: CreditReturnPlan | null = null
     let s1ResidualReturnPlan: Awaited<ReturnType<typeof planS1ResidualRightSaleReturn>> = null
     let exchangeChildReturnPlan: Awaited<ReturnType<typeof previewExchangeReturnFunding>> | null = null
+    const s8ChildReturnRights: any[] = []
     if (opts.deferExchangeFundingGateToPreflight === true &&
         (opts.applyRefund === true || opts.kind !== ReturnKind.EXCHANGE))
       throw new Error('exchange funding gate may only be deferred by createExchange')
@@ -4046,7 +4050,7 @@ async function runReturn(
      * (`applyRefund: false`) چون تسویه‌اش بعد از سند تعویض است.
      */
     let returnOverpayIncrease = 0
-    if (opts.applyRefund) {
+    if (opts.applyRefund && !exchangeChildReturnPlan) {
       const thisRefund = refundFromReceivedOf({
         kind: ReturnKind.RETURN,
         total: returnTotal,
@@ -4188,24 +4192,81 @@ async function runReturn(
      * =====================================================================
      */
     let exchangeCarryReturned = 0
+    let exchangeChildCashRight = 0
     if (exchangeChildReturnPlan) {
       for (const returnItem of ret.items as any[]) {
         const attribution = await recordExchangeFundingReturnLineAllocation(tx, {
-          returnId: Number(ret.id), returnItemId: Number(returnItem.id)
+          returnId: Number(ret.id), returnItemId: Number(returnItem.id),
+          ...(exchangeChildReturnPlan.s8BranchEligible ? { allocationPolicy: 'PROPORTIONAL_FLOOR' as const } : {})
         })
         for (const share of attribution.shares) {
-          if (share.amount <= 0) continue
-          const transfer = await returnExchangeFundingShareForChildReturn(tx, {
-            returnId: Number(ret.id), returnItemId: Number(returnItem.id),
-            sourceEventId: Number(share.sourceEventId), amount: Number(share.amount),
-            actorUserId: input.userId ?? null
-          })
-          if (!Number.isSafeInteger(Number(transfer.outEvent.id))) throw new BusinessError(exchangeReturnFundingBlockedMessage())
-          exchangeCarryReturned += Number(share.amount)
+          const amount = Number(share.amount)
+          if (amount <= 0) continue
+          const sourceEvent = await tx.exchangeFundingEvent.findUnique({ where: { id: Number(share.sourceEventId) } })
+          if (!sourceEvent) throw new BusinessError(exchangeReturnFundingBlockedMessage())
+          const sourceKind = String(sourceEvent.kind)
+          if (sourceKind === 'SOURCE_N' || sourceKind === 'SOURCE_GIFT') {
+            const credit = sourceEvent.sourceCreditId == null ? null : await tx.storeCredit.findUnique({
+              where: { id: Number(sourceEvent.sourceCreditId) }, select: { exchangeResidualRightKey: true }
+            })
+            const rightKey = String(credit?.exchangeResidualRightKey ?? '')
+            if (!rightKey || sourceEvent.sourcePaymentId == null)
+              throw new BusinessError(exchangeReturnFundingBlockedMessage())
+            const operationKey = `s8-child-return:${ret.id}:source:${sourceEvent.id}`
+            await releaseExchangeFundingTenderForChildReturn(tx, {
+              returnId: Number(ret.id), returnItemId: Number(returnItem.id),
+              sourceEventId: Number(sourceEvent.id), amount, actorUserId: input.userId ?? null
+            })
+            await restoreS1ExchangeResidualRight(tx, {
+              rightKey, operationKey, amount, relatedInvoiceId: Number(invoice.id),
+              relatedPaymentId: Number(sourceEvent.sourcePaymentId), relatedReturnId: Number(ret.id),
+              actorUserId: input.userId ?? null
+            })
+          } else if (sourceKind === 'TRANSFER_IN') {
+            const transfer = await returnExchangeFundingShareForChildReturn(tx, {
+              returnId: Number(ret.id), returnItemId: Number(returnItem.id),
+              sourceEventId: Number(share.sourceEventId), amount,
+              actorUserId: input.userId ?? null
+            })
+            if (!Number.isSafeInteger(Number(transfer.outEvent.id)))
+              throw new BusinessError(exchangeReturnFundingBlockedMessage())
+            if (sourceEvent.parentEventId != null) {
+              const rootParent = await tx.exchangeFundingEvent.findUnique({
+                where: { id: Number(sourceEvent.parentEventId) }
+              })
+              if (exchangeChildReturnPlan.s8BranchEligible && rootParent && String(rootParent.kind) === 'SOURCE_GIFT') {
+                const branch = await openS8ExchangeChildGiftBranch(tx, {
+                  returnId: Number(ret.id), childInvoiceId: Number(invoice.id),
+                  sourceEventId: Number(sourceEvent.id), amount, actorUserId: input.userId ?? null
+                })
+                s8ChildReturnRights.push({ kind: 'B', ...branch })
+              } else if (exchangeChildReturnPlan.s8BranchEligible && rootParent &&
+                  ['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(String(rootParent.kind))) {
+                exchangeChildCashRight += amount
+              }
+            }
+          } else if (exchangeChildReturnPlan.s8BranchEligible &&
+              ['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(sourceKind)) {
+            await releaseExchangeFundingTenderForChildReturn(tx, {
+              returnId: Number(ret.id), returnItemId: Number(returnItem.id),
+              sourceEventId: Number(sourceEvent.id), amount, actorUserId: input.userId ?? null
+            })
+            exchangeChildCashRight += amount
+          } else {
+            throw new BusinessError(exchangeReturnFundingBlockedMessage())
+          }
+          exchangeCarryReturned += amount
         }
       }
       if (exchangeCarryReturned !== exchangeChildReturnPlan.returnTotal)
         throw new BusinessError(exchangeReturnFundingBlockedMessage())
+      if (exchangeChildCashRight > 0) {
+        const cashRight = await openS8ExchangeChildCashRight(tx, {
+          returnId: Number(ret.id), invoiceId: Number(invoice.id), amount: exchangeChildCashRight,
+          actorUserId: input.userId ?? null
+        })
+        s8ChildReturnRights.push({ kind: 'CASH_RIGHT', ...cashRight })
+      }
     }
 
     let restoreSplit: Awaited<ReturnType<typeof stockAllocationService.reverseForSaleItems>> | null = null
@@ -4460,6 +4521,7 @@ async function runReturn(
       refundMethod: refund?.method ?? null,
       refundAmount: refund?.amount ?? 0,
       reversedCreditRedemptions,
+      s8ChildReturnRights: s8ChildReturnRights.map((right) => ({ ...right })),
       creditOpportunity: creditRestoration ? {
         restored: creditRestoration.restored,
         expiredShare: creditRestoration.expiredShare,
@@ -4490,6 +4552,76 @@ function creditPaymentEditBlockedMessage(amount: number): string {
     'مبلغ آن را دفتر مصرف اعتبار تعیین می‌کند و اعتبار خرید هرگز به نقد تبدیل نمی‌شود. ' +
     'اگر اشتباه ثبت شده، همین پرداختی را باطل کنید تا اعتبار به مشتری برگردد و سپس پرداخت درست را ثبت کنید. هیچ تغییری ذخیره نشد.'
   )
+}
+
+async function openS8ExchangeChildGiftBranch(tx: any, input: {
+  returnId: number; childInvoiceId: number; sourceEventId: number; amount: number; actorUserId?: number | null
+}) {
+  const [ret, child, sourceEvent] = await Promise.all([
+    tx.saleReturn.findUnique({ where: { id: input.returnId } }),
+    tx.saleInvoice.findUnique({ where: { id: input.childInvoiceId }, select: {
+      id: true, orderType: true, sourceInvoiceId: true, exchangeReturnId: true, voidedAt: true
+    } }),
+    tx.exchangeFundingEvent.findUnique({ where: { id: input.sourceEventId } })
+  ])
+  const rootEvent = sourceEvent?.kind === 'TRANSFER_IN' && sourceEvent.parentEventId != null
+    ? await tx.exchangeFundingEvent.findUnique({ where: { id: Number(sourceEvent.parentEventId) } }) : null
+  const parentReturn = child?.exchangeReturnId
+    ? await tx.saleReturn.findUnique({ where: { id: Number(child.exchangeReturnId) }, select: {
+        id: true, invoiceId: true, exchangeInvoiceId: true, voidedAt: true
+      } }) : null
+  if (!ret || ret.kind !== 'RETURN' || ret.voidedAt != null || !child || child.orderType !== 'EXCHANGE' ||
+      child.voidedAt != null || Number(ret.invoiceId) !== input.childInvoiceId ||
+      !Number.isSafeInteger(Number(child.sourceInvoiceId)) || Number(child.sourceInvoiceId) <= 0 ||
+      !parentReturn || parentReturn.voidedAt != null || Number(parentReturn.invoiceId) !== Number(child.sourceInvoiceId) ||
+      Number(parentReturn.exchangeInvoiceId) !== input.childInvoiceId || !rootEvent || rootEvent.kind !== 'SOURCE_GIFT' ||
+      Number(rootEvent.sourceInvoiceId) !== Number(child.sourceInvoiceId) || !Number.isSafeInteger(input.amount) ||
+      input.amount <= 0 || input.amount > toNumberRial(sourceEvent.amount))
+    throw new BusinessError(exchangeReturnFundingBlockedMessage())
+  const rootCreditId = Number(rootEvent.sourceCreditId)
+  const rootRedemptionId = Number(rootEvent.sourceRedemptionId)
+  const [rootCredit, rootRedemption] = await Promise.all([
+    tx.storeCredit.findUnique({ where: { id: rootCreditId }, select: { id: true } }),
+    tx.storeCreditRedemption.findUnique({ where: { id: rootRedemptionId }, select: {
+      id: true, expiryCaptured: true, expiryAtRedeem: true
+    } })
+  ])
+  if (!rootCredit || !rootRedemption || rootRedemption.expiryCaptured !== true) throw new BusinessError(exchangeReturnFundingBlockedMessage())
+  const expiresAt = rootRedemption.expiryAtRedeem == null ? null : new Date(rootRedemption.expiryAtRedeem)
+  if (expiresAt && !Number.isFinite(expiresAt.getTime())) throw new BusinessError(exchangeReturnFundingBlockedMessage())
+  const rightKey = `s8-child-return:${input.returnId}:source:${rootEvent.id}:B`
+  const eventKey = `open:${rightKey}`
+  const opening = {
+    eventKey, rightKey, rightKind: 'B', eventKind: 'OPENED', amount: input.amount,
+    availableDelta: input.amount, reservedDelta: 0, spentDelta: 0,
+    sourceInvoiceId: Number(rootEvent.sourceInvoiceId), childInvoiceId: input.childInvoiceId,
+    returnId: input.returnId, sourceEventId: Number(rootEvent.id), rootShareId: String(rootEvent.rootShareId),
+    expiresAt, operationKey: null, actorUserId: input.actorUserId ?? null,
+    evidenceKind: 'S8_PROVEN_CHILD_CARRY_RETURN', evidenceRef: `SaleReturn:${input.returnId}:Root:${rootEvent.rootShareId}`
+  }
+  let prior = await tx.exchangeResidualRightEvent.findUnique({ where: { eventKey } })
+  if (prior) {
+    if (prior.rightKey !== rightKey || prior.rightKind !== 'B' || prior.eventKind !== 'OPENED' ||
+        toNumberRial(prior.amount) !== input.amount || Number(prior.sourceEventId) !== Number(rootEvent.id) ||
+        prior.rootShareId !== String(rootEvent.rootShareId)) throw new BusinessError(exchangeReturnFundingBlockedMessage())
+  } else prior = await tx.exchangeResidualRightEvent.create({ data: opening })
+  let credit = await tx.storeCredit.findUnique({ where: { exchangeResidualRightKey: rightKey } })
+  if (!credit) {
+    credit = await issueStoreCredit(tx, {
+      amount: input.amount, source: CreditSource.EXCHANGE, returnId: input.returnId,
+      exchangeInvoiceId: input.childInvoiceId, sourceInvoiceId: Number(rootEvent.sourceInvoiceId),
+      exchangeResidualRightKey: rightKey, days: null, expiresAtExact: expiresAt,
+      multiUse: true, status: 'DRAFT', note: `حق B مشتق از برگشت فرزند · ${rootEvent.rootShareId}`,
+      issuedAt: new Date(), userId: input.actorUserId ?? null
+    })
+    await tx.creditDelivery.create({ data: { creditId: credit.id, sourceKind: 'S8_EXCHANGE_B' } })
+  }
+  const delivery = await tx.creditDelivery.findUnique({ where: { creditId: Number(credit.id) } })
+  if (Number(credit.amount) !== input.amount || credit.exchangeResidualRightKey !== rightKey ||
+      Number(credit.returnId) !== input.returnId || !delivery || delivery.status !== 'PENDING_DELIVERY')
+    throw new BusinessError(exchangeReturnFundingBlockedMessage())
+  return { rightKey, creditId: Number(credit.id), amount: input.amount, status: credit.status,
+    deliveryStatus: delivery.status, expiresAt }
 }
 
 function exchangeReturnFundingBlockedMessage(): string {
@@ -4545,7 +4677,7 @@ async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
     throw new BusinessError(exchangeReturnFundingBlockedMessage())
 
   const provenKinds = new Set<ExchangeReturnSourceKind>([
-    'SOURCE_GIFT', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'
+    'SOURCE_GIFT', 'SOURCE_N', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'
   ])
   const fundingSourceById = new Map<number, any>()
   const sourceById = new Map<number, { sourceKind: ExchangeReturnSourceKind; amount: number }>()
@@ -4607,6 +4739,9 @@ async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
   const activeReturns = (invoice.returns ?? []).filter((ret: any) => ret.voidedAt == null)
     .slice().sort((a: any, b: any) => Number(a.id) - Number(b.id))
   const activeReturnIds = activeReturns.map((ret: any) => Number(ret.id))
+  const s8AllocationPolicy = activeReturns.some((ret: any) => String(ret.kind) === ReturnKind.EXCHANGE) ||
+    funding.sources.some((source: any) => String(source.sourceKind) === 'SOURCE_N')
+    ? 'PROPORTIONAL_FLOOR' as const : undefined
   const readerReturnIds = [...(funding.activeReturnIds as number[])].sort((a, b) => a - b)
   if (activeReturnIds.some((id: number, index: number) => !Number.isSafeInteger(id) || id <= 0 ||
       id !== readerReturnIds[index]) || activeReturnIds.length !== readerReturnIds.length)
@@ -4615,6 +4750,7 @@ async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
   const returnedQtyByItem = new Map<number, number>()
   const priorAllocationsByItem = new Map<number, Array<{ sourceEventId: number; amount: number }>>()
   const activeShareDebits = new Map<number, number>()
+  const exchangeShareDebits = new Map<number, number>()
   const allocationNumericFields = new Set([
     'returnId', 'returnItemId', 'childInvoiceId', 'saleItemId', 'sourceEventId', 'saleItemQty',
     'saleItemValue', 'sourceItemAmount', 'returnedQtyBefore', 'returningQty', 'returnedQtyAfter',
@@ -4630,12 +4766,25 @@ async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
 
   for (const ret of activeReturns) {
     const retId = Number(ret.id)
+    const priorKind = String(ret.kind)
+    const exchangeCarryReturn = priorKind === ReturnKind.EXCHANGE &&
+      Number.isSafeInteger(Number(ret.exchangeInvoiceId)) && Number(ret.exchangeInvoiceId) > 0 &&
+      toNumberRial(ret.exchangeTotal ?? 0) > 0
+    const ordinaryCarryReturn = priorKind === ReturnKind.RETURN && ret.exchangeInvoiceId == null &&
+      toNumberRial(ret.exchangeTotal ?? 0) === 0 && ret.exchangeSettlement == null
     if (!Number.isSafeInteger(retId) || retId <= 0 || Number(ret.invoiceId) !== invoiceId ||
-        String(ret.kind) !== ReturnKind.RETURN || ret.refundMethod !== RefundMethod.NONE ||
+        (!ordinaryCarryReturn && !exchangeCarryReturn) || ret.refundMethod !== RefundMethod.NONE ||
         toNumberRial(ret.refundAmount) !== 0 || ret.refundPaymentId != null ||
-        toNumberRial(ret.debtReduction ?? 0) !== 0 || ret.exchangeInvoiceId != null ||
-        toNumberRial(ret.exchangeTotal ?? 0) !== 0 || ret.exchangeSettlement != null || ret.storeCreditId != null)
+        toNumberRial(ret.debtReduction ?? 0) !== 0 || ret.storeCreditId != null)
       throw new BusinessError(exchangeReturnFundingBlockedMessage())
+    if (exchangeCarryReturn) {
+      const linkedChild = await tx.saleInvoice.findUnique({ where: { id: Number(ret.exchangeInvoiceId) },
+        select: { id: true, sourceInvoiceId: true, exchangeReturnId: true, grandTotal: true, voidedAt: true } })
+      if (!linkedChild || linkedChild.voidedAt != null || Number(linkedChild.sourceInvoiceId) !== invoiceId ||
+          Number(linkedChild.exchangeReturnId) !== retId ||
+          toNumberRial(linkedChild.grandTotal) !== toNumberRial(ret.exchangeTotal))
+        throw new BusinessError(exchangeReturnFundingBlockedMessage())
+    }
     const correction = await tx.returnCorrection.findUnique({ where: { returnId: retId }, select: { id: true } })
     if (correction)
       throw new BusinessError(exchangeReturnFundingBlockedMessage())
@@ -4665,7 +4814,7 @@ async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
       try {
         allocation = allocateExchangeFundingLineReturn({
           saleItemId, saleItemQty: line.qty, saleItemValue: line.amount,
-          previouslyReturnedQty: priorQty, returningQty: qty, sources,
+          previouslyReturnedQty: priorQty, returningQty: qty, sources, allocationPolicy: s8AllocationPolicy,
           ...(priorQty > 0 && line.amount > 0 ? { priorAllocations } : {})
         })
       } catch { throw new BusinessError(exchangeReturnFundingBlockedMessage()) }
@@ -4685,7 +4834,7 @@ async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
         priorReturnValue: allocation.cumulativeReturnValue - allocation.returnValue,
         returnValue: allocation.returnValue, cumulativeReturnValue: allocation.cumulativeReturnValue,
         priorAmount: share.prior, amountDelta: share.amount, cumulativeAmount: share.cumulative,
-        allocationVersion: 1, reversesAllocationId: null
+        allocationVersion: s8AllocationPolicy ? 2 : 1, reversesAllocationId: null
       }))
       if (persisted.length !== expected.length || expected.some((want: any) =>
           !persisted.some((actual: any) => actual.eventKind === 'ALLOCATION' && persistedRowMatches(actual, want))) ||
@@ -4697,6 +4846,12 @@ async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
         const nextDebit = priorDebit + share.amount
         if (!Number.isSafeInteger(nextDebit)) throw new BusinessError(exchangeReturnFundingBlockedMessage())
         activeShareDebits.set(share.sourceEventId, nextDebit)
+        if (exchangeCarryReturn) {
+          const priorExchangeDebit = exchangeShareDebits.get(share.sourceEventId) ?? 0
+          const nextExchangeDebit = priorExchangeDebit + share.amount
+          if (!Number.isSafeInteger(nextExchangeDebit)) throw new BusinessError(exchangeReturnFundingBlockedMessage())
+          exchangeShareDebits.set(share.sourceEventId, nextExchangeDebit)
+        }
       }
       returnItemTotal += BigInt(lineTotal)
       returnedQtyByItem.set(saleItemId, allocation.returnedQtyAfter)
@@ -4707,6 +4862,44 @@ async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
     const persistedReturnTotal = toNumberRial(ret.total)
     if (!Number.isSafeInteger(persistedReturnTotal) || persistedReturnTotal < 0 ||
         returnItemTotal !== BigInt(persistedReturnTotal))
+      throw new BusinessError(exchangeReturnFundingBlockedMessage())
+  }
+
+  const exchangeTransferRows = activeReturnIds.length > 0
+    ? await tx.exchangeFundingEvent.findMany({ where: { returnId: { in: activeReturnIds },
+        sourceInvoiceId: invoiceId, kind: { in: ['TRANSFER_OUT', 'TRANSFER_IN'] } }, orderBy: { id: 'asc' } }) as any[]
+    : []
+  const exchangeOuts = exchangeTransferRows.filter((event: any) => event.kind === 'TRANSFER_OUT')
+  const exchangeIns = exchangeTransferRows.filter((event: any) => event.kind === 'TRANSFER_IN')
+  if (exchangeOuts.length !== exchangeIns.length) throw new BusinessError(exchangeReturnFundingBlockedMessage())
+  const exchangeOutBySource = new Map<number, number>()
+  const exchangeOutByReturn = new Map<number, number>()
+  for (const into of exchangeIns) {
+    const intoKey = String(into.eventKey ?? '')
+    const out = intoKey.endsWith(':in')
+      ? await tx.exchangeFundingEvent.findUnique({ where: { eventKey: `${intoKey.slice(0, -3)}:out` } })
+      : null
+    const amount = toNumberRial(into.amount)
+    const [outVoid, inVoid] = out ? await Promise.all([
+      tx.exchangeFundingEvent.findUnique({ where: { reversesEventId: Number(out.id) } }),
+      tx.exchangeFundingEvent.findUnique({ where: { reversesEventId: Number(into.id) } })
+    ]) : [null, null]
+    if (!out || amount <= 0 || toNumberRial(out.amount) !== -amount ||
+        Number(into.sourceInvoiceId) !== invoiceId || Number(into.returnId) !== Number(out.returnId) ||
+        Number(into.parentEventId) !== Number(out.parentEventId) || into.shareId === out.shareId ||
+        into.rootShareId !== out.rootShareId || into.evidenceKind !== 'EXCHANGE_TRANSFER' ||
+        out.evidenceKind !== 'EXCHANGE_TRANSFER' || into.evidenceRef !== out.evidenceRef ||
+        !activeReturnIds.includes(Number(into.returnId)) || outVoid || inVoid)
+      throw new BusinessError(exchangeReturnFundingBlockedMessage())
+    const sourceEventId = Number(out.parentEventId)
+    exchangeOutBySource.set(sourceEventId, (exchangeOutBySource.get(sourceEventId) ?? 0) + amount)
+    exchangeOutByReturn.set(Number(out.returnId), (exchangeOutByReturn.get(Number(out.returnId)) ?? 0) + amount)
+  }
+  if ([...exchangeShareDebits].some(([sourceId, amount]) => (exchangeOutBySource.get(sourceId) ?? 0) !== amount) ||
+      [...exchangeOutBySource].some(([sourceId, amount]) => (exchangeShareDebits.get(sourceId) ?? 0) !== amount))
+    throw new BusinessError(exchangeReturnFundingBlockedMessage())
+  for (const ret of activeReturns as any[]) {
+    if (String(ret.kind) === ReturnKind.EXCHANGE && (exchangeOutByReturn.get(Number(ret.id)) ?? 0) !== toNumberRial(ret.total))
       throw new BusinessError(exchangeReturnFundingBlockedMessage())
   }
 
@@ -4745,14 +4938,14 @@ async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
   }
 
   let carryBalanceMatches = activeReturns.length === 0
-    ? returnTransferRows.length === 0
-    : returnTransferRows.length > 0
+    ? returnTransferRows.length === 0 && exchangeTransferRows.length === 0
+    : returnTransferRows.length > 0 || exchangeTransferRows.length > 0
   const remainingAttributionBySource = new Map<number, number>()
   for (const [sourceEventId, source] of fundingSourceById) {
     const totalAttributed = sourceTotals.get(sourceEventId) ?? 0
     const alreadyAttributed = activeShareDebits.get(sourceEventId) ?? 0
     const remaining = totalAttributed - alreadyAttributed
-    const legacyAttributionOnly = activeReturns.length > 0 && returnTransferRows.length === 0
+    const legacyAttributionOnly = activeReturns.length > 0 && returnTransferRows.length === 0 && exchangeTransferRows.length === 0
     if (!Number.isSafeInteger(remaining) || remaining < 0 ||
         alreadyAttributed > toNumberRial(source.event.amount) ||
         (!legacyAttributionOnly && toNumberRial(source.available) !== remaining) ||
@@ -4786,7 +4979,7 @@ async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
     try {
       current = allocateExchangeFundingLineReturn({
         saleItemId, saleItemQty: line.qty, saleItemValue: line.amount,
-        previouslyReturnedQty: priorQty, returningQty: Number(target.qty), sources,
+        previouslyReturnedQty: priorQty, returningQty: Number(target.qty), sources, allocationPolicy: s8AllocationPolicy,
         ...(priorQty > 0 && line.amount > 0 ? { priorAllocations } : {})
       })
     } catch { throw new BusinessError(exchangeReturnFundingBlockedMessage()) }
@@ -4807,14 +5000,24 @@ async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
   }
 
   const fundingSources: any[] = funding.sources
-  const s1GiftCarry = fundingSources.filter((source: any) => source.sourceKind === 'SOURCE_GIFT')
+  const giftAvailable = fundingSources.filter((source: any) => source.sourceKind === 'SOURCE_GIFT')
     .reduce((sum: number, source: any) => sum + toNumberRial(source.event.amount), 0)
-  const s1CashCarry = fundingSources.filter((source: any) => source.sourceKind === 'SOURCE_CASH')
+  const nonGiftAvailable = fundingSources.filter((source: any) => source.sourceKind !== 'SOURCE_GIFT')
     .reduce((sum: number, source: any) => sum + toNumberRial(source.event.amount), 0)
-  const s1CarryReturnEligible = carryBalanceMatches && fundingSources.every((source: any) =>
+  const supportedReturnKinds = new Set(['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
+  const s1GiftBasis = fundingSources.filter((source: any) => source.sourceKind === 'SOURCE_GIFT')
+    .reduce((sum: number, source: any) => sum + toNumberRial(source.event.amount), 0)
+  const s1CashBasis = fundingSources.filter((source: any) => source.sourceKind === 'SOURCE_CASH')
+    .reduce((sum: number, source: any) => sum + toNumberRial(source.event.amount), 0)
+  const s1LegacyCarryReturnEligible = carryBalanceMatches && fundingSources.every((source: any) =>
     ['SOURCE_GIFT', 'SOURCE_CASH'].includes(source.sourceKind)) &&
-    s1GiftCarry === 1_877_346 && s1CashCarry === 13_122_654 &&
-    s1GiftCarry + s1CashCarry === 15_000_000
+    s1GiftBasis === 1_877_346 && s1CashBasis === 13_122_654 && s1GiftBasis + s1CashBasis === 15_000_000
+  const s8MixedCarryReturnEligible = carryBalanceMatches && giftAvailable > 0 && nonGiftAvailable > 0 &&
+    fundingSources.length > 1 && fundingSources.every((source: any) => supportedReturnKinds.has(String(source.sourceKind))) &&
+    funding.sources.length > 0 && funding.sources.every((source: any) => Number.isSafeInteger(source.available) && source.available >= 0) &&
+    (activeReturns.some((ret: any) => String(ret.kind) === ReturnKind.EXCHANGE) ||
+      fundingSources.some((source: any) => String(source.sourceKind) === 'SOURCE_N'))
+  const s1CarryReturnEligible = s1LegacyCarryReturnEligible || s8MixedCarryReturnEligible
   return {
     returnTotal: Number(returnTotal),
     debtReduced: 0,
@@ -4823,6 +5026,7 @@ async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
     exchangeCarryRestoration: s1CarryReturnEligible,
     attributionOnly: !s1CarryReturnEligible,
     settlementReady: s1CarryReturnEligible,
+    s8BranchEligible: s8MixedCarryReturnEligible,
     settlementState: s1CarryReturnEligible ? 'S1_CARRY_RELEASE_ONLY' : 'BLOCKED_UNTIL_ENTITLEMENT_AND_REVERSAL',
     shares: [...returnShares].map(([sourceEventId, share]) => ({
       sourceEventId, sourceKind: share.kind, amount: share.amount
@@ -7529,7 +7733,8 @@ export const salesService = {
        */
       let fundingSourcesForTransfer: Array<{ event: any; available: number }> | null = null
       let s1ResidualRightsEligible = false
-      let s1CarryAllocations: Array<{ sourceEventId: number; sourceKind: 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'; carry: number; remainder: number }> | null = null
+      let s1CarryAllocations: Array<{ sourceEventId: number; sourceKind: 'SOURCE_GIFT' | 'SOURCE_N' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'; carry: number; remainder: number }> | null = null
+      let s8CarryAllocations: Array<{ sourceEventId: number; amount: number }> | null = null
       let s1ResidualRights: any = null
       const sourceHasExchangeLineage = await isExchangeChildInvoiceWithLineage(tx, source as any)
       const sourceIsExchangeChild = source.orderType === OrderType.EXCHANGE &&
@@ -7562,6 +7767,63 @@ export const salesService = {
         }
       }
       const fundingSnapshotInvalid = Boolean(funding?.snapshotExists && (funding.stale || funding.unresolved.length > 0))
+      // S8: plan a partial nested carry from the immutable child line matrix.
+      // The allocation is only persisted later, after the replacement invoice
+      // is linked to this return (the DB scope trigger requires that reciprocal
+      // link). Only a first partial return of the child is admitted here.
+      const fullChildSourceReturn = sourceIsExchangeChild && Array.isArray(source.items) && source.items.length > 0 &&
+        source.items.length === (back.returnedLines ?? []).length && source.items.every((saleItem: any) =>
+          (back.returnedLines ?? []).some((line: any) => Number(line.saleItemId) === Number(saleItem.id) &&
+            Number(line.qty) === Number(saleItem.qty)))
+      if (sourceIsExchangeChild && !fullChildSourceReturn && diff > 0 && returnTotal > 0 && funding?.snapshotExists &&
+          !funding.stale && funding.unresolved.length === 0 && funding.lineAllocationStatus === 'PERSISTED_RECONCILED' &&
+          funding.activeReturnIds.length === 1 && funding.activeReturnIds[0] === Number(back.id)) {
+        const returnItems = await tx.saleReturnItem.findMany({ where: { returnId: Number(back.id) },
+          orderBy: { id: 'asc' } }) as any[]
+        const sharesBySource = new Map<number, { amount: number; sourceKind: string }>()
+        for (const returnItem of returnItems) {
+          const line = funding.lineItemSnapshots.find((candidate: any) =>
+            Number(candidate.saleItemId) === Number(returnItem.saleItemId))
+          const lineSources = funding.lineAllocations.filter((candidate: any) =>
+            Number(candidate.saleItemId) === Number(returnItem.saleItemId))
+          if (!line || lineSources.reduce((sum: number, row: any) => sum + Number(row.amount), 0) !== Number(line.netValue))
+            throw new BusinessError(exchangeReturnFundingBlockedMessage())
+          let allocation
+          try {
+            allocation = allocateExchangeFundingLineReturn({
+              saleItemId: Number(returnItem.saleItemId), saleItemQty: Number(line.qty),
+              saleItemValue: Number(line.netValue), previouslyReturnedQty: 0,
+              returningQty: Number(returnItem.qty),
+              sources: lineSources.map((row: any) => ({ sourceEventId: Number(row.sourceEventId),
+                sourceKind: String(row.sourceKind) as ExchangeReturnSourceKind, amount: Number(row.amount) })),
+              allocationPolicy: 'PROPORTIONAL_FLOOR'
+            })
+          } catch { throw new BusinessError(exchangeReturnFundingBlockedMessage()) }
+          if (allocation.returnValue !== toNumberRial(returnItem.lineTotal))
+            throw new BusinessError(exchangeReturnFundingBlockedMessage())
+          for (const share of allocation.shares) {
+            const sourceEventId = Number(share.sourceEventId)
+            const prior = sharesBySource.get(sourceEventId)
+            if (prior && prior.sourceKind !== share.sourceKind) throw new BusinessError(exchangeReturnFundingBlockedMessage())
+            const amount = (prior?.amount ?? 0) + Number(share.amount)
+            if (!Number.isSafeInteger(amount) || amount < 0) throw new BusinessError(exchangeReturnFundingBlockedMessage())
+            sharesBySource.set(sourceEventId, { amount, sourceKind: String(share.sourceKind) })
+          }
+        }
+        const sourceById = new Map(funding.sources.map((row: any) => [Number(row.event.id), row]))
+        const carryRows = [...sharesBySource].filter(([, row]) => row.amount > 0)
+        if (carryRows.reduce((sum, [, row]) => sum + row.amount, 0) === returnTotal && carryRows.length > 0 &&
+            carryRows.every(([eventId, row]) => {
+              const sourceShare = sourceById.get(eventId)
+              return !!sourceShare && row.amount <= sourceShare.available && row.sourceKind === sourceShare.sourceKind
+            })) {
+          s8CarryAllocations = carryRows.map(([sourceEventId, row]) => ({ sourceEventId, amount: row.amount }))
+          fundingSourcesForTransfer = carryRows.map(([sourceEventId, row]) => ({
+            event: sourceById.get(sourceEventId)!.event, available: row.amount
+          }))
+        }
+      }
+
       if (diff <= 0 && returnTotal > 0) {
         const activeRedemptions = await tx.storeCreditRedemption.findMany({
           where: { invoiceId: source.id, reversedAt: null }, select: { id: true }
@@ -7590,7 +7852,7 @@ export const salesService = {
           source.items.length === returnedQtyByItem.size && source.items.every((saleItem: any) =>
             returnedQtyByItem.get(Number(saleItem.id)) === Number(saleItem.qty))
         const totalAvailable = (funding?.sources ?? []).reduce((sum, row) => sum + row.available, 0)
-        const sourceKinds = new Set(['SOURCE_GIFT', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
+        const sourceKinds = new Set(['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
         const fullyProvenFullReturn = funding?.snapshotExists && !funding.stale &&
           funding.activeReturnIds.length === 1 && funding.activeReturnIds[0] === back.id &&
           funding.debt === 0 && funding.overpay === 0 && funding.unresolved.length === 0 &&
@@ -7611,7 +7873,7 @@ export const salesService = {
               replacementTotal: exchangeTotal,
               sources: funding!.sources.map((sourceShare) => ({
                 sourceEventId: Number(sourceShare.event.id),
-                sourceKind: sourceShare.sourceKind as 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE',
+                sourceKind: sourceShare.sourceKind as 'SOURCE_GIFT' | 'SOURCE_N' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE',
                 available: sourceShare.available
               }))
             })
@@ -7757,11 +8019,71 @@ export const salesService = {
         // a cash refund or an untyped general-purpose store credit.
         settlement = ExchangeSettlement.S1_RESIDUAL_RIGHTS
       } else if (diff > 0) {
-        /**
-         * پرداخت ترکیبی مثبت فقط نقد + کارت است: دو Payment واقعی، دو مقصد
-         * واقعی و جمع دقیق مابه‌التفاوت. مسیر تک‌روش پایین عمداً دست‌نخورده است.
-         */
-        if (input.splitPayment === true) {
+        const deltaCreditCode = String(input.deltaStoreCreditCode ?? '').trim()
+        const deltaCreditAmount = input.deltaStoreCreditAmount == null
+          ? null : Number(input.deltaStoreCreditAmount)
+        if (deltaCreditCode || deltaCreditAmount != null) {
+          if (!deltaCreditCode || !Number.isSafeInteger(deltaCreditAmount) || deltaCreditAmount! <= 0 ||
+              deltaCreditAmount! >= diff)
+            throw new BusinessError('کد و مبلغ N/B مابه‌التفاوت باید با هم و به‌صورت یک مبلغ مثبتِ کمتر از مابه‌التفاوت ثبت شوند.')
+          const rows = input.payments ?? []
+          if (rows.length < 1 || rows.length > 2 || rows.some((row) => !row || !Number.isSafeInteger(row.amount) || row.amount <= 0) ||
+              rows.reduce((sum, row) => sum + row.amount, 0) + deltaCreditAmount! !== diff)
+            throw new BusinessError(`جمع N/B و tender نقدی/کارتی باید دقیقاً ${money(diff)} ریال باشد.`)
+          const methodIds = [...new Set(rows.map((row) => row.methodId))]
+          const methodRows = await tx.paymentMethod.findMany({
+            where: { id: { in: methodIds }, isActive: true }, select: { id: true, kind: true }
+          })
+          const kindById = new Map(methodRows.map((method) => [method.id, method.kind]))
+          const allowed = rows.every((row) => {
+            const kind = String(kindById.get(row.methodId) ?? '').toUpperCase()
+            return (kind === PaymentKind.CASH && row.destination === PaymentDestination.CASH) ||
+              (kind === PaymentKind.CARD && row.destination === PaymentDestination.CARD)
+          })
+          if (!allowed || (rows.length === 2 && new Set(rows.map((row) => kindById.get(row.methodId))).size !== 2))
+            throw new BusinessError('همراه N/B فقط tender نقدی با مقصد صندوق یا کارت با مقصد کارت‌خوان پذیرفته می‌شود.')
+          for (const row of rows) {
+            const methodKind = kindById.get(row.methodId)
+            const destination = assertDestination(row.destination, methodKind, 'PAYMENT')
+            await tx.payment.create({ data: {
+              invoiceId: exchangeInvoice.id, methodId: row.methodId, amount: row.amount,
+              kind: PaymentEntryKind.CASH, destination, seq: ++seq, paidAt: now,
+              paidAtJalali: toJalaliDate(now), paidAtTime: toClock(now), createdAt: now,
+              createdByUserId: input.userId ?? null, createdShiftId: shiftId,
+              note: `مابه‌التفاوت تعویض · tender ${destination === PaymentDestination.CARD ? 'کارت‌خوان' : 'نقدی'}`
+            } })
+            if (destination === PaymentDestination.CARD) cardReceived += row.amount
+            else cashReceived += row.amount
+          }
+          const redeemed = await redeemStoreCredit(tx, {
+            code: deltaCreditCode, invoiceId: exchangeInvoice.id, receiptNo: exchangeInvoice.receiptNo,
+            applicable: deltaCreditAmount!, invoiceTotal: exchangeTotal, requested: deltaCreditAmount!,
+            idempotencyKey: `exchange:${exchangeInvoice.id}:delta:${normalizeReturnCode(deltaCreditCode)}`,
+            customerId: source.customerId ?? null, customerName: source.customer?.name ?? null,
+            userId: input.userId ?? null, shiftId: shiftId ?? null, usedAt: now, seq: seq + 1,
+            note: 'مصرف حق B/N برای مابه‌التفاوت تعویض'
+          })
+          if (redeemed.applied !== deltaCreditAmount || !redeemed.payment || !redeemed.redemption ||
+              !redeemed.credit?.exchangeResidualRightKey)
+            throw new BusinessError('حق B/N باید دقیقاً به مبلغ درخواست‌شده مصرف شود؛ هیچ سهمی به نقد تبدیل نشد.')
+          const rightKey = String(redeemed.credit.exchangeResidualRightKey)
+          const rightOpening = await tx.exchangeResidualRightEvent.findFirst({ where: {
+            rightKey, eventKind: 'OPENED'
+          } })
+          if (!rightOpening || !['N', 'B'].includes(String(rightOpening.rightKind)))
+            throw new BusinessError('کد مصرفی باید به یک حق ریشه‌دار B/N معتبر متصل باشد؛ اعتبار عمومی برای این tender مجاز نیست.')
+          if (rightOpening.rightKind === 'N') {
+            const operationKey = `s8-exchange:${exchangeInvoice.id}:${redeemed.credit.id}:${redeemed.redemption.id}`
+            await reserveS1ExchangeResidualRight(tx, { rightKey, operationKey, amount: deltaCreditAmount!,
+              relatedInvoiceId: exchangeInvoice.id, at: now, actorUserId: input.userId ?? null })
+            await commitS1ExchangeResidualRight(tx, { rightKey, operationKey, amount: deltaCreditAmount!,
+              relatedInvoiceId: exchangeInvoice.id, relatedPaymentId: Number(redeemed.payment.id),
+              actorUserId: input.userId ?? null })
+          } else {
+            throw new BusinessError('S8 tender در این نسخه فقط حق N را می‌پذیرد؛ B به مسیر مصوب S9 تعلق دارد.')
+          }
+          seq += 1
+        } else if (input.splitPayment === true) {
           const rows = input.payments ?? []
           if (rows.length !== 2 || rows.some((row) => !row || row.amount <= 0))
             throw new BusinessError('پرداخت ترکیبی مابه‌التفاوت تعویض باید دقیقاً دو سهم مثبت نقد و کارت داشته باشد.')
@@ -8074,8 +8396,29 @@ export const salesService = {
         }
       })
 
+      // Persist S8's child-return item attribution only after the replacement
+      // invoice and reciprocal SaleReturn link exist (the SQLite scope trigger
+      // validates both before accepting allocation rows).
+      if (s8CarryAllocations) {
+        const returnItems = await tx.saleReturnItem.findMany({ where: { returnId: Number(back.id) },
+          orderBy: { id: 'asc' } }) as any[]
+        const persistedShares = new Map<number, number>()
+        for (const returnItem of returnItems) {
+          const attributed = await recordExchangeFundingReturnLineAllocation(tx, {
+            returnId: Number(back.id), returnItemId: Number(returnItem.id), allocationPolicy: 'PROPORTIONAL_FLOOR'
+          })
+          for (const share of attributed.shares) {
+            const id = Number(share.sourceEventId)
+            persistedShares.set(id, (persistedShares.get(id) ?? 0) + Number(share.amount))
+          }
+        }
+        if (s8CarryAllocations.length !== persistedShares.size || s8CarryAllocations.some((row) =>
+            (persistedShares.get(row.sourceEventId) ?? 0) !== row.amount))
+          throw new BusinessError(exchangeReturnFundingBlockedMessage())
+      }
+
       // The return/child link now exists, so the append-only ledger can verify
-      // it before moving the exact-value, homogeneous real-money shares. Any
+      // it before moving the exact-value, homogeneous proven funding shares. Any
       // later failure in createExchange rolls these two-sided writes back too.
       if (fundingSourcesForTransfer) {
         const allocations = s1ResidualRightsEligible
@@ -8105,6 +8448,7 @@ export const salesService = {
             evidenceRef: `SaleReturn:${back.id}:SaleInvoice:${exchangeInvoice.id}`
           })
         }
+        if (diff > 0) await recordExchangeChildTenderFundingSnapshot(tx, exchangeInvoice.id)
         await recordExchangeFundingLineAllocations(tx, exchangeInvoice.id)
         if (s1ResidualRightsEligible) {
           s1ResidualRights = await openS1ExchangeResidualRights(tx, {
@@ -9076,7 +9420,7 @@ export const salesService = {
 
       const physicalItems = (r.items ?? []) as any[]
       const storedRows = allocationRowsByReturn.get(Number(r.id)) ?? []
-      const sourceKinds = new Set(['SOURCE_GIFT', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
+      const sourceKinds = new Set(['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
       const parentInvoiceId = Number(r.invoiceId)
       const sourceInvoiceId = Number(r.invoice?.sourceInvoiceId)
       if (physicalItems.length === 0 || storedRows.length === 0 ||

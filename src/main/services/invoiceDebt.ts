@@ -120,6 +120,7 @@ export async function debtAdjustmentsByInvoice(client: Client, ids: number[], as
     // RETURN_TRANSFER_OUT rows count (voided returns are excluded above).
     const activeReturnIds = activeRets.map((r: any) => Number(r.id))
     const childCarryReturnedByReturn = new Map<number, number>()
+    const directNReturnByReturn = new Map<number, number>()
     const carryChunks: number[][] = []
     for (let j = 0; j < activeReturnIds.length; j += 500)
       carryChunks.push(activeReturnIds.slice(j, j + 500))
@@ -127,15 +128,35 @@ export async function debtAdjustmentsByInvoice(client: Client, ids: number[], as
       const released = await (client as any).exchangeFundingEvent.findMany({
         where: { relatedReturnId: { in: ids }, kind: 'RETURN_TRANSFER_OUT', reversesEventId: null,
           ...(asOf ? { createdAt: { lte: asOf } } : {}) },
-        select: { relatedReturnId: true, amount: true }
+        select: { relatedReturnId: true, amount: true, parentEventId: true }
       })
+      const directTenderIds = [...new Set(released.map((event: any) => Number(event.parentEventId))
+        .filter((id: number) => Number.isSafeInteger(id) && id > 0))]
+      const directTenderKindById = new Map<number, string>()
+      for (let k = 0; k < directTenderIds.length; k += 500) {
+        const origins = await (client as any).exchangeFundingEvent.findMany({
+          where: { id: { in: directTenderIds.slice(k, k + 500) } }, select: { id: true, kind: true }
+        })
+        for (const origin of origins) directTenderKindById.set(Number(origin.id), String(origin.kind))
+      }
       for (const event of released) {
         const returnId = Number(event.relatedReturnId)
         const amount = Math.abs(toNumberRial(event.amount))
         nonCashByReturn.set(returnId, (nonCashByReturn.get(returnId) ?? 0) + amount)
-        childCarryReturnedByReturn.set(returnId,
-          (childCarryReturnedByReturn.get(returnId) ?? 0) + amount)
+        if (directTenderKindById.get(Number(event.parentEventId)) === 'TRANSFER_IN')
+          childCarryReturnedByReturn.set(returnId,
+            (childCarryReturnedByReturn.get(returnId) ?? 0) + amount)
+        // An N tender return both restores the same residual right and consumes
+        // its direct child funding share. Those are two records of one non-cash
+        // settlement, not two credits against the return value.
+        if (directTenderKindById.get(Number(event.parentEventId)) === 'SOURCE_N')
+          directNReturnByReturn.set(returnId, (directNReturnByReturn.get(returnId) ?? 0) + amount)
       }
+    }
+    for (const [returnId, duplicateNReturn] of directNReturnByReturn) {
+      const amount = nonCashByReturn.get(returnId) ?? 0
+      if (duplicateNReturn > amount) throw new Error('EXCHANGE_N_RETURN_SETTLEMENT_MISMATCH')
+      nonCashByReturn.set(returnId, amount - duplicateNReturn)
     }
     const byInv = new Map<number, any[]>()
     for (const r of activeRets) {
@@ -177,9 +198,20 @@ export async function debtAdjustmentsByInvoice(client: Client, ids: number[], as
         where: { relatedReturnId: { in: childReturnIds.slice(j, j + 500) },
           kind: 'RETURN_TRANSFER_OUT', reversesEventId: null,
           ...(asOf ? { createdAt: { lte: asOf } } : {}) },
-        select: { relatedReturnId: true, amount: true }
+        select: { relatedReturnId: true, amount: true, parentEventId: true }
       })
+      const parentEventIds = [...new Set(carryRows.map((event: any) => Number(event.parentEventId))
+        .filter((id: number) => Number.isSafeInteger(id) && id > 0))]
+      const parentTransferIns = new Set<number>()
+      for (let k = 0; k < parentEventIds.length; k += 500) {
+        const origins = await (client as any).exchangeFundingEvent.findMany({
+          where: { id: { in: parentEventIds.slice(k, k + 500) }, kind: 'TRANSFER_IN' },
+          select: { id: true }
+        })
+        for (const origin of origins) parentTransferIns.add(Number(origin.id))
+      }
       for (const event of carryRows) {
+        if (!parentTransferIns.has(Number(event.parentEventId))) continue
         const returnId = Number(event.relatedReturnId)
         const amount = Math.abs(toNumberRial(event.amount))
         childCarryReturnedByReturn.set(returnId,
