@@ -1211,6 +1211,8 @@ model StoreCredit {
   returnId          Int?
   /// سند تعویضی که این اعتبار رویش چاپ شد (scalar)
   exchangeInvoiceId Int?
+  /// پیوند به دفتر append-only حق B/N تعویض (scalar، بدون FK)
+  exchangeResidualRightKey String? @unique
   /// فاکتور اصلی مشتری (scalar)
   sourceInvoiceId   Int?
   customerId        Int?

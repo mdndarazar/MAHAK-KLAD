@@ -764,7 +764,16 @@ export function registerIpcHandlers(): void {
     const creditId = result.storeCredit?.id
     const firstPrintGrant = result.replayed !== true && result.settlement === 'CREDIT' && creditId
       ? issueCreditFirstPrintGrant(currentPanelSessionOwner(), input.userId, result.returnId, creditId) : null
-    return { ...result, firstPrintGrant }
+    const residualRights = result.residualRights ? {
+      ...result.residualRights,
+      rights: result.residualRights.rights.map((right) => ({
+        ...right,
+        firstPrintGrant: result.replayed !== true
+          ? issueCreditFirstPrintGrant(currentPanelSessionOwner(), input.userId, result.returnId, right.creditId)
+          : null
+      }))
+    } : null
+    return { ...result, firstPrintGrant, residualRights }
   })
   handle(IPC.saleExchangeList, async (p) => {
     await assertSalesReportsRead('دیدن فهرست تعویض‌های کالا در گزارشات')
@@ -1878,7 +1887,32 @@ export function registerIpcHandlers(): void {
       if (!grant) await assertManagerPassword(p?.managerPassword, 'چاپ کد اعتبار برگشت/تعویض')
       const delivery = await prisma.creditDelivery.findUnique({ where: { creditId: id } })
       if (delivery) {
-        if (grant || !['MANAGER_REPLACEMENT', 'CASH_RIGHT_CONVERSION', 'CREDIT_RETURN_OPPORTUNITY'].includes(delivery.sourceKind))
+        const s1Right = ['S1_EXCHANGE_B', 'S1_EXCHANGE_N'].includes(String(delivery.sourceKind))
+        if (s1Right) {
+          const origin = await prisma.storeCredit.findUnique({ where: { id }, select: { returnId: true, exchangeInvoiceId: true,
+            sourceInvoiceId: true, exchangeResidualRightKey: true, status: true, source: true,
+            deletedAt: true, voidedAt: true, usedAmount: true, userId: true, amount: true, expiresAt: true } })
+          const [opening, ret] = await Promise.all([
+            origin?.exchangeResidualRightKey ? prisma.exchangeResidualRightEvent.findFirst({
+              where: { rightKey: origin.exchangeResidualRightKey, eventKind: 'OPENED' }
+            }) : Promise.resolve(null),
+            p?.returnId ? prisma.saleReturn.findUnique({ where: { id: p.returnId }, select: {
+              exchangeInvoiceId: true, invoiceId: true, voidedAt: true, userId: true
+            } }) : Promise.resolve(null)
+          ])
+          const expectedKind = delivery.sourceKind === 'S1_EXCHANGE_B' ? 'B' : 'N'
+          if (!origin || !opening || !ret || delivery.status !== 'PENDING_DELIVERY' ||
+              origin.source !== 'EXCHANGE' || origin.returnId !== p.returnId || origin.deletedAt || origin.voidedAt ||
+              origin.exchangeResidualRightKey !== opening.rightKey || opening.rightKind !== expectedKind ||
+              origin.exchangeInvoiceId !== opening.childInvoiceId || origin.sourceInvoiceId !== opening.sourceInvoiceId ||
+              Number(origin.amount) !== Number(opening.amount) ||
+              (expectedKind === 'N' && origin.expiresAt != null) ||
+              ret.voidedAt || ret.invoiceId !== opening.sourceInvoiceId || ret.exchangeInvoiceId !== opening.childInvoiceId)
+            throw new BusinessError('کد B/N برای این سند تعویض/دفتر lineage معتبر ندارد؛ چاپ متوقف شد.')
+          if (grant && (origin.status !== 'DRAFT' || Number(origin.usedAmount) !== 0 ||
+              origin.userId !== actor.userId || ret.userId !== actor.userId))
+            throw new BusinessError('مجوز چاپ اول فقط برای کد DRAFT خرج‌نشدهٔ همین کارمند و همین تعویض معتبر است.')
+        } else if (grant || !['MANAGER_REPLACEMENT', 'CASH_RIGHT_CONVERSION', 'CREDIT_RETURN_OPPORTUNITY'].includes(delivery.sourceKind))
           throw new BusinessError('این اعتبار مجوز چاپ اول فروشنده ندارد؛ چاپ کنترل‌شده با تأیید مدیر انجام شود.')
       } else {
         // Ordinary return/exchange credits have no CreditDelivery. Bind the

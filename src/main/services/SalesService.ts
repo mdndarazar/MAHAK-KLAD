@@ -12,7 +12,11 @@ import {
   reverseExchangeFundingTransfersForReturn,
   transferExchangeFundingShare
 } from './ExchangeFundingLedgerService'
-import { allocateExchangeFundingProRata } from '@shared/exchangeFundingAllocation'
+import { allocateExchangeFundingProRata, allocateExchangeFundingProportionalFloor } from '@shared/exchangeFundingAllocation'
+import {
+  openS1ExchangeResidualRights, voidS1ExchangeResidualRightsForReturn,
+  reserveS1ExchangeResidualRight, commitS1ExchangeResidualRight
+} from './ExchangeResidualRightsService'
 import { allocateExchangeFundingLineReturn, type ExchangeReturnSourceKind } from '@shared/exchangeFundingLineReturn'
 import {
   openCardTransferEntitlement,
@@ -670,6 +674,17 @@ function validateExchangeMutation(input: ExchangeSaleInput): void {
 /** اعتبارسنجی مشترک ورودی ثبت و ویرایش (فقط پیام‌های فارسی). */
 function validateSaleInput(input: CreateSaleInput): void {
   if (!Array.isArray(input?.lines) || !input.lines.length) throw new BusinessError('فاکتور بدون قلم قابل ثبت نیست')
+  if (input.storeCreditCodes != null) {
+    if (!Array.isArray(input.storeCreditCodes) || input.storeCreditCodes.length < 1 || input.storeCreditCodes.length > 5 ||
+        input.storeCreditCode != null || input.storeCreditCodes.some((code) => typeof code !== 'string' || !code.trim()))
+      throw new BusinessError('برای مصرف چند کد، ۱ تا ۵ کد یکتا در فهرست بفرستید؛ فهرست و کد تکی هم‌زمان پذیرفته نیست.')
+    const normalized = input.storeCreditCodes.map((code) => normalizeReturnCode(code))
+    if (new Set(normalized).size !== normalized.length)
+      throw new BusinessError('یک کد اعتبار در فهرست چندباره آمده است؛ هیچ کدی مصرف نشد.')
+  }
+  if ((input.storeCreditCodes?.length ?? (String(input.storeCreditCode ?? '').trim() ? 1 : 0)) > 0 &&
+      input.storeCreditAmount === 0)
+    throw new BusinessError('مبلغ مصرف کد اعتبار نمی‌تواند صفر باشد.')
   for (const line of input.lines) {
     if (!line || typeof line !== 'object')
       throw new BusinessError('یکی از ردیف‌ها کالای معتبری ندارد؛ آن ردیف را حذف و دوباره انتخاب کنید')
@@ -4767,8 +4782,11 @@ export const salesService = {
      * کد اشتباه ⇒ همین‌جا با پیام فارسی (و شمارش تلاش باقی‌مانده) رد می‌شود و
      * هیچ فاکتوری ثبت نمی‌شود.
      */
-    if (String(input.storeCreditCode ?? '').trim())
-      await guardCreditCode(String(input.storeCreditCode), input.userId ?? null)
+    const requestedCreditCodes = input.storeCreditCodes?.length
+      ? input.storeCreditCodes.map((code) => String(code).trim())
+      : String(input.storeCreditCode ?? '').trim() ? [String(input.storeCreditCode).trim()] : []
+    for (const code of requestedCreditCodes)
+      await guardCreditCode(code, input.userId ?? null)
 
     const deductInventory = input.deductInventory !== false
     const issuedAt = input.issuedAtJalali ? jalaliToDateTime(input.issuedAtJalali) : new Date()
@@ -5208,36 +5226,63 @@ export const salesService = {
        */
       let storeCredit: StoreCreditSafeRow | null = null
       let storeCreditRemainder: StoreCreditSafeRow | null = null
+      const storeCredits: StoreCreditSafeRow[] = []
       let storeCreditApplied = 0
       let settledPaidTotal = t.paidTotal
-      const creditCode = String(input.storeCreditCode ?? '').trim()
-      if (creditCode) {
+      let creditBudget = input.storeCreditAmount == null
+        ? null : Math.max(0, Math.round(Number(input.storeCreditAmount) || 0))
+      for (let creditIndex = 0; creditIndex < requestedCreditCodes.length; creditIndex++) {
+        if (creditBudget === 0) break
+        const creditCode = requestedCreditCodes[creditIndex]
+        let requested: number | null = null
+        if (creditBudget != null) {
+          const budgetCredit = await tx.storeCredit.findUnique({
+            where: { code: normalizeReturnCode(creditCode) }, select: { amount: true, usedAmount: true }
+          })
+          const thisCreditAvailable = budgetCredit
+            ? Math.max(0, toNumberRial(budgetCredit.amount) - toNumberRial(budgetCredit.usedAmount)) : 0
+          // A full-use request lets the authoritative decision apply item and
+          // invoice ceilings. A smaller global budget is passed as the per-code
+          // cap only when it fits inside this code's raw remainder.
+          if (creditBudget < thisCreditAvailable) requested = creditBudget
+        }
+        const baseIdempotencyKey = String(input.storeCreditIdempotencyKey ?? '').trim()
         const redeemed = await redeemStoreCredit(tx, {
           code: creditCode,
           invoiceId: invoice.id,
           receiptNo: invoice.receiptNo,
-          applicable: Math.max(0, t.grandTotal - t.paidTotal),
-          // جلسه ۲۱ — مبنای «حداقل مبلغ خرید» جمع کل فاکتور است، نه باقی‌مانده‌اش (§۱۸)
+          applicable: Math.max(0, t.grandTotal - t.paidTotal - storeCreditApplied),
           invoiceTotal: t.grandTotal,
-          /**
-           * پرداخت ترکیبی (§۱۷): اگر فروشنده مبلغ مشخصی خواسته باشد، همان
-           * می‌رود — ولی سقف واقعی را `decideRedeem` تعیین می‌کند، نه UI.
-           */
-          requested: input.storeCreditAmount == null ? null : Math.max(0, Math.round(Number(input.storeCreditAmount) || 0)),
-          /** §۲۱ — همان درخواست دوبار برسد، دوبار کم نمی‌شود */
-          idempotencyKey:
-            String(input.storeCreditIdempotencyKey ?? '').trim() || `sale:${invoice.id}:${normalizeReturnCode(creditCode)}`,
+          requested,
+          idempotencyKey: requestedCreditCodes.length > 1
+            ? `${baseIdempotencyKey || `sale:${invoice.id}:credits`}:${creditIndex + 1}`
+            : baseIdempotencyKey || `sale:${invoice.id}:${normalizeReturnCode(creditCode)}`,
           customerId,
           customerName: invoice.customer?.name ?? null,
           userId: input.userId ?? null,
           shiftId: invoice.shiftId ?? null,
-          usedAt: issuedAt,
-          seq: (input.payments ?? []).length + 1
+          usedAt: issuedAt
         })
-        storeCreditApplied = redeemed.applied
+        if (redeemed.credit?.exchangeResidualRightKey) {
+          if (!redeemed.redemption || !redeemed.payment || redeemed.applied <= 0 ||
+              String(redeemed.payment.method?.kind ?? '').toUpperCase() !== 'STORE_CREDIT')
+            throw new BusinessError('مصرف حق B/N در دفتر اعتبار و پرداخت قابل تطبیق نیست؛ فاکتور ثبت نشد.')
+          const operationKey = `s1-checkout:${invoice.id}:${redeemed.credit.id}:${redeemed.redemption.id}`
+          await reserveS1ExchangeResidualRight(tx, {
+            rightKey: redeemed.credit.exchangeResidualRightKey, operationKey, amount: redeemed.applied,
+            relatedInvoiceId: invoice.id, at: issuedAt, actorUserId: input.userId ?? null
+          })
+          await commitS1ExchangeResidualRight(tx, {
+            rightKey: redeemed.credit.exchangeResidualRightKey, operationKey, amount: redeemed.applied,
+            relatedInvoiceId: invoice.id, relatedPaymentId: Number(redeemed.payment.id),
+            actorUserId: input.userId ?? null
+          })
+        }
+        storeCreditApplied += redeemed.applied
+        if (creditBudget != null) creditBudget = Math.max(0, creditBudget - redeemed.applied)
         storeCredit = shapeStoreCreditSafe(redeemed.credit)
+        storeCredits.push(storeCredit)
         storeCreditRemainder = redeemed.remainder ? shapeStoreCreditSafe(redeemed.remainder) : null
-        // پرداختی جدید اضافه شد ⇒ جمع پرداختی و علامت «تسویه‌شده» بازمحاسبه می‌شوند
         const settle = await recalcSettlement(tx, invoice.id)
         settledPaidTotal = settle.paidTotal
       }
@@ -5279,6 +5324,7 @@ export const salesService = {
         paidTotal: settledPaidTotal,
         /** بخش ۶: اعتبار مصرف‌شده روی همین فاکتور (پول نقد نیست) */
         storeCredit,
+        storeCredits,
         storeCreditApplied,
         storeCreditRemainder,
         stockWarnings,
@@ -7039,9 +7085,9 @@ export const salesService = {
      */
     const refundMode = input.refundMode == null ? null : String(input.refundMode).toUpperCase()
     // جلسه ۱۷ · بند ۱ — گزینه‌ی چهارم، کاملاً جدا از `CARD` (کارت‌خوان فروشگاه)
-    if (refundMode && !['CASH', 'CARD', 'STORE_CREDIT', 'CARD_TO_CARD'].includes(refundMode))
+    if (refundMode && !['CASH', 'CARD', 'STORE_CREDIT', 'CARD_TO_CARD', 'S1_RESIDUAL_RIGHTS'].includes(refundMode))
       throw new BusinessError(
-        'روش بازپرداخت مابه‌التفاوت نامعتبر است (نقد / کارت / اعتبار خرید / کارت‌به‌کارت توسط مدیر).'
+        'روش بازپرداخت مابه‌التفاوت نامعتبر است (نقد / کارت / اعتبار خرید / کارت‌به‌کارت مدیر / حق B/N واجد S1).'
       )
 
     // نشست ۳۱۹ — گیت قفل کارت‌خوان برای تعویض
@@ -7311,6 +7357,8 @@ export const salesService = {
       assertSafeInteger(exTotals.grandTotal, 'جمع سند تعویض', 0)
       const exchangeTotal = exTotals.grandTotal
       const diff = exchangeTotal - returnTotal
+      if (refundMode === 'S1_RESIDUAL_RIGHTS' && diff >= 0)
+        throw new BusinessError('حق‌های B/N مازاد فقط برای تعویض ارزان‌تر با مازاد اثبات‌شده قابل انتخاب است.')
 
       /**
        * A no-difference exchange may carry a fully proven, complete source set
@@ -7321,6 +7369,9 @@ export const salesService = {
        * CASH_RIGHT, B/N entitlement, payout, or new tender is inferred here.
        */
       let fundingSourcesForTransfer: Array<{ event: any; available: number }> | null = null
+      let s1ResidualRightsEligible = false
+      let s1CarryAllocations: Array<{ sourceEventId: number; sourceKind: 'SOURCE_GIFT' | 'SOURCE_CASH'; carry: number; remainder: number }> | null = null
+      let s1ResidualRights: any = null
       let funding: Awaited<ReturnType<typeof getCurrentSaleFundingSources>> | null = null
       if (returnTotal > 0) {
         try {
@@ -7332,7 +7383,7 @@ export const salesService = {
         }
       }
       const fundingSnapshotInvalid = Boolean(funding?.snapshotExists && (funding.stale || funding.unresolved.length > 0))
-      if (diff === 0 && returnTotal > 0) {
+      if (diff <= 0 && returnTotal > 0) {
         const activeRedemptions = await tx.storeCreditRedemption.findMany({
           where: { invoiceId: source.id, reversedAt: null }, select: { id: true }
         })
@@ -7359,15 +7410,46 @@ export const salesService = {
             returnedQtyByItem.get(Number(saleItem.id)) === Number(saleItem.qty))
         const totalAvailable = (funding?.sources ?? []).reduce((sum, row) => sum + row.available, 0)
         const sourceKinds = new Set(['SOURCE_GIFT', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
-        if (funding?.snapshotExists && !funding.stale &&
-            funding.activeReturnIds.length === 1 && funding.activeReturnIds[0] === back.id &&
-            funding.debt === 0 && funding.overpay === 0 && funding.unresolved.length === 0 &&
-            funding.sources.length > 0 && redemptionSetMatches && returnedEverySourceItem &&
-            Number.isSafeInteger(totalAvailable) && totalAvailable === returnTotal && returnTotal === exchangeTotal &&
-            funding.sources.every((sourceShare) => sourceKinds.has(sourceShare.sourceKind) &&
-              sourceShare.available > 0 && sourceShare.available === toNumberRial(sourceShare.event.amount)))
-          fundingSourcesForTransfer = funding.sources
+        const fullyProvenFullReturn = funding?.snapshotExists && !funding.stale &&
+          funding.activeReturnIds.length === 1 && funding.activeReturnIds[0] === back.id &&
+          funding.debt === 0 && funding.overpay === 0 && funding.unresolved.length === 0 &&
+          funding.sources.length > 0 && redemptionSetMatches && returnedEverySourceItem &&
+          Number.isSafeInteger(totalAvailable) && totalAvailable === returnTotal &&
+          funding.sources.every((sourceShare) => sourceKinds.has(sourceShare.sourceKind) &&
+            sourceShare.available > 0 && sourceShare.available === toNumberRial(sourceShare.event.amount))
+        if (fullyProvenFullReturn && diff === 0 && returnTotal === exchangeTotal) {
+          fundingSourcesForTransfer = funding!.sources
+        } else if (fullyProvenFullReturn && diff < 0 &&
+            funding!.sources.every((sourceShare) => ['SOURCE_GIFT', 'SOURCE_CASH'].includes(sourceShare.sourceKind)) &&
+            funding!.sources.some((sourceShare) => sourceShare.sourceKind === 'SOURCE_GIFT') &&
+            funding!.sources.some((sourceShare) => sourceShare.sourceKind === 'SOURCE_CASH')) {
+          try {
+            const plan = allocateExchangeFundingProportionalFloor({
+              replacementTotal: exchangeTotal,
+              sources: funding!.sources.map((sourceShare) => ({
+                sourceEventId: Number(sourceShare.event.id),
+                sourceKind: sourceShare.sourceKind as 'SOURCE_GIFT' | 'SOURCE_CASH',
+                available: sourceShare.available
+              }))
+            })
+            if (plan.giftCarry > 0 && plan.cashCarry > 0 &&
+                plan.allocations.some((row) => row.sourceKind === 'SOURCE_GIFT' && row.remainder > 0) &&
+                plan.allocations.some((row) => row.sourceKind === 'SOURCE_CASH' && row.remainder > 0) &&
+                plan.allocations.reduce((sum, row) => sum + row.carry, 0) === exchangeTotal &&
+                plan.allocations.reduce((sum, row) => sum + row.remainder, 0) === returnTotal - exchangeTotal) {
+              fundingSourcesForTransfer = funding!.sources
+              s1ResidualRightsEligible = true
+              s1CarryAllocations = plan.allocations
+            }
+          } catch {
+            // Unsupported/inexact source sets stay on the pre-existing exchange path.
+          }
+        }
       }
+      if (refundMode === 'S1_RESIDUAL_RIGHTS' && !s1ResidualRightsEligible)
+        throw new BusinessError('گزینهٔ S1 فقط وقتی فعال است که فروش مختلط هدیه/وجه، lineage سالم و carry/remnant قابل اثبات داشته باشد؛ منشأ این تعویض واجد شرایط نیست.')
+      if (s1ResidualRightsEligible && refundMode !== 'S1_RESIDUAL_RIGHTS')
+        throw new BusinessError('منشأ و مبلغ این تعویض واجد S1 است؛ برای جلوگیری از تبدیل مازاد به نقد یا اعتبار عمومی، گزینهٔ «حق ریشه‌دار B/N» را انتخاب کنید.')
       // A present but stale/unresolved snapshot is not downgraded to the legacy
       // exchange path: it is an explicit incomplete-lineage signal.
       if (fundingSourcesForTransfer == null && fundingSnapshotInvalid)
@@ -7475,7 +7557,11 @@ export const salesService = {
       /** نشست ۶۰ (بند ۴-۵) — بخشی از مابه‌التفاوت منفی که از بدهی فاکتور اصلی کم شد */
       let debtCut = 0
 
-      if (diff > 0) {
+      if (s1ResidualRightsEligible) {
+        // The proven S1 surplus is kept by source lineage as B/N; it is not
+        // a cash refund or an untyped general-purpose store credit.
+        settlement = ExchangeSettlement.S1_RESIDUAL_RIGHTS
+      } else if (diff > 0) {
         /**
          * پرداخت ترکیبی مثبت فقط نقد + کارت است: دو Payment واقعی، دو مقصد
          * واقعی و جمع دقیق مابه‌التفاوت. مسیر تک‌روش پایین عمداً دست‌نخورده است.
@@ -7797,11 +7883,14 @@ export const salesService = {
       // it before moving the exact-value, homogeneous real-money shares. Any
       // later failure in createExchange rolls these two-sided writes back too.
       if (fundingSourcesForTransfer) {
-        const allocations = allocateExchangeFundingProRata(returnTotal, fundingSourcesForTransfer.map(({ event, available }) => ({
-          id: Number(event.id), available
-        })))
+        const allocations = s1ResidualRightsEligible
+          ? (s1CarryAllocations ?? []).map((row) => ({ id: row.sourceEventId, amount: row.carry }))
+          : allocateExchangeFundingProRata(returnTotal, fundingSourcesForTransfer.map(({ event, available }) => ({
+              id: Number(event.id), available
+            })))
         const sourceByEventId = new Map(fundingSourcesForTransfer.map((row) => [Number(row.event.id), row]))
-        if (allocations.reduce((sum, allocation) => sum + allocation.amount, 0) !== returnTotal)
+        const expectedTransferTotal = s1ResidualRightsEligible ? exchangeTotal : returnTotal
+        if (allocations.reduce((sum, allocation) => sum + allocation.amount, 0) !== expectedTransferTotal)
           throw new BusinessError('تخصیص منشأ مالی تعویض دقیقاً با ارزش برگشتی برابر نشد؛ تراکنش لغو شد.')
         for (const allocation of allocations) {
           if (allocation.amount === 0) continue
@@ -7822,6 +7911,12 @@ export const salesService = {
           })
         }
         await recordExchangeFundingLineAllocations(tx, exchangeInvoice.id)
+        if (s1ResidualRightsEligible) {
+          s1ResidualRights = await openS1ExchangeResidualRights(tx, {
+            sourceInvoiceId: source.id, childInvoiceId: exchangeInvoice.id,
+            returnId: back.id, actorUserId: input.userId ?? null
+          })
+        }
       }
 
       /**
@@ -7975,7 +8070,9 @@ export const salesService = {
           (diff > 0
             ? `${money(diff)} ریال از مشتری دریافت شد`
             : diff < 0
-              ? (debtCut > 0 ? `${money(debtCut)} ریال از بدهی فاکتور اصلی کم شد` : '') +
+              ? s1ResidualRightsEligible
+                ? `${money(returnTotal - exchangeTotal)} ریال حق B/N ریشه‌دار ایجاد شد`
+                : (debtCut > 0 ? `${money(debtCut)} ریال از بدهی فاکتور اصلی کم شد` : '') +
                 (debtCut > 0 && -diff - debtCut > 0 ? ' و ' : '') +
                 (-diff - debtCut > 0
                   ? credit
@@ -8004,6 +8101,15 @@ export const salesService = {
         settlementLabel: EXCHANGE_SETTLEMENT_LABELS[settlement] ?? settlement,
         /** کد در نتیجهٔ عادی تعویض نیست؛ فقط مرجع امن برای ردیابی برمی‌گردد. */
         storeCredit: credit ? shapeStoreCreditSafe(credit) : null,
+        residualRights: s1ResidualRights ? {
+          giftCarry: s1ResidualRights.giftCarry, cashCarry: s1ResidualRights.cashCarry,
+          rights: s1ResidualRights.rights.map((right: any) => ({
+            rightKey: right.rightKey, rightKind: right.rightKind, amount: right.amount,
+            available: right.available, expiresAt: right.expiresAt,
+            creditId: right.creditId, publicReference: right.publicReference,
+            deliveryStatus: right.deliveryStatus
+          }))
+        } : null,
         restockedQty: back.restockedQty ?? 0,
         /** ---- دریافت مستقلِ کالا؛ تسویهٔ مابه‌التفاوت شاهد فیزیکی نیست ---- */
         goodsReceiptRequired: back.goodsReceiptRequired,
@@ -8032,7 +8138,7 @@ export const salesService = {
         /** جلسه ۱۷ · بند ۱ — تعهد کارت‌به‌کارت و شناسه‌ی درخواست ساخته‌شده */
         cardToCard,
         cardTransfer,
-        refundMode: refundMode ?? null,
+        refundMode: s1ResidualRightsEligible ? null : (refundMode ?? null),
         exchangeCreditApplied,
         /** نشست ۶۰ (بند ۴-۵) — کاهش بدهی فاکتور اصلی و باقی‌مانده‌ی جدیدش */
         debtReduction: debtCut,
@@ -9916,6 +10022,12 @@ export const salesService = {
           })
         }
 
+        if (isExchange) {
+          await voidS1ExchangeResidualRightsForReturn(tx, {
+            returnId: ret.id, actorUserId: input.userId ?? null
+          })
+        }
+
         // Exchange funding shares are append-only: restore the source and
         // clear the replacement's carry before the return/child link is voided.
         // A partial pair, spent child share, or downstream use aborts this whole
@@ -10368,6 +10480,7 @@ export const salesService = {
           ExchangeSettlement.CARD_REFUND,
           ExchangeSettlement.CARD_TO_CARD,
           ExchangeSettlement.DEBT_REDUCTION,
+          ExchangeSettlement.S1_RESIDUAL_RIGHTS,
           ExchangeSettlement.NONE
         ]
         if (!knownExchangeSettlements.includes(exchangeSettlement as any))

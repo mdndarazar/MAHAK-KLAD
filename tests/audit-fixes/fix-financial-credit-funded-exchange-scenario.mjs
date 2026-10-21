@@ -1,8 +1,7 @@
-/** Exact owner scenario: 15,980,000-rial sale paid with a 2,000,000-rial
- * store-credit barcode plus 13,980,000 real cash; exchange for 15,000,000
- * and request a 980,000-rial barcode. Observe the CURRENT transaction guard,
- * the original credit and all absence-of-side-effect invariants. A separate
- * cash-only control proves the 980,000 arithmetic is supported otherwise.
+/** Exact S1 production scenario: 15,980,000-rial sale paid with a 2,000,000-rial
+ * store-credit barcode plus 13,980,000 real cash; exchange for 15,000,000 and
+ * verify exact 15M carry plus rooted B/N residuals. A cash-only control remains
+ * on the legacy generic-credit path; unresolved tenders stay fail-closed.
  * No customer database, printer or credential output is involved.
  * node --import ./test/harness/register.mjs tests/audit-fixes/fix-financial-credit-funded-exchange-scenario.mjs
  */
@@ -121,9 +120,19 @@ const assertExchangeGateHasNoEffects = async (invoiceId, saleItemId, label) => {
   assert.deepEqual(seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?) ORDER BY id', source, replacement),
     before.stock, 'fail-closed evidence gate must not change either inventory balance')
 }
-await assert.rejects(attemptedExchange(original.id, originalItemId), (error) =>
-  /تعویضِ این فاکتور/.test(String(error?.message ?? '')),
-  'credit-funded exchange is currently blocked before any 980,000-rial barcode is issued')
+const s1Exchange = await salesService.createExchange({
+  invoiceId: original.id, lines: [{ saleItemId: originalItemId, qty: 1 }],
+  replacements: [{ variantId: replacement, qty: 1, unitPrice: 15_000_000, discount: 0, tax: 0 }],
+  refundMode: 'S1_RESIDUAL_RIGHTS', userId, shiftId
+})
+assert.equal(s1Exchange.returnTotal, 15_980_000)
+assert.equal(s1Exchange.exchangeTotal, 15_000_000)
+assert.equal(s1Exchange.diff, -980_000)
+assert.equal(s1Exchange.settlement, 'S1_RESIDUAL_RIGHTS')
+assert.equal(s1Exchange.storeCredit, null, 'no general-purpose 980k credit is issued')
+assert.deepEqual(s1Exchange.residualRights.rights.map(({ rightKind, amount }) => ({ rightKind, amount })), [
+  { rightKind: 'B', amount: 122_654 }, { rightKind: 'N', amount: 857_346 }
+])
 const giftAfter = seed.one('SELECT status, usedAmount FROM "StoreCredit" WHERE id=?', gift.id)
 assert.equal(giftAfter.status, 'USED', 'original 2m barcode is NOT reactivated')
 assert.equal(giftAfter.usedAmount, 2_000_000)
@@ -131,12 +140,13 @@ await assert.rejects(() => findRedeemable(db, gift.code), (error) =>
   error?.category === 'NOT_REDEEMABLE' || /مصرف شده/.test(String(error?.message ?? '')),
   'credit lookup must not silently accept the already spent original barcode')
 assert.equal(seed.one('SELECT reversedAt FROM "StoreCreditRedemption" WHERE invoiceId=?', original.id).reversedAt, null)
-assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', original.id).n, 0)
-assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleInvoice" WHERE sourceInvoiceId=?', original.id).n, 0)
-assert.equal(seed.one('SELECT COUNT(*) n FROM "StoreCredit"').n, 1,
-  'no 980,000-rial barcode or other credit was silently issued')
-assert.deepEqual(seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?) ORDER BY id', source, replacement), stockBefore)
-console.log('✓ mixed purchase 15,980,000 = 2,000,000 credit + 13,980,000 cash; requested exchange rejected; old barcode USED, no new 980,000 barcode, goods unchanged')
+assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', original.id).n, 1)
+assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleInvoice" WHERE sourceInvoiceId=?', original.id).n, 1)
+assert.equal(seed.one('SELECT COUNT(*) n FROM "StoreCredit" WHERE exchangeResidualRightKey IS NOT NULL').n, 2)
+const s1StockAfter = seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?) ORDER BY id', source, replacement)
+assert.equal(s1StockAfter[0].stock, stockBefore[0].stock, 'returned source stock remains pending until goods receipt')
+assert.equal(s1StockAfter[1].stock, stockBefore[1].stock - 1, 'replacement stock is deducted exactly once')
+console.log('✓ mixed S1 source 15,980,000 = 2,000,000 gift + 13,980,000 cash; exact carry 15M and B/N residuals; original gift stays USED')
 
 // Control: the same two prices with 100% cash, to distinguish an arithmetic
 // error from the explicit provenance guard above. This is NOT the owner's

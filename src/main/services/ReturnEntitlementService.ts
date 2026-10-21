@@ -7,6 +7,7 @@ import { issueStoreCredit } from './StoreCreditService'
 import { CreditSource } from '@shared/credit'
 import { cashClaimBalance } from '@shared/returnEntitlement'
 import { toNumberRial } from '@shared/money'
+import { getExchangeResidualRightBalance, openS1ExchangeResidualRights } from './ExchangeResidualRightsService'
 
 type Client = Prisma.TransactionClient | typeof prisma
 const secureInt = (v: unknown, name: string, min = 1): number => {
@@ -359,7 +360,7 @@ export async function convertCashRight(input: {
   })
 }
 
-async function assertCreditDeliverySourceLineage(tx: Client, delivery: any, credit: any) {
+async function assertCreditDeliverySourceLineage(tx: Client, delivery: any, credit: any, actorUserId?: number | null) {
   if (delivery.originCreditId != null) {
     const replaced = await tx.creditReplacement.findUnique({ where: { successorCreditId: credit.id } })
     const old = await tx.storeCredit.findUnique({ where: { id: delivery.originCreditId } })
@@ -389,6 +390,31 @@ async function assertCreditDeliverySourceLineage(tx: Client, delivery: any, cred
         toNumberRial(branch.amount) + toNumberRial(branch.supplementUnspent) !== toNumberRial(credit.amount) ||
         (branch.originalExpiresAt?.getTime() ?? null) !== (credit.expiresAt?.getTime() ?? null))
       throw new BusinessError('منشأ B/E یا مبلغ/انقضای اصلی قابل تطبیق نیست؛ کد فعال نشد.')
+  } else if (delivery.sourceKind === 'S1_EXCHANGE_B' || delivery.sourceKind === 'S1_EXCHANGE_N') {
+    const rightKey = String(credit.exchangeResidualRightKey ?? '')
+    const expectedKind = delivery.sourceKind === 'S1_EXCHANGE_B' ? 'B' : 'N'
+    const opening = rightKey ? await tx.exchangeResidualRightEvent.findFirst({
+      where: { rightKey, eventKind: 'OPENED' }
+    }) : null
+    if (!opening || opening.rightKind !== expectedKind ||
+        Number(credit.returnId) !== Number(opening.returnId) ||
+        Number(credit.exchangeInvoiceId) !== Number(opening.childInvoiceId) ||
+        Number(credit.sourceInvoiceId) !== Number(opening.sourceInvoiceId) ||
+        toNumberRial(credit.amount) !== toNumberRial(opening.amount) ||
+        (credit.expiresAt == null ? null : new Date(credit.expiresAt).getTime()) !==
+          (opening.expiresAt == null ? null : new Date(opening.expiresAt).getTime()) ||
+        (expectedKind === 'N' && credit.expiresAt != null))
+      throw new BusinessError('کد B/N با دفتر append-only یا مبدأ/موعد ریشه منطبق نیست؛ تحویل متوقف شد.')
+    const [balance, verified] = await Promise.all([
+      getExchangeResidualRightBalance(tx, rightKey),
+      openS1ExchangeResidualRights(tx, { sourceInvoiceId: Number(opening.sourceInvoiceId),
+        childInvoiceId: Number(opening.childInvoiceId), returnId: Number(opening.returnId),
+        actorUserId: actorUserId ?? null })
+    ])
+    if (balance.rightKind !== expectedKind || balance.amount !== toNumberRial(credit.amount) ||
+        balance.expired || balance.voided ||
+        !verified.rights.some((right) => right.rightKey === rightKey && right.creditId === Number(credit.id)))
+      throw new BusinessError('lineage زندهٔ B/N یا مانده/انقضای ریشه در همین لحظه تأیید نشد؛ تحویل متوقف شد.')
   }
 }
 
@@ -413,7 +439,7 @@ export async function confirmCreditDelivery(input: {
     if (!delivery) throw new BusinessError('برای این اعتبار پروندهٔ تحویل کنترل‌شده وجود ندارد.')
     const credit = await tx.storeCredit.findUnique({ where: { id: creditId } })
     if (!credit) throw new BusinessError('کد اعتبار پیدا نشد؛ سابقهٔ تحویل را برای رسیدگی بررسی کنید.')
-    await assertCreditDeliverySourceLineage(tx, delivery, credit)
+    await assertCreditDeliverySourceLineage(tx, delivery, credit, input.actorUserId ?? null)
     if (delivery.status === 'DELIVERED') {
       if (delivery.witnessKind === input.witnessKind && delivery.witnessRef === ref)
         return { creditId, status: 'DELIVERED', replayed: true }

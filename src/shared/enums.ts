@@ -377,6 +377,8 @@ export const ExchangeSettlement = {
   CARD_TO_CARD: 'CARD_TO_CARD',
   /** نشست ۶۰ (بند ۴-۵) — کل مابه‌التفاوت منفی از بدهی فاکتور اصلی کم شد؛ پولی جابه‌جا نشد */
   DEBT_REDUCTION: 'DEBT_REDUCTION',
+  /** S1: remainder issued as source-rooted B/N entitlements, not paid out. */
+  S1_RESIDUAL_RIGHTS: 'S1_RESIDUAL_RIGHTS',
   /** مابه‌التفاوت صفر بود */
   NONE: 'NONE'
 } as const
@@ -390,6 +392,7 @@ export const EXCHANGE_SETTLEMENT_LABELS: Record<string, string> = {
   CARD_TO_CARD: 'کارت‌به‌کارت توسط مدیر (درخواست پرداخت ثبت شد)',
   /** نشست ۶۰ (بند ۴-۵) — مابه‌التفاوت به‌جای پول از بدهی فاکتور اصلی کم شد */
   DEBT_REDUCTION: 'مابه‌التفاوت از بدهی فاکتور اصلی کم شد (پولی جابه‌جا نشد)',
+  S1_RESIDUAL_RIGHTS: 'مازاد به‌صورت حق B/N ریشه‌دار ثبت شد',
   NONE: 'مابه‌التفاوت صفر بود'
 }
 

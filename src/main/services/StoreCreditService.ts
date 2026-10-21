@@ -612,6 +612,8 @@ export interface IssueCreditInput {
   source?: string | null
   returnId?: number | null
   exchangeInvoiceId?: number | null
+  /** Internal scalar link for an S1 B/N residual-right access code. */
+  exchangeResidualRightKey?: string | null
   sourceInvoiceId?: number | null
   customerId?: number | null
   customerName?: string | null
@@ -765,6 +767,11 @@ export async function issueStoreCredit(client: Client, input: IssueCreditInput):
 
   const settings = input.settings ?? (await readCreditSettings(client))
   const source = normalizeCreditSource(input.source)
+  if (input.exchangeResidualRightKey != null &&
+      (source !== CreditSource.EXCHANGE || !input.returnId || !input.exchangeInvoiceId || !input.sourceInvoiceId ||
+        typeof input.exchangeResidualRightKey !== 'string' || input.exchangeResidualRightKey.length < 8 ||
+        input.exchangeResidualRightKey.length > 200))
+    throw new BusinessError('پیوند کد به دفتر حق B/N تعویض نامعتبر است؛ کد صادر نشد.')
   const issuedAt = input.issuedAt ?? new Date()
   // A return/exchange-backed credit represents a non-cash obligation, not a
   // promotional one-shot coupon. Keep its balance available across purchases
@@ -820,6 +827,7 @@ export async function issueStoreCredit(client: Client, input: IssueCreditInput):
     reminderOptOut: input.reminderOptOut === true,
     returnId: input.returnId ?? null,
     exchangeInvoiceId: input.exchangeInvoiceId ?? null,
+    exchangeResidualRightKey: input.exchangeResidualRightKey ?? null,
     sourceInvoiceId: input.sourceInvoiceId ?? null,
     customerId: input.customerId ?? null,
     customerName: input.customerName ?? null,
@@ -2083,6 +2091,13 @@ export async function deleteCredit(input: {
   return prisma.$transaction(async (tx) => {
     const row = await loadCredit(tx, input.id)
     if (row.deletedAt) throw new BusinessError('این اعتبار قبلاً حذف/آرشیو شده است؛ دوباره حذف نمی‌شود. فهرست را تازه کنید.')
+    if (row.exchangeResidualRightKey) {
+      const voidEvent = await tx.exchangeResidualRightEvent.findFirst({
+        where: { rightKey: row.exchangeResidualRightKey, eventKind: 'VOIDED' }, select: { id: true }
+      })
+      if (!voidEvent)
+        throw new BusinessError('کد B/N به ماندهٔ زندهٔ دفتر حق وصل است؛ حذف یا آرشیو مستقل آن بدون ابطال مجاز نیست.')
+    }
     if (await tx.creditReturnAllocation.count({ where: { OR: [
       { parentCreditId: row.id }, { rootCreditId: row.id }, { successorCreditId: row.id }
     ] } }))

@@ -143,6 +143,8 @@ export interface CreateSaleInput {
    * شمرده نمی‌شود. همان لحظه «مصرف‌شده» علامت می‌خورد (یک‌بار‌مصرف).
    */
   storeCreditCode?: string | null
+  /** Multiple access codes may be consumed in the submitted order; S1 uses N then B. */
+  storeCreditCodes?: string[]
   /**
    * جلسه ۲۱ · §۱۷ — **پرداخت ترکیبی**: چه مقدار از این اعتبار روی همین فاکتور
    * خرج شود (خالی = حداکثر ممکن، یعنی رفتار مو‌به‌موی قبل). بقیه‌ی فاکتور با
@@ -2059,7 +2061,7 @@ export interface ExchangeSaleInput {
    * نمی‌گفت. اضافه‌شدنش فقط یونیون را **گسترده** می‌کند (هیچ مصرف‌کننده‌ای
    * روی این یونیون `switch` جامع ندارد) ⇒ هیچ مسیر دیگری تنگ‌تر نمی‌شود.
    */
-  refundMode?: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | null
+  refundMode?: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | 'S1_RESIDUAL_RIGHTS' | null
   /**
    * تایید مدیر برای «قیمت دستیِ کالای جایگزین» (بند ۱۸).
    * بدون این رمز، قیمت کالای جایگزین همیشه از `variant.salePrice` خوانده می‌شود.
@@ -2340,6 +2342,14 @@ export interface ExchangeSaleResult {
   settlementLabel: string
   /** اعتبار صادرشده (فقط وقتی ما بدهکار شدیم)؛ کد فقط از مسیر چاپ مجاز. */
   storeCredit: StoreCreditSafeRow | null
+  /** S1: provenance-backed B/N rights; never a cash refund or generic store credit. */
+  residualRights?: {
+    giftCarry: number
+    cashCarry: number
+    rights: Array<{ rightKey: string; rightKind: 'B' | 'N'; amount: number; available: number;
+      expiresAt: Date | null; creditId: number; publicReference: string; deliveryStatus: string;
+      firstPrintGrant?: string | null }>
+  } | null
   /** مجوز کوتاه‌مدت چاپ اول همین کد در پنجرهٔ صادرکننده؛ خودِ کد خرج‌پذیر نیست. */
   firstPrintGrant?: string | null
   /** تعدادی که با رسید به موجودی برگشت */

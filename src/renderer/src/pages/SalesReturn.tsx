@@ -174,8 +174,9 @@ const REFUND_CHOICES: { value: RefundMethodValue; title: string; hint: string }[
   }
 ]
 
-/** بند ۱۲ — سه گزینه‌ی *متقابلاً انحصاری* تسویه‌ی مابه‌التفاوت منفی تعویض. */
-const EXCHANGE_REFUND_CHOICES: { value: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD'; title: string; hint: string }[] = [
+/** گزینه‌های *متقابلاً انحصاری* تسویه‌ی مابه‌التفاوت منفی تعویض؛ S1 فقط برای lineage واجد شرایط. */
+const EXCHANGE_REFUND_CHOICES: { value: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | 'S1_RESIDUAL_RIGHTS'; title: string; hint: string }[] = [
+  { value: 'S1_RESIDUAL_RIGHTS', title: 'حق ریشه‌دار B/N (فقط S1)', hint: 'فقط برای فروش مختلطِ هدیه + وجه با lineage کامل؛ مازاد نقدی پرداخت نمی‌شود و سرور حق B/N را بر اساس ریشه می‌سازد. اگر اسناد واجد شرایط نباشند، کل تعویض رد می‌شود.' },
   { value: 'CASH', title: 'بازپرداخت نقدی', hint: 'پول از کشوی صندوق بیرون می‌رود (یک بازپرداخت واقعی ثبت می‌شود).' },
   { value: 'CARD', title: 'بازپرداخت کارتی', hint: 'به کارت مشتری برگشت؛ از کشو پولی بیرون نمی‌رود.' },
   { value: 'STORE_CREDIT', title: 'صدور اعتبار خرید', hint: 'اعتبار تا صفر چندبارمصرف صادر می‌شود؛ اثر نقدی صفر.' },
@@ -260,7 +261,7 @@ export default function SalesReturn() {
    * جلسه ۱۷ · بند ۱ — گزینه‌ی چهارم «کارت‌به‌کارت توسط مدیر» هم اضافه شد و
    * عمداً یک مقدار *جدا* است، نه حالتی از `CARD`.
    */
-  const [exRefundMode, setExRefundMode] = useState<'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | null>(null)
+  const [exRefundMode, setExRefundMode] = useState<'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | 'S1_RESIDUAL_RIGHTS' | null>(null)
   /**
    * بند ۱۸ — قفل قیمت دستیِ کالای جایگزین. تا این قفل با رمز مدیر باز نشود،
    * کادرهای قیمت غیرفعال‌اند و همیشه همان `variant.salePrice` را نشان می‌دهند.
@@ -836,7 +837,7 @@ export default function SalesReturn() {
       if (exTotals.diff < 0 && !exRefundMode)
         return setErr(
           `مابه‌التفاوت این تعویض منفی است (ما ${money(-exTotals.diff)} ریال بدهکاریم).\n` +
-            'یکی از این چهار مورد را صریح انتخاب کنید:\n' +
+            'یکی از گزینه‌های مجاز را صریح انتخاب کنید:\n' +
             EXCHANGE_REFUND_CHOICES.map((c) => `• ${c.title} — ${c.hint}`).join('\n')
         )
       if (exTotals.diff > 0 && exSplitPayment) {
@@ -1238,9 +1239,11 @@ export default function SalesReturn() {
       ? `مشتری باید ${money(exTotals.diff)} ریال بپردازد`
       : exTotals.diff < 0
         ? `ما ${money(-exTotals.diff)} ریال بدهکاریم ⇒ ${
-            exRefundMode === 'CASH'
-              ? 'بازپرداخت نقدی (پول از کشو بیرون می‌رود)'
-              : exRefundMode === 'CARD'
+            exRefundMode === 'S1_RESIDUAL_RIGHTS'
+              ? 'مازاد فقط به حق‌های B/N ریشه‌دار تبدیل می‌شود (بدون خروج پول)'
+              : exRefundMode === 'CASH'
+                ? 'بازپرداخت نقدی (پول از کشو بیرون می‌رود)'
+                : exRefundMode === 'CARD'
                 ? 'بازپرداخت کارتی'
                 : exRefundMode === 'STORE_CREDIT'
                   ? '«بارکد اعتبار خرید بعدی» صادر می‌شود'
@@ -1450,6 +1453,17 @@ export default function SalesReturn() {
                 ? ` · اعتبار تا ${faDigits(exResult.storeCredit.expiresAtJalali)}`
                 : ''}
             </span>
+          )}
+          {exResult.residualRights && (
+            <div className="w-full rounded border-2 border-sky-400 bg-sky-50 p-3 space-y-2">
+              <b>مازاد S1 به‌صورت حق ریشه‌دار ثبت شد؛ نه بازپرداخت نقدی و نه اعتبار عمومی.</b>
+              <p className="text-sm">انتقال به سند جایگزین: هدیه {money(exResult.residualRights.giftCarry)} ریال و وجه {money(exResult.residualRights.cashCarry)} ریال. هر کد B/N تا تحویل واقعی و شاهددار خرج‌پذیر نیست.</p>
+              <CreditOpportunityHandoff key={`s1-rights-${exResult.returnId}`} credits={exResult.residualRights.rights.map((right) => ({
+                creditId: right.creditId, amount: right.amount, status: right.deliveryStatus,
+                returnId: exResult.returnId, firstPrintGrant: right.firstPrintGrant ?? null,
+                rightKind: right.rightKind
+              }))} />
+            </div>
           )}
           <button className="btn btn-primary" onClick={() => void printExchange(exResult.returnId)} disabled={printing}>
             {printing ? 'در حال چاپ…' : 'چاپ سند تعویض'}
@@ -1864,7 +1878,7 @@ export default function SalesReturn() {
                       {!exRefundMode && <span className="text-rose-800 font-bold">انتخاب اجباری است</span>}
                     </div>
                     {/* جلسه ۱۷ · بند ۱ — چهار ستون، چون گزینه‌ی «کارت‌به‌کارت توسط مدیر» اضافه شد */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-2">
                       {EXCHANGE_REFUND_CHOICES.map((c) => (
                         <label
                           key={c.value}

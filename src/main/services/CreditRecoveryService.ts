@@ -41,6 +41,8 @@ export async function managerReplaceLostCredit(input: {
     const source = await tx.storeCredit.findUnique({ where: { id: input.creditId } })
     if (!source || source.deletedAt != null || source.voidedAt != null)
       throw new BusinessError('کد مبدأ معتبر نیست یا قبلاً تعیین تکلیف شده است؛ مانده‌ای منتقل نشد.')
+    if (source.exchangeResidualRightKey != null)
+      throw new BusinessError('کد B/N به ماندهٔ زندهٔ دفتر حق وصل است؛ جایگزینی عمومیِ اعتبار آن را از lineage جدا می‌کند. فعلاً پروندهٔ حق را برای جایگزینی متصل به همان rightKey بررسی کنید.')
     if (await tx.creditReplacement.findUnique({ where: { originalCreditId: source.id } }))
       throw new BusinessError('برای این کد قبلاً جانشین ساخته شده است؛ چاپ دوباره یا تحویل همان پرونده را بررسی کنید.')
     const status = effectiveStatus({ status: source.status, expiresAt: source.expiresAt, amount: toNumberRial(source.amount) })

@@ -6,7 +6,8 @@ import { faDigits, money } from '@shared/jalali'
  * deliberately separate from a manager-confirmed witnessed customer handoff.
  * No credential is exposed by a normal sale/return response. */
 export default function CreditOpportunityHandoff({ credits }: {
-  credits: { creditId: number; amount: number; status: string }[]
+  credits: { creditId: number; amount: number; status: string; returnId?: number;
+    firstPrintGrant?: string | null; rightKind?: 'B' | 'N' }[]
 }) {
   const [password, setPassword] = useState('')
   const [firstName, setFirstName] = useState('')
@@ -38,7 +39,10 @@ export default function CreditOpportunityHandoff({ credits }: {
           reason: 'ثبت مشخصات اختیاری روی برگهٔ اعتبار پیش از چاپ', managerPassword: password })
         setHolderPrepared((seen) => ({ ...seen, [creditId]: identity }))
       }
-      await call(CH.returnCreditPrint, { creditId, managerPassword: password })
+      const credit = credits.find((row) => row.creditId === creditId)
+      const firstPrintGrant = !printed.includes(creditId) ? credit?.firstPrintGrant : null
+      await call(CH.returnCreditPrint, { creditId, ...(credit?.returnId ? { returnId: credit.returnId } : {}),
+        ...(firstPrintGrant ? { firstPrintGrant } : { managerPassword: password }) })
       setPrinted((ids) => [...new Set([...ids, creditId])])
       setMessage(`سند اعتبار #${faDigits(creditId)} برای چاپ ارسال شد؛ این به‌معنای تحویل نیست.`)
     } catch (e: any) { setError(e.message) }
@@ -84,10 +88,11 @@ export default function CreditOpportunityHandoff({ credits }: {
         onChange={(e) => setConfirmed(e.target.checked)} />کد را واقعاً به گیرنده تحویل دادم</label>
     </div>
     {credits.map((credit) => <div className="flex flex-wrap gap-2 items-center" key={credit.creditId}>
-      <span>اعتبار #{faDigits(credit.creditId)} · {money(credit.amount)} ریال ·
+      <span>{credit.rightKind ? `حق ${credit.rightKind}` : 'اعتبار'} #{faDigits(credit.creditId)} · {money(credit.amount)} ریال ·
         {delivered.includes(credit.creditId) ? 'تحویل شاهددار ثبت شد' : 'منتظر تحویل'}</span>
-      <button className="btn" disabled={busy !== null || !password.trim()}
-        onClick={() => void print(credit.creditId)}>{printed.includes(credit.creditId) ? 'چاپ مجدد با رمز مدیر' : 'چاپ تحت نظر مدیر'}</button>
+      <button className="btn" disabled={busy !== null || (!password.trim() && !credit.firstPrintGrant)}
+        onClick={() => void print(credit.creditId)}>{printed.includes(credit.creditId) ? 'چاپ مجدد با رمز مدیر' :
+          credit.firstPrintGrant ? 'چاپ اول تحت مجوز صدور' : 'چاپ تحت نظر مدیر'}</button>
       <button className="btn btn-primary" disabled={busy !== null || !password.trim() || !confirmed || delivered.includes(credit.creditId)}
         onClick={() => void deliver(credit.creditId)}>ثبت تحویل واقعی</button>
     </div>)}
