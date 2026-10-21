@@ -175,7 +175,8 @@ const REFUND_CHOICES: { value: RefundMethodValue; title: string; hint: string }[
 ]
 
 /** گزینه‌های *متقابلاً انحصاری* تسویه‌ی مابه‌التفاوت منفی تعویض؛ S1 فقط برای lineage واجد شرایط. */
-const EXCHANGE_REFUND_CHOICES: { value: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | 'S1_RESIDUAL_RIGHTS'; title: string; hint: string }[] = [
+const EXCHANGE_REFUND_CHOICES: { value: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | 'S1_RESIDUAL_RIGHTS' | 'S11_DEBT_OFFSET_RIGHTS'; title: string; hint: string }[] = [
+  { value: 'S11_DEBT_OFFSET_RIGHTS', title: 'کسر بدهی چک + حق B/N از مازاد پرداختی (فقط S11)', hint: 'فقط برای برگشت کامل فرزند تعویض با یک بدهیِ چکِ باز و carry مختلطِ هدیه/وجه؛ ابتدا بدهی کسر می‌شود، سپس فقط ماندهٔ GIFT/CASH پرداخت‌شده به B/N تبدیل می‌شود. چک منبع پرداخت نیست.' },
   { value: 'S1_RESIDUAL_RIGHTS', title: 'حق ریشه‌دار B/N (فقط S1)', hint: 'فقط برای فروش مختلطِ هدیه + وجه با lineage کامل؛ مازاد نقدی پرداخت نمی‌شود و سرور حق B/N را بر اساس ریشه می‌سازد. اگر اسناد واجد شرایط نباشند، کل تعویض رد می‌شود.' },
   { value: 'CASH', title: 'بازپرداخت نقدی', hint: 'پول از کشوی صندوق بیرون می‌رود (یک بازپرداخت واقعی ثبت می‌شود).' },
   { value: 'CARD', title: 'بازپرداخت کارتی', hint: 'به کارت مشتری برگشت؛ از کشو پولی بیرون نمی‌رود.' },
@@ -262,7 +263,7 @@ export default function SalesReturn() {
    * جلسه ۱۷ · بند ۱ — گزینه‌ی چهارم «کارت‌به‌کارت توسط مدیر» هم اضافه شد و
    * عمداً یک مقدار *جدا* است، نه حالتی از `CARD`.
    */
-  const [exRefundMode, setExRefundMode] = useState<'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | 'S1_RESIDUAL_RIGHTS' | null>(null)
+  const [exRefundMode, setExRefundMode] = useState<'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | 'S1_RESIDUAL_RIGHTS' | 'S11_DEBT_OFFSET_RIGHTS' | null>(null)
   /**
    * بند ۱۸ — قفل قیمت دستیِ کالای جایگزین. تا این قفل با رمز مدیر باز نشود،
    * کادرهای قیمت غیرفعال‌اند و همیشه همان `variant.salePrice` را نشان می‌دهند.
@@ -286,6 +287,13 @@ export default function SalesReturn() {
   const [reps, setReps] = useState<RepLine[]>([])
   const [methods, setMethods] = useState<Method[]>([])
   const [methodId, setMethodId] = useState<number | null>(null)
+  const [exCheque, setExCheque] = useState(false)
+  const [exChequeNo, setExChequeNo] = useState('')
+  const [exChequeBank, setExChequeBank] = useState('')
+  const [exChequeDueDate, setExChequeDueDate] = useState('')
+  const [exChequeDebtOverride, setExChequeDebtOverride] = useState(false)
+  const [exChequeOverridePassword, setExChequeOverridePassword] = useState('')
+  const [exChequeOverrideReason, setExChequeOverrideReason] = useState('')
   /** پرداخت مثبت تعویض با دو ردیف واقعی نقد و کارت، نه یک پرداخت مصنوعی. */
   const [exSplitPayment, setExSplitPayment] = useState(false)
   /** S9: optional delivered B/N right applied to a positive exchange delta. */
@@ -866,6 +874,16 @@ export default function SalesReturn() {
           return setErr('برای tender حق B/N، کد و مبلغ مثبت و معتبر را وارد کنید؛ مبلغ از مابه‌التفاوت بیشتر نباشد.')
         remainingDelta = exTotals.diff - deltaRightAmount
       }
+      if (exCheque && (exSplitPayment || hasExDeltaRightInput))
+        return setErr('چک pending را نمی‌توان با پرداخت ترکیبی یا tender حق B/N در یک ثبت ترکیب کرد؛ ابتدا یکی از مسیرهای مستقل را انتخاب کنید.')
+      if (exTotals.diff > 0 && remainingDelta > 0 && exCheque &&
+          (!exChequeNo.trim() || !exChequeBank.trim() || !/^\d{4}\/\d{2}\/\d{2}$/.test(exChequeDueDate.trim())))
+        return setErr('برای چک مابه‌التفاوت، شماره چک، نام بانک و سررسید شمسی به قالب yyyy/MM/dd لازم است.')
+      if (exCheque && exChequeDebtOverride &&
+          (!exChequeOverridePassword.trim() || exChequeOverrideReason.trim().length < 10))
+        return setErr('برای استثنای مدیر در چک مابه‌التفاوت، رمز مدیر و دلیل حداقل ۱۰ نویسه لازم است.')
+      if (exTotals.diff > 0 && remainingDelta > 0 && !exSplitPayment && !hasExDeltaRightInput && !exCheque && !methodId)
+        return setErr('روش دریافت مابه‌التفاوت را انتخاب کنید.')
       if (exTotals.diff > 0 && remainingDelta > 0 && exSplitPayment) {
         if (!exSplitCashMethodId || !exSplitCardMethodId)
           return setErr('برای پرداخت ترکیبیِ مانده، یک روش فعال نقدی و یک روش فعال کارتی انتخاب کنید.')
@@ -911,7 +929,10 @@ export default function SalesReturn() {
           deltaStoreCreditCode: hasExDeltaRightInput ? deltaRightCode : undefined,
           deltaStoreCreditAmount: hasExDeltaRightInput ? deltaRightAmount : undefined,
           // پرداخت تک‌روشِ قبلی دقیقاً همان payload قبلی است؛ با حق، فقط مانده ارسال می‌شود.
-          methodId: exTotals.diff > 0 && !exSplitPayment && !hasExDeltaRightInput ? methodId : null,
+          methodId: exTotals.diff > 0 && !exSplitPayment && !hasExDeltaRightInput && !exCheque ? methodId : null,
+          chequeNo: exCheque ? exChequeNo.trim() : undefined,
+          bankName: exCheque ? exChequeBank.trim() : undefined,
+          dueDateJalali: exCheque ? exChequeDueDate.trim() : undefined,
           splitPayment: exTotals.diff > 0 && exSplitPayment && !hasExDeltaRightInput ? true : undefined,
           payments: hasExDeltaRightInput
             ? remainingDelta === 0
@@ -939,8 +960,13 @@ export default function SalesReturn() {
           } : {}),
           cardPosOverride: exRefundMode === 'CARD' ? cardPosOverride : undefined,
           // ---- بند ۱۸: رمز مدیر، فقط وقتی قیمت دستی باز شده باشد ----
-          managerPassword: (priceOverrideOn ? managerPw.trim() : lockPw.trim()) || undefined,
-          overrideReason: lockReason.trim() || undefined
+          chequeDebtOverride: exCheque && exChequeDebtOverride ? true : undefined,
+          managerPassword: (exCheque && exChequeDebtOverride
+            ? exChequeOverridePassword.trim()
+            : (priceOverrideOn ? managerPw.trim() : lockPw.trim())) || undefined,
+          overrideReason: (exCheque && exChequeDebtOverride
+            ? exChequeOverrideReason.trim()
+            : lockReason.trim()) || undefined
         }
         const { managerPassword: _managerPassword, cardPosOverride: posOverride, ...exchangeIntent } = exchangePayload
         const intentPayload = JSON.stringify({
@@ -967,6 +993,13 @@ export default function SalesReturn() {
         setRepFor(null)
         setExRefundMode(null)
         setExSplitPayment(false)
+        setExCheque(false)
+        setExChequeNo('')
+        setExChequeBank('')
+        setExChequeDueDate('')
+        setExChequeDebtOverride(false)
+        setExChequeOverridePassword('')
+        setExChequeOverrideReason('')
         setExDeltaRightCode('')
         setExDeltaRightAmount('')
         setExSplitCash('')
@@ -980,7 +1013,9 @@ export default function SalesReturn() {
           `تعویض کالا ثبت شد · سند تعویض شماره ${faDigits(res.exchangeReceiptNo)} · ` +
             `کالای برگشتی ${money(res.returnTotal)} ریال · کالای جایگزین ${money(res.exchangeTotal)} ریال · ` +
             (res.diff > 0
-              ? `${money(res.diff)} ریال از مشتری دریافت شد`
+              ? res.settlement === 'CHEQUE_PENDING'
+                ? `${money(res.diff)} ریال چک مابه‌التفاوت ثبت شد؛ بدهی تا وصول باز است`
+                : `${money(res.diff)} ریال از مشتری دریافت شد`
               : res.diff < 0
                 ? `${money(-res.diff)} ریال ${res.storeCredit?.publicReference ?? 'اعتبار خرید'} صادر شد و برای مشتری چاپ شد`
                 : 'مابه‌التفاوت صفر بود') +
@@ -1008,7 +1043,7 @@ export default function SalesReturn() {
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      lookup, selected, qty, reps, note, allowRemoved, exTotals.diff, methodId, methods, exSplitPayment, exSplitCashAmount,
+      lookup, selected, qty, reps, note, allowRemoved, exTotals.diff, methodId, methods, exCheque, exChequeNo, exChequeBank, exChequeDueDate, exChequeDebtOverride, exChequeOverridePassword, exChequeOverrideReason, exSplitPayment, exSplitCashAmount,
       exSplitCardAmount, exSplitTotal, exSplitCashMethodId, exSplitCardMethodId, exDeltaRightCode,
       exDeltaRightAmount, exDeltaRightAmountValue, hasExDeltaRightInput, repAutoCentral, exCharges, exScope,
       removedSelected.length, exRefundMode, printedHolderFirstName, printedHolderLastName, printedHolderPhone,
@@ -1286,7 +1321,9 @@ export default function SalesReturn() {
       ? `مشتری باید ${money(exTotals.diff)} ریال بپردازد`
       : exTotals.diff < 0
         ? `ما ${money(-exTotals.diff)} ریال بدهکاریم ⇒ ${
-            exRefundMode === 'S1_RESIDUAL_RIGHTS'
+            exRefundMode === 'S11_DEBT_OFFSET_RIGHTS'
+              ? 'ابتدا بدهی چک کسر می‌شود و فقط مازادِ وجه/هدیهٔ پرداخت‌شده به حق B/N تبدیل می‌شود'
+              : exRefundMode === 'S1_RESIDUAL_RIGHTS'
               ? 'مازاد فقط به حق‌های B/N ریشه‌دار تبدیل می‌شود (بدون خروج پول)'
               : exRefundMode === 'CASH'
                 ? 'بازپرداخت نقدی (پول از کشو بیرون می‌رود)'
@@ -1998,12 +2035,46 @@ export default function SalesReturn() {
                         className="w-4 h-4"
                         checked={exSplitPayment}
                         disabled={hasExDeltaRightInput && exDeltaTenderRemainder === 0}
-                        onChange={(e) => setExSplitPayment(e.target.checked)}
+                        onChange={(e) => { setExSplitPayment(e.target.checked); if (e.target.checked) setExCheque(false) }}
                       />
                       <span className="font-bold">دریافت ترکیبی نقد + کارت</span>
                     </label>
                     <div className="kbd mt-1">در حالت ترکیبی، دو رسید واقعی با جمع دقیق {hasExDeltaRightInput ? 'ماندهٔ' : ''} مابه‌التفاوت ثبت می‌شود.</div>
-                    {!exSplitPayment ? (
+                    <label className="flex items-center gap-2 cursor-pointer w-fit mt-2">
+                      <input type="checkbox" className="w-4 h-4" checked={exCheque}
+                        disabled={hasExDeltaRightInput}
+                        onChange={(e) => { setExCheque(e.target.checked); if (e.target.checked) setExSplitPayment(false) }} />
+                      <span className="font-bold">دریافت مابه‌التفاوت با چک در جریان (بدهی تا وصول باز می‌ماند)</span>
+                    </label>
+                    {exCheque && (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
+                        <label><div className="kbd">شماره چک</div><input className="inp" dir="ltr" value={exChequeNo}
+                          onChange={(e) => setExChequeNo(e.target.value)} /></label>
+                        <label><div className="kbd">بانک</div><input className="inp" value={exChequeBank}
+                          onChange={(e) => setExChequeBank(e.target.value)} /></label>
+                        <label><div className="kbd">سررسید شمسی</div><input className="inp" dir="ltr" placeholder="۱۴۰۵/۰۱/۱۵"
+                          value={exChequeDueDate} onChange={(e) => setExChequeDueDate(e.target.value)} /></label>
+                        <div className="kbd md:col-span-3 rounded border border-amber-300 bg-amber-50 p-2">
+                          چک هنوز وجه وصول‌شده نیست؛ همین مبلغ به‌عنوان بدهی همین تعویض پشتوانه می‌شود. برگشت یا وصول دیرهنگام، بدهی/حق وجه دوم ایجاد نمی‌کند.
+                        </div>
+                        <div className="md:col-span-3 rounded border border-slate-300 p-2">
+                          <label className="flex items-center gap-2 font-bold">
+                            <input type="checkbox" checked={exChequeDebtOverride}
+                              onChange={(e) => setExChequeDebtOverride(e.target.checked)} />
+                            استثنای مدیر برای چک جدید با وجود بدهی چک باز همین مشتری
+                          </label>
+                          {exChequeDebtOverride && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                              <label><div className="kbd">رمز مدیر</div><input type="password" className="inp" dir="ltr"
+                                value={exChequeOverridePassword} onChange={(e) => setExChequeOverridePassword(e.target.value)} /></label>
+                              <label><div className="kbd">دلیل/شاهد (حداقل ۱۰ نویسه)</div><input className="inp"
+                                value={exChequeOverrideReason} onChange={(e) => setExChequeOverrideReason(e.target.value)} /></label>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {!exSplitPayment && !exCheque ? (
                       <label className="block mt-2 max-w-sm">
                         <div className="kbd">روش دریافت مابه‌التفاوت</div>
                         <select
@@ -2019,7 +2090,7 @@ export default function SalesReturn() {
                           ))}
                         </select>
                       </label>
-                    ) : (
+                    ) : exSplitPayment ? (
                       <>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
                           <label>
@@ -2071,7 +2142,7 @@ export default function SalesReturn() {
                           جمع نقد و کارت: {money(exSplitTotal ?? 0)} ریال · مبلغ لازم: {money(hasExDeltaRightInput ? exDeltaTenderRemainder : exTotals.diff)} ریال
                         </div>
                       </>
-                    )}
+                    ) : null}
                       </>
                     )}
                   </div>

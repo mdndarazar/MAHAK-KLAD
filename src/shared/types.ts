@@ -264,6 +264,8 @@ export interface InvoicePaymentRow {
   clearedAtJalali: string | null
   /** روزهای مانده تا سررسید (منفی = گذشته). null = چک نیست یا سررسید ندارد. */
   dueInDays: number | null
+  /** این پرداخت چک، پشتوانهٔ بازپرداخت/بدهی تعویض است و ویرایش/حذف آن ممنوع است؟ */
+  exchangeDebtBacking?: boolean
   /** مبلغ این ردیف در «جمع پرداختی‌های دریافت‌شده» شمرده می‌شود؟ */
   counted: boolean
   /**
@@ -394,6 +396,10 @@ export interface AddInvoicePaymentInput {
   overpayAsCredit?: boolean
   /** رمز مدیر، فقط اگر مبلغ اعتبار از سقف «صدور اعتبار» تنظیمات بیشتر باشد */
   managerPassword?: string | null
+  /** تأیید آگاهانه‌ی مدیر برای دریافت چک با وجود بدهی چکِ تسویه‌نشده */
+  chequeDebtOverride?: boolean
+  /** دلیل شاهددارِ override (اجباری) */
+  overrideReason?: string | null
   // ---- چک ----
   chequeNo?: string | null
   bankName?: string | null
@@ -2015,7 +2021,24 @@ export interface ExchangeSaleInput {
    * نقدی/کارتی مصرف می‌شود؛ اعتبار هرگز cash محسوب نمی‌شود.
    */
   splitPayment?: boolean
-  payments?: { methodId: number; amount: number; destination?: string | null }[]
+  payments?: {
+    methodId: number
+    amount: number
+    destination?: string | null
+    kind?: 'CASH' | 'CHEQUE'
+    chequeNo?: string | null
+    bankName?: string | null
+    dueDateJalali?: string | null
+    reference?: string | null
+    note?: string | null
+  }[]
+  /** Override شاهددار برای چک تازه در حضور بدهی چکِ تسویه‌نشده (رمز مدیر + دلیل). */
+  chequeDebtOverride?: boolean
+  /** مشخصات چک برای مابه‌التفاوت مثبتِ تک‌روش؛ چک تا پاس‌شدن بدهی باز می‌ماند. */
+  chequeNo?: string | null
+  bankName?: string | null
+  dueDateJalali?: string | null
+  reference?: string | null
   /** کد حق B/N معتبر برای پرداخت بخشی از مابه‌التفاوت مثبت تعویض */
   deltaStoreCreditCode?: string | null
   /** مبلغ دقیق مصرف از کد بالا؛ مصرف جزئی/نامعتبر پیش از commit رد می‌شود */

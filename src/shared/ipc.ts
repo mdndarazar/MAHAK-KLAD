@@ -76,6 +76,10 @@ export const IPC = {
   saleOverpayCredit: 'sale:overpay:credit',
   /** تغییر وضعیت یک چک: پاس شد / برگشت خورد / در جریان */
   saleChequeStatus: 'sale:cheque:status',
+  /** پیش‌نمایش ماندهٔ بدهی/اعمال/بازپرداخت چک SUSPENSE */
+  saleChequeSuspensePreview: 'sale:cheque:suspense:preview',
+  /** تعیین تکلیف چکِ SUSPENSE با تطبیق مستقل دو مدیر و ثبت بازپرداخت/تسویه */
+  saleChequeSuspenseResolve: 'sale:cheque:suspense:resolve',
   /** فهرست چک‌های ثبت‌شده (سررسید، وضعیت، فاکتور) */
   saleChequeList: 'sale:cheque:list',
   /**
@@ -114,6 +118,10 @@ export const IPC = {
   /** سیاست حسابداری (آستانه‌ی مغایرت، سقف اعتبار، گیت‌ها) */
   settingsAccountingPolicy: 'settings:accountingPolicy:get',
   settingsAccountingPolicySet: 'settings:accountingPolicy:set',
+  /** مدیرها: خواندن/پیشنهاد/تأیید دوم سیاست versioned چک مابه‌التفاوت S10 */
+  exchangeChequePolicyGet: 'exchange:chequePolicy:get',
+  exchangeChequePolicyPropose: 'exchange:chequePolicy:propose',
+  exchangeChequePolicyApprove: 'exchange:chequePolicy:approve',
   /** بررسی یک بارکد اعتبار (مصرف‌نشده؟ منقضی؟ چه مبلغی؟) — بدون مصرف کردنش */
   storeCreditLookup: 'storeCredit:lookup',
   /** فهرست بارکدهای اعتبار یک بازه (صادرشده / مصرف‌شده) */

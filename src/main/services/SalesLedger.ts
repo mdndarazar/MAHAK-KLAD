@@ -409,13 +409,15 @@ export const salesLedger = {
                   (debtCut > 0 && refundPart > 0 ? ' · ' : '') +
                   (refundPart <= 0
                     ? ''
-                    : cashEffect < 0
-                      ? `${money(refundPart)} ریال مابه‌التفاوت نقدی به مشتری برگشت`
-                      : settle === ExchangeSettlement.CARD_REFUND
-                        ? `${money(refundPart)} ریال به کارت مشتری برگشت (اثر نقدی کشو صفر)`
-                        : settle === ExchangeSettlement.CARD_TO_CARD
-                          ? `${money(refundPart)} ریال در درخواست کارت‌به‌کارت مدیر ثبت شد (اثر نقدی صفر)`
-                          : `${money(refundPart)} ریال اعتبار خرید صادر شد (اثر نقدی صفر، بدهی ما)`)
+                    : settle === ExchangeSettlement.S1_RESIDUAL_RIGHTS || settle === ExchangeSettlement.S11_DEBT_OFFSET_RIGHTS
+                      ? `${money(refundPart)} ریال فقط به حق B/N ریشه‌دار از منشأ پرداخت‌شده تبدیل شد؛ بازپرداخت یا اعتبار عمومی صادر نشد`
+                      : cashEffect < 0
+                        ? `${money(refundPart)} ریال مابه‌التفاوت نقدی به مشتری برگشت`
+                        : settle === ExchangeSettlement.CARD_REFUND
+                          ? `${money(refundPart)} ریال به کارت مشتری برگشت (اثر نقدی کشو صفر)`
+                          : settle === ExchangeSettlement.CARD_TO_CARD
+                            ? `${money(refundPart)} ریال در درخواست کارت‌به‌کارت مدیر ثبت شد (اثر نقدی صفر)`
+                            : `${money(refundPart)} ریال اعتبار خرید صادر شد (اثر نقدی صفر، بدهی ما)`)
                 : 'مابه‌التفاوت صفر',
           stockEffect: -replacementQty,
           invoiceId: r.exchangeInvoiceId ?? r.invoiceId,

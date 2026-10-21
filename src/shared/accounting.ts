@@ -599,7 +599,7 @@ export function calculateReturnTotals(events: ReturnEvent[] = [], period?: Perio
         else if (bucket === 'CARD_TO_CARD') {
           if (!r.refundCanceled) out.exchangeCardToCardPending += refunded
         }
-        else out.exchangeStoreCreditIssued += refunded
+        else if (bucket === 'STORE_CREDIT') out.exchangeStoreCreditIssued += refunded
       }
       continue
     }
@@ -922,6 +922,8 @@ export function normalizeSettlement(input: {
     case 'NONE':
     // نشست ۶۰ (بند ۴-۵) — فقط کاهش بدهی؛ بخش بازپرداخت‌شده صفر است (exchangeRefundPartOf)
     case 'DEBT_REDUCTION':
+    case 'S1_RESIDUAL_RIGHTS':
+    case 'S11_DEBT_OFFSET_RIGHTS':
       return { bucket: 'NONE', legacy: false }
     default:
       return { bucket: 'STORE_CREDIT', legacy: true }

@@ -77,7 +77,7 @@ async function ensureRightCode(tx: Client, opening: any, replayed: boolean) {
       returnId: Number(opening.returnId), exchangeInvoiceId: Number(opening.childInvoiceId),
       sourceInvoiceId: Number(opening.sourceInvoiceId), exchangeResidualRightKey: opening.rightKey,
       days: null, expiresAtExact: opening.expiresAt ?? null, multiUse: true, status: 'DRAFT',
-      note: `حق ${opening.rightKind} سناریوی S1 · منشأ ${opening.rootShareId}`,
+      note: `حق ${opening.rightKind} سناریوی ${opening.evidenceKind === 'PAID_SOURCE_AFTER_DEBT_OFFSET' ? 'S11' : 'S1'} · منشأ ${opening.rootShareId}`,
       issuedAt: new Date(), userId: opening.actorUserId ?? null
     })
     await tx.creditDelivery.create({ data: { creditId: credit.id, sourceKind } })
@@ -202,6 +202,125 @@ export async function openS1ExchangeResidualRights(tx: Client, input: {
   rights.sort((a, b) => a.rightKind.localeCompare(b.rightKind) || a.rightKey.localeCompare(b.rightKey))
   return { sourceInvoiceId, childInvoiceId, returnId, giftCarry: plan.giftCarry, cashCarry: plan.cashCarry,
     rights, replayed: rights.length > 0 && rights.every((r) => r.replayed) }
+}
+
+/** S11: issue the paid-source residual rights when an exchange child is fully
+ * returned and its separate, pending-cheque debt was offset first. The debt
+ * offset is only reconciliation evidence; it is excluded from the allocation
+ * input and can never open B/N.
+ */
+export async function openS11ExchangeDebtResidualRights(tx: Client, input: {
+  sourceInvoiceId: number; childInvoiceId: number; returnId: number; actorUserId?: number | null
+}) {
+  const sourceInvoiceId = id(input.sourceInvoiceId, 'شناسه فاکتور مبدأ')
+  const childInvoiceId = id(input.childInvoiceId, 'شناسه فرزند')
+  const returnId = id(input.returnId, 'شناسه برگشت')
+  const [ret, child, parentFunding, childFunding] = await Promise.all([
+    tx.saleReturn.findUnique({ where: { id: returnId }, select: {
+      id: true, invoiceId: true, kind: true, total: true, exchangeInvoiceId: true,
+      exchangeTotal: true, debtReduction: true, voidedAt: true
+    } }),
+    tx.saleInvoice.findUnique({ where: { id: childInvoiceId }, select: {
+      id: true, sourceInvoiceId: true, exchangeReturnId: true, orderType: true, grandTotal: true, voidedAt: true
+    } }),
+    getCurrentExchangeFundingSources(tx, sourceInvoiceId, {
+      allowReturnBalanceChanges: true, allowExpiredGiftForReturnAttribution: true
+    }),
+    getCurrentExchangeFundingSources(tx, childInvoiceId, {
+      allowReturnBalanceChanges: true, allowExpiredGiftForReturnAttribution: true
+    })
+  ])
+  if (!ret || !child || ret.voidedAt != null || child.voidedAt != null || ret.kind !== 'EXCHANGE' ||
+      Number(ret.invoiceId) !== sourceInvoiceId || Number(ret.exchangeInvoiceId) !== childInvoiceId ||
+      Number(child.sourceInvoiceId) !== sourceInvoiceId || Number(child.exchangeReturnId) !== returnId ||
+      child.orderType !== 'EXCHANGE' || toNumberRial(ret.exchangeTotal) !== toNumberRial(child.grandTotal) ||
+      toNumberRial(ret.total) <= 0 || !Number.isSafeInteger(toNumberRial(ret.debtReduction)) ||
+      toNumberRial(ret.debtReduction) <= 0 || parentFunding.stale || !parentFunding.snapshotExists ||
+      parentFunding.unresolved.length || parentFunding.debt !== 0 ||
+      parentFunding.debtOffset !== toNumberRial(ret.debtReduction) || parentFunding.overpay !== 0 ||
+      parentFunding.activeReturnIds.length !== 1 || parentFunding.activeReturnIds[0] !== returnId ||
+      parentFunding.sources.length === 0 || childFunding.unresolved.length ||
+      childFunding.sourceInvoiceId !== sourceInvoiceId || childFunding.returnId !== returnId ||
+      childFunding.activeReturnIds.length !== 0 || childFunding.lineAllocationStatus !== 'PERSISTED_RECONCILED')
+    throw invalid()
+  const sources = parentFunding.sources.map((row) => ({
+    sourceEventId: Number(row.event.id), sourceKind: String(row.sourceKind),
+    originalAmount: toNumberRial(row.event.amount), remaining: row.available, row
+  }))
+  if (sources.some((source) => !Number.isSafeInteger(source.sourceEventId) || source.sourceEventId <= 0 ||
+      source.originalAmount <= 0 || !['SOURCE_GIFT', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(source.sourceKind)) ||
+      sources.reduce((sum, source) => sum + BigInt(source.originalAmount), 0n) +
+        BigInt(toNumberRial(ret.debtReduction)) !== BigInt(toNumberRial(ret.total))) throw invalid()
+  let plan: ReturnType<typeof allocateExchangeFundingProportionalFloor>
+  try {
+    plan = allocateExchangeFundingProportionalFloor({ replacementTotal: toNumberRial(child.grandTotal),
+      sources: sources.map((source) => ({ sourceEventId: source.sourceEventId,
+        sourceKind: source.sourceKind as 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE',
+        available: source.originalAmount })) })
+  } catch { throw invalid() }
+  if (!plan.allocations.some((allocation) => allocation.remainder > 0) ||
+      plan.allocations.reduce((sum, allocation) => sum + allocation.remainder, 0) !==
+        sources.reduce((sum, source) => sum + source.originalAmount, 0) - toNumberRial(child.grandTotal))
+    throw invalid()
+  const expected = new Map(plan.allocations.map((row) => [row.sourceEventId, row]))
+  const transferred = new Map<number, number>()
+  for (const row of childFunding.sources) {
+    const parentId = Number(row.event.parentEventId)
+    const expectedSource = sources.find((source) => source.sourceEventId === parentId)
+    if (row.event.kind !== 'TRANSFER_IN' || Number(row.event.returnId) !== returnId || !expectedSource ||
+        row.sourceKind !== expectedSource.sourceKind) throw invalid()
+    transferred.set(parentId, (transferred.get(parentId) ?? 0) + toNumberRial(row.event.amount))
+  }
+  const rights: any[] = []
+  for (const source of sources.sort((a, b) => a.sourceEventId - b.sourceEventId)) {
+    const allocation = expected.get(source.sourceEventId)
+    if (!allocation || (transferred.get(source.sourceEventId) ?? 0) !== allocation.carry ||
+        source.remaining !== allocation.remainder) throw invalid()
+    if (allocation.remainder === 0) continue
+    const rightKind = source.sourceKind === 'SOURCE_GIFT' ? 'B' : 'N'
+    let expiresAt: Date | null = null
+    if (rightKind === 'B') {
+      let root = source.row.event
+      const seen = new Set<number>()
+      while (root?.kind === 'TRANSFER_IN') {
+        const parentId = Number(root.parentEventId)
+        if (!Number.isSafeInteger(parentId) || parentId <= 0 || seen.has(parentId)) throw invalid()
+        seen.add(parentId)
+        root = await tx.exchangeFundingEvent.findUnique({ where: { id: parentId } })
+      }
+      if (!root || root.kind !== 'SOURCE_GIFT' || !Number.isSafeInteger(Number(root.sourceRedemptionId))) throw invalid()
+      const redemption = await tx.storeCreditRedemption.findUnique({ where: { id: Number(root.sourceRedemptionId) },
+        select: { id: true, expiryCaptured: true, expiryAtRedeem: true } })
+      if (!redemption || redemption.expiryCaptured !== true) throw invalid()
+      expiresAt = redemption.expiryAtRedeem == null ? null : new Date(redemption.expiryAtRedeem)
+      if (expiresAt && !Number.isFinite(expiresAt.getTime())) throw invalid()
+    }
+    const rightKey = `s11-exchange-debt:${returnId}:source:${source.sourceEventId}:${rightKind}`
+    const opening = { eventKey: `open:${rightKey}`, rightKey, rightKind, eventKind: 'OPENED',
+      amount: allocation.remainder, availableDelta: allocation.remainder, reservedDelta: 0, spentDelta: 0,
+      sourceInvoiceId, childInvoiceId, returnId, sourceEventId: source.sourceEventId,
+      rootShareId: String(source.row.event.rootShareId), expiresAt, operationKey: null,
+      actorUserId: input.actorUserId ?? null, evidenceKind: 'PAID_SOURCE_AFTER_DEBT_OFFSET',
+      evidenceRef: `SaleReturn:${returnId}:DebtOffset:${toNumberRial(ret.debtReduction)}` }
+    const prior = await tx.exchangeResidualRightEvent.findUnique({ where: { eventKey: opening.eventKey } })
+    if (!prior && expiresAt && expiresAt.getTime() <= Date.now())
+      throw new BusinessError('ریشهٔ هدیه منقضی شده است؛ سهم تاریخی به B مصرف‌پذیر تبدیل نشد.')
+    if (prior) {
+      if (!openingMatches(prior, opening)) throw stale()
+      const state = await readState(tx, rightKey)
+      const access = await ensureRightCode(tx, prior, true)
+      rights.push({ ...access, rightKey, amount: allocation.remainder, available: state.available,
+        reserved: state.reserved, spent: state.spent, expiresAt, replayed: true })
+    } else {
+      const created = await tx.exchangeResidualRightEvent.create({ data: opening })
+      const access = await ensureRightCode(tx, created, false)
+      rights.push({ ...access, rightKey, amount: allocation.remainder, available: allocation.remainder,
+        reserved: 0, spent: 0, expiresAt, replayed: false })
+    }
+  }
+  rights.sort((a, b) => a.rightKind.localeCompare(b.rightKind) || a.rightKey.localeCompare(b.rightKey))
+  return { sourceInvoiceId, childInvoiceId, returnId, giftCarry: plan.giftCarry, cashCarry: plan.cashCarry,
+    rights, replayed: rights.length > 0 && rights.every((right) => right.replayed) }
 }
 
 export async function planS1ResidualRightSaleReturn(tx: Client, input: {

@@ -469,6 +469,19 @@ export default function Settings() {
   const [policyBusy, setPolicyBusy] = useState(false)
   /** نشست ۱۵۴ (S151-b، بند ۴-۲۹) — رمز مدیر همیشه لازم؛ بعد از هر تلاش پاک می‌شود */
   const [policyPw, setPolicyPw] = useState('')
+  const [s10Policy, setS10Policy] = useState<any>(null)
+  const [s10Managers, setS10Managers] = useState<{ id: number; name: string; role: string; isActive: boolean }[]>([])
+  const [s10Enabled, setS10Enabled] = useState(false)
+  const [s10MinimumDelta, setS10MinimumDelta] = useState('')
+  const [s10ProposalReason, setS10ProposalReason] = useState('')
+  const [s10ProposalEvidence, setS10ProposalEvidence] = useState('')
+  const [s10ProposerId, setS10ProposerId] = useState('')
+  const [s10ProposerPin, setS10ProposerPin] = useState('')
+  const [s10ApprovalReason, setS10ApprovalReason] = useState('')
+  const [s10ApprovalEvidence, setS10ApprovalEvidence] = useState('')
+  const [s10ApproverId, setS10ApproverId] = useState('')
+  const [s10ApproverPin, setS10ApproverPin] = useState('')
+  const [s10PolicyBusy, setS10PolicyBusy] = useState(false)
 
   // ---------------- جلسه ۱۸ · بند ۲ — کارمندان ----------------
   const [staffRows, setStaffRows] = useState<
@@ -1708,6 +1721,54 @@ export default function Settings() {
    * ۱۴ ثبت‌شده و آماده بود.
    * =========================================================================
    */
+  const loadS10ChequePolicy = useCallback(async () => {
+    try {
+      const [state, directory] = await Promise.all([
+        call<any>(CH.exchangeChequePolicyGet),
+        call<{ rows?: { id: number; name: string; role: string; isActive: boolean }[] }>(CH.staffDirectory, { includeInactive: false })
+      ])
+      setS10Policy(state)
+      setS10Enabled(Boolean(state?.active?.enabled))
+      setS10MinimumDelta(String(state?.active?.minimumDelta ?? ''))
+      setS10Managers((directory.rows ?? []).filter((row) => row.role === 'MANAGER' && row.isActive))
+    } catch (e: any) { setErr(e.message) }
+  }, [])
+
+  const proposeS10ChequePolicy = async () => {
+    const min = Number(toLatinDigits(s10MinimumDelta).replace(/[^\d]/g, ''))
+    if (!s10ProposerId || !s10ProposerPin.trim() || !Number.isSafeInteger(min) || min < 0 ||
+        (s10Enabled && min <= 0) || s10ProposalReason.trim().length < 10 || s10ProposalEvidence.trim().length < 8)
+      return setErr('فعال/خاموش، حداقل مابه‌التفاوت، مدیر پیشنهاددهنده، رمز شخصی، دلیل و شاهد معتبر را وارد کنید.')
+    setS10PolicyBusy(true)
+    try {
+      const next = await call<any>(CH.exchangeChequePolicyPropose, {
+        enabled: s10Enabled, minimumDelta: min, reason: s10ProposalReason.trim(), evidenceRef: s10ProposalEvidence.trim(),
+        proposerUserId: Number(s10ProposerId), proposerPin: s10ProposerPin.trim()
+      })
+      setS10Policy(next); setS10ProposerPin(''); setS10ProposalReason(''); setS10ProposalEvidence('')
+      flash('پیشنهاد سیاست ثبت شد؛ تا تأیید مدیر دوم نسخهٔ فعال تغییر نمی‌کند.')
+    } catch (e: any) { setErr(e.message) }
+    finally { setS10PolicyBusy(false); setS10ProposerPin('') }
+  }
+
+  const approveS10ChequePolicy = async () => {
+    const pending = s10Policy?.pending
+    if (!pending || !s10ApproverId || Number(s10ApproverId) === Number(pending.proposerUserId) || !s10ApproverPin.trim() ||
+        s10ApprovalReason.trim().length < 10 || s10ApprovalEvidence.trim().length < 8)
+      return setErr('برای تأیید، مدیر دومی متفاوت از پیشنهاددهنده، رمز شخصی، دلیل و شاهد لازم است.')
+    setS10PolicyBusy(true)
+    try {
+      const next = await call<any>(CH.exchangeChequePolicyApprove, {
+        proposalId: pending.id, approvingManagerUserId: Number(s10ApproverId), approvingManagerPin: s10ApproverPin.trim(),
+        approvalReason: s10ApprovalReason.trim(), approvalEvidenceRef: s10ApprovalEvidence.trim()
+      })
+      setS10Policy(next); setS10Enabled(Boolean(next?.active?.enabled)); setS10MinimumDelta(String(next?.active?.minimumDelta ?? ''))
+      setS10ApproverPin(''); setS10ApprovalReason(''); setS10ApprovalEvidence('')
+      flash(`سیاست فعال شد · نسخه ${faDigits(next.active.version)} · ${next.active.enabled ? 'روشن' : 'خاموش'}`)
+    } catch (e: any) { setErr(e.message) }
+    finally { setS10PolicyBusy(false); setS10ApproverPin('') }
+  }
+
   const loadPolicy = useCallback(async () => {
     try {
       setPolicy(parseAccountingPolicy(await call<AccountingPolicy>(CH.settingsAccountingPolicy)))
@@ -1898,7 +1959,10 @@ export default function Settings() {
       void loadBackupConfig()
     }
     if (tab === 'slim') void loadStats()
-    if (tab === 'accounting') void loadPolicy()
+    if (tab === 'accounting') {
+      void loadPolicy()
+      if (isManager) void loadS10ChequePolicy()
+    }
     if (tab === 'time') {
       const t = window.setInterval(() => setTimeNow(new Date()), 1000)
       return () => window.clearInterval(t)
@@ -4412,6 +4476,38 @@ export default function Settings() {
                   این بخش دکمه‌ی ذخیره‌ی خودش را دارد و با «ذخیره‌ی تنظیمات» بالای صفحه ذخیره نمی‌شود.
                 </span>
               </div>
+
+              {isManager && <section className="mt-6 rounded border-2 border-violet-400 bg-violet-50 p-4 space-y-3">
+                <div>
+                  <h3 className="font-bold text-lg">S10 · سیاست نسخه‌دار پذیرش چک مابه‌التفاوت تعویض</h3>
+                  <p className="text-sm leading-6">پیش‌فرض خاموش است. پذیرش فقط وقتی انجام می‌شود که سیاست فعال باشد و مبلغ خالص مابه‌التفاوت به حداقل تعیین‌شده برسد. تغییرها با پیشنهاد یک مدیر و تأیید مدیر دومی فعال می‌شوند و روی اسناد قبلی اثر نمی‌گذارند.</p>
+                </div>
+                {s10Policy && <div className="rounded bg-white p-3 text-sm">
+                  نسخهٔ فعال <b>{faDigits(s10Policy.active.version)}</b> · وضعیت <b>{s10Policy.active.enabled ? 'روشن' : 'خاموش'}</b> · حداقل <b>{money(s10Policy.active.minimumDelta)} ریال</b>
+                  {s10Policy.active.proposerName && <> · پیشنهاد {s10Policy.active.proposerName} / تأیید {s10Policy.active.approverName}</>}
+                  {s10Policy.pending && <p className="mt-1 text-amber-800 font-bold">پیشنهاد در انتظار تأیید · نسخهٔ پایه {faDigits(s10Policy.pending.baseVersion)} · {s10Policy.pending.enabled ? 'روشن' : 'خاموش'} · حداقل {money(s10Policy.pending.minimumDelta)} ریال · پیشنهاددهنده: {s10Policy.pending.proposerName}</p>}
+                </div>}
+                <div className="grid md:grid-cols-2 gap-3">
+                  <label className="flex items-center gap-2 font-bold"><input type="checkbox" className="w-4 h-4" checked={s10Enabled} onChange={(e) => setS10Enabled(e.target.checked)} />پذیرش چک مابه‌التفاوت روشن باشد</label>
+                  <Field label="حداقل خالص مابه‌التفاوت (ریال)"><input className="inp" dir="ltr" inputMode="numeric" value={s10MinimumDelta} onChange={(e) => setS10MinimumDelta(toLatinDigits(e.target.value).replace(/[^\d]/g, ''))} /></Field>
+                  <Field label="مدیر پیشنهاددهنده"><select className="inp" value={s10ProposerId} onChange={(e) => setS10ProposerId(e.target.value)}><option value="">انتخاب کنید…</option>{s10Managers.map((m) => <option key={m.id} value={m.id}>{m.name} · #{faDigits(m.id)}</option>)}</select></Field>
+                  <Field label="رمز شخصی مدیر پیشنهاددهنده"><PasswordField value={s10ProposerPin} onChange={(e) => setS10ProposerPin(e.target.value)} /></Field>
+                  <Field label="دلیل تغییر (حداقل ۱۰ نویسه)"><input className="inp" value={s10ProposalReason} onChange={(e) => setS10ProposalReason(e.target.value)} /></Field>
+                  <Field label="شاهد مستند/مرجع (حداقل ۸ نویسه)"><input className="inp" value={s10ProposalEvidence} onChange={(e) => setS10ProposalEvidence(e.target.value)} /></Field>
+                </div>
+                <button className="btn btn-primary" disabled={s10PolicyBusy} onClick={() => void proposeS10ChequePolicy()}>{s10PolicyBusy ? 'در حال ثبت…' : 'ثبت پیشنهاد تغییر سیاست'}</button>
+                {s10Policy?.pending && <div className="border-t border-violet-200 pt-3 space-y-3">
+                  <h4 className="font-bold">تأیید مستقل مدیر دوم</h4>
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <Field label="مدیر تأییدکننده (باید متفاوت باشد)"><select className="inp" value={s10ApproverId} onChange={(e) => setS10ApproverId(e.target.value)}><option value="">انتخاب کنید…</option>{s10Managers.filter((m) => m.id !== s10Policy.pending.proposerUserId).map((m) => <option key={m.id} value={m.id}>{m.name} · #{faDigits(m.id)}</option>)}</select></Field>
+                    <Field label="رمز شخصی مدیر تأییدکننده"><PasswordField value={s10ApproverPin} onChange={(e) => setS10ApproverPin(e.target.value)} /></Field>
+                    <Field label="دلیل تأیید مستقل (حداقل ۱۰ نویسه)"><input className="inp" value={s10ApprovalReason} onChange={(e) => setS10ApprovalReason(e.target.value)} /></Field>
+                    <Field label="شاهد تأیید مستقل (حداقل ۸ نویسه)"><input className="inp" value={s10ApprovalEvidence} onChange={(e) => setS10ApprovalEvidence(e.target.value)} /></Field>
+                  </div>
+                  <button className="btn btn-primary" disabled={s10PolicyBusy} onClick={() => void approveS10ChequePolicy()}>{s10PolicyBusy ? 'در حال تأیید…' : 'تأیید و فعال‌سازی نسخهٔ جدید'}</button>
+                </div>}
+                <button className="btn" disabled={s10PolicyBusy} onClick={() => void loadS10ChequePolicy()}>تازه‌سازی سیاست و مدیرها</button>
+              </section>}
             </>
           )}
 

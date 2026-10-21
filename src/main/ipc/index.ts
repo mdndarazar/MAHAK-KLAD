@@ -39,6 +39,7 @@ import { fraudService } from '../services/FraudService'
 import { receiptGapReport } from '../services/receiptNo'
 import { shiftService } from '../services/ShiftService'
 import { settingsService } from '../services/SettingsService'
+import { exchangeChequePolicyService } from '../services/ExchangeChequePolicyService'
 import { priceAdjustService } from '../services/PriceAdjustService'
 import { printService } from '../services/PrintService'
 import { exportTableFile } from '../services/ExportService'
@@ -754,6 +755,15 @@ export function registerIpcHandlers(): void {
   handle(IPC.salePaymentUpdate, async (p) => salesService.updatePayment(await withSessionActor(p)))
   handle(IPC.salePaymentDelete, async (p) => salesService.deletePayment(await withSessionActor(p ?? {})))
   handle(IPC.saleChequeStatus, async (p) => salesService.setChequeStatus(await withSessionActor(p ?? {})))
+  handle(IPC.saleChequeSuspensePreview, async (p) => {
+    assertManagerSession('دیدن پیش‌نمایش تعیین تکلیف چک معلق تعویض')
+    return salesService.exchangeChequeSuspensePreview(p ?? {})
+  })
+  handle(IPC.saleChequeSuspenseResolve, async (p) => {
+    assertManagerSession('تطبیق مستقل و تعیین تکلیف چک معلق تعویض')
+    const actorUserId = await shiftService.currentStaffId()
+    return salesService.resolveExchangeChequeSuspense({ ...(p ?? {}), userId: actorUserId })
+  })
   handle(IPC.saleChequeList, async (p) => {
     await assertSalesReportsRead('دیدن فهرست چک‌های فروش در گزارشات')
     return salesService.chequeList(p ?? {})
@@ -874,6 +884,18 @@ export function registerIpcHandlers(): void {
   handle(IPC.settingsAccountingPolicySet, async (p) =>
     settingsService.setAccountingPolicy(await withOptionalSessionActor(p ?? {}))
   )
+  handle(IPC.exchangeChequePolicyGet, async () => {
+    assertManagerSession('دیدن سیاست پذیرش چک مابه‌التفاوت')
+    return exchangeChequePolicyService.get()
+  })
+  handle(IPC.exchangeChequePolicyPropose, async (p) => {
+    assertManagerSession('پیشنهاد تغییر سیاست پذیرش چک مابه‌التفاوت')
+    return exchangeChequePolicyService.propose(p ?? {})
+  })
+  handle(IPC.exchangeChequePolicyApprove, async (p) => {
+    assertManagerSession('تأیید دوم سیاست پذیرش چک مابه‌التفاوت')
+    return exchangeChequePolicyService.approve(p ?? {})
+  })
   handle(IPC.storeCreditLookup, async (p) => storeCreditService.lookup(await withOptionalSessionActor(p ?? {})))
   // ممیزی A97-01 — وضعیت نوار گزارش = وضعیت فاکتور، نه اعتبار
   /**

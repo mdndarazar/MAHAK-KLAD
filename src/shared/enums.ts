@@ -379,6 +379,10 @@ export const ExchangeSettlement = {
   DEBT_REDUCTION: 'DEBT_REDUCTION',
   /** S1: remainder issued as source-rooted B/N entitlements, not paid out. */
   S1_RESIDUAL_RIGHTS: 'S1_RESIDUAL_RIGHTS',
+  /** S11: clear exchange-child cheque debt first, then issue only paid-source B/N remainders. */
+  S11_DEBT_OFFSET_RIGHTS: 'S11_DEBT_OFFSET_RIGHTS',
+  /** مابه‌التفاوت مثبت با چک در جریان؛ تا وصول، پشتوانهٔ بدهی باز است */
+  CHEQUE_PENDING: 'CHEQUE_PENDING',
   /** مابه‌التفاوت صفر بود */
   NONE: 'NONE'
 } as const
@@ -393,6 +397,8 @@ export const EXCHANGE_SETTLEMENT_LABELS: Record<string, string> = {
   /** نشست ۶۰ (بند ۴-۵) — مابه‌التفاوت به‌جای پول از بدهی فاکتور اصلی کم شد */
   DEBT_REDUCTION: 'مابه‌التفاوت از بدهی فاکتور اصلی کم شد (پولی جابه‌جا نشد)',
   S1_RESIDUAL_RIGHTS: 'مازاد به‌صورت حق B/N ریشه‌دار ثبت شد',
+  S11_DEBT_OFFSET_RIGHTS: 'بدهی چک از ارزش برگشتی کسر و مازادِ منشأ پرداخت‌شده به حق B/N تبدیل شد',
+  CHEQUE_PENDING: 'چک مابه‌التفاوت در جریان؛ بدهی باز تا وصول',
   NONE: 'مابه‌التفاوت صفر بود'
 }
 
@@ -511,7 +517,10 @@ export type ChequeStatus = (typeof ChequeStatus)[keyof typeof ChequeStatus]
 export const CHEQUE_STATUS_LABELS: Record<string, string> = {
   PENDING: 'در جریان (پاس نشده)',
   CLEARED: 'پاس شد',
-  BOUNCED: 'برگشت خورد'
+  BOUNCED: 'برگشت خورد',
+  DEBT_OFFSET: 'بدهی از ارزش برگشتی کسر شد؛ چک هنوز وصول نشده',
+  SUSPENSE: 'تعلیق/تطبیق لازم',
+  SUSPENSE_REFUNDED: 'تطبیق شد / بازپرداخت شد'
 }
 
 /** وضعیت تسویه‌ی یک فاکتور (از مقایسه‌ی جمع کل با جمع پرداختی‌های دریافت‌شده). */

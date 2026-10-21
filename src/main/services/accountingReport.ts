@@ -623,7 +623,7 @@ async function returnStatement(scope: StatementScope): Promise<ReturnTotals & { 
         else if (bucket === 'CASH_REFUND') out.exchangeCashRefunds += refunded
         else if (bucket === 'CARD_REFUND') out.exchangeCardRefunds += refunded
         else if (bucket === 'CARD_TO_CARD') out.exchangeCardToCardPending += refunded
-        else out.exchangeStoreCreditIssued += refunded
+        else if (bucket === 'STORE_CREDIT') out.exchangeStoreCreditIssued += refunded
         if (legacy) out.legacyAssumedCount += count
       }
       continue
@@ -1465,7 +1465,8 @@ async function returnBridgeItems(scope: StatementScope): Promise<ReturnBridgeIte
     const method = diff < 0 ? BUCKET_TO_METHOD[bucket] ?? 'NONE' : 'NONE'
     /** نشست ۶۰ (بند ۴-۵) — فقط بخش بازپرداخت‌شده؛ کاهش بدهی جداست */
     const refundPart = exchangeRefundPartOf(r)
-    const refund = diff < 0 && !(method === 'CARD_TO_CARD' && canceled.has(r.id)) ? refundPart : 0
+    const residualRightSettlement = ['S1_RESIDUAL_RIGHTS', 'S11_DEBT_OFFSET_RIGHTS'].includes(String(r.exchangeSettlement))
+    const refund = diff < 0 && !residualRightSettlement && !(method === 'CARD_TO_CARD' && canceled.has(r.id)) ? refundPart : 0
     const debtCut = exchangeDebtReductionOf(r)
     /**
      * سند تعویض یک فاکتور تازه در همین بازه است؛ ولی «کاهش بدهی» روی فاکتور
@@ -2451,7 +2452,13 @@ export async function cashMovementTotals(input: {
     ...(input.userId != null ? { userId: input.userId } : {}),
     ...(input.from != null || input.to != null ? { occurredAt: dateRange(input.from ?? null, input.to ?? null) } : {})
   }
-  const rows = await prisma.cashMovement.groupBy({ by: ['type'], where, _sum: { amount: true } })
+  // S10 cash debt settlements have a CashMovement row as physical evidence, but
+  // the same received Rial is already included by its linked Payment in sales
+  // receipts. Keep the movement visible in the detailed list, not additive here.
+  const rows = await prisma.cashMovement.groupBy({
+    by: ['type'], where: { AND: [where, { NOT: { refType: 'ExchangeDebtSettlement' } }] },
+    _sum: { amount: true }
+  })
   const by = new Map(rows.map((r) => [r.type, n(r._sum.amount)]))
   return {
     openingFloat: by.get(CashMovementType.OPENING_FLOAT) ?? 0,

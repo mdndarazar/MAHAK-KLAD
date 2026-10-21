@@ -7,7 +7,7 @@ import { issueStoreCredit } from './StoreCreditService'
 import { CreditSource } from '@shared/credit'
 import { cashClaimBalance } from '@shared/returnEntitlement'
 import { toNumberRial } from '@shared/money'
-import { getExchangeResidualRightBalance, openS1ExchangeResidualRights } from './ExchangeResidualRightsService'
+import { getExchangeResidualRightBalance, openS1ExchangeResidualRights, openS11ExchangeDebtResidualRights } from './ExchangeResidualRightsService'
 
 type Client = Prisma.TransactionClient | typeof prisma
 const secureInt = (v: unknown, name: string, min = 1): number => {
@@ -451,9 +451,13 @@ async function assertCreditDeliverySourceLineage(tx: Client, delivery: any, cred
       throw new BusinessError('کد B/N با دفتر append-only یا مبدأ/موعد ریشه منطبق نیست؛ تحویل متوقف شد.')
     const [balance, verified] = await Promise.all([
       getExchangeResidualRightBalance(tx, rightKey),
-      openS1ExchangeResidualRights(tx, { sourceInvoiceId: Number(opening.sourceInvoiceId),
-        childInvoiceId: Number(opening.childInvoiceId), returnId: Number(opening.returnId),
-        actorUserId: actorUserId ?? null })
+      (opening.evidenceKind === 'PAID_SOURCE_AFTER_DEBT_OFFSET'
+        ? openS11ExchangeDebtResidualRights(tx, { sourceInvoiceId: Number(opening.sourceInvoiceId),
+            childInvoiceId: Number(opening.childInvoiceId), returnId: Number(opening.returnId),
+            actorUserId: actorUserId ?? null })
+        : openS1ExchangeResidualRights(tx, { sourceInvoiceId: Number(opening.sourceInvoiceId),
+            childInvoiceId: Number(opening.childInvoiceId), returnId: Number(opening.returnId),
+            actorUserId: actorUserId ?? null }))
     ])
     if (balance.rightKind !== expectedKind || balance.amount !== toNumberRial(credit.amount) ||
         balance.expired || balance.voided ||

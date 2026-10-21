@@ -27,7 +27,18 @@ const stages = [
   '20271020740000_guard_exchange_return_line_cumulative_snapshots',
   '20271020750000_guard_exchange_funding_event_immutability',
   '20271020760000_guard_exchange_funding_event_reversals',
-  '20271020770000_guard_allocated_return_physical_snapshots'
+  '20271020770000_guard_allocated_return_physical_snapshots',
+  '20271020780000_exchange_residual_right_event_ledger',
+  '20271020790000_store_credit_exchange_residual_link',
+  '20271020800000_allow_exchange_residual_void_event',
+  '20271020900000_exchange_residual_right_return_link',
+  '20271021000000_guard_s1_restoration_reversal',
+  '20271021100000_exchange_funding_child_return_links',
+  '20271021200000_guard_child_return_funding_reversals',
+  '20271021300000_s7_residual_right_correction_ledger',
+  '20271021400000_s8_exchange_child_return_line_attribution',
+  '20271021410000_s8_n_carry_return_attribution',
+  '20271021420000_s9_b_carry_exchange_tender'
 ]
 const allNames = readdirSync(join(root, 'prisma/migrations'))
   .filter((n) => n !== 'migration_lock.toml').sort()
