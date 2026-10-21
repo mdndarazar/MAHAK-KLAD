@@ -112,6 +112,14 @@ jobs:
           if ($sourceSize -gt 15728640) { throw 'Project source ZIP exceeds the 15 MiB packaging limit.' }
           $sourcePayload = 'dist/MahakPOS-Project-Source'
           Expand-Archive -LiteralPath $sourceZip -DestinationPath $sourcePayload -Force
+          $fullProjectZip = "dist/MAHAK-KLAD-$env:GITHUB_SHA-full-project.zip"
+          $fullProjectPaths = @('.', ':(exclude,glob)*.zip', ':(exclude,glob)**/*.zip')
+          git archive --format=zip --prefix=MAHAK-KLAD/ --output="$fullProjectZip" $env:GITHUB_SHA -- @fullProjectPaths
+          if ($LASTEXITCODE -ne 0) { throw 'Could not create the full project ZIP.' }
+          $fullProjectSize = (Get-Item -LiteralPath $fullProjectZip).Length
+          Write-Output "Full project ZIP size: $fullProjectSize bytes"
+          if ($fullProjectSize -gt 15728640) { throw 'Full project ZIP exceeds the 15 MiB packaging limit.' }
+          Expand-Archive -LiteralPath $fullProjectZip -DestinationPath 'dist/MAHAK-KLAD-Full-Project' -Force
           $releaseFiles = Get-ChildItem -Path dist -File | Where-Object { $_.Name -match '\.exe$|-project-source\.zip$' }
           $lines = $releaseFiles | ForEach-Object { "$( (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower() )  $($_.Name)" }
           Set-Content -Path 'dist/SHA256SUMS.txt' -Value $lines -NoNewline
@@ -134,6 +142,16 @@ jobs:
         with:
           name: MahakPOS-Project-Source
           path: dist/MahakPOS-Project-Source/MahakPOS/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload the full project ZIP (about 10 MB)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MAHAK-KLAD-Project-10MB
+          path: dist/MAHAK-KLAD-Full-Project/MAHAK-KLAD/
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 30
 
