@@ -1042,6 +1042,19 @@ export async function findRedeemable(client: Client, rawCode: string): Promise<a
     )
     return REDEEMABLE_STATUSES.includes(status) && remainingOf({ amount: asNum(r.amount), usedAmount: asNum(r.usedAmount), status: String(r.status) }) > 0
   })
+  if (usable?.exchangeResidualRightKey) {
+    // S7 correction events can close unsupported N without rewriting the
+    // original issued amount or the historical redemption. Project the same
+    // barcode against its append-only right ledger before allowing use.
+    const { getExchangeResidualRightBalance } = await import('./ExchangeResidualRightsService')
+    const right = await getExchangeResidualRightBalance(client, String(usable.exchangeResidualRightKey), new Date(now))
+    const used = toNumberRial(usable.usedAmount)
+    const projectedAmount = used + right.available
+    const projected = { ...usable, amount: BigInt(projectedAmount) }
+    if (!right.voided && !right.expired && !right.sourceQuarantined && projectedAmount > used &&
+        REDEEMABLE_STATUSES.includes(String(usable.status))) return projected
+    throw new CreditLookupError(notRedeemableMessage(projected), 'NOT_REDEEMABLE', usable.id)
+  }
   if (usable) return usable
   throw new CreditLookupError(notRedeemableMessage(rows[0]), 'NOT_REDEEMABLE', rows[0].id)
 }

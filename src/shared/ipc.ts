@@ -632,6 +632,10 @@ export const IPC = {
   /** دفتر حق و شاهد بانکی: صرف اعلام پرداخت بانک را اثبات نمی‌کند. */
   returnEntitlementView: 'return:entitlement:view',
   returnBankReview: 'return:bank:review',
+  /** S7: append-only, manager-witnessed B/N N-right correction/quarantine. */
+  exchangeS7RightAdjust: 'exchange:s7:right-adjust',
+  exchangeS7SourceDisposition: 'exchange:s7:source-disposition',
+  exchangeS7CardStatementReview: 'exchange:s7:card-statement-review',
   returnCashConvert: 'return:cash:convert',
   /** چاپ کنترل‌شدهٔ کد برگشت/تعویض عادی یا کد جایگزین؛ هرگز چاپِ رسید مالی نیست. */
   returnCreditPrint: 'return:credit:print',

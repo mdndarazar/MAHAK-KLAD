@@ -15,24 +15,26 @@ export type ExchangeFundingPlan = {
   unfundedReplacement: number
 }
 
+export type ExchangeFundingRealMoneyKind = 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'
 export type ExchangeFundingFloorShare = {
   sourceEventId: number
-  sourceKind: 'SOURCE_GIFT' | 'SOURCE_CASH'
+  sourceKind: 'SOURCE_GIFT' | ExchangeFundingRealMoneyKind
   available: number
 }
 
 export type ExchangeFundingFloorAllocation = {
   sourceEventId: number
-  sourceKind: 'SOURCE_GIFT' | 'SOURCE_CASH'
+  sourceKind: 'SOURCE_GIFT' | ExchangeFundingRealMoneyKind
   carry: number
   remainder: number
 }
 
-/** S1/final-design allocation: floor the cumulative gift proportion first,
- * then assign the exact balancing Rial(s) to proven cash. Within each source
- * kind, cumulative floors partition the group amount across its immutable
- * source events. This is deliberately distinct from both gift-first and
- * largest-remainder allocation; it is a read/plan primitive only.
+/** S1/S7 final-design allocation: floor the cumulative gift proportion first,
+ * then assign the exact balancing Rial(s) to proven real-money tenders
+ * (cash/card/cleared cheque). Within the gift and real-money groups, cumulative
+ * floors partition the group amount across immutable source events. This is
+ * deliberately distinct from gift-first and largest-remainder allocation;
+ * it is a read/plan primitive only.
  */
 export function allocateExchangeFundingProportionalFloor(input: {
   replacementTotal: number
@@ -48,8 +50,8 @@ export function allocateExchangeFundingProportionalFloor(input: {
   for (const source of sources) {
     if (!source || !Number.isSafeInteger(source.sourceEventId) || source.sourceEventId <= 0 ||
         seen.has(source.sourceEventId) || !Number.isSafeInteger(source.available) || source.available < 0 ||
-        !['SOURCE_GIFT', 'SOURCE_CASH'].includes(source.sourceKind))
-      throw new RangeError('Exchange funding shares must be unique proven gift/cash sources')
+        !['SOURCE_GIFT', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(source.sourceKind))
+      throw new RangeError('Exchange funding shares must be unique and proven')
     seen.add(source.sourceEventId)
     if (source.sourceKind === 'SOURCE_GIFT') giftTotal += BigInt(source.available)
     else cashTotal += BigInt(source.available)
@@ -68,18 +70,20 @@ export function allocateExchangeFundingProportionalFloor(input: {
     throw new RangeError('Proportional funding carry exceeds its proven source kind')
 
   const allocations: ExchangeFundingFloorAllocation[] = []
-  for (const kind of ['SOURCE_GIFT', 'SOURCE_CASH'] as const) {
-    const groupTotal = kind === 'SOURCE_GIFT' ? giftTotal : cashTotal
-    const groupCarry = kind === 'SOURCE_GIFT' ? giftCarry : cashCarry
+  for (const group of ['GIFT', 'REAL'] as const) {
+    const members = [...sources].filter((row) => group === 'GIFT'
+      ? row.sourceKind === 'SOURCE_GIFT' : row.sourceKind !== 'SOURCE_GIFT')
+      .sort((left, right) => left.sourceEventId - right.sourceEventId)
+    const groupTotal = group === 'GIFT' ? giftTotal : cashTotal
+    const groupCarry = group === 'GIFT' ? giftCarry : cashCarry
     let cumulativeAvailable = 0n
     let priorCarry = 0n
-    for (const source of [...sources].filter((row) => row.sourceKind === kind)
-      .sort((left, right) => left.sourceEventId - right.sourceEventId)) {
+    for (const source of members) {
       cumulativeAvailable += BigInt(source.available)
       const cumulativeCarry = groupTotal === 0n ? 0n
         : (cumulativeAvailable * BigInt(groupCarry)) / groupTotal
       const carry = Number(cumulativeCarry - priorCarry)
-      allocations.push({ sourceEventId: source.sourceEventId, sourceKind: kind,
+      allocations.push({ sourceEventId: source.sourceEventId, sourceKind: source.sourceKind,
         carry, remainder: source.available - carry })
       priorCarry = cumulativeCarry
     }

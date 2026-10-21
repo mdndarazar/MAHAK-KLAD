@@ -18,7 +18,9 @@ const names = readdirSync(join(root, 'prisma/migrations'))
   .filter((name) => name !== 'migration_lock.toml').sort()
 const historicNames = names.filter((name) => name < cutover)
 const newNames = names.filter((name) => name >= cutover)
-assert.equal(newNames.length, 23, 'update this test when the financial cutover gains another migration')
+assert.equal(newNames.length, 31, 'update this test when the financial cutover gains another migration')
+assert.ok(newNames.includes('20271021300000_s7_residual_right_correction_ledger'),
+  'the S7 append-only correction/evidence migration is part of the real financial upgrade path')
 const dir = mkdtempSync(join(tmpdir(), 'mahak-real-migration-upgrade-'))
 process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'unused-harness.db')

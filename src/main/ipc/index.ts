@@ -7,6 +7,8 @@ import { pendingRestockService } from '../services/PendingRestockService'
 import { returnGoodsService } from '../services/ReturnGoodsService'
 import { managerReplaceLostCredit } from '../services/CreditRecoveryService'
 import { viewReturnEntitlement, reconcileBankDocument, convertCashRight, confirmCreditDelivery } from '../services/ReturnEntitlementService'
+import { adjustS7NResidualRight, setS7NResidualRightSourceDisposition,
+  reviewS7CardSourceBankStatement } from '../services/ExchangeResidualRightsService'
 import { stockCountService } from '../services/StockCountService'
 import { staffReportService } from '../services/StaffReportService'
 import { staffService } from '../services/StaffService'
@@ -1862,6 +1864,30 @@ export function registerIpcHandlers(): void {
       reviewNote: p?.reviewNote, attestedBankAccountReview: p?.attestedBankAccountReview,
       managerPassword: p?.managerPassword, actorUserId: actor.userId
     })
+  })
+  handle(IPC.exchangeS7RightAdjust, async (p) => {
+    const actor = await withSessionActor(p ?? {}, 'اصلاح شاهددار حق N در S7')
+    return adjustS7NResidualRight({ ...p, actorUserId: actor.userId })
+  })
+  handle(IPC.exchangeS7SourceDisposition, async (p) => {
+    const actor = await withSessionActor(p ?? {}, 'قرنطینه/رفع قرنطینهٔ lineage در S7')
+    return setS7NResidualRightSourceDisposition({ ...p, actorUserId: actor.userId })
+  })
+  handle(IPC.exchangeS7CardStatementReview, async (p) => {
+    const actor = await withSessionActor(p ?? {}, 'بازبینی صورت‌حساب کارت برای حق N در S7')
+    const picked = await dialog.showOpenDialog({
+      title: 'صورت‌حساب کارت برای بازبینی S7 (PDF یا CSV)',
+      properties: ['openFile'], filters: [{ name: 'صورت‌حساب بانک', extensions: ['pdf', 'csv'] }]
+    })
+    if (picked.canceled || !picked.filePaths[0]) return { canceled: true }
+    const path = picked.filePaths[0]
+    if ((await stat(path)).size > 5_000_000)
+      throw new BusinessError('حجم فایل صورت‌حساب بیش از ۵ مگابایت است؛ مدرک دیگری انتخاب کنید.')
+    const name = path.split(/[\\/]/).pop() ?? ''
+    return reviewS7CardSourceBankStatement({ paymentId: p?.paymentId,
+      confirmedAmount: p?.confirmedAmount, document: { name, bytes: await readFile(path) },
+      reviewNote: p?.reviewNote, attestedBankAccountReview: p?.attestedBankAccountReview,
+      managerPassword: p?.managerPassword, actorUserId: actor.userId })
   })
   handle(IPC.returnCashConvert, async (p) => {
     const actor = await withSessionActor(p ?? {}, 'تبدیل حق نقدی برگشت')

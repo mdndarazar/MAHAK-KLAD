@@ -8,6 +8,7 @@ import { allocateExchangeFundingProportionalFloor } from '@shared/exchangeFundin
 import { getCurrentExchangeFundingSources, getCurrentSaleFundingSources } from './ExchangeFundingLedgerService'
 import { allocateS1ResidualRightReturn } from '@shared/exchangeResidualRightReturn'
 import { issueStoreCredit } from './StoreCreditService'
+import { assertManagerPassword } from './AuthService'
 
 type Client = Prisma.TransactionClient | typeof prisma
 const stale = () => new BusinessError('وضعیت حق B/N تغییر کرده است؛ عملیات تکراری یا ناسازگار رد شد.')
@@ -132,19 +133,23 @@ export async function openS1ExchangeResidualRights(tx: Client, input: {
   const sources = parent.sources.map((row) => ({ sourceEventId: Number(row.event.id),
     sourceKind: String(row.sourceKind), originalAmount: toNumberRial(row.event.amount), remaining: row.available, row }))
   if (!sources.length || sources.some((s) => !Number.isSafeInteger(s.sourceEventId) || s.sourceEventId <= 0 ||
-      s.originalAmount <= 0 || !['SOURCE_GIFT', 'SOURCE_CASH'].includes(s.sourceKind)) ||
+      s.originalAmount <= 0 || !['SOURCE_GIFT', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(s.sourceKind)) ||
       sources.reduce((sum, s) => sum + BigInt(s.originalAmount), 0n) !== BigInt(toNumberRial(ret.total))) throw invalid()
   let plan: ReturnType<typeof allocateExchangeFundingProportionalFloor>
   try {
     plan = allocateExchangeFundingProportionalFloor({ replacementTotal: toNumberRial(child.grandTotal),
       sources: sources.map((s) => ({ sourceEventId: s.sourceEventId,
-        sourceKind: s.sourceKind as 'SOURCE_GIFT' | 'SOURCE_CASH', available: s.originalAmount })) })
+        sourceKind: s.sourceKind as 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE',
+        available: s.originalAmount })) })
   } catch { throw invalid() }
   const giftTotal = sources.filter((s) => s.sourceKind === 'SOURCE_GIFT').reduce((n, s) => n + BigInt(s.originalAmount), 0n)
-  const cashTotal = sources.filter((s) => s.sourceKind === 'SOURCE_CASH').reduce((n, s) => n + BigInt(s.originalAmount), 0n)
-  if (giftTotal <= 0n || cashTotal <= 0n || plan.giftCarry <= 0 || plan.cashCarry <= 0 ||
-      plan.allocations.every((r) => r.sourceKind !== 'SOURCE_GIFT' || r.remainder === 0) ||
-      plan.allocations.every((r) => r.sourceKind !== 'SOURCE_CASH' || r.remainder === 0)) throw invalid()
+  const realSources = sources.filter((s) => s.sourceKind !== 'SOURCE_GIFT')
+  const cashTotal = realSources.reduce((n, s) => n + BigInt(s.originalAmount), 0n)
+  if (giftTotal + cashTotal <= 0n ||
+      !plan.allocations.some((allocation) => allocation.remainder > 0) ||
+      plan.allocations.some((allocation) => !sources.some((source) =>
+        source.sourceEventId === allocation.sourceEventId && source.originalAmount >= allocation.remainder)))
+    throw invalid()
   const expected = new Map(plan.allocations.map((r) => [r.sourceEventId, r]))
   const transferred = new Map<number, number>()
   for (const row of childFunding.sources) {
@@ -344,18 +349,410 @@ export async function planS1ResidualRightSaleReturn(tx: Client, input: {
     b: current.b, n: current.n, returnValue, cumulativeReturned: current.returnedAfter }
 }
 
+async function correctionProjection(tx: Client, opening: any, base: { available: number; reserved: number; spent: number }) {
+  const rows = await tx.exchangeResidualRightCorrectionEvent.findMany({
+    where: { rightKey: String(opening.rightKey) }, orderBy: { id: 'asc' }
+  }) as any[]
+  let adjusted = 0n, disputed = 0n, offset = 0n
+  const byId = new Map<number, any>()
+  for (const row of rows) {
+    if (row.rightKey !== opening.rightKey || row.rightKind !== 'N' ||
+        Number(row.sourceInvoiceId) !== Number(opening.sourceInvoiceId) ||
+        Number(row.childInvoiceId) !== Number(opening.childInvoiceId) ||
+        Number(row.rootReturnId) !== Number(opening.returnId) ||
+        Number(row.sourceEventId) !== Number(opening.sourceEventId) || row.rootShareId !== opening.rootShareId ||
+        !['RIGHT_ADJUST', 'DISPUTED_RECOVERY_OPEN', 'DISPUTE_OFFSET_BY_RETURN',
+          'SOURCE_QUARANTINED', 'SOURCE_REATTRIBUTED'].includes(String(row.eventKind)) ||
+        !Number.isSafeInteger(toNumberRial(row.amount)) || toNumberRial(row.amount) < 0 ||
+        String(row.evidenceRef ?? '').trim().length < 8 || String(row.reason ?? '').trim().length < 8)
+      throw invalid()
+    if (row.eventKind === 'RIGHT_ADJUST') {
+      if (toNumberRial(row.amount) <= 0 || toNumberRial(row.availableDelta) !== -toNumberRial(row.amount) ||
+          toNumberRial(row.disputedDelta) !== 0 || row.relatedInvoiceId != null || row.relatedPaymentId != null)
+        throw invalid()
+      adjusted += BigInt(toNumberRial(row.amount))
+    } else if (row.eventKind === 'DISPUTED_RECOVERY_OPEN') {
+      if (toNumberRial(row.amount) <= 0 || toNumberRial(row.availableDelta) !== 0 ||
+          toNumberRial(row.disputedDelta) !== toNumberRial(row.amount) ||
+          toNumberRial(row.basisAmount) <= 0 || !Number.isSafeInteger(Number(row.relatedInvoiceId)) ||
+          Number(row.relatedInvoiceId) <= 0 || !Number.isSafeInteger(Number(row.relatedPaymentId)) ||
+          Number(row.relatedPaymentId) <= 0) throw invalid()
+      disputed += BigInt(toNumberRial(row.amount))
+    } else if (row.eventKind === 'DISPUTE_OFFSET_BY_RETURN') {
+      const parent = byId.get(Number(row.parentCorrectionEventId))
+      if (toNumberRial(row.amount) <= 0 || toNumberRial(row.availableDelta) !== 0 ||
+          toNumberRial(row.disputedDelta) !== -toNumberRial(row.amount) ||
+          toNumberRial(row.basisAmount) <= 0 || !parent || parent.eventKind !== 'DISPUTED_RECOVERY_OPEN' ||
+          parent.operationKey !== row.operationKey || Number(parent.relatedInvoiceId) !== Number(row.relatedInvoiceId) ||
+          Number(parent.relatedPaymentId) !== Number(row.relatedPaymentId) ||
+          !Number.isSafeInteger(Number(row.relatedReturnId)) || Number(row.relatedReturnId) <= 0)
+        throw invalid()
+      offset += BigInt(toNumberRial(row.amount))
+    } else if (toNumberRial(row.amount) !== 0 || toNumberRial(row.availableDelta) !== 0 ||
+        toNumberRial(row.disputedDelta) !== 0) throw invalid()
+    byId.set(Number(row.id), row)
+  }
+  const outstanding = disputed - offset
+  const effectiveAmount = BigInt(toNumberRial(opening.amount)) - adjusted - disputed
+  const max = BigInt(Number.MAX_SAFE_INTEGER)
+  if (adjusted < 0n || disputed < 0n || offset < 0n || outstanding < 0n || effectiveAmount < 0n ||
+      [adjusted, disputed, offset, outstanding, effectiveAmount].some((n) => n > max) ||
+      adjusted + disputed > BigInt(toNumberRial(opening.amount)) ||
+      outstanding > BigInt(base.spent) || BigInt(base.reserved) > effectiveAmount)
+    throw invalid()
+  const validSpent = BigInt(base.spent) - outstanding
+  const available = effectiveAmount - validSpent - BigInt(base.reserved)
+  if (validSpent < 0n || available < 0n || available > max) throw invalid()
+  return { rows, adjusted: Number(adjusted), disputed: Number(disputed), offset: Number(offset),
+    outstanding: Number(outstanding), effectiveAmount: Number(effectiveAmount),
+    validSpent: Number(validSpent), available: Number(available) }
+}
+
 export async function getExchangeResidualRightBalance(tx: Client, rightKey: string, at = new Date()) {
   if (typeof rightKey !== 'string' || rightKey.length < 8 || rightKey.length > 200 ||
       !(at instanceof Date) || !Number.isFinite(at.getTime())) throw invalid()
   const state = await readState(tx, rightKey)
   const expired = state.opening.rightKind === 'B' && state.opening.expiresAt != null &&
     new Date(state.opening.expiresAt).getTime() <= at.getTime()
-  return { rightKey, rightKind: state.opening.rightKind, amount: toNumberRial(state.opening.amount),
-    available: expired || state.voided ? 0 : state.available, reserved: state.reserved, spent: state.spent,
+  const correction = state.opening.rightKind === 'N'
+    ? await correctionProjection(tx, state.opening, state) : null
+  const quarantineIds = correction?.rows.filter((row) => row.eventKind === 'SOURCE_QUARANTINED')
+    .map((row) => Number(row.id)) ?? []
+  const latestQuarantineId = quarantineIds.length ? Math.max(...quarantineIds) : -1
+  const sourceQuarantined = latestQuarantineId >= 0 &&
+    !correction!.rows.some((row) => row.eventKind === 'SOURCE_REATTRIBUTED' && Number(row.id) > latestQuarantineId)
+  const base = { rightKey, rightKind: state.opening.rightKind, amount: toNumberRial(state.opening.amount),
+    available: expired || state.voided || sourceQuarantined ? 0 : correction?.available ?? state.available,
+    reserved: state.reserved, spent: correction?.validSpent ?? state.spent,
     expiresAt: state.opening.expiresAt ?? null, expired, voided: state.voided,
     sourceInvoiceId: Number(state.opening.sourceInvoiceId), childInvoiceId: Number(state.opening.childInvoiceId),
     returnId: Number(state.opening.returnId), sourceEventId: Number(state.opening.sourceEventId),
     rootShareId: String(state.opening.rootShareId) }
+  // Keep the pre-S7 read shape byte-for-byte for untouched rights; S7 projection
+  // fields appear only after an append-only correction/disposition exists.
+  if (!correction?.rows.length) return base
+  return { ...base, validAmount: correction.effectiveAmount, grossAvailable: state.available,
+    grossSpent: state.spent, rightAdjusted: correction.adjusted,
+    disputedRecoveryOpen: correction.outstanding, disputedRecoveryTotal: correction.disputed,
+    disputedOffset: correction.offset, sourceQuarantined }
+}
+
+
+/** S7: append one witnessed correction to an existing delivered N right.
+ * Reserved rights, B rights and malformed/cross-lineage evidence fail closed.
+ */
+export async function adjustS7NResidualRight(input: {
+  rightKey: string; operationKey: string; verifiedAmount: number; relatedInvoiceId: number;
+  relatedPaymentId: number; evidenceKind: string; evidenceRef: string; reason: string;
+  managerPassword?: string | null; actorUserId?: number | null
+}) {
+  const rightKey = String(input?.rightKey ?? '').trim()
+  const operationKey = String(input?.operationKey ?? '').trim()
+  const verifiedAmount = int(input?.verifiedAmount, 'حق اثبات‌شده')
+  const relatedInvoiceId = id(input?.relatedInvoiceId, 'فاکتور مصرف N')
+  const relatedPaymentId = id(input?.relatedPaymentId, 'پرداخت مصرف N')
+  const evidenceKind = String(input?.evidenceKind ?? '').trim().toUpperCase()
+  const evidenceRef = String(input?.evidenceRef ?? '').trim()
+  const reason = String(input?.reason ?? '').trim()
+  if (rightKey.length < 8 || rightKey.length > 200 || operationKey.length < 8 || operationKey.length > 200 ||
+      !['CASH_RECONCILIATION', 'CARD_STATEMENT_REVIEW', 'CHEQUE_BOUNCED'].includes(evidenceKind) ||
+      evidenceRef.length < 8 || evidenceRef.length > 300 || reason.length < 8 || reason.length > 500)
+    throw new BusinessError('برای اصلاح S7، کلید یکتا، نوع/نشانی شاهد و دلیل روشن لازم است؛ هیچ حق تغییر نکرد.')
+  await assertManagerPassword(input.managerPassword, 'اصلاح شاهددار حق N و ثبت DISPUTED_RECOVERY')
+  return prisma.$transaction(async (tx) => {
+    const state = await readState(tx, rightKey)
+    const opening = state.opening
+    if (opening.rightKind !== 'N' || verifiedAmount > toNumberRial(opening.amount))
+      throw new BusinessError('فقط حق N فعال قابل اصلاح است؛ B دست‌نخورده می‌ماند.')
+    const priorRows = await tx.exchangeResidualRightCorrectionEvent.findMany({
+      where: { rightKey, operationKey }, orderBy: { id: 'asc' }
+    }) as any[]
+    if (priorRows.length) {
+      const projection = await correctionProjection(tx, opening, state)
+      if (projection.effectiveAmount !== verifiedAmount || priorRows.some((row) =>
+          row.evidenceKind !== evidenceKind || row.evidenceRef !== evidenceRef || row.reason !== reason) ||
+          !priorRows.some((row) => ['RIGHT_ADJUST', 'DISPUTED_RECOVERY_OPEN'].includes(row.eventKind)))
+        throw stale()
+      return { rightKey, replayed: true, validAmount: projection.effectiveAmount,
+        available: projection.available, spent: projection.validSpent,
+        disputedRecoveryOpen: projection.outstanding }
+    }
+    if (state.voided || state.reserved !== 0)
+      throw new BusinessError('حق N دارای رزرو فعال یا ابطال‌شده است؛ اصلاح تا commit/cancel رد شد.')
+    const priorCorrection = await tx.exchangeResidualRightCorrectionEvent.findFirst({
+      where: { rightKey, eventKind: { in: ['RIGHT_ADJUST', 'DISPUTED_RECOVERY_OPEN'] } }
+    })
+    if (priorCorrection) throw stale()
+    const root = await tx.exchangeFundingEvent.findUnique({ where: { id: Number(opening.sourceEventId) } })
+    const sourcePaymentId = Number(root?.sourcePaymentId)
+    const code = await tx.storeCredit.findUnique({ where: { exchangeResidualRightKey: rightKey } })
+    const [delivery, sourcePayment, commits, consumingPayment, redemption] = await Promise.all([
+      code ? tx.creditDelivery.findUnique({ where: { creditId: Number(code.id) } }) : null,
+      Number.isSafeInteger(sourcePaymentId) && sourcePaymentId > 0
+        ? tx.payment.findUnique({ where: { id: sourcePaymentId }, include: { method: true } }) : null,
+      tx.exchangeResidualRightEvent.findMany({ where: { rightKey, eventKind: 'COMMITTED' } }),
+      tx.payment.findUnique({ where: { id: relatedPaymentId }, include: { method: true } }),
+      tx.storeCreditRedemption.findFirst({ where: { paymentId: relatedPaymentId,
+        invoiceId: relatedInvoiceId, reversedAt: null } })
+    ])
+    const cardProof = evidenceKind === 'CARD_STATEMENT_REVIEW' && Number.isSafeInteger(sourcePaymentId)
+      ? await tx.exchangeResidualRightPaymentEvidence.findUnique({ where: { paymentId: sourcePaymentId } }) : null
+    const spends = new Set((commits as any[]).map((row) => `${row.relatedInvoiceId}:${row.relatedPaymentId}`))
+    const restorations = await tx.exchangeResidualRightEvent.findMany({
+      where: { rightKey, eventKind: 'RESTORED' }
+    }) as any[]
+    if (!root || !['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(String(root.kind)) ||
+        Number(root.sourceInvoiceId) !== Number(opening.sourceInvoiceId) || !code ||
+        code.source !== CreditSource.EXCHANGE || code.exchangeResidualRightKey !== rightKey ||
+        !delivery || delivery.status !== 'DELIVERED' || !sourcePayment ||
+        Number(sourcePayment.invoiceId) !== Number(opening.sourceInvoiceId) || sourcePayment.voidedAt != null ||
+        toNumberRial(root.amount) !== toNumberRial(sourcePayment.amount) ||
+        !consumingPayment || Number(consumingPayment.invoiceId) !== relatedInvoiceId ||
+        Number(consumingPayment.storeCreditId) !== Number(code.id) || consumingPayment.voidedAt != null ||
+        String(consumingPayment.method?.kind ?? '').toUpperCase() !== 'STORE_CREDIT' || !redemption ||
+        Number(redemption.creditId) !== Number(code.id) || toNumberRial(redemption.amount) !== toNumberRial(consumingPayment.amount) ||
+        toNumberRial(root.amount) <= 0 || !spends.has(`${relatedInvoiceId}:${relatedPaymentId}`) ||
+        spends.size !== 1 || restorations.length !== 0)
+      throw new BusinessError('مبدأ N یا مصرف هدف قابل اثبات نیست؛ هیچ شاخهٔ دیگر یا فروش نامرتبط تغییر نکرد.')
+    if (evidenceKind === 'CHEQUE_BOUNCED' &&
+        (String(root.kind) !== 'SOURCE_CHEQUE' || String(sourcePayment.kind ?? '').toUpperCase() !== 'CHEQUE' ||
+          String(sourcePayment.chequeStatus ?? '').toUpperCase() !== 'BOUNCED' ||
+          ![sourcePayment.chequeNo, sourcePayment.reference].some((value) => String(value ?? '').trim() === evidenceRef)))
+      throw new BusinessError('شاهد چکِ برگشتی با وضعیت همان Payment منطبق نیست؛ سهم نقد/کارت دست‌نخورده ماند.')
+    const methodKind = String(sourcePayment.method?.kind ?? '').toUpperCase()
+    if ((evidenceKind === 'CASH_RECONCILIATION' &&
+          (methodKind !== 'CASH' || String(sourcePayment.reference ?? '').trim() !== evidenceRef)) ||
+        (evidenceKind === 'CARD_STATEMENT_REVIEW' &&
+          (methodKind !== 'CARD' || !cardProof ||
+            toNumberRial(cardProof.confirmedAmount) !== toNumberRial(sourcePayment.amount) ||
+            String(cardProof.sha256) !== evidenceRef)) ||
+        (evidenceKind === 'CHEQUE_BOUNCED' && sourcePayment.kind !== 'CHEQUE'))
+      throw new BusinessError('نوع شاهد با Payment ریشه‌ای منطبق نیست؛ هیچ اصلاحی ثبت نشد.')
+    const disputed = Math.max(0, state.spent - verifiedAmount)
+    const rightAdjust = toNumberRial(opening.amount) - verifiedAmount - disputed
+    if (!Number.isSafeInteger(rightAdjust) || rightAdjust < 0 || rightAdjust > state.available || disputed > state.spent)
+      throw new BusinessError('اصلاحِ محاسبه‌شده از ماندهٔ باز فراتر می‌رود یا مصرف تاریخی ناسازگار است؛ پرونده متوقف شد.')
+    if (rightAdjust === 0 && disputed === 0)
+      throw new BusinessError('اصلاح مبلغ هیچ تغییری نمی‌دهد؛ برای جلوگیری از رویداد صوری، عملیات ثبت نشد.')
+    const common = { rightKey, rightKind: 'N', sourceInvoiceId: Number(opening.sourceInvoiceId),
+      childInvoiceId: Number(opening.childInvoiceId), rootReturnId: Number(opening.returnId),
+      sourceEventId: Number(opening.sourceEventId), rootShareId: String(opening.rootShareId),
+      operationKey, actorUserId: input.actorUserId ?? null, evidenceKind, evidenceRef, reason }
+    if (rightAdjust > 0) await tx.exchangeResidualRightCorrectionEvent.create({ data: {
+      ...common, eventKey: `s7:${rightKey}:${digest(operationKey)}:right-adjust`,
+      eventKind: 'RIGHT_ADJUST', amount: rightAdjust, availableDelta: -rightAdjust, disputedDelta: 0,
+      relatedInvoiceId: null, relatedPaymentId: null
+    } })
+    let disputeEvent: any = null
+    if (disputed > 0) disputeEvent = await tx.exchangeResidualRightCorrectionEvent.create({ data: {
+      ...common, eventKey: `s7:${rightKey}:${digest(operationKey)}:disputed-open`,
+      eventKind: 'DISPUTED_RECOVERY_OPEN', amount: disputed, availableDelta: 0,
+      disputedDelta: disputed, basisAmount: state.spent,
+      relatedInvoiceId, relatedPaymentId
+    } })
+    const projection = await correctionProjection(tx, opening, state)
+    if (projection.effectiveAmount !== verifiedAmount || projection.available !== 0 ||
+        projection.outstanding !== disputed) throw invalid()
+    return { rightKey, replayed: false, validAmount: projection.effectiveAmount,
+      rightAdjusted: rightAdjust, disputedRecoveryOpen: disputed, available: projection.available,
+      spent: projection.validSpent, disputedEventId: disputeEvent?.id ?? null }
+  })
+}
+
+/** Called inside SalesService.setChequeStatus's transaction so an externally
+ * bounced/cleared cheque and the matching residual-right quarantine/release
+ * commit atomically rather than rewriting a transferred funding snapshot.
+ */
+export async function recordS7ChequeResidualRightDisposition(tx: Client, input: {
+  paymentId: number; status: 'BOUNCED' | 'CLEARED'; actorUserId?: number | null; statusHistoryId: number
+}) {
+  const paymentId = id(input.paymentId, 'شناسه پرداخت چک')
+  if (!['BOUNCED', 'CLEARED'].includes(input.status) || !Number.isSafeInteger(input.statusHistoryId) ||
+      input.statusHistoryId <= 0) throw invalid()
+  const payment = await tx.payment.findUnique({ where: { id: paymentId }, include: { method: true } })
+  if (!payment || payment.kind !== 'CHEQUE' ||
+      String(payment.chequeStatus ?? '').toUpperCase() !== input.status) throw invalid()
+  const roots = await tx.exchangeFundingEvent.findMany({
+    where: { sourcePaymentId: paymentId, kind: 'SOURCE_CHEQUE' }, orderBy: { id: 'asc' }
+  }) as any[]
+  if (!roots.length) return { affectedRights: 0, handled: false }
+  const rootIds = roots.map((row) => Number(row.id))
+  const openings = await tx.exchangeResidualRightEvent.findMany({
+    where: { sourceEventId: { in: rootIds }, rightKind: 'N', eventKind: 'OPENED' }, orderBy: { id: 'asc' }
+  }) as any[]
+  if (!openings.length) return { affectedRights: 0, handled: false }
+  let affectedRights = 0
+  for (const opening of openings) {
+    const state = await readState(tx, String(opening.rightKey))
+    if (state.reserved !== 0 || state.voided) throw new BusinessError(
+      'چک به یک حق N رزروشده متصل است؛ ابتدا رزرو را commit یا cancel کنید؛ وضعیت مالیِ حق تغییر نکرد.')
+    const events = await tx.exchangeResidualRightCorrectionEvent.findMany({
+      where: { rightKey: String(opening.rightKey) }, orderBy: { id: 'asc' }
+    }) as any[]
+    const lastDisposition = [...events].reverse().find((row) =>
+      ['SOURCE_QUARANTINED', 'SOURCE_REATTRIBUTED'].includes(String(row.eventKind)))
+    const quarantine = input.status === 'BOUNCED'
+    if (quarantine && lastDisposition?.eventKind === 'SOURCE_QUARANTINED') continue
+    if (!quarantine && lastDisposition?.eventKind !== 'SOURCE_QUARANTINED') continue
+    const eventKind = quarantine ? 'SOURCE_QUARANTINED' : 'SOURCE_REATTRIBUTED'
+    const operationKey = `s7-cheque-status:${paymentId}:${input.statusHistoryId}`
+    const eventKey = `s7:${opening.rightKey}:${digest(operationKey)}:${eventKind.toLowerCase()}`
+    const old = await tx.exchangeResidualRightCorrectionEvent.findUnique({ where: { eventKey } })
+    if (old) {
+      if (old.eventKind !== eventKind || Number(old.sourceEventId) !== Number(opening.sourceEventId)) throw stale()
+      continue
+    }
+    await tx.exchangeResidualRightCorrectionEvent.create({ data: {
+      eventKey, operationKey, rightKey: String(opening.rightKey), rightKind: 'N', eventKind,
+      amount: 0, availableDelta: 0, disputedDelta: 0, basisAmount: 0,
+      sourceInvoiceId: Number(opening.sourceInvoiceId), childInvoiceId: Number(opening.childInvoiceId),
+      rootReturnId: Number(opening.returnId), sourceEventId: Number(opening.sourceEventId),
+      rootShareId: String(opening.rootShareId), relatedInvoiceId: null, relatedPaymentId: null,
+      relatedReturnId: null, parentCorrectionEventId: null, actorUserId: input.actorUserId ?? null,
+      evidenceKind: quarantine ? 'CHEQUE_BOUNCED' : 'CHEQUE_CLEARED',
+      evidenceRef: String(payment.chequeNo ?? payment.reference ?? `Payment:${paymentId}`),
+      reason: quarantine ? `Payment cheque status changed to BOUNCED; history #${input.statusHistoryId}`
+        : `Payment cheque status changed to CLEARED; history #${input.statusHistoryId}`
+    } })
+    affectedRights++
+  }
+  return { affectedRights, handled: true }
+}
+
+/** Archive a manager-reviewed actual statement against the source Payment.
+ * Renderer-supplied hashes or references alone are never accepted as bank proof.
+ */
+export async function reviewS7CardSourceBankStatement(input: {
+  paymentId: number; confirmedAmount: number; document: { name: string; bytes: Uint8Array };
+  reviewNote: string; attestedBankAccountReview: boolean;
+  managerPassword?: string | null; actorUserId?: number | null
+}) {
+  const paymentId = id(input?.paymentId, 'شناسه پرداخت کارت')
+  const amount = int(input?.confirmedAmount, 'مبلغ صورت‌حساب')
+  const note = String(input?.reviewNote ?? '').trim()
+  const bytes = input?.document?.bytes
+  const name = String(input?.document?.name ?? '').replace(/[^\p{L}\p{N}._ -]/gu, '').slice(0, 120)
+  const lowerName = name.toLowerCase()
+  const mimeType = lowerName.endsWith('.pdf') && Buffer.from(bytes ?? []).subarray(0, 5).toString() === '%PDF-'
+    ? 'application/pdf'
+    : lowerName.endsWith('.csv') && bytes instanceof Uint8Array && !Buffer.from(bytes).includes(0) && bytes.length > 10
+      ? 'text/csv' : null
+  if (!mimeType || !(bytes instanceof Uint8Array) || bytes.length < 15 || bytes.length > 5_000_000 ||
+      note.length < 10 || input?.attestedBankAccountReview !== true)
+    throw new BusinessError('برای رفع قرنطینهٔ کارت، فایل واقعی PDF/CSV و تأیید صریح تطبیق حساب/تاریخ/مبلغ مدیر لازم است.')
+  const sha256 = createHash('sha256').update(bytes).digest('hex')
+  await assertManagerPassword(input.managerPassword, 'بازبینی صورت‌حساب بانک برای سهم کارتِ حق N')
+  return prisma.$transaction(async (tx) => {
+    const payment = await tx.payment.findUnique({ where: { id: paymentId }, include: { method: true } })
+    const root = await tx.exchangeFundingEvent.findFirst({ where: {
+      sourcePaymentId: paymentId, kind: 'SOURCE_CARD'
+    }, orderBy: { id: 'asc' } })
+    if (!payment || payment.voidedAt != null || String(payment.method?.kind ?? '').toUpperCase() !== 'CARD' ||
+        payment.kind === 'CHEQUE' || !root || amount !== toNumberRial(payment.amount) ||
+        amount !== toNumberRial(root.amount))
+      throw new BusinessError('صورت‌حساب دقیقاً به پرداخت کارتیِ ریشه‌دار متصل نیست؛ مدرک ثبت نشد.')
+    const old = await tx.exchangeResidualRightPaymentEvidence.findUnique({ where: { paymentId } })
+    if (old) {
+      if (old.sha256 !== sha256 || toNumberRial(old.confirmedAmount) !== amount || old.reviewNote !== note)
+        throw stale()
+      return { paymentId, evidenceId: Number(old.id), sha256, confirmedAmount: amount, replayed: true }
+    }
+    const evidence = await tx.exchangeResidualRightPaymentEvidence.create({ data: {
+      paymentId, confirmedAmount: amount, sha256, fileName: name,
+      documentBase64: Buffer.from(bytes).toString('base64'), mimeType,
+      reviewedByUserId: input.actorUserId ?? null, reviewNote: note
+    } })
+    return { paymentId, evidenceId: Number(evidence.id), sha256, confirmedAmount: amount, replayed: false }
+  })
+}
+
+/** S7 source-local quarantine/release. A bounced cheque or unproven card is
+ * isolated to this N lineage; release requires a later source-matching witness.
+ */
+export async function setS7NResidualRightSourceDisposition(input: {
+  rightKey: string; operationKey: string; action: 'QUARANTINE' | 'RELEASE';
+  evidenceKind: string; evidenceRef: string; reason: string;
+  managerPassword?: string | null; actorUserId?: number | null
+}) {
+  const rightKey = String(input?.rightKey ?? '').trim()
+  const operationKey = String(input?.operationKey ?? '').trim()
+  const action = input?.action
+  const evidenceKind = String(input?.evidenceKind ?? '').trim().toUpperCase()
+  const evidenceRef = String(input?.evidenceRef ?? '').trim()
+  const reason = String(input?.reason ?? '').trim()
+  if (rightKey.length < 8 || rightKey.length > 200 || operationKey.length < 8 || operationKey.length > 200 ||
+      !['QUARANTINE', 'RELEASE'].includes(String(action)) || evidenceRef.length < 8 || evidenceRef.length > 300 ||
+      reason.length < 8 || reason.length > 500)
+    throw new BusinessError('برای قرنطینه/آزادسازی S7، کلید یکتا، شاهد و دلیل لازم است.')
+  await assertManagerPassword(input.managerPassword, 'قرنطینه/رفع قرنطینهٔ lineage حق N')
+  return prisma.$transaction(async (tx) => {
+    const state = await readState(tx, rightKey)
+    if (state.opening.rightKind !== 'N')
+      throw new BusinessError('فقط lineage حق N قابل قرنطینه/آزادسازی است.')
+    const eventKind = action === 'QUARANTINE' ? 'SOURCE_QUARANTINED' : 'SOURCE_REATTRIBUTED'
+    const eventKey = `s7:${rightKey}:${digest(operationKey)}:${eventKind.toLowerCase()}`
+    const prior = await tx.exchangeResidualRightCorrectionEvent.findUnique({ where: { eventKey } })
+    if (prior) {
+      if (prior.eventKind !== eventKind || prior.evidenceKind !== evidenceKind ||
+          prior.evidenceRef !== evidenceRef || prior.reason !== reason || prior.rightKey !== rightKey)
+        throw stale()
+      const projection = await correctionProjection(tx, state.opening, state)
+      const latestDisposition = [...projection.rows].reverse().find((row) =>
+        ['SOURCE_QUARANTINED', 'SOURCE_REATTRIBUTED'].includes(String(row.eventKind)))
+      return { rightKey, eventKind, replayed: true, available: latestDisposition?.eventKind === 'SOURCE_QUARANTINED'
+        ? 0 : projection.available, quarantined: eventKind === 'SOURCE_QUARANTINED' }
+    }
+    if (state.voided || state.reserved !== 0)
+      throw new BusinessError('فقط lineage حق N بدون رزرو فعال قابل قرنطینه/آزادسازی است.')
+    const root = await tx.exchangeFundingEvent.findUnique({ where: { id: Number(state.opening.sourceEventId) } })
+    const sourcePaymentId = Number(root?.sourcePaymentId)
+    const [credit, payment, existingEvents] = await Promise.all([
+      tx.storeCredit.findUnique({ where: { exchangeResidualRightKey: rightKey } }),
+      Number.isSafeInteger(sourcePaymentId) && sourcePaymentId > 0
+        ? tx.payment.findUnique({ where: { id: sourcePaymentId }, include: { method: true } }) : null,
+      tx.exchangeResidualRightCorrectionEvent.findMany({ where: { rightKey }, orderBy: { id: 'asc' } })
+    ])
+    const delivery = credit ? await tx.creditDelivery.findUnique({ where: { creditId: Number(credit.id) } }) : null
+    const methodKind = String(payment?.method?.kind ?? '').toUpperCase()
+    const bankProof = action === 'RELEASE' && methodKind === 'CARD' && Number.isSafeInteger(sourcePaymentId)
+      ? await tx.exchangeResidualRightPaymentEvidence.findUnique({ where: { paymentId: sourcePaymentId } }) : null
+    if (!root || !payment || !credit || credit.source !== CreditSource.EXCHANGE ||
+        credit.exchangeResidualRightKey !== rightKey || !delivery || delivery.status !== 'DELIVERED' ||
+        Number(payment.invoiceId) !== Number(state.opening.sourceInvoiceId) || payment.voidedAt != null)
+      throw invalid()
+    const rootKind = String(root.kind)
+    if (action === 'QUARANTINE') {
+      const valid = evidenceKind === 'CHEQUE_BOUNCED' && rootKind === 'SOURCE_CHEQUE' &&
+        payment.kind === 'CHEQUE' && String(payment.chequeStatus ?? '').toUpperCase() === 'BOUNCED' &&
+        [payment.chequeNo, payment.reference].some((value) => String(value ?? '').trim() === evidenceRef)
+        || evidenceKind === 'CARD_UNKNOWN' && rootKind === 'SOURCE_CARD' && methodKind === 'CARD'
+      if (!valid) throw new BusinessError('شاهدِ قرنطینه با Payment ریشه‌ای همان N تطبیق ندارد.')
+    } else {
+      const quarantined = [...(existingEvents as any[])].reverse().find((row) =>
+        ['SOURCE_QUARANTINED', 'SOURCE_REATTRIBUTED'].includes(String(row.eventKind)))
+      if (!quarantined || quarantined.eventKind !== 'SOURCE_QUARANTINED')
+        throw new BusinessError('این lineage قرنطینهٔ فعال ندارد یا قبلاً آزاد شده است.')
+      const valid = evidenceKind === 'CHEQUE_CLEARED' && rootKind === 'SOURCE_CHEQUE' &&
+        payment.kind === 'CHEQUE' && String(payment.chequeStatus ?? '').toUpperCase() === 'CLEARED' &&
+        [payment.chequeNo, payment.reference].some((value) => String(value ?? '').trim() === evidenceRef)
+        || evidenceKind === 'CARD_STATEMENT_REVIEW' && rootKind === 'SOURCE_CARD' && methodKind === 'CARD' &&
+          !!bankProof && toNumberRial(bankProof.confirmedAmount) === toNumberRial(payment.amount) &&
+          String(bankProof.sha256) === evidenceRef
+      if (!valid) throw new BusinessError('مدرک رفع قرنطینه با پرداخت بانکی ریشه‌ای تطبیق ندارد.')
+    }
+    await tx.exchangeResidualRightCorrectionEvent.create({ data: {
+      eventKey, operationKey, rightKey, rightKind: 'N', eventKind, amount: 0,
+      availableDelta: 0, disputedDelta: 0, basisAmount: 0,
+      sourceInvoiceId: Number(state.opening.sourceInvoiceId), childInvoiceId: Number(state.opening.childInvoiceId),
+      rootReturnId: Number(state.opening.returnId), sourceEventId: Number(state.opening.sourceEventId),
+      rootShareId: String(state.opening.rootShareId), relatedInvoiceId: null, relatedPaymentId: null,
+      relatedReturnId: null, parentCorrectionEventId: null, actorUserId: input.actorUserId ?? null,
+      evidenceKind, evidenceRef, reason
+    } })
+    const projection = await correctionProjection(tx, state.opening, state)
+    return { rightKey, eventKind, replayed: false, available: projection.available,
+      quarantined: action === 'QUARANTINE' }
+  })
 }
 
 function operation(input: any) {
@@ -524,6 +921,47 @@ export async function restoreS1ExchangeResidualRight(tx: Client, input: {
       data: { usedAmount: usedAfter, status: nextStatus }
     })
     if (updated.count !== 1) throw stale()
+
+    if (state.opening.rightKind === 'N') {
+      const corrections = await tx.exchangeResidualRightCorrectionEvent.findMany({
+        where: { rightKey: op.rightKey, eventKind: 'DISPUTED_RECOVERY_OPEN',
+          relatedInvoiceId: op.relatedInvoiceId, relatedPaymentId: paymentId }, orderBy: { id: 'asc' }
+      }) as any[]
+      for (const correction of corrections) {
+        const offsets = await tx.exchangeResidualRightCorrectionEvent.findMany({
+          where: { parentCorrectionEventId: Number(correction.id), eventKind: 'DISPUTE_OFFSET_BY_RETURN' },
+          orderBy: { id: 'asc' }
+        }) as any[]
+        const priorOffset = offsets.reduce((sum, row) => sum + toNumberRial(row.amount), 0)
+        const grossReturned = alreadyRestored + op.amount
+        const target = Number((BigInt(grossReturned) * BigInt(toNumberRial(correction.amount))) /
+          BigInt(toNumberRial(correction.basisAmount)))
+        const delta = target - priorOffset
+        if (delta < 0 || delta > toNumberRial(correction.amount) - priorOffset) throw invalid()
+        if (delta > 0) {
+          const eventKey = `s7:${op.rightKey}:${digest(String(correction.operationKey) + ':' + String(returnId))}:dispute-offset`
+          const old = await tx.exchangeResidualRightCorrectionEvent.findUnique({ where: { eventKey } })
+          if (old) {
+            if (toNumberRial(old.amount) !== delta || Number(old.relatedReturnId) !== returnId ||
+                Number(old.parentCorrectionEventId) !== Number(correction.id)) throw stale()
+          } else {
+            await tx.exchangeResidualRightCorrectionEvent.create({ data: {
+              eventKey, operationKey: correction.operationKey, rightKey: op.rightKey, rightKind: 'N',
+              eventKind: 'DISPUTE_OFFSET_BY_RETURN', amount: delta, availableDelta: 0,
+              disputedDelta: -delta, basisAmount: toNumberRial(correction.basisAmount),
+              sourceInvoiceId: Number(state.opening.sourceInvoiceId),
+              childInvoiceId: Number(state.opening.childInvoiceId), rootReturnId: Number(state.opening.returnId),
+              sourceEventId: Number(state.opening.sourceEventId), rootShareId: String(state.opening.rootShareId),
+              relatedInvoiceId: Number(correction.relatedInvoiceId), relatedPaymentId: paymentId,
+              relatedReturnId: returnId, parentCorrectionEventId: Number(correction.id),
+              actorUserId: input.actorUserId ?? null, evidenceKind: 'S7_RETURN_PROVENANCE',
+              evidenceRef: `SaleReturn:${returnId}:Payment:${paymentId}`,
+              reason: `سهم اختلاف برگشت ${returnId} فقط recovery را offset می‌کند`
+            } })
+          }
+        }
+      }
+    }
   }
   return { rightKey: op.rightKey, amount: op.amount, replayed: restored.replayed }
 }

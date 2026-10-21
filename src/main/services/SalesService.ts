@@ -19,7 +19,7 @@ import {
   openS1ExchangeResidualRights, voidS1ExchangeResidualRightsForReturn,
   reserveS1ExchangeResidualRight, commitS1ExchangeResidualRight,
   planS1ResidualRightSaleReturn, restoreS1ExchangeResidualRight,
-  reverseS1ResidualRightRestorationsForReturn
+  reverseS1ResidualRightRestorationsForReturn, recordS7ChequeResidualRightDisposition
 } from './ExchangeResidualRightsService'
 import { allocateExchangeFundingLineReturn, type ExchangeReturnSourceKind } from '@shared/exchangeFundingLineReturn'
 import {
@@ -7529,7 +7529,7 @@ export const salesService = {
        */
       let fundingSourcesForTransfer: Array<{ event: any; available: number }> | null = null
       let s1ResidualRightsEligible = false
-      let s1CarryAllocations: Array<{ sourceEventId: number; sourceKind: 'SOURCE_GIFT' | 'SOURCE_CASH'; carry: number; remainder: number }> | null = null
+      let s1CarryAllocations: Array<{ sourceEventId: number; sourceKind: 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'; carry: number; remainder: number }> | null = null
       let s1ResidualRights: any = null
       const sourceHasExchangeLineage = await isExchangeChildInvoiceWithLineage(tx, source as any)
       const sourceIsExchangeChild = source.orderType === OrderType.EXCHANGE &&
@@ -7602,21 +7602,20 @@ export const salesService = {
         if (fullyProvenFullReturn && diff === 0 && returnTotal === exchangeTotal) {
           fundingSourcesForTransfer = funding!.sources
         } else if (fullyProvenFullReturn && !sourceIsExchangeChild && diff < 0 &&
-            funding!.sources.every((sourceShare) => ['SOURCE_GIFT', 'SOURCE_CASH'].includes(sourceShare.sourceKind)) &&
-            funding!.sources.some((sourceShare) => sourceShare.sourceKind === 'SOURCE_GIFT') &&
-            funding!.sources.some((sourceShare) => sourceShare.sourceKind === 'SOURCE_CASH')) {
+            funding!.sources.every((sourceShare) => sourceKinds.has(sourceShare.sourceKind)) &&
+            (funding!.sources.some((sourceShare) => sourceShare.sourceKind === 'SOURCE_GIFT')
+              ? funding!.sources.some((sourceShare) => sourceShare.sourceKind !== 'SOURCE_GIFT')
+              : new Set(funding!.sources.map((sourceShare) => sourceShare.sourceKind)).size >= 2)) {
           try {
             const plan = allocateExchangeFundingProportionalFloor({
               replacementTotal: exchangeTotal,
               sources: funding!.sources.map((sourceShare) => ({
                 sourceEventId: Number(sourceShare.event.id),
-                sourceKind: sourceShare.sourceKind as 'SOURCE_GIFT' | 'SOURCE_CASH',
+                sourceKind: sourceShare.sourceKind as 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE',
                 available: sourceShare.available
               }))
             })
-            if (plan.giftCarry > 0 && plan.cashCarry > 0 &&
-                plan.allocations.some((row) => row.sourceKind === 'SOURCE_GIFT' && row.remainder > 0) &&
-                plan.allocations.some((row) => row.sourceKind === 'SOURCE_CASH' && row.remainder > 0) &&
+            if (plan.allocations.some((row) => row.remainder > 0) &&
                 plan.allocations.reduce((sum, row) => sum + row.carry, 0) === exchangeTotal &&
                 plan.allocations.reduce((sum, row) => sum + row.remainder, 0) === returnTotal - exchangeTotal) {
               fundingSourcesForTransfer = funding!.sources
@@ -12204,7 +12203,7 @@ export const salesService = {
        * تاریخچه‌ی گذارها append-only است. بنابراین CLEARED → BOUNCED →
        * CLEARED مقدار clearedAt/destination قبلی را از بین نمی‌برد.
        */
-      await tx.paymentChequeStatusHistory.create({
+      const statusHistory = await tx.paymentChequeStatusHistory.create({
         data: {
           paymentId: id,
           status,
@@ -12224,7 +12223,12 @@ export const salesService = {
       const settle = await recalcSettlement(tx, current.invoiceId, {
         overpayCreditShortfall: 'flag', userId: input?.userId ?? null
       })
-      await reviseLatestSaleFundingSnapshot(tx, current.invoiceId)
+      const s7ChequeDisposition = status === ChequeStatus.BOUNCED || status === ChequeStatus.CLEARED
+        ? await recordS7ChequeResidualRightDisposition(tx, { paymentId: id,
+          status: status as 'BOUNCED' | 'CLEARED', statusHistoryId: Number(statusHistory.id),
+          actorUserId: input?.userId ?? null })
+        : { handled: false, affectedRights: 0 }
+      if (!s7ChequeDisposition.handled) await reviseLatestSaleFundingSnapshot(tx, current.invoiceId)
       await auditOverpayChanges(tx, settle, {
         invoiceId: current.invoiceId, receiptNo: current.invoice?.receiptNo ?? 0, userId: (input as any)?.userId ?? null,
         why: 'تغییر وضعیت چک'

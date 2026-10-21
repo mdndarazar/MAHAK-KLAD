@@ -2934,11 +2934,11 @@ model ExchangeResidualRightEvent {
   sourceEventId    Int
   rootShareId      String
   expiresAt        DateTime?
-  operationKey    String?
+  operationKey     String?
   relatedInvoiceId Int?
   relatedPaymentId Int?
-  relatedReturnId Int?
-  actorUserId     Int?
+  relatedReturnId  Int?
+  actorUserId      Int?
   evidenceKind     String   @default("SYSTEM")
   evidenceRef      String?
   reversesEventId  Int?     @unique
@@ -2948,4 +2948,55 @@ model ExchangeResidualRightEvent {
   @@index([returnId, id])
   @@index([sourceEventId, id])
   @@index([sourceInvoiceId, childInvoiceId, id])
+}
+
+/// S7 witnessed corrections layered over an immutable N right. This journal
+/// never rewrites its opening or spend events: unused unsupported N is adjusted
+/// out, consumed excess is tracked as disputed recovery (never debt), and
+/// matching returns offset that dispute while restoring only the valid share.
+model ExchangeResidualRightPaymentEvidence {
+  id               Int      @id @default(autoincrement())
+  paymentId        Int      @unique
+  confirmedAmount  BigInt
+  sha256           String
+  fileName         String
+  documentBase64   String
+  mimeType         String
+  reviewedByUserId Int?
+  reviewNote       String
+  createdAt        DateTime @default(now())
+
+  @@index([sha256])
+}
+
+model ExchangeResidualRightCorrectionEvent {
+  id                       Int      @id @default(autoincrement())
+  eventKey                 String   @unique
+  operationKey             String
+  rightKey                 String
+  rightKind                String   // N only
+  eventKind                String   // RIGHT_ADJUST | DISPUTED_RECOVERY_OPEN | DISPUTE_OFFSET_BY_RETURN | SOURCE_QUARANTINED | SOURCE_REATTRIBUTED
+  amount                   BigInt
+  availableDelta           BigInt   @default(0)
+  disputedDelta            BigInt   @default(0)
+  basisAmount              BigInt   @default(0)
+  sourceInvoiceId          Int
+  childInvoiceId           Int
+  rootReturnId             Int
+  sourceEventId            Int
+  rootShareId              String
+  relatedInvoiceId         Int?
+  relatedPaymentId         Int?
+  relatedReturnId          Int?
+  parentCorrectionEventId  Int?
+  actorUserId              Int?
+  evidenceKind             String
+  evidenceRef              String
+  reason                   String
+  createdAt                DateTime @default(now())
+
+  @@index([rightKey, id])
+  @@index([operationKey, id])
+  @@index([relatedReturnId, id])
+  @@index([parentCorrectionEventId])
 }
