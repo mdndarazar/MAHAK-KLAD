@@ -28,6 +28,9 @@ const client = {
     return returns.filter((r) => where.invoiceId.in.includes(r.invoiceId))
   } },
   returnCorrection: { async findMany() { return [] } },
+  cardTransferRequest: { async findMany() { return [] } },
+  exchangeResidualRightEvent: { async findMany() { return [] } },
+  exchangeFundingEvent: { async findMany() { return [] } },
   creditReturnAllocation: { async groupBy({ by, where, _sum }) {
     assert.deepEqual(by, ['returnId'])
     assert.equal(_sum.amount, true)
