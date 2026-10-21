@@ -110,6 +110,8 @@ jobs:
           $sourceSize = (Get-Item -LiteralPath $sourceZip).Length
           Write-Output "Project source ZIP size: $sourceSize bytes"
           if ($sourceSize -gt 15728640) { throw 'Project source ZIP exceeds the 15 MiB packaging limit.' }
+          $sourcePayload = 'dist/MahakPOS-Project-Source'
+          Expand-Archive -LiteralPath $sourceZip -DestinationPath $sourcePayload -Force
           $releaseFiles = Get-ChildItem -Path dist -File | Where-Object { $_.Name -match '\.exe$|-project-source\.zip$' }
           $lines = $releaseFiles | ForEach-Object { "$( (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower() )  $($_.Name)" }
           Set-Content -Path 'dist/SHA256SUMS.txt' -Value $lines -NoNewline
@@ -131,7 +133,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MahakPOS-Project-Source
-          path: dist/*-project-source.zip
+          path: dist/MahakPOS-Project-Source/MahakPOS/
           if-no-files-found: error
           retention-days: 30
 
