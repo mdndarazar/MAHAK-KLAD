@@ -3698,7 +3698,7 @@ async function runReturn(
     const now = new Date()
     const invoice = await tx.saleInvoice.findUnique({
       where: { id: input.invoiceId },
-      include: { items: true, returns: { where: { voidedAt: null }, include: {
+      include: { items: true, customer: { select: { name: true } }, returns: { where: { voidedAt: null }, include: {
         items: true, corrections: { where: { status: 'POSTED' }, select: { id: true } }
       } } }
     })

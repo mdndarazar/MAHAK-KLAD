@@ -80,6 +80,7 @@ async function ensureRightCode(tx: Client, opening: any, replayed: boolean) {
       note: `حق ${opening.rightKind} سناریوی ${opening.evidenceKind === 'PAID_SOURCE_AFTER_DEBT_OFFSET' ? 'S11' : 'S1'} · منشأ ${opening.rootShareId}`,
       issuedAt: new Date(), userId: opening.actorUserId ?? null
     })
+    if (!credit) throw stale()
     await tx.creditDelivery.create({ data: { creditId: credit.id, sourceKind } })
   }
   if (!credit) throw stale()

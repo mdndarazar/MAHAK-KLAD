@@ -1051,7 +1051,8 @@ export async function findRedeemable(client: Client, rawCode: string): Promise<a
     const used = toNumberRial(usable.usedAmount)
     const projectedAmount = used + right.available
     const projected = { ...usable, amount: BigInt(projectedAmount) }
-    if (!right.voided && !right.expired && !right.sourceQuarantined && projectedAmount > used &&
+    const sourceQuarantined = 'sourceQuarantined' in right && right.sourceQuarantined === true
+    if (!right.voided && !right.expired && !sourceQuarantined && projectedAmount > used &&
         REDEEMABLE_STATUSES.includes(String(usable.status))) return projected
     throw new CreditLookupError(notRedeemableMessage(projected), 'NOT_REDEEMABLE', usable.id)
   }
