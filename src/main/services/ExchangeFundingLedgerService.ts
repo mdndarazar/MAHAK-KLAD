@@ -186,7 +186,7 @@ async function fundingSnapshotRequiresCorrection(tx: LedgerClient, invoiceId: nu
 
 // Every transferable source kind has a tender-specific proof path. SOURCE_N
 // means a committed, delivered residual-right credit, never today's cash.
-const PROVEN_SOURCE_KINDS = new Set(['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE', 'SOURCE_GIFT', 'SOURCE_N'])
+const PROVEN_SOURCE_KINDS = new Set(['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE', 'SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B'])
 
 const sameNullableId = (left: unknown, right: unknown) =>
   (left == null ? null : Number(left)) === (right == null ? null : Number(right))
@@ -212,14 +212,15 @@ async function latestSaleFundingRevision(tx: LedgerClient, invoiceId: number): P
   }, 0)
 }
 
-async function hasReturnedNRightPayment(tx: LedgerClient, input: {
-  invoiceId: number; paymentId: number; creditId: number; sourceEventId: number; amount: number
+async function hasReturnedResidualRightPayment(tx: LedgerClient, input: {
+  invoiceId: number; paymentId: number; creditId: number; sourceEventId: number; amount: number; rightKind: 'N' | 'B'
 }): Promise<boolean> {
   const credit = await tx.storeCredit.findUnique({ where: { id: input.creditId }, select: {
     exchangeResidualRightKey: true, voidedAt: true, deletedAt: true
   } })
   const rightKey = String(credit?.exchangeResidualRightKey ?? '')
-  if (!rightKey || credit?.voidedAt != null || credit?.deletedAt != null) return false
+  const opening = rightKey ? await tx.exchangeResidualRightEvent.findFirst({ where: { rightKey, eventKind: 'OPENED' } }) : null
+  if (!rightKey || credit?.voidedAt != null || credit?.deletedAt != null || opening?.rightKind !== input.rightKind) return false
   const outs = await tx.exchangeFundingEvent.findMany({ where: {
     parentEventId: input.sourceEventId, kind: 'RETURN_TRANSFER_OUT', reversesEventId: null
   } }) as any[]
@@ -251,6 +252,41 @@ async function hasReturnedNRightPayment(tx: LedgerClient, input: {
   return false
 }
 
+async function hasPersistedBRightPayment(tx: LedgerClient, input: {
+  invoiceId: number; paymentId: number; creditId: number; redemptionId: number; amount: number;
+  rootShareId: string; allowExpiredForReturnAttribution?: boolean
+}): Promise<boolean> {
+  if (!tx.exchangeResidualRightEvent || !tx.creditDelivery) return false
+  const [credit, redemption, delivery] = await Promise.all([
+    tx.storeCredit.findUnique({ where: { id: input.creditId } }),
+    tx.storeCreditRedemption.findUnique({ where: { id: input.redemptionId } }),
+    tx.creditDelivery.findUnique({ where: { creditId: input.creditId } })
+  ])
+  const rightKey = String(credit?.exchangeResidualRightKey ?? '')
+  if (!rightKey || credit?.voidedAt != null || credit?.deletedAt != null ||
+      credit?.source !== 'EXCHANGE' || delivery?.status !== 'DELIVERED' ||
+      Number(redemption?.creditId) !== input.creditId || Number(redemption?.invoiceId) !== input.invoiceId ||
+      Number(redemption?.paymentId) !== input.paymentId || redemption?.reversedAt != null ||
+      redemption?.compensatedAt != null || redemption?.expiryCaptured !== true ||
+      toNumberRial(redemption.amount) !== input.amount ||
+      !['USED', 'PARTIALLY_USED', 'EXPIRED'].includes(String(credit.status))) return false
+  const events = await tx.exchangeResidualRightEvent.findMany({ where: { rightKey }, orderBy: { id: 'asc' } }) as any[]
+  const opening = events.find((row) => row.eventKind === 'OPENED')
+  const openingExpiry = dateMillis(opening?.expiresAt)
+  const creditExpiry = dateMillis(credit.expiresAt)
+  const redeemedExpiry = dateMillis(redemption.expiryAtRedeem)
+  const redeemedAt = dateMillis(redemption.at)
+  const expiredNow = openingExpiry != null && Number.isFinite(openingExpiry) && openingExpiry <= Date.now()
+  const commits = events.filter((row) => row.eventKind === 'COMMITTED' &&
+    Number(row.relatedPaymentId) === input.paymentId)
+  return !!opening && opening.rightKind === 'B' && opening.rootShareId === input.rootShareId &&
+    openingExpiry != null && openingExpiry === creditExpiry && openingExpiry === redeemedExpiry &&
+    redeemedAt != null && Number.isFinite(redeemedAt) && redeemedAt < openingExpiry &&
+    (!expiredNow || input.allowExpiredForReturnAttribution === true) &&
+    commits.reduce((sum, row) => sum + toNumberRial(row.amount), 0) >= input.amount &&
+    commits.some((row) => toNumberRial(row.amount) === input.amount && Number(row.relatedInvoiceId) === input.invoiceId)
+}
+
 async function hasPersistedNRightPayment(tx: LedgerClient, input: {
   invoiceId: number; paymentId: number; creditId: number; redemptionId: number; amount: number; rootShareId: string
 }): Promise<boolean> {
@@ -280,7 +316,7 @@ async function hasPersistedNRightPayment(tx: LedgerClient, input: {
 async function hasPersistedSourcePayment(
   tx: LedgerClient,
   event: any,
-  options: { allowExpiredGiftForReturnAttribution?: boolean; allowReturnedNRight?: boolean } = {}
+  options: { allowExpiredGiftForReturnAttribution?: boolean; allowReturnedResidualRight?: boolean } = {}
 ): Promise<boolean> {
   const invoiceId = Number(event?.sourceInvoiceId)
   const paymentId = Number(event?.sourcePaymentId)
@@ -381,8 +417,23 @@ async function hasPersistedSourcePayment(
         entryKind !== 'CASH' || event.shareId !== `redemption:${redemptionId}`) return false
     const persisted = await hasPersistedNRightPayment(tx, { invoiceId, paymentId, creditId, redemptionId,
       amount: paymentAmount, rootShareId: String(event.rootShareId) })
-    if (!persisted && !(options.allowReturnedNRight && await hasReturnedNRightPayment(tx, {
-      invoiceId, paymentId, creditId, sourceEventId: Number(event.id), amount: sourceAmount
+    if (!persisted && !(options.allowReturnedResidualRight && await hasReturnedResidualRightPayment(tx, {
+      invoiceId, paymentId, creditId, sourceEventId: Number(event.id), amount: sourceAmount, rightKind: 'N'
+    }))) return false
+    return true
+  }
+
+  if (event.kind === 'SOURCE_B') {
+    const creditId = Number(event.sourceCreditId)
+    const redemptionId = Number(event.sourceRedemptionId)
+    if (!Number.isSafeInteger(creditId) || creditId <= 0 || !Number.isSafeInteger(redemptionId) || redemptionId <= 0 ||
+        payment.storeCreditId == null || Number(payment.storeCreditId) !== creditId || methodKind !== 'STORE_CREDIT' ||
+        entryKind !== 'CASH' || event.shareId !== `redemption:${redemptionId}`) return false
+    const proof = await hasPersistedBRightPayment(tx, { invoiceId, paymentId, creditId, redemptionId,
+      amount: paymentAmount, rootShareId: String(event.rootShareId),
+      allowExpiredForReturnAttribution: options.allowExpiredGiftForReturnAttribution === true })
+    if (!proof && !(options.allowReturnedResidualRight && await hasReturnedResidualRightPayment(tx, {
+      invoiceId, paymentId, creditId, sourceEventId: Number(event.id), amount: sourceAmount, rightKind: 'B'
     }))) return false
     return true
   }
@@ -767,7 +818,7 @@ export async function getCurrentExchangeFundingSources(
     lineAllocations: [] as Array<{
       sourceEventId: number
       saleItemId: number
-      sourceKind: 'SOURCE_GIFT' | 'SOURCE_N' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'
+      sourceKind: 'SOURCE_GIFT' | 'SOURCE_N' | 'SOURCE_B' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'
       amount: number
     }>,
     lineAllocationStatus: 'UNAVAILABLE' as 'UNAVAILABLE' | 'READ_ONLY_RECONCILED' | 'PERSISTED_RECONCILED',
@@ -861,7 +912,7 @@ export async function getCurrentExchangeFundingSources(
           !await hasPersistedSourcePayment(tx, source, {
             allowExpiredGiftForReturnAttribution: options.allowReturnBalanceChanges === true &&
               options.allowExpiredGiftForReturnAttribution === true,
-            allowReturnedNRight: options.allowReturnBalanceChanges === true
+            allowReturnedResidualRight: options.allowReturnBalanceChanges === true
           })) {
         base.unresolved.push({ eventId: Number(payment.id) || 0, kind: 'UNJOURNALED_CHILD_PAYMENT', amount })
         continue
@@ -942,7 +993,7 @@ export async function getCurrentExchangeFundingSources(
         const lines = lineItemSnapshots.map(({ saleItemId, netValue }) => ({ saleItemId, amount: netValue }))
         base.lineAllocations = allocateExchangeFundingByLine(lines, base.sources.map((source) => ({
           sourceEventId: Number(source.event.id),
-          sourceKind: source.sourceKind as 'SOURCE_GIFT' | 'SOURCE_N' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE',
+          sourceKind: source.sourceKind as 'SOURCE_GIFT' | 'SOURCE_N' | 'SOURCE_B' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE',
           amount: toNumberRial(source.event.amount)
         })))
         base.lineAllocationStatus = 'READ_ONLY_RECONCILED'
@@ -1325,7 +1376,7 @@ export async function reverseExchangeFundingReturnLineAllocationsForReturn(tx: L
     where: { childInvoiceId: Number(childInvoice.id) },
     orderBy: [{ sourceEventId: 'asc' }, { saleItemId: 'asc' }]
   }) as any[]
-  const sourceKinds = new Set(['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
+  const sourceKinds = new Set(['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
   const lineAllocationByCell = new Map<string, any>()
   for (const source of childLineAllocations) {
     const sourceInvoiceId = Number(source.sourceInvoiceId)
@@ -1573,8 +1624,8 @@ export async function recordSaleFundingSnapshot(tx: LedgerClient, invoiceId: num
           const opening = await tx.exchangeResidualRightEvent.findFirst({ where: {
             rightKey: credit.exchangeResidualRightKey, eventKind: 'OPENED'
           } })
-          if (opening?.rightKind === 'N') {
-            sourceKind = 'SOURCE_N'
+          if (opening?.rightKind === 'N' || opening?.rightKind === 'B') {
+            sourceKind = opening.rightKind === 'N' ? 'SOURCE_N' : 'SOURCE_B'
             sourceRootShareId = String(opening.rootShareId)
           }
         }
@@ -1585,9 +1636,9 @@ export async function recordSaleFundingSnapshot(tx: LedgerClient, invoiceId: num
     }
     const allocated = Math.min(remainingInvoiceValue, paymentAmount)
     const excess = paymentAmount - allocated
-    const creditSource = sourceKind === 'SOURCE_GIFT' || sourceKind === 'SOURCE_N'
+    const creditSource = sourceKind === 'SOURCE_GIFT' || sourceKind === 'SOURCE_N' || sourceKind === 'SOURCE_B'
     const shareId = creditSource ? `redemption:${sourceRedemptionId}` : `payment:${payment.id}`
-    const rootShareId = sourceKind === 'SOURCE_N' ? String(sourceRootShareId) :
+    const rootShareId = sourceKind === 'SOURCE_N' || sourceKind === 'SOURCE_B' ? String(sourceRootShareId) :
       sourceKind === 'SOURCE_GIFT' ? `credit:${sourceCreditId}` : `payment:${payment.id}`
     if (allocated > 0) {
       const recorded = await appendExchangeFundingEvent(tx, {
@@ -1600,7 +1651,7 @@ export async function recordSaleFundingSnapshot(tx: LedgerClient, invoiceId: num
       })
       events.push(recorded.event)
       if (sourceKind === 'SOURCE_GIFT') gift += allocated
-      else if (['SOURCE_N', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(sourceKind)) real += allocated
+      else if (['SOURCE_N', 'SOURCE_B', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(sourceKind)) real += allocated
       else unknown += allocated
       funded += allocated
       remainingInvoiceValue -= allocated
@@ -1700,7 +1751,10 @@ export async function recordExchangeChildTenderFundingSnapshot(tx: LedgerClient,
         const opening = await tx.exchangeResidualRightEvent.findFirst({ where: {
           rightKey: credit.exchangeResidualRightKey, eventKind: 'OPENED'
         } })
-        if (opening?.rightKind === 'N') { kind = 'SOURCE_N'; rootShareId = String(opening.rootShareId) }
+        if (opening?.rightKind === 'N' || opening?.rightKind === 'B') {
+          kind = opening.rightKind === 'N' ? 'SOURCE_N' : 'SOURCE_B'
+          rootShareId = String(opening.rootShareId)
+        }
       }
     } else if (rows.length === 0 && payment.storeCreditId == null && entryKind === 'CASH') {
       if (methodKind === 'CASH' || methodKind === 'CARD') kind = `SOURCE_${methodKind}`
@@ -1967,7 +2021,7 @@ export async function releaseExchangeFundingTenderForChildReturn(tx: LedgerClien
   const allocation = (allocations as any[]).length === 1 ? allocations[0] : null
   const directSourceBalance = origin ? await exchangeFundingBalance(tx, String(origin.shareId)) : 0
   const sourcePaymentProven = !!origin && await hasPersistedSourcePayment(tx, origin, {
-    allowExpiredGiftForReturnAttribution: true, allowReturnedNRight: true
+    allowExpiredGiftForReturnAttribution: true, allowReturnedResidualRight: true
   })
   if (!allocation || !origin || origin.kind === 'TRANSFER_IN' ||
       !PROVEN_SOURCE_KINDS.has(String(origin.kind)) || !sourcePaymentProven ||

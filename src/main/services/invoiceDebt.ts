@@ -120,7 +120,7 @@ export async function debtAdjustmentsByInvoice(client: Client, ids: number[], as
     // RETURN_TRANSFER_OUT rows count (voided returns are excluded above).
     const activeReturnIds = activeRets.map((r: any) => Number(r.id))
     const childCarryReturnedByReturn = new Map<number, number>()
-    const directNReturnByReturn = new Map<number, number>()
+    const directResidualReturnByReturn = new Map<number, number>()
     const carryChunks: number[][] = []
     for (let j = 0; j < activeReturnIds.length; j += 500)
       carryChunks.push(activeReturnIds.slice(j, j + 500))
@@ -146,17 +146,17 @@ export async function debtAdjustmentsByInvoice(client: Client, ids: number[], as
         if (directTenderKindById.get(Number(event.parentEventId)) === 'TRANSFER_IN')
           childCarryReturnedByReturn.set(returnId,
             (childCarryReturnedByReturn.get(returnId) ?? 0) + amount)
-        // An N tender return both restores the same residual right and consumes
+        // A B/N tender return both restores the same residual right and consumes
         // its direct child funding share. Those are two records of one non-cash
         // settlement, not two credits against the return value.
-        if (directTenderKindById.get(Number(event.parentEventId)) === 'SOURCE_N')
-          directNReturnByReturn.set(returnId, (directNReturnByReturn.get(returnId) ?? 0) + amount)
+        if (['SOURCE_N', 'SOURCE_B'].includes(directTenderKindById.get(Number(event.parentEventId)) ?? ''))
+          directResidualReturnByReturn.set(returnId, (directResidualReturnByReturn.get(returnId) ?? 0) + amount)
       }
     }
-    for (const [returnId, duplicateNReturn] of directNReturnByReturn) {
+    for (const [returnId, duplicateRightReturn] of directResidualReturnByReturn) {
       const amount = nonCashByReturn.get(returnId) ?? 0
-      if (duplicateNReturn > amount) throw new Error('EXCHANGE_N_RETURN_SETTLEMENT_MISMATCH')
-      nonCashByReturn.set(returnId, amount - duplicateNReturn)
+      if (duplicateRightReturn > amount) throw new Error('EXCHANGE_RESIDUAL_RIGHT_RETURN_SETTLEMENT_MISMATCH')
+      nonCashByReturn.set(returnId, amount - duplicateRightReturn)
     }
     const byInv = new Map<number, any[]>()
     for (const r of activeRets) {

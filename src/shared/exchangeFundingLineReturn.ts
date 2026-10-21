@@ -1,7 +1,7 @@
 import { allocateRialSharesWebster } from './integerRialApportionment'
 import { returnValueOf } from './returnValue'
 
-export type ExchangeReturnSourceKind = 'SOURCE_GIFT' | 'SOURCE_N' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'
+export type ExchangeReturnSourceKind = 'SOURCE_GIFT' | 'SOURCE_N' | 'SOURCE_B' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'
 
 /** Provenance attribution for one source's share of one replacement line.
  * It is descriptive accounting lineage only; never a settlement right. */
@@ -153,7 +153,7 @@ export function allocateExchangeFundingLineReturn(
   for (const source of orderedSources) {
     if (!Number.isSafeInteger(source.sourceEventId) || source.sourceEventId <= 0 ||
         seenSources.has(source.sourceEventId) ||
-        !['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(source.sourceKind) ||
+        !['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(source.sourceKind) ||
         !Number.isSafeInteger(source.amount) || source.amount <= 0)
       throw new Error(INVALID_BASIS)
     seenSources.add(source.sourceEventId)

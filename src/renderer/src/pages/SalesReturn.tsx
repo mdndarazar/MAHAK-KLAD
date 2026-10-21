@@ -288,6 +288,9 @@ export default function SalesReturn() {
   const [methodId, setMethodId] = useState<number | null>(null)
   /** پرداخت مثبت تعویض با دو ردیف واقعی نقد و کارت، نه یک پرداخت مصنوعی. */
   const [exSplitPayment, setExSplitPayment] = useState(false)
+  /** S9: optional delivered B/N right applied to a positive exchange delta. */
+  const [exDeltaRightCode, setExDeltaRightCode] = useState('')
+  const [exDeltaRightAmount, setExDeltaRightAmount] = useState('')
   const [exSplitCash, setExSplitCash] = useState('')
   const [exSplitCard, setExSplitCard] = useState('')
   const [exSplitCashMethodId, setExSplitCashMethodId] = useState<number | null>(null)
@@ -629,6 +632,10 @@ export default function SalesReturn() {
     const total = exSplitCashAmount + exSplitCardAmount
     return Number.isSafeInteger(total) ? total : null
   }, [exSplitCashAmount, exSplitCardAmount])
+  const exDeltaRightAmountValue = useMemo(() => parseGroupedInteger(exDeltaRightAmount), [exDeltaRightAmount])
+  const exDeltaTenderRemainder = exDeltaRightAmountValue != null && exDeltaRightAmountValue <= exTotals.diff
+    ? exTotals.diff - exDeltaRightAmountValue : exTotals.diff
+  const hasExDeltaRightInput = !!exDeltaRightCode.trim() || !!exDeltaRightAmount.trim()
   /** بند ۱۸ — قلم‌هایی که قیمتشان دستی از قیمت واقعی کالا جدا شده است. */
   const priceChanged = useMemo(() => reps.filter((l) => l.unitPrice !== l.realPrice), [reps])
 
@@ -851,13 +858,25 @@ export default function SalesReturn() {
             'یکی از گزینه‌های مجاز را صریح انتخاب کنید:\n' +
             EXCHANGE_REFUND_CHOICES.map((c) => `• ${c.title} — ${c.hint}`).join('\n')
         )
-      if (exTotals.diff > 0 && exSplitPayment) {
+      const deltaRightCode = exDeltaRightCode.trim()
+      const deltaRightAmount = exDeltaRightAmountValue
+      let remainingDelta = exTotals.diff
+      if (hasExDeltaRightInput) {
+        if (!deltaRightCode || deltaRightAmount == null || deltaRightAmount <= 0 || deltaRightAmount > exTotals.diff)
+          return setErr('برای tender حق B/N، کد و مبلغ مثبت و معتبر را وارد کنید؛ مبلغ از مابه‌التفاوت بیشتر نباشد.')
+        remainingDelta = exTotals.diff - deltaRightAmount
+      }
+      if (exTotals.diff > 0 && remainingDelta > 0 && exSplitPayment) {
         if (!exSplitCashMethodId || !exSplitCardMethodId)
-          return setErr('برای پرداخت ترکیبی، یک روش فعال نقدی و یک روش فعال کارتی انتخاب کنید.')
+          return setErr('برای پرداخت ترکیبیِ مانده، یک روش فعال نقدی و یک روش فعال کارتی انتخاب کنید.')
         if (exSplitCashAmount == null || exSplitCardAmount == null || exSplitTotal == null)
           return setErr('مبلغ نقد یا کارت معتبر نیست؛ فقط عدد صحیح ریالیِ بدون اعشار، منفی یا حرف وارد کنید.')
-        if (exSplitCashAmount <= 0 || exSplitCardAmount <= 0 || exSplitTotal !== exTotals.diff)
-          return setErr(`جمع سهم نقد و کارت باید دقیقاً ${money(exTotals.diff)} ریال باشد و هر دو سهم مثبت باشند.`)
+        if (exSplitCashAmount <= 0 || exSplitCardAmount <= 0 || exSplitTotal !== remainingDelta)
+          return setErr(`جمع سهم نقد و کارت باید دقیقاً ${money(remainingDelta)} ریال باشد و هر دو سهم مثبت باشند.`)
+      } else if (exTotals.diff > 0 && remainingDelta > 0 && hasExDeltaRightInput) {
+        const selectedMethod = methods.find((method) => method.id === methodId)
+        if (!selectedMethod || !['CASH', 'CARD'].includes(selectedMethod.kind))
+          return setErr('ماندهٔ مابه‌التفاوت همراه حق B/N فقط با روش فعال نقدی یا کارت‌خوان دریافت می‌شود.')
       }
       if (priceOverrideOn && !managerPw.trim())
         return setErr(
@@ -888,11 +907,25 @@ export default function SalesReturn() {
           note: note.trim() || undefined,
           allowRemoved: allowRemoved || undefined,
           force: force || undefined,
-          // پرداخت تک‌روشِ قبلی دقیقاً همان payload قبلی است؛ split فقط مسیر افزوده است.
-          methodId: exTotals.diff > 0 && !exSplitPayment ? methodId : null,
-          splitPayment: exTotals.diff > 0 && exSplitPayment ? true : undefined,
-          payments:
-            exTotals.diff > 0 && exSplitPayment
+          // N/B حق، در صورت انتخاب، یک قلم جدا از tender نقدی/کارتی باقی می‌ماند.
+          deltaStoreCreditCode: hasExDeltaRightInput ? deltaRightCode : undefined,
+          deltaStoreCreditAmount: hasExDeltaRightInput ? deltaRightAmount : undefined,
+          // پرداخت تک‌روشِ قبلی دقیقاً همان payload قبلی است؛ با حق، فقط مانده ارسال می‌شود.
+          methodId: exTotals.diff > 0 && !exSplitPayment && !hasExDeltaRightInput ? methodId : null,
+          splitPayment: exTotals.diff > 0 && exSplitPayment && !hasExDeltaRightInput ? true : undefined,
+          payments: hasExDeltaRightInput
+            ? remainingDelta === 0
+              ? []
+              : exSplitPayment
+                ? [
+                    { methodId: exSplitCashMethodId!, amount: exSplitCashAmount!, destination: 'CASH' },
+                    { methodId: exSplitCardMethodId!, amount: exSplitCardAmount!, destination: 'CARD' }
+                  ]
+                : [{
+                    methodId: methodId!, amount: remainingDelta,
+                    destination: methods.find((method) => method.id === methodId)?.kind === 'CARD' ? 'CARD' : 'CASH'
+                  }]
+            : exTotals.diff > 0 && exSplitPayment
               ? [
                   { methodId: exSplitCashMethodId!, amount: exSplitCashAmount!, destination: 'CASH' },
                   { methodId: exSplitCardMethodId!, amount: exSplitCardAmount!, destination: 'CARD' }
@@ -934,6 +967,8 @@ export default function SalesReturn() {
         setRepFor(null)
         setExRefundMode(null)
         setExSplitPayment(false)
+        setExDeltaRightCode('')
+        setExDeltaRightAmount('')
         setExSplitCash('')
         setExSplitCard('')
         setPriceOverrideOn(false)
@@ -973,8 +1008,9 @@ export default function SalesReturn() {
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      lookup, selected, qty, reps, note, allowRemoved, exTotals.diff, methodId, exSplitPayment, exSplitCashAmount,
-      exSplitCardAmount, exSplitTotal, exSplitCashMethodId, exSplitCardMethodId, repAutoCentral, exCharges, exScope,
+      lookup, selected, qty, reps, note, allowRemoved, exTotals.diff, methodId, methods, exSplitPayment, exSplitCashAmount,
+      exSplitCardAmount, exSplitTotal, exSplitCashMethodId, exSplitCardMethodId, exDeltaRightCode,
+      exDeltaRightAmount, exDeltaRightAmountValue, hasExDeltaRightInput, repAutoCentral, exCharges, exScope,
       removedSelected.length, exRefundMode, printedHolderFirstName, printedHolderLastName, printedHolderPhone,
       priceOverrideOn, managerPw, lockPw, lockReason, loadHistory, lookupCode
     ]
@@ -1553,6 +1589,8 @@ export default function SalesReturn() {
                   if (!e.target.checked) {
                     setReps([])
                     setRepFor(null)
+                    setExDeltaRightCode('')
+                    setExDeltaRightAmount('')
                   }
                 }}
               />
@@ -1915,25 +1953,66 @@ export default function SalesReturn() {
                 )}
                 {exTotals.diff > 0 && (
                   <div className="col-span-2 md:col-span-4 rounded border border-emerald-300 bg-white p-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2 rounded bg-emerald-50 p-2">
+                      <label>
+                        <div className="kbd">کد حق ریشه‌دار B/N (اختیاری)</div>
+                        <input
+                          className="inp"
+                          dir="ltr"
+                          autoComplete="off"
+                          value={exDeltaRightCode}
+                          onChange={(e) => setExDeltaRightCode(e.target.value)}
+                          placeholder="کد معتبر B یا N"
+                        />
+                      </label>
+                      <label>
+                        <div className="kbd">مبلغ مصرف از حق، به ریال</div>
+                        <input
+                          className="inp"
+                          dir="ltr"
+                          inputMode="numeric"
+                          value={groupThousands(exDeltaRightAmount)}
+                          onChange={(e) => {
+                            if (parseGroupedInteger(e.target.value) != null) setExDeltaRightAmount(digitsOnly(e.target.value))
+                          }}
+                          placeholder="مبلغ از کد"
+                          title="فقط عدد صحیح ریالی؛ جداکنندهٔ هزارگان و ارقام فارسی پذیرفته می‌شود."
+                        />
+                      </label>
+                      <div className="kbd md:col-span-2">
+                        اگر از کد استفاده شود، فقط مبلغ واردشده از همان حق B/N مصرف می‌شود؛ ماندهٔ مابه‌التفاوت باید جداگانه با نقد/کارت تسویه شود.
+                        {exDeltaRightAmountValue != null && exDeltaRightAmountValue > 0 && exDeltaRightAmountValue <= exTotals.diff &&
+                          <> · ماندهٔ tender: <b>{money(exDeltaTenderRemainder)} ریال</b></>}
+                      </div>
+                    </div>
+                    {hasExDeltaRightInput && exDeltaTenderRemainder === 0 && (
+                      <div className="kbd mb-2 rounded bg-emerald-100 p-2 font-bold">
+                        حق B/N کل مابه‌التفاوت را پوشش می‌دهد؛ tender نقدی/کارتی دیگری ثبت نمی‌شود.
+                      </div>
+                    )}
+                    {!(hasExDeltaRightInput && exDeltaTenderRemainder === 0) && (
+                      <>
                     <label className="flex items-center gap-2 cursor-pointer w-fit">
                       <input
                         type="checkbox"
                         className="w-4 h-4"
                         checked={exSplitPayment}
+                        disabled={hasExDeltaRightInput && exDeltaTenderRemainder === 0}
                         onChange={(e) => setExSplitPayment(e.target.checked)}
                       />
                       <span className="font-bold">دریافت ترکیبی نقد + کارت</span>
                     </label>
-                    <div className="kbd mt-1">در حالت ترکیبی، دو رسید واقعی با جمع دقیق مابه‌التفاوت ثبت می‌شود.</div>
+                    <div className="kbd mt-1">در حالت ترکیبی، دو رسید واقعی با جمع دقیق {hasExDeltaRightInput ? 'ماندهٔ' : ''} مابه‌التفاوت ثبت می‌شود.</div>
                     {!exSplitPayment ? (
                       <label className="block mt-2 max-w-sm">
                         <div className="kbd">روش دریافت مابه‌التفاوت</div>
                         <select
                           className="inp"
                           value={methodId ?? ''}
+                          disabled={hasExDeltaRightInput && exDeltaTenderRemainder === 0}
                           onChange={(e) => setMethodId(e.target.value ? Number(e.target.value) : null)}
                         >
-                          {methods.map((m) => (
+                          {(hasExDeltaRightInput ? [...cashMethods, ...cardMethods] : methods).map((m) => (
                             <option key={m.id} value={m.id}>
                               {m.label}
                             </option>
@@ -1988,9 +2067,11 @@ export default function SalesReturn() {
                             </select>
                           </label>
                         </div>
-                        <div className={`kbd mt-2 font-bold ${exSplitTotal === exTotals.diff && (exSplitCashAmount ?? 0) > 0 && (exSplitCardAmount ?? 0) > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                          جمع نقد و کارت: {money(exSplitTotal ?? 0)} ریال · مبلغ لازم: {money(exTotals.diff)} ریال
+                        <div className={`kbd mt-2 font-bold ${exSplitTotal === (hasExDeltaRightInput ? exDeltaTenderRemainder : exTotals.diff) && (exSplitCashAmount ?? 0) > 0 && (exSplitCardAmount ?? 0) > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                          جمع نقد و کارت: {money(exSplitTotal ?? 0)} ریال · مبلغ لازم: {money(hasExDeltaRightInput ? exDeltaTenderRemainder : exTotals.diff)} ریال
                         </div>
+                      </>
+                    )}
                       </>
                     )}
                   </div>

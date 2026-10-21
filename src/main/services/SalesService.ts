@@ -4205,7 +4205,7 @@ async function runReturn(
           const sourceEvent = await tx.exchangeFundingEvent.findUnique({ where: { id: Number(share.sourceEventId) } })
           if (!sourceEvent) throw new BusinessError(exchangeReturnFundingBlockedMessage())
           const sourceKind = String(sourceEvent.kind)
-          if (sourceKind === 'SOURCE_N' || sourceKind === 'SOURCE_GIFT') {
+          if (sourceKind === 'SOURCE_N' || sourceKind === 'SOURCE_B' || sourceKind === 'SOURCE_GIFT') {
             const credit = sourceEvent.sourceCreditId == null ? null : await tx.storeCredit.findUnique({
               where: { id: Number(sourceEvent.sourceCreditId) }, select: { exchangeResidualRightKey: true }
             })
@@ -4677,7 +4677,7 @@ async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
     throw new BusinessError(exchangeReturnFundingBlockedMessage())
 
   const provenKinds = new Set<ExchangeReturnSourceKind>([
-    'SOURCE_GIFT', 'SOURCE_N', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'
+    'SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'
   ])
   const fundingSourceById = new Map<number, any>()
   const sourceById = new Map<number, { sourceKind: ExchangeReturnSourceKind; amount: number }>()
@@ -4740,7 +4740,7 @@ async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
     .slice().sort((a: any, b: any) => Number(a.id) - Number(b.id))
   const activeReturnIds = activeReturns.map((ret: any) => Number(ret.id))
   const s8AllocationPolicy = activeReturns.some((ret: any) => String(ret.kind) === ReturnKind.EXCHANGE) ||
-    funding.sources.some((source: any) => String(source.sourceKind) === 'SOURCE_N')
+    funding.sources.some((source: any) => ['SOURCE_N', 'SOURCE_B'].includes(String(source.sourceKind)))
     ? 'PROPORTIONAL_FLOOR' as const : undefined
   const readerReturnIds = [...(funding.activeReturnIds as number[])].sort((a, b) => a - b)
   if (activeReturnIds.some((id: number, index: number) => !Number.isSafeInteger(id) || id <= 0 ||
@@ -5004,7 +5004,7 @@ async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
     .reduce((sum: number, source: any) => sum + toNumberRial(source.event.amount), 0)
   const nonGiftAvailable = fundingSources.filter((source: any) => source.sourceKind !== 'SOURCE_GIFT')
     .reduce((sum: number, source: any) => sum + toNumberRial(source.event.amount), 0)
-  const supportedReturnKinds = new Set(['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
+  const supportedReturnKinds = new Set(['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
   const s1GiftBasis = fundingSources.filter((source: any) => source.sourceKind === 'SOURCE_GIFT')
     .reduce((sum: number, source: any) => sum + toNumberRial(source.event.amount), 0)
   const s1CashBasis = fundingSources.filter((source: any) => source.sourceKind === 'SOURCE_CASH')
@@ -5012,11 +5012,12 @@ async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
   const s1LegacyCarryReturnEligible = carryBalanceMatches && fundingSources.every((source: any) =>
     ['SOURCE_GIFT', 'SOURCE_CASH'].includes(source.sourceKind)) &&
     s1GiftBasis === 1_877_346 && s1CashBasis === 13_122_654 && s1GiftBasis + s1CashBasis === 15_000_000
-  const s8MixedCarryReturnEligible = carryBalanceMatches && giftAvailable > 0 && nonGiftAvailable > 0 &&
+  const hasGiftAndNonGift = giftAvailable > 0 && nonGiftAvailable > 0
+  const hasResidualRightCarry = fundingSources.some((source: any) => ['SOURCE_N', 'SOURCE_B'].includes(String(source.sourceKind)))
+  const s8MixedCarryReturnEligible = carryBalanceMatches && (hasGiftAndNonGift || hasResidualRightCarry) &&
     fundingSources.length > 1 && fundingSources.every((source: any) => supportedReturnKinds.has(String(source.sourceKind))) &&
     funding.sources.length > 0 && funding.sources.every((source: any) => Number.isSafeInteger(source.available) && source.available >= 0) &&
-    (activeReturns.some((ret: any) => String(ret.kind) === ReturnKind.EXCHANGE) ||
-      fundingSources.some((source: any) => String(source.sourceKind) === 'SOURCE_N'))
+    (activeReturns.some((ret: any) => String(ret.kind) === ReturnKind.EXCHANGE) || hasResidualRightCarry)
   const s1CarryReturnEligible = s1LegacyCarryReturnEligible || s8MixedCarryReturnEligible
   return {
     returnTotal: Number(returnTotal),
@@ -7733,7 +7734,7 @@ export const salesService = {
        */
       let fundingSourcesForTransfer: Array<{ event: any; available: number }> | null = null
       let s1ResidualRightsEligible = false
-      let s1CarryAllocations: Array<{ sourceEventId: number; sourceKind: 'SOURCE_GIFT' | 'SOURCE_N' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'; carry: number; remainder: number }> | null = null
+      let s1CarryAllocations: Array<{ sourceEventId: number; sourceKind: 'SOURCE_GIFT' | 'SOURCE_N' | 'SOURCE_B' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'; carry: number; remainder: number }> | null = null
       let s8CarryAllocations: Array<{ sourceEventId: number; amount: number }> | null = null
       let s1ResidualRights: any = null
       const sourceHasExchangeLineage = await isExchangeChildInvoiceWithLineage(tx, source as any)
@@ -7824,19 +7825,18 @@ export const salesService = {
         }
       }
 
-      if (diff <= 0 && returnTotal > 0) {
+      if (returnTotal > 0) {
         const activeRedemptions = await tx.storeCreditRedemption.findMany({
           where: { invoiceId: source.id, reversedAt: null }, select: { id: true }
         })
-        const sourceGiftRedemptionIds = (funding?.sources ?? [])
-          .filter(({ sourceKind }) => sourceKind === 'SOURCE_GIFT')
+        const sourceRedemptionIds = (funding?.sources ?? [])
+          .filter(({ event, sourceKind }) => Number(event.sourceInvoiceId) === Number(source.id) &&
+            ['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B'].includes(sourceKind) && event.sourceRedemptionId != null)
           .map(({ event }) => Number(event.sourceRedemptionId))
         const activeRedemptionIds = activeRedemptions.map((row) => Number(row.id))
-        const redemptionSetMatches = sourceIsExchangeChild
-          ? activeRedemptionIds.length === 0
-          : activeRedemptionIds.length === sourceGiftRedemptionIds.length &&
-            activeRedemptionIds.every((id) => sourceGiftRedemptionIds.includes(id)) &&
-            sourceGiftRedemptionIds.every((id) => activeRedemptionIds.includes(id))
+        const redemptionSetMatches = activeRedemptionIds.length === sourceRedemptionIds.length &&
+          activeRedemptionIds.every((id) => sourceRedemptionIds.includes(id)) &&
+          sourceRedemptionIds.every((id) => activeRedemptionIds.includes(id))
         const returnedQtyByItem = new Map<number, number>()
         for (const returnedLine of back.returnedLines ?? []) {
           const saleItemId = Number(returnedLine.saleItemId)
@@ -7852,7 +7852,7 @@ export const salesService = {
           source.items.length === returnedQtyByItem.size && source.items.every((saleItem: any) =>
             returnedQtyByItem.get(Number(saleItem.id)) === Number(saleItem.qty))
         const totalAvailable = (funding?.sources ?? []).reduce((sum, row) => sum + row.available, 0)
-        const sourceKinds = new Set(['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
+        const sourceKinds = new Set(['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
         const fullyProvenFullReturn = funding?.snapshotExists && !funding.stale &&
           funding.activeReturnIds.length === 1 && funding.activeReturnIds[0] === back.id &&
           funding.debt === 0 && funding.overpay === 0 && funding.unresolved.length === 0 &&
@@ -7862,6 +7862,10 @@ export const salesService = {
           funding.sources.every((sourceShare) => sourceKinds.has(sourceShare.sourceKind) &&
             sourceShare.available > 0 && sourceShare.available === toNumberRial(sourceShare.event.amount))
         if (fullyProvenFullReturn && diff === 0 && returnTotal === exchangeTotal) {
+          fundingSourcesForTransfer = funding!.sources
+        } else if (fullyProvenFullReturn && !sourceIsExchangeChild && diff > 0) {
+          // S9: the original sale value remains a distinct carried share; only
+          // the additional customer tender fills the positive exchange delta.
           fundingSourcesForTransfer = funding!.sources
         } else if (fullyProvenFullReturn && !sourceIsExchangeChild && diff < 0 &&
             funding!.sources.every((sourceShare) => sourceKinds.has(sourceShare.sourceKind)) &&
@@ -7873,7 +7877,7 @@ export const salesService = {
               replacementTotal: exchangeTotal,
               sources: funding!.sources.map((sourceShare) => ({
                 sourceEventId: Number(sourceShare.event.id),
-                sourceKind: sourceShare.sourceKind as 'SOURCE_GIFT' | 'SOURCE_N' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE',
+                sourceKind: sourceShare.sourceKind as 'SOURCE_GIFT' | 'SOURCE_N' | 'SOURCE_B' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE',
                 available: sourceShare.available
               }))
             })
@@ -8024,10 +8028,10 @@ export const salesService = {
           ? null : Number(input.deltaStoreCreditAmount)
         if (deltaCreditCode || deltaCreditAmount != null) {
           if (!deltaCreditCode || !Number.isSafeInteger(deltaCreditAmount) || deltaCreditAmount! <= 0 ||
-              deltaCreditAmount! >= diff)
-            throw new BusinessError('کد و مبلغ N/B مابه‌التفاوت باید با هم و به‌صورت یک مبلغ مثبتِ کمتر از مابه‌التفاوت ثبت شوند.')
+              deltaCreditAmount! > diff)
+            throw new BusinessError('کد و مبلغ N/B مابه‌التفاوت باید با هم و به‌صورت مبلغی مثبت و حداکثر برابر مابه‌التفاوت ثبت شوند.')
           const rows = input.payments ?? []
-          if (rows.length < 1 || rows.length > 2 || rows.some((row) => !row || !Number.isSafeInteger(row.amount) || row.amount <= 0) ||
+          if (rows.length > 2 || rows.some((row) => !row || !Number.isSafeInteger(row.amount) || row.amount <= 0) ||
               rows.reduce((sum, row) => sum + row.amount, 0) + deltaCreditAmount! !== diff)
             throw new BusinessError(`جمع N/B و tender نقدی/کارتی باید دقیقاً ${money(diff)} ریال باشد.`)
           const methodIds = [...new Set(rows.map((row) => row.methodId))]
@@ -8072,7 +8076,7 @@ export const salesService = {
           } })
           if (!rightOpening || !['N', 'B'].includes(String(rightOpening.rightKind)))
             throw new BusinessError('کد مصرفی باید به یک حق ریشه‌دار B/N معتبر متصل باشد؛ اعتبار عمومی برای این tender مجاز نیست.')
-          if (rightOpening.rightKind === 'N') {
+          if (rightOpening.rightKind === 'N' || rightOpening.rightKind === 'B') {
             const operationKey = `s8-exchange:${exchangeInvoice.id}:${redeemed.credit.id}:${redeemed.redemption.id}`
             await reserveS1ExchangeResidualRight(tx, { rightKey, operationKey, amount: deltaCreditAmount!,
               relatedInvoiceId: exchangeInvoice.id, at: now, actorUserId: input.userId ?? null })
@@ -8080,7 +8084,7 @@ export const salesService = {
               relatedInvoiceId: exchangeInvoice.id, relatedPaymentId: Number(redeemed.payment.id),
               actorUserId: input.userId ?? null })
           } else {
-            throw new BusinessError('S8 tender در این نسخه فقط حق N را می‌پذیرد؛ B به مسیر مصوب S9 تعلق دارد.')
+            throw new BusinessError('کد tender باید حق B/N معتبر و ریشه‌دار داشته باشد؛ مبلغ به نقد تبدیل نشد.')
           }
           seq += 1
         } else if (input.splitPayment === true) {
@@ -9420,7 +9424,7 @@ export const salesService = {
 
       const physicalItems = (r.items ?? []) as any[]
       const storedRows = allocationRowsByReturn.get(Number(r.id)) ?? []
-      const sourceKinds = new Set(['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
+      const sourceKinds = new Set(['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
       const parentInvoiceId = Number(r.invoiceId)
       const sourceInvoiceId = Number(r.invoice?.sourceInvoiceId)
       if (physicalItems.length === 0 || storedRows.length === 0 ||
