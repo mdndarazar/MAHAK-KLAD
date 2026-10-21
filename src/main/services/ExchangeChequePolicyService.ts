@@ -124,6 +124,7 @@ export async function lockExchangeChequePolicyForTransaction(tx: Prisma.Transact
     await tx.setting.create({ data: { key: EXCHANGE_CHEQUE_POLICY_SETTING_KEY, value: JSON.stringify(DEFAULT_POLICY) } })
     row = { key: EXCHANGE_CHEQUE_POLICY_SETTING_KEY, value: JSON.stringify(DEFAULT_POLICY) } as any
   }
+  if (!row) throw new BusinessError('قفل سیاست چک تعویض ثبت نشد؛ دوباره تلاش کنید.')
   const raw = String(row.value)
   // A no-op UPDATE acquires the SQLite writer lock even if the setting is not
   // changed. The surrounding transaction retains it until commit/rollback.

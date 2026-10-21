@@ -82,6 +82,7 @@ async function ensureRightCode(tx: Client, opening: any, replayed: boolean) {
     })
     await tx.creditDelivery.create({ data: { creditId: credit.id, sourceKind } })
   }
+  if (!credit) throw stale()
   const delivery = await tx.creditDelivery.findUnique({ where: { creditId: Number(credit.id) } })
   if (Number(credit.amount) !== toNumberRial(opening.amount) || credit.source !== CreditSource.EXCHANGE ||
       Number(credit.returnId) !== Number(opening.returnId) ||

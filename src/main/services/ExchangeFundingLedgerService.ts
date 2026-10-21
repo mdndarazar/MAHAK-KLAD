@@ -11,6 +11,7 @@ type LedgerClient = Prisma.TransactionClient | {
   exchangeFundingLineAllocation: any
   exchangeFundingReturnLineAllocation: any
   saleInvoice: any
+  saleInvoiceItem: any
   payment: any
   paymentChequeStatusHistory?: any
   storeCreditRedemption: any
@@ -1885,7 +1886,9 @@ export async function reverseExchangeDebtOffsetForReturn(tx: LedgerClient, input
     exchangeFundingBalance(tx, `debt:${ret.invoiceId}`)
   ])
   const latestHistory = history[history.length - 1]
-  const offsetHistoryIndex = history.findIndex((row) => row.status === 'DEBT_OFFSET')
+  const offsetHistoryIndex = (history as Array<{ status?: string | null }>).findIndex(
+    (row: { status?: string | null }) => row.status === 'DEBT_OFFSET'
+  )
   const previousStatusValue = ['PENDING', 'BOUNCED'].includes(String(offset.sourceMethodKind))
     ? String(offset.sourceMethodKind)
     : offsetHistoryIndex > 0 ? String(history[offsetHistoryIndex - 1]?.status ?? '') : null

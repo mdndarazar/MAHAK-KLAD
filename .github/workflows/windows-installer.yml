@@ -70,6 +70,9 @@ jobs:
             'tests/audit-fixes/fix-financial-goods-all-methods.mjs',
             'tests/audit-fixes/fix-financial-corrected-return-cap.mjs',
             'tests/audit-fixes/fix-financial-credit-funded-exchange-scenario.mjs',
+            'tests/audit-fixes/fix-financial-exchange-s10-cheque-debt-settlement.mjs',
+            'tests/audit-fixes/fix-financial-exchange-s11-debt-offset-paid-carry.mjs',
+            'tests/audit-fixes/fix-financial-exchange-s12-conditional-pair-void.mjs',
             'tests/audit-fixes/fix-s222-print-phase6-remaining-prints.mjs',
             'tests/audit-fixes/fix-s372-exchange-print-panel-gate.mjs'
           )
