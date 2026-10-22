@@ -3925,7 +3925,9 @@ async function runReturn(
       } else {
         creditReturnPlan = await planCreditReturn(tx, {
           invoiceId: invoice.id, grandTotal: toNumberRial(invoice.grandTotal),
-          paidTotal: debtBefore.received, returnedValue: returnTotal, debtBefore,
+          paidTotal: debtBefore.received, returnedValue: returnTotal,
+          returnLines: items.map((item) => ({ saleItemId: item.saleItemId,
+            variantId: item.variantId, value: item.lineTotal })), debtBefore,
           activeReturns: invoice.returns.map((r) => ({ id: r.id, kind: r.kind, total: r.total }))
         })
       }
@@ -5127,13 +5129,15 @@ export const salesService = {
         : input.lines ?? [])
       if (!targets.length) throw new BusinessError('حداقل یک قلم و تعداد معتبر برای پیش‌نمایش انتخاب کنید.')
       const lineNet = allocateLineNet(invoice)
-      const returnedValue = targets.reduce((sum, t) => {
+      const returnLines = targets.map((t) => {
         const it = invoice.items.find((row) => row.id === t.saleItemId)
         if (!it || !Number.isSafeInteger(t.qty) || t.qty <= 0 ||
             t.qty > it.qty - (already.get(it.id) ?? 0))
           throw new BusinessError('تعداد/قلم برگشتی تغییر کرده است؛ فاکتور را تازه کنید.')
-        return sum + returnValueOf(lineNet.get(it.id) ?? 0, it.qty, already.get(it.id) ?? 0, t.qty)
-      }, 0)
+        return { saleItemId: Number(it.id), variantId: Number(it.variantId),
+          value: returnValueOf(lineNet.get(it.id) ?? 0, it.qty, already.get(it.id) ?? 0, t.qty) }
+      })
+      const returnedValue = returnLines.reduce((sum, line) => sum + line.value, 0)
       const payments = await tx.payment.findMany({ where: { invoiceId, voidedAt: null },
         select: { amount: true, kind: true, chequeStatus: true } })
       const debtBefore = await invoiceRemaining(tx, invoiceId, toNumberRial(invoice.grandTotal), receivedTotalOf(payments))
@@ -5144,7 +5148,7 @@ export const salesService = {
         previewOnly: true }
       const plan = await planCreditReturn(tx, {
         invoiceId, grandTotal: toNumberRial(invoice.grandTotal), paidTotal: debtBefore.received,
-        returnedValue, debtBefore,
+        returnedValue, returnLines, debtBefore,
         activeReturns: invoice.returns.map((r) => ({ id: r.id, kind: r.kind, total: r.total }))
       })
       return { returnTotal: returnedValue,

@@ -18,7 +18,7 @@ const { returnGoodsService } = await import('../../src/main/services/ReturnGoods
 const { convertCashRight, confirmCreditDelivery, reconcileBankDocument, viewReturnEntitlement } =
   await import('../../src/main/services/ReturnEntitlementService.ts')
 const { findRedeemable } = await import('../../src/main/services/StoreCreditService.ts')
-const { debtFirstReturn, proportionalReturn } = await import('../../src/shared/returnEntitlement.ts')
+const { debtFirstReturn, pooledCreditFirstReturn } = await import('../../src/shared/returnEntitlement.ts')
 const { DEFAULT_MANAGER_PASSWORD } = await import('@shared/receipt')
 const { toJalaliDate } = await import('@shared/jalali')
 const db = harnessClient()
@@ -36,9 +36,11 @@ const variant = (price) => {
 }
 assert.deepEqual(debtFirstReturn(500, 500), { debtReduced: 500, residual: 0 })
 assert.deepEqual(debtFirstReturn(500, 0), { debtReduced: 0, residual: 500 })
-assert.deepEqual(proportionalReturn({ purchaseTotal: 500, giftTotal: 300, previouslyReturned: 0, returning: 100 }),
-  { gift: 60, cash: 40 })
-console.log('✓ debt_first 500+500 and proportional 300 gift + 200 cash => 60 gift / 40 cash')
+assert.deepEqual(pooledCreditFirstReturn({ purchaseTotal: 500, giftTotal: 300, previouslyReturned: 0, returning: 100 }),
+  { gift: 100, cash: 0 })
+assert.deepEqual(pooledCreditFirstReturn({ purchaseTotal: 500, giftTotal: 300, previouslyReturned: 100, returning: 250 }),
+  { gift: 200, cash: 50 })
+console.log('✓ debt_first and pooled unrestricted credit: 300 gift is restored before cash, not prorated across goods')
 
 const v = variant(1_000_000)
 const sale = await salesService.create({

@@ -1,8 +1,8 @@
-/* Immutable, cumulative integer allocation of returned purchased value.
- * Debt is removed first by the caller. Only the part originally paid by
- * non-cash store credit can be restored as a credit opportunity. The rest is
- * a *real-money right*, never inferred from the face value of a gift code.
- */
+/* Immutable, cumulative allocation of returned purchased value.
+ * Debt is removed first by the caller. Ordinary ALL-scope credit is pooled at
+ * invoice level and restored before actual-money rights; it is never divided
+ * among goods. Product/category-scoped manager credits are matched against
+ * returned lines in CreditReturnService. */
 import { allocateRialSharesWebster, type RialApportionmentWeight } from './integerRialApportionment'
 
 type RedemptionShare = RialApportionmentWeight
@@ -23,8 +23,8 @@ export function allocateCreditReturn(input: {
   /** Cumulative per-redemption amounts already persisted. They must match the
    * deterministic cumulative basis; legacy mismatches fail closed, never rewrite. */
   priorShares?: { redemptionId: number; amount: number }[]
-  /** Fully spent, one-use gift barcodes are returned before actual-money rights.
-   * Ordinary/partial redemptions keep the historical whole-invoice proportion. */
+  /** Defaults true: restore pooled ALL-scope credit before actual-money rights.
+   * False is reserved for continuing already-persisted historical allocations. */
   giftFirst?: boolean
 }): { credit: number; cash: number; shares: { redemptionId: number; amount: number; prior: number }[] } {
   const { fundedPurchase, fundedPreviouslyReturned: prior, fundedReturning: current, redemptions } = input
@@ -45,7 +45,7 @@ export function allocateCreditReturn(input: {
       throw new Error('REDEMPTIONS_EXCEED_FUNDED_PURCHASE')
   }
 
-  const giftAt = (fundedValue: number) => input.giftFirst
+  const giftAt = (fundedValue: number) => input.giftFirst !== false
     ? Math.min(giftTotal, fundedValue)
     : fundedPurchase === 0
       ? 0

@@ -76,7 +76,7 @@ console.log('\n۰) مرجع پول نقد درست است، اما attribution �
   truthy('cashLikeRefundableOf همچنان تعریف شده', /async function cashLikeRefundableOf/.test(SALES))
   truthy('منبع پول واقعی cashLikeRefundableOf است', /receivedOnInvoice = await cashLikeRefundableOf/.test(SALES))
   truthy('گیت برگشت و nested exchange با lineage معکوس پیش از مسیر بازپرداخت فعال است',
-    /\(opts\.applyRefund \|\| opts\.kind === ReturnKind\.EXCHANGE\) &&\s*await isExchangeChildInvoiceWithLineage/.test(SALES))
+    /const isExchangeChildReturn = opts\.applyRefund === true &&\s*await isExchangeChildInvoiceWithLineage/.test(SALES))
 }
 
 const exchangeThenAttemptChildRefund = async (label, paid) => {

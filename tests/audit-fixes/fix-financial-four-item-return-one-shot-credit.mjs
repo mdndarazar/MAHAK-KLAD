@@ -102,4 +102,44 @@ assert.equal(Number(seed.one('SELECT SUM(amount) AS amount FROM "CashMovement" W
   'SaleReturn', barcodeChoiceReturn.id).amount ?? 0), 0)
 assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', giftForBarcodeChoice.id).status, 'USED')
 
-console.log('PASS: 20M return => 5M rooted gift successor + customer choice: 15M cash OR separate 15M non-cash barcode; root remains USED')
+// Explicit manager-only exception: this voucher is limited to item A. Returning
+// item B must not restore any of it; returning A restores the 2M source share,
+// and the remaining 18M real-money right may become a separate new barcode.
+const productScopedGift = await db.$transaction((tx) => issueStoreCredit(tx, {
+  source: 'MANUAL', amount: 2_000_000, multiUse: false, maxUses: 1,
+  carryRemainder: false, days: 30, restrictScope: 'VARIANTS',
+  restrictVariantIds: [variantIds[0]], note: 'manager gift earmarked to item A', userId
+}))
+const scopedSale = await salesService.create({ userId, shiftId,
+  lines: [lines[0], lines[1]],
+  payments: [{ methodId: cashMethodId, amount: 38_000_000, destination: 'CASH' }],
+  storeCreditCode: productScopedGift.code, storeCreditAmount: 2_000_000,
+  storeCreditIdempotencyKey: 'scoped-credit-for-a-only' })
+const scopedItems = seed.rows('SELECT id, variantId FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id', scopedSale.id)
+const itemA = scopedItems.find((item) => Number(item.variantId) === variantIds[0])
+const itemB = scopedItems.find((item) => Number(item.variantId) === variantIds[1])
+const previewB = await salesService.returnProvenancePreview({ invoiceId: scopedSale.id,
+  lines: [{ saleItemId: itemB.id, qty: 1 }] })
+assert.deepEqual([previewB.giftOpportunity, previewB.cashRight], [0, 20_000_000])
+const returnB = await salesService.createReturn({ invoiceId: scopedSale.id, full: false,
+  lines: [{ saleItemId: itemB.id, qty: 1 }], refundMethod: 'CASH',
+  refundAmount: 20_000_000, userId, shiftId })
+assert.equal(returnB.creditOpportunity?.restored ?? 0, 0)
+const previewA = await salesService.returnProvenancePreview({ invoiceId: scopedSale.id,
+  lines: [{ saleItemId: itemA.id, qty: 1 }] })
+assert.deepEqual([previewA.giftOpportunity, previewA.cashRight], [2_000_000, 18_000_000])
+const returnA = await salesService.createReturn({ invoiceId: scopedSale.id, full: false,
+  lines: [{ saleItemId: itemA.id, qty: 1 }], refundMethod: 'STORE_CREDIT',
+  refundAmount: 18_000_000, userId, shiftId })
+assert.equal(returnA.creditOpportunity.restored, 2_000_000)
+assert.equal(returnA.creditOpportunity.pendingDelivery.length, 0)
+assert.equal(returnA.reversedCreditRedemptions, 1)
+const restoredScopedCredit = seed.one('SELECT amount, status, restrictScope, restrictVariantIdsJson FROM "StoreCredit" WHERE returnId=? AND sourceInvoiceId=? AND amount=?',
+  returnA.id, scopedSale.id, 2_000_000)
+assert.deepEqual([Number(restoredScopedCredit.amount), restoredScopedCredit.status,
+  restoredScopedCredit.restrictScope, restoredScopedCredit.restrictVariantIdsJson],
+  [2_000_000, 'ACTIVE', 'VARIANTS', JSON.stringify([variantIds[0]])])
+assert.equal(returnA.storeCredit.amount, 18_000_000)
+assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', productScopedGift.id).status, 'USED')
+
+console.log('PASS: general voucher is pooled across goods; explicitly A-restricted manager voucher is restored only when A returns; 20M return => 5M source credit + customer choice for 15M')

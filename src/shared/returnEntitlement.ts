@@ -43,11 +43,10 @@ export function debtFirstReturn(value: number, debtBefore: number): { debtReduce
   return { debtReduced, residual: value - debtReduced }
 }
 
-/** Proportional provenance uses cumulative floors, so a sequence of partial
- * returns rounds exactly to the original gift/cash split (not N rounded parts).
- * Example: gift 300 + cash 200, return 100 => gift 60 and cash 40.
- */
-export function proportionalReturn(
+/** Ordinary, unrestricted credit is pooled across the invoice, never assigned
+ * proportionally to goods. On any return, restore the unreturned gift pool
+ * first; only the residual can be a real-money right. */
+export function pooledCreditFirstReturn(
   basis: { purchaseTotal: number; giftTotal: number; previouslyReturned: number; returning: number }
 ): { gift: number; cash: number } {
   const { purchaseTotal, giftTotal, previouslyReturned, returning } = basis
@@ -55,8 +54,8 @@ export function proportionalReturn(
       purchaseTotal <= 0 || giftTotal < 0 || giftTotal > purchaseTotal ||
       previouslyReturned < 0 || returning < 0 || previouslyReturned + returning > purchaseTotal)
     throw new Error('INVALID_PROVENANCE')
-  // Integer arithmetic avoids float rounding drift for large rial values.
-  const giftCumulative = (n: number) => Number((BigInt(n) * BigInt(giftTotal)) / BigInt(purchaseTotal))
-  const gift = giftCumulative(previouslyReturned + returning) - giftCumulative(previouslyReturned)
+  const giftBefore = Math.min(giftTotal, previouslyReturned)
+  const giftAfter = Math.min(giftTotal, previouslyReturned + returning)
+  const gift = giftAfter - giftBefore
   return { gift, cash: returning - gift }
 }

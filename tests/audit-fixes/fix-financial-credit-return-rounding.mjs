@@ -8,7 +8,27 @@ process.env.HARNESS_DB = join(process.env.HARNESS_DIR, 'unused.db')
 const { allocateCreditReturn } = await import('../../src/shared/creditReturnProvenance.ts')
 const { planCreditReturn } = await import('../../src/main/services/CreditReturnService.ts')
 
+const pooledGiftFirst = allocateCreditReturn({
+  fundedPurchase: 80,
+  fundedPreviouslyReturned: 0,
+  fundedReturning: 20,
+  redemptions: [{ id: 9, amount: 5 }]
+})
+assert.deepEqual(pooledGiftFirst, {
+  credit: 5, cash: 15, shares: [{ redemptionId: 9, amount: 5, prior: 0 }]
+}, 'ordinary unscoped credit is pooled across the invoice and restored first, not prorated per item')
+const pooledGiftChunk = allocateCreditReturn({
+  fundedPurchase: 80,
+  fundedPreviouslyReturned: 2,
+  fundedReturning: 18,
+  redemptions: [{ id: 9, amount: 5 }],
+  priorShares: [{ redemptionId: 9, amount: 2 }]
+})
+assert.deepEqual([pooledGiftChunk.credit, pooledGiftChunk.cash], [3, 15],
+  'split returns exhaust the pooled gift share once, then expose only actual-money rights')
+
 const negativeRemainderCase = allocateCreditReturn({
+  giftFirst: false,
   fundedPurchase: 7,
   fundedPreviouslyReturned: 2,
   fundedReturning: 1,
@@ -24,6 +44,7 @@ assert.deepEqual(negativeRemainderCase, {
 }, 'cumulative gift total stays fixed; source attribution must not move backward or go negative')
 
 assert.throws(() => allocateCreditReturn({
+  giftFirst: false,
   fundedPurchase: 7,
   fundedPreviouslyReturned: 2,
   fundedReturning: 1,
@@ -33,6 +54,7 @@ assert.throws(() => allocateCreditReturn({
 'legacy source shares that differ from the new cumulative basis are never rewritten; continuation fails closed')
 
 const continuedWebster = allocateCreditReturn({
+  giftFirst: false,
   fundedPurchase: 7,
   fundedPreviouslyReturned: 3,
   fundedReturning: 1,
@@ -49,6 +71,7 @@ assert.deepEqual(continuedWebster, {
 }, 'new value follows the fixed cumulative Webster schedule')
 
 const tiedSources = allocateCreditReturn({
+  giftFirst: false,
   fundedPurchase: 4,
   fundedPreviouslyReturned: 0,
   fundedReturning: 2,
@@ -63,6 +86,7 @@ assert.deepEqual(tiedSources, {
   ]
 }, 'equal Webster priorities use redemption ID as the stable tie-break, independent of input order')
 const fullReturn = allocateCreditReturn({
+  giftFirst: false,
   fundedPurchase: 7,
   fundedPreviouslyReturned: 0,
   fundedReturning: 7,
@@ -99,6 +123,7 @@ for (let count = 1; count <= 3; count++) {
       const redemptions = weights.map((amount, index) => ({ id: index + 1, amount }))
       for (let seats = 0; seats <= sourceTotal; seats++) {
         const result = allocateCreditReturn({
+  giftFirst: false,
           fundedPurchase: sourceTotal, fundedPreviouslyReturned: 0,
           fundedReturning: seats, redemptions,
           priorShares: redemptions.map((redemption) => ({ redemptionId: redemption.id, amount: 0 }))
@@ -111,6 +136,7 @@ for (let count = 1; count <= 3; count++) {
         const oneRialHistory = [priorSourceShares.slice()]
         for (let prior = 0; prior < fundedPurchase; prior++) {
           const result = allocateCreditReturn({
+  giftFirst: false,
             fundedPurchase,
             fundedPreviouslyReturned: prior,
             fundedReturning: 1,
@@ -143,6 +169,7 @@ for (let count = 1; count <= 3; count++) {
               redemptionId: redemption.id, amount: oneRialHistory[start][index]
             }))
             const result = allocateCreditReturn({
+  giftFirst: false,
               fundedPurchase, fundedPreviouslyReturned: start,
               fundedReturning: end - start, redemptions, priorShares
             })
@@ -161,6 +188,7 @@ for (let count = 1; count <= 3; count++) {
 }
 
 const large = allocateCreditReturn({
+  giftFirst: false,
   fundedPurchase: 7_000_000,
   fundedPreviouslyReturned: 2_000_000,
   fundedReturning: 1_000_000,
@@ -171,6 +199,7 @@ assert.ok(large.shares.every((share) => share.amount >= 0))
 assert.equal(large.shares.reduce((sum, share) => sum + share.amount, 0), large.credit)
 const maxSafe = Number.MAX_SAFE_INTEGER
 const nearSafe = allocateCreditReturn({
+  giftFirst: false,
   fundedPurchase: maxSafe,
   fundedPreviouslyReturned: 0,
   fundedReturning: Math.floor(maxSafe / 2),
@@ -192,14 +221,18 @@ const planForPrior = (persistedPrior) => planCreditReturn({
   saleInvoice: { findUnique: async () => ({ id: 77, orderType: 'INTERNAL', sourceInvoiceId: null, exchangeReturnId: null }) },
   saleReturn: { findFirst: async () => null },
   payment: { findMany: async () => paymentRows },
-  storeCredit: { findMany: async () => [] },
+  storeCredit: { findMany: async () => [
+    { id: 41, restrictScope: 'ALL', restrictCategoryIdsJson: null, restrictVariantIdsJson: null },
+    { id: 42, restrictScope: 'ALL', restrictCategoryIdsJson: null, restrictVariantIdsJson: null }
+  ] },
   storeCreditRedemption: { findMany: async () => redemptionRows },
   creditReturnAllocation: { aggregate: async ({ where }) => ({
     _sum: { amount: persistedPrior.get(where.redemptionId) ?? 0 }
   }) }
 }, {
   invoiceId: 77, grandTotal: 7, paidTotal: 7, returnedValue: 1,
-  debtBefore: { remaining: 0, refundFromReceived: 2 }, activeReturns: []
+  debtBefore: { remaining: 0, refundFromReceived: 2 },
+  activeReturns: [{ id: 301, kind: 'RETURN', total: 2 }]
 })
 const plan = await planForPrior(new Map([[51, 1], [52, 0]]))
 assert.deepEqual(plan, {
@@ -215,6 +248,7 @@ await assert.rejects(() => planForPrior(new Map([[51, 0], [52, 1]])), /منشأ 
   'legacy source attribution that conflicts with the new deterministic schedule fails closed')
 
 assert.throws(() => allocateCreditReturn({
+  giftFirst: false,
   fundedPurchase: 7,
   fundedPreviouslyReturned: 2,
   fundedReturning: 1,

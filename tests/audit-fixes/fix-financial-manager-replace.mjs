@@ -101,7 +101,7 @@ const mixed = await salesService.create({ userId: managerId, shiftId,
 })
 const mixedItem = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=? AND variantId=?', mixed.id, variant).id
 const partial = await salesService.createReturn({ invoiceId: mixed.id, full: false,
-  lines: [{ saleItemId: mixedItem, qty: 1 }], refundMethod: 'CASH', refundAmount: 40,
+  lines: [{ saleItemId: mixedItem, qty: 1 }], refundMethod: 'NONE', refundAmount: 0,
   userId: managerId, shiftId })
 const bId = partial.creditOpportunity.pendingDelivery[0].creditId
 await confirmCreditDelivery({ creditId: bId, witnessKind: 'CUSTOMER_HANDOFF',
@@ -112,7 +112,7 @@ const bRecovery = await managerReplaceLostCredit({ creditId: bId, receiptNo: mix
   witnessRef: 'مدیر کد B را در حضور مشتری تطبیق داد', reason: 'گم‌شدن برگهٔ B نزد مشتری',
   approvingManagerId: managerId, managerPin: '4321', actorUserId: managerId })
 const bReplacement = seed.one('SELECT * FROM "StoreCredit" WHERE id=?', bRecovery.successorCreditId)
-assert.equal(bReplacement.amount, 60)
+assert.equal(bReplacement.amount, 100)
 assert.equal(new Date(bReplacement.expiresAt).getTime(), new Date(h1.expiresAt).getTime())
 await confirmCreditDelivery({ creditId: bReplacement.id, witnessKind: 'CUSTOMER_HANDOFF',
   witnessRef: 'مشتری جانشین کد B را با شاهد تحویل گرفت', managerPassword: DEFAULT_MANAGER_PASSWORD,
@@ -124,7 +124,7 @@ const spentB = await salesService.create({ userId: managerId, shiftId,
 })
 const eReturn = await salesService.createReturn({ invoiceId: spentB.id, full: false,
   lines: [{ saleItemId: seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', spentB.id).id, qty: 1 }],
-  refundMethod: 'CASH', refundAmount: 25, userId: managerId, shiftId })
-assert.equal(eReturn.creditOpportunity.restored, 25)
+  refundMethod: 'NONE', refundAmount: 0, userId: managerId, shiftId })
+assert.equal(eReturn.creditOpportunity.restored, 50)
 assert.equal(seed.one('SELECT rootCreditId FROM "CreditReturnAllocation" WHERE returnId=?', eReturn.id).rootCreditId, h1.id)
-console.log('✓ manager recovery of B preserves H1 root and expiry; later E is 25, not a new cash right')
+console.log('✓ manager recovery of B preserves H1 root and expiry; later E restores 50 gift before real-money rights')

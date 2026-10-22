@@ -4,6 +4,7 @@ import { prisma } from '../db/client'
 import { auditOrThrow as audit } from './AuditService'
 import { issueStoreCredit, reverseInvoiceRedemptions } from './StoreCreditService'
 import { allocateCreditReturn } from '@shared/creditReturnProvenance'
+import { CreditRestrictScope, normalizeRestrictScope, parseIdList } from '@shared/credit'
 import { toNumberRial } from '@shared/money'
 import type { RemainingResult } from '@shared/settlement'
 
@@ -41,6 +42,17 @@ export interface CreditReturnPlan {
   shares: { redemptionId: number; parentCreditId: number; amount: number; prior: number }[]
 }
 
+type ReturnFundingLine = { saleItemId: number; variantId: number; value: number }
+
+function creditMatchesReturnLine(credit: any, line: ReturnFundingLine, categoryPath: number[]): boolean {
+  const scope = normalizeRestrictScope(credit.restrictScope)
+  if (scope === CreditRestrictScope.ALL) return true
+  if (scope === CreditRestrictScope.VARIANTS)
+    return parseIdList(credit.restrictVariantIdsJson).includes(line.variantId)
+  const allowedCategories = new Set(parseIdList(credit.restrictCategoryIdsJson))
+  return categoryPath.some((id) => allowedCategories.has(id))
+}
+
 /** Called *inside* the return's transaction before a cash amount is chosen.
  * The original sale's Payment/Redemption amounts are read from the DB, never
  * from a seller's code, surname or a client-supplied provenance flag.
@@ -52,6 +64,7 @@ export async function planCreditReturn(
     grandTotal: number
     paidTotal: number
     returnedValue: number
+    returnLines?: ReturnFundingLine[]
     debtBefore: RemainingResult
     activeReturns: { id: number; kind: string; total: number | bigint }[]
   }
@@ -92,7 +105,6 @@ export async function planCreditReturn(
       nonCashPayments.length !== redemptions.length ||
       nonCashPayments.some((p) => !redemptions.some((r) => r.paymentId === p.id))) throw unknown()
   if (input.activeReturns.some((r) => r.kind !== 'RETURN')) throw unknown()
-  const giftTotal = redemptions.reduce((sum, r) => sum + toNumberRial(r.amount), 0)
   const fundedPurchase = Math.min(input.grandTotal, input.paidTotal)
   const fundedPreviouslyReturned = input.debtBefore.refundFromReceived
   const debtReduced = Math.min(input.returnedValue, input.debtBefore.remaining)
@@ -106,38 +118,170 @@ export async function planCreditReturn(
   }
   const credits = await tx.storeCredit.findMany({
     where: { id: { in: [...new Set(redemptions.map((r) => Number(r.creditId)))] } },
-    select: { id: true, amount: true, usedAmount: true, usedCount: true, maxUses: true, multiUse: true }
+    select: { id: true, restrictScope: true, restrictCategoryIdsJson: true, restrictVariantIdsJson: true }
   })
   const creditById = new Map(credits.map((credit) => [Number(credit.id), credit]))
-  const fullySpentOneShotBarcodes = redemptions.length > 0 && redemptions.every((redemption) => {
-    const credit = creditById.get(Number(redemption.creditId))
-    return !!credit && credit.multiUse !== true && Number(credit.maxUses) === 1 &&
-      Number(credit.usedCount) === 1 && toNumberRial(credit.amount) === toNumberRial(redemption.amount) &&
-      toNumberRial(credit.usedAmount) === toNumberRial(credit.amount)
+  if (credits.length !== new Set(redemptions.map((r) => Number(r.creditId))).size) throw unknown()
+  const restrictedCredits = credits.filter((credit) =>
+    normalizeRestrictScope(credit.restrictScope) !== CreditRestrictScope.ALL)
+
+  const returnLines = input.returnLines ?? [{ saleItemId: 1, variantId: 1, value: input.returnedValue }]
+  if (returnLines.some((line) => !Number.isSafeInteger(line.saleItemId) ||
+      !Number.isSafeInteger(line.variantId) || line.variantId <= 0 ||
+      !Number.isSafeInteger(line.value) || line.value < 0) ||
+      returnLines.reduce((sum, line) => sum + BigInt(line.value), 0n) !== BigInt(input.returnedValue))
+    throw unknown()
+  if (restrictedCredits.length && input.returnLines == null) throw unknown()
+
+  const variantIds = [...new Set(returnLines.map((line) => line.variantId))]
+  const variants = restrictedCredits.length
+    ? await tx.productVariant.findMany({ where: { id: { in: variantIds } },
+        select: { id: true, product: { select: { categoryId: true } } } })
+    : []
+  const variantById = new Map(variants.map((variant) => [Number(variant.id), variant]))
+  if (restrictedCredits.length && variants.length !== variantIds.length) throw unknown()
+  const categoryParent = new Map<number, number | null>()
+  if (credits.some((credit) => normalizeRestrictScope(credit.restrictScope) === CreditRestrictScope.CATEGORY)) {
+    const categories = await tx.category.findMany({ select: { id: true, parentId: true } })
+    for (const category of categories)
+      categoryParent.set(Number(category.id), category.parentId == null ? null : Number(category.parentId))
+    for (const credit of credits.filter((row) =>
+      normalizeRestrictScope(row.restrictScope) === CreditRestrictScope.CATEGORY)) {
+      const ids = parseIdList(credit.restrictCategoryIdsJson)
+      if (!ids.length || ids.every((id) => !categoryParent.has(id))) throw unknown()
+    }
+  }
+  for (const credit of credits.filter((row) =>
+    normalizeRestrictScope(row.restrictScope) === CreditRestrictScope.VARIANTS)) {
+    if (!parseIdList(credit.restrictVariantIdsJson).length) throw unknown()
+  }
+  const categoryPath = (categoryId: number | null): number[] => {
+    const path: number[] = []
+    const seen = new Set<number>()
+    let current = categoryId
+    while (current != null && !seen.has(current) && path.length < 100) {
+      seen.add(current)
+      path.push(current)
+      current = categoryParent.get(current) ?? null
+    }
+    return path
+  }
+
+  // Debt is removed before any cash/credit right. For a restricted manager
+  // barcode, the remaining returned value is still tied to the returned lines;
+  // the voucher can only be restored from matching goods. Ordinary ALL-scope
+  // barcodes are pooled at invoice level and therefore apply to any returned
+  // item, rather than being prorated across invoice lines.
+  let debtLeft = debtReduced
+  const lineCapacity = returnLines.slice().sort((a, b) => a.saleItemId - b.saleItemId).map((line) => {
+    const debtOnLine = Math.min(line.value, debtLeft)
+    debtLeft -= debtOnLine
+    const variant = variantById.get(line.variantId)
+    return {
+      ...line,
+      remaining: line.value - debtOnLine,
+      categoryPath: categoryPath(variant?.product?.categoryId == null
+        ? null : Number(variant.product.categoryId))
+    }
   })
-  const allocationInput = {
-    fundedPurchase, fundedPreviouslyReturned, fundedReturning,
-    redemptions: redemptions.map((r) => ({ id: r.id, amount: toNumberRial(r.amount) })), priorShares
-  }
-  let result: ReturnType<typeof allocateCreditReturn>
-  try {
-    result = fullySpentOneShotBarcodes
-      ? allocateCreditReturn({ ...allocationInput, giftFirst: true })
-      : allocateCreditReturn(allocationInput)
-  } catch {
-    // Continue existing invoices from their already-recorded proportional
-    // basis; never rewrite legacy allocations when the new one-shot rule lands.
-    try { result = allocateCreditReturn(allocationInput) }
-    catch { throw unknown() }
-  }
-  // A legacy return with no allocation may already have paid out the gift as
-  // cash. Never mint B/E on top of that historic claim without reconciliation.
+  if (debtLeft !== 0) throw unknown()
+
   const priorByRedemption = new Map(priorShares.map((share) => [share.redemptionId, share.amount]))
-  for (const share of result.shares) {
-    if (priorByRedemption.get(share.redemptionId) !== share.prior) throw unknown()
+  const sharesByRedemption = new Map<number, number>()
+  const availableByRedemption = new Map<number, number>()
+  for (const redemption of redemptions) {
+    const prior = priorByRedemption.get(Number(redemption.id))
+    const amount = toNumberRial(redemption.amount)
+    if (prior == null || prior < 0 || prior > amount) throw unknown()
+    availableByRedemption.set(Number(redemption.id), amount - prior)
+    sharesByRedemption.set(Number(redemption.id), 0)
   }
-  return { credit: result.credit, cash: result.cash, fundedReturning,
-    shares: result.shares.map((s, i) => ({ ...s, parentCreditId: redemptions[i].creditId })) }
+
+  // Restricted manager credits take their share only from matching returned
+  // goods (variant or category scope). This is the sole item-specific case.
+  const restrictedRedemptions = redemptions.filter((redemption) => {
+    const credit = creditById.get(Number(redemption.creditId))
+    return credit && normalizeRestrictScope(credit.restrictScope) !== CreditRestrictScope.ALL
+  })
+  for (const redemption of restrictedRedemptions) {
+    const credit = creditById.get(Number(redemption.creditId))
+    if (!credit) throw unknown()
+    const eligible = lineCapacity.filter((line) => creditMatchesReturnLine(credit, line, line.categoryPath))
+    let remainingVoucher = availableByRedemption.get(Number(redemption.id)) ?? 0
+    for (const line of eligible) {
+      const amount = Math.min(remainingVoucher, line.remaining)
+      if (amount <= 0) continue
+      line.remaining -= amount
+      remainingVoucher -= amount
+      sharesByRedemption.set(Number(redemption.id),
+        (sharesByRedemption.get(Number(redemption.id)) ?? 0) + amount)
+      if (remainingVoucher === 0) break
+    }
+  }
+
+  const ordinaryRedemptions = redemptions.filter((redemption) => {
+    const credit = creditById.get(Number(redemption.creditId))
+    return credit && normalizeRestrictScope(credit.restrictScope) === CreditRestrictScope.ALL
+  })
+  if (ordinaryRedemptions.length) {
+    const ordinaryPrior = ordinaryRedemptions.map((redemption) => ({
+      redemptionId: Number(redemption.id), amount: priorByRedemption.get(Number(redemption.id)) ?? 0
+    }))
+    const ordinaryRemaining = ordinaryRedemptions.reduce((sum, redemption) =>
+      sum + (availableByRedemption.get(Number(redemption.id)) ?? 0), 0)
+    const restrictedAlreadyRestored = restrictedRedemptions.reduce((sum, redemption) =>
+      sum + (priorByRedemption.get(Number(redemption.id)) ?? 0), 0)
+    const availableReturnValue = lineCapacity.reduce((sum, line) => sum + line.remaining, 0)
+    const ordinaryReturning = Math.min(ordinaryRemaining, availableReturnValue)
+    const ordinaryPlanInput = {
+      fundedPurchase,
+      fundedPreviouslyReturned: Math.max(0, fundedPreviouslyReturned - restrictedAlreadyRestored),
+      fundedReturning: ordinaryReturning,
+      redemptions: ordinaryRedemptions.map((redemption) => ({
+        id: Number(redemption.id), amount: toNumberRial(redemption.amount)
+      })),
+      priorShares: ordinaryPrior
+    }
+    let ordinaryPlan: ReturnType<typeof allocateCreditReturn>
+    try {
+      ordinaryPlan = allocateCreditReturn({ ...ordinaryPlanInput, giftFirst: true })
+    } catch {
+      // Only invoices with a prior return can legitimately carry the old
+      // proportional basis. A new invoice must never fall back to that policy.
+      if (!input.activeReturns.length) throw unknown()
+      try {
+        ordinaryPlan = allocateCreditReturn({
+          ...ordinaryPlanInput,
+          fundedPurchase: Math.min(input.grandTotal, input.paidTotal),
+          fundedPreviouslyReturned,
+          fundedReturning,
+          giftFirst: false
+        })
+      } catch { throw unknown() }
+    }
+    for (const share of ordinaryPlan.shares) {
+      sharesByRedemption.set(share.redemptionId, share.amount)
+      let remaining = share.amount
+      for (const line of lineCapacity) {
+        const amount = Math.min(remaining, line.remaining)
+        if (amount <= 0) continue
+        line.remaining -= amount
+        remaining -= amount
+        if (remaining === 0) break
+      }
+      if (remaining !== 0) throw unknown()
+    }
+  }
+
+  const shares = redemptions.map((redemption) => {
+    const amount = sharesByRedemption.get(Number(redemption.id)) ?? 0
+    return { redemptionId: Number(redemption.id), parentCreditId: Number(redemption.creditId),
+      amount, prior: priorByRedemption.get(Number(redemption.id)) ?? 0 }
+  })
+  const credit = shares.reduce((sum, share) => sum + share.amount, 0)
+  if (!Number.isSafeInteger(credit) || credit > fundedReturning) throw unknown()
+  return { credit, cash: fundedReturning - credit, fundedReturning, shares }
+
 }
 
 /** Resolve an explicit B/E, manager replacement or historic remainder link.
