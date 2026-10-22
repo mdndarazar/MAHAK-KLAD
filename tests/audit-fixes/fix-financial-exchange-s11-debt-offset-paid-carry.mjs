@@ -17,6 +17,7 @@ process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
+const { physicalMovementForCustodyShift } = await import('../../src/main/services/CustodyAggregateService.ts')
 const { issueStoreCredit } = await import('../../src/main/services/StoreCreditService.ts')
 const { exchangeChequePolicyService } = await import('../../src/main/services/ExchangeChequePolicyService.ts')
 const { createManagerCorrectionApprovalSecret } = await import('../../src/main/services/AuthService.ts')
@@ -70,6 +71,7 @@ const gift = await db.$transaction((tx) => issueStoreCredit(tx, {
 const sourceVariant = variant('source', 400_000)
 const firstChildVariant = variant('first-child', 500_000)
 const grandchildVariant = variant('grandchild', 500_000)
+const blueBeforeRoot = await physicalMovementForCustodyShift(shiftId)
 const root = await salesService.create({
   customerId, userId, shiftId, lines: [line(sourceVariant, 3, 400_000)],
   payments: [{ methodId: cashMethodId, amount: 900_000, destination: 'CASH' }],
@@ -77,6 +79,8 @@ const root = await salesService.create({
   storeCreditIdempotencyKey: 's11-root-gift-redemption-0001'
 })
 assert.equal(root.grandTotal, 1_200_000)
+assert.equal(await physicalMovementForCustodyShift(shiftId) - blueBeforeRoot, 900_000,
+  'blue reads only the 900K actual cash tender; the 300K gift redemption is non-cash')
 const rootItem = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', root.id)
 const first = await exchange({
   invoiceId: root.id, lines: [{ saleItemId: rootItem.id, qty: 3 }],
@@ -86,6 +90,8 @@ const first = await exchange({
 })
 assert.equal(first.diff, 300_000)
 assert.equal(first.settlement, 'CHEQUE_PENDING')
+assert.equal(await physicalMovementForCustodyShift(shiftId) - blueBeforeRoot, 900_000,
+  'replacement exchange value and the 300K pending cheque do not alter blue')
 const childItems = seed.rows('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id', first.exchangeInvoiceId)
 assert.equal(childItems.length, 1)
 const cheque = seed.one('SELECT id, kind, amount, chequeStatus FROM "Payment" WHERE invoiceId=? AND kind=?',
@@ -129,6 +135,8 @@ assert.deepEqual([reportedSettlement.exchangeCashRefunds, reportedSettlement.exc
   'the 200K source rights are not reported as cash/card payout or generic store credit')
 assert.equal(seed.count('CashMovement', '1=1'), beforeCashMovements,
   'debt offset and successor barcode issuance cause no cash drawer movement')
+assert.equal(await physicalMovementForCustodyShift(shiftId) - blueBeforeRoot, 900_000,
+  'S11 blue stays at 900K: gift, pending cheque, debt offset and 200K successor never count as physical money')
 
 const offsetCheque = seed.one('SELECT chequeStatus, amount, clearedAt, destination FROM "Payment" WHERE id=?', cheque.id)
 assert.deepEqual([offsetCheque.chequeStatus, offsetCheque.amount, offsetCheque.clearedAt, offsetCheque.destination],
@@ -202,6 +210,8 @@ const cleared = await salesService.setChequeStatus({
   managerPassword: DEFAULT_MANAGER_PASSWORD, userId
 })
 assert.equal(cleared.cheque.chequeStatus, 'SUSPENSE')
+assert.equal(await physicalMovementForCustodyShift(shiftId) - blueBeforeRoot, 900_000,
+  'late-cleared cheque sent to the manager account remains outside the seller cash+POS blue total')
 assert.equal(seed.count('ExchangeFundingEvent', `sourceInvoiceId=${first.exchangeInvoiceId} AND kind='SOURCE_CHEQUE'`), 0)
 assert.equal(await exchangeFundingBalance(db, `debt:${first.exchangeInvoiceId}`), 0)
 const afterLateClearance = await getCurrentExchangeFundingSources(db, first.exchangeInvoiceId, {

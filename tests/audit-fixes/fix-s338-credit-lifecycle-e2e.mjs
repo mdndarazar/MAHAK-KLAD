@@ -217,22 +217,35 @@ console.log('  ✓ انقضا بدون تمدید رد شد؛ تمدید و تع
 console.log('--- ۴. مصرف کامل ← برگشت کامل ← فعال‌شدن همان اعتبار، دو بار پیاپی ---')
 const reversibleSafe = await storeCreditService.issueManual({ amount: 1_000, userId, managerPassword: DEFAULT_MANAGER_PASSWORD })
 const reversibleCode = creditCode(reversibleSafe.id)
+let currentCreditId = reversibleSafe.id
+let currentCode = reversibleCode
+const originalExpiry = credit(reversibleSafe.id).expiresAt
 for (let round = 1; round <= 2; round++) {
-  const sale = await saleWithCredit(1_000, reversibleCode)
-  assert.equal(credit(reversibleSafe.id).status, 'USED', `دور ${round}: اعتبار مصرف شد`)
-  // Paid entirely by the H1 instrument: restore THAT original opportunity,
-  // not a second 1,000-rial cash-backed return code. No real money was paid.
+  const sale = await saleWithCredit(1_000, currentCode)
+  assert.equal(credit(currentCreditId).status, 'USED', `دور ${round}: اعتبار مصرف شد`)
+  // A completely consumed barcode is terminal. A full return creates a
+  // distinct successor with the exact root deadline; the old code never revives.
   const returned = await fullyReturn(sale.id, 0, RefundMethod.NONE)
   assert.equal(returned.fullyReturned, true)
   assert.equal(returned.reversedCreditRedemptions, 1, `دور ${round}: دفتر مصرف برگشت خورد`)
   assert.equal(returned.overpayAmount, 0, `دور ${round}: مصرف اعتبار، اضافه‌دریافت نقدی جعلی نساخت`)
   assert.equal(returned.overpayCredit, null, `دور ${round}: کد جایگزینِ اضافه‌دریافت صادر نشد`)
-  row = credit(reversibleSafe.id)
-  assert.equal(row.status, 'ACTIVE', `دور ${round}: همان اعتبار دوباره فعال شد`)
-  assert.equal(Number(row.usedAmount), 0)
-  assert.equal(Number(row.usedCount), 0)
+  row = credit(currentCreditId)
+  assert.equal(row.status, 'USED', `دور ${round}: بارکد مصرف‌شده برای همیشه USED می‌ماند`)
+  assert.equal(Number(row.usedAmount), 1_000)
+  assert.equal(Number(row.usedCount), 1)
+  const successor = latestCredit('returnId = ?', returned.id)
+  assert.ok(successor && successor.id !== currentCreditId, `دور ${round}: یک جانشین جدا صادر شد`)
+  assert.equal(Number(successor.amount), 1_000)
+  assert.equal(successor.status, 'ACTIVE')
+  assert.equal(successor.expiresAt, originalExpiry, 'مهلت جانشین با ریشه دقیقاً یکسان است')
+  if (round === 1)
+    assert.match(await errorOf(() => saleWithCredit(1_000, reversibleCode)) ?? '', /مصرف|USED|مانده/,
+      'the spent original barcode cannot be redeemed again')
+  currentCreditId = successor.id
+  currentCode = successor.code
 }
-console.log('  ✓ اعتبار مصرف‌شده با برگشت کامل فاکتور، دو بار پیاپی درست احیا شد (بدون کد جدید یا دوباره‌شماری)')
+console.log('  ✓ برگشت کامل فقط جانشین با مهلت ریشه می‌سازد؛ هر بارکد مصرف‌شده USED می‌ماند و دوباره‌مصرف نمی‌شود')
 
 console.log('--- ۵. صدور از برگشت فروش و مصرف آن ---')
 const returnSourceSale = await cashSale(900)

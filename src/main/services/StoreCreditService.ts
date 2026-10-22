@@ -1542,7 +1542,7 @@ export async function reverseInvoiceRedemptions(
         source: String(credit.source ?? CreditSource.EXCHANGE),
         returnId: input.returnId ?? credit.returnId ?? null,
         exchangeInvoiceId: input.exchangeInvoiceId ?? credit.exchangeInvoiceId ?? null,
-        sourceInvoiceId: credit.sourceInvoiceId ?? null,
+        sourceInvoiceId: input.invoiceId,
         customerId: credit.customerId ?? null,
         customerName: credit.customerName ?? null,
         expiresAtExact: credit.expiresAt ?? null,
@@ -1739,7 +1739,7 @@ async function managerChange(
       'restrictScope', 'restrictCategoryIdsJson', 'restrictVariantIdsJson', 'customerLocked',
       'minPurchase', 'maxPerTransaction'].some((field) => Object.hasOwn(built.data, field)) &&
       await tx.creditReturnAllocation.count({ where: {
-        kind: { in: ['BRANCH', 'SUPPLEMENT', 'EXPIRED'] },
+        kind: { in: ['BRANCH', 'SUPPLEMENT', 'EXPIRED', 'ORIGINAL_REVERSED'] },
         OR: [{ parentCreditId: row.id }, { rootCreditId: row.id }, { successorCreditId: row.id }]
       } }))
       throw new BusinessError(`اعتبار #${row.id} در زنجیرهٔ B/E حق مشتری دارد؛ مبلغ، انقضا، وضعیت یا محدودیت آن با ویرایش مستقیم تغییر نمی‌کند. اصلاح شاهددارِ زنجیره لازم است.`)
@@ -1873,6 +1873,8 @@ export async function changeCreditExpiry(input: {
     actionTitle: 'تغییر تاریخ انقضای اعتبار خرید',
     auditAction: AuditAction.CREDIT_EXPIRY_CHANGE,
     build: (row, reason) => {
+      if (asNum(row.usedAmount) > 0 || asNum(row.usedCount) > 0)
+        throw new BusinessError('اعتبار مصرف‌شده سابقه و مهلت ریشه دارد؛ انقضای ثبت‌شده در منشأ تغییر/تمدید نمی‌شود. برای اصلاح، تطبیق شاهددارِ زنجیره لازم است.')
       const expiresAt = target ? jalaliEndOfDay(target) : null
       return {
         data: { expiresAt, expiresAtJalali: expiresAt ? toJalaliDate(expiresAt) : null },

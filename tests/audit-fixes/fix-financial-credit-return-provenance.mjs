@@ -130,27 +130,37 @@ const direct = await credit()
 const allGift = await sale([line(v500, 500)], [], { storeCreditCode: direct.code,
   storeCreditAmount: 300, storeCreditIdempotencyKey: 'direct-h1-300' })
 const directReturn = await ret(allGift.id, getItem(allGift.id, v500), 'NONE', 0, true)
-// This sale has only 300 of 500 funded; the first 200 of the return reduces
-// unpaid debt. Exactly 300 is restored in the SAME H1, never a cash refund.
+// The source barcode was fully consumed. A full return records the recovered
+// gift value as a successor, while the original barcode remains terminal USED.
 assert.equal(directReturn.creditOpportunity.restored, 300)
 assert.equal(directReturn.creditOpportunity.pendingDelivery.length, 0)
 assert.equal(directReturn.reversedCreditRedemptions, 1)
-assert.equal(seed.one('SELECT usedAmount, status FROM "StoreCredit" WHERE id=?', direct.id).usedAmount, 0)
-assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', direct.id).status, 'ACTIVE')
-assert.equal(new Date(seed.one('SELECT expiresAt FROM "StoreCredit" WHERE id=?', direct.id).expiresAt).getTime(),
-  new Date(direct.expiresAt).getTime())
-await changeCreditExpiry({ id: direct.id, expiresAtJalali: null,
-  reason: 'مدیر اعتبار دستیِ بی‌شاخه را تمدید کرد', managerPassword: DEFAULT_MANAGER_PASSWORD })
-const sameH1Sale = await sale([line(v100, 100)], [], {
-  storeCreditCode: direct.code, storeCreditAmount: 100,
-  storeCreditIdempotencyKey: 'reused-original-after-reversal'
+assert.equal(Number(seed.one('SELECT usedAmount FROM "StoreCredit" WHERE id=?', direct.id).usedAmount), 300)
+assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', direct.id).status, 'USED')
+const directSuccessor = seed.one('SELECT id, amount, status, expiresAt FROM "StoreCredit" WHERE returnId=? AND sourceInvoiceId=?',
+  directReturn.id, allGift.id)
+assert.equal(Number(directSuccessor.amount), 300)
+assert.equal(directSuccessor.status, 'ACTIVE')
+assert.equal(new Date(directSuccessor.expiresAt).getTime(), new Date(direct.expiresAt).getTime())
+assert.equal(seed.one('SELECT kind FROM "CreditReturnAllocation" WHERE returnId=?', directReturn.id).kind, 'ORIGINAL_REVERSED')
+await assert.rejects(() => changeCreditExpiry({ id: direct.id, expiresAtJalali: null,
+  reason: 'تمدید بارکد قدیمیِ مصرف‌شده', managerPassword: DEFAULT_MANAGER_PASSWORD }), /زنجیره|مصرف|USED/)
+const successorSale = await sale([line(v100, 100)], [], {
+  storeCreditCode: seed.one('SELECT code FROM "StoreCredit" WHERE id=?', directSuccessor.id).code,
+  storeCreditAmount: 100, storeCreditIdempotencyKey: 'successor-after-full-return'
 })
-const sameH1Return = await ret(sameH1Sale.id, getItem(sameH1Sale.id, v100), 'NONE', 0, true)
-assert.equal(sameH1Return.reversedCreditRedemptions, 1)
-assert.equal(seed.one('SELECT usedAmount FROM "StoreCredit" WHERE id=?', direct.id).usedAmount, 0)
+const successorReturn = await ret(successorSale.id, getItem(successorSale.id, v100), 'NONE', 0, true)
+assert.equal(successorReturn.reversedCreditRedemptions, 1)
+assert.equal(seed.one('SELECT usedAmount FROM "StoreCredit" WHERE id=?', direct.id).usedAmount, 300)
+assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', direct.id).status, 'USED')
 assert.equal(seed.one('SELECT COUNT(*) AS n FROM "CreditReturnAllocation" WHERE parentCreditId=? AND kind=?',
-  direct.id, 'ORIGINAL_REVERSED').n, 2)
-console.log('✓ branch-free full returns can restore the same H1 repeatedly; manager expiry edit does not duplicate rights')
+  direct.id, 'ORIGINAL_REVERSED').n, 1)
+const secondSuccessor = seed.one('SELECT amount, status, expiresAt FROM "StoreCredit" WHERE returnId=? AND sourceInvoiceId=?',
+  successorReturn.id, successorSale.id)
+assert.equal(Number(secondSuccessor.amount), 100)
+assert.equal(secondSuccessor.status, 'ACTIVE')
+assert.equal(new Date(secondSuccessor.expiresAt).getTime(), new Date(direct.expiresAt).getTime())
+console.log('✓ full returns issue exact-expiry successors; every fully consumed original barcode remains USED and cannot be extended')
 
 const creditSale = await sale([line(v500, 500, 2)], [500])
 const firstDebt = await ret(creditSale.id, getItem(creditSale.id, v500), 'NONE', 0)

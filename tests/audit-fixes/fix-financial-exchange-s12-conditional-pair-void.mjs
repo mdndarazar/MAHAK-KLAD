@@ -1,7 +1,8 @@
-/** S12 integration: an untouched S11 exchange pair may be voided only with
- * linked reversal evidence for every ledger effect. The offset cheque is
- * restored to its original status, the debt share reopens, B/N rights and
- * transfer pairs are reversed, stock history is appended, and no cash moves.
+/** S12 integration on the current S11 fixture: an untouched debt-offset
+ * exchange pair is voided only with linked reversal evidence. The offset
+ * cheque is restored, debt reopens, the one 200K gift-root successor is
+ * canceled, no B/N residual-right ledger is invented, transfer pairs reverse,
+ * stock history is appended, and no cash moves.
  *
  * node --import ./test/harness/register.mjs tests/audit-fixes/fix-financial-exchange-s12-conditional-pair-void.mjs
  */
@@ -88,6 +89,9 @@ const down = await exchange({
   idempotencyKey: 's12-debt-offset-grandchild-0001'
 })
 assert.deepEqual([down.returnTotal, down.exchangeTotal, down.debtReduction], [1_500_000, 1_000_000, 300_000])
+assert.equal(Number(down.storeCredit.amount), 200_000)
+const giftSuccessorId = Number(down.storeCredit.id)
+assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', giftSuccessorId).status, 'DRAFT')
 const offset = seed.one('SELECT id, amount, sourceMethodKind FROM "ExchangeFundingEvent" WHERE returnId=? AND kind=?',
   down.returnId, 'DEBT_OFFSET')
 assert.deepEqual([offset.amount, offset.sourceMethodKind], [-300_000, 'PENDING'])
@@ -98,6 +102,7 @@ const before = {
   movements: seed.count('CashMovement', '1=1'),
   stocks: seed.rows('SELECT id, stock FROM "ProductVariant" ORDER BY id'),
   chequeStatus: seed.one('SELECT chequeStatus FROM "Payment" WHERE id=?', cheque.id).chequeStatus,
+  successorStatus: seed.one('SELECT status FROM "StoreCredit" WHERE id=?', giftSuccessorId).status,
   returnVoid: seed.one('SELECT voidedAt FROM "SaleReturn" WHERE id=?', down.returnId).voidedAt,
   childVoid: seed.one('SELECT voidedAt FROM "SaleInvoice" WHERE id=?', down.exchangeInvoiceId).voidedAt
 }
@@ -121,8 +126,10 @@ assert.deepEqual([offsetReversal.kind, offsetReversal.amount, offsetReversal.rev
   ['VOID_DEBT_OFFSET', 300_000, offset.id, 'EXCHANGE_VOID'])
 assert.equal(seed.count('ExchangeFundingEvent', `returnId=${down.returnId} AND kind IN ('VOID_TRANSFER_OUT','VOID_TRANSFER_IN')`), 4,
   'both gift and cash carry transfer pairs are reversed append-only')
-assert.equal(seed.count('ExchangeResidualRightEvent', `returnId=${down.returnId} AND eventKind='VOIDED'`), 2,
-  'both unused B/N rights are canceled with reversals linked to their openings')
+assert.equal(seed.count('ExchangeResidualRightEvent', `returnId=${down.returnId}`), 0,
+  'the current S11 fixture does not create B/N residual-right events')
+assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', giftSuccessorId).status, 'CANCELED',
+  'the single unused 200K S11 gift-root successor is canceled atomically with the pair void')
 assert.equal(seed.count('StockMovement', `refId=${down.exchangeInvoiceId} AND reason='SALE'`), 2,
   'the original replacement deduction and the new positive void movements remain in history')
 const fundingAfter = await getCurrentExchangeFundingSources(db, first.exchangeInvoiceId)
@@ -144,8 +151,11 @@ assert.equal(replacement.stock, Number(replacementBefore.stock) + 2,
   'the replacement stock deduction is reversed by a new positive stock movement')
 assert.notEqual(seed.one('SELECT voidedAt FROM "SaleReturn" WHERE id=?', down.returnId).voidedAt, before.returnVoid)
 assert.notEqual(seed.one('SELECT voidedAt FROM "SaleInvoice" WHERE id=?', down.exchangeInvoiceId).voidedAt, before.childVoid)
-assert.equal(seed.count('ExchangeFundingEvent', '1=1'), before.exchangeEvents + 5,
-  'four transfer reversals and one debt-offset reversal are appended')
-assert.equal(seed.count('ExchangeResidualRightEvent', '1=1'), before.rightEvents + 2)
+assert.equal(seed.count('ExchangeFundingEvent', '1=1'), before.exchangeEvents + 6,
+  'four transfer reversals, debt-offset reversal, and gift-reissue reversal are appended')
+assert.equal(seed.count('ExchangeFundingEvent', `returnId=${down.returnId} AND kind='VOID_CREDIT_REISSUE_OUT'`), 1,
+  'the canceled 200K barcode issuance is reversed with a linked immutable funding event')
+assert.equal(seed.count('ExchangeResidualRightEvent', '1=1'), before.rightEvents,
+  'S11 void does not invent B/N residual-right events')
 
-console.log('S12 conditional exchange-pair void: PASS (unused downstream effects reversed with linked events; S11 cheque/debt restored; B/N voided; stock history preserved; no cash fabricated)')
+console.log('S12 conditional exchange-pair void: PASS (unused S11 gift/debt/transfer effects reversed; cheque/debt restored; stock history preserved; no cash fabricated)')

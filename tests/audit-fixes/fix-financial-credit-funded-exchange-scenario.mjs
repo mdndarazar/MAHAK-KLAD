@@ -1,8 +1,8 @@
 /** Exact S1 production scenario: 15,980,000-rial sale paid with a 2,000,000-rial
- * store-credit barcode plus 13,980,000 real cash; exchange for 15,000,000 and
- * verify exact 15M carry plus rooted B/N residuals. A cash-only control remains
- * on the legacy generic-credit path; unresolved tenders stay fail-closed.
- * No customer database, printer or credential output is involved.
+ * gift-credit barcode plus 13,980,000 real cash; exchange for 15,000,000 with
+ * cash carried first and the exact 980,000 gift-root remainder kept non-cash.
+ * A cash-only control remains on the generic-credit path; unresolved tenders stay
+ * fail-closed. No customer database, printer or credential output is involved.
  * node --import ./test/harness/register.mjs tests/audit-fixes/fix-financial-credit-funded-exchange-scenario.mjs
  */
 import assert from 'node:assert/strict'
@@ -16,7 +16,7 @@ const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mj
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
 const { getCurrentExchangeFundingSources, getCurrentSaleFundingSources } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
-const { allocateExchangeFundingProportionalFloor } = await import('../../src/shared/exchangeFundingAllocation.ts')
+const { allocateExchangeFundingCashFirst } = await import('../../src/shared/exchangeFundingAllocation.ts')
 const { issueStoreCredit, findRedeemable } = await import('../../src/main/services/StoreCreditService.ts')
 const { toJalaliDate } = await import('@shared/jalali')
 const { DEFAULT_MANAGER_PASSWORD } = await import('@shared/receipt')
@@ -77,7 +77,7 @@ assert.equal(originalFunding.find((row) => row.kind === 'SOURCE_GIFT')?.rootShar
 assert.equal(originalFunding.reduce((sum, row) => sum + Number(row.amount), 0), original.grandTotal)
 const provenSaleFunding = await getCurrentSaleFundingSources(db, original.id)
 assert.equal(provenSaleFunding.unresolved.length, 0, 'the existing ordinary-sale reader proves all S1 source rows')
-const s1Allocation = allocateExchangeFundingProportionalFloor({
+const s1Allocation = allocateExchangeFundingCashFirst({
   replacementTotal: 15_000_000,
   sources: provenSaleFunding.sources.map((source) => ({
     sourceEventId: Number(source.event.id),
@@ -86,9 +86,9 @@ const s1Allocation = allocateExchangeFundingProportionalFloor({
   }))
 })
 assert.deepEqual(s1Allocation.allocations.map(({ sourceKind, carry, remainder }) => ({ sourceKind, carry, remainder })), [
-  { sourceKind: 'SOURCE_GIFT', carry: 1_877_346, remainder: 122_654 },
-  { sourceKind: 'SOURCE_CASH', carry: 13_122_654, remainder: 857_346 }
-], 'the FINAL-DESIGN S1 values are derived from the existing proven root-source reader')
+  { sourceKind: 'SOURCE_CASH', carry: 13_980_000, remainder: 0 },
+  { sourceKind: 'SOURCE_GIFT', carry: 1_020_000, remainder: 980_000 }
+], 'S1 applies real cash first, then gift credit; the remaining 980k stays gift-rooted')
 assert.equal(s1Allocation.giftCarry + s1Allocation.cashCarry, 15_000_000)
 assert.equal(s1Allocation.allocations.reduce((sum, row) => sum + row.remainder, 0), 980_000)
 const stockBefore = seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?) ORDER BY id', source, replacement)
@@ -120,6 +120,10 @@ const assertExchangeGateHasNoEffects = async (invoiceId, saleItemId, label) => {
   assert.deepEqual(seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?) ORDER BY id', source, replacement),
     before.stock, 'fail-closed evidence gate must not change either inventory balance')
 }
+const s1CashMovementsBefore = seed.count('CashMovement', '1=1')
+const blueCashBeforeS1Exchange = seed.one('SELECT COALESCE(SUM(amount), 0) AS amount FROM "CashMovement"').amount
+assert.equal(Number(seed.one('SELECT SUM(amount) AS amount FROM "Payment" WHERE invoiceId=? AND methodId=? AND voidedAt IS NULL',
+  original.id, methodId).amount), 13_980_000, 'the source sale received exactly 13.98M real cash')
 const s1Exchange = await salesService.createExchange({
   invoiceId: original.id, lines: [{ saleItemId: originalItemId, qty: 1 }],
   replacements: [{ variantId: replacement, qty: 1, unitPrice: 15_000_000, discount: 0, tax: 0 }],
@@ -129,10 +133,22 @@ assert.equal(s1Exchange.returnTotal, 15_980_000)
 assert.equal(s1Exchange.exchangeTotal, 15_000_000)
 assert.equal(s1Exchange.diff, -980_000)
 assert.equal(s1Exchange.settlement, 'S1_RESIDUAL_RIGHTS')
-assert.equal(s1Exchange.storeCredit, null, 'no general-purpose 980k credit is issued')
-assert.deepEqual(s1Exchange.residualRights.rights.map(({ rightKind, amount }) => ({ rightKind, amount })), [
-  { rightKind: 'B', amount: 122_654 }, { rightKind: 'N', amount: 857_346 }
-])
+assert.equal(s1Exchange.storeCredit?.amount, 980_000,
+  'the exact remainder is delivered as non-cash store credit rooted in the unspent gift share')
+const s1Credit = seed.one('SELECT source, amount, status, returnId, exchangeInvoiceId, sourceInvoiceId, expiresAt FROM "StoreCredit" WHERE id=?', s1Exchange.storeCredit.id)
+assert.equal(s1Credit.source, 'EXCHANGE')
+assert.equal(s1Credit.amount, 980_000)
+assert.equal(s1Credit.status, 'DRAFT')
+assert.equal(s1Credit.returnId, s1Exchange.returnId)
+assert.equal(s1Credit.exchangeInvoiceId, s1Exchange.exchangeInvoiceId)
+assert.equal(s1Credit.sourceInvoiceId, original.id)
+const s1CreditAllocation = seed.one('SELECT amount, parentCreditId, rootCreditId, successorCreditId, originalExpiresAt FROM "CreditReturnAllocation" WHERE successorCreditId=?', s1Exchange.storeCredit.id)
+assert.equal(Number(s1CreditAllocation.amount), 980_000)
+assert.equal(s1CreditAllocation.parentCreditId, gift.id)
+assert.equal(s1CreditAllocation.rootCreditId, gift.id)
+assert.equal(s1CreditAllocation.successorCreditId, s1Exchange.storeCredit.id)
+assert.equal(new Date(s1Credit.expiresAt).getTime(), new Date(seed.one('SELECT expiresAt FROM "StoreCredit" WHERE id=?', gift.id).expiresAt).getTime(),
+  'successor expiry remains the original gift-credit expiry')
 const giftAfter = seed.one('SELECT status, usedAmount FROM "StoreCredit" WHERE id=?', gift.id)
 assert.equal(giftAfter.status, 'USED', 'original 2m barcode is NOT reactivated')
 assert.equal(giftAfter.usedAmount, 2_000_000)
@@ -142,11 +158,17 @@ await assert.rejects(() => findRedeemable(db, gift.code), (error) =>
 assert.equal(seed.one('SELECT reversedAt FROM "StoreCreditRedemption" WHERE invoiceId=?', original.id).reversedAt, null)
 assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', original.id).n, 1)
 assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleInvoice" WHERE sourceInvoiceId=?', original.id).n, 1)
-assert.equal(seed.one('SELECT COUNT(*) n FROM "StoreCredit" WHERE exchangeResidualRightKey IS NOT NULL').n, 2)
+assert.equal(seed.one('SELECT COUNT(*) n FROM "CreditReturnAllocation" WHERE returnId=? AND successorCreditId=?',
+  s1Exchange.returnId, s1Exchange.storeCredit.id).n, 1,
+  'S1 records exactly one return-linked, source-rooted successor barcode')
+assert.equal(seed.count('CashMovement', '1=1'), s1CashMovementsBefore,
+  'non-cash residual right is not counted as a physical cash movement')
+assert.equal(Number(seed.one('SELECT COALESCE(SUM(amount), 0) AS amount FROM "CashMovement"').amount),
+  Number(blueCashBeforeS1Exchange), 'S1 does not change the blue cash total: the 980K residual is non-cash')
 const s1StockAfter = seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?) ORDER BY id', source, replacement)
 assert.equal(s1StockAfter[0].stock, stockBefore[0].stock, 'returned source stock remains pending until goods receipt')
 assert.equal(s1StockAfter[1].stock, stockBefore[1].stock - 1, 'replacement stock is deducted exactly once')
-console.log('✓ mixed S1 source 15,980,000 = 2,000,000 gift + 13,980,000 cash; exact carry 15M and B/N residuals; original gift stays USED')
+console.log('✓ mixed S1 source 15,980,000 = 2,000,000 gift + 13,980,000 cash; 15M carried cash-first; exact 980K gift-rooted non-cash remainder; original gift stays USED')
 
 // Control: the same two prices with 100% cash, to distinguish an arithmetic
 // error from the explicit provenance guard above. This is NOT the owner's

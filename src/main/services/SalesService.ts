@@ -4027,8 +4027,31 @@ async function runReturn(
        * نشست ۱۹۷: سند تعویض با EXCHANGE_CREDIT «تسویه‌شده» دیده می‌شود و
        * afterNone.overpaid > ۰ است، ولی پول واقعی صفر است — همان کاهش بدهی.
        */
-      const remainingRealMoney = Math.max(0, receivedOnInvoice - debtBefore.refundFromReceived)
-      const debtOnly = refundingAsked && (remainingRealMoney <= 0 ||
+      // `cashLikeRefundableOf` already deducts prior real payouts. Do not subtract
+      // `refundFromReceived` again: that field also includes restored-credit rights.
+      const remainingRealMoney = Math.max(0, receivedOnInvoice)
+      const retainedGoodsValue = Math.max(
+        0,
+        toNumberRial(invoice.grandTotal) - debtBefore.returnedValue - returnTotal
+      )
+      const returnPaymentRows = await tx.payment.findMany({
+        where: { invoiceId: invoice.id, voidedAt: null },
+        select: { amount: true, kind: true, chequeStatus: true }
+      })
+      const pendingChequeOnRetainedGoods = Math.min(
+        pendingChequeTotalOf(returnPaymentRows as any[]),
+        retainedGoodsValue
+      )
+      // An item/source-aware credit plan already proves which actual-money share
+      // belongs to returned goods. Otherwise, cover retained goods first; pending
+      // cheque can remain on those goods but is never promoted to cash received.
+      const cashRefundCapacityAfterRetainedGoods = creditReturnPlan?.shares.length
+        ? remainingRealMoney
+        : Math.min(
+            remainingRealMoney,
+            Math.max(0, remainingRealMoney + pendingChequeOnRetainedGoods - retainedGoodsValue)
+          )
+      const debtOnly = refundingAsked && (cashRefundCapacityAfterRetainedGoods <= 0 ||
         (creditReturnPlan!.credit > 0 && creditReturnPlan!.cash === 0))
       refund = resolveRefund({
         method: debtOnly ? RefundMethod.NONE : (input.refundMethod ?? null),
@@ -4051,8 +4074,8 @@ async function runReturn(
         // goods the customer keeps. A refund for actually paid returned goods
         // is capped by received cash/card, not by a proportional debt remainder.
         maxKeepSettled: askedMethod === RefundMethod.STORE_CREDIT
-          ? remainingRealMoney + redeemedAmt
-          : remainingRealMoney,
+          ? cashRefundCapacityAfterRetainedGoods + redeemedAmt
+          : cashRefundCapacityAfterRetainedGoods,
         receiptNo: invoice.receiptNo
       })
       if (creditReturnPlan.credit > 0 &&

@@ -15,6 +15,7 @@ process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
+const { physicalMovementForCustodyShift } = await import('../../src/main/services/CustodyAggregateService.ts')
 const { cashMovementTotals } = await import('../../src/main/services/accountingReport.ts')
 const { cashMovementService } = await import('../../src/main/services/CashMovementService.ts')
 const { exchangeChequePolicyService } = await import('../../src/main/services/ExchangeChequePolicyService.ts')
@@ -132,6 +133,7 @@ async function exercisePolicyControls() {
 async function makeChequeExchange(label) {
   const parentVariant = variant(`${label}-parent`, 400_000)
   const childVariant = variant(`${label}-child`, 500_000)
+  const blueBefore = await physicalMovementForCustodyShift(shiftId)
   const parent = await salesService.create({
     customerId, userId, shiftId, lines: [line(parentVariant, 3, 400_000)],
     payments: [{ methodId: cashMethodId, amount: 1_200_000, destination: 'CASH' }]
@@ -147,6 +149,8 @@ async function makeChequeExchange(label) {
   })
   assert.equal(result.diff, 300_000)
   assert.equal(result.settlement, 'CHEQUE_PENDING')
+  assert.equal(await physicalMovementForCustodyShift(shiftId) - blueBefore, 1_200_000,
+    'blue remains the 1.2M real parent cash; exchange value and 300K pending cheque add no physical movement')
   assert.equal(seed.count('CashMovement', '1=1'), cashMovementBefore,
     'creating a pending cheque is not a cash movement')
   const cheque = seed.one('SELECT id, kind, amount, chequeStatus, chequeNo FROM "Payment" WHERE invoiceId=? AND kind=?',
@@ -166,7 +170,7 @@ async function makeChequeExchange(label) {
   assert.deepEqual(funding.unresolved, [], 'pending cheque is represented by debt, not unknown/transferable money')
   assert.equal(funding.debt, 300_000)
   assert.equal(funding.sources.reduce((sum, source) => sum + source.available, 0), 1_200_000)
-  return { result, cheque }
+  return { result, cheque, blueBefore }
 }
 
 async function bounce(chequeId) {
@@ -204,7 +208,7 @@ async function assertNewChequeBlocked() {
 }
 
 async function settleByCash() {
-  const { result, cheque } = await makeChequeExchange('cash')
+  const { result, cheque, blueBefore } = await makeChequeExchange('cash')
   await bounce(cheque.id)
   assert.equal(await exchangeFundingBalance(db, `debt:${result.exchangeInvoiceId}`), 300_000,
     'bounce changes the same cheque status and leaves the original debt open')
@@ -245,6 +249,8 @@ async function settleByCash() {
   assert.equal(movementReport.totals.deposits, drawerDepositsBefore,
     'cash-movement list totals do not double-count the linked payment mirror')
   assert.equal(paid.remaining, 0)
+  assert.equal(await physicalMovementForCustodyShift(shiftId) - blueBefore, 1_500_000,
+    'blue = 1.2M parent cash + 300K actual cash debt settlement; bounced cheque is not counted')
   assert.equal(await exchangeFundingBalance(db, `debt:${result.exchangeInvoiceId}`), 0)
   assert.equal(seed.count('CashMovement', '1=1'), cashMovementsBefore + 1,
     'cash settlement creates one real CashMovement')
@@ -273,7 +279,7 @@ async function settleByCash() {
 }
 
 async function settleByCard() {
-  const { result, cheque } = await makeChequeExchange('card')
+  const { result, cheque, blueBefore } = await makeChequeExchange('card')
   await bounce(cheque.id)
   const cashMovementsBefore = seed.count('CashMovement', '1=1')
   const paid = await salesService.addPayment({
@@ -282,6 +288,8 @@ async function settleByCard() {
     idempotencyKey: 's10-card-debt-settlement-payment-0001'
   })
   assert.equal(paid.remaining, 0)
+  assert.equal(await physicalMovementForCustodyShift(shiftId) - blueBefore, 1_500_000,
+    'blue = 1.2M parent cash + 300K actual card receipt; pending cheque and manager account are excluded')
   assert.equal(await exchangeFundingBalance(db, `debt:${result.exchangeInvoiceId}`), 0)
   assert.equal(seed.count('CashMovement', '1=1'), cashMovementsBefore,
     'card settlement is not a cash-drawer movement')

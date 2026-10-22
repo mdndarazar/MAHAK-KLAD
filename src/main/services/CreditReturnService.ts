@@ -220,10 +220,22 @@ export async function applyCreditReturn(
       // Restores the original H1 (e.g. 1M with 300k used and a hidden 700k
       // remainder) iff no previous branch of this redemption exists.
       const reversed = await reverseInvoiceRedemptions(tx, {
-        invoiceId: input.invoiceId, redemptionIds: [redemption.id],
-        reason: 'برگشت کامل بدون شاخهٔ پیشین؛ احیای همان فرصت اصلی', userId: input.userId
+        invoiceId: input.invoiceId, redemptionIds: [redemption.id], returnId: input.returnId,
+        reason: 'برگشت کامل بدون شاخهٔ پیشین؛ حق ریشه فقط یک‌بار به جانشین منتقل می‌شود', userId: input.userId
       })
       if (reversed !== 1) throw stale()
+      const successor = await tx.storeCredit.findFirst({
+        where: {
+          returnId: input.returnId,
+          sourceInvoiceId: input.invoiceId,
+          source: String(parent.source ?? 'EXCHANGE'),
+          amount: BigInt(s.amount),
+          status: 'ACTIVE'
+        },
+        orderBy: { id: 'desc' }
+      })
+      if (!successor) throw stale()
+      credit = successor
       reversedOriginal++
       kind = 'ORIGINAL_REVERSED'
     } else if (!expired) {
