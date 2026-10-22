@@ -174,13 +174,13 @@ const REFUND_CHOICES: { value: RefundMethodValue; title: string; hint: string }[
   }
 ]
 
-/** گزینه‌های *متقابلاً انحصاری* تسویه‌ی مابه‌التفاوت منفی تعویض؛ S1 فقط برای lineage واجد شرایط. */
+/** روش انتخابی برای سهم پولیِ مابه‌التفاوت منفی؛ سهم اعتبار ریشه‌دار در صورت وجود جداگانه بازمی‌گردد. */
 const EXCHANGE_REFUND_CHOICES: { value: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | 'S1_RESIDUAL_RIGHTS' | 'S11_DEBT_OFFSET_RIGHTS'; title: string; hint: string }[] = [
   { value: 'S11_DEBT_OFFSET_RIGHTS', title: 'کسر بدهی چک + یک بارکد غیرنقدی (فقط S11)', hint: 'فقط برای برگشت کامل فرزند تعویض با یک بدهیِ چکِ باز؛ ابتدا بدهی کسر می‌شود، سپس وجه واقعی اول carry می‌شود و باقیماندهٔ اعتبار ریشه‌دار با یک بارکد و مهلت اصلی صادر می‌شود. چک منبع پرداخت نیست.' },
-  { value: 'S1_RESIDUAL_RIGHTS', title: 'یک بارکد غیرنقدی از ماندهٔ اعتبار (فقط S1)', hint: 'فقط برای فروش مختلطِ هدیه + وجه با lineage کامل؛ وجه واقعی اول به کالای جایگزین تخصیص می‌یابد و فقط ماندهٔ اعتبار با یک بارکد غیرنقدی و مهلت ریشه صادر می‌شود. هیچ بازپرداخت نقدی از اعتبار ساخته نمی‌شود.' },
-  { value: 'CASH', title: 'بازپرداخت نقدی', hint: 'پول از کشوی صندوق بیرون می‌رود (یک بازپرداخت واقعی ثبت می‌شود).' },
-  { value: 'CARD', title: 'بازپرداخت کارتی', hint: 'به کارت مشتری برگشت؛ از کشو پولی بیرون نمی‌رود.' },
-  { value: 'STORE_CREDIT', title: 'صدور اعتبار خرید', hint: 'اعتبار تا صفر چندبارمصرف صادر می‌شود؛ اثر نقدی صفر.' },
+  { value: 'S1_RESIDUAL_RIGHTS', title: 'ماندهٔ فقط اعتباری S1 → بارکد ریشه‌دار', hint: 'برای مانده‌ای که تماماً از اعتبار ریشه‌دار است. در ماندهٔ مختلط هدیه+وجه، سهم هدیه جداگانه به ریشه برمی‌گردد و این انتخاب برای سهم واقعی لازم نیست.' },
+  { value: 'CASH', title: 'بازپرداخت نقدیِ سهم واقعی', hint: 'فقط تا سقف وجه واقعاً دریافت‌شده؛ سهم اعتبار هدیه جداگانه به منبع خودش برمی‌گردد و نقد نمی‌شود.' },
+  { value: 'CARD', title: 'بازپرداخت کارتیِ سهم واقعی', hint: 'فقط سهم واقعی پول به کارت برگشت می‌شود و تأیید مدیر لازم است؛ سهم اعتبار به ریشهٔ خودش برمی‌گردد.' },
+  { value: 'STORE_CREDIT', title: 'اعتبار غیرنقدی برای سهم واقعی', hint: 'فقط سهم پول واقعی به بارکد غیرنقدی تازه تبدیل می‌شود؛ سهم هدیه هم جداگانه به ریشهٔ خودش برمی‌گردد.' },
   { value: 'CARD_TO_CARD', title: 'کارت‌به‌کارت توسط مدیر', hint: 'پرداخت فوری انجام نمی‌شود؛ درخواست پرداخت برای تایید مدیر ثبت می‌شود.' }
 ]
 
@@ -1326,11 +1326,11 @@ export default function SalesReturn() {
               : exRefundMode === 'S1_RESIDUAL_RIGHTS'
               ? 'وجه واقعی اول carry می‌شود؛ ماندهٔ اعتبار با یک بارکد و مهلت اصلی صادر می‌شود (بدون خروج پول)'
               : exRefundMode === 'CASH'
-                ? 'بازپرداخت نقدی (پول از کشو بیرون می‌رود)'
+                ? 'سهم واقعی نقدی از کشو بازپرداخت می‌شود؛ سهم اعتبار به ریشهٔ خودش برمی‌گردد'
                 : exRefundMode === 'CARD'
-                ? 'بازپرداخت کارتی'
+                ? 'فقط سهم واقعی پول به کارت برمی‌گردد؛ سهم اعتبار به ریشهٔ خودش برمی‌گردد'
                 : exRefundMode === 'STORE_CREDIT'
-                  ? '«بارکد اعتبار خرید بعدی» صادر می‌شود'
+                  ? 'سهم واقعی به اعتبار غیرنقدی تبدیل می‌شود؛ سهم اعتبار ریشه‌دار جداگانه برمی‌گردد'
                   : 'روش تسویه را انتخاب کنید (نقدی / کارتی / اعتبار خرید)'
           }`
         : 'مابه‌التفاوت صفر است؛ تسویه‌ای لازم نیست'
@@ -1525,19 +1525,16 @@ export default function SalesReturn() {
               {money(exResult.cardTransfer.amount)} ریال · در انتظار پرداخت مدیر
             </span>
           )}
-          {exResult.storeCredit && (
-            <span className="px-2 py-1 rounded bg-white border font-bold" title="مرجع امن اعتبار خرید صادرشده">
-              {exResult.storeCredit.publicReference}
+          {(exResult.storeCredits?.length ? exResult.storeCredits : (exResult.storeCredit ? [exResult.storeCredit] : [])).map((credit) => (
+            <span key={`exchange-credit-summary-${credit.id}`} className="inline-flex items-center gap-2 px-2 py-1 rounded bg-white border font-bold"
+              title="مرجع امن اعتبار غیرنقدی صادرشده یا بازگردانده‌شده">
+              <span>{credit.publicReference}</span>
+              <span className="kbd">
+                {money(credit.amount)} ریال
+                {credit.expiresAtJalali ? ` · اعتبار تا ${faDigits(credit.expiresAtJalali)}` : ''}
+              </span>
             </span>
-          )}
-          {exResult.storeCredit && (
-            <span className="kbd">
-              {money(exResult.storeCredit.amount)} ریال
-              {exResult.storeCredit.expiresAtJalali
-                ? ` · اعتبار تا ${faDigits(exResult.storeCredit.expiresAtJalali)}`
-                : ''}
-            </span>
-          )}
+          ))}
           {exResult.residualRights && (
             <div className="w-full rounded border-2 border-sky-400 bg-sky-50 p-3 space-y-2">
               <b>سهم‌های منشأدار ثبت شدند؛ اعتبار بارکدی نقدشدنی نیست.</b>
@@ -1552,13 +1549,13 @@ export default function SalesReturn() {
           <button className="btn btn-primary" onClick={() => void printExchange(exResult.returnId)} disabled={printing}>
             {printing ? 'در حال چاپ…' : 'چاپ سند تعویض'}
           </button>
-          {exResult.storeCredit?.id && ['CREDIT', 'S1_RESIDUAL_RIGHTS', 'S11_DEBT_OFFSET_RIGHTS'].includes(String(exResult.settlement)) && (
-            <button className="btn" disabled={printing} onClick={() => {
-              setOrdinaryCreditPrint({ creditId: exResult.storeCredit!.id, returnId: exResult.returnId,
+          {(exResult.storeCredits?.length ? exResult.storeCredits : (exResult.storeCredit?.id ? [exResult.storeCredit] : [])).map((credit) => (
+            <button key={`exchange-credit-print-${credit.id}`} className="btn" disabled={printing} onClick={() => {
+              setOrdinaryCreditPrint({ creditId: credit.id, returnId: exResult.returnId,
                 firstPrintGrant: exResult.firstPrintGrant ?? null })
               setOrdinaryCreditPrintError(null)
-            }}>{exResult.firstPrintGrant ? 'چاپ اول برگهٔ اعتبار' : 'چاپ مجدد اعتبار (رمز مدیر)'}</button>
-          )}
+            }}>{`چاپ اعتبار غیرنقدی ${money(credit.amount)} ریال`}</button>
+          ))}
           <button className="btn ms-auto" onClick={() => setExResult(null)}>
             بستن
           </button>

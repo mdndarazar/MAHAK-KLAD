@@ -618,8 +618,15 @@ async function returnStatement(scope: StatementScope): Promise<ReturnTotals & { 
          * پول نیست و در هیچ سبد بازپرداختی نمی‌نشیند (در باقی‌مانده‌ی بدهی دیده می‌شود).
          * همه‌ی ردیف‌های یک گروه تسویه‌ی منفی دارند، پس جمع گروهی مجاز است.
          */
-        const refunded = exchangeRefundPartOf({ exchangeDiff: diff, debtReduction: n((r._sum as any).debtReduction) })
-        if (refunded <= 0) { /* فقط کاهش بدهی */ }
+        const creditRestored = Math.max(0, n((r._sum as any).creditRestored))
+        if (creditRestored > 0) out.exchangeStoreCreditIssued += creditRestored
+        const refunded = exchangeRefundPartOf({
+          exchangeDiff: diff,
+          debtReduction: n((r._sum as any).debtReduction),
+          creditRestored,
+          refundAmount: (r._sum as any).refundAmount == null ? null : n((r._sum as any).refundAmount)
+        })
+        if (refunded <= 0) { /* فقط کاهش بدهی یا بازگردانی اعتبار به منبع */ }
         else if (bucket === 'CASH_REFUND') out.exchangeCashRefunds += refunded
         else if (bucket === 'CARD_REFUND') out.exchangeCardRefunds += refunded
         else if (bucket === 'CARD_TO_CARD') out.exchangeCardToCardPending += refunded
@@ -659,7 +666,7 @@ async function returnStatement(scope: StatementScope): Promise<ReturnTotals & { 
     },
     select: {
       id: true, kind: true, exchangeInvoiceId: true,
-      refundAmount: true, exchangeDiff: true, debtReduction: true, total: true
+      refundAmount: true, creditRestored: true, exchangeDiff: true, debtReduction: true, total: true
     }
   })
   if (c2cRets.length) {
@@ -675,7 +682,10 @@ async function returnStatement(scope: StatementScope): Promise<ReturnTotals & { 
       if (!canceled.has(r.id)) continue
       const isExchange = r.kind === ReturnKind.EXCHANGE || r.exchangeInvoiceId != null
       const refunded = isExchange
-        ? exchangeRefundPartOf({ exchangeDiff: n(r.exchangeDiff), debtReduction: n(r.debtReduction) })
+        ? exchangeRefundPartOf({
+            exchangeDiff: n(r.exchangeDiff), debtReduction: n(r.debtReduction),
+            creditRestored: n(r.creditRestored), refundAmount: r.refundAmount == null ? null : n(r.refundAmount)
+          })
         : Math.min(Math.max(0, n(r.total)), Math.max(0, n(r.refundAmount) || n(r.total)))
       if (isExchange) out.exchangeCardToCardPending = Math.max(0, out.exchangeCardToCardPending - refunded)
       else out.cardToCardPending = Math.max(0, out.cardToCardPending - refunded)

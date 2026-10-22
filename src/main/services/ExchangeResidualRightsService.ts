@@ -275,12 +275,19 @@ export async function openS1ExchangeResidualRights(tx: Client, input: {
     if (allocation.remainder > 0) remainderSources.push({ ...source, remainder: allocation.remainder })
   }
   const totalRemainder = remainderSources.reduce((sum, source) => sum + source.remainder, 0)
+  const creditRemainders = remainderSources.filter((source) => ['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B'].includes(source.sourceKind))
+  const realRemainders = remainderSources.filter((source) => ['SOURCE_CASH', 'SOURCE_CARD'].includes(source.sourceKind))
+  const pureCreditRemainder = remainderSources.length === 1 && creditRemainders.length === 1
+  const mixedGiftAndRealRemainder = creditRemainders.length === 1 && creditRemainders[0].sourceKind === 'SOURCE_GIFT' &&
+    realRemainders.length > 0 && remainderSources.every((source) => creditRemainders.includes(source) || realRemainders.includes(source))
   if (totalRemainder !== sources.reduce((sum, source) => sum + source.originalAmount, 0) - toNumberRial(child.grandTotal) ||
-      remainderSources.length !== 1 || !['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B'].includes(remainderSources[0].sourceKind)) throw invalid()
+      (!pureCreditRemainder && !mixedGiftAndRealRemainder)) throw invalid()
   const issued = await issueResidualBarcode(tx, { sourceInvoiceId, childInvoiceId, returnId,
-    amount: totalRemainder, source: remainderSources[0], actorUserId: input.actorUserId })
+    amount: creditRemainders[0].remainder, source: creditRemainders[0], actorUserId: input.actorUserId })
   return { sourceInvoiceId, childInvoiceId, returnId, giftCarry: plan.giftCarry, cashCarry: plan.cashCarry,
     rights: [], creditId: Number(issued.credit.id), creditAmount: issued.amount,
+    creditRestored: issued.amount, cashRemainder: realRemainders.reduce((sum, source) => sum + source.remainder, 0),
+    totalRemainder,
     publicReference: `اعتبار #${Number(issued.credit.id)}`, expiresAt: issued.expiresAt,
     deliveryStatus: issued.delivery.status, rootCreditId: issued.rootCreditId, replayed: issued.replayed }
 }

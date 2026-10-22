@@ -2369,9 +2369,11 @@ export interface ExchangeSaleResult {
   /** CASH | CREDIT | NONE */
   settlement: string
   settlementLabel: string
-  /** اعتبار صادرشده (فقط وقتی ما بدهکار شدیم)؛ کد فقط از مسیر چاپ مجاز. */
+  /** اعتبار اصلی صادرشده؛ کد فقط از مسیر چاپ مجاز. */
   storeCredit: StoreCreditSafeRow | null
-  /** S1/S11: one provenance-backed, non-cash successor barcode; never a cash refund. */
+  /** Multiple source-specific non-cash barcodes can accompany one mixed-source exchange. */
+  storeCredits?: StoreCreditSafeRow[]
+  /** S1/S11: provenance-backed, non-cash successor barcode(s); never cash refunds. */
   residualRights?: {
     giftCarry: number
     cashCarry: number

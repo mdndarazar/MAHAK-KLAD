@@ -1695,7 +1695,7 @@ async function exchangeRefundsAlreadyPaid(
 ): Promise<number> {
   const prevEx = await tx.saleReturn.findMany({
     where: { invoiceId: sourceId, kind: ReturnKind.EXCHANGE, id: { not: exceptId }, voidedAt: null },
-    select: { id: true, exchangeDiff: true, debtReduction: true, refundMethod: true, exchangeSettlement: true }
+    select: { id: true, exchangeDiff: true, debtReduction: true, creditRestored: true, refundAmount: true, refundMethod: true, exchangeSettlement: true }
   })
   if (!prevEx.length) return 0
   const canceled = new Set<number>()
@@ -7806,6 +7806,9 @@ export const salesService = {
        */
       let fundingSourcesForTransfer: Array<{ event: any; available: number }> | null = null
       let s1ResidualRightsEligible = false
+      let s1MixedResidualEligible = false
+      let s1GiftResidualAmount = 0
+      let s1RealResidualAmount = 0
       let s11DebtOffsetEligible = false
       let s11DebtOffsetAmount = 0
       let s11DebtOffsetPaymentId = 0
@@ -7959,13 +7962,21 @@ export const salesService = {
                 available: sourceShare.available
               }))
             })
-            const residualCreditOnly = plan.allocations.some((row) => row.remainder > 0 && ['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B'].includes(row.sourceKind)) &&
-              plan.allocations.every((row) => row.remainder === 0 || ['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B'].includes(row.sourceKind))
-            if (residualCreditOnly &&
+            const residuals = plan.allocations.filter((row) => row.remainder > 0)
+            const creditResiduals = residuals.filter((row) => ['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B'].includes(row.sourceKind))
+            const realResiduals = residuals.filter((row) => ['SOURCE_CASH', 'SOURCE_CARD'].includes(row.sourceKind))
+            const residualCreditOnly = creditResiduals.length > 0 && realResiduals.length === 0 &&
+              residuals.every((row) => creditResiduals.includes(row))
+            const mixedGiftAndRealResidual = creditResiduals.length === 1 && creditResiduals[0].sourceKind === 'SOURCE_GIFT' &&
+              realResiduals.length > 0 && residuals.every((row) => creditResiduals.includes(row) || realResiduals.includes(row))
+            if ((residualCreditOnly || mixedGiftAndRealResidual) &&
                 plan.allocations.reduce((sum, row) => sum + row.carry, 0) === exchangeTotal &&
                 plan.allocations.reduce((sum, row) => sum + row.remainder, 0) === returnTotal - exchangeTotal) {
               fundingSourcesForTransfer = funding!.sources
               s1ResidualRightsEligible = true
+              s1MixedResidualEligible = mixedGiftAndRealResidual
+              s1GiftResidualAmount = creditResiduals.reduce((sum, row) => sum + row.remainder, 0)
+              s1RealResidualAmount = realResiduals.reduce((sum, row) => sum + row.remainder, 0)
               s1CarryAllocations = plan.allocations
             }
           } catch {
@@ -8053,8 +8064,10 @@ export const salesService = {
       if (refundMode === 'S11_DEBT_OFFSET_RIGHTS' && !s11DebtOffsetEligible)
         throw new BusinessError('گزینهٔ S11 برای این برگشت قابل اثبات نیست؛ هیچ مبلغی جابه‌جا نشد.')
       if (refundMode === 'S1_RESIDUAL_RIGHTS' && !s1ResidualRightsEligible)
-        throw new BusinessError('گزینهٔ S1 فقط وقتی فعال است که فروش مختلط هدیه/وجه، lineage سالم و carry/remnant قابل اثبات داشته باشد؛ منشأ این تعویض واجد شرایط نیست.')
-      if (s1ResidualRightsEligible && refundMode !== 'S1_RESIDUAL_RIGHTS')
+        throw new BusinessError('گزینهٔ S1 فقط وقتی فعال است که منشأ، lineage سالم و carry/remnant قابل اثبات داشته باشد؛ منشأ این تعویض واجد شرایط نیست.')
+      if (s1MixedResidualEligible && !['CASH', 'CARD', 'STORE_CREDIT'].includes(String(refundMode ?? '').toUpperCase()))
+        throw new BusinessError('در ماندهٔ مختلط S1، سهم اعتبار ریشه‌دار غیرنقدی برمی‌گردد؛ برای سهم وجه واقعی باید نقد، کارت، یا اعتبار غیرنقدی را انتخاب کنید.')
+      if (s1ResidualRightsEligible && !s1MixedResidualEligible && refundMode !== 'S1_RESIDUAL_RIGHTS')
         throw new BusinessError('منشأ و مبلغ این تعویض واجد S1 است؛ وجه واقعی اول carry می‌شود و فقط ماندهٔ اعتبار به یک بارکد غیرنقدی تبدیل می‌شود. گزینهٔ S1 را انتخاب کنید.')
       // A present but stale/unresolved snapshot is not downgraded to the legacy
       // exchange path: it is an explicit incomplete-lineage signal.
@@ -8164,13 +8177,51 @@ export const salesService = {
       let chequePolicyProposerUserId: number | null = null
       let chequePolicyApproverUserId: number | null = null
       let credit: any = null
+      const sourceSpecificCredits: any[] = []
       /** نشست ۶۰ (بند ۴-۵) — بخشی از مابه‌التفاوت منفی که از بدهی فاکتور اصلی کم شد */
       let debtCut = 0
 
       if (s1ResidualRightsEligible) {
-        // The proven S1 surplus is kept as one non-cash successor barcode with
-        // exact gift-root expiry; it is never a cash refund.
-        settlement = ExchangeSettlement.S1_RESIDUAL_RIGHTS
+        if (!s1MixedResidualEligible) {
+          // A credit-only S1 remainder is one non-cash successor with exact root expiry.
+          settlement = ExchangeSettlement.S1_RESIDUAL_RIGHTS
+        } else {
+          // Mixed S1 remainder: the gift share is restored to its own root below;
+          // only the separately proven cash/card remainder follows the customer's choice.
+          const selected = String(refundMode ?? '').toUpperCase()
+          if (selected === 'CASH' || selected === 'CARD') {
+            if (selected === 'CASH') await recordCashMovement(tx, {
+              amount: s1RealResidualAmount,
+              type: CashMovementType.EXCHANGE_REFUND,
+              shiftId, userId: input.userId ?? null,
+              description: `بازپرداخت نقدی سهم واقعیِ ماندهٔ مختلط S1 · سند ${faDigits(exchangeInvoice.receiptNo)}`,
+              refType: 'SaleReturn', refId: back.id, occurredAt: now
+            })
+            cashRefunded = s1RealResidualAmount
+            settlement = selected === 'CASH' ? ExchangeSettlement.CASH_REFUND : ExchangeSettlement.CARD_REFUND
+          } else if (selected === 'STORE_CREDIT') {
+            if (policy.storeCreditLimit > 0 && s1RealResidualAmount > policy.storeCreditLimit && !exchangeManagerVerified)
+              throw new BusinessError(`صدور اعتبار ${money(s1RealResidualAmount)} ریالی برای سهم پولی از سقف ${money(policy.storeCreditLimit)} بیشتر است؛ تایید مدیر لازم دارد.`)
+            const paperHolder = optionalPrintedHolder(input)
+            credit = await issueStoreCredit(tx, {
+              amount: s1RealResidualAmount, returnId: back.id,
+              exchangeInvoiceId: exchangeInvoice.id, sourceInvoiceId: source.id,
+              customerId: source.customerId ?? null,
+              customerName: paperHolder.name ?? exchangeInvoice.customer?.name ?? null,
+              holderPhone: paperHolder.phone,
+              days: exchangeCreditDays({ explicit: input.creditDays,
+                exchangeDays: (await readCreditSettings(tx)).types.EXCHANGE.days,
+                returnCodeDays: defaults.returnCodeDays }),
+              length: defaults.returnCodeLength,
+              note: `اعتبار غیرنقدی برای سهم پول واقعیِ ماندهٔ مختلط S1 · سند ${faDigits(exchangeInvoice.receiptNo)}`,
+              userId: input.userId ?? null, issuedAt: now
+            })
+            sourceSpecificCredits.push(credit)
+            settlement = ExchangeSettlement.CREDIT
+          } else {
+            throw new BusinessError('برای سهم واقعیِ ماندهٔ مختلط S1، انتخاب نقد/کارت/اعتبار غیرنقدی لازم است.')
+          }
+        }
       } else if (diff > 0) {
         const deltaCreditCode = String(input.deltaStoreCreditCode ?? '').trim()
         const deltaCreditAmount = input.deltaStoreCreditAmount == null
@@ -8589,6 +8640,7 @@ export const salesService = {
           exchangeDiff: diff,
           exchangeSettlement: settlement,
           debtReduction: debtCut,
+          creditRestored: s1ResidualRightsEligible ? s1GiftResidualAmount : 0,
           storeCreditId: credit?.id ?? null,
           storeCreditCode: credit?.code ?? null,
           /**
@@ -8714,7 +8766,9 @@ export const salesService = {
             sourceInvoiceId: source.id, childInvoiceId: exchangeInvoice.id,
             returnId: back.id, actorUserId: input.userId ?? null
           })
-          credit = await tx.storeCredit.findUnique({ where: { id: Number(s1ResidualRights.creditId) } })
+          const giftSuccessor = await tx.storeCredit.findUnique({ where: { id: Number(s1ResidualRights.creditId) } })
+          if (giftSuccessor) sourceSpecificCredits.push(giftSuccessor)
+          if (!credit) credit = giftSuccessor
         } else if (s11DebtOffsetEligible) {
           s1ResidualRights = await openS11ExchangeDebtResidualRights(tx, {
             sourceInvoiceId: source.id, childInvoiceId: exchangeInvoice.id,
@@ -8906,6 +8960,8 @@ export const salesService = {
         settlementLabel: EXCHANGE_SETTLEMENT_LABELS[settlement] ?? settlement,
         /** کد در نتیجهٔ عادی تعویض نیست؛ فقط مرجع امن برای ردیابی برمی‌گردد. */
         storeCredit: credit ? shapeStoreCreditSafe(credit) : null,
+        storeCredits: [...new Map([...sourceSpecificCredits, ...(credit ? [credit] : [])]
+          .filter(Boolean).map((row: any) => [Number(row.id), row])).values()].map((row: any) => shapeStoreCreditSafe(row)),
         residualRights: s1ResidualRights?.rights?.length ? {
           giftCarry: s1ResidualRights.giftCarry, cashCarry: s1ResidualRights.cashCarry,
           rights: s1ResidualRights.rights.map((right: any) => ({
@@ -8943,7 +8999,7 @@ export const salesService = {
         /** جلسه ۱۷ · بند ۱ — تعهد کارت‌به‌کارت و شناسه‌ی درخواست ساخته‌شده */
         cardToCard,
         cardTransfer,
-        refundMode: s1ResidualRightsEligible ? null : (refundMode ?? null),
+        refundMode: s1ResidualRightsEligible && !s1MixedResidualEligible ? null : (refundMode ?? null),
         exchangeCreditApplied,
         /** نشست ۶۰ (بند ۴-۵) — کاهش بدهی فاکتور اصلی و باقی‌مانده‌ی جدیدش */
         debtReduction: debtCut,
@@ -11325,7 +11381,10 @@ export const salesService = {
       if (isExchange) {
         const exchangeDiff = toNumberRial(ret.exchangeDiff ?? 0)
         const exchangeSettlement = String(ret.exchangeSettlement ?? '')
-        const exchangeRefund = exchangeRefundPartOf({ exchangeDiff, debtReduction: ret.debtReduction ?? 0 })
+        const exchangeRefund = exchangeRefundPartOf({
+          exchangeDiff, debtReduction: ret.debtReduction ?? 0,
+          creditRestored: ret.creditRestored ?? 0, refundAmount: ret.refundAmount ?? null
+        })
         const knownExchangeSettlements = [
           ExchangeSettlement.CASH,
           ExchangeSettlement.CREDIT,

@@ -1,30 +1,45 @@
-MAHAK POS — Windows setup from Command Prompt
-============================================
+MAHAK-KLAD — راهنمای اجرای سورس در Windows CMD
+================================================
 
-Requirements
-- Windows 10 or 11, 64-bit.
-- Node.js 22 LTS (npm is included). Install it from https://nodejs.org/ before continuing.
-- Internet access for the first dependency install and Prisma client generation.
+این ZIP بستهٔ سورس پروژه است، نه فایل EXE آماده و نه بستهٔ آفلاین.
+برای نصب نخست به اینترنت نیاز دارید تا npm و Prisma وابستگی‌های برنامه را دریافت کنند.
 
-Install and run the development application
-1. Extract the ZIP to a folder you can write to, for example C:\MAHAK-KLAD.
-2. Open that folder in File Explorer, click the address bar, type cmd, and press Enter.
-3. Run these commands one at a time:
+پیش‌نیازها
+----------
+- Windows 10 یا 11، نسخهٔ 64 بیتی
+- Node.js نسخهٔ 22 LTS یا جدیدتر (x64)
+- اتصال اینترنت در اجرای نخست
 
-   npm install
-   npm run db:generate
-   npm run dev
+استخراج و اجرا
+-------------
+۱) ZIP را در مسیری کوتاه، مثلاً C:\MAHAK-KLAD، استخراج کنید.
+۲) CMD را باز کنید و این فرمان‌ها را به‌ترتیب اجرا کنید:
 
-Keep the Command Prompt open while the app is running. To stop it, press Ctrl+C.
+    cd /d C:\MAHAK-KLAD
+    node --version
+    npm --version
+    npm ci
+    npm run db:generate
+    npm run dev
 
-Build a Windows installer instead
-After the first two commands above finish successfully, run:
+فرمان آخر برنامهٔ دسکتاپ را باز می‌کند؛ هنگام اجرا CMD را نبندید. برای توقف Ctrl+C بزنید.
+برای اجرای دوباره، در پوشهٔ پروژه اجرا کنید:
 
-   npm run dist:win
+    npm run db:generate
+    npm run dev
 
-The installer is generated under the project's dist folder. Back up your business data before replacing any existing installation.
+ساخت نصب‌کنندهٔ مستقل Windows x64
+---------------------------------
+پس از نصب موفق وابستگی‌ها، اجرا کنید:
 
-Troubleshooting
-- If a command is not recognized, install/reinstall Node.js 22 LTS and reopen Command Prompt.
-- If dependency installation or Prisma generation fails because of a network/proxy restriction, resolve that connection issue and retry the failed command.
-- Do not copy node_modules from another operating system; run npm install on the Windows computer.
+    cd /d C:\MAHAK-KLAD
+    npm run dist:win
+
+در صورت موفقیت، EXE در پوشهٔ dist ساخته می‌شود. ساخت آن نیز به دانلود وابستگی‌های لازم نیاز دارد.
+
+بررسی سریع
+----------
+    npm run check:syntax
+    npm run build:check
+
+پیش از جایگزینی نصب موجود، از داده‌های کاری برنامه نسخهٔ پشتیبان بگیرید.

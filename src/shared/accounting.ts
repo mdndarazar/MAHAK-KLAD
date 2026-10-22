@@ -14,10 +14,19 @@
  * مابه‌التفاوت منفی یک تعویض = −exchangeDiff − debtReduction. تعویض قدیمی
  * (debtReduction = ۰) ⇒ دقیقاً همان −exchangeDiff قبلی.
  */
-export function exchangeRefundPartOf(r: { exchangeDiff?: RialLike | null; debtReduction?: RialLike | null }): number {
+export function exchangeRefundPartOf(r: {
+  exchangeDiff?: RialLike | null
+  debtReduction?: RialLike | null
+  /** Source-specific non-cash barcode value restored alongside an exchange refund. */
+  creditRestored?: RialLike | null
+  /** Exact cash/card/credit settlement amount recorded on the return, when present. */
+  refundAmount?: RialLike | null
+}): number {
   const r0 = (x: unknown): number => { const v = Math.round(Number(x ?? 0)); return Number.isFinite(v) ? v : 0 }
   const owed = Math.max(0, -r0(r.exchangeDiff))
-  return Math.max(0, owed - Math.max(0, r0(r.debtReduction)))
+  const eligible = Math.max(0, owed - Math.max(0, r0(r.debtReduction)) - Math.max(0, r0(r.creditRestored)))
+  if (r.refundAmount != null) return Math.min(eligible, Math.max(0, r0(r.refundAmount)))
+  return eligible
 }
 
 export type Rial = number
@@ -92,7 +101,7 @@ export interface ReturnEvent {
   exchangeTotal?: RialLike
   exchangeDiff?: RialLike
   exchangeSettlement?: string | null
-  /** سهم برگشت اعتبارِ مصرف‌شده: احیای H1 یا فرصت B/E، نه وجه نقد/بدهی. */
+  /** Non-cash source-specific credit restored (H1/B/E or mixed S1), never cash. */
   creditRestored?: RialLike | null
   /** نشست ۶۰ (بند ۴-۵) — کاهش بدهی فاکتور اصلی از مابه‌التفاوت منفی تعویض */
   debtReduction?: RialLike | null
@@ -591,8 +600,10 @@ export function calculateReturnTotals(events: ReturnEvent[] = [], period?: Perio
            که نویسنده‌ی سند می‌نوشت دیگر به سبد «اعتبار خرید» نمی‌افتد. */
         const { bucket } = normalizeSettlement({ exchangeSettlement: r.exchangeSettlement, refundMethod: r.refundMethod })
         /* نشست ۶۰ (بند ۴-۵) — فقط بخش بازپرداخت‌شده؛ کاهش بدهی فاکتور اصلی پول نیست */
-        const refunded = exchangeRefundPartOf({ exchangeDiff: diff, debtReduction: r.debtReduction })
-        if (refunded <= 0) { /* فقط کاهش بدهی */ }
+        const creditRestored = Math.max(0, n(r.creditRestored))
+        if (creditRestored > 0) out.exchangeStoreCreditIssued += creditRestored
+        const refunded = exchangeRefundPartOf({ exchangeDiff: diff, debtReduction: r.debtReduction, creditRestored, refundAmount: r.refundAmount })
+        if (refunded <= 0) { /* فقط کاهش بدهی یا بازگردانی اعتبار به منبع */ }
         else if (bucket === 'CASH_REFUND') out.exchangeCashRefunds += refunded
         else if (bucket === 'CARD_REFUND') out.exchangeCardRefunds += refunded
         /* جلسه ۱۷ · بند ۱ — کارت‌به‌کارت مدیر: نه نقد، نه کارت‌خوان، نه اعتبار خرید */

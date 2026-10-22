@@ -284,7 +284,7 @@ export const salesLedger = {
       where: returnWhere,
       select: {
         id: true, kind: true, total: true, returnedAt: true, returnedAtJalali: true, returnedAtTime: true,
-        refundMethod: true, refundAmount: true, refundReference: true, note: true,
+        refundMethod: true, refundAmount: true, refundReference: true, creditRestored: true, note: true,
         exchangeTotal: true, exchangeDiff: true, exchangeSettlement: true, exchangeInvoiceId: true, debtReduction: true,
         exchangeReceiptNo: true, storeCreditId: true, userId: true, shiftId: true,
         invoiceId: true,
@@ -388,8 +388,11 @@ export const salesLedger = {
         })
         const replacementQty = r.exchangeInvoiceId != null ? exQty.get(r.exchangeInvoiceId) ?? 0 : 0
         /** نشست ۶۰ (بند ۴-۵/۴-۴۹) — فقط بخش بازپرداخت‌شده؛ کاهش بدهی فاکتور اصلی پول نیست */
-        const refundPart = exchangeRefundPartOf({ exchangeDiff: diff, debtReduction: (r as any).debtReduction })
-        const debtCut = Math.max(0, -diff - refundPart)
+        const refundPart = exchangeRefundPartOf({
+          exchangeDiff: diff, debtReduction: (r as any).debtReduction,
+          creditRestored: (r as any).creditRestored, refundAmount: r.refundAmount
+        })
+        const debtCut = Math.max(0, n((r as any).debtReduction))
         const exDrawer = r.exchangeInvoiceId != null ? exDrawerCash.get(r.exchangeInvoiceId) ?? null : null
         const cashEffect = exchangeCashEffect(diff, settle, refundPart, exDrawer)
         rows.push({
