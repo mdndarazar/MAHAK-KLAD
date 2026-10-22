@@ -2371,7 +2371,7 @@ export interface ExchangeSaleResult {
   settlementLabel: string
   /** اعتبار صادرشده (فقط وقتی ما بدهکار شدیم)؛ کد فقط از مسیر چاپ مجاز. */
   storeCredit: StoreCreditSafeRow | null
-  /** S1: provenance-backed B/N rights; never a cash refund or generic store credit. */
+  /** S1/S11: one provenance-backed, non-cash successor barcode; never a cash refund. */
   residualRights?: {
     giftCarry: number
     cashCarry: number

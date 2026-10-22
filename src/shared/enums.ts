@@ -377,9 +377,9 @@ export const ExchangeSettlement = {
   CARD_TO_CARD: 'CARD_TO_CARD',
   /** نشست ۶۰ (بند ۴-۵) — کل مابه‌التفاوت منفی از بدهی فاکتور اصلی کم شد؛ پولی جابه‌جا نشد */
   DEBT_REDUCTION: 'DEBT_REDUCTION',
-  /** S1: remainder issued as source-rooted B/N entitlements, not paid out. */
+  /** S1: real-money carry first; gift-root remainder becomes one non-cash barcode. */
   S1_RESIDUAL_RIGHTS: 'S1_RESIDUAL_RIGHTS',
-  /** S11: clear exchange-child cheque debt first, then issue only paid-source B/N remainders. */
+  /** S11: clear cheque debt first, then carry real money and issue one gift-root barcode remainder. */
   S11_DEBT_OFFSET_RIGHTS: 'S11_DEBT_OFFSET_RIGHTS',
   /** مابه‌التفاوت مثبت با چک در جریان؛ تا وصول، پشتوانهٔ بدهی باز است */
   CHEQUE_PENDING: 'CHEQUE_PENDING',
@@ -396,8 +396,8 @@ export const EXCHANGE_SETTLEMENT_LABELS: Record<string, string> = {
   CARD_TO_CARD: 'کارت‌به‌کارت توسط مدیر (درخواست پرداخت ثبت شد)',
   /** نشست ۶۰ (بند ۴-۵) — مابه‌التفاوت به‌جای پول از بدهی فاکتور اصلی کم شد */
   DEBT_REDUCTION: 'مابه‌التفاوت از بدهی فاکتور اصلی کم شد (پولی جابه‌جا نشد)',
-  S1_RESIDUAL_RIGHTS: 'مازاد به‌صورت حق B/N ریشه‌دار ثبت شد',
-  S11_DEBT_OFFSET_RIGHTS: 'بدهی چک از ارزش برگشتی کسر و مازادِ منشأ پرداخت‌شده به حق B/N تبدیل شد',
+  S1_RESIDUAL_RIGHTS: 'وجه واقعی carry شد و ماندهٔ اعتبار با یک بارکد غیرنقدی ریشه‌دار ثبت شد',
+  S11_DEBT_OFFSET_RIGHTS: 'بدهی چک ابتدا بسته شد و ماندهٔ اعتبار با یک بارکد غیرنقدی ریشه‌دار ثبت شد',
   CHEQUE_PENDING: 'چک مابه‌التفاوت در جریان؛ بدهی باز تا وصول',
   NONE: 'مابه‌التفاوت صفر بود'
 }

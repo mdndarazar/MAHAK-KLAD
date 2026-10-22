@@ -1,0 +1,30 @@
+MAHAK POS — Windows setup from Command Prompt
+============================================
+
+Requirements
+- Windows 10 or 11, 64-bit.
+- Node.js 22 LTS (npm is included). Install it from https://nodejs.org/ before continuing.
+- Internet access for the first dependency install and Prisma client generation.
+
+Install and run the development application
+1. Extract the ZIP to a folder you can write to, for example C:\MAHAK-KLAD.
+2. Open that folder in File Explorer, click the address bar, type cmd, and press Enter.
+3. Run these commands one at a time:
+
+   npm install
+   npm run db:generate
+   npm run dev
+
+Keep the Command Prompt open while the app is running. To stop it, press Ctrl+C.
+
+Build a Windows installer instead
+After the first two commands above finish successfully, run:
+
+   npm run dist:win
+
+The installer is generated under the project's dist folder. Back up your business data before replacing any existing installation.
+
+Troubleshooting
+- If a command is not recognized, install/reinstall Node.js 22 LTS and reopen Command Prompt.
+- If dependency installation or Prisma generation fails because of a network/proxy restriction, resolve that connection issue and retry the failed command.
+- Do not copy node_modules from another operating system; run npm install on the Windows computer.

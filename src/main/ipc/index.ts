@@ -774,7 +774,8 @@ export function registerIpcHandlers(): void {
     const input = await withSessionActor(p ?? {}, 'ثبت تعویض کالا')
     const result = await salesService.createExchange(input, { requireIdempotencyKey: true })
     const creditId = result.storeCredit?.id
-    const firstPrintGrant = result.replayed !== true && result.settlement === 'CREDIT' && creditId
+    const firstPrintGrant = result.replayed !== true &&
+      ['CREDIT', 'S1_RESIDUAL_RIGHTS', 'S11_DEBT_OFFSET_RIGHTS'].includes(String(result.settlement)) && creditId
       ? issueCreditFirstPrintGrant(currentPanelSessionOwner(), input.userId, result.returnId, creditId) : null
     const residualRights = result.residualRights ? {
       ...result.residualRights,

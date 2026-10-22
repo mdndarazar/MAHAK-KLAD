@@ -27,9 +27,9 @@ export interface ExchangeFundingLineReturnInput {
    * Required once any quantity was previously returned, even if every source
    * allocation is zero. Missing or conflicting history fails closed. */
   priorAllocations?: readonly PriorExchangeReturnLineAllocation[]
-  /** S8 explicitly uses cumulative gift-floor; the default keeps historical
-   * Webster and S1 behavior unchanged for every other caller. */
-  allocationPolicy?: 'PROPORTIONAL_FLOOR'
+  /** Existing persisted policies are retained for replay. New S8 carry uses
+   * cash-first so a pending cheque is never allocated to a returned paid item. */
+  allocationPolicy?: 'PROPORTIONAL_FLOOR' | 'CASH_FIRST'
 }
 
 export interface ExchangeFundingLineReturnShare {
@@ -67,8 +67,34 @@ function webster(weights: readonly { id: number; amount: number }[], seats: numb
 function cumulativeSourceShares(
   weights: readonly { id: number; amount: number; sourceKind?: string }[],
   seats: number,
-  policy?: 'PROPORTIONAL_FLOOR'
+  policy?: 'PROPORTIONAL_FLOOR' | 'CASH_FIRST'
 ): number[] {
+  if (policy === 'CASH_FIRST') {
+    const moneyKinds = new Set(['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
+    const moneyRows = weights.filter((row) => moneyKinds.has(String(row.sourceKind)))
+    const creditRows = weights.filter((row) => !moneyKinds.has(String(row.sourceKind)))
+    const moneyTotal = moneyRows.reduce((sum, row) => sum + BigInt(row.amount), 0n)
+    const creditTotal = creditRows.reduce((sum, row) => sum + BigInt(row.amount), 0n)
+    const total = moneyTotal + creditTotal
+    if (BigInt(seats) > total) throw new Error(INVALID_BASIS)
+    const moneySeats = Math.min(seats, Number(moneyTotal))
+    const creditSeats = seats - moneySeats
+    const allocateOrdered = (rows: typeof weights, target: number) => {
+      let left = target
+      const result = new Map<number, number>()
+      for (const row of rows) {
+        const assigned = Math.min(left, row.amount)
+        result.set(row.id, assigned)
+        left -= assigned
+      }
+      if (left !== 0) throw new Error(INVALID_BASIS)
+      return result
+    }
+    const moneyAllocations = allocateOrdered(moneyRows, moneySeats)
+    const creditAllocations = allocateOrdered(creditRows, creditSeats)
+    return weights.map((row) => moneyKinds.has(String(row.sourceKind))
+      ? moneyAllocations.get(row.id) ?? 0 : creditAllocations.get(row.id) ?? 0)
+  }
   if (policy === 'PROPORTIONAL_FLOOR') {
     const total = weights.reduce((sum, row) => sum + BigInt(row.amount), 0n)
     const gift = weights.filter((row) => row.sourceKind === 'SOURCE_GIFT')

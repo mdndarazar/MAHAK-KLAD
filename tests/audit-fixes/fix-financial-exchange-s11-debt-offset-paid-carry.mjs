@@ -1,8 +1,8 @@
 /** S11 production-service integration: 1.5M exchange-child value consists of
  * 300K gift + 900K cash carry + 300K pending-cheque debt. A 1M replacement
- * offsets debt first, then carries 250K gift + 750K cash and opens only the
- * 50K B / 150K N paid-source remainders. Also proves late cheque clearance is
- * suspense, not new funding, and retry is idempotent.
+ * offsets debt first, then carries 900K cash + 100K gift and issues one 200K
+ * non-cash successor barcode from the remaining gift root. Also proves late
+ * cheque clearance is suspense, not new funding, and retry is idempotent.
  *
  * node --import ./test/harness/register.mjs tests/audit-fixes/fix-financial-exchange-s11-debt-offset-paid-carry.mjs
  */
@@ -113,7 +113,11 @@ const down = await exchange(downRequest)
 assert.deepEqual([down.returnTotal, down.exchangeTotal, down.diff, down.debtReduction],
   [1_500_000, 1_000_000, -500_000, 300_000])
 assert.equal(down.settlement, 'S11_DEBT_OFFSET_RIGHTS')
-assert.equal(down.storeCredit, null, 'no generic refund credit is issued for the residual')
+assert.equal(down.storeCredit.amount, 200_000, 'the paid gift remainder is one non-cash barcode credit')
+assert.equal(down.storeCredit.source, 'EXCHANGE')
+assert.equal(down.storeCredit.status, 'DRAFT')
+assert.equal(down.storeCredit.expiresAtJalali, seed.one('SELECT expiresAtJalali FROM "StoreCredit" WHERE id=?', gift.id).expiresAtJalali,
+  'the successor barcode inherits the gift root’s exact expiry date')
 assert.equal(seed.one('SELECT refundMethod, refundAmount FROM "SaleReturn" WHERE id=?', down.returnId).refundMethod, 'NONE')
 assert.equal(seed.one('SELECT refundAmount FROM "SaleReturn" WHERE id=?', down.returnId).refundAmount, 0)
 const reportedSettlement = calculateReturnTotals([{
@@ -124,7 +128,7 @@ assert.deepEqual([reportedSettlement.exchangeCashRefunds, reportedSettlement.exc
   reportedSettlement.exchangeStoreCreditIssued], [0, 0, 0],
   'the 200K source rights are not reported as cash/card payout or generic store credit')
 assert.equal(seed.count('CashMovement', '1=1'), beforeCashMovements,
-  'debt offset and B/N issuance cause no cash drawer movement')
+  'debt offset and successor barcode issuance cause no cash drawer movement')
 
 const offsetCheque = seed.one('SELECT chequeStatus, amount, clearedAt, destination FROM "Payment" WHERE id=?', cheque.id)
 assert.deepEqual([offsetCheque.chequeStatus, offsetCheque.amount, offsetCheque.clearedAt, offsetCheque.destination],
@@ -144,7 +148,7 @@ assert.deepEqual(grandchild.unresolved, [])
 assert.equal(grandchild.debt, 0)
 assert.equal(grandchild.sources.reduce((sum, source) => sum + source.available, 0), 1_000_000)
 assert.deepEqual(grandchild.sources.map(({ sourceKind, available }) => [sourceKind, available]), [
-  ['SOURCE_GIFT', 250_000], ['SOURCE_CASH', 750_000]
+  ['SOURCE_CASH', 900_000], ['SOURCE_GIFT', 100_000]
 ])
 assert.equal(grandchild.lineAllocationStatus, 'PERSISTED_RECONCILED')
 const sourceLineAttribution = await recordExchangeFundingLineAllocations(db, first.exchangeInvoiceId)
@@ -154,40 +158,42 @@ assert.equal(sourceLineAttribution.reason, 'EXCHANGE_DEBT_OFFSET_HISTORY',
 const sourceAfter = await getCurrentExchangeFundingSources(db, first.exchangeInvoiceId, { allowReturnBalanceChanges: true })
 assert.deepEqual(sourceAfter.unresolved, [])
 assert.deepEqual([sourceAfter.debt, sourceAfter.debtOffset], [0, 300_000])
-assert.equal(sourceAfter.sources.reduce((sum, source) => sum + source.available, 0), 200_000)
+assert.equal(sourceAfter.sources.reduce((sum, source) => sum + source.available, 0), 0,
+  'the final paid-source remainder is debited to exactly one successor barcode')
 
-const rights = seed.rows('SELECT rightKind, amount, sourceEventId, rootShareId, evidenceKind FROM "ExchangeResidualRightEvent" WHERE returnId=? AND eventKind=? ORDER BY rightKind',
-  down.returnId, 'OPENED')
-assert.deepEqual(rights.map((right) => [right.rightKind, right.amount]), [['B', 50_000], ['N', 150_000]])
-assert.deepEqual(rights.map((right) => right.evidenceKind),
-  ['PAID_SOURCE_AFTER_DEBT_OFFSET', 'PAID_SOURCE_AFTER_DEBT_OFFSET'])
-const parentSourcesByKind = new Map(sourceAfter.sources.map((source) => [source.sourceKind, source]))
-assert.equal(rights.find((right) => right.rightKind === 'B').sourceEventId,
-  Number(parentSourcesByKind.get('SOURCE_GIFT').event.id), 'B remainder points to the gift-paid carry share')
-assert.equal(rights.find((right) => right.rightKind === 'N').sourceEventId,
-  Number(parentSourcesByKind.get('SOURCE_CASH').event.id), 'N remainder points to the cash-paid carry share')
-assert.ok(rights.every((right) => !String(right.rootShareId).startsWith('debt:')),
-  'neither residual right has debt as its root')
-assert.equal(seed.count('ExchangeResidualRightEvent', `returnId=${down.returnId} AND eventKind='OPENED' AND rootShareId LIKE 'debt:%'`), 0)
-assert.deepEqual([down.residualRights.giftCarry, down.residualRights.cashCarry], [250_000, 750_000])
-assert.deepEqual(down.residualRights.rights.map(({ rightKind, amount }) => [rightKind, amount]),
-  [['B', 50_000], ['N', 150_000]])
+assert.equal(seed.count('ExchangeResidualRightEvent', `returnId=${down.returnId} AND eventKind='OPENED'`), 0,
+  'S11 no longer divides the balance into B/N residual rights')
+assert.equal(down.residualRights, null)
+const reissue = seed.one('SELECT kind, amount, sourceRedemptionId, sourceCreditId, parentEventId, evidenceKind, evidenceRef FROM "ExchangeFundingEvent" WHERE returnId=? AND kind=?',
+  down.returnId, 'CREDIT_REISSUE_OUT')
+assert.deepEqual([reissue.kind, reissue.amount, reissue.sourceCreditId, reissue.evidenceKind,
+  reissue.evidenceRef], ['CREDIT_REISSUE_OUT', -200_000, gift.id, 'CREDIT_BARCODE_ISSUED',
+    `StoreCredit:${down.storeCredit.id}`])
+const successorAllocation = seed.one('SELECT parentCreditId, rootCreditId, originNominal, amount, kind, originalExpiresAt, successorCreditId FROM "CreditReturnAllocation" WHERE successorCreditId=?',
+  down.storeCredit.id)
+assert.deepEqual([successorAllocation.parentCreditId, successorAllocation.rootCreditId,
+  successorAllocation.originNominal, successorAllocation.amount, successorAllocation.kind,
+  successorAllocation.successorCreditId], [gift.id, gift.id, 300_000, 200_000, 'BRANCH', down.storeCredit.id])
+assert.ok(successorAllocation.originalExpiresAt)
+assert.ok(!String(reissue.evidenceRef).includes('debt:'), 'the successor has the paid gift root, never the debt root')
+assert.equal(seed.count('ExchangeFundingEvent', `sourceInvoiceId=${first.exchangeInvoiceId} AND kind='SOURCE_CHEQUE'`), 0,
+  'unpaid cheque does not become a source event')
 
-// Conservation: paid carry is either in the grandchild or the rooted rights;
-// the debt is separately offset, and the cheque contributes zero.
+// Conservation: paid carry is either in the grandchild or the one successor
+// barcode; the pending cheque debt is independently offset and contributes no
+// paid source value.
 const grandchildTransfers = grandchild.sources.reduce((sum, source) => sum + source.available, 0)
-const residualRightTotal = rights.reduce((sum, right) => sum + right.amount, 0)
-assert.equal(grandchildTransfers + residualRightTotal + offset.amount * -1, 1_500_000)
-assert.equal(1_200_000, grandchildTransfers + residualRightTotal,
-  'only the 1.2M paid source split becomes carry plus B/N; the 300K debt is separately offset')
+assert.equal(grandchildTransfers, 1_000_000)
+assert.equal(grandchildTransfers + down.storeCredit.amount, 1_200_000,
+  'the 1.2M paid source is fully partitioned between carry and one barcode')
 assert.equal(seed.count('ExchangeFundingEvent', `sourceInvoiceId=${first.exchangeInvoiceId} AND kind='SOURCE_CHEQUE'`), 0)
 
 const eventCountBeforeRetry = seed.count('ExchangeFundingEvent', '1=1')
-const rightsCountBeforeRetry = seed.count('ExchangeResidualRightEvent', `returnId=${down.returnId} AND eventKind='OPENED'`)
+const reissuesBeforeRetry = seed.count('ExchangeFundingEvent', `returnId=${down.returnId} AND kind='CREDIT_REISSUE_OUT'`)
 const retry = await exchange(downRequest)
 assert.equal(retry.exchangeInvoiceId, down.exchangeInvoiceId)
 assert.equal(seed.count('ExchangeFundingEvent', '1=1'), eventCountBeforeRetry)
-assert.equal(seed.count('ExchangeResidualRightEvent', `returnId=${down.returnId} AND eventKind='OPENED'`), rightsCountBeforeRetry)
+assert.equal(seed.count('ExchangeFundingEvent', `returnId=${down.returnId} AND kind='CREDIT_REISSUE_OUT'`), reissuesBeforeRetry)
 
 // A later bank clearance of the old cheque is quarantined in SUSPENSE and
 // creates no replacement source/carry after its debt has already been offset.
@@ -203,7 +209,7 @@ const afterLateClearance = await getCurrentExchangeFundingSources(db, first.exch
 })
 assert.deepEqual(afterLateClearance.unresolved, [])
 assert.deepEqual([afterLateClearance.debt, afterLateClearance.debtOffset], [0, 300_000])
-assert.equal(afterLateClearance.sources.reduce((sum, source) => sum + source.available, 0), 200_000)
+assert.equal(afterLateClearance.sources.reduce((sum, source) => sum + source.available, 0), 0)
 assert.equal(seed.count('ExchangeFundingEvent', `sourceInvoiceId=${first.exchangeInvoiceId} AND kind='SUSPENSE_CHEQUE_LATE'`), 1)
 
 // S12 fail-closed regression: once the offset cheque has late-cleared into
@@ -232,4 +238,4 @@ assert.deepEqual({
   stock: seed.rows('SELECT id, stock FROM "ProductVariant" ORDER BY id')
 }, beforeUnsafeVoid, 'rejected S12 void is atomic and leaves financial, rights, cheque and stock state unchanged')
 
-console.log('S11/S12 exchange debt-offset regression: PASS (S11 paid-source carry and late-clear suspense; S12 safely reverses untouched offsets and rejects late-cleared offsets)')
+console.log('✓ S11/S12 debt-offset regression: cash-first 900K/100K carry, one 200K gift-root barcode, late-clear suspense, and guarded atomic void')

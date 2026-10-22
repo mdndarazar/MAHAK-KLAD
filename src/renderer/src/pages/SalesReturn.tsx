@@ -176,8 +176,8 @@ const REFUND_CHOICES: { value: RefundMethodValue; title: string; hint: string }[
 
 /** گزینه‌های *متقابلاً انحصاری* تسویه‌ی مابه‌التفاوت منفی تعویض؛ S1 فقط برای lineage واجد شرایط. */
 const EXCHANGE_REFUND_CHOICES: { value: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | 'S1_RESIDUAL_RIGHTS' | 'S11_DEBT_OFFSET_RIGHTS'; title: string; hint: string }[] = [
-  { value: 'S11_DEBT_OFFSET_RIGHTS', title: 'کسر بدهی چک + حق B/N از مازاد پرداختی (فقط S11)', hint: 'فقط برای برگشت کامل فرزند تعویض با یک بدهیِ چکِ باز و carry مختلطِ هدیه/وجه؛ ابتدا بدهی کسر می‌شود، سپس فقط ماندهٔ GIFT/CASH پرداخت‌شده به B/N تبدیل می‌شود. چک منبع پرداخت نیست.' },
-  { value: 'S1_RESIDUAL_RIGHTS', title: 'حق ریشه‌دار B/N (فقط S1)', hint: 'فقط برای فروش مختلطِ هدیه + وجه با lineage کامل؛ مازاد نقدی پرداخت نمی‌شود و سرور حق B/N را بر اساس ریشه می‌سازد. اگر اسناد واجد شرایط نباشند، کل تعویض رد می‌شود.' },
+  { value: 'S11_DEBT_OFFSET_RIGHTS', title: 'کسر بدهی چک + یک بارکد غیرنقدی (فقط S11)', hint: 'فقط برای برگشت کامل فرزند تعویض با یک بدهیِ چکِ باز؛ ابتدا بدهی کسر می‌شود، سپس وجه واقعی اول carry می‌شود و باقیماندهٔ اعتبار ریشه‌دار با یک بارکد و مهلت اصلی صادر می‌شود. چک منبع پرداخت نیست.' },
+  { value: 'S1_RESIDUAL_RIGHTS', title: 'یک بارکد غیرنقدی از ماندهٔ اعتبار (فقط S1)', hint: 'فقط برای فروش مختلطِ هدیه + وجه با lineage کامل؛ وجه واقعی اول به کالای جایگزین تخصیص می‌یابد و فقط ماندهٔ اعتبار با یک بارکد غیرنقدی و مهلت ریشه صادر می‌شود. هیچ بازپرداخت نقدی از اعتبار ساخته نمی‌شود.' },
   { value: 'CASH', title: 'بازپرداخت نقدی', hint: 'پول از کشوی صندوق بیرون می‌رود (یک بازپرداخت واقعی ثبت می‌شود).' },
   { value: 'CARD', title: 'بازپرداخت کارتی', hint: 'به کارت مشتری برگشت؛ از کشو پولی بیرون نمی‌رود.' },
   { value: 'STORE_CREDIT', title: 'صدور اعتبار خرید', hint: 'اعتبار تا صفر چندبارمصرف صادر می‌شود؛ اثر نقدی صفر.' },
@@ -1322,9 +1322,9 @@ export default function SalesReturn() {
       : exTotals.diff < 0
         ? `ما ${money(-exTotals.diff)} ریال بدهکاریم ⇒ ${
             exRefundMode === 'S11_DEBT_OFFSET_RIGHTS'
-              ? 'ابتدا بدهی چک کسر می‌شود و فقط مازادِ وجه/هدیهٔ پرداخت‌شده به حق B/N تبدیل می‌شود'
+              ? 'ابتدا بدهی چک کسر می‌شود؛ سپس فقط ماندهٔ اعتبارِ ریشه‌دار به یک بارکد غیرنقدی تبدیل می‌شود'
               : exRefundMode === 'S1_RESIDUAL_RIGHTS'
-              ? 'مازاد فقط به حق‌های B/N ریشه‌دار تبدیل می‌شود (بدون خروج پول)'
+              ? 'وجه واقعی اول carry می‌شود؛ ماندهٔ اعتبار با یک بارکد و مهلت اصلی صادر می‌شود (بدون خروج پول)'
               : exRefundMode === 'CASH'
                 ? 'بازپرداخت نقدی (پول از کشو بیرون می‌رود)'
                 : exRefundMode === 'CARD'
@@ -1540,8 +1540,8 @@ export default function SalesReturn() {
           )}
           {exResult.residualRights && (
             <div className="w-full rounded border-2 border-sky-400 bg-sky-50 p-3 space-y-2">
-              <b>مازاد S1 به‌صورت حق ریشه‌دار ثبت شد؛ نه بازپرداخت نقدی و نه اعتبار عمومی.</b>
-              <p className="text-sm">انتقال به سند جایگزین: هدیه {money(exResult.residualRights.giftCarry)} ریال و وجه {money(exResult.residualRights.cashCarry)} ریال. هر کد B/N تا تحویل واقعی و شاهددار خرج‌پذیر نیست.</p>
+              <b>سهم‌های منشأدار ثبت شدند؛ اعتبار بارکدی نقدشدنی نیست.</b>
+              <p className="text-sm">انتقال به سند جایگزین: اعتبار {money(exResult.residualRights.giftCarry)} ریال و وجه واقعی {money(exResult.residualRights.cashCarry)} ریال.</p>
               <CreditOpportunityHandoff key={`s1-rights-${exResult.returnId}`} credits={exResult.residualRights.rights.map((right) => ({
                 creditId: right.creditId, amount: right.amount, status: right.deliveryStatus,
                 returnId: exResult.returnId, firstPrintGrant: right.firstPrintGrant ?? null,
@@ -1552,7 +1552,7 @@ export default function SalesReturn() {
           <button className="btn btn-primary" onClick={() => void printExchange(exResult.returnId)} disabled={printing}>
             {printing ? 'در حال چاپ…' : 'چاپ سند تعویض'}
           </button>
-          {exResult.storeCredit?.id && exResult.settlement === 'CREDIT' && (
+          {exResult.storeCredit?.id && ['CREDIT', 'S1_RESIDUAL_RIGHTS', 'S11_DEBT_OFFSET_RIGHTS'].includes(String(exResult.settlement)) && (
             <button className="btn" disabled={printing} onClick={() => {
               setOrdinaryCreditPrint({ creditId: exResult.storeCredit!.id, returnId: exResult.returnId,
                 firstPrintGrant: exResult.firstPrintGrant ?? null })

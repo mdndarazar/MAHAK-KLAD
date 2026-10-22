@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import {
   allocateExchangeFundingByLine,
+  allocateExchangeFundingCashFirst,
   allocateExchangeFundingGiftFirst,
   allocateExchangeFundingProportionalFloor,
   allocateExchangeFundingProRata
@@ -30,9 +31,9 @@ assert.equal(
   'real-money source is partitioned exactly; the 980,000 remainder is not gift'
 )
 
-// S1 follows the user's accepted FINAL-DESIGN-BASIS split, not the separate
-// gift-first example above: floor the cumulative gift proportion, then cash
-// is the exact balancing amount. B/N remain separate source-kind remainders.
+// Historical proportional-floor arithmetic remains covered for immutable
+// version-2 rows only. New S1 uses cash-first below and issues one successor
+// barcode for a gift-root remainder instead of splitting B/N.
 const s1Floor = allocateExchangeFundingProportionalFloor({
   replacementTotal: 15_000_000,
   sources: [
@@ -65,6 +66,37 @@ assert.throws(() => allocateExchangeFundingProportionalFloor({
     { sourceEventId: 202, sourceKind: 'SOURCE_CASH', available: 13_980_000 }
   ]
 }), /proven/i, 'unfunded replacement value cannot be classified as gift or cash')
+
+// Accepted S1 policy: carry actual cash/card/cleared-cheque shares first;
+// only the remaining replacement value consumes non-cash barcode shares.
+const s1CashFirst = allocateExchangeFundingCashFirst({
+  replacementTotal: 15_000_000,
+  sources: [
+    { sourceEventId: 101, sourceKind: 'SOURCE_GIFT', available: 2_000_000 },
+    { sourceEventId: 202, sourceKind: 'SOURCE_CASH', available: 13_980_000 }
+  ]
+})
+assert.deepEqual(s1CashFirst, {
+  cashCarry: 13_980_000,
+  creditCarry: 1_020_000,
+  giftCarry: 1_020_000,
+  allocations: [
+    { sourceEventId: 101, sourceKind: 'SOURCE_GIFT', carry: 1_020_000, remainder: 980_000 },
+    { sourceEventId: 202, sourceKind: 'SOURCE_CASH', carry: 13_980_000, remainder: 0 }
+  ]
+})
+assert.equal(allocateExchangeFundingCashFirst({
+  replacementTotal: 15_000_000,
+  sources: [
+    { sourceEventId: 202, sourceKind: 'SOURCE_CASH', available: 13_980_000 },
+    { sourceEventId: 101, sourceKind: 'SOURCE_GIFT', available: 2_000_000 }
+  ]
+}).allocations.map((row) => row.carry).join(','), '13980000,1020000',
+  'cash-first results are stable under input permutation and map back to source order')
+assert.throws(() => allocateExchangeFundingCashFirst({ replacementTotal: 15_980_001, sources: [
+  { sourceEventId: 101, sourceKind: 'SOURCE_GIFT', available: 2_000_000 },
+  { sourceEventId: 202, sourceKind: 'SOURCE_CASH', available: 13_980_000 }
+]}), /proven/i)
 const s1MultipleRoots = allocateExchangeFundingProportionalFloor({
   replacementTotal: 7,
   sources: [
@@ -320,4 +352,4 @@ assert.throws(() => allocateExchangeFundingProRata(1, [
   { id: 1, available: 1 }, { id: 1, available: 1 }
 ]), RangeError)
 
-console.log(`✓ exchange funding allocation: separate gift-first example, S1 floor split, ${s1FloorCases} exhaustive bounded cases, multi-root cumulative floors, exact per-item attribution and invalid-input rejection`)
+console.log(`✓ exchange funding allocation: legacy proportional replay, ${s1FloorCases} exhaustive bounded cases, multi-root cumulative floors, exact per-item attribution and invalid-input rejection`)

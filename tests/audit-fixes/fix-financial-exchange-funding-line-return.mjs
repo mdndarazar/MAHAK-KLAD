@@ -34,6 +34,30 @@ assert.deepEqual(channelReturn.shares.map(({ sourceKind }) => sourceKind), ['SOU
   'partial source attribution retains card and cleared-cheque channels rather than relabelling them CASH')
 assert.equal(channelReturn.shares.reduce((sum, share) => sum + share.amount, 0), 50)
 
+const s8CashFirstSources = [
+  { sourceEventId: 401, sourceKind: 'SOURCE_GIFT', amount: 2_000_000 },
+  { sourceEventId: 402, sourceKind: 'SOURCE_CASH', amount: 13_000_000 }
+]
+const s8FirstReturn = allocateExchangeFundingLineReturn({
+  saleItemId: 808, saleItemQty: 3, saleItemValue: 15_000_000,
+  previouslyReturnedQty: 0, returningQty: 1, sources: s8CashFirstSources, allocationPolicy: 'CASH_FIRST'
+})
+assert.equal(s8FirstReturn.returnValue, 5_000_000)
+assert.deepEqual(s8FirstReturn.shares.map(({ sourceKind, amount }) => ({ sourceKind, amount })), [
+  { sourceKind: 'SOURCE_GIFT', amount: 0 },
+  { sourceKind: 'SOURCE_CASH', amount: 5_000_000 }
+], 'accepted S8 policy releases the paid cash share first and leaves the 2M barcode share intact')
+const s8SecondReturn = allocateExchangeFundingLineReturn({
+  saleItemId: 808, saleItemQty: 3, saleItemValue: 15_000_000,
+  previouslyReturnedQty: 1, returningQty: 1, sources: s8CashFirstSources,
+  allocationPolicy: 'CASH_FIRST',
+  priorAllocations: s8FirstReturn.shares.map(({ sourceEventId, cumulative }) => ({ sourceEventId, amount: cumulative }))
+})
+assert.deepEqual(s8SecondReturn.shares.map(({ sourceKind, amount }) => ({ sourceKind, amount })), [
+  { sourceKind: 'SOURCE_GIFT', amount: 0 },
+  { sourceKind: 'SOURCE_CASH', amount: 5_000_000 }
+], 'S8 remaining source after two 5M returns is 2M gift plus 3M cash')
+
 const s1CarrySources = [
   { sourceEventId: 1, sourceKind: 'SOURCE_GIFT', amount: 1_877_346 },
   { sourceEventId: 2, sourceKind: 'SOURCE_CASH', amount: 13_122_654 }

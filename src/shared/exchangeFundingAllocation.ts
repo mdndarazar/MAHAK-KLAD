@@ -29,12 +29,57 @@ export type ExchangeFundingFloorAllocation = {
   remainder: number
 }
 
-/** S1/S7 final-design allocation: floor the cumulative gift proportion first,
- * then assign the exact balancing Rial(s) to proven real-money tenders
- * (cash/card/cleared cheque). Within the gift and real-money groups, cumulative
- * floors partition the group amount across immutable source events. This is
- * deliberately distinct from gift-first and largest-remainder allocation;
- * it is a read/plan primitive only.
+/** Cash-first allocation keeps real money distinct from non-cash barcode
+ * value. Within each class, source-event order is stable and deterministic.
+ * Any down-exchange remainder therefore retains the origin of the source that
+ * was actually left unused instead of creating proportional gift/cash slices.
+ */
+export function allocateExchangeFundingCashFirst(input: {
+  replacementTotal: number
+  sources: readonly ExchangeFundingFloorShare[]
+}): { cashCarry: number; creditCarry: number; giftCarry: number; allocations: ExchangeFundingFloorAllocation[] } {
+  const { replacementTotal, sources } = input
+  if (!Number.isSafeInteger(replacementTotal) || replacementTotal < 0 || !Array.isArray(sources))
+    throw new RangeError('Exchange funding amounts must be non-negative safe integer rials')
+  const seen = new Set<number>()
+  let total = 0n
+  for (const source of sources) {
+    if (!source || !Number.isSafeInteger(source.sourceEventId) || source.sourceEventId <= 0 ||
+        seen.has(source.sourceEventId) || !Number.isSafeInteger(source.available) || source.available < 0 ||
+        !['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(source.sourceKind))
+      throw new RangeError('Exchange funding shares must be unique and proven')
+    seen.add(source.sourceEventId)
+    total += BigInt(source.available)
+  }
+  if (total > BigInt(Number.MAX_SAFE_INTEGER) || BigInt(replacementTotal) > total)
+    throw new RangeError('Replacement value exceeds proven source shares')
+  const moneyKinds = new Set(['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
+  const ordered = [...sources].sort((a, b) => {
+    const aMoney = moneyKinds.has(a.sourceKind) ? 0 : 1
+    const bMoney = moneyKinds.has(b.sourceKind) ? 0 : 1
+    return aMoney - bMoney || a.sourceEventId - b.sourceEventId
+  })
+  let left = replacementTotal
+  const byId = new Map<number, number>()
+  for (const source of ordered) {
+    const carry = Math.min(left, source.available)
+    byId.set(source.sourceEventId, carry)
+    left -= carry
+  }
+  if (left !== 0) throw new RangeError('Cash-first funding allocation does not reconcile')
+  const allocations = sources.map((source) => {
+    const carry = byId.get(source.sourceEventId) ?? 0
+    return { sourceEventId: source.sourceEventId, sourceKind: source.sourceKind,
+      carry, remainder: source.available - carry }
+  })
+  const cashCarry = allocations.filter((row) => moneyKinds.has(row.sourceKind)).reduce((sum, row) => sum + row.carry, 0)
+  const creditCarry = replacementTotal - cashCarry
+  return { cashCarry, creditCarry, giftCarry: creditCarry, allocations }
+}
+
+/** Legacy proportional-floor policy retained only for immutable historical
+ * allocations that must be replayed. New S1/S11 uses cash-first, and pending
+ * cheques must never be promoted to received money by this policy.
  */
 export function allocateExchangeFundingProportionalFloor(input: {
   replacementTotal: number

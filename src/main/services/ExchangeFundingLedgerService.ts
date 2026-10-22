@@ -200,6 +200,46 @@ function dateMillis(value: unknown): number | null {
   return Number.isFinite(time) ? time : Number.NaN
 }
 
+async function hasValidResidualCreditCompensation(tx: LedgerClient, input: {
+  invoiceId: number; creditId: number; redemptionId: number; redemptionAmount: number;
+  compensatedReturnId: number | null; expiryAtRedeem: unknown
+}): Promise<boolean> {
+  if (!input.compensatedReturnId) return false
+  const allocation = await tx.creditReturnAllocation.findFirst({ where: {
+    redemptionId: input.redemptionId, invoiceId: input.invoiceId, parentCreditId: input.creditId,
+    returnId: input.compensatedReturnId
+  }, orderBy: { id: 'asc' } })
+  if (!allocation?.successorCreditId || allocation.kind !== 'BRANCH' ||
+      toNumberRial(allocation.amount) <= 0 || toNumberRial(allocation.amount) > input.redemptionAmount ||
+      dateMillis(allocation.originalExpiresAt) !== dateMillis(input.expiryAtRedeem)) return false
+  const successor = await tx.storeCredit.findUnique({ where: { id: Number(allocation.successorCreditId) }, select: {
+    id: true, source: true, returnId: true, sourceInvoiceId: true, amount: true,
+    expiresAt: true, status: true, voidedAt: true, deletedAt: true
+  } })
+  const returnRow = await tx.saleReturn.findUnique({ where: { id: input.compensatedReturnId }, select: {
+    id: true, invoiceId: true, voidedAt: true
+  } })
+  if (!successor || !returnRow || successor.source !== 'EXCHANGE' ||
+      Number(successor.returnId) !== input.compensatedReturnId ||
+      Number(returnRow.invoiceId) !== Number(successor.sourceInvoiceId) ||
+      toNumberRial(successor.amount) !== toNumberRial(allocation.amount) ||
+      dateMillis(successor.expiresAt) !== dateMillis(input.expiryAtRedeem) || successor.deletedAt != null)
+    return false
+  const issue = await tx.exchangeFundingEvent.findFirst({ where: {
+    returnId: input.compensatedReturnId, kind: 'CREDIT_REISSUE_OUT',
+    evidenceRef: `StoreCredit:${Number(successor.id)}`
+  }, select: { id: true, kind: true, amount: true } })
+  if (!issue) return false
+  const reversal = await tx.exchangeFundingEvent.findUnique({ where: { reversesEventId: Number(issue.id) },
+    select: { kind: true, amount: true } })
+  const reversed = !!returnRow.voidedAt && successor.status === 'CANCELED' && successor.voidedAt != null &&
+    !!reversal && String(reversal.kind) === `VOID_${String(issue.kind)}` &&
+    toNumberRial(reversal.amount) === -toNumberRial(issue.amount)
+  return returnRow.voidedAt == null
+    ? successor.voidedAt == null && successor.status !== 'CANCELED'
+    : reversed
+}
+
 async function eventHasReversal(tx: LedgerClient, eventId: number): Promise<boolean> {
   return !!(await tx.exchangeFundingEvent.findUnique({ where: { reversesEventId: eventId }, select: { id: true } }))
 }
@@ -266,11 +306,17 @@ async function hasPersistedBRightPayment(tx: LedgerClient, input: {
     tx.creditDelivery.findUnique({ where: { creditId: input.creditId } })
   ])
   const rightKey = String(credit?.exchangeResidualRightKey ?? '')
+  const compensationValid = redemption?.compensatedAt != null
+    ? await hasValidResidualCreditCompensation(tx, { invoiceId: input.invoiceId, creditId: input.creditId,
+        redemptionId: input.redemptionId, redemptionAmount: toNumberRial(redemption.amount),
+        compensatedReturnId: redemption.compensatedReturnId == null ? null : Number(redemption.compensatedReturnId),
+        expiryAtRedeem: redemption.expiryAtRedeem })
+    : false
   if (!rightKey || credit?.voidedAt != null || credit?.deletedAt != null ||
       credit?.source !== 'EXCHANGE' || delivery?.status !== 'DELIVERED' ||
       Number(redemption?.creditId) !== input.creditId || Number(redemption?.invoiceId) !== input.invoiceId ||
       Number(redemption?.paymentId) !== input.paymentId || redemption?.reversedAt != null ||
-      redemption?.compensatedAt != null || redemption?.expiryCaptured !== true ||
+      (redemption?.compensatedAt != null && !compensationValid) || redemption?.expiryCaptured !== true ||
       toNumberRial(redemption.amount) !== input.amount ||
       !['USED', 'PARTIALLY_USED', 'EXPIRED'].includes(String(credit.status))) return false
   const events = await tx.exchangeResidualRightEvent.findMany({ where: { rightKey }, orderBy: { id: 'asc' } }) as any[]
@@ -300,11 +346,17 @@ async function hasPersistedNRightPayment(tx: LedgerClient, input: {
     tx.creditDelivery.findUnique({ where: { creditId: input.creditId } })
   ])
   const rightKey = String(credit?.exchangeResidualRightKey ?? '')
+  const compensationValid = redemption?.compensatedAt != null
+    ? await hasValidResidualCreditCompensation(tx, { invoiceId: input.invoiceId, creditId: input.creditId,
+        redemptionId: input.redemptionId, redemptionAmount: toNumberRial(redemption.amount),
+        compensatedReturnId: redemption.compensatedReturnId == null ? null : Number(redemption.compensatedReturnId),
+        expiryAtRedeem: redemption.expiryAtRedeem })
+    : false
   if (!rightKey || credit?.voidedAt != null || credit?.deletedAt != null ||
       credit?.source !== 'EXCHANGE' || delivery?.status !== 'DELIVERED' ||
       Number(redemption?.creditId) !== input.creditId || Number(redemption?.invoiceId) !== input.invoiceId ||
       Number(redemption?.paymentId) !== input.paymentId || redemption?.reversedAt != null ||
-      redemption?.compensatedAt != null || toNumberRial(redemption.amount) !== input.amount ||
+      (redemption?.compensatedAt != null && !compensationValid) || toNumberRial(redemption.amount) !== input.amount ||
       String(credit.status) !== 'USED' && String(credit.status) !== 'PARTIALLY_USED' && String(credit.status) !== 'EXPIRED')
     return false
   const events = await tx.exchangeResidualRightEvent.findMany({ where: { rightKey }, orderBy: { id: 'asc' } }) as any[]
@@ -383,14 +435,45 @@ async function hasPersistedSourcePayment(
       return false
     const activeRedemptions = await tx.storeCreditRedemption.findMany({
       where: { invoiceId, paymentId, reversedAt: null },
-      select: { id: true, creditId: true, amount: true, compensatedAt: true, expiryCaptured: true, expiryAtRedeem: true, at: true }
+      select: { id: true, creditId: true, amount: true, compensatedAt: true, compensatedReturnId: true,
+        expiryCaptured: true, expiryAtRedeem: true, at: true }
     })
     if (activeRedemptions.length !== 1) return false
     const redemption = activeRedemptions[0]
     if (Number(redemption.id) !== redemptionId || Number(redemption.creditId) !== creditId ||
-        toNumberRial(redemption.amount) !== paymentAmount || redemption.compensatedAt != null ||
-        redemption.expiryCaptured !== true)
+        toNumberRial(redemption.amount) !== paymentAmount || redemption.expiryCaptured !== true)
       return false
+    if (redemption.compensatedAt != null) {
+      const allocation = await tx.creditReturnAllocation.findFirst({ where: {
+        redemptionId, invoiceId, parentCreditId: creditId, returnId: Number(redemption.compensatedReturnId)
+      }, orderBy: { id: 'asc' } })
+      const successor = allocation?.successorCreditId
+        ? await tx.storeCredit.findUnique({ where: { id: Number(allocation.successorCreditId) }, select: {
+            id: true, source: true, returnId: true, exchangeInvoiceId: true, sourceInvoiceId: true,
+            amount: true, expiresAt: true, status: true, voidedAt: true, deletedAt: true
+          } }) : null
+      const returnRow = allocation ? await tx.saleReturn.findUnique({ where: { id: Number(allocation.returnId) }, select: {
+        id: true, invoiceId: true, voidedAt: true
+      } }) : null
+      const reissueEvent = allocation && successor ? await tx.exchangeFundingEvent.findFirst({ where: {
+        returnId: Number(allocation.returnId), kind: 'CREDIT_REISSUE_OUT',
+        evidenceRef: `StoreCredit:${Number(successor.id)}`
+      }, select: { id: true, amount: true, kind: true } }) : null
+      const reissueReversal = reissueEvent ? await tx.exchangeFundingEvent.findUnique({
+        where: { reversesEventId: Number(reissueEvent.id) }, select: { kind: true, amount: true }
+      }) : null
+      const compensationVoided = !!returnRow?.voidedAt && successor?.status === 'CANCELED' && !!reissueEvent &&
+        !!reissueReversal && String(reissueReversal.kind) === `VOID_${String(reissueEvent.kind)}` &&
+        toNumberRial(reissueReversal.amount) === -toNumberRial(reissueEvent.amount)
+      if (!allocation || !successor || !returnRow || (returnRow.voidedAt != null && !compensationVoided) ||
+          Number(returnRow.invoiceId) !== Number(successor.sourceInvoiceId) ||
+          toNumberRial(allocation.amount) <= 0 || toNumberRial(allocation.amount) > paymentAmount ||
+          allocation.kind !== 'BRANCH' || Number(successor.id) !== Number(allocation.successorCreditId) ||
+          successor.source !== 'EXCHANGE' || Number(successor.returnId) !== Number(allocation.returnId) ||
+          (successor.voidedAt != null && !compensationVoided) || successor.deletedAt != null ||
+          dateMillis(successor.expiresAt) !== dateMillis(redemption.expiryAtRedeem))
+        return false
+    }
     const credit = await tx.storeCredit.findUnique({ where: { id: creditId }, select: {
       id: true, amount: true, usedAmount: true, status: true, expiresAt: true, voidedAt: true, deletedAt: true
     } })
@@ -1249,7 +1332,7 @@ function returnAllocationRowMatches(row: any, expected: Record<string, any>) {
 export async function recordExchangeFundingReturnLineAllocation(tx: LedgerClient, input: {
   returnId: number
   returnItemId: number
-  allocationPolicy?: 'PROPORTIONAL_FLOOR'
+  allocationPolicy?: 'PROPORTIONAL_FLOOR' | 'CASH_FIRST'
 }) {
   if (!Number.isSafeInteger(input?.returnId) || input.returnId <= 0 ||
       !Number.isSafeInteger(input?.returnItemId) || input.returnItemId <= 0)
@@ -1324,6 +1407,19 @@ export async function recordExchangeFundingReturnLineAllocation(tx: LedgerClient
       history.some((entry) => Number(entry.ret.id) > Number(ret.id)))
     throw new BusinessError('ترتیب/وضعیت برگشت‌های فعال قلم فرزند ناسازگار است؛ هیچ انتسابی ثبت نشد.')
 
+  let allocationPolicy: 'PROPORTIONAL_FLOOR' | 'CASH_FIRST' | undefined = input.allocationPolicy
+  const policyHistory = await tx.exchangeFundingReturnLineAllocation.findMany({
+    where: { childInvoiceId, saleItemId: Number(returnItem.saleItemId) },
+    select: { allocationVersion: true }
+  }) as any[]
+  if (policyHistory.length) {
+    const versions = new Set(policyHistory.map((row) => Number(row.allocationVersion)))
+    if (versions.size !== 1 || ![1, 2, 3].includes([...versions][0]))
+      throw new BusinessError('نسخهٔ سیاست تخصیص برگشت قلم فرزند ناسازگار است؛ هیچ انتسابی ثبت نشد.')
+    const version = [...versions][0]
+    allocationPolicy = version === 2 ? 'PROPORTIONAL_FLOOR' : version === 3 ? 'CASH_FIRST' : undefined
+  }
+
   let returnedQty = 0
   let priorAllocations: Array<{ sourceEventId: number; amount: number }> = []
   for (const entry of history.filter((candidate) => Number(candidate.ret.id) < Number(ret.id))) {
@@ -1333,7 +1429,7 @@ export async function recordExchangeFundingReturnLineAllocation(tx: LedgerClient
       allocation = allocateExchangeFundingLineReturn({
         saleItemId: Number(returnItem.saleItemId), saleItemQty: lineSnapshot.qty,
         saleItemValue: lineSnapshot.netValue, previouslyReturnedQty: returnedQty,
-        returningQty: priorQty, sources, allocationPolicy: input.allocationPolicy,
+        returningQty: priorQty, sources, allocationPolicy,
         ...(returnedQty > 0 && lineSnapshot.netValue > 0 ? { priorAllocations } : {})
       })
     } catch {
@@ -1356,7 +1452,7 @@ export async function recordExchangeFundingReturnLineAllocation(tx: LedgerClient
       priorReturnValue: allocation.cumulativeReturnValue - allocation.returnValue,
       returnValue: allocation.returnValue, cumulativeReturnValue: allocation.cumulativeReturnValue,
       priorAmount: share.prior, amountDelta: share.amount, cumulativeAmount: share.cumulative,
-      allocationVersion: input.allocationPolicy === 'PROPORTIONAL_FLOOR' ? 2 : 1, reversesAllocationId: null
+      allocationVersion: allocationPolicy === 'PROPORTIONAL_FLOOR' ? 2 : allocationPolicy === 'CASH_FIRST' ? 3 : 1, reversesAllocationId: null
     }))
     if (persisted.length !== expected.length || expected.some((row) =>
       !persisted.some((candidate) => candidate.eventKind === 'ALLOCATION' && returnAllocationRowMatches(candidate, row))))
@@ -1370,7 +1466,7 @@ export async function recordExchangeFundingReturnLineAllocation(tx: LedgerClient
     current = allocateExchangeFundingLineReturn({
       saleItemId: Number(returnItem.saleItemId), saleItemQty: lineSnapshot.qty,
       saleItemValue: lineSnapshot.netValue, previouslyReturnedQty: returnedQty,
-      returningQty: Number(returnItem.qty), sources, allocationPolicy: input.allocationPolicy,
+      returningQty: Number(returnItem.qty), sources, allocationPolicy,
       ...(returnedQty > 0 && lineSnapshot.netValue > 0 ? { priorAllocations } : {})
     })
   } catch {
@@ -1395,7 +1491,7 @@ export async function recordExchangeFundingReturnLineAllocation(tx: LedgerClient
       priorReturnValue: current.cumulativeReturnValue - current.returnValue,
       returnValue: current.returnValue, cumulativeReturnValue: current.cumulativeReturnValue,
       priorAmount: share.prior, amountDelta: share.amount, cumulativeAmount: share.cumulative,
-      allocationVersion: input.allocationPolicy === 'PROPORTIONAL_FLOOR' ? 2 : 1, reversesAllocationId: null
+      allocationVersion: allocationPolicy === 'PROPORTIONAL_FLOOR' ? 2 : allocationPolicy === 'CASH_FIRST' ? 3 : 1, reversesAllocationId: null
     }
   })
   const existing = await tx.exchangeFundingReturnLineAllocation.findMany({
@@ -1583,7 +1679,7 @@ export async function reverseExchangeFundingReturnLineAllocationsForReturn(tx: L
         toNumberRial(row.sourceItemAmount) !== toNumberRial(sourceLine.amount) ||
         Number(row.returningQty) !== Number(rowItem.qty) ||
         toNumberRial(row.returnValue) !== toNumberRial(rowItem.lineTotal) ||
-        Number(row.allocationVersion) !== 1 ||
+        ![1, 2, 3].includes(Number(row.allocationVersion)) ||
         String(row.eventKey) !== exchangeFundingReturnLineAllocationEventKey(Number(row.returnItemId), Number(row.sourceEventId)) ||
         !Number.isSafeInteger(amountDelta) || amountDelta < 0 || amountDelta > toNumberRial(sourceLine.amount) ||
         toNumberRial(row.cumulativeAmount) > toNumberRial(sourceLine.amount))

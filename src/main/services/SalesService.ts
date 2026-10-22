@@ -22,7 +22,7 @@ import {
   reverseExchangeFundingReturnTransfersForChildReturn,
   transferExchangeFundingShare
 } from './ExchangeFundingLedgerService'
-import { allocateExchangeFundingProRata, allocateExchangeFundingProportionalFloor } from '@shared/exchangeFundingAllocation'
+import { allocateExchangeFundingCashFirst, allocateExchangeFundingProRata } from '@shared/exchangeFundingAllocation'
 import {
   openS1ExchangeResidualRights, openS11ExchangeDebtResidualRights, voidS1ExchangeResidualRightsForReturn,
   reserveS1ExchangeResidualRight, commitS1ExchangeResidualRight,
@@ -4027,7 +4027,8 @@ async function runReturn(
        * نشست ۱۹۷: سند تعویض با EXCHANGE_CREDIT «تسویه‌شده» دیده می‌شود و
        * afterNone.overpaid > ۰ است، ولی پول واقعی صفر است — همان کاهش بدهی.
        */
-      const debtOnly = refundingAsked && (afterNone.overpaid <= 0 || receivedOnInvoice <= 0 ||
+      const remainingRealMoney = Math.max(0, receivedOnInvoice - debtBefore.refundFromReceived)
+      const debtOnly = refundingAsked && (remainingRealMoney <= 0 ||
         (creditReturnPlan!.credit > 0 && creditReturnPlan!.cash === 0))
       refund = resolveRefund({
         method: debtOnly ? RefundMethod.NONE : (input.refundMethod ?? null),
@@ -4046,7 +4047,12 @@ async function runReturn(
         /** بند ۴-۳۷ — اعتبار خرید تا سقف پول واقعی + اعتبار خرج‌شده (EXCHANGE_CREDIT نه) */
         receivedForCredit: receivedOnInvoice + redeemedAmt,
         remainingDebt: afterNone.remaining,
-        maxKeepSettled: afterNone.overpaid,
+        // Unsettled cheques are not received money and remain attached to the
+        // goods the customer keeps. A refund for actually paid returned goods
+        // is capped by received cash/card, not by a proportional debt remainder.
+        maxKeepSettled: askedMethod === RefundMethod.STORE_CREDIT
+          ? remainingRealMoney + redeemedAmt
+          : remainingRealMoney,
         receiptNo: invoice.receiptNo
       })
       if (creditReturnPlan.credit > 0 &&
@@ -4220,7 +4226,7 @@ async function runReturn(
       for (const returnItem of ret.items as any[]) {
         const attribution = await recordExchangeFundingReturnLineAllocation(tx, {
           returnId: Number(ret.id), returnItemId: Number(returnItem.id),
-          ...(exchangeChildReturnPlan.s8BranchEligible ? { allocationPolicy: 'PROPORTIONAL_FLOOR' as const } : {})
+          ...(exchangeChildReturnPlan.s8BranchEligible ? { allocationPolicy: 'CASH_FIRST' as const } : {})
         })
         for (const share of attribution.shares) {
           const amount = Number(share.amount)
@@ -4762,9 +4768,18 @@ async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
   const activeReturns = (invoice.returns ?? []).filter((ret: any) => ret.voidedAt == null)
     .slice().sort((a: any, b: any) => Number(a.id) - Number(b.id))
   const activeReturnIds = activeReturns.map((ret: any) => Number(ret.id))
-  const s8AllocationPolicy = activeReturns.some((ret: any) => String(ret.kind) === ReturnKind.EXCHANGE) ||
-    funding.sources.some((source: any) => ['SOURCE_N', 'SOURCE_B'].includes(String(source.sourceKind)))
-    ? 'PROPORTIONAL_FLOOR' as const : undefined
+  const persistedAllocationPolicy = await tx.exchangeFundingReturnLineAllocation.findFirst({
+    where: { childInvoiceId: invoiceId }, orderBy: { id: 'asc' }, select: { allocationVersion: true }
+  })
+  const persistedVersion = Number(persistedAllocationPolicy?.allocationVersion ?? 0)
+  const s8AllocationPolicy = persistedVersion === 3
+    ? 'CASH_FIRST' as const
+    : persistedVersion === 2 || (!persistedVersion && funding.sources.some((source: any) =>
+        ['SOURCE_N', 'SOURCE_B'].includes(String(source.sourceKind))))
+      ? 'PROPORTIONAL_FLOOR' as const
+      : !persistedVersion && activeReturns.some((ret: any) => String(ret.kind) === ReturnKind.EXCHANGE)
+        ? 'CASH_FIRST' as const
+        : undefined
   const readerReturnIds = [...(funding.activeReturnIds as number[])].sort((a, b) => a - b)
   if (activeReturnIds.some((id: number, index: number) => !Number.isSafeInteger(id) || id <= 0 ||
       id !== readerReturnIds[index]) || activeReturnIds.length !== readerReturnIds.length)
@@ -7756,7 +7771,7 @@ export const salesService = {
       const exchangeTotal = exTotals.grandTotal
       const diff = exchangeTotal - returnTotal
       if (refundMode === 'S1_RESIDUAL_RIGHTS' && diff >= 0)
-        throw new BusinessError('حق‌های B/N مازاد فقط برای تعویض ارزان‌تر با مازاد اثبات‌شده قابل انتخاب است.')
+        throw new BusinessError('بارکد باقیماندهٔ S1 فقط برای تعویض ارزان‌تر با ماندهٔ اعتبار اثبات‌شده قابل انتخاب است.')
 
       /**
        * A no-difference exchange may carry a fully proven, complete source set
@@ -7837,7 +7852,7 @@ export const salesService = {
               returningQty: Number(returnItem.qty),
               sources: lineSources.map((row: any) => ({ sourceEventId: Number(row.sourceEventId),
                 sourceKind: String(row.sourceKind) as ExchangeReturnSourceKind, amount: Number(row.amount) })),
-              allocationPolicy: 'PROPORTIONAL_FLOOR'
+              allocationPolicy: 'CASH_FIRST'
             })
           } catch { throw new BusinessError(exchangeReturnFundingBlockedMessage()) }
           if (allocation.returnValue !== toNumberRial(returnItem.lineTotal))
@@ -7913,7 +7928,7 @@ export const salesService = {
               ? funding!.sources.some((sourceShare) => sourceShare.sourceKind !== 'SOURCE_GIFT')
               : new Set(funding!.sources.map((sourceShare) => sourceShare.sourceKind)).size >= 2)) {
           try {
-            const plan = allocateExchangeFundingProportionalFloor({
+            const plan = allocateExchangeFundingCashFirst({
               replacementTotal: exchangeTotal,
               sources: funding!.sources.map((sourceShare) => ({
                 sourceEventId: Number(sourceShare.event.id),
@@ -7921,7 +7936,9 @@ export const salesService = {
                 available: sourceShare.available
               }))
             })
-            if (plan.allocations.some((row) => row.remainder > 0) &&
+            const residualCreditOnly = plan.allocations.some((row) => row.remainder > 0 && ['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B'].includes(row.sourceKind)) &&
+              plan.allocations.every((row) => row.remainder === 0 || ['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B'].includes(row.sourceKind))
+            if (residualCreditOnly &&
                 plan.allocations.reduce((sum, row) => sum + row.carry, 0) === exchangeTotal &&
                 plan.allocations.reduce((sum, row) => sum + row.remainder, 0) === returnTotal - exchangeTotal) {
               fundingSourcesForTransfer = funding!.sources
@@ -7936,7 +7953,7 @@ export const salesService = {
       // S11 is a separate, deliberately narrow exception: a full return of an
       // exchange child with exactly one pending/bounced cheque-backed debt. The
       // debt is offset first; only paid source shares are allocated to carry and
-      // residual B/N. Any cheque ambiguity or partial debt is fail-closed.
+      // one residual non-cash barcode. Any cheque ambiguity or partial debt is fail-closed.
       if (sourceIsExchangeChild && diff < 0 && funding?.snapshotExists && !funding.stale &&
           funding.unresolved.length === 0 && funding.activeReturnIds.length === 1 &&
           funding.activeReturnIds[0] === back.id && funding.debt > 0 && Number(funding.debtOffset ?? 0) === 0 &&
@@ -7957,8 +7974,8 @@ export const salesService = {
         }, select: { id: true, amount: true, chequeStatus: true } }) as any[]
         const owedTotal = returnTotal - exchangeTotal
         const paidRemainder = owedTotal - funding.debt
-        const mixedPaidSources = funding.sources.some((share) => share.sourceKind === 'SOURCE_GIFT') &&
-          funding.sources.some((share) => share.sourceKind !== 'SOURCE_GIFT')
+        const mixedPaidSources = funding.sources.some((share) => ['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B'].includes(share.sourceKind)) &&
+          funding.sources.some((share) => ['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(share.sourceKind))
         if (debtOpenRows.length === 1 && backingPayments.length === 1 &&
             Number(debtOpenRows[0].sourcePaymentId) === Number(backingPayments[0].id) &&
             toNumberRial(debtOpenRows[0].amount) === funding.debt &&
@@ -7967,7 +7984,7 @@ export const salesService = {
             paidSourcesTotal - exchangeTotal === paidRemainder && mixedPaidSources &&
             returnTotal === toNumberRial(source.grandTotal)) {
           try {
-            const plan = allocateExchangeFundingProportionalFloor({
+            const plan = allocateExchangeFundingCashFirst({
               replacementTotal: exchangeTotal,
               sources: funding.sources.map((share) => ({
                 sourceEventId: Number(share.event.id),
@@ -7975,9 +7992,11 @@ export const salesService = {
                 available: share.available
               }))
             })
+            const residualCreditOnly = plan.allocations.some((row) => row.remainder > 0 && ['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B'].includes(row.sourceKind)) &&
+              plan.allocations.every((row) => row.remainder === 0 || ['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B'].includes(row.sourceKind))
             if (plan.allocations.reduce((sum, row) => sum + row.carry, 0) === exchangeTotal &&
                 plan.allocations.reduce((sum, row) => sum + row.remainder, 0) === paidRemainder &&
-                plan.allocations.some((row) => row.remainder > 0)) {
+                residualCreditOnly) {
               s11DebtOffsetEligible = true
               s11DebtOffsetAmount = funding.debt
               s11DebtOffsetPaymentId = Number(backingPayments[0].id)
@@ -7992,7 +8011,7 @@ export const salesService = {
       if (refundMode === 'S11_DEBT_OFFSET_RIGHTS' && !s11DebtOffsetEligible)
         throw new BusinessError('گزینهٔ S11 فقط برای برگشت کاملِ فرزند تعویض با بدهی چکِ یکتا و carry مختلطِ پرداخت‌شده قابل استفاده است؛ هیچ تغییری ثبت نشد.')
       if (s11DebtOffsetEligible && refundMode !== 'S11_DEBT_OFFSET_RIGHTS')
-        throw new BusinessError('این تعویض واجد S11 است؛ ابتدا بدهی چک کسر و فقط مازادِ منشأهای پرداخت‌شده به حق B/N تبدیل می‌شود. گزینهٔ S11 را انتخاب کنید.')
+        throw new BusinessError('این تعویض واجد S11 است؛ ابتدا بدهی چک کسر می‌شود و ماندهٔ اعتبار فقط با یک بارکد غیرنقدی صادر می‌شود. گزینهٔ S11 را انتخاب کنید.')
 
       if (sourceIsExchangeChild && diff !== 0 && funding?.snapshotExists && !funding.stale &&
           funding.unresolved.length === 0 && funding.lineAllocationStatus === 'PERSISTED_RECONCILED' &&
@@ -8013,7 +8032,7 @@ export const salesService = {
       if (refundMode === 'S1_RESIDUAL_RIGHTS' && !s1ResidualRightsEligible)
         throw new BusinessError('گزینهٔ S1 فقط وقتی فعال است که فروش مختلط هدیه/وجه، lineage سالم و carry/remnant قابل اثبات داشته باشد؛ منشأ این تعویض واجد شرایط نیست.')
       if (s1ResidualRightsEligible && refundMode !== 'S1_RESIDUAL_RIGHTS')
-        throw new BusinessError('منشأ و مبلغ این تعویض واجد S1 است؛ برای جلوگیری از تبدیل مازاد به نقد یا اعتبار عمومی، گزینهٔ «حق ریشه‌دار B/N» را انتخاب کنید.')
+        throw new BusinessError('منشأ و مبلغ این تعویض واجد S1 است؛ وجه واقعی اول carry می‌شود و فقط ماندهٔ اعتبار به یک بارکد غیرنقدی تبدیل می‌شود. گزینهٔ S1 را انتخاب کنید.')
       // A present but stale/unresolved snapshot is not downgraded to the legacy
       // exchange path: it is an explicit incomplete-lineage signal.
       if (fundingSourcesForTransfer == null && fundingSnapshotInvalid)
@@ -8126,8 +8145,8 @@ export const salesService = {
       let debtCut = 0
 
       if (s1ResidualRightsEligible) {
-        // The proven S1 surplus is kept by source lineage as B/N; it is not
-        // a cash refund or an untyped general-purpose store credit.
+        // The proven S1 surplus is kept as one non-cash successor barcode with
+        // exact gift-root expiry; it is never a cash refund.
         settlement = ExchangeSettlement.S1_RESIDUAL_RIGHTS
       } else if (diff > 0) {
         const deltaCreditCode = String(input.deltaStoreCreditCode ?? '').trim()
@@ -8619,9 +8638,10 @@ export const salesService = {
         const persistedShares = new Map<number, number>()
         for (const returnItem of returnItems) {
           const attributed = await recordExchangeFundingReturnLineAllocation(tx, {
-            returnId: Number(back.id), returnItemId: Number(returnItem.id), allocationPolicy: 'PROPORTIONAL_FLOOR'
+            returnId: Number(back.id), returnItemId: Number(returnItem.id), allocationPolicy: 'CASH_FIRST'
           })
           for (const share of attributed.shares) {
+            if (Number(share.amount) === 0) continue
             const id = Number(share.sourceEventId)
             persistedShares.set(id, (persistedShares.get(id) ?? 0) + Number(share.amount))
           }
@@ -8671,11 +8691,13 @@ export const salesService = {
             sourceInvoiceId: source.id, childInvoiceId: exchangeInvoice.id,
             returnId: back.id, actorUserId: input.userId ?? null
           })
+          credit = await tx.storeCredit.findUnique({ where: { id: Number(s1ResidualRights.creditId) } })
         } else if (s11DebtOffsetEligible) {
           s1ResidualRights = await openS11ExchangeDebtResidualRights(tx, {
             sourceInvoiceId: source.id, childInvoiceId: exchangeInvoice.id,
             returnId: back.id, actorUserId: input.userId ?? null
           })
+          credit = await tx.storeCredit.findUnique({ where: { id: Number(s1ResidualRights.creditId) } })
         }
       }
 
@@ -8831,7 +8853,7 @@ export const salesService = {
             ? `${money(diff)} ریال از مشتری دریافت شد`
             : diff < 0
               ? s1ResidualRightsEligible
-                ? `${money(returnTotal - exchangeTotal)} ریال حق B/N ریشه‌دار ایجاد شد`
+                ? `${money(returnTotal - exchangeTotal)} ریال بارکد غیرنقدیِ ریشه‌دار ایجاد شد`
                 : (debtCut > 0 ? `${money(debtCut)} ریال از بدهی فاکتور اصلی کم شد` : '') +
                 (debtCut > 0 && -diff - debtCut > 0 ? ' و ' : '') +
                 (-diff - debtCut > 0
@@ -8861,7 +8883,7 @@ export const salesService = {
         settlementLabel: EXCHANGE_SETTLEMENT_LABELS[settlement] ?? settlement,
         /** کد در نتیجهٔ عادی تعویض نیست؛ فقط مرجع امن برای ردیابی برمی‌گردد. */
         storeCredit: credit ? shapeStoreCreditSafe(credit) : null,
-        residualRights: s1ResidualRights ? {
+        residualRights: s1ResidualRights?.rights?.length ? {
           giftCarry: s1ResidualRights.giftCarry, cashCarry: s1ResidualRights.cashCarry,
           rights: s1ResidualRights.rights.map((right: any) => ({
             rightKey: right.rightKey, rightKind: right.rightKind, amount: right.amount,
@@ -10566,8 +10588,24 @@ export const salesService = {
         if (ret.goodsReceiptRequired && await tx.returnGoodsReceipt.count({ where: { returnId: ret.id } }))
           throw new BusinessError('این سند رسید فیزیکیِ کالا دارد؛ ابطال مستقیم تاریخچهٔ دریافت را دو بار معکوس می‌کند. اصلاح جبرانی شاهددار لازم است.')
         const managedClaim = await tx.returnEntitlement.findUnique({ where: { returnId: ret.id } })
-        if (await tx.creditReturnAllocation.count({ where: { returnId: ret.id } }))
-          throw new BusinessError('این سند برگشت، احیای اعتبار اصلی یا شاخهٔ B/E ثبت‌شده دارد؛ ابطال مستقیم حق را دوبار باز می‌کند. اصلاح جبرانی شاهددار مدیر لازم است.')
+        const creditReturnRows = await tx.creditReturnAllocation.findMany({ where: { returnId: ret.id },
+          select: { successorCreditId: true, amount: true } }) as any[]
+        if (creditReturnRows.length) {
+          const reissueRows = await tx.exchangeFundingEvent.findMany({ where: {
+            returnId: ret.id, kind: 'CREDIT_REISSUE_OUT'
+          }, select: { evidenceRef: true, amount: true } }) as any[]
+          const issuedIds = new Set(reissueRows.map((row) => {
+            const match = /^StoreCredit:(\d+)$/.exec(String(row.evidenceRef ?? ''))
+            return match ? Number(match[1]) : 0
+          }))
+          const onlyExchangeResidualBranches = isExchange && reissueRows.length === creditReturnRows.length &&
+            creditReturnRows.every((row) => row.successorCreditId != null &&
+              issuedIds.has(Number(row.successorCreditId)) && reissueRows.some((event) =>
+                Number(String(event.evidenceRef ?? '').replace('StoreCredit:', '')) === Number(row.successorCreditId) &&
+                toNumberRial(event.amount) === -toNumberRial(row.amount)))
+          if (!onlyExchangeResidualBranches)
+            throw new BusinessError('این سند برگشت، احیای اعتبار اصلی یا شاخهٔ B/E ثبت‌شده دارد؛ ابطال مستقیم حق را دوبار باز می‌کند. اصلاح جبرانی شاهددار مدیر لازم است.')
+        }
         if (managedClaim && (managedClaim.state !== 'OPEN' ||
             toNumberRial(managedClaim.cashPaid) > 0 || toNumberRial(managedClaim.cashConverted) > 0))
           throw new BusinessError('این برگشت دفتر حق مالی/شاهد بانک یا اعتبار صادرشده دارد؛ ابطال ساده ممکن نیست. اصلاح جبرانی شاهددار لازم است.')
