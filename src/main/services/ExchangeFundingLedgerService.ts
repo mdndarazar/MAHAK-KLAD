@@ -16,6 +16,7 @@ type LedgerClient = Prisma.TransactionClient | {
   paymentChequeStatusHistory?: any
   storeCreditRedemption: any
   storeCredit: any
+  creditReturnAllocation: any
   saleReturn: any
   saleReturnItem: any
   exchangeResidualRightEvent?: any

@@ -461,7 +461,8 @@ async function assertCreditDeliverySourceLineage(tx: Client, delivery: any, cred
     ])
     if (balance.rightKind !== expectedKind || balance.amount !== toNumberRial(credit.amount) ||
         balance.expired || balance.voided ||
-        !verified.rights.some((right) => right.rightKey === rightKey && right.creditId === Number(credit.id)))
+        !(verified.rights as Array<{ rightKey: string; creditId: number }>).some((right) =>
+          right.rightKey === rightKey && right.creditId === Number(credit.id)))
       throw new BusinessError('lineage زندهٔ B/N یا مانده/انقضای ریشه در همین لحظه تأیید نشد؛ تحویل متوقف شد.')
   }
 }

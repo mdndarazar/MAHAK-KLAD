@@ -1505,7 +1505,9 @@ export async function reverseInvoiceRedemptions(
       usedCount: asNum(credit.usedCount),
       status: String(credit.status)
     }
-    const expired = String(credit.status) === StoreCreditStatus.EXPIRED || isExpiredAt(credit, now)
+    const expired = String(credit.status) === StoreCreditStatus.EXPIRED || isExpiredAt({
+      amount: asNum(credit.amount), status: String(credit.status), expiresAt: credit.expiresAt
+    }, now)
 
     // Claim this ledger row once, inside the caller's transaction. A retry or
     // concurrent reversal cannot issue another successor for the same use.
