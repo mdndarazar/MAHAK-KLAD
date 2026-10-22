@@ -1453,9 +1453,10 @@ export async function redeemStoreCredit(client: Client, input: RedeemCreditInput
 /**
  * برگشت مصرف‌های یک فاکتور، وقتی خود فاکتور Refund/Reverse/باطل می‌شود (§۸).
  *
- * منطقش عمداً «برگرداندن مبلغ روی همان اعتبار» است، نه ساختن اعتبار جدید: کاری
- * که انجام نشده نباید سابقه‌ی جدید بسازد. ردیف دفتر مصرف حذف نمی‌شود، فقط
- * `reversedAt` می‌خورد تا سابقه‌ی حسابداری کامل بماند.
+ * دفتر مصرف حذف نمی‌شود و با `reversedAt` یک‌بار claim می‌شود. اعتبار زنده‌ی
+ * ACTIVE/PARTIALLY_USED روی همان بارکد و با همان انقضا اصلاح می‌شود؛ اگر بارکد
+ * قبلاً USED شده باشد، وضعیت قدیمی برای همیشه USED می‌ماند و فقط جانشینی با
+ * `expiresAtExact` ریشه صادر می‌شود. اعتبار منقضی نه احیا می‌شود و نه جانشین می‌گیرد.
  *
  * مصرف‌کننده‌های واقعی (سند به‌روز است — جلسه ۲۸):
  *   • `SalesService.createReturn` برای **برگشت کامل** فاکتور (از جلسه ۲۱).
@@ -1465,7 +1466,14 @@ export async function redeemStoreCredit(client: Client, input: RedeemCreditInput
  */
 export async function reverseInvoiceRedemptions(
   client: Client,
-  input: { invoiceId: number; reason?: string | null; userId?: number | null; redemptionIds?: number[] }
+  input: {
+    invoiceId: number
+    reason?: string | null
+    userId?: number | null
+    redemptionIds?: number[]
+    returnId?: number | null
+    exchangeInvoiceId?: number | null
+  }
 ): Promise<number> {
   /**
    * ممیزی A88-02 — `redemptionIds` برگشت را به همان ردیف(های) دفتر مصرفِ یک پرداخت
@@ -1492,18 +1500,96 @@ export async function reverseInvoiceRedemptions(
       throw new BusinessError('این مصرف اعتبار سهم برگشتیِ ثبت‌شده دارد؛ احیای مستقیمِ اعتبار اصلی، آن حق را دوبار باز می‌کند. اصلاح جبرانی مدیر لازم است.')
     const credit = await client.storeCredit.findUnique({ where: { id: r.creditId } })
     if (!credit) continue
-    /**
-     * جلسه ۲۹ · §۱۱ — وضعیت دیگر «مستقیم» نوشته نمی‌شود.
-     *
-     * نسخه‌ی قبلی خودش وضعیت بعدی را حساب می‌کرد و بی‌هیچ اعتبارسنجی
-     * می‌نوشت (تنها محافظش یک `if` دستی برای CANCELED بود). حالا تصمیم از
-     * `planRedemptionReversal` می‌آید که Transition را با جدول *مخصوص برگشت*
-     * (`CREDIT_REVERSAL_TRANSITIONS`) می‌سنجد: `USED ⇒ ACTIVE` فقط از همین
-     * مسیر مجاز است، `CANCELED` پایانی می‌ماند و `SUSPENDED` هم با برگشت
-     * فاکتور از تعلیق در نمی‌آید. اگر Transition مجاز نبود، مبلغ و دفعات
-     * برمی‌گردند ولی وضعیت دست‌نخورده می‌ماند و *دلیلش* در AuditLog می‌نشیند
-     * (قبلاً بی‌صدا رد می‌شد).
-     */
+    const before = {
+      usedAmount: asNum(credit.usedAmount),
+      usedCount: asNum(credit.usedCount),
+      status: String(credit.status)
+    }
+    const expired = String(credit.status) === StoreCreditStatus.EXPIRED || isExpiredAt(credit, now)
+
+    // Claim this ledger row once, inside the caller's transaction. A retry or
+    // concurrent reversal cannot issue another successor for the same use.
+    const claimed = await client.storeCreditRedemption.updateMany({
+      where: { id: r.id, reversedAt: null },
+      data: {
+        reversedAt: now,
+        reversedReason: input.reason ?? 'برگشت/ابطال فاکتور مرجع'
+      }
+    })
+    if (claimed.count !== 1) continue
+
+    if (expired) {
+      // An expired barcode is never reactivated and its deadline is not extended.
+      await audit(client, {
+        action: AuditAction.CREDIT_REACTIVATE,
+        entity: 'StoreCredit',
+        entityId: credit.id,
+        userId: input.userId ?? null,
+        before: JSON.stringify(before),
+        after: JSON.stringify({ ...before, restoredAmount: 0, expired: true }),
+        note: `مصرف اعتبار #${credit.id} در برگشت مرجع ثبت شد، اما مهلت ریشه گذشته است؛ اعتبار منقضی احیا یا جایگزین نشد` +
+          (input.reason ? ` · دلیل: ${input.reason}` : '')
+      })
+      reversed++
+      continue
+    }
+
+    if (String(credit.status) === StoreCreditStatus.USED) {
+      // USED is terminal: restoration must not make the old barcode redeemable.
+      // Issue a successor with the exact root deadline (including no-expiry).
+      const successor = await issueStoreCredit(client, {
+        amount: toNumberRial(r.amount),
+        source: String(credit.source ?? CreditSource.EXCHANGE),
+        returnId: input.returnId ?? credit.returnId ?? null,
+        exchangeInvoiceId: input.exchangeInvoiceId ?? credit.exchangeInvoiceId ?? null,
+        sourceInvoiceId: credit.sourceInvoiceId ?? null,
+        customerId: credit.customerId ?? null,
+        customerName: credit.customerName ?? null,
+        expiresAtExact: credit.expiresAt ?? null,
+        length: Math.max(MIN_CREDIT_CODE_LENGTH, String(credit.code ?? '').length),
+        maxUses: Math.max(1, Number(credit.maxUses ?? 1)),
+        multiUse: credit.multiUse === true,
+        carryRemainder: credit.carryRemainder !== false,
+        restrictScope: String(credit.restrictScope ?? CreditRestrictScope.ALL),
+        restrictCategoryIds: parseIdList(credit.restrictCategoryIdsJson),
+        restrictVariantIds: parseIdList(credit.restrictVariantIdsJson),
+        minPurchase: toNumberRial(credit.minPurchase ?? 0),
+        maxPerTransaction: toNumberRial(credit.maxPerTransaction ?? 0),
+        customerLocked: credit.customerLocked === true,
+        holderCompany: credit.holderCompany ?? null,
+        holderNationalId: credit.holderNationalId ?? null,
+        holderPhone: credit.holderPhone ?? null,
+        holderAddress: credit.holderAddress ?? null,
+        holderAgent: credit.holderAgent ?? null,
+        holderNote: credit.holderNote ?? null,
+        note: `جانشین اعتبار مصرف‌شده #${credit.id} · بازگشت ${money(toNumberRial(r.amount))} ریال` +
+          (input.reason ? ` · ${input.reason}` : ''),
+        userId: input.userId ?? null,
+        issuedAt: now
+      })
+      if (input.returnId != null) {
+        await client.saleReturn.updateMany({
+          where: { id: input.returnId, storeCreditId: null },
+          data: { storeCreditId: successor.id, storeCreditCode: successor.code }
+        })
+      }
+      await audit(client, {
+        action: AuditAction.CREDIT_REACTIVATE,
+        entity: 'StoreCredit',
+        entityId: credit.id,
+        userId: input.userId ?? null,
+        before: JSON.stringify(before),
+        after: JSON.stringify({ ...before, restoredAmount: toNumberRial(r.amount), successorCreditId: successor.id, successorExpiresAt: successor.expiresAt }),
+        note: `بارکد مصرف‌شده #${credit.id} برای همیشه USED ماند؛ ${money(toNumberRial(r.amount))} ریال با مهلت دقیق ریشه به بارکد جانشین #${successor.id} منتقل شد` +
+          (input.reason ? ` · دلیل: ${input.reason}` : '')
+      })
+      reversed++
+      continue
+    }
+
+    // ACTIVE/PARTIALLY_USED codes may continue on the same barcode, but use an
+    // optimistic compare-and-update so a simultaneous redemption cannot be
+    // overwritten by this rollback.
     const plan = planRedemptionReversal(
       {
         amount: asNum(credit.amount),
@@ -1515,20 +1601,23 @@ export async function reverseInvoiceRedemptions(
       asNum(r.amount),
       now
     )
-    await client.storeCredit.update({
-      where: { id: credit.id },
+    const updated = await client.storeCredit.updateMany({
+      where: {
+        id: credit.id,
+        status: String(credit.status),
+        usedAmount: credit.usedAmount,
+        usedCount: credit.usedCount
+      },
       data: { usedAmount: plan.usedAmount, usedCount: plan.usedCount, status: plan.status }
     })
-    await client.storeCreditRedemption.update({
-      where: { id: r.id },
-      data: { reversedAt: now, reversedReason: input.reason ?? 'برگشت/ابطال فاکتور مرجع' }
-    })
+    if (updated.count !== 1)
+      throw new BusinessError(`اعتبار #${credit.id} هم‌زمان تغییر کرد؛ برگشت مصرف انجام نشد و تراکنش باید دوباره بررسی شود.`)
     await audit(client, {
       action: AuditAction.CREDIT_REACTIVATE,
       entity: 'StoreCredit',
       entityId: credit.id,
       userId: input.userId ?? null,
-      before: JSON.stringify({ usedAmount: credit.usedAmount, usedCount: credit.usedCount, status: credit.status }),
+      before: JSON.stringify(before),
       after: JSON.stringify({
         usedAmount: plan.usedAmount,
         usedCount: plan.usedCount,
@@ -1537,7 +1626,7 @@ export async function reverseInvoiceRedemptions(
         transitionBlocked: plan.blocked
       }),
       note:
-        `برگشت مصرف اعتبار #${credit.id} به مبلغ ${money(asNum(r.amount))} ریال، چون فاکتور مرجع برگشت/باطل شد` +
+        `برگشت مصرف اعتبار #${credit.id} به مبلغ ${money(asNum(r.amount))} ریال؛ همان بارکد با مهلت ریشه حفظ شد` +
         (input.reason ? ` · دلیل: ${input.reason}` : '') +
         (plan.blocked ? ` · ${plan.blocked}` : '')
     })
