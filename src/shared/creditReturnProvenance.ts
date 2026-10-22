@@ -23,6 +23,9 @@ export function allocateCreditReturn(input: {
   /** Cumulative per-redemption amounts already persisted. They must match the
    * deterministic cumulative basis; legacy mismatches fail closed, never rewrite. */
   priorShares?: { redemptionId: number; amount: number }[]
+  /** Fully spent, one-use gift barcodes are returned before actual-money rights.
+   * Ordinary/partial redemptions keep the historical whole-invoice proportion. */
+  giftFirst?: boolean
 }): { credit: number; cash: number; shares: { redemptionId: number; amount: number; prior: number }[] } {
   const { fundedPurchase, fundedPreviouslyReturned: prior, fundedReturning: current, redemptions } = input
   if (![fundedPurchase, prior, current, ...redemptions.map((redemption) => redemption.amount)].every(
@@ -42,9 +45,11 @@ export function allocateCreditReturn(input: {
       throw new Error('REDEMPTIONS_EXCEED_FUNDED_PURCHASE')
   }
 
-  const giftAt = (fundedValue: number) => fundedPurchase === 0
-    ? 0
-    : Number(BigInt(giftTotal) * BigInt(fundedValue) / BigInt(fundedPurchase))
+  const giftAt = (fundedValue: number) => input.giftFirst
+    ? Math.min(giftTotal, fundedValue)
+    : fundedPurchase === 0
+      ? 0
+      : Number(BigInt(giftTotal) * BigInt(fundedValue) / BigInt(fundedPurchase))
   const giftBefore = giftAt(prior)
   const giftAfter = giftAt(prior + current)
   const credit = giftAfter - giftBefore

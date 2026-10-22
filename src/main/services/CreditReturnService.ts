@@ -104,11 +104,32 @@ export async function planCreditReturn(
     })
     priorShares.push({ redemptionId: redemption.id, amount: toNumberRial(prior._sum.amount ?? 0) })
   }
+  const credits = await tx.storeCredit.findMany({
+    where: { id: { in: [...new Set(redemptions.map((r) => Number(r.creditId)))] } },
+    select: { id: true, amount: true, usedAmount: true, usedCount: true, maxUses: true, multiUse: true }
+  })
+  const creditById = new Map(credits.map((credit) => [Number(credit.id), credit]))
+  const fullySpentOneShotBarcodes = redemptions.length > 0 && redemptions.every((redemption) => {
+    const credit = creditById.get(Number(redemption.creditId))
+    return !!credit && credit.multiUse !== true && Number(credit.maxUses) === 1 &&
+      Number(credit.usedCount) === 1 && toNumberRial(credit.amount) === toNumberRial(redemption.amount) &&
+      toNumberRial(credit.usedAmount) === toNumberRial(credit.amount)
+  })
+  const allocationInput = {
+    fundedPurchase, fundedPreviouslyReturned, fundedReturning,
+    redemptions: redemptions.map((r) => ({ id: r.id, amount: toNumberRial(r.amount) })), priorShares
+  }
   let result: ReturnType<typeof allocateCreditReturn>
   try {
-    result = allocateCreditReturn({ fundedPurchase, fundedPreviouslyReturned, fundedReturning,
-      redemptions: redemptions.map((r) => ({ id: r.id, amount: toNumberRial(r.amount) })), priorShares })
-  } catch { throw unknown() }
+    result = fullySpentOneShotBarcodes
+      ? allocateCreditReturn({ ...allocationInput, giftFirst: true })
+      : allocateCreditReturn(allocationInput)
+  } catch {
+    // Continue existing invoices from their already-recorded proportional
+    // basis; never rewrite legacy allocations when the new one-shot rule lands.
+    try { result = allocateCreditReturn(allocationInput) }
+    catch { throw unknown() }
+  }
   // A legacy return with no allocation may already have paid out the gift as
   // cash. Never mint B/E on top of that historic claim without reconciliation.
   const priorByRedemption = new Map(priorShares.map((share) => [share.redemptionId, share.amount]))

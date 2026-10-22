@@ -1,7 +1,7 @@
 /** S5: real 15M mixed-tender sale and 5M return.
- * Proves exact 666,666 gift branch + 4,333,334 cash right across immediate
- * cash payout and reserved/card-to-card payout, including chunking, expiry,
- * witnessed delivery, bank evidence, and channel/report separation.
+ * Proves exact 2M gift branch + 3M real-money right (no proportional split)
+ * across immediate cash payout and reserved/card-to-card payout, including
+ * expiry, witnessed delivery, bank evidence, and channel/report separation.
  * node --import ./test/harness/register.mjs tests/audit-fixes/fix-financial-exchange-s5-mixed-return-integration.mjs
  */
 import assert from 'node:assert/strict'
@@ -128,7 +128,7 @@ const beforeInvalidAttempt = {
   cash: seed.count('CashMovement', 'refType=?', 'SaleReturn')
 }
 await assert.rejects(() => createReturn(cashCase.sale, Number(cashItem.id), 5_000_000,
-  'CASH', 4_333_333, 'cash-off-by-one'), /سهم اعتبار|حق بازپرداخت|سازگار/)
+  'CASH', 2_999_999, 'cash-off-by-one'), /سهم اعتبار|حق بازپرداخت|سازگار/)
 assert.deepEqual({
   returns: seed.count('SaleReturn', 'invoiceId=?', cashCase.sale.id),
   credits: seed.count('StoreCredit', 'source=?', 'EXCHANGE'),
@@ -136,21 +136,21 @@ assert.deepEqual({
 }, beforeInvalidAttempt, 'one-Rial mismatch is atomic and creates no money/credit side effect')
 
 const cashReturn = await createReturn(cashCase.sale, Number(cashItem.id), 5_000_000,
-  'CASH', 4_333_334, 'cash-exact')
+  'CASH', 3_000_000, 'cash-exact')
 assert.equal(cashReturn.total, 5_000_000)
-assert.equal(cashReturn.refundAmount, 4_333_334)
-assert.equal(cashReturn.creditOpportunity.restored, 666_666)
+assert.equal(cashReturn.refundAmount, 3_000_000)
+assert.equal(cashReturn.creditOpportunity.restored, 2_000_000)
 assert.equal(cashReturn.creditOpportunity.expiredShare, 0)
 assert.equal(cashReturn.creditOpportunity.pendingDelivery.length, 1)
 const cashAllocation = seed.one('SELECT * FROM "CreditReturnAllocation" WHERE returnId=?', cashReturn.id)
-assert.equal(Number(cashAllocation.amount), 666_666)
+assert.equal(Number(cashAllocation.amount), 2_000_000)
 assert.equal(Number(cashAllocation.rootCreditId), cashCase.gift.id)
 assert.equal(cashAllocation.kind, 'BRANCH')
 assert.equal(Number(cashAllocation.supplementUnspent), 0)
 assert.equal(new Date(cashAllocation.originalExpiresAt).getTime(), new Date(cashCase.gift.expiresAt).getTime())
 const cashBranch = seed.one('SELECT * FROM "StoreCredit" WHERE id=?',
   cashReturn.creditOpportunity.pendingDelivery[0].creditId)
-assert.equal(Number(cashBranch.amount), 666_666)
+assert.equal(Number(cashBranch.amount), 2_000_000)
 assert.equal(cashBranch.status, 'DRAFT')
 assert.equal(new Date(cashBranch.expiresAt).getTime(), new Date(cashCase.gift.expiresAt).getTime(),
   'B inherits the original root expiry and never gets a fresh term')
@@ -158,18 +158,18 @@ assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', cashCase.gi
 assert.equal(seed.count('CashMovement', 'refType=? AND refId=? AND type=?',
   'SaleReturn', cashReturn.id, 'RETURN_REFUND'), 1)
 assert.equal(seed.one('SELECT amount FROM "CashMovement" WHERE refType=? AND refId=? AND type=?',
-  'SaleReturn', cashReturn.id, 'RETURN_REFUND').amount, 4_333_334)
+  'SaleReturn', cashReturn.id, 'RETURN_REFUND').amount, 3_000_000)
 assert.equal(seed.count('CardTransferRequest', 'returnId=?', cashReturn.id), 0)
 const cashReport = (await salesService.returnList({ take: 500 })).find((row) => row.id === cashReturn.id)
 assert.ok(cashReport)
 assert.equal(cashReport.total, 5_000_000)
 assert.equal(cashReport.refundMethod, 'CASH')
-assert.equal(cashReport.refundAmount, 4_333_334)
-assert.equal(cashReport.cashRefundAmount, 4_333_334)
+assert.equal(cashReport.refundAmount, 3_000_000)
+assert.equal(cashReport.cashRefundAmount, 3_000_000)
 assert.equal(cashReport.storeCreditReference, null,
   'the accounting report does not expose a redeemable gift code/branch credential')
 assert.equal(cashReport.fundingAttribution.status, 'NOT_APPLICABLE')
-console.log('✓ S5 actual CASH channel: 5M return = B 666,666 + drawer refund 4,333,334; 1-Rial mismatch has zero effects')
+console.log('✓ S5 actual CASH channel: 5M return = B 2M + drawer refund 3M; 1-Rial mismatch has zero effects')
 
 // The branch remains non-spendable until witnessed handoff. After delivery it
 // is usable for exactly its face value; the source gift stays USED.
@@ -181,54 +181,49 @@ const cashDelivery = {
 }
 assert.equal((await confirmCreditDelivery(cashDelivery)).status, 'DELIVERED')
 assert.equal((await confirmCreditDelivery(cashDelivery)).replayed, true)
-const bSpendVariant = variant(666_666)
+const bSpendVariant = variant(2_000_000)
 const bSpend = await salesService.create({
-  userId, shiftId, lines: [line(bSpendVariant, 666_666)], payments: [],
-  storeCreditCode: cashBranch.code, storeCreditAmount: 666_666,
+  userId, shiftId, lines: [line(bSpendVariant, 2_000_000)], payments: [],
+  storeCreditCode: cashBranch.code, storeCreditAmount: 2_000_000,
   storeCreditIdempotencyKey: 's5-spend-delivered-b-once'
 })
-assert.equal(bSpend.storeCreditApplied, 666_666)
+assert.equal(bSpend.storeCreditApplied, 2_000_000)
 assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', cashBranch.id).status, 'USED')
 assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', cashCase.gift.id).status, 'USED')
 assert.equal(Number(seed.one('SELECT amount FROM "StoreCreditRedemption" WHERE creditId=? AND invoiceId=?',
-  cashBranch.id, bSpend.id).amount), 666_666)
+  cashBranch.id, bSpend.id).amount), 2_000_000)
 
-// Scenario B: 5M returned as 2M + 3M chunks via manager-bank channel. Each
-// claim opens/reserves only its true cash share; manager declaration alone is
-// not payout, while reviewed statement evidence settles it exactly once.
+// Scenario B: the 2M gift share is restored by the first 2M return; the next
+// 3M return is entirely the real-money right, reserved and reviewed in the
+// manager-bank channel. Manager declaration alone is not payout.
 const bankCase = await makeMixedSale([2_000_000, 3_000_000, 10_000_000], 'bank-chunks')
 const firstChunk = await createReturn(bankCase.sale, Number(bankCase.items[0].id),
-  2_000_000, 'CARD_TO_CARD', 1_733_334, 'bank-chunk-2m')
+  2_000_000, 'NONE', 0, 'bank-chunk-2m')
 assert.equal(firstChunk.total, 2_000_000)
-assert.equal(firstChunk.creditOpportunity.restored, 266_666)
-assert.equal(firstChunk.cardTransfer.amount, 1_733_334)
-const firstBankProof = await proveBankPayout(firstChunk.id, firstChunk.cardTransfer.id, 1_733_334, 'chunk-2m')
+assert.equal(firstChunk.creditOpportunity.restored, 2_000_000)
+assert.equal(firstChunk.cardTransfer, null)
 const firstBranch = seed.one('SELECT * FROM "StoreCredit" WHERE returnId=?', firstChunk.id)
-assert.equal(Number(firstBranch.amount), 266_666)
+assert.equal(Number(firstBranch.amount), 2_000_000)
 assert.equal(firstBranch.status, 'DRAFT')
 assert.equal(new Date(firstBranch.expiresAt).getTime(), new Date(bankCase.gift.expiresAt).getTime())
 
 const secondChunk = await createReturn(bankCase.sale, Number(bankCase.items[1].id),
-  3_000_000, 'CARD_TO_CARD', 2_600_000, 'bank-chunk-3m')
+  3_000_000, 'CARD_TO_CARD', 3_000_000, 'bank-chunk-3m')
 assert.equal(secondChunk.total, 3_000_000)
-assert.equal(secondChunk.creditOpportunity.restored, 400_000,
-  'cumulative floor after 2M is 266,666; the next 3M contributes exactly 400,000')
-assert.equal(secondChunk.cardTransfer.amount, 2_600_000)
-const secondBankProof = await proveBankPayout(secondChunk.id, secondChunk.cardTransfer.id, 2_600_000, 'chunk-3m')
-const secondBranch = seed.one('SELECT * FROM "StoreCredit" WHERE returnId=?', secondChunk.id)
-assert.equal(Number(secondBranch.amount), 400_000)
-assert.equal(secondBranch.status, 'DRAFT')
-assert.equal(new Date(secondBranch.expiresAt).getTime(), new Date(bankCase.gift.expiresAt).getTime())
-assert.equal(firstBankProof.cashPaid + secondBankProof.cashPaid, 4_333_334)
+assert.equal(secondChunk.creditOpportunity?.restored ?? 0, 0,
+  'the fully restored one-shot gift is never restored again')
+assert.equal(secondChunk.cardTransfer.amount, 3_000_000)
+const secondBankProof = await proveBankPayout(secondChunk.id, secondChunk.cardTransfer.id, 3_000_000, 'chunk-3m')
+assert.equal(secondBankProof.cashPaid, 3_000_000)
 assert.equal(Number(seed.one('SELECT SUM(amount) AS total FROM "CreditReturnAllocation" WHERE invoiceId=?',
-  bankCase.sale.id).total), 666_666)
-assert.equal(Number(seed.one('SELECT SUM(confirmedAmount) AS total FROM "BankStatementEvidence" WHERE requestId IN (?,?)',
-  firstChunk.cardTransfer.id, secondChunk.cardTransfer.id).total), 4_333_334)
+  bankCase.sale.id).total), 2_000_000)
+assert.equal(Number(seed.one('SELECT SUM(confirmedAmount) AS total FROM "BankStatementEvidence" WHERE requestId=?',
+  secondChunk.cardTransfer.id).total), 3_000_000)
 assert.equal(seed.count('CashMovement', 'refType=? AND refId IN (?,?)',
   'SaleReturn', firstChunk.id, secondChunk.id), 0,
   'external manager-bank settlement is not misreported as cash drawer payout')
 assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', bankCase.gift.id).status, 'USED')
-for (const branch of [firstBranch, secondBranch]) {
+for (const branch of [firstBranch]) {
   await assert.rejects(() => findRedeemable(db, branch.code), /پیش‌نویس/)
   const delivery = { creditId: Number(branch.id), witnessKind: 'CUSTOMER_HANDOFF',
     witnessRef: `تحویل شاهددار شاخهٔ S5 ${branch.id}`, managerPassword: DEFAULT_MANAGER_PASSWORD, actorUserId: userId }
@@ -236,16 +231,15 @@ for (const branch of [firstBranch, secondBranch]) {
   assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', branch.id).status, 'ACTIVE')
 }
 assert.equal(new Date(firstBranch.expiresAt).getTime(), new Date(bankCase.gift.expiresAt).getTime())
-assert.equal(new Date(secondBranch.expiresAt).getTime(), new Date(bankCase.gift.expiresAt).getTime())
-console.log('✓ S5 bank channel: chunk-invariant B=666,666 / cash right=4,333,334; reservation, reviewed payout evidence, and witnessed B delivery verified')
+console.log('✓ S5 bank channel: B=2M restored once, remaining 3M reserved and paid with reviewed bank evidence; original root expiry retained')
 
 // An expiry-bound B cannot be delivered after its root deadline; waiting for
 // delivery never extends the opportunity.
 const expiryAt = Date.now() + 4_000
 const expiryCase = await makeMixedSale([5_000_000, 5_000_000, 5_000_000], 'expiry', expiryAt)
 const expiryReturn = await createReturn(expiryCase.sale, Number(expiryCase.items[0].id),
-  5_000_000, 'CASH', 4_333_334, 'expiry-bound-b')
-assert.equal(expiryReturn.creditOpportunity.restored, 666_666)
+  5_000_000, 'CASH', 3_000_000, 'expiry-bound-b')
+assert.equal(expiryReturn.creditOpportunity.restored, 2_000_000)
 const expiringBranch = seed.one('SELECT * FROM "StoreCredit" WHERE returnId=?', expiryReturn.id)
 assert.equal(expiringBranch.status, 'DRAFT')
 assert.equal(new Date(expiringBranch.expiresAt).getTime(), expiryAt)
@@ -260,4 +254,4 @@ assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', expiryCase.
 await assert.rejects(() => findRedeemable(db, expiringBranch.code), /مهلت اعتبار|تمام شده|منقضی/)
 console.log('✓ S5 expiry: B retains root deadline; pending delivery cannot revive/extend expired gift opportunity')
 
-console.log('✓ S5 integration: exact mixed return, immediate cash payout, chunked bank payout/evidence, B delivery/expiry, reporting, and fail-closed amount mismatch')
+console.log('✓ S5 integration: exact source return 2M gift + 3M real-money choice, cash/bank paths, B delivery/expiry, reporting, and fail-closed amount mismatch')
