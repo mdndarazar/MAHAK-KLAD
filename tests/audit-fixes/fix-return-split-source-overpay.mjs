@@ -115,6 +115,10 @@ assert.equal(refundFromReceivedOf({ kind: 'RETURN', total: 5_000_000, refundMeth
   refundAmount: 2_000_000, refundStoreCreditAmount: 2_000_000 }), 4_000_000)
 const creditBarcode = seed.one('SELECT id, amount FROM "StoreCredit" WHERE id=(SELECT storeCreditId FROM "SaleReturn" WHERE id=?)', result.id)
 assert.equal(Number(creditBarcode.amount), 2_000_000)
+assert.deepEqual(seed.rows('SELECT amount, source, status FROM "StoreCredit" WHERE returnId=? ORDER BY amount', result.id)
+  .map((row) => [Number(row.amount), row.source, row.status]), [
+  [1_000_000, 'MANUAL', 'ACTIVE'], [2_000_000, 'EXCHANGE', 'ACTIVE']
+], 'full mixed return creates separate 1M restored-source and 2M real-right barcode credits')
 // Cash received 4M minus cash movement out 2M = the blue-reference cash effect +2M.
 const realCashIn = seed.rows('SELECT p.amount FROM "Payment" p JOIN "PaymentMethod" m ON m.id=p.methodId WHERE p.invoiceId=? AND p.storeCreditId IS NULL AND upper(m.kind)=\'CASH\' AND p.destination=\'CASH\'', mixed.id)
 const cashOut = returnMovements.reduce((sum, row) => sum + Number(row.amount), 0)
