@@ -16,7 +16,7 @@ const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mj
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService, saleWhere } = await import('../../src/main/services/SalesService.ts')
 const { buildStatements } = await import('../../src/main/services/accountingReport.ts')
-const { issueStoreCredit } = await import('../../src/main/services/StoreCreditService.ts')
+const { issueStoreCredit, redeemStoreCredit } = await import('../../src/main/services/StoreCreditService.ts')
 const { printService } = await import('../../src/main/services/PrintService.ts')
 const { allocateOverpay, refundFromReceivedOf, remainingOf } = await import('../../src/shared/settlement.ts')
 const { calculateReturnTotals, returnCreditAmountOf } = await import('../../src/shared/accounting.ts')
@@ -119,6 +119,44 @@ assert.equal(Number(creditBarcode.amount), 2_000_000)
 const realCashIn = seed.rows('SELECT p.amount FROM "Payment" p JOIN "PaymentMethod" m ON m.id=p.methodId WHERE p.invoiceId=? AND p.storeCreditId IS NULL AND upper(m.kind)=\'CASH\' AND p.destination=\'CASH\'', mixed.id)
 const cashOut = returnMovements.reduce((sum, row) => sum + Number(row.amount), 0)
 assert.equal(realCashIn.reduce((sum, row) => sum + Number(row.amount), 0) - cashOut, 2_000_000)
+
+// The split barcode follows the normal return-credit lifecycle: it can be used
+// over multiple purchases, but every redemption atomically consumes the live
+// balance. Replaying or trying to spend beyond the 2M total cannot mint value.
+const splitCredit = seed.one(`SELECT id, code, amount, usedAmount, usedCount, multiUse, maxUses, status
+  FROM "StoreCredit" WHERE id=(SELECT storeCreditId FROM "SaleReturn" WHERE id=?)`, result.id)
+assert.equal(Number(splitCredit.multiUse), 1)
+assert.equal(Number(splitCredit.maxUses), 2_147_483_647)
+assert.equal(Number(splitCredit.usedAmount), 0)
+const redeemSale = async (price, key) => salesService.create({
+  userId, shiftId, lines: [line(variant(price), price)], payments: [],
+  storeCreditCode: splitCredit.code, storeCreditIdempotencyKey: key
+})
+const redeemOne = await redeemSale(1_000_000, 'split-barcode-use-one')
+assert.equal(Number(redeemOne.paidTotal), 1_000_000)
+let splitAfter = seed.one('SELECT usedAmount, usedCount, status FROM "StoreCredit" WHERE id=?', splitCredit.id)
+assert.deepEqual([Number(splitAfter.usedAmount), Number(splitAfter.usedCount), splitAfter.status],
+  [1_000_000, 1, 'PARTIALLY_USED'])
+const replayOne = await db.$transaction((tx) => redeemStoreCredit(tx, {
+  code: splitCredit.code,
+  invoiceId: redeemOne.id,
+  receiptNo: Number(seed.one('SELECT receiptNo FROM "SaleInvoice" WHERE id=?', redeemOne.id).receiptNo),
+  idempotencyKey: 'split-barcode-use-one'
+}))
+assert.equal(replayOne.replayed, true)
+assert.equal(Number(seed.one('SELECT usedAmount FROM "StoreCredit" WHERE id=?', splitCredit.id).usedAmount),
+  1_000_000, 'replaying an already committed redemption does not debit the barcode twice')
+const redeemTwo = await redeemSale(1_000_000, 'split-barcode-use-two')
+assert.equal(Number(redeemTwo.paidTotal), 1_000_000)
+splitAfter = seed.one('SELECT usedAmount, usedCount, status FROM "StoreCredit" WHERE id=?', splitCredit.id)
+assert.deepEqual([Number(splitAfter.usedAmount), Number(splitAfter.usedCount), splitAfter.status],
+  [2_000_000, 2, 'USED'])
+const invoiceCountAfterTwo = Number(seed.one('SELECT COUNT(*) AS n FROM "SaleInvoice"').n)
+await assert.rejects(() => redeemSale(1_000_000, 'split-barcode-use-three'), /اعتبار|مانده|مصرف/)
+assert.equal(Number(seed.one('SELECT COUNT(*) AS n FROM "SaleInvoice"').n), invoiceCountAfterTwo,
+  'an exhausted barcode cannot create a third paid invoice')
+assert.equal(Number(seed.one('SELECT usedAmount FROM "StoreCredit" WHERE id=?', splitCredit.id).usedAmount), 2_000_000)
+
 // DB-level ceiling prevents duplicate use of the authorized right.
 assert.throws(() => sql.prepare('UPDATE "SaleReturn" SET refundStoreCreditAmount=3000000 WHERE id=?').run(result.id),
   /Return settlement legs exceed the authorized real-money entitlement/)
@@ -176,5 +214,6 @@ assert.equal(remainingOf({ grandTotal: 4_000_000, received: 5_000_000, returnedV
 console.log('✓ 5M mixed sale: 2M cash + 2M new barcode + 1M source credit restored; no overpay')
 console.log('✓ return stock and report totals reflect the separate settlement legs')
 console.log('✓ cash ledger outflow remains 2M; real-money net effect is +2M')
+console.log('✓ split barcode can use only its remaining balance; replay and overspend are blocked')
 console.log('✓ source-aware overpay stays on cash, independent of tender row order')
 console.log('✓ DB trigger blocks settlement legs above the authorized right')
