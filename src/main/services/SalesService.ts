@@ -101,7 +101,7 @@ import {
 /** نشست ۶۱ — تشخیص «پول واقعی» برای پشتوانه‌ی اعتبار اضافه‌دریافت (همان نگاشت پل تطبیق) */
 import { receiptBucketOf } from '@shared/accounting'
 import { allocateLineNet, returnValueOf, returnListPriceOf, mergeReturnTargets, isReturnableStatus } from '@shared/returnValue'
-import { remainingOf, exchangeRefundPartOf, refundFromReceivedOf } from '@shared/settlement'
+import { remainingOf, exchangeRefundPartOf, refundFromReceivedOf, debtAdjustmentsOf } from '@shared/settlement'
 import { nextReceiptNo } from './receiptNo'
 import { saleLineTitle, saleLineCode, reportLineTitle } from '@shared/saleItemSnapshot'
 import { debtAdjustmentsByInvoice, adjustmentsOrEmpty, invoiceRemaining, recalcPaymentOverpay } from './invoiceDebt'
@@ -7824,6 +7824,8 @@ export const salesService = {
       let fundingSourcesForTransfer: Array<{ event: any; available: number }> | null = null
       let s1ResidualRightsEligible = false
       let s1MixedResidualEligible = false
+      let partialExchangeCreditRestorePlan: CreditReturnPlan | null = null
+      let partialExchangeCarryPlan: Array<{ sourceEventId: number; sourceKind: 'SOURCE_GIFT' | 'SOURCE_N' | 'SOURCE_B' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'; carry: number; remainder: number }> | null = null
       let s1GiftResidualAmount = 0
       let s1RealResidualAmount = 0
       let s11DebtOffsetEligible = false
@@ -8000,6 +8002,168 @@ export const salesService = {
             // Unsupported/inexact source sets stay on the pre-existing exchange path.
           }
         }
+
+        // Ordinary-sale partial exchange: derive the returned funding slice
+        // with the central credit-return planner (ALL credits remain pooled;
+        // manager-restricted credits only match the returned variants). Then
+        // consume real money before any barcode value for the replacement.
+        // The same planner handles repeated partial exchanges from this ordinary
+        // sale: prior active returns, source balances and credit allocations
+        // must all reconcile before any further share is moved.
+        const partialOrdinaryMixedSourceEligible = !sourceIsExchangeChild && !returnedEverySourceItem &&
+          funding?.snapshotExists && !funding.stale && funding.activeReturnIds.includes(Number(back.id)) &&
+          funding.debt === 0 && funding.overpay === 0 && funding.unresolved.length === 0 && redemptionSetMatches &&
+          funding.sources.some((share) => share.sourceKind === 'SOURCE_GIFT') &&
+          funding.sources.some((share) => ['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(share.sourceKind)) &&
+          funding.sources.every((share) => ['SOURCE_GIFT', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(share.sourceKind) &&
+            share.available >= 0 && share.available <= toNumberRial(share.event.amount)) &&
+          funding.sources.reduce((sum, share) => sum + toNumberRial(share.event.amount), 0) === toNumberRial(source.grandTotal)
+        if (partialOrdinaryMixedSourceEligible && funding) {
+          const returnHistory = await tx.saleReturn.findMany({ where: { invoiceId: source.id },
+            select: { id: true, kind: true, voidedAt: true, total: true, refundMethod: true,
+              refundAmount: true, exchangeDiff: true, debtReduction: true, creditRestored: true,
+              exchangeInvoiceId: true, corrections: { where: { status: 'POSTED' }, select: { id: true } } } })
+          const historyIds = returnHistory.map((row: any) => Number(row.id))
+          const historyReconciled = returnHistory.length === funding.activeReturnIds.length &&
+            returnHistory.every((row: any) => row.voidedAt == null && !(row.corrections?.length) &&
+              funding!.activeReturnIds.includes(Number(row.id))) &&
+            returnHistory.some((row: any) => Number(row.id) === Number(back.id)) &&
+            returnHistory.filter((row: any) => Number(row.id) !== Number(back.id)).every((row: any) =>
+              row.kind === ReturnKind.RETURN || (row.kind === ReturnKind.EXCHANGE &&
+                Number.isSafeInteger(Number(row.exchangeInvoiceId)) && Number(row.exchangeInvoiceId) > 0))
+          if (historyReconciled && historyIds.length > 0) {
+            const sourcePayments = await tx.payment.findMany({ where: { invoiceId: source.id, voidedAt: null },
+              select: { amount: true, kind: true, chequeStatus: true } })
+            const received = receivedTotalOf(sourcePayments as any[])
+            const priorAdjustments = debtAdjustmentsOf(returnHistory.filter((row: any) => Number(row.id) !== Number(back.id)) as any[])
+            const sourceDebtBefore = remainingOf({
+              grandTotal: toNumberRial(source.grandTotal), received, ...priorAdjustments
+            })
+            const priorReturns = returnHistory.filter((row: any) => Number(row.id) !== Number(back.id)) as any[]
+            const priorExchangeReturns = priorReturns.filter((row) => row.kind === ReturnKind.EXCHANGE)
+            const priorExchangeIds = priorExchangeReturns.map((row) => Number(row.id))
+            const priorCreditAllocations = priorExchangeIds.length
+              ? await tx.creditReturnAllocation.findMany({
+                  where: { returnId: { in: priorExchangeIds }, invoiceId: Number(source.id) },
+                  select: { returnId: true, redemptionId: true, amount: true }
+                }) as any[]
+              : []
+            const restoredByPriorExchange = new Map<number, number>()
+            for (const row of priorCreditAllocations)
+              restoredByPriorExchange.set(Number(row.returnId),
+                (restoredByPriorExchange.get(Number(row.returnId)) ?? 0) + toNumberRial(row.amount))
+            if (priorExchangeReturns.some((row) =>
+                (restoredByPriorExchange.get(Number(row.id)) ?? 0) !== toNumberRial(row.creditRestored)))
+              throw new BusinessError('برگشت قبلیِ فاکتور دفتر تخصیص اعتبار سازگار ندارد؛ قبل از تعویض بعدی، lineage همان برگشت باید تطبیق شود.')
+            const priorGiftCarryByRedemption = new Map<number, number>()
+            if (priorExchangeIds.length) {
+              const priorTransfers = await tx.exchangeFundingEvent.findMany({ where: {
+                sourceInvoiceId: Number(source.id), returnId: { in: priorExchangeIds }, kind: 'TRANSFER_OUT',
+                reversesEventId: null
+              }, select: { parentEventId: true, amount: true } })
+              const originalSourceById = new Map(funding.sources.map((share) => [Number(share.event.id), share]))
+              for (const transfer of priorTransfers) {
+                const sourceShare = originalSourceById.get(Number(transfer.parentEventId))
+                if (!sourceShare) throw new BusinessError(exchangeReturnFundingBlockedMessage())
+                if (sourceShare.sourceKind !== 'SOURCE_GIFT') continue
+                const redemptionId = Number(sourceShare.event.sourceRedemptionId)
+                const amount = Math.abs(toNumberRial(transfer.amount))
+                const next = (priorGiftCarryByRedemption.get(redemptionId) ?? 0) + amount
+                if (!Number.isSafeInteger(redemptionId) || redemptionId <= 0 || !Number.isSafeInteger(next))
+                  throw new BusinessError(exchangeReturnFundingBlockedMessage())
+                priorGiftCarryByRedemption.set(redemptionId, next)
+              }
+            }
+            const priorCarriedShares = [...priorGiftCarryByRedemption].map(([redemptionId, amount]) => ({
+              redemptionId, amount
+            }))
+            const priorExchangeFunded = priorExchangeReturns.reduce((sum, row) =>
+              sum + Math.max(0, toNumberRial(row.total) - toNumberRial(row.debtReduction)), 0)
+            const plannerDebtBefore = {
+              ...sourceDebtBefore,
+              // For credit-first pooling, prior exchange value is already
+              // consumed by its replacement carry or restored as a source right.
+              refundFromReceived: sourceDebtBefore.refundFromReceived + priorExchangeFunded
+            }
+            const returnItems = await tx.saleReturnItem.findMany({ where: { returnId: Number(back.id) },
+              orderBy: { id: 'asc' }, select: { saleItemId: true, variantId: true, lineTotal: true } })
+            let plan: CreditReturnPlan
+            try {
+              plan = await planCreditReturn(tx, {
+                invoiceId: Number(source.id), grandTotal: toNumberRial(source.grandTotal),
+                paidTotal: received, returnedValue: returnTotal,
+                returnLines: returnItems.map((item: any) => ({ saleItemId: Number(item.saleItemId),
+                  variantId: Number(item.variantId), value: toNumberRial(item.lineTotal) })),
+                debtBefore: plannerDebtBefore, activeReturns: [], priorCarriedShares
+              })
+            } catch (error) {
+              if (error instanceof BusinessError) throw error
+              throw new BusinessError('منشأ اعتبار و اقلام برگشتی با دفتر مالی تطبیق نشد؛ تعویض ثبت نشد و هیچ مبلغی جابه‌جا نشد.')
+            }
+            if (plan.fundedReturning === returnTotal && plan.credit + plan.cash === returnTotal) {
+              const sourceByRedemption = new Map<number, { event: any; available: number; sourceKind: string }>()
+              for (const sourceShare of funding!.sources.filter((share) => share.sourceKind === 'SOURCE_GIFT'))
+                sourceByRedemption.set(Number(sourceShare.event.sourceRedemptionId), sourceShare)
+              const returnedSources: Array<{ event: any; available: number }> = []
+              for (const share of plan.shares) {
+                if (share.amount <= 0) continue
+                const sourceShare = sourceByRedemption.get(Number(share.redemptionId))
+                if (!sourceShare || Number(sourceShare.event.sourceCreditId) !== Number(share.parentCreditId) ||
+                    share.amount > sourceShare.available)
+                  throw new BusinessError('سهم اعتبار برگشتی با ردمپشن و منشأ ثبت‌شده تطبیق ندارد؛ تعویض ثبت نشد.')
+                returnedSources.push({ event: sourceShare.event, available: share.amount })
+              }
+              let realLeft = plan.cash
+              for (const sourceShare of funding!.sources
+                .filter((share) => ['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(share.sourceKind))
+                .slice().sort((a, b) => Number(a.event.id) - Number(b.event.id))) {
+                const amount = Math.min(realLeft, sourceShare.available)
+                if (amount > 0) returnedSources.push({ event: sourceShare.event, available: amount })
+                realLeft -= amount
+                if (realLeft === 0) break
+              }
+              if (realLeft !== 0 || returnedSources.reduce((sum, share) => sum + share.available, 0) !== returnTotal)
+                throw new BusinessError('وجه وصول‌شدهٔ برگشت با دفتر صندوق/کارت تطبیق ندارد؛ تعویض ثبت نشد.')
+              fundingSourcesForTransfer = returnedSources
+              if (diff < 0) {
+                let carryPlan
+                try {
+                  carryPlan = allocateExchangeFundingCashFirst({ replacementTotal: exchangeTotal,
+                    sources: returnedSources.map((share) => ({
+                      sourceEventId: Number(share.event.id),
+                      sourceKind: share.event.kind as 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE',
+                      available: share.available
+                    })) })
+                } catch {
+                  throw new BusinessError('ارزش کالای جایگزین از منشأ اثبات‌شدهٔ همین برگشت بیشتر است؛ مابه‌التفاوت باید با وجه واقعی جدید تسویه شود.')
+                }
+                partialExchangeCarryPlan = carryPlan.allocations
+                const residuals = carryPlan.allocations.filter((row) => row.remainder > 0)
+                const creditResiduals = residuals.filter((row) => row.sourceKind === 'SOURCE_GIFT')
+                const realResiduals = residuals.filter((row) => ['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(row.sourceKind))
+                if (creditResiduals.length > 0) {
+                  const residualByEvent = new Map(creditResiduals.map((row) => [row.sourceEventId, row.remainder]))
+                  const restoreShares = plan.shares.flatMap((share) => {
+                    const sourceShare = sourceByRedemption.get(Number(share.redemptionId))
+                    if (!sourceShare) return []
+                    const remainder = residualByEvent.get(Number(sourceShare.event.id)) ?? 0
+                    return remainder > 0 ? [{ ...share, amount: remainder }] : []
+                  })
+                  s1ResidualRightsEligible = true
+                  s1GiftResidualAmount = restoreShares.reduce((sum, share) => sum + share.amount, 0)
+                  s1RealResidualAmount = realResiduals.reduce((sum, row) => sum + row.remainder, 0)
+                  s1MixedResidualEligible = s1RealResidualAmount > 0 && residuals.every((row) =>
+                    ['SOURCE_GIFT', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(row.sourceKind))
+                  s1CarryAllocations = carryPlan.allocations
+                  partialExchangeCreditRestorePlan = {
+                    credit: s1GiftResidualAmount, cash: 0, fundedReturning: s1GiftResidualAmount,
+                    shares: restoreShares
+                  }
+                }
+              }
+            }
+          }
+        }
       }
       // S11 is a separate, deliberately narrow exception: a full return of an
       // exchange child with exactly one pending/bounced cheque-backed debt. The
@@ -8082,9 +8246,10 @@ export const salesService = {
         throw new BusinessError('گزینهٔ S11 برای این برگشت قابل اثبات نیست؛ هیچ مبلغی جابه‌جا نشد.')
       if (refundMode === 'S1_RESIDUAL_RIGHTS' && !s1ResidualRightsEligible)
         throw new BusinessError('گزینهٔ S1 فقط وقتی فعال است که منشأ، lineage سالم و carry/remnant قابل اثبات داشته باشد؛ منشأ این تعویض واجد شرایط نیست.')
-      if (s1MixedResidualEligible && !['CASH', 'CARD', 'STORE_CREDIT'].includes(String(refundMode ?? '').toUpperCase()))
-        throw new BusinessError('در ماندهٔ مختلط S1، سهم اعتبار ریشه‌دار غیرنقدی برمی‌گردد؛ برای سهم وجه واقعی باید نقد، کارت، یا اعتبار غیرنقدی را انتخاب کنید.')
-      if (s1ResidualRightsEligible && !s1MixedResidualEligible && refundMode !== 'S1_RESIDUAL_RIGHTS')
+      if (s1MixedResidualEligible && !['CASH', 'CARD', 'CARD_TO_CARD', 'STORE_CREDIT'].includes(String(refundMode ?? '').toUpperCase()))
+        throw new BusinessError('در ماندهٔ مختلط S1، سهم اعتبار ریشه‌دار غیرنقدی برمی‌گردد؛ برای سهم وجه واقعی، نقد، کارت، کارت‌به‌کارت مدیر، یا اعتبار غیرنقدی را انتخاب کنید.')
+      if (s1ResidualRightsEligible && !s1MixedResidualEligible && refundMode !== 'S1_RESIDUAL_RIGHTS' &&
+          !partialExchangeCreditRestorePlan)
         throw new BusinessError('منشأ و مبلغ این تعویض واجد S1 است؛ وجه واقعی اول carry می‌شود و فقط ماندهٔ اعتبار به یک بارکد غیرنقدی تبدیل می‌شود. گزینهٔ S1 را انتخاب کنید.')
       // A present but stale/unresolved snapshot is not downgraded to the legacy
       // exchange path: it is an explicit incomplete-lineage signal.
@@ -8220,6 +8385,9 @@ export const salesService = {
             })
             cashRefunded = s1RealResidualAmount
             settlement = selected === 'CASH' ? ExchangeSettlement.CASH_REFUND : ExchangeSettlement.CARD_REFUND
+          } else if (selected === 'CARD_TO_CARD') {
+            cardToCard = s1RealResidualAmount
+            settlement = ExchangeSettlement.CARD_TO_CARD
           } else if (selected === 'STORE_CREDIT') {
             if (policy.storeCreditLimit > 0 && s1RealResidualAmount > policy.storeCreditLimit && !exchangeManagerVerified)
               throw new BusinessError(`صدور اعتبار ${money(s1RealResidualAmount)} ریالی برای سهم پولی از سقف ${money(policy.storeCreditLimit)} بیشتر است؛ تایید مدیر لازم دارد.`)
@@ -8756,13 +8924,16 @@ export const salesService = {
       // it before moving the exact-value, homogeneous proven funding shares. Any
       // later failure in createExchange rolls these two-sided writes back too.
       if (fundingSourcesForTransfer) {
-        const allocations = (s1ResidualRightsEligible || s11DebtOffsetEligible)
-          ? (s1CarryAllocations ?? []).map((row) => ({ id: row.sourceEventId, amount: row.carry }))
+        const allocations = (s1ResidualRightsEligible || s11DebtOffsetEligible || partialExchangeCarryPlan)
+          ? ((s1CarryAllocations ?? partialExchangeCarryPlan ?? []).map((row) => ({
+              id: row.sourceEventId, amount: row.carry
+            })))
           : allocateExchangeFundingProRata(returnTotal, fundingSourcesForTransfer.map(({ event, available }) => ({
               id: Number(event.id), available
             })))
         const sourceByEventId = new Map(fundingSourcesForTransfer.map((row) => [Number(row.event.id), row]))
-        const expectedTransferTotal = (s1ResidualRightsEligible || s11DebtOffsetEligible) ? exchangeTotal : returnTotal
+        const expectedTransferTotal = (s1ResidualRightsEligible || s11DebtOffsetEligible || partialExchangeCarryPlan)
+          ? exchangeTotal : returnTotal
         if (allocations.reduce((sum, allocation) => sum + allocation.amount, 0) !== expectedTransferTotal)
           throw new BusinessError('تخصیص منشأ مالی تعویض دقیقاً با ارزش برگشتی برابر نشد؛ تراکنش لغو شد.')
         for (const allocation of allocations) {
@@ -8788,13 +8959,26 @@ export const salesService = {
         })
         await recordExchangeFundingLineAllocations(tx, exchangeInvoice.id)
         if (s1ResidualRightsEligible) {
-          s1ResidualRights = await openS1ExchangeResidualRights(tx, {
-            sourceInvoiceId: source.id, childInvoiceId: exchangeInvoice.id,
-            returnId: back.id, actorUserId: input.userId ?? null
-          })
-          const giftSuccessor = await tx.storeCredit.findUnique({ where: { id: Number(s1ResidualRights.creditId) } })
-          if (giftSuccessor) sourceSpecificCredits.push(giftSuccessor)
-          if (!credit) credit = giftSuccessor
+          if (partialExchangeCreditRestorePlan) {
+            const restored = await applyCreditReturn(tx, {
+              invoiceId: Number(source.id), returnId: Number(back.id), full: false,
+              userId: input.userId ?? null, plan: partialExchangeCreditRestorePlan
+            })
+            for (const row of restored.credits) {
+              const successor = await tx.storeCredit.findUnique({ where: { id: Number(row.creditId) } })
+              if (!successor) throw new BusinessError('بارکد جانشینِ سهم اعتبار برگشتی ثبت نشد؛ تراکنش لغو شد.')
+              sourceSpecificCredits.push(successor)
+              if (!credit) credit = successor
+            }
+          } else {
+            s1ResidualRights = await openS1ExchangeResidualRights(tx, {
+              sourceInvoiceId: source.id, childInvoiceId: exchangeInvoice.id,
+              returnId: back.id, actorUserId: input.userId ?? null
+            })
+            const giftSuccessor = await tx.storeCredit.findUnique({ where: { id: Number(s1ResidualRights.creditId) } })
+            if (giftSuccessor) sourceSpecificCredits.push(giftSuccessor)
+            if (!credit) credit = giftSuccessor
+          }
         } else if (s11DebtOffsetEligible) {
           s1ResidualRights = await openS11ExchangeDebtResidualRights(tx, {
             sourceInvoiceId: source.id, childInvoiceId: exchangeInvoice.id,

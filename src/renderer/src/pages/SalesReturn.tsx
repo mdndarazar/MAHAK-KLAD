@@ -656,7 +656,7 @@ export default function SalesReturn() {
   useEffect(() => {
     let canceled = false
     setCreditPreview(null); setCreditPreviewError(null)
-    if (!lookup || !selectedKey || exchangeMode) return () => { canceled = true }
+    if (!lookup || !selectedKey) return () => { canceled = true }
     void call<{ returnTotal: number; debtReduced: number; giftOpportunity: number; cashRight: number;
       s1ResidualRestoration?: { b: number; n: number };
       previewOnly: true; settlementReady?: boolean; attributionOnly?: boolean;
@@ -680,6 +680,23 @@ export default function SalesReturn() {
     // must never replace a preview for another receipt or selection.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lookup?.invoiceId, selectedKey, isFull, exchangeMode])
+
+  // The same server provenance preview drives ordinary returns and exchanges.
+  // In a partial exchange, real money carries first; if only a pooled barcode
+  // share remains, no payout method is needed and that share returns to its root.
+  const exchangeCreditOnlyResidual = (() => {
+    if (!exchangeMode || !creditPreview || creditPreview.previewKey !== selectedKey ||
+        creditPreview.returnTotal !== totals.amount || creditPreview.debtReduced !== 0 ||
+        creditPreview.settlementReady === false || creditPreview.exchangeCarryRestoration === true ||
+        creditPreview.giftOpportunity <= 0 || creditPreview.cashRight < 0 || exTotals.diff >= 0)
+      return false
+    const cashCarry = Math.min(creditPreview.cashRight, exTotals.exchangeTotal)
+    const giftCarry = Math.min(creditPreview.giftOpportunity,
+      Math.max(0, exTotals.exchangeTotal - creditPreview.cashRight))
+    const remainingCash = creditPreview.cashRight - cashCarry
+    const remainingGift = creditPreview.giftOpportunity - giftCarry
+    return remainingGift > 0 && remainingCash === 0
+  })()
 
   const setQtyFor = (i: ReturnLookupItem, v: number) =>
     setQty((p) => ({ ...p, [i.saleItemId]: Math.max(0, Math.min(Math.round(v || 0), i.remainingQty)) }))
@@ -860,12 +877,6 @@ export default function SalesReturn() {
        * ضمنی نیست، چون مشتری‌ای که پول نقدش را می‌خواست، بی‌خبر یک بارکد
        * می‌گرفت و از نظر حسابداری یک بدهی تازه برای فروشگاه ساخته می‌شد.
        */
-      if (exTotals.diff < 0 && !exRefundMode)
-        return setErr(
-          `مابه‌التفاوت این تعویض منفی است (ما ${money(-exTotals.diff)} ریال بدهکاریم).\n` +
-            'یکی از گزینه‌های مجاز را صریح انتخاب کنید:\n' +
-            EXCHANGE_REFUND_CHOICES.map((c) => `• ${c.title} — ${c.hint}`).join('\n')
-        )
       const deltaRightCode = exDeltaRightCode.trim()
       const deltaRightAmount = exDeltaRightAmountValue
       let remainingDelta = exTotals.diff
@@ -954,7 +965,7 @@ export default function SalesReturn() {
               : undefined,
           autoCentralWithdraw: repAutoCentral || undefined,
           // ---- بند ۱۲: تسویه‌ی مابه‌التفاوت منفی (انتخاب انحصاری کاربر) ----
-          refundMode: exTotals.diff < 0 ? exRefundMode : undefined,
+          refundMode: exTotals.diff < 0 && !exchangeCreditOnlyResidual ? exRefundMode : undefined,
           ...(exTotals.diff < 0 && exRefundMode === 'STORE_CREDIT' ? {
             printedHolderFirstName, printedHolderLastName, printedHolderPhone
           } : {}),
@@ -1046,7 +1057,7 @@ export default function SalesReturn() {
       lookup, selected, qty, reps, note, allowRemoved, exTotals.diff, methodId, methods, exCheque, exChequeNo, exChequeBank, exChequeDueDate, exChequeDebtOverride, exChequeOverridePassword, exChequeOverrideReason, exSplitPayment, exSplitCashAmount,
       exSplitCardAmount, exSplitTotal, exSplitCashMethodId, exSplitCardMethodId, exDeltaRightCode,
       exDeltaRightAmount, exDeltaRightAmountValue, hasExDeltaRightInput, repAutoCentral, exCharges, exScope,
-      removedSelected.length, exRefundMode, printedHolderFirstName, printedHolderLastName, printedHolderPhone,
+      removedSelected.length, exRefundMode, exchangeCreditOnlyResidual, printedHolderFirstName, printedHolderLastName, printedHolderPhone,
       priceOverrideOn, managerPw, lockPw, lockReason, loadHistory, lookupCode
     ]
   )
@@ -1320,8 +1331,10 @@ export default function SalesReturn() {
     exTotals.diff > 0
       ? `مشتری باید ${money(exTotals.diff)} ریال بپردازد`
       : exTotals.diff < 0
-        ? `ما ${money(-exTotals.diff)} ریال بدهکاریم ⇒ ${
-            exRefundMode === 'S11_DEBT_OFFSET_RIGHTS'
+        ? `ما ${money(-exTotals.diff)} ریال اختلاف داریم ⇒ ${
+            exchangeCreditOnlyResidual
+              ? 'این مانده فقط اعتبار غیرنقدیِ منشأدار است؛ خودکار به همان ریشه برمی‌گردد و پرداخت نقدی/کارتی ندارد'
+              : exRefundMode === 'S11_DEBT_OFFSET_RIGHTS'
               ? 'ابتدا بدهی چک کسر می‌شود؛ سپس فقط ماندهٔ اعتبارِ ریشه‌دار به یک بارکد غیرنقدی تبدیل می‌شود'
               : exRefundMode === 'S1_RESIDUAL_RIGHTS'
               ? 'وجه واقعی اول carry می‌شود؛ ماندهٔ اعتبار با یک بارکد و مهلت اصلی صادر می‌شود (بدون خروج پول)'
@@ -1953,13 +1966,20 @@ export default function SalesReturn() {
                 {exTotals.diff < 0 && (
                   <div
                     className={`col-span-2 md:col-span-4 rounded p-2 border-2 ${
-                      exRefundMode ? 'bg-white border-emerald-400' : 'bg-rose-50 border-rose-400'
+                      exRefundMode || exchangeCreditOnlyResidual ? 'bg-white border-emerald-400' : 'bg-rose-50 border-rose-400'
                     }`}
                   >
                     <div className="flex flex-wrap items-center gap-2 mb-1">
                       <b>تسویه‌ی مابه‌التفاوت منفی — {money(-exTotals.diff)} ریال</b>
-                      {!exRefundMode && <span className="text-rose-800 font-bold">انتخاب اجباری است</span>}
+                      {!exRefundMode && !exchangeCreditOnlyResidual && <span className="text-rose-800 font-bold">اگر سهم وجه واقعی داشته باشید، سرور پیش از ثبت روش تسویهٔ آن را درخواست می‌کند؛ اعتبار ریشه‌دار خودکار و غیرنقدی ثبت می‌شود.</span>}
                     </div>
+                    {exchangeCreditOnlyResidual ? (
+                      <p className="rounded bg-emerald-50 border border-emerald-300 p-2 text-emerald-900">
+                        پیش‌نمایش منشأ نشان می‌دهد پس از مصرف وجه واقعی برای کالای جایگزین، فقط اعتبار بارکدی باقی می‌ماند.
+                        اعتبار به‌صورت غیرنقدی و با ریشه/مهلت خودش برمی‌گردد؛ از صندوق یا کارت‌خوان پولی خارج نمی‌شود.
+                      </p>
+                    ) : (
+                    <>
                     {/* جلسه ۱۷ · بند ۱ — چهار ستون، چون گزینه‌ی «کارت‌به‌کارت توسط مدیر» اضافه شد */}
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-2">
                       {EXCHANGE_REFUND_CHOICES.map((c) => (
@@ -1983,6 +2003,8 @@ export default function SalesReturn() {
                         </label>
                       ))}
                     </div>
+                    </>
+                    )}
                   </div>
                 )}
                 {exTotals.diff > 0 && (
@@ -2344,7 +2366,7 @@ export default function SalesReturn() {
               <button
                 className="btn btn-primary"
                 onClick={() => void doExchange(false)}
-                disabled={busy || lookupLocked || !totals.count || !reps.length || (exTotals.diff < 0 && !exRefundMode)}
+                disabled={busy || lookupLocked || !totals.count || !reps.length}
                 title="برگشت اقلام + سند تعویض + تسویه‌ی مابه‌التفاوت، همه در یک تراکنش"
               >
                 {busy ? 'در حال ثبت…' : 'ثبت تعویض کالا'}

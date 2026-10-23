@@ -90,6 +90,8 @@ export async function planCreditReturn(
     returnLines?: ReturnFundingLine[]
     debtBefore: RemainingResult
     activeReturns: { id: number; kind: string; total: number | bigint }[]
+    /** Gift shares already carried into prior exchange children, proved from the source-funding ledger. */
+    priorCarriedShares?: { redemptionId: number; amount: number }[]
   }
 ): Promise<CreditReturnPlan> {
   // EXCHANGE_CREDIT is carried value, not received cash. Descriptive child
@@ -132,13 +134,26 @@ export async function planCreditReturn(
   const fundedPreviouslyReturned = input.debtBefore.refundFromReceived
   const debtReduced = Math.min(input.returnedValue, input.debtBefore.remaining)
   const fundedReturning = input.returnedValue - debtReduced
+  const carriedByRedemption = new Map<number, number>()
+  for (const row of input.priorCarriedShares ?? []) {
+    if (!Number.isSafeInteger(row.redemptionId) || row.redemptionId <= 0 ||
+        !Number.isSafeInteger(row.amount) || row.amount < 0 || carriedByRedemption.has(row.redemptionId))
+      throw unknown()
+    carriedByRedemption.set(row.redemptionId, row.amount)
+  }
   const priorShares: { redemptionId: number; amount: number }[] = []
   for (const redemption of redemptions) {
     const prior = await tx.creditReturnAllocation.aggregate({
       where: { redemptionId: redemption.id }, _sum: { amount: true }
     })
-    priorShares.push({ redemptionId: redemption.id, amount: toNumberRial(prior._sum.amount ?? 0) })
+    const restored = toNumberRial(prior._sum.amount ?? 0)
+    const carried = carriedByRedemption.get(Number(redemption.id)) ?? 0
+    const cumulative = restored + carried
+    if (!Number.isSafeInteger(cumulative) || cumulative > toNumberRial(redemption.amount)) throw unknown()
+    priorShares.push({ redemptionId: Number(redemption.id), amount: cumulative })
   }
+  if ([...carriedByRedemption.keys()].some((redemptionId) =>
+      !redemptions.some((redemption) => Number(redemption.id) === redemptionId))) throw unknown()
   const credits = await tx.storeCredit.findMany({
     where: { id: { in: [...new Set(redemptions.map((r) => Number(r.creditId)))] } },
     select: { id: true, restrictScope: true, restrictCategoryIdsJson: true, restrictVariantIdsJson: true }
