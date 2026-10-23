@@ -21,6 +21,7 @@ const {
 } = await import('../../src/main/services/ExchangeFundingLedgerService.ts')
 const { DEFAULT_MANAGER_PASSWORD } = await import('@shared/receipt')
 const { toJalaliDate } = await import('@shared/jalali')
+const { physicalMovementForCustodyShift } = await import('../../src/main/services/CustodyAggregateService.ts')
 
 const db = harnessClient()
 const seed = makeSeeder(db)
@@ -42,6 +43,10 @@ const variant = (label, price) => {
   return id
 }
 const line = (variantId, price) => ({ variantId, qty: 1, unitPrice: price, discount: 0, tax: 0 })
+const stockOf = (variantId) => Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', variantId).stock)
+const assertStock = (variantIds, expected, message) => assert.deepEqual(
+  variantIds.map(stockOf), expected, message
+)
 const assertNoSideEffectDelta = (before, message) => {
   assert.deepEqual({
     invoices: seed.count('SaleInvoice', '1=1'),
@@ -73,6 +78,7 @@ const firstChildVariants = rootPrices.map((price, i) => variant(`child-${i}`, pr
 const grandchildVariants = rootPrices.map((price, i) => variant(`grandchild-${i}`, price))
 const overValueNestedVariant = variant('over-value', 15_000_001)
 const underValueNestedVariant = variant('under-value', 14_999_999)
+const blueBeforeRootSale = await physicalMovementForCustodyShift(shiftId)
 const rootSale = await salesService.create({
   userId, shiftId,
   lines: rootVariants.map((variantId, i) => line(variantId, rootPrices[i])),
@@ -81,6 +87,9 @@ const rootSale = await salesService.create({
   storeCreditIdempotencyKey: 's3-root-mixed-funding-0001'
 })
 assert.equal(rootSale.grandTotal, 15_000_000)
+assert.equal(await physicalMovementForCustodyShift(shiftId) - blueBeforeRootSale, 13_000_000,
+  'only the actual 13M cash tender from the root sale moves the physical/blue reference')
+assertStock(rootVariants, [29, 29], 'the root sale removes one of each original item from stock')
 const rootFunding = await getCurrentSaleFundingSources(db, rootSale.id)
 assert.deepEqual(rootFunding.unresolved, [])
 assert.deepEqual(rootFunding.sources.map(({ sourceKind, available }) => ({ sourceKind, available })), [
@@ -102,6 +111,10 @@ const first = await salesService.createExchange(firstRequest, { goodsReceiptRequ
 assert.equal(first.diff, 0)
 assert.equal(first.returnTotal, 15_000_000)
 assert.equal(first.exchangeTotal, 15_000_000)
+assert.equal(await physicalMovementForCustodyShift(shiftId) - blueBeforeRootSale, 13_000_000,
+  'the equal-value root-to-child exchange does not change the blue reference')
+assertStock(rootVariants, [30, 30], 'the returned original units restore root stock immediately')
+assertStock(firstChildVariants, [29, 29], 'the replacement child units are immediately deducted')
 assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', rootFunding.sources.find((s) => s.sourceKind === 'SOURCE_GIFT').event.sourceCreditId).status, 'USED')
 assert.equal(seed.count('StoreCredit', '1=1'), 1, 'S3 chain creates no replacement public credit/barcode')
 const firstChildFunding = await getCurrentExchangeFundingSources(db, first.exchangeInvoiceId)
@@ -141,6 +154,10 @@ const second = await salesService.createExchange(secondRequest, { goodsReceiptRe
 assert.equal(second.diff, 0)
 assert.equal(second.returnTotal, 15_000_000)
 assert.equal(second.exchangeTotal, 15_000_000)
+assert.equal(await physicalMovementForCustodyShift(shiftId) - blueBeforeRootSale, 13_000_000,
+  'the equal-value child-to-grandchild exchange does not change the blue reference')
+assertStock(firstChildVariants, [30, 30], 'the child units are returned as the next exchange begins')
+assertStock(grandchildVariants, [29, 29], 'the grandchild replacement units are deducted')
 assert.equal(Number(seed.one('SELECT sourceInvoiceId FROM "SaleInvoice" WHERE id=?', second.exchangeInvoiceId).sourceInvoiceId),
   first.exchangeInvoiceId, 'the grandchild records its immediate child parent, not the original sale')
 const afterSecond = sideEffects()
@@ -232,6 +249,10 @@ const voidSecond = await salesService.returnDelete({
   panelPassword: DEFAULT_MANAGER_PASSWORD
 })
 assert.equal(voidSecond.exchangeVoided, true)
+assert.equal(await physicalMovementForCustodyShift(shiftId) - blueBeforeRootSale, 13_000_000,
+  'voiding the grandchild exchange has no cash/blue effect')
+assertStock(firstChildVariants, [29, 29], 'voiding the grandchild restores the state after the first exchange')
+assertStock(grandchildVariants, [30, 30], 'voiding the grandchild restores its replacement stock')
 const middleRestored = await getCurrentExchangeFundingSources(db, first.exchangeInvoiceId)
 assert.deepEqual(middleRestored.unresolved, [])
 assert.deepEqual(middleRestored.sources.map(({ sourceKind, available }) => ({ sourceKind, available })), [
@@ -243,6 +264,11 @@ const voidFirst = await salesService.returnDelete({
   panelPassword: DEFAULT_MANAGER_PASSWORD
 })
 assert.equal(voidFirst.exchangeVoided, true)
+assert.equal(await physicalMovementForCustodyShift(shiftId) - blueBeforeRootSale, 13_000_000,
+  'voiding the complete exchange chain leaves only the root sale cash in the blue reference')
+assertStock(rootVariants, [29, 29], 'voiding both exchanges returns to the still-active root-sale stock state')
+assertStock(firstChildVariants, [30, 30], 'voiding both exchanges restores child replacement stock')
+assertStock(grandchildVariants, [30, 30], 'voiding both exchanges restores grandchild replacement stock')
 const rootRestored = await getCurrentSaleFundingSources(db, rootSale.id)
 assert.deepEqual(rootRestored.unresolved, [])
 assert.deepEqual(rootRestored.activeReturnIds, [])

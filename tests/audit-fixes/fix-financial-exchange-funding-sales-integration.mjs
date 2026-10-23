@@ -947,7 +947,7 @@ assert.match(storedReturnRequest.idempotencyFingerprint, /^[a-f0-9]{64}$/)
 assert.equal(JSON.parse(storedReturnRequest.idempotencyResponseJson).id, concurrentReturnResults[0].returnId)
 assert.equal(storedReturnRequest.idempotencyResponseJson.includes('managerPassword'), false,
   'the immutable replay snapshot excludes manager credentials')
-const sequentialReturnReplay = await salesService.createReturn(returnRequest)
+const sequentialReturnReplay = await salesService.createReturn(returnRequest, { goodsReceiptRequired: true })
 assert.equal(sequentialReturnReplay.id, concurrentReturnResults[0].returnId)
 assert.equal(sequentialReturnReplay.replayed, true)
 const ordinaryReturnReportRows = await salesService.returnList({
@@ -960,8 +960,9 @@ assert.deepEqual(ordinaryReturnReportRow?.fundingAttribution?.sources, [])
 assert.equal(formatReturnFundingAttribution(ordinaryReturnReportRow?.fundingAttribution), '—')
 const returnCountBeforeMismatch = seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?',
   idempotentReturnSale.id).n
-await assert.rejects(() => salesService.createReturn({ ...returnRequest, note: 'different payload' }),
-  /کلید درخواست برگشت قبلاً برای payload متفاوت/)
+await assert.rejects(() => salesService.createReturn(
+  { ...returnRequest, note: 'different payload' }, { goodsReceiptRequired: true }
+), /کلید درخواست برگشت قبلاً برای payload متفاوت/)
 assert.equal(seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?',
   idempotentReturnSale.id).n, returnCountBeforeMismatch,
 'same key with a changed note is rejected without a second return')

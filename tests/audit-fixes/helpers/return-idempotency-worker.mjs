@@ -10,7 +10,7 @@ try {
     lines: [{ saleItemId: Number(saleItemId), qty: Number(quantity) }],
     refundMethod: 'NONE', note,
     userId: Number(userId), shiftId: Number(shiftId), idempotencyKey
-  }, { requireIdempotencyKey: true })
+  }, { goodsReceiptRequired: true, requireIdempotencyKey: true })
   console.log(JSON.stringify({ ok: true, returnId: result.id, replayed: result.replayed === true }))
 } catch (error) {
   console.log(JSON.stringify({ ok: false, error: String(error?.message ?? error), code: error?.code ?? null,
