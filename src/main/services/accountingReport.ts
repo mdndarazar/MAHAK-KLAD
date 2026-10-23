@@ -24,7 +24,7 @@ import {
   orderTypesForChannels
 } from '@shared/enums'
 import { toJalaliDate, toClock, money, faDigits, jalaliStartOfDay } from '@shared/jalali'
-import { remainingOf, isSimpleReturn, refundFromReceivedOf, exchangeRefundPartOf, exchangeDebtReductionOf } from '@shared/settlement'
+import { remainingOf, isSimpleReturn, exchangeRefundPartOf, exchangeDebtReductionOf } from '@shared/settlement'
 import { debtAdjustmentsByInvoice, adjustmentsOrEmpty } from './invoiceDebt'
 import { creditIdsForReportScope } from './creditReportScope'
 import { bridgeDrillPager } from '@shared/reportExtraOutput'
@@ -570,7 +570,7 @@ async function returnStatement(scope: StatementScope): Promise<ReturnTotals & { 
   const groupReturns = (where: Prisma.SaleReturnWhereInput) => prisma.saleReturn.groupBy({
     by: ['refundMethod', 'exchangeSettlement'],
     where,
-    _sum: { total: true, refundAmount: true, creditRestored: true, exchangeTotal: true, exchangeDiff: true, debtReduction: true },
+    _sum: { total: true, refundAmount: true, refundStoreCreditAmount: true, creditRestored: true, exchangeTotal: true, exchangeDiff: true, debtReduction: true },
     _count: { _all: true }
   })
   const [simpleRows, exchangeRows] = await Promise.all([
@@ -641,15 +641,15 @@ async function returnStatement(scope: StatementScope): Promise<ReturnTotals & { 
       r._sum.refundAmount == null ? total : n(r._sum.refundAmount)))
     const realOrClaim = new Set<string>([RefundMethod.CASH, RefundMethod.CARD, RefundMethod.STORE_CREDIT, RefundMethod.CARD_TO_CARD])
       .has(String(r.refundMethod)) ? refunded : 0
-    out.debtOnlyReturns += Math.max(0, total - realOrClaim - Math.max(0, n(r._sum.creditRestored)))
+    const sourceCredit = Math.max(0, n(r._sum.creditRestored))
+    const splitCredit = Math.min(Math.max(0, total - realOrClaim - sourceCredit), Math.max(0, n((r._sum as any).refundStoreCreditAmount)))
+    out.debtOnlyReturns += Math.max(0, total - realOrClaim - splitCredit - sourceCredit)
     if (r.refundMethod === RefundMethod.CASH) out.cashRefunds += refunded
     else if (r.refundMethod === RefundMethod.CARD) out.cardRefunds += refunded
     else if (r.refundMethod === RefundMethod.STORE_CREDIT) out.storeCreditIssued += refunded
     else if (r.refundMethod === RefundMethod.CARD_TO_CARD) out.cardToCardPending += refunded
-    else {
-      // NONE یا تهی: فقط سهم غیرنقد/غیر اعتبار احیاشده بدهی را کم کرده است.
-      if (r.refundMethod == null) out.legacyAssumedCount += count
-    }
+    else if (r.refundMethod == null) out.legacyAssumedCount += count
+    out.storeCreditIssued += splitCredit
   }
   /**
    * نشست ۱۸۸ · بازبینی ۱۸۶ مورد ۶ — درخواست کارت‌به‌کارتِ لغوشده هنوز در
@@ -666,7 +666,7 @@ async function returnStatement(scope: StatementScope): Promise<ReturnTotals & { 
     },
     select: {
       id: true, kind: true, exchangeInvoiceId: true,
-      refundAmount: true, creditRestored: true, exchangeDiff: true, debtReduction: true, total: true
+      refundAmount: true, refundStoreCreditAmount: true, creditRestored: true, exchangeDiff: true, debtReduction: true, total: true
     }
   })
   if (c2cRets.length) {
@@ -1388,7 +1388,7 @@ async function creditRemaining(scope: StatementScope, warnings: string[]): Promi
  * هر سبد دقیقاً با predicate همان سبد»). هر برگشت ساده‌ی این بازه دقیقاً در یک
  * سبد برای «بازپرداخت» و حداکثر در یک سبد برای «کاهش بدهی دوره‌ی قبل» می‌نشیند:
  *
- *   refund  = refundFromReceivedOf(r)   ← همان عددی که remainingOf می‌بیند
+ *   refund  = مبلغ روش اصلیِ واقعی؛ barcode leg در cash/card buckets نیست
  *   CASH ⇒ cashRefunds · CARD ⇒ cardRefunds · CARD_TO_CARD (لغونشده) ⇒ cardToCardRefunds
  *   STORE_CREDIT ⇒ هیچ‌کدام (در ردیف storeCreditIssued از خودِ جدول اعتبار آمده)
  *   اگر فاکتور بیرون از scope.where است (فروش دوره‌ی قبل):
@@ -1419,7 +1419,7 @@ async function returnBridgeItems(scope: StatementScope): Promise<ReturnBridgeIte
     where: { invoice: returnInvoiceWhere(scope), ...returnScopeWhere(scope), voidedAt: null, ...(range ? { returnedAt: range } : {}) },
     select: {
       id: true, invoiceId: true, kind: true, exchangeInvoiceId: true,
-      total: true, refundMethod: true, refundAmount: true, creditRestored: true,
+      total: true, refundMethod: true, refundAmount: true, refundStoreCreditAmount: true, creditRestored: true,
       exchangeDiff: true, exchangeSettlement: true, debtReduction: true,
       returnedAtJalali: true, invoice: { select: { receiptNo: true } }
     },
@@ -1462,10 +1462,13 @@ async function returnBridgeItems(scope: StatementScope): Promise<ReturnBridgeIte
       dateJalali: r.returnedAtJalali ?? null, total: Math.max(0, n(r.total))
     }
     if (isSimpleReturn(r)) {
-      const refund = refundFromReceivedOf({ ...r, refundCanceled: canceled.has(r.id) })
+      const canceledC2C = r.refundMethod === RefundMethod.CARD_TO_CARD && canceled.has(r.id)
+      const primaryRefund = canceledC2C ? 0 : Math.min(base.total, Math.max(0, n(r.refundAmount)))
+      const sourceCredit = Math.max(0, n(r.creditRestored))
+      const splitCredit = Math.min(Math.max(0, base.total - primaryRefund - sourceCredit), Math.max(0, n(r.refundStoreCreditAmount)))
       return {
-        ...base, kind: 'RETURN' as const, refund,
-        debtCut: Math.max(0, base.total - refund - Math.max(0, n(r.creditRestored))),
+        ...base, kind: 'RETURN' as const, refund: primaryRefund, storeCredit: splitCredit,
+        debtCut: Math.max(0, base.total - primaryRefund - splitCredit - Math.max(0, n(r.creditRestored))),
         method: String(r.refundMethod ?? 'NONE').toUpperCase(),
         inScope: inScope.has(r.invoiceId)
       }

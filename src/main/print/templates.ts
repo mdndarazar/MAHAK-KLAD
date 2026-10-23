@@ -769,6 +769,7 @@ export interface ReturnReceiptData {
   refundMethod: string | null
   refundMethodLabel: string
   refundAmount: number
+  refundStoreCreditAmount?: number
   /** ردیف‌های منشأ H1/B/E؛ مستقل از پول نقد و دفتر بدهی. */
   creditRestored?: number
   expiredCreditShare?: number
@@ -866,6 +867,8 @@ export function returnReceiptHtml(d: ReturnReceiptData, template?: Partial<Recei
     sums.push(d.bankDocumentAmount > 0
       ? `<div class="row"><span>مبلغ تطبیق‌داده‌شده با سند بانک</span><span>${money(d.bankDocumentAmount)}</span></div>`
       : '<div class="c kbd">هنوز شاهد تأییدشدهٔ بانک ثبت نشده است؛ این، اثبات پرداخت‌نشدن نیست.</div>')
+  if ((d.refundStoreCreditAmount ?? 0) > 0)
+    sums.push(`<div class="row"><span>بارکد اعتبار از سهم پول واقعی (غیرنقدی)</span><span>${money(d.refundStoreCreditAmount!)}</span></div>`)
   if ((d.creditRestored ?? 0) > 0)
     sums.push(`<div class="row"><span>سهم اعتبار غیرنقدی (نه پرداخت پول/بانک)</span><span>${money(d.creditRestored!)}</span></div>`)
   if ((d.debtReduced ?? 0) > 0 && (d.creditRestored ?? 0) > 0)

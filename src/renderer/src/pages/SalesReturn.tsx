@@ -231,6 +231,8 @@ export default function SalesReturn() {
   const [refundMethod, setRefundMethod] = useState<RefundMethodValue | null>(null)
   /** خالی = کل مبلغ برگشت (همان پیش‌فرض سمت سرور) */
   const [refundAmount, setRefundAmount] = useState('')
+  /** Optional second leg: barcode funded from the proved real-money refund right. */
+  const [refundStoreCreditAmount, setRefundStoreCreditAmount] = useState('')
   const [refundReference, setRefundReference] = useState('')
   const [refundNote, setRefundNote] = useState('')
   /** Only on NEW credit papers; blank fields do not block return/exchange. */
@@ -746,9 +748,17 @@ export default function SalesReturn() {
         return setErr('برگشت فرزند تعویض فقط carry همان منشأ را بازمی‌گرداند؛ مبلغ نقدی باید صفر باشد.')
       if (creditPreview.s1ResidualRestoration && effectiveRefundMethod !== 'NONE')
         return setErr('این برگشت باید سهم B/N را به همان دفتر حق بازگرداند؛ فقط گزینهٔ «بدون بازپرداخت» مجاز است.')
-      if (creditPreview.giftOpportunity > 0 && refundAmount.trim() !== '' &&
-          Number(refundAmount) !== creditPreview.cashRight)
-        return setErr(`از این برگشت فقط ${money(creditPreview.cashRight)} ریال پول واقعی و ${money(creditPreview.giftOpportunity)} ریال سهم اعتبار است؛ مبلغ نقد را مطابق پیش‌نمایش وارد کنید.`)
+      const splitCredit = Math.max(0, Math.round(Number(refundStoreCreditAmount.replace(/[^0-9]/g, '')) || 0))
+      const primaryAmount = refundAmount.trim() === ''
+        ? splitCredit > 0 ? Math.max(0, creditPreview.cashRight - splitCredit)
+          : creditPreview.giftOpportunity > 0 ? creditPreview.cashRight : 0
+        : Math.max(0, Math.round(Number(refundAmount.replace(/[^0-9]/g, '')) || 0))
+      if (splitCredit > 0 && effectiveRefundMethod !== 'CASH')
+        return setErr('تقسیم حق پول واقعی در این مرحله فقط با پرداخت نقدی پشتیبانی می‌شود؛ روش نقدی را انتخاب کنید.')
+      if (splitCredit > 0 && (primaryAmount <= 0 || primaryAmount + splitCredit > creditPreview.cashRight))
+        return setErr(`جمع مبلغ نقدی و بارکد جدید نباید از حق پول واقعی ${money(creditPreview.cashRight)} ریال بیشتر شود.`)
+      if (creditPreview.giftOpportunity > 0 && primaryAmount + splitCredit !== creditPreview.cashRight)
+        return setErr(`این برگشت ${money(creditPreview.cashRight)} ریال حق پول واقعی و ${money(creditPreview.giftOpportunity)} ریال سهم اعتبار دارد؛ مبلغ نقدی + بارکد جدید باید دقیقاً برابر حق پول واقعی باشد.`)
       if (creditPreview.giftOpportunity > 0 && creditPreview.cashRight > 0 && effectiveRefundMethod === 'NONE')
         return setErr(`این برگشت ${money(creditPreview.cashRight)} ریال حق پول واقعی دارد؛ بدون بازپرداخت آن را بی‌سند رها نکنید.`)
       if (managerFullRefund && !fullRefundPw.trim())
@@ -775,9 +785,12 @@ export default function SalesReturn() {
           ...(effectiveRefundMethod === 'STORE_CREDIT' ? {
             printedHolderFirstName, printedHolderLastName, printedHolderPhone
           } : {}),
-          refundAmount: creditPreview.exchangeCarryRestoration ? 0 : refundAmount.trim() === ''
-            ? creditPreview.giftOpportunity > 0 ? creditPreview.cashRight : undefined
-            : Math.max(0, Math.round(Number(refundAmount.replace(/[^0-9]/g, '')) || 0)),
+          refundAmount: creditPreview.exchangeCarryRestoration ? 0 : splitCredit > 0
+            ? primaryAmount
+            : refundAmount.trim() === ''
+              ? creditPreview.giftOpportunity > 0 ? creditPreview.cashRight : undefined
+              : Math.max(0, Math.round(Number(refundAmount.replace(/[^0-9]/g, '')) || 0)),
+          refundStoreCreditAmount: splitCredit || undefined,
           managerFullRefund: managerFullRefund || undefined,
           refundReference: refundReference.trim() || undefined,
           refundNote: refundNote.trim() || undefined,
@@ -1315,6 +1328,7 @@ export default function SalesReturn() {
     setRetResult(null)
     setRefundMethod(null)
     setRefundAmount('')
+    setRefundStoreCreditAmount('')
     setRefundReference('')
     setRefundNote('')
     setExRefundMode(null)
@@ -1441,6 +1455,9 @@ export default function SalesReturn() {
             {REFUND_CHOICES.find((c) => c.value === retResult.refundMethod)?.title ?? 'بدون بازپرداخت'}
             {retResult.refundAmount ? ` · ${money(retResult.refundAmount)} ریال` : ' · بدون خروج پول'}
           </span>
+          {!!retResult.refundStoreCreditAmount && <span className="kbd rounded border bg-white px-2 py-1">
+            {money(retResult.refundStoreCreditAmount)} ریال از حق پول واقعی به بارکد جدید تبدیل شد
+          </span>}
           <span className="kbd">
             {retResult.restocked
               ? `${faDigits(retResult.restockedQty)} عدد همان لحظه به موجودی انبار برگشت`
@@ -2215,6 +2232,7 @@ export default function SalesReturn() {
                 onSelectMethod={(m) => {
                   setRefundMethod(m)
                   if (m !== 'CARD') setCardPosOverride(null)
+                  if (m !== 'CASH') setRefundStoreCreditAmount('')
                 }}
                 onCardPosLocked={() => setCardPosDialog(true)}
               />}
@@ -2275,6 +2293,19 @@ export default function SalesReturn() {
                       inputMode="numeric"
                     />
                   </label>
+                  {refundMethod === 'CASH' && (
+                    <label>
+                      <div className="kbd">بارکد جدید از حق پول واقعی (اختیاری؛ از مبلغ نقد کم می‌شود)</div>
+                      <input
+                        className="inp w-52"
+                        dir="ltr"
+                        value={groupThousands(refundStoreCreditAmount)}
+                        onChange={(e) => setRefundStoreCreditAmount(digitsOnly(e.target.value))}
+                        placeholder="۰ = بدون تقسیم"
+                        inputMode="numeric"
+                      />
+                    </label>
+                  )}
                   {refundMethod === 'CARD' && (
                     <label>
                       <div className="kbd">شماره پیگیری / مرجع بازپرداخت</div>

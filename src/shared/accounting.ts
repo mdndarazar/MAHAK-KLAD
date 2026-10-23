@@ -97,6 +97,7 @@ export interface ReturnEvent {
   total?: RialLike
   refundMethod?: RefundMethod | string | null
   refundAmount?: RialLike
+  refundStoreCreditAmount?: RialLike
   returnedAt?: Date | string | number
   exchangeTotal?: RialLike
   exchangeDiff?: RialLike
@@ -618,17 +619,20 @@ export function calculateReturnTotals(events: ReturnEvent[] = [], period?: Perio
     const amount = Math.min(total, Math.max(0, n(r.refundAmount == null ? total : r.refundAmount)))
     const actualRefund = ['CASH', 'CARD', 'STORE_CREDIT', 'CARD_TO_CARD'].includes(String(r.refundMethod))
       ? amount : 0
+    const sourceCredit = Math.max(0, n(r.creditRestored))
+    const splitStoreCredit = Math.min(Math.max(0, total - actualRefund - sourceCredit), Math.max(0, n(r.refundStoreCreditAmount)))
     // Neither the restored gift opportunity nor a real-money payout reduces
     // customer debt. In particular a gift-only return with method NONE must
     // not appear as a "debt-only return" in the drawer/manager report.
-    out.debtOnlyReturns += Math.max(0, total - actualRefund - Math.max(0, n(r.creditRestored)))
+    out.debtOnlyReturns += Math.max(0, total - actualRefund - splitStoreCredit - Math.max(0, n(r.creditRestored)))
     if (r.refundMethod === 'CASH') out.cashRefunds += amount
     else if (r.refundMethod === 'CARD') out.cardRefunds += amount
-    else if (r.refundMethod === 'STORE_CREDIT') { out.storeCreditIssued += amount }
+    else if (r.refundMethod === 'STORE_CREDIT') out.storeCreditIssued += amount
     /* جلسه ۱۷ · بند ۱ — تعهد کارت‌به‌کارت؛ «کاهش بدهی» نیست، «پرداخت فوری» هم نیست */
     else if (r.refundMethod === 'CARD_TO_CARD') {
       if (!r.refundCanceled) out.cardToCardPending += amount
     }
+    out.storeCreditIssued += splitStoreCredit
     // NONE/null: debt-only portion was already accounted for above.
   }
   return out
@@ -1062,9 +1066,14 @@ export function physicalMoneyInDrawerAndCard(input: {
   return n(input.receivedTotal) - n(input.refundCashTotal) - n(input.refundCardTotal)
 }
 
-/** مبلغ اعتبار صادرشده روی یک سند برگشت (صفر اگر تسویه اعتبار نبوده). */
-export function returnCreditAmountOf(r: { refundMethod?: string | null; refundAmount?: RialLike } = {}): Rial {
-  return r.refundMethod === 'STORE_CREDIT' ? Math.max(0, n(r.refundAmount)) : 0
+/** مبلغ بارکد اعتباریِ صادرشده روی سند برگشت؛ شامل تسویهٔ کامل یا leg جدا از حق پول واقعی. */
+export function returnCreditAmountOf(r: {
+  refundMethod?: string | null
+  refundAmount?: RialLike
+  refundStoreCreditAmount?: RialLike
+} = {}): Rial {
+  const direct = r.refundMethod === 'STORE_CREDIT' ? Math.max(0, n(r.refundAmount)) : 0
+  return direct + Math.max(0, n(r.refundStoreCreditAmount))
 }
 
 export function calculateReconciliationBridge(input: BridgeInput = {}): ReconciliationBridge {

@@ -235,7 +235,7 @@ export const printService = {
         user: true,
         shift: true,
         payments: { where: { voidedAt: null }, include: { method: true } },
-        returns: { where: { voidedAt: null }, select: { kind: true, total: true, refundMethod: true, refundAmount: true } }
+        returns: { where: { voidedAt: null }, select: { kind: true, total: true, refundMethod: true, refundAmount: true, refundStoreCreditAmount: true } }
       }
     })
     if (!inv) throw new BusinessError('این فاکتور پیدا نشد؛ ممکن است حذف شده باشد.')
@@ -642,10 +642,11 @@ export const printService = {
       refundMethodLabel: managedClaim && ret.refundMethod === 'CARD_TO_CARD'
         ? 'درخواست کارت‌به‌کارت (صرف چاپ/اعلام، شاهد بانک نیست)' : refundMethodLabel(ret.refundMethod),
       refundAmount: toNumberRial(ret.refundAmount),
+      refundStoreCreditAmount: toNumberRial(ret.refundStoreCreditAmount),
       creditRestored: creditedValue,
       expiredCreditShare: allocations.filter((row) => row.kind === 'EXPIRED')
         .reduce((sum, row) => sum + toNumberRial(row.amount), 0),
-      debtReduced: Math.max(0, toNumberRial(ret.total) - toNumberRial(ret.refundAmount) - creditedValue),
+      debtReduced: Math.max(0, toNumberRial(ret.total) - toNumberRial(ret.refundAmount) - toNumberRial(ret.refundStoreCreditAmount) - creditedValue),
       bankDocumentAmount: managedClaim ? toNumberRial(managedClaim.cashPaid) : null,
       refundReference: ret.refundReference ?? null,
       voidedAt: ret.voidedAt ?? null,

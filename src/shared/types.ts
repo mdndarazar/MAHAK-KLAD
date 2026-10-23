@@ -576,6 +576,8 @@ export interface ReturnSaleInput {
   refundMethod?: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | 'NONE' | null
   /** مبلغ بازپرداخت‌شده؛ خالی = کل مبلغ برگشت (برای CASH/CARD/STORE_CREDIT) */
   refundAmount?: number | null
+  /** Optional second settlement leg: real-money refund issued as a new barcode. */
+  refundStoreCreditAmount?: number | null
   /**
    * بند ۴-۱۱ — مدیر می‌تواند با رمز و دلیل، مبلغ کاملِ بدون کسر تخفیف را
    * برگرداند. این پرچم فقط برای برگشت ساده است و هرگز سقف اعتبار خرید را دور
@@ -2518,8 +2520,10 @@ export interface ReturnListRow {
   /** CASH | CARD | STORE_CREDIT | NONE · null = داده‌ی قدیمی */
   refundMethod: string | null
   refundMethodLabel: string
-  /** مبلغی که واقعاً بازپرداخت شد */
+  /** مبلغ روش اصلیِ تسویه */
   refundAmount: number
+  /** سهمی از حق پول واقعی که به بارکد جدید تبدیل شد */
+  refundStoreCreditAmount: number
   /** فقط این عدد از کشوی صندوق بیرون رفته است */
   cashRefundAmount: number
   refundedAtJalali: string | null

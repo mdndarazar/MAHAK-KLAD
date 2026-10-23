@@ -419,6 +419,8 @@ export const bridgeDiagnosticsService = {
           method,
           methodLabel: methodLabels[method] || method,
           amount: Math.round(Number(ret.refundAmount || ret.total || 0)),
+          storeCreditAmount: Math.round(Number(ret.refundStoreCreditAmount || 0)),
+          totalSettled: Math.round(Number(ret.refundAmount || 0) + Number(ret.refundStoreCreditAmount || 0)),
           reference: ret.refundReference ?? null,
           cardTransferStatus,
           storeCreditCodeMasked: ret.storeCreditCode ? `****-${ret.storeCreditCode.slice(-4)}` : null

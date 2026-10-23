@@ -47,6 +47,8 @@ export interface DebtReturnInput {
   total?: number | null
   refundMethod?: string | null
   refundAmount?: number | null
+  /** Portion of a real-money refund issued as a new store-credit barcode. */
+  refundStoreCreditAmount?: number | null
   /** سهم اعتبار غیرنقدی که با احیای اصل یا شاخهٔ B/E جبران شد؛ پول/OVERPAY نیست. */
   creditRestored?: number | null
   /** درخواست کارت‌به‌کارت همین برگشت لغو شده؟ (پولی به مشتری نرسید و نمی‌رسد) */
@@ -71,9 +73,10 @@ export function isSimpleReturn(r: { kind?: string | null; exchangeInvoiceId?: nu
 export function refundFromReceivedOf(r: DebtReturnInput): number {
   if (!isSimpleReturn(r)) return 0
   const method = String(r.refundMethod ?? '').toUpperCase()
-  if (!REFUNDING_METHODS.includes(method)) return 0
-  if (method === 'CARD_TO_CARD' && r.refundCanceled) return 0
-  return Math.min(Math.max(0, r0(r.total)), Math.max(0, r0(r.refundAmount)))
+  const primary = REFUNDING_METHODS.includes(method) && !(method === 'CARD_TO_CARD' && r.refundCanceled)
+    ? Math.max(0, r0(r.refundAmount)) : 0
+  const splitCredit = Math.max(0, r0(r.refundStoreCreditAmount))
+  return Math.min(Math.max(0, r0(r.total)), primary + splitCredit)
 }
 
 /**
@@ -176,10 +179,13 @@ export interface OverpayPaymentInput {
   amount: number
   /** پول دریافت‌شده است؟ (چکِ پاس‌نشده/برگشتی = نه) */
   received: boolean
+  /** Non-cash store/exchange-credit tender consumes invoice value before cash overpay is attributed. */
+  cashable?: boolean
 }
 
 /**
- * C3 — تخصیص اضافه‌دریافت به ردیف‌های پرداخت (به ترتیب ثبت).
+ * C3 — تخصیص اضافه‌دریافت با احتساب منشأ پرداخت: اعتبار غیرنقدی ابتدا بدهی را می‌پوشاند؛
+ * اضافه‌دریافتِ قابل‌تبدیل فقط روی پرداخت واقعی قرار می‌گیرد.
  *
  * سقف «پولی که مشتری باید می‌داد» = payable + refundFromReceived (پرداخت منفیِ
  * قدیمی از نشست ۵۹ نادیده گرفته می‌شود). پرداخت‌ها به ترتیب seq جمع می‌شوند؛ هر ریالی که از سقف بگذرد،
@@ -196,8 +202,16 @@ export function allocateOverpay(
    * کنار می‌گذارد)، پس اینجا هم نه سقف را بالا می‌برد نه چیزی از آن کم می‌شود.
    */
   const cap = Math.max(0, r0(info.payable)) + Math.max(0, r0(info.refundFromReceived))
+  // Store/exchange credit is valid settlement of the invoice, but it is not
+  // real money and must never back a cash-overpay barcode. Apply those tenders
+  // to the payable first, then attribute any residual overpay to actual money.
+  // Within each provenance class we retain the original seq/id order.
   let cum = 0
-  for (const p of payments) {
+  const ordered = [
+    ...payments.filter((p) => p.cashable === false),
+    ...payments.filter((p) => p.cashable !== false)
+  ]
+  for (const p of ordered) {
     const amt = r0(p.amount)
     if (!p.received || amt <= 0) { out.set(p.id, 0); continue }
     const before = cum

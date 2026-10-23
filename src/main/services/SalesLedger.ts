@@ -284,7 +284,7 @@ export const salesLedger = {
       where: returnWhere,
       select: {
         id: true, kind: true, total: true, returnedAt: true, returnedAtJalali: true, returnedAtTime: true,
-        refundMethod: true, refundAmount: true, refundReference: true, creditRestored: true, note: true,
+        refundMethod: true, refundAmount: true, refundStoreCreditAmount: true, refundReference: true, creditRestored: true, note: true,
         exchangeTotal: true, exchangeDiff: true, exchangeSettlement: true, exchangeInvoiceId: true, debtReduction: true,
         exchangeReceiptNo: true, storeCreditId: true, userId: true, shiftId: true,
         invoiceId: true,
@@ -390,7 +390,7 @@ export const salesLedger = {
         /** نشست ۶۰ (بند ۴-۵/۴-۴۹) — فقط بخش بازپرداخت‌شده؛ کاهش بدهی فاکتور اصلی پول نیست */
         const refundPart = exchangeRefundPartOf({
           exchangeDiff: diff, debtReduction: (r as any).debtReduction,
-          creditRestored: (r as any).creditRestored, refundAmount: r.refundAmount
+          creditRestored: (r as any).creditRestored, refundAmount: r.refundAmount, refundStoreCreditAmount: (r as any).refundStoreCreditAmount
         })
         const debtCut = Math.max(0, n((r as any).debtReduction))
         const exDrawer = r.exchangeInvoiceId != null ? exDrawerCash.get(r.exchangeInvoiceId) ?? null : null
@@ -430,6 +430,7 @@ export const salesLedger = {
         continue
       }
       const refundAmount = n(r.refundAmount)
+      const splitCredit = n((r as any).refundStoreCreditAmount)
       rows.push({
         ...base,
         key: `RET-${r.id}`,
@@ -451,6 +452,7 @@ export const salesLedger = {
         stockEffect: restocked,
         note:
           `روش بازپرداخت: ${refundMethodLabel(r.refundMethod)}` +
+          (splitCredit > 0 ? ` · ${money(splitCredit)} ریال بارکد اعتبار از سهم پول واقعی صادر شد` : '') +
           (r.refundReference ? ` · مرجع ${r.refundReference}` : '') +
           (r.note ? ` · ${r.note}` : '')
       })

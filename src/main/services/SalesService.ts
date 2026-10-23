@@ -101,7 +101,7 @@ import {
 /** نشست ۶۱ — تشخیص «پول واقعی» برای پشتوانه‌ی اعتبار اضافه‌دریافت (همان نگاشت پل تطبیق) */
 import { receiptBucketOf } from '@shared/accounting'
 import { allocateLineNet, returnValueOf, returnListPriceOf, mergeReturnTargets, isReturnableStatus } from '@shared/returnValue'
-import { remainingOf, exchangeRefundPartOf, refundFromReceivedOf, debtAdjustmentsOf } from '@shared/settlement'
+import { allocateOverpay, remainingOf, exchangeRefundPartOf, refundFromReceivedOf, debtAdjustmentsOf } from '@shared/settlement'
 import { nextReceiptNo } from './receiptNo'
 import { saleLineTitle, saleLineCode, reportLineTitle } from '@shared/saleItemSnapshot'
 import { debtAdjustmentsByInvoice, adjustmentsOrEmpty, invoiceRemaining, recalcPaymentOverpay } from './invoiceDebt'
@@ -410,6 +410,7 @@ const RETURN_SELECT = {
   returnedAtJalali: true,
   refundMethod: true,
   refundAmount: true,
+  refundStoreCreditAmount: true,
   refundedAt: true,
   legacyAssumption: true,
   exchangeTotal: true,
@@ -613,6 +614,7 @@ function validateReturnMutation(input: ReturnSaleInput): void {
   if (!input?.full) validateReturnLines(input?.lines, 'فهرست اقلام برگشتی')
   else if (input?.lines != null) validateReturnLines(input.lines, 'فهرست اقلام برگشتی')
   if (input?.refundAmount != null) assertSafeInteger(input.refundAmount, 'مبلغ بازپرداخت', 0)
+  if (input?.refundStoreCreditAmount != null) assertSafeInteger(input.refundStoreCreditAmount, 'مبلغ بارکدِ بخشِ پول واقعی', 0)
   if (input?.creditDays != null) assertSafeInteger(input.creditDays, 'مهلت اعتبار خرید', 0)
 }
 
@@ -626,12 +628,12 @@ function validateReturnUpdateMutation(input: UpdateReturnInput): void {
  * کاهش بدهی). یک‌بار بیرون از تراکنش برای سنجش رمز، یک‌بار داخل برای هم‌زمانی.
  */
 function returnUpdateFinancialGate(
-  ret: { refundAmount?: RialLike; refundMethod?: string | null },
+  ret: { refundAmount?: RialLike; refundStoreCreditAmount?: RialLike; refundMethod?: string | null },
   /** فقط مرجع امن؛ کد قابل‌مصرف نباید حتی در پیام gate یا Audit راه پیدا کند. */
   settledCredit: { id: number } | null,
   relatedTransfer: { status: string } | null
 ) {
-  const refundedAmount = toNumberRial(ret.refundAmount ?? 0)
+  const refundedAmount = toNumberRial(ret.refundAmount ?? 0) + toNumberRial(ret.refundStoreCreditAmount ?? 0)
   const transferPending = relatedTransfer?.status === CardTransferStatus.PENDING
   const moneyLeftTill = !transferPending && refundedAmount > 0
   const hasMoneyEffect = moneyLeftTill || !!settledCredit
@@ -1471,6 +1473,8 @@ function returnRequestFingerprint(input: ReturnSaleInput, goodsReceiptRequired: 
     allowRemoved: input.allowRemoved === true,
     refundMethod: input.refundMethod == null ? null : String(input.refundMethod).toUpperCase(),
     refundAmount: input.refundAmount ?? null,
+    ...(input.refundStoreCreditAmount == null || Number(input.refundStoreCreditAmount) === 0
+      ? {} : { refundStoreCreditAmount: input.refundStoreCreditAmount }),
     managerFullRefund: input.managerFullRefund === true,
     refundReference: input.refundReference ?? null,
     refundNote: input.refundNote ?? null,
@@ -1695,7 +1699,7 @@ async function exchangeRefundsAlreadyPaid(
 ): Promise<number> {
   const prevEx = await tx.saleReturn.findMany({
     where: { invoiceId: sourceId, kind: ReturnKind.EXCHANGE, id: { not: exceptId }, voidedAt: null },
-    select: { id: true, exchangeDiff: true, debtReduction: true, creditRestored: true, refundAmount: true, refundMethod: true, exchangeSettlement: true }
+    select: { id: true, exchangeDiff: true, debtReduction: true, creditRestored: true, refundAmount: true, refundStoreCreditAmount: true, refundMethod: true, exchangeSettlement: true }
   })
   if (!prevEx.length) return 0
   const canceled = new Set<number>()
@@ -2304,23 +2308,35 @@ async function overpayCreditBacking(
     committed += part
     if (part > 0) creditIds.push(Number(c.id))
   }
-  const pays = await tx.payment.findMany({
-    // ممیزی A88-03 — اضافه‌دریافتِ پرداخت باطل دیگر «اضافه‌دریافت واقعی» نیست
-    where: { invoiceId, overpayAmount: { gt: 0 }, voidedAt: null },
-    select: { overpayAmount: true, kind: true, chequeStatus: true, destination: true, methodId: true }
+  // Derive the real-money backing from current invoice settlement and tender
+  // provenance, not the historical `Payment.overpayAmount` column. Old rows may
+  // have assigned a mixed-source overpay to the barcode merely because it was
+  // entered after cash; a read must never treat that barcode as money (or lose
+  // an independently provable cash share).
+  const invoice = await tx.saleInvoice.findUnique({
+    where: { id: invoiceId }, select: { id: true, grandTotal: true, paidTotal: true }
   })
-  const methodIds = [...new Set((pays as any[]).map((p) => p.methodId))]
-  const methods = methodIds.length
-    ? await tx.paymentMethod.findMany({ where: { id: { in: methodIds } }, select: { id: true, kind: true } })
-    : []
-  const kindOf = new Map((methods as any[]).map((m) => [m.id, m.kind ?? PaymentKind.CUSTOM]))
   let realOverpay = 0
-  for (const p of pays as any[]) {
-    const isCheque = (p.kind ?? PaymentEntryKind.CASH) === PaymentEntryKind.CHEQUE
-    if (isCheque && p.chequeStatus !== ChequeStatus.CLEARED) continue
-    const bucket = receiptBucketOf({ isCheque, destination: p.destination, methodKind: kindOf.get(p.methodId) ?? PaymentKind.CUSTOM })
-    if (bucket === 'exchangeCredit' || bucket === 'storeCredit') continue
-    realOverpay += Math.max(0, toNumberRial(p.overpayAmount ?? 0))
+  if (invoice) {
+    const state = await invoiceRemaining(tx, invoiceId,
+      toNumberRial(invoice.grandTotal), toNumberRial(invoice.paidTotal))
+    const pays = await tx.payment.findMany({
+      where: { invoiceId, voidedAt: null },
+      select: { id: true, amount: true, kind: true, chequeStatus: true, destination: true,
+        storeCreditId: true, seq: true, method: { select: { kind: true } } },
+      orderBy: [{ seq: 'asc' }, { id: 'asc' }]
+    })
+    const cashable = new Map<number, boolean>()
+    const allocations = allocateOverpay(pays.map((p: any) => {
+      const isCashable = p.storeCreditId == null && String(p.destination ?? '').toUpperCase() !== 'MANAGER' &&
+        !['STORE_CREDIT', 'EXCHANGE_CREDIT'].includes(String(p.method?.kind ?? '').toUpperCase())
+      cashable.set(Number(p.id), isCashable)
+      const received = (p.kind ?? PaymentEntryKind.CASH) !== PaymentEntryKind.CHEQUE ||
+        p.chequeStatus === ChequeStatus.CLEARED
+      return { id: Number(p.id), amount: toNumberRial(p.amount ?? 0), received, cashable: isCashable }
+    }), { payable: state.payable, refundFromReceived: state.refundFromReceived })
+    for (const [paymentId, amount] of allocations)
+      if (cashable.get(paymentId)) realOverpay += amount
   }
   return { realOverpay, committed, available: Math.max(0, realOverpay - committed), creditIds }
 }
@@ -3868,6 +3884,12 @@ async function runReturn(
       }
     }
     const returnTotal = items.reduce((s, i) => s + i.lineTotal, 0)
+    const splitStoreCreditAmount = Math.max(0, Math.round(Number(input.refundStoreCreditAmount ?? 0)))
+    if (splitStoreCreditAmount > 0 && (!opts.applyRefund || opts.kind === ReturnKind.EXCHANGE))
+      throw new BusinessError('بارکدِ بخش پول واقعی فقط در برگشت ساده ثبت می‌شود؛ در تعویض یا برگشتِ carry، تسویهٔ جداگانه مجاز نیست.')
+    if (splitStoreCreditAmount > 0 &&
+        String(input.refundMethod ?? '').toUpperCase() !== RefundMethod.CASH)
+      throw new BusinessError('تقسیمِ حق پول واقعی در این مرحله فقط با پرداخت نقدی پشتیبانی می‌شود؛ «نقدی» را انتخاب کنید و مبلغ بارکد را جدا وارد کنید.')
 
     /**
      * ------------------- بند ۱۱ — روش بازپرداخت (اجباری) -------------------
@@ -3893,7 +3915,7 @@ async function runReturn(
     if (opts.applyRefund) {
       if (isExchangeChildReturn) {
         if (String(input.refundMethod ?? '').toUpperCase() !== RefundMethod.NONE ||
-            (input.refundAmount != null && Number(input.refundAmount) !== 0))
+            (input.refundAmount != null && Number(input.refundAmount) !== 0) || splitStoreCreditAmount !== 0)
           throw new BusinessError('برگشت کالای فرزند تعویض فقط carry خود را برمی‌گرداند؛ روش باید «بدون بازپرداخت» و مبلغ صفر باشد.')
         exchangeChildReturnPlan = await previewExchangeReturnFunding(tx, invoice, {
           invoiceId: Number(invoice.id), lines: items.map((item) => ({ saleItemId: item.saleItemId, qty: item.qty }))
@@ -3910,7 +3932,7 @@ async function runReturn(
       })
       if (s1ResidualReturnPlan) {
         if (String(input.refundMethod ?? '').toUpperCase() !== RefundMethod.NONE ||
-            (input.refundAmount != null && Number(input.refundAmount) !== 0))
+            (input.refundAmount != null && Number(input.refundAmount) !== 0) || splitStoreCreditAmount !== 0)
           throw new BusinessError('این برگشت باید همان حق B/N را به‌صورت تجمعی بازگرداند؛ نقد یا اعتبار عمومی انتخاب نکنید و مبلغ بازپرداخت را صفر بگذارید.')
         const shares: CreditReturnPlan['shares'] = []
         if (s1ResidualReturnPlan.bRight && s1ResidualReturnPlan.b.amount > 0)
@@ -3931,12 +3953,16 @@ async function runReturn(
           activeReturns: invoice.returns.map((r) => ({ id: r.id, kind: r.kind, total: r.total }))
         })
       }
-      if (creditReturnPlan.credit > 0 && input.refundAmount != null &&
-          Number(input.refundAmount) !== creditReturnPlan.cash)
-        throw new BusinessError(
-          `این برگشت ${money(creditReturnPlan.credit)} ریال سهم اعتبار غیرنقدی و فقط ${money(creditReturnPlan.cash)} ریال حق بازپرداخت پول واقعی دارد. ` +
-          'مبلغ پول واقعی را به مقدار نشان‌داده‌شده اصلاح و همان را تأیید کنید؛ فروشنده منشأ را دستی تعیین نمی‌کند.'
-        )
+      if (creditReturnPlan.credit > 0) {
+        const requestedPrimary = input.refundAmount == null
+          ? creditReturnPlan.cash - splitStoreCreditAmount : Number(input.refundAmount)
+        if (requestedPrimary + splitStoreCreditAmount !== creditReturnPlan.cash ||
+            requestedPrimary <= 0 && splitStoreCreditAmount > 0)
+          throw new BusinessError(
+            `این برگشت ${money(creditReturnPlan.credit)} ریال سهم اعتبار غیرنقدی و ${money(creditReturnPlan.cash)} ریال حق پول واقعی دارد. ` +
+            `جمعِ روش پرداخت و بارکدِ جدا باید دقیقاً ${money(creditReturnPlan.cash)} ریال باشد؛ منشأ را فروشنده تعیین نمی‌کند.`
+          )
+      }
       if (creditReturnPlan.credit > 0 && creditReturnPlan.cash > 0 &&
           input.refundMethod === RefundMethod.NONE)
         throw new BusinessError(`برای سهم نقدی ${money(creditReturnPlan.cash)} ریال روش بازپرداخت واقعی را مشخص کنید؛ اعتبار هدیه جای پول نقد نیست.`)
@@ -4053,11 +4079,17 @@ async function runReturn(
             remainingRealMoney,
             Math.max(0, remainingRealMoney + pendingChequeOnRetainedGoods - retainedGoodsValue)
           )
-      const debtOnly = refundingAsked && (cashRefundCapacityAfterRetainedGoods <= 0 ||
+      if (splitStoreCreditAmount > 0 && cashRefundCapacityAfterRetainedGoods <= 0)
+        throw new BusinessError('این برگشت حقِ پول واقعی ندارد؛ بارکدِ پولی صادر نشد و هیچ تسویه‌ای ثبت نشد.')
+      const debtOnly = refundingAsked && splitStoreCreditAmount === 0 && (cashRefundCapacityAfterRetainedGoods <= 0 ||
         (creditReturnPlan!.credit > 0 && creditReturnPlan!.cash === 0))
       refund = resolveRefund({
         method: debtOnly ? RefundMethod.NONE : (input.refundMethod ?? null),
-        requested: debtOnly ? null : (creditReturnPlan!.credit > 0 ? creditReturnPlan!.cash : input.refundAmount ?? null),
+        requested: debtOnly ? null : (creditReturnPlan!.credit > 0
+          ? creditReturnPlan!.cash - splitStoreCreditAmount
+          : splitStoreCreditAmount > 0
+            ? Math.min(returnTotal, cashRefundCapacityAfterRetainedGoods) - splitStoreCreditAmount
+            : input.refundAmount ?? null),
         returnTotal,
         fullAmount: fullRefundAmount,
         /**
@@ -4080,8 +4112,11 @@ async function runReturn(
           : cashRefundCapacityAfterRetainedGoods,
         receiptNo: invoice.receiptNo
       })
+      if (splitStoreCreditAmount > 0 && (refund.amount <= 0 ||
+          refund.amount + splitStoreCreditAmount > Math.min(returnTotal, cashRefundCapacityAfterRetainedGoods)))
+        throw new BusinessError('جمعِ روش پرداخت و بارکدِ جدا از حق پول واقعی این برگشت بیشتر است؛ هیچ تسویه‌ای ثبت نشد.')
       if (creditReturnPlan.credit > 0 &&
-          (refund.amount !== creditReturnPlan.cash ||
+          (refund.amount + splitStoreCreditAmount !== creditReturnPlan.cash ||
             (creditReturnPlan.cash > 0 && refund.method === RefundMethod.NONE)))
         throw new BusinessError('سهم نقدی و سهم اعتبار برگشت با مبلغ تسویه سازگار نیست؛ وجه یا کد تازه ثبت نشد. پرونده را تازه و تطبیق کنید.')
       if (debtOnly) {
@@ -4109,7 +4144,8 @@ async function runReturn(
         kind: ReturnKind.RETURN,
         total: returnTotal,
         refundMethod: refund?.method ?? input.refundMethod ?? null,
-        refundAmount: refund?.amount ?? 0
+        refundAmount: refund?.amount ?? 0,
+        refundStoreCreditAmount: splitStoreCreditAmount
       })
       /**
        * اضافه‌دریافت برگشت را در همه‌ی نوع فاکتورها با پول واقعی بسنج؛ نه
@@ -4174,6 +4210,7 @@ async function runReturn(
         // allocation is written atomically below in this same transaction.
         creditRestored: exchangeChildReturnPlan?.returnTotal ??
           s1ResidualReturnPlan?.returnValue ?? creditReturnPlan?.credit ?? 0,
+        refundStoreCreditAmount: splitStoreCreditAmount,
         // New return/exchange receipts are accounting papers. The spendable
         // barcode has its own controlled first-print/reprint route.
         creditPaperSeparate: true,
@@ -4324,7 +4361,7 @@ async function runReturn(
         returnId: Number(ret.id),
         amount: creditReturnPlan?.credit
           ? creditReturnPlan.cash
-          : Math.max(0, Math.round(Number(refund?.amount ?? 0))),
+          : Math.max(0, Math.round(Number(refund?.amount ?? 0))) + splitStoreCreditAmount,
         policyVersion: RETURN_CREDIT_POLICY_VERSION
       })
     }
@@ -4372,12 +4409,15 @@ async function runReturn(
           refId: ret.id,
           occurredAt: now
         })
-      } else if (refund.method === RefundMethod.STORE_CREDIT) {
-        // بارکد اعتبار خرید بعدی، به‌جای پول نقد. اثر نقدی صفر، بدهی ما ثبت‌شده.
+      }
+      const separateCreditAmount = refund.method === RefundMethod.STORE_CREDIT
+        ? refund.amount : splitStoreCreditAmount
+      if (separateCreditAmount > 0) {
+        // بارکد اعتبار خرید بعدی؛ می‌تواند کل حق یا leg دومِ حق پول واقعی باشد.
         const defaults = await saleDefaultsWith(tx)
         const paperHolder = optionalPrintedHolder(input)
         refundCredit = await issueStoreCredit(tx, {
-          amount: refund.amount,
+          amount: separateCreditAmount,
           returnId: ret.id,
           sourceInvoiceId: invoice.id,
           customerId: invoice.customerId ?? null,
@@ -4415,6 +4455,7 @@ async function runReturn(
           returnTotal,
           refundMethod: refund.method,
           refundAmount: refund.amount,
+          refundStoreCreditAmount: splitStoreCreditAmount,
           storeCreditId: refundCredit?.id ?? null,
           cashLeftDrawer: refund.method === RefundMethod.CASH,
           fullAmountOverride: !!opts.fullRefundOverride
@@ -4581,6 +4622,7 @@ async function runReturn(
       /** بند ۱۱ — روش و مبلغ بازپرداخت این برگشت (برای رسید چاپی و پنل) */
       refundMethod: refund?.method ?? null,
       refundAmount: refund?.amount ?? 0,
+      refundStoreCreditAmount: splitStoreCreditAmount,
       reversedCreditRedemptions,
       s8ChildReturnRights: s8ChildReturnRights.map((right) => ({ ...right })),
       creditOpportunity: creditRestoration ? {
@@ -7396,7 +7438,7 @@ export const salesService = {
           amount: toNumberRial(cardTransfer.amount),
           giftOpportunity: full.creditOpportunity?.restored ?? 0,
           debtReduced: Math.max(0, toNumberRial(rec.total) - toNumberRial(cardTransfer.amount) -
-            (full.creditOpportunity?.restored ?? 0)),
+            toNumberRial(rec.refundStoreCreditAmount ?? 0) - (full.creditOpportunity?.restored ?? 0)),
           actorUserId: input.userId ?? null
         })
         await tx.auditLog.create({
@@ -8014,7 +8056,7 @@ export const salesService = {
         if (partialOrdinaryMixedSourceEligible && funding) {
           const returnHistory = await tx.saleReturn.findMany({ where: { invoiceId: source.id },
             select: { id: true, kind: true, voidedAt: true, total: true, refundMethod: true,
-              refundAmount: true, exchangeDiff: true, debtReduction: true, creditRestored: true,
+              refundAmount: true, refundStoreCreditAmount: true, exchangeDiff: true, debtReduction: true, creditRestored: true,
               exchangeInvoiceId: true, corrections: { where: { status: 'POSTED' }, select: { id: true } } } })
           const historyIds = returnHistory.map((row: any) => Number(row.id))
           const historyReconciled = returnHistory.length === funding.activeReturnIds.length &&
@@ -10080,6 +10122,7 @@ export const salesService = {
       refundMethod: r.refundMethod ?? null,
       refundMethodLabel: refundMethodLabel(r.refundMethod),
       refundAmount: toNumberRial(r.refundAmount),
+      refundStoreCreditAmount: toNumberRial(r.refundStoreCreditAmount),
       /**
        * ⚠️ تنها همین عدد از *کشوی صندوق* بیرون رفته است. کارت روی کارتخوان اثر
        * دارد و اعتبار خرید پول نقد نیست؛ اگر هر سه را یک ستون نشان می‌دادیم،
@@ -10226,6 +10269,7 @@ export const salesService = {
         id: true,
         returnedAt: true,
         refundAmount: true,
+        refundStoreCreditAmount: true,
         refundMethod: true,
         voidedAt: true,
         voidReason: true,

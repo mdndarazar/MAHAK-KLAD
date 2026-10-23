@@ -39,7 +39,7 @@ export async function debtAdjustmentsByInvoice(client: Client, ids: number[], as
       where: { invoiceId: { in: chunk }, voidedAt: null, ...(asOf ? { returnedAt: { lte: asOf } } : {}) },
       select: {
         id: true, invoiceId: true, kind: true, exchangeInvoiceId: true,
-        total: true, refundMethod: true, refundAmount: true, exchangeDiff: true, debtReduction: true
+        total: true, refundMethod: true, refundAmount: true, refundStoreCreditAmount: true, exchangeDiff: true, debtReduction: true
       }
     })
     if (!rets.length) continue
@@ -190,7 +190,7 @@ export async function debtAdjustmentsByInvoice(client: Client, ids: number[], as
         voidedAt: null,
         ...(asOf ? { returnedAt: { lte: asOf } } : {})
       },
-      select: { id: true, invoiceId: true, kind: true, total: true, refundMethod: true, refundAmount: true }
+      select: { id: true, invoiceId: true, kind: true, total: true, refundMethod: true, refundAmount: true, refundStoreCreditAmount: true }
     })
     const childReturnIds = childRets.map((r: any) => Number(r.id))
     for (let j = 0; j < childReturnIds.length; j += 500) {
@@ -271,12 +271,14 @@ export async function recalcPaymentOverpay(
 ): Promise<{ total: number; changes: { id: number; before: number; after: number }[] }> {
   const rows = await (client as any).payment.findMany({
     where: { invoiceId, voidedAt: null },
-    select: { id: true, amount: true, kind: true, chequeStatus: true, overpayAmount: true, seq: true },
+    select: { id: true, amount: true, kind: true, chequeStatus: true, overpayAmount: true, seq: true, storeCreditId: true, destination: true, method: { select: { kind: true } } },
     orderBy: [{ seq: 'asc' }, { id: 'asc' }]
   })
   const alloc = allocateOverpay(
     // نشست ۱۸۱: `p` عمداً `any` است، پس typecheck این را نگرفت؛ هارنس وفادار گرفت.
-    rows.map((p: any) => ({ id: p.id, amount: toNumberRial(p.amount ?? 0), received: isReceived(p) })),
+    rows.map((p: any) => ({ id: p.id, amount: toNumberRial(p.amount ?? 0), received: isReceived(p),
+      cashable: p.storeCreditId == null && String(p.destination ?? '').toUpperCase() !== 'MANAGER' &&
+      !['STORE_CREDIT', 'EXCHANGE_CREDIT'].includes(String(p.method?.kind ?? '').toUpperCase()) })),
     info
   )
   const changes: { id: number; before: number; after: number }[] = []

@@ -307,7 +307,7 @@ async function documentForSource(source: SaleBridgeSource): Promise<FinancialDoc
     return {
       ...base,
       title: isExchange ? 'شناسنامهٔ تعویض' : 'شناسنامهٔ برگشت از فروش',
-      documentAmount: n(ret.refundAmount || ret.exchangeDiff || ret.total),
+      documentAmount: n(ret.refundAmount) + n(ret.refundStoreCreditAmount) || n(ret.exchangeDiff || ret.total),
       occurredAt: { dateJalali: ret.returnedAtJalali || null, time: ret.returnedAtTime || null },
       ...sourceInvoiceContext,
       actor: own.actor,
@@ -324,6 +324,9 @@ async function documentForSource(source: SaleBridgeSource): Promise<FinancialDoc
       settlement: {
         method,
         methodLabel: labels[method] || method,
+        primaryAmount: n(ret.refundAmount),
+        storeCreditAmount: n(ret.refundStoreCreditAmount),
+        totalSettled: n(ret.refundAmount) + n(ret.refundStoreCreditAmount),
         reference: ret.refundReference ?? null,
         status: ret.voidedAt
           ? 'VOIDED'
