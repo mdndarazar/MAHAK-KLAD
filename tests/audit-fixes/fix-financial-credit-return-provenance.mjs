@@ -16,6 +16,8 @@ const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mj
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { issueStoreCredit, findRedeemable, changeCreditExpiry, deleteCredit } = await import('../../src/main/services/StoreCreditService.ts')
 const { salesService, saleWhere } = await import('../../src/main/services/SalesService.ts')
+const { cardTransferService } = await import('../../src/main/services/CardTransferService.ts')
+const { physicalMovementForCustodyShift } = await import('../../src/main/services/CustodyAggregateService.ts')
 const { printService } = await import('../../src/main/services/PrintService.ts')
 const { confirmCreditDelivery } = await import('../../src/main/services/ReturnEntitlementService.ts')
 const { calculateReturnTotals } = await import('../../src/shared/accounting.ts')
@@ -72,7 +74,28 @@ assert.equal(b.status, 'DRAFT')
 assert.equal(b.multiUse, 1)
 assert.equal(new Date(b.expiresAt).getTime(), expiry, 'B retains H1 exact expiry')
 assert.equal(seed.one('SELECT usedAmount FROM "StoreCredit" WHERE id=?', h1.id).usedAmount, 300)
-assert.equal(seed.one('SELECT amount FROM "CreditReturnAllocation" WHERE returnId=?', part.id).amount, 100)
+const partAllocation = seed.one('SELECT id,amount FROM "CreditReturnAllocation" WHERE returnId=?', part.id)
+assert.equal(Number(partAllocation.amount), 100)
+assert.throws(() => sql.prepare('UPDATE "CreditReturnAllocation" SET amount=amount+1 WHERE id=?').run(partAllocation.id),
+  /CreditReturnAllocation is append-only/)
+assert.throws(() => sql.prepare('DELETE FROM "CreditReturnAllocation" WHERE id=?').run(partAllocation.id),
+  /CreditReturnAllocation is append-only/)
+assert.equal(Number(seed.one('SELECT realMoneyRefundAmount FROM "SaleReturn" WHERE id=?', part.id).realMoneyRefundAmount), 0,
+  'the source-credit-only return has no real-money entitlement')
+assert.equal(Number(seed.one('SELECT creditReturnPolicyVersion FROM "SaleReturn" WHERE id=?', part.id).creditReturnPolicyVersion), 1)
+assert.throws(() => sql.prepare('UPDATE "SaleReturn" SET realMoneyRefundAmount=1 WHERE id=?').run(part.id),
+  /Real-money refund entitlement includes non-cashable source credit or exceeds return value/)
+assert.throws(() => sql.prepare(`INSERT INTO "CashMovement" (amount,type,occurredAt,refType,refId)
+  VALUES(?,?,?,?,?)`).run(1, 'RETURN_REFUND', Date.now(), 'SaleReturn', part.id),
+  /Return cash refund exceeds the authorized real-money entitlement/)
+assert.throws(() => sql.prepare(`INSERT INTO "CashMovement" (amount,type,occurredAt,refType,refId)
+  VALUES(?,?,?,?,?)`).run(1, 'CASH_OUT', Date.now(), 'SaleReturn', part.id),
+  /SaleReturn cash movements must use a policy-controlled refund type/)
+assert.throws(() => sql.prepare('INSERT INTO "CardTransferRequest" (returnId,amount) VALUES(?,?)').run(part.id, 1),
+  /Manager transfer exceeds the authorized real-money return entitlement/)
+const creditTender = seed.one('SELECT id FROM "Payment" WHERE invoiceId=? AND storeCreditId=?', mixed.id, h1.id)
+assert.throws(() => sql.prepare('UPDATE "Payment" SET destination=? WHERE id=?').run('CASH', creditTender.id),
+  /Barcode credit is non-cashable and cannot have a money destination/)
 const receiptHtml = await printService.returnHtml(part.id)
 assert.match(receiptHtml, /سهم اعتبار غیرنقدی/)
 assert.match(receiptHtml, /۰/)
@@ -226,7 +249,19 @@ const pendingReceipt = await printService.returnHtml(c2cReturn.id)
 assert.match(pendingReceipt, /شاهد پرداخت بانک نیست/)
 assert.match(pendingReceipt, /هنوز شاهد تأییدشدهٔ بانک ثبت نشده/)
 assert.doesNotMatch(pendingReceipt, new RegExp(hBank.code))
-console.log('✓ full return reserves only 200 real money for C2C and restores 300 unrestricted credit; no gift is counted as cash')
+const blueBeforeManagerPay = await physicalMovementForCustodyShift(shiftId)
+await cardTransferService.pay({
+  id: c2cReturn.cardTransfer.id, paidAmount: 200, userId,
+  managerPassword: DEFAULT_MANAGER_PASSWORD
+})
+assert.equal(await physicalMovementForCustodyShift(shiftId), blueBeforeManagerPay,
+  'actual payment from the manager account never changes the store drawer/POS blue')
+assert.throws(() => sql.prepare('UPDATE "CardTransferRequest" SET paidAmount=201 WHERE id=?')
+  .run(c2cReturn.cardTransfer.id), /Manager payment exceeds the authorized real-money return entitlement/)
+assert.equal(seed.one('SELECT COUNT(*) AS n FROM "CashMovement" WHERE refId=? AND type IN (?,?)',
+  c2cReturn.id, 'RETURN_REFUND', 'EXCHANGE_REFUND').n, 0,
+  'manager account payment is not recorded as a store cash movement')
+console.log('✓ full return reserves only 200 real money for C2C and restores 300 unrestricted credit; manager payment leaves blue unchanged')
 
 const orphan = await credit()
 const orphanSale = await sale([line(v100, 100)], [], { storeCreditCode: orphan.code,

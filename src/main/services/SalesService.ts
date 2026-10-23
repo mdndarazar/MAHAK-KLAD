@@ -87,7 +87,7 @@ import {
   guardCreditCode,
   reverseInvoiceRedemptions
 } from './StoreCreditService'
-import { applyCreditReturn, planCreditReturn, type CreditReturnPlan } from './CreditReturnService'
+import { applyCreditReturn, authorizeReturnRealMoneyRefund, planCreditReturn, RETURN_CREDIT_POLICY_VERSION, type CreditReturnPlan } from './CreditReturnService'
 import {
   exchangeCreditDays,
   CreditSource,
@@ -4323,6 +4323,19 @@ async function runReturn(
       }
     }
 
+    // Persist the real-money-only ceiling for simple returns before any cash
+    // movement or manager request. Exchange settlement authorizes its net right
+    // later, after replacement value and source-credit shares are known.
+    if ((opts.kind ?? ReturnKind.RETURN) !== ReturnKind.EXCHANGE) {
+      await authorizeReturnRealMoneyRefund(tx, {
+        returnId: Number(ret.id),
+        amount: creditReturnPlan?.credit
+          ? creditReturnPlan.cash
+          : Math.max(0, Math.round(Number(refund?.amount ?? 0))),
+        policyVersion: RETURN_CREDIT_POLICY_VERSION
+      })
+    }
+
     let restoreSplit: Awaited<ReturnType<typeof stockAllocationService.reverseForSaleItems>> | null = null
     if (restockNow) {
       restoreSplit = await stockAllocationService.reverseForSaleItems(tx, {
@@ -8193,6 +8206,10 @@ export const salesService = {
           // Mixed S1 remainder: the gift share is restored to its own root below;
           // only the separately proven cash/card remainder follows the customer's choice.
           const selected = String(refundMode ?? '').toUpperCase()
+          await authorizeReturnRealMoneyRefund(tx, {
+            returnId: Number(back.id), amount: s1RealResidualAmount,
+            policyVersion: RETURN_CREDIT_POLICY_VERSION
+          })
           if (selected === 'CASH' || selected === 'CARD') {
             if (selected === 'CASH') await recordCashMovement(tx, {
               amount: s1RealResidualAmount,
@@ -8507,6 +8524,11 @@ export const salesService = {
               '• کارت‌به‌کارت توسط مدیر (پرداخت فوری انجام نمی‌شود؛ درخواست پرداخت ثبت می‌گردد)\n' +
               'این انتخاب پیش‌فرض ندارد، چون هر سه اثر مالی کاملاً متفاوتی روی صندوق دارند.'
           )
+
+        await authorizeReturnRealMoneyRefund(tx, {
+          returnId: Number(back.id), amount: Math.max(0, owed),
+          policyVersion: RETURN_CREDIT_POLICY_VERSION
+        })
 
         if (owed <= 0) {
           // کل مابه‌التفاوت صرف کاهش بدهی شد؛ روش انتخابی (اگر فرستاده شده) بی‌اثر است

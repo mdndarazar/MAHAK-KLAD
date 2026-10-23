@@ -8,6 +8,7 @@ import { allocateExchangeFundingCashFirst } from '@shared/exchangeFundingAllocat
 import { appendExchangeFundingEvent, getCurrentExchangeFundingSources, getCurrentSaleFundingSources } from './ExchangeFundingLedgerService'
 import { allocateS1ResidualRightReturn } from '@shared/exchangeResidualRightReturn'
 import { issueStoreCredit } from './StoreCreditService'
+import { appendCreditReturnAllocation } from './CreditReturnService'
 import { assertManagerPassword } from './AuthService'
 
 type Client = Prisma.TransactionClient | typeof prisma
@@ -174,12 +175,12 @@ async function issueResidualBarcode(tx: Client, input: {
     })
     if (!credit) throw stale()
     await tx.creditDelivery.create({ data: { creditId: Number(credit.id), sourceKind: 'CREDIT_RETURN_OPPORTUNITY' } })
-    await tx.creditReturnAllocation.create({ data: {
+    await appendCreditReturnAllocation(tx, {
       returnId: input.returnId, invoiceId: Number(redemption.invoiceId), redemptionId: Number(redemption.id),
       parentCreditId, rootCreditId, originNominal: BigInt(toNumberRial(rootCredit.amount)),
       amount: BigInt(amount), supplementUnspent: 0n, successorCreditId: Number(credit.id),
       kind: 'BRANCH', originalExpiresAt: expiresAt
-    } })
+    })
   }
   if (!credit || Number(credit.amount) !== amount || credit.source !== CreditSource.EXCHANGE ||
       Number(credit.returnId) !== input.returnId || Number(credit.exchangeInvoiceId) !== input.childInvoiceId ||

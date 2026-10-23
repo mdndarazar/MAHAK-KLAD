@@ -796,6 +796,9 @@ model SaleReturn {
   /// روش بازپرداخت؛ برای برگشت‌های قدیمی تهی می‌ماند تا فرض تاریخی جعل نشود.
   refundMethod       String?
   refundAmount       BigInt    @default(0)
+  /// Central policy ceiling: only actually funded money can be settled; barcode-credit shares are excluded.
+  realMoneyRefundAmount BigInt @default(0)
+  creditReturnPolicyVersion Int?
   /// Immutable non-cash restoration of redeemed credit on this new return.
   /// Legacy rows default to zero; this is NOT money, debt reduction or a payout.
   creditRestored     BigInt    @default(0)

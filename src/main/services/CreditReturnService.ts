@@ -10,6 +10,29 @@ import type { RemainingResult } from '@shared/settlement'
 
 type Client = Prisma.TransactionClient | typeof prisma
 
+/** CENTRAL CHANGE POINT for non-cashable barcode-credit return policy. A policy
+ * change must bump this version and ship a new database-enforcement migration. */
+export const RETURN_CREDIT_POLICY_VERSION = 1
+export const RETURN_CREDIT_POLICY_KEY = 'BARCODE_CREDIT_NEVER_CASHABLE'
+
+/** Single DB writer for a return's real-money-only settlement ceiling. */
+export async function appendCreditReturnAllocation(tx: Client, data: any) {
+  return tx.creditReturnAllocation.create({ data })
+}
+
+export async function authorizeReturnRealMoneyRefund(
+  tx: Client,
+  input: { returnId: number; amount: number; policyVersion?: number }
+) {
+  const policyVersion = input.policyVersion ?? RETURN_CREDIT_POLICY_VERSION
+  if (policyVersion !== RETURN_CREDIT_POLICY_VERSION || !Number.isSafeInteger(input.amount) || input.amount < 0)
+    throw new BusinessError('سقف بازپرداخت وجه واقعی با سیاست مرکزی اعتبار سازگار نیست؛ هیچ تسویه‌ای ثبت نشد.')
+  return tx.saleReturn.update({
+    where: { id: input.returnId },
+    data: { realMoneyRefundAmount: input.amount, creditReturnPolicyVersion: policyVersion }
+  })
+}
+
 const unknown = () => new BusinessError(
   'منشأ اعتبار این خرید یا تقسیم برگشت‌های قبلی کامل و قابل اثبات نیست؛ بازپرداخت نقدی/اعتباری متوقف شد. پرونده را بدون حدس به مدیر برای تطبیق ارجاع دهید.'
 )
@@ -433,12 +456,12 @@ export async function applyCreditReturn(
       } })
       credits.push({ creditId: credit.id, amount: s.amount + supplementUnspent, status: 'PENDING_DELIVERY' })
     }
-    const allocation = await tx.creditReturnAllocation.create({ data: {
+    const allocation = await appendCreditReturnAllocation(tx, {
       returnId: input.returnId, invoiceId: input.invoiceId, redemptionId: s.redemptionId,
       parentCreditId: parent.id, rootCreditId: root.id, originNominal: root.nominal,
       amount: s.amount, supplementUnspent, successorCreditId: credit?.id ?? null,
       kind, originalExpiresAt: root.expiresAt
-    } })
+    })
     if (input.full && !mayReactivateOriginal) {
       const marked = await tx.storeCreditRedemption.updateMany({
         where: { id: redemption.id, reversedAt: null, compensatedAt: null, amount: redemption.amount },
