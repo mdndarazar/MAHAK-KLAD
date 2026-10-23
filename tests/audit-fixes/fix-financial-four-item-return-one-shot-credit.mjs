@@ -15,6 +15,8 @@ const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mj
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { issueStoreCredit } = await import('../../src/main/services/StoreCreditService.ts')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
+const { confirmCreditDelivery } = await import('../../src/main/services/ReturnEntitlementService.ts')
+const { DEFAULT_MANAGER_PASSWORD } = await import('@shared/receipt')
 const { toJalaliDate } = await import('@shared/jalali')
 
 const db = harnessClient()
@@ -132,14 +134,17 @@ const returnA = await salesService.createReturn({ invoiceId: scopedSale.id, full
   lines: [{ saleItemId: itemA.id, qty: 1 }], refundMethod: 'STORE_CREDIT',
   refundAmount: 18_000_000, userId, shiftId })
 assert.equal(returnA.creditOpportunity.restored, 2_000_000)
-assert.equal(returnA.creditOpportunity.pendingDelivery.length, 0)
+assert.equal(returnA.creditOpportunity.pendingDelivery.length, 1)
 assert.equal(returnA.reversedCreditRedemptions, 1)
-const restoredScopedCredit = seed.one('SELECT amount, status, restrictScope, restrictVariantIdsJson FROM "StoreCredit" WHERE returnId=? AND sourceInvoiceId=? AND amount=?',
+const restoredScopedCredit = seed.one('SELECT id, amount, status, restrictScope, restrictVariantIdsJson FROM "StoreCredit" WHERE returnId=? AND sourceInvoiceId=? AND amount=?',
   returnA.id, scopedSale.id, 2_000_000)
 assert.deepEqual([Number(restoredScopedCredit.amount), restoredScopedCredit.status,
   restoredScopedCredit.restrictScope, restoredScopedCredit.restrictVariantIdsJson],
-  [2_000_000, 'ACTIVE', 'VARIANTS', JSON.stringify([variantIds[0]])])
+  [2_000_000, 'DRAFT', 'VARIANTS', JSON.stringify([variantIds[0]])])
 assert.equal(returnA.storeCredit.amount, 18_000_000)
+await confirmCreditDelivery({ creditId: restoredScopedCredit.id, witnessKind: 'CUSTOMER_HANDOFF',
+  witnessRef: 'تحویل اعتبار محدودشده به مشتری', managerPassword: DEFAULT_MANAGER_PASSWORD, actorUserId: userId })
+assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', restoredScopedCredit.id).status, 'ACTIVE')
 assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', productScopedGift.id).status, 'USED')
 
 console.log('PASS: general voucher is pooled across goods; explicitly A-restricted manager voucher is restored only when A returns; 20M return => 5M source credit + customer choice for 15M')

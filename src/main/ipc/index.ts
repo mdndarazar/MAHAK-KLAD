@@ -693,9 +693,19 @@ export function registerIpcHandlers(): void {
     const result = await salesService.createReturn(input, { requireIdempotencyKey: true })
     // Replays must not mint another first-print or overpay-credit grant.
     const creditId = result.storeCredit?.id
-    const firstPrintGrant = result.replayed !== true && result.refundMethod === 'STORE_CREDIT' && creditId
+    const firstPrintGrant = result.replayed !== true && creditId &&
+      (result.refundMethod === 'STORE_CREDIT' ||
+        (result.refundMethod === 'CASH' && Number(result.refundStoreCreditAmount ?? 0) > 0))
       ? issueCreditFirstPrintGrant(currentPanelSessionOwner(), input.userId, result.id, creditId) : null
-    return { ...result, firstPrintGrant,
+    const creditOpportunity = result.creditOpportunity?.pendingDelivery?.length
+      ? { ...result.creditOpportunity, pendingDelivery: result.creditOpportunity.pendingDelivery.map((credit: any) => ({
+          ...credit,
+          firstPrintGrant: result.replayed !== true
+            ? issueCreditFirstPrintGrant(currentPanelSessionOwner(), input.userId, result.id, Number(credit.creditId))
+            : null
+        })) }
+      : result.creditOpportunity
+    return { ...result, firstPrintGrant, creditOpportunity,
       overpayCredit: result.replayed === true ? result.overpayCredit
         : grantOverpayPaper(result.overpayCredit, result.invoiceId, input.userId) }
   })
@@ -1961,7 +1971,31 @@ export function registerIpcHandlers(): void {
           if (grant && (origin.status !== 'DRAFT' || Number(origin.usedAmount) !== 0 ||
               origin.userId !== actor.userId || ret.userId !== actor.userId))
             throw new BusinessError('مجوز چاپ اول فقط برای کد DRAFT خرج‌نشدهٔ همین کارمند و همین تعویض معتبر است.')
-        } else if (grant || !['MANAGER_REPLACEMENT', 'CASH_RIGHT_CONVERSION', 'CREDIT_RETURN_OPPORTUNITY'].includes(delivery.sourceKind))
+        } else if (delivery.sourceKind === 'CREDIT_RETURN_OPPORTUNITY') {
+          const returnId = p?.returnId
+          if (typeof returnId !== 'number' || !Number.isSafeInteger(returnId) || returnId <= 0)
+            throw new BusinessError('سند برگشتِ این اعتبار برای چاپ مشخص نیست.')
+          const [origin, allocation, ret] = await Promise.all([
+            prisma.storeCredit.findUnique({ where: { id }, select: {
+              returnId: true, sourceInvoiceId: true, status: true, userId: true,
+              deletedAt: true, voidedAt: true, usedAmount: true, amount: true, expiresAt: true
+            } }),
+            prisma.creditReturnAllocation.findUnique({ where: { successorCreditId: id } }),
+            prisma.saleReturn.findUnique({ where: { id: returnId }, select: {
+              invoiceId: true, voidedAt: true, userId: true
+            } })
+          ])
+          if (delivery.status !== 'PENDING_DELIVERY' || !origin || !allocation || !ret ||
+              origin.returnId !== returnId || allocation.returnId !== returnId ||
+              allocation.successorCreditId !== id || allocation.invoiceId !== origin.sourceInvoiceId ||
+              ret.invoiceId !== allocation.invoiceId || ret.voidedAt != null ||
+              origin.status !== 'DRAFT' || origin.deletedAt || origin.voidedAt || Number(origin.usedAmount) !== 0 ||
+              Number(allocation.amount) + Number(allocation.supplementUnspent) !== Number(origin.amount) ||
+              (allocation.originalExpiresAt?.getTime() ?? null) !== (origin.expiresAt?.getTime() ?? null))
+            throw new BusinessError('منشأ/ماندهٔ اعتبارِ برگشتی برای چاپ معتبر نیست؛ مدیر پرونده را بررسی کند.')
+          if (grant && (origin.userId !== actor.userId || ret.userId !== actor.userId))
+            throw new BusinessError('مجوز چاپ اول فقط برای کارمند ثبت‌کنندهٔ همان برگشت معتبر است.')
+        } else if (grant || !['MANAGER_REPLACEMENT', 'CASH_RIGHT_CONVERSION'].includes(delivery.sourceKind))
           throw new BusinessError('این اعتبار مجوز چاپ اول فروشنده ندارد؛ چاپ کنترل‌شده با تأیید مدیر انجام شود.')
       } else {
         // Ordinary return/exchange credits have no CreditDelivery. Bind the
@@ -1970,15 +2004,19 @@ export function registerIpcHandlers(): void {
         if (typeof returnId !== 'number' || !Number.isSafeInteger(returnId) || returnId <= 0)
           throw new BusinessError('سند برگشتِ این اعتبار برای چاپ مشخص نیست.')
         const ret = await prisma.saleReturn.findUnique({ where: { id: returnId },
-          select: { storeCreditId: true, refundMethod: true, voidedAt: true,
-            userId: true, creditPaperSeparate: true } })
+          select: { storeCreditId: true, refundMethod: true, refundAmount: true, refundStoreCreditAmount: true,
+            voidedAt: true, userId: true, creditPaperSeparate: true } })
         const origin = await prisma.storeCredit.findUnique({ where: { id },
-          select: { returnId: true, source: true, deletedAt: true, voidedAt: true,
+          select: { returnId: true, source: true, amount: true, deletedAt: true, voidedAt: true,
             status: true, userId: true, usedAmount: true } })
-        if (!ret || ret.voidedAt || ret.refundMethod !== 'STORE_CREDIT' || ret.storeCreditId !== id ||
+        const ordinaryCredit = ret?.refundMethod === 'STORE_CREDIT' &&
+          Number(origin?.amount) === Number(ret.refundAmount)
+        const splitCredit = ret?.refundMethod === 'CASH' &&
+          Number(origin?.amount) === Number(ret.refundStoreCreditAmount)
+        if (!ret || ret.voidedAt || ret.storeCreditId !== id || !(ordinaryCredit || splitCredit) ||
             !origin || origin.returnId !== returnId || origin.source !== 'EXCHANGE' ||
             origin.deletedAt || origin.voidedAt || origin.status === 'CANCELED')
-          throw new BusinessError('این کد به صدور عادی همین سند تعلق ندارد یا دیگر معتبر نیست؛ از پروندهٔ مدیر پیگیری کنید.')
+          throw new BusinessError('این کد به صدور عادی یا تقسیمِ حق پول همین سند تعلق ندارد یا دیگر معتبر نیست؛ از پروندهٔ مدیر پیگیری کنید.')
         if (grant && (ret.userId !== actor.userId || !ret.creditPaperSeparate ||
             origin.userId !== actor.userId || origin.status !== 'ACTIVE' || Number(origin.usedAmount) !== 0))
           throw new BusinessError('چاپ اول فروشنده فقط برای اعتبار تازه و خرج‌نشدهٔ خودش مجاز است؛ مدیر پرونده را بررسی کند.')
@@ -1988,6 +2026,7 @@ export function registerIpcHandlers(): void {
       if (grant && printed.printCount !== 0)
         throw new BusinessError('این کد قبلاً چاپ شده است؛ چاپ مجدد فقط با تأیید مدیر انجام می‌شود.')
       return await printService.printCredit({ id, copies: 1, reprint: printed.printCount > 0,
+        firstPrintAuthorized: grant != null,
         password: grant ? undefined : p.managerPassword, userId: actor.userId })
     } catch (e: any) {
       definitelyCanceled = e?.printCancelled === true

@@ -1499,12 +1499,12 @@ export default function SalesReturn() {
           <button className="btn btn-primary" onClick={() => void printReturn(retResult.id)} disabled={printing}>
             {printing ? 'در حال چاپ…' : 'چاپ رسید برگشت'}
           </button>
-          {retResult.storeCredit?.id && retResult.refundMethod === 'STORE_CREDIT' && (
+          {retResult.storeCredit?.id && (retResult.refundMethod === 'STORE_CREDIT' || retResult.refundStoreCreditAmount > 0) && (
             <button className="btn" disabled={printing} onClick={() => {
               setOrdinaryCreditPrint({ creditId: retResult.storeCredit.id, returnId: retResult.id,
                 firstPrintGrant: retResult.firstPrintGrant ?? null })
               setOrdinaryCreditPrintError(null)
-            }}>{retResult.firstPrintGrant ? 'چاپ اول برگهٔ اعتبار' : 'چاپ مجدد اعتبار (رمز مدیر)'}</button>
+            }}>{retResult.firstPrintGrant ? 'چاپ بارکد اعتبار' : 'چاپ مجدد اعتبار (رمز مدیر)'}</button>
           )}
           <button className="btn ms-auto" onClick={() => setRetResult(null)}>
             بستن

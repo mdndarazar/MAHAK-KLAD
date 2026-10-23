@@ -156,18 +156,23 @@ const directReturn = await ret(allGift.id, getItem(allGift.id, v500), 'NONE', 0,
 // The source barcode was fully consumed. A full return records the recovered
 // gift value as a successor, while the original barcode remains terminal USED.
 assert.equal(directReturn.creditOpportunity.restored, 300)
-assert.equal(directReturn.creditOpportunity.pendingDelivery.length, 0)
+assert.equal(directReturn.creditOpportunity.pendingDelivery.length, 1)
+assert.equal(directReturn.creditOpportunity.pendingDelivery[0].amount, 300)
 assert.equal(directReturn.reversedCreditRedemptions, 1)
 assert.equal(Number(seed.one('SELECT usedAmount FROM "StoreCredit" WHERE id=?', direct.id).usedAmount), 300)
 assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', direct.id).status, 'USED')
 const directSuccessor = seed.one('SELECT id, amount, status, expiresAt FROM "StoreCredit" WHERE returnId=? AND sourceInvoiceId=?',
   directReturn.id, allGift.id)
 assert.equal(Number(directSuccessor.amount), 300)
-assert.equal(directSuccessor.status, 'ACTIVE')
+assert.equal(directSuccessor.status, 'DRAFT')
 assert.equal(new Date(directSuccessor.expiresAt).getTime(), new Date(direct.expiresAt).getTime())
+assert.equal(seed.one('SELECT status FROM "CreditDelivery" WHERE creditId=?', directSuccessor.id).status, 'PENDING_DELIVERY')
 assert.equal(seed.one('SELECT kind FROM "CreditReturnAllocation" WHERE returnId=?', directReturn.id).kind, 'ORIGINAL_REVERSED')
 await assert.rejects(() => changeCreditExpiry({ id: direct.id, expiresAtJalali: null,
   reason: 'تمدید بارکد قدیمیِ مصرف‌شده', managerPassword: DEFAULT_MANAGER_PASSWORD }), /زنجیره|مصرف|USED/)
+await confirmCreditDelivery({ creditId: directSuccessor.id, witnessKind: 'CUSTOMER_HANDOFF',
+  witnessRef: 'گواهی تحویل بارکد برگشتی', managerPassword: DEFAULT_MANAGER_PASSWORD, actorUserId: userId })
+assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', directSuccessor.id).status, 'ACTIVE')
 const successorSale = await sale([line(v100, 100)], [], {
   storeCreditCode: seed.one('SELECT code FROM "StoreCredit" WHERE id=?', directSuccessor.id).code,
   storeCreditAmount: 100, storeCreditIdempotencyKey: 'successor-after-full-return'
@@ -181,9 +186,12 @@ assert.equal(seed.one('SELECT COUNT(*) AS n FROM "CreditReturnAllocation" WHERE 
 const secondSuccessor = seed.one('SELECT amount, status, expiresAt FROM "StoreCredit" WHERE returnId=? AND sourceInvoiceId=?',
   successorReturn.id, successorSale.id)
 assert.equal(Number(secondSuccessor.amount), 100)
-assert.equal(secondSuccessor.status, 'ACTIVE')
+assert.equal(secondSuccessor.status, 'DRAFT')
 assert.equal(new Date(secondSuccessor.expiresAt).getTime(), new Date(direct.expiresAt).getTime())
-console.log('✓ full returns issue exact-expiry successors; every fully consumed original barcode remains USED and cannot be extended')
+await confirmCreditDelivery({ creditId: Number(seed.one('SELECT id FROM "StoreCredit" WHERE returnId=? AND sourceInvoiceId=?',
+  successorReturn.id, successorSale.id).id), witnessKind: 'CUSTOMER_HANDOFF',
+  witnessRef: 'گواهی تحویل بارکد دوم', managerPassword: DEFAULT_MANAGER_PASSWORD, actorUserId: userId })
+console.log('✓ full returns stage exact-expiry successors until witnessed handoff; original barcode stays USED')
 
 const creditSale = await sale([line(v500, 500, 2)], [500])
 const firstDebt = await ret(creditSale.id, getItem(creditSale.id, v500), 'NONE', 0)

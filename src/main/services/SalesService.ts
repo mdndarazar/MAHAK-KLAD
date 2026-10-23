@@ -4637,7 +4637,6 @@ async function runReturn(
         pendingDelivery: []
       } : null,
       refundNote: refund?.note ?? null,
-      storeCreditCode: refundCredit?.code ?? null,
       storeCredit: refundCredit ? shapeStoreCredit(refundCredit) : null,
       /** ---- فقط برای مسیر تعویض کالا (createExchange)، روی سیم نمی‌رود ---- */
       returnRecord: ret,

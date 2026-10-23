@@ -970,6 +970,8 @@ export const printService = {
     reprint?: boolean
     /** نشست ۳۱۶ — رمز مدیر/رمز دوم/رمز سومِ ماژول اعتبار برای آزاد کردن چاپ دوباره */
     password?: string | null
+    /** Main-process grant already validated the controlled first print and lineage. */
+    firstPrintAuthorized?: boolean
   }) {
     const id = Math.round(Number(input?.id ?? 0))
     if (!id) throw new BusinessError('اعتباری برای چاپ مشخص نشده است.')
@@ -983,7 +985,7 @@ export const printService = {
      * می‌دهد تا خودش از «مدیریت اعتبار خرید» کد صادر/چاپ کند.
      */
     const pendingDelivery = await prisma.creditDelivery.findUnique({ where: { creditId: id } })
-    if (pendingDelivery?.status === 'PENDING_DELIVERY' &&
+    if (!input.firstPrintAuthorized && pendingDelivery?.status === 'PENDING_DELIVERY' &&
         ['MANAGER_REPLACEMENT', 'CREDIT_RETURN_OPPORTUNITY', 'CASH_RIGHT_CONVERSION'].includes(pendingDelivery.sourceKind)) {
       const { assertManagerPassword } = await import('./AuthService')
       await assertManagerPassword(input?.password, 'چاپ کدِ کنترل‌شده پیش از تحویل')

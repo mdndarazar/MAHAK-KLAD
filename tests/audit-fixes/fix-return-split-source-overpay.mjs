@@ -18,6 +18,7 @@ const { salesService, saleWhere } = await import('../../src/main/services/SalesS
 const { buildStatements } = await import('../../src/main/services/accountingReport.ts')
 const { issueStoreCredit, redeemStoreCredit } = await import('../../src/main/services/StoreCreditService.ts')
 const { printService } = await import('../../src/main/services/PrintService.ts')
+const { confirmCreditDelivery } = await import('../../src/main/services/ReturnEntitlementService.ts')
 const { allocateOverpay, refundFromReceivedOf, remainingOf } = await import('../../src/shared/settlement.ts')
 const { calculateReturnTotals, returnCreditAmountOf } = await import('../../src/shared/accounting.ts')
 const { toJalaliDate, jalaliStartOfDay, jalaliEndOfDay } = await import('../../src/shared/jalali.ts')
@@ -73,6 +74,8 @@ assert.deepEqual([
 assert.equal(Number(result.invoiceOverpaid), 0, 'restoring gift source does not create overpay')
 assert.equal(Number(result.invoiceRemaining), 0)
 assert.equal(Number(result.creditOpportunity?.restored), 1_000_000)
+assert.equal(Object.hasOwn(result, 'storeCreditCode'), false, 'the spendable barcode is not returned to renderer memory')
+assert.equal(Object.hasOwn(result.storeCredit ?? {}, 'code'), false, 'the split-credit DTO contains only a safe reference')
 assert.equal(Number(seed.one('SELECT SUM(amount) AS n FROM "CreditReturnAllocation" WHERE returnId=?', result.id).n), 1_000_000)
 assert.equal(Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', v5m).stock), 100,
   'ordinary cash+barcode return immediately restores stock')
@@ -117,8 +120,25 @@ const creditBarcode = seed.one('SELECT id, amount FROM "StoreCredit" WHERE id=(S
 assert.equal(Number(creditBarcode.amount), 2_000_000)
 assert.deepEqual(seed.rows('SELECT amount, source, status FROM "StoreCredit" WHERE returnId=? ORDER BY amount', result.id)
   .map((row) => [Number(row.amount), row.source, row.status]), [
-  [1_000_000, 'MANUAL', 'ACTIVE'], [2_000_000, 'EXCHANGE', 'ACTIVE']
-], 'full mixed return creates separate 1M restored-source and 2M real-right barcode credits')
+  [1_000_000, 'MANUAL', 'DRAFT'], [2_000_000, 'EXCHANGE', 'ACTIVE']
+], 'full mixed return stages the restored 1M source barcode and activates the separate 2M real-right code')
+const restoredSourceCredit = seed.one('SELECT id, code, status, amount FROM "StoreCredit" WHERE returnId=? AND amount=1000000', result.id)
+assert.deepEqual(result.creditOpportunity.pendingDelivery.map((row) => [row.creditId, row.amount, row.status, row.returnId]),
+  [[restoredSourceCredit.id, 1_000_000, 'PENDING_DELIVERY', result.id]],
+  'the restored-source barcode is surfaced in the controlled handoff list')
+const invoiceCountBeforeUnhandedSpend = Number(seed.one('SELECT COUNT(*) AS n FROM "SaleInvoice"').n)
+await assert.rejects(() => salesService.create({ userId, shiftId, lines: [line(variant(1_000_000), 1_000_000)],
+  payments: [], storeCreditCode: restoredSourceCredit.code, storeCreditIdempotencyKey: 'unhanded-source-credit' }),
+  /اعتبار|تحویل|قابل استفاده/)
+assert.equal(Number(seed.one('SELECT COUNT(*) AS n FROM "SaleInvoice"').n), invoiceCountBeforeUnhandedSpend)
+assert.equal((await confirmCreditDelivery({ creditId: restoredSourceCredit.id, witnessKind: 'CUSTOMER_HANDOFF',
+  witnessRef: 'Test customer received the printed code', managerPassword: DEFAULT_MANAGER_PASSWORD, actorUserId: userId })).status,
+  'DELIVERED')
+assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', restoredSourceCredit.id).status, 'ACTIVE')
+const restoredGiftPurchase = await salesService.create({ userId, shiftId, lines: [line(variant(1_000_000), 1_000_000)],
+  payments: [], storeCreditCode: restoredSourceCredit.code, storeCreditIdempotencyKey: 'handed-source-credit-spend' })
+assert.equal(Number(restoredGiftPurchase.paidTotal), 1_000_000,
+  'the customer can spend the restored 1M code after its witnessed handoff')
 // Cash received 4M minus cash movement out 2M = the blue-reference cash effect +2M.
 const realCashIn = seed.rows('SELECT p.amount FROM "Payment" p JOIN "PaymentMethod" m ON m.id=p.methodId WHERE p.invoiceId=? AND p.storeCreditId IS NULL AND upper(m.kind)=\'CASH\' AND p.destination=\'CASH\'', mixed.id)
 const cashOut = returnMovements.reduce((sum, row) => sum + Number(row.amount), 0)

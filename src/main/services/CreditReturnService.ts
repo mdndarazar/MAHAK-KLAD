@@ -373,10 +373,10 @@ async function originOf(tx: Client, parentId: number): Promise<{ id: number; nom
 export async function applyCreditReturn(
   tx: Client,
   input: { invoiceId: number; returnId: number; full: boolean; userId?: number | null; plan: CreditReturnPlan }
-): Promise<{ restored: number; expiredShare: number; reversedOriginal: number; credits: { creditId: number; amount: number; status: string }[] }> {
+): Promise<{ restored: number; expiredShare: number; reversedOriginal: number; credits: { creditId: number; amount: number; status: string; returnId: number }[] }> {
   // Keep the write primitive safe independently of its planner/caller.
   await assertOrdinaryReturnInvoice(tx, input.invoiceId)
-  const credits: { creditId: number; amount: number; status: string }[] = []
+  const credits: { creditId: number; amount: number; status: string; returnId: number }[] = []
   // 'restored' is the non-cash accounting share, including an expired
   // opportunity. Only restored - expiredShare can be spendable again.
   let expiredShare = 0
@@ -438,7 +438,20 @@ export async function applyCreditReturn(
         orderBy: { id: 'desc' }
       })
       if (!successor) throw stale()
-      credit = successor
+      // A spent one-shot H1 is replaced by a fresh barcode, but it must not be
+      // spendable until the customer actually receives it. Stage the successor
+      // like every other controlled credit-return opportunity and surface it
+      // through the handoff workflow below.
+      const staged = await tx.storeCredit.updateMany({
+        where: { id: successor.id, status: 'ACTIVE', usedAmount: 0, usedCount: 0, deletedAt: null },
+        data: { status: 'DRAFT' }
+      })
+      if (staged.count !== 1) throw stale()
+      await tx.creditDelivery.create({ data: {
+        creditId: successor.id, sourceKind: 'CREDIT_RETURN_OPPORTUNITY', status: 'PENDING_DELIVERY'
+      } })
+      credit = { ...successor, status: 'DRAFT' }
+      credits.push({ creditId: successor.id, amount: s.amount, status: 'PENDING_DELIVERY', returnId: input.returnId })
       reversedOriginal++
       kind = 'ORIGINAL_REVERSED'
     } else if (!expired) {
@@ -469,7 +482,7 @@ export async function applyCreditReturn(
       await tx.creditDelivery.create({ data: {
         creditId: credit.id, sourceKind: 'CREDIT_RETURN_OPPORTUNITY', status: 'PENDING_DELIVERY'
       } })
-      credits.push({ creditId: credit.id, amount: s.amount + supplementUnspent, status: 'PENDING_DELIVERY' })
+      credits.push({ creditId: credit.id, amount: s.amount + supplementUnspent, status: 'PENDING_DELIVERY', returnId: input.returnId })
     }
     const allocation = await appendCreditReturnAllocation(tx, {
       returnId: input.returnId, invoiceId: input.invoiceId, redemptionId: s.redemptionId,
