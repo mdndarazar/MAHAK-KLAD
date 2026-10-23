@@ -58,7 +58,7 @@ export default function ReturnGoodsIntake({ returnId, onReceived }: { returnId: 
   return (
     <section className="rounded border-2 border-sky-400 bg-sky-50 p-3 space-y-2">
       <h3 className="font-bold">دریافت فیزیکی کالای برگشتی · سند #{faDigits(returnId)}</h3>
-      <p className="text-sm">کالا فقط پس از اسکن یا انتخابِ قلم، شمارش و تأیید واقعی وارد موجودی می‌شود؛ نه با «پرداخت شد»، لغو درخواست یا چاپ رسید.</p>
+      <p className="text-sm">این فرم فقط برای پرونده‌های قدیمیِ دارای دریافت فیزیکیِ معلق است. در روال فعلی، برگشت/تعویضِ غیر کارت‌به‌کارت همان لحظه موجودی را به‌روز می‌کند و کالای کارت‌به‌کارت پس از تأیید پرداخت مدیر آزاد می‌شود.</p>
       {goods?.unsupportedLineage && <p className="text-rose-700">این برگشت به فاکتور فرزند تعویض متصل است؛ تا تکمیل lineage، سهم منشأ و دامنهٔ قلم، دریافت موجودی از این مسیر مسدود است.</p>}
       {goods && !goods.managed && !goods.unsupportedLineage && <p className="text-amber-800">این پروندهٔ قدیمی دفتر دریافت مقدارمحور ندارد؛ رسیدگی مدیر لازم است. حضور فیزیکی از سند مالی حدس زده نمی‌شود.</p>}
       {goods?.voided && <p className="text-rose-700">سند باطل شده است؛ دریافت تازه مجاز نیست.</p>}

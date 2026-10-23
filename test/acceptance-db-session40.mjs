@@ -1,8 +1,8 @@
 /**
  * ===========================================================================
- * جلسه ۴۰/۴۵ + قرارداد مالی جدید: برگشت/تعویض، اعلام مدیر در برابر شاهد
- * بانک، دریافت مقداربه‌مقدار کالا، قفل سمت سرور و انبارگردانی. این تست با
- * همان نام تاریخی باقی مانده اما انتظارهای منسوخِ «pay = رسید کالا» حذف شده‌اند.
+ * جلسه ۴۰/۴۵ + قرارداد مالی جدید: برگشت/تعویض، تأیید پرداخت مدیر، تطبیق بانک،
+ * دریافت مقداربه‌مقدار کالا، قفل سمت سرور و انبارگردانی. برای C2C، پرداخت مدیر
+ * کالای همان برگشت را آزاد می‌کند؛ شاهد بانک و صندوق همچنان جدا می‌مانند.
  * ---------------------------------------------------------------------------
  * روی همان هارنس واقعی جلسه ۳۵ اجرا می‌شود: SQLite داخل خودِ Node، جدول‌ها از
  * **فایل‌های migration واقعی پروژه**، و سرویس‌های واقعی (`SalesService.ts`،
@@ -11,12 +11,12 @@
  * فایل می‌سنجد، همان عددی است که پنل می‌بیند.
  *
  * نکات سختی که می‌سنجد:
- *   • `pay` برای پروندهٔ جدید صرفاً اعلام مدیر است؛ بدون سند بانک، حق رزرو می‌ماند.
- *   • ورود کالا فقط با اسکن/انتخاب و شاهدِ تعداد؛ دوباره‌کاری و آزادسازی یکجای
- *     قدیمی مسدود است، حتی پس از لغو یا اعلام مدیر.
- *   • تعویض، ویرایش/ابطال با رمز، صندوق و انبارگردانی هر کدام مرز مستقل دارند؛
- *     کالای بی‌شاهد در شمارش فیزیکیِ مورد انتظار فرض نمی‌شود.
- *   • برگشت‌های نقدی/بی‌کسرِ غیرمعلق و رفتار تاریخیِ مربوط حفظ می‌شوند.
+ *   • `pay` در C2C اقلام برگشتی همان سند را یک‌بار آزاد می‌کند؛ دفتر حق تا سند بانک جداگانه می‌ماند.
+ *   • برگشت/تعویضِ غیر C2C همان لحظه موجودی را اصلاح می‌کند؛ شاهد فیزیکیِ جدا لازم نیست.
+ *   • دریافت جداگانه فقط برای پرونده‌های قدیمیِ صریحاً علامت‌خورده باقی است؛
+ *     لغو C2C یا تلاش تکراری موجودی را آزاد نمی‌کند.
+ *   • تعویض، ویرایش/ابطال با رمز، صندوق و انبارگردانی هر کدام مرز مستقل دارند.
+ *   • برگشت‌های نقدی/بی‌کسر و رفتار تاریخیِ مربوط حفظ می‌شوند.
  *
  * هر سناریو **شیفت خودش** و **کالای خودش** را دارد، پس نه عددهای مالی و نه
  * عددهای انباری سناریوها به هم نمی‌ریزند.
@@ -163,12 +163,12 @@ const cardToCardReturn = (invoiceId, lines, amount) =>
     userId
   })
 
-/** رسید مقداربه‌مقدار؛ هر بار با شاهد مستقلِ فیزیکی و کلید یکتا. */
+/** دریافت جداگانه فقط برای دادهٔ تاریخیِ علامت‌خورده؛ در پرونده‌های جدید باید رد شود. */
 const receiveGoods = async (returnId, qty, suffix = 'confirmed') => {
-  const goods = await returnGoodsService.items(returnId)
-  if (!goods.managed || !goods.items.length) throw new Error('پروندهٔ جدید/قلم برگشت برای شاهد فیزیکی پیدا نشد')
+  const item = seed.one('SELECT id FROM "SaleReturnItem" WHERE returnId=? ORDER BY id LIMIT 1', returnId)
+  if (!item) throw new Error('قلم برگشت برای دریافت پیدا نشد')
   return returnGoodsService.receive({
-    returnId, returnItemId: goods.items[0].id, qty,
+    returnId, returnItemId: item.id, qty,
     eventKey: `session40-receipt-${returnId}-${suffix}`,
     witnessKind: 'SELECTED_CONFIRMED',
     witnessRef: 'انتخاب کالا و شمارش فیزیکی در فروشگاه',
@@ -201,15 +201,15 @@ section('بند ۰ · تعریف رسمی «معلق برگشتی» — تواب
   ok('هشدار شیفتِ خالی هم null است', pendingRestockShiftWarning(null) === null)
   ok(
     'جمله‌ی نمونه‌ی خواسته‌ی مالک ساخته می‌شود',
-    pendingRestockLine({ name: 'شلوار', qty: 2 }, faDigits).includes('حضور فیزیکی آن بدون شاهد فرض نمی‌شود'),
+    pendingRestockLine({ name: 'شلوار', qty: 2 }, faDigits).includes('در انتظار تعیین تکلیف موجودی'),
     pendingRestockLine({ name: 'شلوار', qty: 2 }, faDigits)
   )
-  ok('برچسب ستون و متن انبارگردانی حضور فیزیکی را فقط با شاهد می‌پذیرند',
-    PENDING_RESTOCK_COLUMN.includes('دریافت‌نشده') &&
-    PENDING_RESTOCK_STOCKTAKE_NOTE.includes('معلقِ قدیمی') &&
-    PENDING_RESTOCK_STOCKTAKE_NOTE.includes('فیزیکی حاضر فرض نمی‌شود'))
-  ok('متن توضیحی مشترک بانک را از دریافت کالا جدا می‌کند',
-    PENDING_RESTOCK_EXPLAINER.includes('شاهد فیزیکی') && PENDING_RESTOCK_EXPLAINER.includes('جای رسید کالا نیست'))
+  ok('متن انبارگردانی هم آزادسازی C2C را از دریافت فیزیکی تفکیک می‌کند',
+    PENDING_RESTOCK_COLUMN.includes('پرداخت مدیر') &&
+    PENDING_RESTOCK_STOCKTAKE_NOTE.includes('پرونده‌های قدیمیِ معلق') &&
+    PENDING_RESTOCK_STOCKTAKE_NOTE.includes('تأیید پرداخت مدیر'))
+  ok('متن توضیحی می‌گوید تأیید مدیر همان کالای C2C را برمی‌گرداند',
+    PENDING_RESTOCK_EXPLAINER.includes('تأیید پرداخت مدیر') && PENDING_RESTOCK_EXPLAINER.includes('کالای برگشتیِ همین سند'))
 }
 
 // ===========================================================================
@@ -255,7 +255,7 @@ let scenario1 = null
   eq('ردیف معلق نوع عملیات را می‌گوید', row.operationKind, 'RETURN')
   eq('ردیف معلق «رد‌شده» علامت نخورده', row.canceled, false)
   ok('جملهٔ خلاصهٔ صفحه‌ها دریافت کالا را از بانک جدا می‌کند',
-    (pendingRestockHeadline(s, faDigits, faDigits) ?? '').includes('در انتظار دریافت یا تعیین تکلیف کالا'))
+    (pendingRestockHeadline(s, faDigits, faDigits) ?? '').includes('در انتظار تأیید پرداخت مدیر'))
 
   // گزارش برگشت/تعویض (تب گزارشات فروش) همان عدد را می‌بیند
   const list = await salesService.returnList({ shiftId })
@@ -303,56 +303,59 @@ section('بند ۲ · `pay` بدون تأیید مدیر و با رمز غلط �
 }
 
 // ===========================================================================
-section('بند ۳ · اعلام مدیر بانک نیست؛ دریافت شاهددار کالا مستقل و اتمیک است')
+section('بند ۳ · تأیید پرداخت مدیر، کالای همان درخواست C2C را فوراً برمی‌گرداند؛ بانک مستقل می‌ماند')
 // ===========================================================================
 {
   const { variantId, ret, requestId, stockAfterSale } = scenario1
+  await throwsWith('دریافت فیزیکی پیش از پرداخت راه آزادسازی C2C نیست',
+    () => receiveGoods(ret.id, 1, 'c2c-physical-before-pay'), 'کارت‌به‌کارت فقط با تأیید پرداخت مدیر')
+  eq('پیش از پرداخت، موجودی کارت‌به‌کارت تغییر نکرد', stockOf(variantId), stockAfterSale)
+  eq('تلاش فیزیکی، رسیدی نساخت', seed.count('ReturnGoodsReceipt', 'returnId = ?', ret.id), 0)
   const beforeSum = await summary()
-  const noteBefore = requestRow(requestId).stockNote
   const paid = await cardTransferService.pay({ id: requestId, managerPassword: PW, userId })
 
-  eq('وضعیت اعلام مدیر پرداخت‌شده شد', paid.status, CardTransferStatus.PAID)
-  eq('اعلام مدیر هیچ کالایی آزاد نکرد', paid.releasedQty, 0)
-  eq('موجودی بدون رسید فیزیکی تکان نخورد', stockOf(variantId), stockAfterSale)
-  eq('هیچ حرکت قدیمیِ متکی به اعلام مدیر ثبت نشد', movementsOf(ret.id).length, 0)
-  eq('restockedQty پیش از رسید کالا صفر ماند', returnItems(ret.id).every((i) => i.restockedQty === 0), true)
-  eq('پرچم معلق تا رسید کالا باقی ماند', returnRow(ret.id).restockPending, 1)
-  eq('ثبت اعلام پرداخت به‌جای دریافت، متن کالا را تغییر نداد', requestRow(requestId).stockNote, noteBefore)
-  eq('درخواست از اعلام مدیر تاریخ آزادسازی کالا نساخت', requestRow(requestId).stockReleasedAt, null)
+  eq('وضعیت پرداخت مدیر ثبت شد', paid.status, CardTransferStatus.PAID)
+  eq('تأیید پرداخت مدیر همهٔ کالای برگشتی همان سند را آزاد کرد', paid.releasedQty, 2)
+  eq('موجودی همان لحظه دو عدد بالا رفت', stockOf(variantId), stockAfterSale + 2)
+  eq('یک حرکت انباری به سند برگشت گره خورد', movementsOf(ret.id).length, 1)
+  eq('حرکت پرداخت مدیر دقیقاً دو عدد است', Number(movementsOf(ret.id)[0].delta), 2)
+  eq('restockedQty بعد از پرداخت برابر qty شد', returnItems(ret.id).every((i) => i.restockedQty === i.qty), true)
+  eq('پرچم معلق بعد از پرداخت برداشته شد', returnRow(ret.id).restockPending, 0)
+  ok('متن درخواست تعداد کل برگشتی و سهم آزادشده با پرداخت مدیر را می‌گوید',
+    requestRow(requestId).stockNote.includes('کالای برگشتی از این سند به موجودی قابل‌فروش برگشت') &&
+      requestRow(requestId).stockNote.includes('تأیید پرداخت مدیر همین درخواست'))
+  eq('تعداد کل آزادشده در درخواست همان تعداد همین برگشت است',
+    requestRow(requestId).stockReleasedQty, 2)
+  ok('تاریخ آزادسازی کالا با پرداخت مدیر ثبت شد', requestRow(requestId).stockReleasedAt != null)
   const claim = await viewReturnEntitlement(ret.id)
   eq('دفتر حق نتیجهٔ بانک را نامعلوم نگه داشت', claim.state, 'UNKNOWN_BANK')
   eq('رزرو حق نقدی همچنان کامل است', claim.cashReserved, UNIT * 2)
   eq('پول بدون سند بانک پرداخت‌شده فرض نشد', claim.cashPaid, 0)
 
   const pending = await summary()
-  eq('معلق حتی بعد از اعلام مدیر باقی ماند', pendingQtyOf(pending, ret.id), 2)
-  eq('اعلام مدیر مبلغِ درخواست باز را کم می‌کند، نه موجودی', beforeSum.pendingAmount - pending.pendingAmount, UNIT * 2)
+  eq('کالای همین درخواست پس از پرداخت دیگر معلق نیست', pendingQtyOf(pending, ret.id), 0)
+  eq('درخواستِ پرداخت‌شده از جمع مبالغ باز خارج شد', beforeSum.pendingAmount - pending.pendingAmount, UNIT * 2)
   const payLog = auditRows(AuditAction.CARD_TRANSFER_PAID, requestId)
   ok('AuditLog اعلام مدیر نتیجهٔ بانک را UNKNOWN ثبت می‌کند',
     JSON.parse(payLog.at(-1)?.after ?? '{}').bankEvidenceState === 'UNKNOWN_BANK')
-  eq('AuditLog اعلام مدیر کالای آزادشده را صفر می‌گوید',
-    JSON.parse(payLog.at(-1)?.after ?? '{}').releasedQty, 0)
-
-  await throwsWith('اعلام دوبارهٔ همان درخواست رد می‌شود',
-    () => cardTransferService.pay({ id: requestId, managerPassword: PW, userId }), 'قبلاً پرداخت شده')
-  const received = await receiveGoods(ret.id, 2, 'after-manager-declaration')
-  eq('رسید مستقل کالای واقعی را مقداربه‌مقدار وارد کرد', received.releasedQty, 2)
-  eq('موجودی بعد از رسید شاهددار بالا رفت', stockOf(variantId), stockAfterSale + 2)
-  eq('یک حرکت انباری به شمارهٔ رسید فیزیکی گره خورد',
-    seed.count('StockMovement', 'refType = ? AND refId = ?', 'ReturnGoodsReceipt', received.id), 1)
-  eq('حرکت انباری مستقل جهت مثبت دارد',
-    seed.one('SELECT delta FROM "StockMovement" WHERE refType = ? AND refId = ?', 'ReturnGoodsReceipt', received.id)?.delta, 2)
-  eq('restockedQty بعد از شاهد برابر qty شد', returnItems(ret.id).every((i) => i.restockedQty === i.qty), true)
-  eq('پس از دریافت کامل، پرچم معلق برداشته شد', returnRow(ret.id).restockPending, 0)
-  eq('ستون تعداد دریافت‌شده تنها با شاهد به‌روزرسانی شد', requestRow(requestId).stockReleasedQty, 2)
-  ok('متن درخواست دریافت شاهددار را نشان می‌دهد، نه پرداخت بانک',
-    requestRow(requestId).stockNote.includes('رسید فیزیکیِ شاهددار') &&
-      requestRow(requestId).stockNote.includes('نتیجهٔ بانک مستقل'))
-  eq('معلق پس از دریافت صفر شد', pendingQtyOf(await summary(), ret.id), 0)
-  eq('دریافت فیزیکی حق نقدی را تسویه نکرد', (await viewReturnEntitlement(ret.id)).cashReserved, UNIT * 2)
-  eq('دریافت فیزیکی رویداد حسابرسی خودش را ثبت کرد',
+  eq('AuditLog تعداد کالایی را که پرداخت مدیر آزاد کرد ثبت می‌کند',
+    JSON.parse(payLog.at(-1)?.after ?? '{}').releasedQty, 2)
+  eq('رویداد آزادسازی به همان سند برگشت ثبت شد',
     seed.count('AuditLog', 'action = ? AND entity = ? AND entityId = ?',
-      AuditAction.CARD_TRANSFER_RESTOCK, 'ReturnGoodsReceipt', received.id), 1)
+      AuditAction.CARD_TRANSFER_RESTOCK, 'SaleReturn', ret.id), 1)
+
+  await throwsWith('پرداخت دوبارهٔ همان درخواست رد می‌شود',
+    () => cardTransferService.pay({ id: requestId, managerPassword: PW, userId }), 'قبلاً پرداخت شده')
+  await throwsWith('دریافت فیزیکی بعد از آزادسازی کامل راه دوباره‌افزودن کالا نیست',
+    () => returnGoodsService.receive({ returnId: ret.id,
+      returnItemId: seed.one('SELECT id FROM "SaleReturnItem" WHERE returnId=?', ret.id).id,
+      qty: 2, eventKey: 'session40-after-manager-payment-duplicate', witnessKind: 'SELECTED_CONFIRMED',
+      witnessRef: 'رسید تکراری', physicalConfirmed: true, actorUserId: userId }), 'تغییر کرده')
+  eq('تلاش دوم موجودی را دوباره زیاد نکرد', stockOf(variantId), stockAfterSale + 2)
+  eq('درخواست مقدار آزادشدهٔ مدیر را نگه داشت', requestRow(requestId).stockReleasedQty, 2)
+  eq('تطبیق بانکی همچنان مستقل از پرداخت مدیر است', (await viewReturnEntitlement(ret.id)).cashReserved, UNIT * 2)
+  eq('تأیید پرداخت هیچ گردش نقدی نساخت',
+    seed.count('CashMovement', 'refType = ? AND refId = ?', 'SaleReturn', ret.id), 0)
 }
 
 // ===========================================================================
@@ -368,24 +371,23 @@ section('بند ۴ · آزادسازی یکجای قدیمی برای پروند
   await throwsWith('سرویس قدیمی نمی‌تواند دفتر حق جدید را دور بزند',
     () => pendingRestockService.releaseReturnStock(db, {
       returnId: ret.id, userId, reason: 'تلاش آزادسازی بدون شاهد'
-    }), 'دریافت کالا باید مستقل')
+    }), 'فقط با تأیید پرداخت مدیر')
   eq('تلاش قدیمی، هیچ موجودی‌ای نساخت', stockOf(variantId), base)
   eq('سند همچنان معلق است', returnRow(ret.id).restockPending, 1)
-  const goods = await returnGoodsService.items(ret.id)
-  await throwsWith('بدون شاهد و تأیید فیزیکی، رسید ساخته نمی‌شود',
-    () => returnGoodsService.receive({ returnId: ret.id, returnItemId: goods.items[0].id,
-      qty: 1, eventKey: `session40-no-witness-${ret.id}`, witnessKind: 'SELECTED_CONFIRMED',
-      witnessRef: 'یک کالا', physicalConfirmed: false, actorUserId: userId }), 'تأیید صریح')
-  eq('بی‌شاهد هیچ رسیدی ساخته نشد', seed.count('ReturnGoodsReceipt', 'returnId = ?', ret.id), 0)
-  const first = await receiveGoods(ret.id, 1, 'idempotent')
-  eq('شاهد نخست فقط یک عدد وارد کرد', first.releasedQty, 1)
-  eq('موجودی یک بار بالا رفت', stockOf(variantId), base + 1)
-  const second = await receiveGoods(ret.id, 1, 'idempotent')
-  eq('تکرار همان شناسهٔ شاهد replay شد', second.replayed, true)
-  eq('و یک رسید بیشتر نساخت', seed.count('ReturnGoodsReceipt', 'returnId = ?', ret.id), 1)
-  eq('موجودی دوبار بالا نرفت', stockOf(variantId), base + 1)
-  await throwsWith('رسید دومِ بیش‌از‌تعداد، حتی با شناسهٔ تازه رد شد',
-    () => receiveGoods(ret.id, 1, 'over-receipt'), 'تغییر کرده است')
+  const itemId = seed.one('SELECT id FROM "SaleReturnItem" WHERE returnId=?', ret.id).id
+  await throwsWith('رسید فیزیکی مسیر آزادسازی برگشت C2C نیست',
+    () => returnGoodsService.receive({ returnId: ret.id, returnItemId: itemId,
+      qty: 1, eventKey: `session40-c2c-receipt-${ret.id}`, witnessKind: 'SELECTED_CONFIRMED',
+      witnessRef: 'کالای تحویل‌شده', physicalConfirmed: true, actorUserId: userId }),
+    'کارت‌به‌کارت فقط با تأیید پرداخت مدیر')
+  eq('رسید فیزیکی برای C2C ساخته نشد', seed.count('ReturnGoodsReceipt', 'returnId = ?', ret.id), 0)
+  eq('پیش از تأیید مدیر موجودی هنوز معلق است', stockOf(variantId), base)
+  const paid = await cardTransferService.pay({ id: ret.cardTransfer.id, managerPassword: PW, userId })
+  eq('پرداخت مدیر تمام کالای همین درخواست را آزاد کرد', paid.releasedQty, 1)
+  eq('کالا پس از پرداخت همان لحظه وارد موجودی شد', stockOf(variantId), base + 1)
+  await throwsWith('پرداخت دوباره موجودی را دو بار زیاد نمی‌کند',
+    () => cardTransferService.pay({ id: ret.cardTransfer.id, managerPassword: PW, userId }), 'قبلاً پرداخت شده')
+  eq('درخواست تکراری موجودی بیشتری نساخت', stockOf(variantId), base + 1)
 
   await throwsWith('سند ناموجود در مسیر قدیمی بی‌صدا آزاد نمی‌شود',
     () => pendingRestockService.releaseReturnStock(db, { returnId: 999_999, userId, reason: 'سند ناموجود' }),
@@ -403,7 +405,9 @@ section('بند ۴ · آزادسازی یکجای قدیمی برای پروند
   const oldReturnId = seed.insert('SaleReturn', {
     invoiceId: oldSale.id, total: UNIT, returnedAt: Date.now(),
     returnedAtJalali: toJalaliDate(new Date()), userId, shiftId: oldShift,
-    refundMethod: RefundMethod.CARD_TO_CARD, refundAmount: UNIT, restockPending: true
+    refundMethod: RefundMethod.CARD_TO_CARD, refundAmount: UNIT, restockPending: true,
+    // Policy cap exists on this legacy-shaped row, but its separate entitlement ledger is absent.
+    creditReturnPolicyVersion: 1, realMoneyRefundAmount: UNIT
   })
   seed.insert('SaleReturnItem', {
     returnId: oldReturnId, saleItemId: oldSale.items[0].id,
@@ -411,7 +415,8 @@ section('بند ۴ · آزادسازی یکجای قدیمی برای پروند
   })
   const oldRequestId = seed.insert('CardTransferRequest', {
     returnId: oldReturnId, kind: 'REQUEST', status: CardTransferStatus.PENDING,
-    operationKind: 'RETURN', sourceInvoiceId: oldSale.id, sourceReceiptNo: oldSale.receiptNo,
+    // ردیف تاریخیِ قدیمی operationKind نداشت؛ هنوز به برگشت معتبر خودش متصل است.
+    sourceInvoiceId: oldSale.id, sourceReceiptNo: oldSale.receiptNo,
     amount: UNIT, returnTotal: UNIT, invoiceTotal: UNIT, userId, shiftId: oldShift
   })
   eq('دادهٔ تاریخی دفتر حقِ ساختگی ندارد', seed.count('ReturnEntitlement', 'returnId = ?', oldReturnId), 0)
@@ -425,7 +430,7 @@ section('بند ۴ · آزادسازی یکجای قدیمی برای پروند
 }
 
 // ===========================================================================
-section('بند ۵ · fixture تاریخی برگشت نقدی (پیش از الزام رسید) ⇒ رفتار قبلی حفظ شود')
+section('بند ۵ · برگشت نقدی در همان تراکنش کالا را به موجودی برمی‌گرداند')
 // ===========================================================================
 {
   const shiftId = makeShift('نشست برگشت نقدی')
@@ -441,7 +446,7 @@ section('بند ۵ · fixture تاریخی برگشت نقدی (پیش از ال
     refundMethod: RefundMethod.CASH,
     refundAmount: UNIT,
     userId
-  }, { goodsReceiptRequired: false })
+  })
   eq('برگشت نقدی معلق نمی‌شود', ret.restockPending, false)
   eq('کالا همان لحظه به انبار برگشت', stockOf(variantId), base + 1)
   eq('restockedQty برابر qty ثبت شد', returnItems(ret.id)[0].restockedQty, 1)
@@ -495,21 +500,22 @@ section('بند ۶ · تعویض با مابه‌التفاوت کارت‌به�
   const exRow = exList.rows.find((r) => r.returnId === ex.returnId)
   ok('تب تعویض این سند را می‌بیند', !!exRow, 'ردیف تعویض پیدا نشد')
 
-  // اعلام مدیر نه شاهد بانک است نه رسید فیزیکی؛ جایگزین از قبل کسر شده است.
+  // تأیید پرداخت مدیر، برگشتی همین تعویض را آزاد می‌کند؛ جایگزین از قبل کسر شده بود.
   const paid = await cardTransferService.pay({ id: ex.cardTransfer.id, managerPassword: PW, userId })
-  eq('اعلام مدیر برگشتی را آزاد نکرد', paid.releasedQty, 0)
-  eq('برگشتی قبل از شاهد همچنان بیرون انبار است', stockOf(backVariant), backBase)
-  eq('جایگزین با اعلام مدیر تغییر نکرد', stockOf(repVariant), repBase - 1)
-  eq('معلق با اعلام مدیر هنوز باقی است', pendingQtyOf(await summary(), ex.returnId), 2)
-  eq('حق کارت‌به‌کارت تعویض منتظر شاهد بانک است', (await viewReturnEntitlement(ex.returnId)).state, 'UNKNOWN_BANK')
-  const received = await receiveGoods(ex.returnId, 2, 'exchange')
-  eq('رسید شاهددار دو عدد برگشتی را وارد کرد', received.releasedQty, 2)
-  ok('متن درخواست تعویض کسرِ جایگزین را بعد از رسید برگشتی هم حفظ می‌کند',
-    requestRow(ex.cardTransfer.id).stockNote.includes('کالای جایگزین طبق سند تعویض از موجودی کسر شد'))
-  eq('برگشتی فقط بعد از دریافت فیزیکی به انبار آمد', stockOf(backVariant), backBase + 2)
-  eq('جایگزین با دریافت برگشتی دوباره کسر نشد', stockOf(repVariant), repBase - 1)
+  eq('پرداخت مدیر دو کالای برگشتی را آزاد کرد', paid.releasedQty, 2)
+  eq('برگشتی همان لحظه به موجودی برگشت', stockOf(backVariant), backBase + 2)
+  eq('جایگزین با پرداخت مدیر تغییر نکرد', stockOf(repVariant), repBase - 1)
+  eq('معلقِ سند تعویض پس از پرداخت صفر شد', pendingQtyOf(await summary(), ex.returnId), 0)
+  eq('تطبیق بانکی تعویض همچنان مستقل است', (await viewReturnEntitlement(ex.returnId)).state, 'UNKNOWN_BANK')
+  ok('یادداشت درخواست، کسر جایگزین و برگشت همان اقلام را ثبت می‌کند',
+    requestRow(ex.cardTransfer.id).stockNote.includes('کالای جایگزین طبق سند تعویض از موجودی کسر شد') &&
+      requestRow(ex.cardTransfer.id).stockNote.includes('تأیید پرداخت مدیر'))
+  await throwsWith('دریافت فیزیکی پس از پرداخت دوباره کالا اضافه نمی‌کند',
+    () => receiveGoods(ex.returnId, 2, 'exchange-after-payment'), 'تغییر کرده')
+  eq('آزمون رسید دوم موجودی را دوباره زیاد نکرد', stockOf(backVariant), backBase + 2)
+  eq('جایگزین پس از رسید دوم هم بدون تغییر ماند', stockOf(repVariant), repBase - 1)
   const s2 = await summary()
-  eq('معلقِ سند تعویض بعد از رسید صفر شد', pendingQtyOf(s2, ex.returnId), 0)
+  eq('معلقِ سند تعویض بعد از پرداخت صفر شد', pendingQtyOf(s2, ex.returnId), 0)
 }
 
 // ===========================================================================
@@ -581,28 +587,25 @@ section('بند ۸ · رد/لغو درخواست: با و بدون آزادسا�
   eq('مبلغِ درخواستِ لغوشده دیگر «در انتظار پرداخت» شمرده نمی‌شود', sA.items.find((i) => i.returnId === retA.id).requestId, retA.cardTransfer.id)
   ok(
     'stockNote لغو بانکی را از رسید فیزیکی جدا می‌کند',
-    (requestRow(retA.cardTransfer.id).stockNote ?? '').includes('لغو درخواست، نبود پرداخت بانکی را ثابت نمی‌کند') &&
-      (requestRow(retA.cardTransfer.id).stockNote ?? '').includes('دریافت مقداربه‌مقدار'),
+    (requestRow(retA.cardTransfer.id).stockNote ?? '').includes('لغو درخواست نه پرداخت بانک را ثابت می‌کند') &&
+      (requestRow(retA.cardTransfer.id).stockNote ?? '').includes('کالای برگشتی هنوز معلق است'),
     requestRow(retA.cardTransfer.id).stockNote
   )
   eq('لغوِ بدون شاهد، حق نقدی را UNKNOWN نگه می‌دارد', (await viewReturnEntitlement(retA.id)).state, 'UNKNOWN_BANK')
 
-  // ---- ۸-ب: لغو حتی با releaseStock، نبود شاهد کالا را جبران نمی‌کند ----
-  await throwsWith('لغو دوم با پرچم آزادسازیِ قدیمی پروندهٔ جدید را دور نمی‌زند',
+  // ---- ۸-ب: لغو C2C، حتی با releaseStock یا دریافت فیزیکی، موجودی را آزاد نمی‌کند ----
+  await throwsWith('لغو با پرچم آزادسازی نمی‌تواند قاعدهٔ پرداخت مدیر را دور بزند',
     () => cardTransferService.cancel({ id: retA.cardTransfer.id,
-      reason: 'تلاش آزادسازی کالای ندیده', releaseStock: true, managerPassword: PW, userId }),
-    'شاهد مقدارمحور')
-  eq('لغوِ بدون رسید، کالا را آزاد نکرد', stockOf(vA), baseA)
-  const receipt = await receiveGoods(retA.id, 1, 'after-cancel')
-  eq('بعد از لغو نیز دریافت شاهددار مستقل ممکن است', receipt.releasedQty, 1)
-  eq('موجودی تنها با رسید فیزیکی بالا رفت', stockOf(vA), baseA + 1)
-  eq('پرچم معلق پس از دریافت کامل برداشته شد', returnRow(retA.id).restockPending, 0)
+      reason: 'تلاش آزادسازی کالای C2C', releaseStock: true, managerPassword: PW, userId }),
+    'فقط تأیید پرداخت مدیر')
+  await throwsWith('رسید فیزیکی جداگانه پس از لغو هم مسیر C2C را دور نمی‌زند',
+    () => receiveGoods(retA.id, 1, 'after-cancel'), 'کارت‌به‌کارت فقط با تأیید پرداخت مدیر')
+  eq('لغو و رسید جداگانه، موجودی را تغییر ندادند', stockOf(vA), baseA)
+  eq('رسید جداگانه‌ای ثبت نشد', seed.count('ReturnGoodsReceipt', 'returnId = ?', retA.id), 0)
+  eq('پرچم معلق باقی ماند', returnRow(retA.id).restockPending, 1)
   const sB = await summary()
-  eq('پس از رسید از فهرست معلق‌ها بیرون رفت', pendingQtyOf(sB, retA.id), 0)
-  eq('رسید کالا، بانکِ نامعلوم را قطعی نکرد', (await viewReturnEntitlement(retA.id)).state, 'UNKNOWN_BANK')
-  eq('ثبت دریافت با Audit جدا از لغو باقی ماند',
-    seed.count('AuditLog', 'action = ? AND entity = ? AND entityId = ?',
-      AuditAction.CARD_TRANSFER_RESTOCK, 'ReturnGoodsReceipt', receipt.id), 1)
+  eq('پس از لغو همچنان در فهرست معلق‌هاست', pendingQtyOf(sB, retA.id), 1)
+  eq('لغو و رسید، بانکِ نامعلوم را قطعی نکردند', (await viewReturnEntitlement(retA.id)).state, 'UNKNOWN_BANK')
 
   await throwsWith(
     'درخواست پرداخت‌شده لغو نمی‌شود',
@@ -673,16 +676,18 @@ section('بند ۱۰ · ویرایش برگشتِ معلق ⇒ درِ پشتی �
   eq('معلق با تعداد جدید حساب شد', pendingQtyOf(s, ret.id), 1)
 
   eq('حق نقدیِ باز همراه با ویرایش مقدار اصلاح شد', (await viewReturnEntitlement(ret.id)).cashReserved, UNIT)
-  // اعلام مدیر هیچ کالایی آزاد نمی‌کند؛ رسید مستقل فقط مقدار نهایی را وارد می‌کند.
+  // پرداخت مدیر آزادسازی می‌کند، اما فقط تعداد نهاییِ پس از ویرایش.
   const paid = await cardTransferService.pay({ id: ret.cardTransfer.id, managerPassword: PW, userId })
-  eq('اعلام مدیر حتی پس از ویرایش موجودی را آزاد نکرد', paid.releasedQty, 0)
-  eq('موجودی تا شاهد فیزیکی ثابت است', stockOf(variantId), base)
-  eq('رسید فیزیکی فقط تعداد نهایی را آزاد کرد', (await receiveGoods(ret.id, 1, 'edited-qty')).releasedQty, 1)
+  eq('تأیید پرداخت فقط یک قلمِ نهایی را آزاد کرد', paid.releasedQty, 1)
   eq('موجودی یک عدد بالا رفت، نه سه عدد اولیه', stockOf(variantId), base + 1)
+  eq('ویرایش مقدار با پرداخت مدیر هم معلق نماند', returnRow(ret.id).restockPending, 0)
+  await throwsWith('دریافت فیزیکی دوباره همان قلم را اضافه نمی‌کند',
+    () => receiveGoods(ret.id, 1, 'edited-qty-after-manager-payment'), 'تغییر کرده')
+  eq('تلاش دوباره پس از پرداخت موجودی را تغییر نداد', stockOf(variantId), base + 1)
 }
 
 // ===========================================================================
-section('بند ۱۱ · انبارگردانی: معلقِ جدید بدون شاهد، حضور فیزیکی فرض نمی‌شود')
+section('بند ۱۱ · انبارگردانی: C2C تا پرداخت مدیر وارد موجودی فروش‌پذیر نمی‌شود')
 // ===========================================================================
 {
   const shiftId = makeShift('نشست انبارگردانی معلق')
@@ -693,16 +698,16 @@ section('بند ۱۱ · انبارگردانی: معلقِ جدید بدون ش�
   eq('موجودی قابل‌فروش هنوز هشت است', stockOf(variantId), sellable)
   const pendingBeforeCount = await summary()
   eq('هشدار کالای دریافت‌نشده برقرار است', pendingQtyOf(pendingBeforeCount, ret.id), 2)
-  eq('دو کالای بی‌شاهد در انتظار فیزیکی لحاظ نمی‌شوند',
+  eq('دو کالای C2C پرداخت‌نشده در انتظار موجودی فیزیکی لحاظ نمی‌شوند',
     pendingBeforeCount.physicalByVariant[variantId] ?? 0, 0)
 
-  // اگر کسی بدون شاهد، دو کالا را به شمارش قفسه اضافه کند، سیستم آن را
-  // «اضافه»ی نیازمند بررسی نشان می‌دهد؛ نباید ناپدیدش کند.
+  // اگر شمارش قفسه دو کالای C2C را پیش از تأیید پرداخت اضافه کند، سیستم آن را
+  // «اضافه»ی نیازمند بررسی نشان می‌دهد؛ نباید موجودی فروش‌پذیر را حدس بزند.
   const submitted = await stockCountService.submit({
     items: [{ variantId, countedQty: sellable + 2 }], userId, userName: 'مدیر تست کار ب'
   })
-  eq('snapshot انتظار فیزیکی فقط از موجودی/معلقِ شاهددار است', submitted.pendingRestockQty, 0)
-  eq('افزودن دو کالای بی‌شاهد به شمارش مغایرت می‌سازد', submitted.mismatchedCount, 1)
+  eq('snapshot فقط کالای قابل‌فروش و معلقِ تاریخی را می‌شمارد', submitted.pendingRestockQty, 0)
+  eq('افزودن دو کالای پرداخت‌نشده به شمارش مغایرت می‌سازد', submitted.mismatchedCount, 1)
   const item = seed.one('SELECT * FROM "StockCountItem" WHERE sessionId = ?', submitted.id)
   eq('ستون خام diffQty دست‌نخورده ماند', item.diffQty, 2)
   eq('snapshot این شمارش کالای ندیده را به موجودی اضافه نکرد', item.pendingRestockQty, 0)
@@ -710,7 +715,7 @@ section('بند ۱۱ · انبارگردانی: معلقِ جدید بدون ش�
   const list = await stockCountService.list({})
   const lrow = list.find((r) => r.id === submitted.id)
   eq('فهرست شمارش‌ها همان یک مغایرت را نشان می‌دهد', lrow.mismatchedCount, 1)
-  eq('و انتظار فیزیکیِ بی‌شاهد را صفر نگه می‌دارد', lrow.pendingRestockQty, 0)
+  eq('و تعداد C2C پرداخت‌نشده را به فروش‌پذیر اضافه نمی‌کند', lrow.pendingRestockQty, 0)
   const disc = await stockCountService.discrepancy({})
   const drow = disc.rows.find((r) => r.variantId === variantId)
   eq('گزارش مغایرت فقط معلقِ فیزیکیِ قدیمی را جمع می‌کند', drow.pendingRestockQty, 0)
@@ -733,18 +738,19 @@ section('بند ۱۱ · انبارگردانی: معلقِ جدید بدون ش�
     disc2.rows.some((r) => r.variantId === v2), false)
   eq('اما کالای بی‌شاهد در هشدارِ معلق پنهان نمی‌شود', pendingQtyOf(await summary(), ret2.id), 1)
 
-  // snapshot تاریخیِ شمارش حتی پس از اعلام مدیر/رسید کالا نباید بازنویسی شود.
+  // snapshot تاریخیِ شمارش پس از آزادسازی مدیر ثابت می‌ماند؛ دریافت دوباره رد می‌شود.
   await cardTransferService.pay({ id: ret.cardTransfer.id, managerPassword: PW, userId })
-  eq('اعلام مدیر نتیجهٔ شمارش ثبت‌شده را تغییر نداد',
+  eq('تأیید پرداخت مدیر نتیجهٔ شمارش ثبت‌شده را تغییر نداد',
     seed.one('SELECT pendingRestockQty FROM "StockCountItem" WHERE sessionId = ?', submitted.id).pendingRestockQty, 0)
-  await receiveGoods(ret.id, 2, 'stocktake-after-count')
-  eq('رسید فیزیکی snapshot ثبت‌شده را بازنویسی نکرد',
+  await throwsWith('رسید پس از آزادسازی مدیر نمی‌تواند موجودی را دوباره زیاد کند',
+    () => receiveGoods(ret.id, 2, 'stocktake-after-count'), 'تغییر کرده')
+  eq('تلاش رسید تکراری snapshot ثبت‌شده را بازنویسی نکرد',
     seed.one('SELECT pendingRestockQty FROM "StockCountItem" WHERE sessionId = ?', submitted.id).pendingRestockQty, 0)
   await throwsWith('لغو با آزادسازی ضمنی برای کالای ندیده رد می‌شود',
     () => cardTransferService.cancel({ id: ret2.cardTransfer.id,
       reason: 'پایان سناریو انبارگردانی', releaseStock: true, managerPassword: PW, userId }),
-    'شاهد مقدارمحور')
-  eq('رد آزادسازی بی‌شاهد، معلق جدید را حفظ کرد', pendingQtyOf(await summary(), ret2.id), 1)
+    'فقط تأیید پرداخت مدیر')
+  eq('رد آزادسازی بدون پرداخت، معلق C2C را حفظ کرد', pendingQtyOf(await summary(), ret2.id), 1)
 }
 
 // ===========================================================================
@@ -767,8 +773,11 @@ section('بند ۱۲ · معلق‌ها و پول: هیچ اثری روی صند
   ok('کارت‌به‌کارت در بلوک «خارج از فروش» دیده می‌شود', outOf.rows.some((r) => r.returnId === ret.id))
   ok('و متنش می‌گوید در سرجمع فروش نمی‌آید', outOf.note.includes('سرجمع فروش'))
 
-  // پرداخت مدیر هم هیچ پولی به صندوق اضافه/کم نمی‌کند
-  await cardTransferService.pay({ id: ret.cardTransfer.id, managerPassword: PW, userId })
+  // پرداخت مدیر، کالای همان C2C را آزاد می‌کند ولی هیچ پولی به صندوق اضافه/کم نمی‌کند.
+  const stockBeforePayment = stockOf(variantId)
+  const paid = await cardTransferService.pay({ id: ret.cardTransfer.id, managerPassword: PW, userId })
+  eq('پرداخت مدیر کالای برگشتی همان سند را برگرداند', paid.releasedQty, 1)
+  eq('موجودی دقیقاً یک عدد برگشتی بالا رفت', stockOf(variantId), stockBeforePayment + 1)
   const paidView = await cashboxService.expected({ shiftId, countedCash: UNIT * 2 })
   eq('بعد از پرداخت مدیر هم نقد مورد انتظار همان است', paidView.expectedCash, before.expectedCash)
   eq('و کسری/اضافی همان', paidView.cashDifference, before.cashDifference)
@@ -852,6 +861,59 @@ section('بند ۱۴ · یادآوری بر اساس سن درخواست')
     pendingRestockHeadline(aged, faDigits, faDigits)
   )
   ok('ردیف‌ها از قدیمی‌ترین مرتب شده‌اند', aged.items[0].returnId === ret.id, String(aged.items[0]?.returnId))
+}
+
+// ===========================================================================
+section('بند ۱۵ · درخواست C2C نامرتبط نمی‌تواند کالای برگشت دیگری را آزاد کند')
+// ===========================================================================
+{
+  const shiftId = makeShift('نشست جلوگیری از پرداخت نامرتبط')
+  const targetVariant = makeVariant(10, 'برگشت هدف')
+  const otherVariant = makeVariant(10, 'درخواست دیگر')
+  const targetInvoice = await paidSale(shiftId, targetVariant, 1)
+  const otherInvoice = await paidSale(shiftId, otherVariant, 1)
+  const target = await cardToCardReturn(targetInvoice.id, [{ saleItemId: targetInvoice.items[0].id, qty: 1 }], UNIT)
+  const other = await cardToCardReturn(otherInvoice.id, [{ saleItemId: otherInvoice.items[0].id, qty: 1 }], UNIT)
+  const targetStock = stockOf(targetVariant)
+  const otherStock = stockOf(otherVariant)
+
+  await throwsWith('پرداخت C2Cِ سند دیگر، برای آزادسازی این برگشت پذیرفته نمی‌شود',
+    () => pendingRestockService.releaseReturnStock(db, {
+      returnId: target.id, managerPaymentRequestId: other.cardTransfer.id,
+      requestId: other.cardTransfer.id, userId, reason: 'درخواست نامرتبط'
+    }), 'متصل به همین برگشت/تعویض')
+  eq('برگشت هدف پس از رد درخواست نامرتبط همچنان معلق است', returnRow(target.id).restockPending, 1)
+  eq('موجودی هدف با پرداخت نامرتبط تغییر نکرد', stockOf(targetVariant), targetStock)
+  eq('موجودی سند دیگر هم با تلاش ردشده تغییر نکرد', stockOf(otherVariant), otherStock)
+  eq('درخواست نامرتبط هنوز پرداخت نشده است', requestRow(other.cardTransfer.id).status, CardTransferStatus.PENDING)
+
+  // حتی اگر یک ردیف پرداخت به اشتباه به برگشت غیر C2C وصل شده باشد، مجوز پرداخت مدیر کافی نیست.
+  const nonC2CVariant = makeVariant(10, 'برگشت غیر C2C')
+  const nonC2CInvoice = await paidSale(shiftId, nonC2CVariant, 1)
+  const nonC2CReturnId = seed.insert('SaleReturn', {
+    invoiceId: nonC2CInvoice.id, total: UNIT, returnedAt: Date.now(),
+    returnedAtJalali: toJalaliDate(new Date()), userId, shiftId,
+    kind: 'RETURN', refundMethod: RefundMethod.CASH, refundAmount: UNIT,
+    restockPending: true, goodsReceiptRequired: true,
+    creditReturnPolicyVersion: 1, realMoneyRefundAmount: UNIT
+  })
+  seed.insert('SaleReturnItem', {
+    returnId: nonC2CReturnId, saleItemId: nonC2CInvoice.items[0].id,
+    variantId: nonC2CVariant, qty: 1, unitPrice: UNIT, lineTotal: UNIT, restockedQty: 0
+  })
+  const misplacedRequestId = seed.insert('CardTransferRequest', {
+    returnId: nonC2CReturnId, kind: 'REQUEST', status: CardTransferStatus.PENDING,
+    operationKind: 'RETURN', sourceInvoiceId: nonC2CInvoice.id,
+    amount: UNIT, returnTotal: UNIT, invoiceTotal: UNIT, userId, shiftId
+  })
+  const nonC2CStock = stockOf(nonC2CVariant)
+  await throwsWith('ردیف مدیرِ وصل‌شده به برگشت نقدی، مجوز آزادسازی C2C نیست',
+    () => pendingRestockService.releaseReturnStock(db, {
+      returnId: nonC2CReturnId, managerPaymentRequestId: misplacedRequestId,
+      requestId: misplacedRequestId, userId, reason: 'درخواست پرداخت نامعتبر'
+    }), 'پرداخت نامرتبط با کارت‌به‌کارت')
+  eq('برگشت غیر C2C پس از رد، معلق باقی ماند', returnRow(nonC2CReturnId).restockPending, 1)
+  eq('موجودی برگشت غیر C2C تغییر نکرد', stockOf(nonC2CVariant), nonC2CStock)
 }
 
 // --------------------------------------------------------------------- پایان

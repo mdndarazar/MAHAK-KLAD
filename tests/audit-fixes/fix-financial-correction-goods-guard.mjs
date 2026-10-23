@@ -34,7 +34,7 @@ const saleItemId = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?'
 const ret = await salesService.createReturn({ invoiceId: sale.id, full: true,
   lines: [{ saleItemId, qty: 1 }], refundMethod: 'CARD_TO_CARD', refundAmount: 100, userId, shiftId })
 const goods = await returnGoodsService.items(ret.id)
-assert.equal(goods.managed, true)
+assert.equal(goods.managed, false, 'C2C does not expose a separate physical-intake path')
 const before = await pendingRestockService.summary()
 assert.equal(before.totalQty, 1)
 const stockBefore = seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', variantId).stock
@@ -49,7 +49,7 @@ const after = await pendingRestockService.summary()
 assert.equal(after.totalQty, 0, 'corrected papers must not be listed as a live pending receipt')
 assert.equal((await pendingRestockService.byVariant())[variantId] ?? 0, 0)
 assert.equal((await returnGoodsService.items(ret.id)).corrected, true)
-const input = { returnId: ret.id, returnItemId: goods.items[0].id, qty: 1,
+const input = { returnId: ret.id, returnItemId: seed.one('SELECT id FROM "SaleReturnItem" WHERE returnId=?', ret.id).id, qty: 1,
   eventKey: 'corrected-goods-never-receive', witnessKind: 'SELECTED_CONFIRMED',
   witnessRef: 'موجودی فیزیکی بررسی شد', physicalConfirmed: true, actorUserId: userId }
 await assert.rejects(() => returnGoodsService.receive(input), /اصلاح جبرانی|تغییر|تازه/)

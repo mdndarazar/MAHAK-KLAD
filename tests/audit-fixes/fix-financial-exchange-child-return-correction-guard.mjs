@@ -265,9 +265,13 @@ assert.deepEqual({
   version: seed.one('SELECT version FROM "ReturnEntitlement" WHERE id=?', legacyChildClaimId).version,
   events: seed.one('SELECT COUNT(*) n FROM "ReturnEntitlementEvent"').n
 }, quarantineBefore, 'blocked child quarantine leaves state, version, and journal unchanged')
+// A zero-capped policy lets the DB fixture retain a legacy-shaped, unauthorized
+// paid declaration without inventing a real-money entitlement for this child return.
+sql.prepare('UPDATE "SaleReturn" SET creditReturnPolicyVersion=?, realMoneyRefundAmount=? WHERE id=?')
+  .run(1, 0, returnIds[0])
 const bankRequestId = seed.insert('CardTransferRequest', {
   kind: 'REQUEST', status: 'PAID', operationKind: 'RETURN', returnId: returnIds[0],
-  sourceInvoiceId: child.id, amount: 100, paidAmount: 100, paidAt: new Date()
+  sourceInvoiceId: child.id, amount: 0, paidAmount: 100, paidAt: new Date()
 })
 const legacyChildBankClaimId = seed.insert('ReturnEntitlement', {
   returnId: returnIds[0], invoiceId: child.id, requestId: bankRequestId,
@@ -301,6 +305,8 @@ const pendingChildClaimId = seed.insert('ReturnEntitlement', {
   cashRight: 100, cashReserved: 100, cashPaid: 0, cashConverted: 0,
   giftOpportunity: 0, debtReduced: 0, state: 'OPEN', version: 0
 })
+sql.prepare('UPDATE "SaleReturn" SET creditReturnPolicyVersion=?, realMoneyRefundAmount=? WHERE id=?')
+  .run(1, 100, returnIds[2])
 seed.insert('CardTransferRequest', {
   id: 818181, kind: 'REQUEST', status: 'PENDING', operationKind: 'RETURN',
   returnId: returnIds[2], sourceInvoiceId: child.id, amount: 100, returnTotal: 100
@@ -473,11 +479,17 @@ assert.deepEqual({
 }, restockBefore, 'blocked child restock release leaves inventory and return state unchanged')
 
 const legacyChildReturnWithoutClaim = extraChildReturn()
-const makeLegacyChildRequest = (returnId, status = 'PENDING') => seed.insert('CardTransferRequest', {
-  kind: 'REQUEST', status, operationKind: 'RETURN', returnId, sourceInvoiceId: child.id,
-  amount: 100, returnTotal: 100, paidAmount: status === 'PAID' ? 100 : null,
-  paidAt: status === 'PAID' ? now : null
-})
+const makeLegacyChildRequest = (returnId, status = 'PENDING') => {
+  // A zero cap represents that this child has no authorized cash; the malformed
+  // legacy request is deliberately zero-valued and the service must reject it by lineage.
+  sql.prepare('UPDATE "SaleReturn" SET creditReturnPolicyVersion=?, realMoneyRefundAmount=? WHERE id=?')
+    .run(1, 0, returnId)
+  return seed.insert('CardTransferRequest', {
+    kind: 'REQUEST', status, operationKind: 'RETURN', returnId, sourceInvoiceId: child.id,
+    amount: 0, returnTotal: 100, paidAmount: status === 'PAID' ? 0 : null,
+    paidAt: status === 'PAID' ? now : null
+  })
+}
 const legacyPayRequestId = makeLegacyChildRequest(legacyChildReturnWithoutClaim)
 const payRequestBefore = seed.one('SELECT status, paidAmount, paidAt FROM "CardTransferRequest" WHERE id=?', legacyPayRequestId)
 const legacyPayEffectsBefore = {
@@ -958,7 +970,7 @@ assert.deepEqual({
   cashMovements: seed.one('SELECT COUNT(*) n FROM "CashMovement"').n,
   fundingEvents: seed.one('SELECT COUNT(*) n FROM "ExchangeFundingEvent"').n
 }, {
-  sourceStock: deleteEffectsBefore.sourceStock,
+  sourceStock: deleteEffectsBefore.sourceStock - 1,
   replacementStock: deleteEffectsBefore.replacementStock + 1,
   cashMovements: deleteEffectsBefore.cashMovements,
   fundingEvents: deleteEffectsBefore.fundingEvents + 2
@@ -1141,14 +1153,11 @@ const goodsNoteProbe = await makeExactExchange('goods note kind probe', 800, 'CA
 const goodsNoteRequest = seed.one('SELECT id FROM "CardTransferRequest" WHERE returnId=? AND kind=?',
   goodsNoteProbe.returnId, 'REQUEST')
 assert.ok(goodsNoteRequest, 'the exchange fixture must have a pending manager transfer request')
-const goodsNoteItemId = Number(seed.one('SELECT id FROM "SaleReturnItem" WHERE returnId=?',
-  goodsNoteProbe.returnId).id)
 sql.prepare('UPDATE "SaleReturn" SET kind=? WHERE id=?').run('RETURN', goodsNoteProbe.returnId)
-await returnGoodsService.receive({
-  returnId: goodsNoteProbe.returnId, returnItemId: goodsNoteItemId, qty: 1,
-  eventKey: 'exchange-goods-note-kind-corrupt-001', witnessKind: 'SELECTED_CONFIRMED',
-  witnessRef: 'customer item physically received', physicalConfirmed: true, actorUserId: userId
+const goodsNotePaid = await cardTransferService.pay({
+  id: Number(goodsNoteRequest.id), managerPassword: DEFAULT_MANAGER_PASSWORD, userId
 })
+assert.equal(goodsNotePaid.releasedQty, 1)
 const exchangeGoodsStockNote = seed.one('SELECT stockNote FROM "CardTransferRequest" WHERE id=?',
   goodsNoteRequest.id).stockNote
 assert.match(exchangeGoodsStockNote, /کالای جایگزین طبق سند تعویض از موجودی کسر شد/,

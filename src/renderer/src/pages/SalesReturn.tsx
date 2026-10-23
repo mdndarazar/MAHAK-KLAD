@@ -53,7 +53,7 @@ import { PANEL_KEYS } from '@shared/panels'
  *   ۲) سیستم فاکتور فروش تکی متناظر را — در بازه‌ی اعتبار یک‌هفته‌ای کد — پیدا
  *      می‌کند و اقلامش را نشان می‌دهد.
  *   ۳) کاربر تعداد برگشتی هر قلم را می‌گذارد (کامل یا جزئی) و ثبت می‌کند؛
- *      ورود کالا به موجودی فقط مطابق دریافت فیزیکی/سیاست مسیر انجام می‌شود.
+ *      روش‌های غیر C2C همان لحظه موجودی را به‌روز می‌کنند و فقط C2C تا پرداخت مدیر معلق می‌ماند.
  *
  * ---------------------------- تعویض کالا (بخش ۶) ----------------------------
  * با روشن کردن چک‌باکس «تعویض کالا»، زیر جدول اقلام یک بخش «کالای جایگزین» باز
@@ -1443,10 +1443,12 @@ export default function SalesReturn() {
           </span>
           <span className="kbd">
             {retResult.restocked
-              ? `${faDigits(retResult.restockedQty)} عدد به موجودی انبار برگشت`
-              : retResult.restockPending
-                ? `${faDigits(retResult.pendingRestockQty)} عدد هنوز دریافت فیزیکی شاهددار ندارد؛ وارد موجودی نشده است`
-                : 'این فاکتور بدون کسر از موجودی بود، پس موجودی تغییر نکرد'}
+              ? `${faDigits(retResult.restockedQty)} عدد همان لحظه به موجودی انبار برگشت`
+              : retResult.restockPending && retResult.refundMethod === 'CARD_TO_CARD'
+                ? `${faDigits(retResult.pendingRestockQty)} عدد تا تأیید پرداخت مدیر معلق است`
+                : retResult.restockPending
+                  ? `${faDigits(retResult.pendingRestockQty)} عدد از پروندهٔ قدیمی هنوز معلق است`
+                  : 'این فاکتور بدون کسر از موجودی بود، پس موجودی تغییر نکرد'}
           </span>
           {retResult.storeCredit && (
             <span className="px-2 py-1 rounded bg-white border font-bold" title="مرجع امن اعتبار خرید صادرشده">
@@ -1474,7 +1476,7 @@ export default function SalesReturn() {
           )}
           {retResult.restockPending && retResult.goodsReceiptRequired && (
             <button className="btn" onClick={() => setGoodsReturnId(retResult.id)}>
-              دریافت فیزیکی کالای برگشتی ({faDigits(retResult.pendingRestockQty)} عدد)
+              دریافت پروندهٔ قدیمی ({faDigits(retResult.pendingRestockQty)} عدد)
             </button>
           )}
           <button className="btn btn-primary" onClick={() => void printReturn(retResult.id)} disabled={printing}>
@@ -1509,9 +1511,9 @@ export default function SalesReturn() {
           <span className="kbd">{exResult.settlementLabel}</span>
           {exResult.restockPending && (
             <>
-              <span className="kbd">{faDigits(exResult.pendingRestockQty)} عدد کالای برگشتی هنوز رسید فیزیکی ندارد؛ کالای جایگزین طبق سند جداگانه از انبار کسر شد.</span>
+              <span className="kbd">{faDigits(exResult.pendingRestockQty)} عدد کالای برگشتی {exResult.cardTransfer ? 'تا تأیید پرداخت مدیر معلق است' : 'از پروندهٔ قدیمی هنوز معلق است'}؛ کالای جایگزین همان لحظه از انبار کسر شد.</span>
               {exResult.goodsReceiptRequired && <button className="btn" onClick={() => setGoodsReturnId(exResult.returnId)}>
-                دریافت فیزیکی کالای برگشتی
+                دریافت پروندهٔ قدیمی
               </button>}
             </>
           )}
@@ -2392,8 +2394,8 @@ export default function SalesReturn() {
             </button>
             <div className="kbd">
               {exchangeMode
-                ? 'تعویض = سند جایگزین با کسر انبار + سند برگشت با دریافت فیزیکی جدا. ارزش کالای برگشتی پرداخت غیرنقدیِ سند جایگزین است؛ کالای قدیمی فقط پس از شمارش شاهددار به موجودی می‌رسد، نه هنگام تسویهٔ مابه‌التفاوت.'
-                : 'برگشت، سند مالی و وضعیت فاکتور را ثبت می‌کند؛ کالای کسرشده تا اسکن/انتخاب، شمارش و تأیید تحویل واقعی وارد موجودی قابل‌فروش نمی‌شود. تسویهٔ پول/اعتبار شاهد دریافت کالا نیست.'}
+                ? 'تعویض، کالای جایگزین را همان لحظه از انبار کم می‌کند و کالای برگشتیِ غیر C2C را همان لحظه برمی‌گرداند. اگر مابه‌التفاوت C2C باشد، فقط کالای برگشتی تا پرداخت مدیر معلق می‌ماند و همان پرداخت آن را آزاد می‌کند.'
+                : 'برگشت، سند مالی و وضعیت فاکتور را ثبت می‌کند. روش‌های غیر C2C همان لحظه موجودی را برمی‌گردانند؛ فقط کارت‌به‌کارت تا تأیید پرداخت مدیر معلق می‌ماند. رسید جداگانه فقط برای پرونده‌های قدیمیِ علامت‌خورده است.'}
             </div>
           </div>
         </>
@@ -2428,7 +2430,7 @@ export default function SalesReturn() {
             <div className="kbd self-center leading-6">
               {faDigits(history.length)} برگشت · جمع {money(history.reduce((s, r) => s + (r.total ?? 0), 0))} ریال · از این
               مبلغ {money(history.reduce((s, r) => s + (r.cashRefundAmount ?? 0), 0))} ریال نقد از کشوی صندوق خارج شده است ·
-              ویرایش/ابطال سند قبل از دریافت با قفل اختصاصی ممکن است؛ سندِ دارای رسید کالا یا اصلاح جبرانی از این مسیر تغییر نمی‌کند. اصلاحِ مالی/انبار پس از دریافت باید شاهددار و تطبیقی باشد.
+              ویرایش/ابطال سند پیش از هر حرکت موجودی با قفل اختصاصی ممکن است؛ پرونده‌های قدیمیِ دارای رسید کالا یا سندِ اصلاح جبرانی از این مسیر تغییر نمی‌کنند. اصلاحِ اثر موجودیِ ثبت‌شده باید تطبیقی باشد.
               <div>
                 این فهرست فقط «برگشت ساده» را نشان می‌دهد؛ تعویض‌ها در تب «تعویض کالا»ی گزارشات فروش دیده می‌شوند (بند ۱۰).
               </div>
@@ -2487,10 +2489,11 @@ export default function SalesReturn() {
                   </td>
                   <td className="text-center">
                     {faDigits(r.restockedQty ?? 0)}
-                    {r.restockPending && r.pendingRestockQty > 0 && (
+                    {r.restockPending && r.pendingRestockQty > 0 && r.goodsReceiptRequired &&
+                      r.refundMethod !== 'CARD_TO_CARD' && (
                       <button className="text-sky-800 underline block mx-auto" onClick={() => setGoodsReturnId(r.id)}
-                        title="اسکن/انتخاب کالا و ثبت تعداد تحویل‌شده؛ مستقل از پرداخت بانک">
-                        دریافت شاهددار ({faDigits(r.pendingRestockQty)} معلق)
+                        title="فقط برای پروندهٔ قدیمیِ دارای دریافت فیزیکیِ معلق">
+                        دریافت کالای پروندهٔ قدیمی ({faDigits(r.pendingRestockQty)} معلق)
                       </button>
                     )}
                   </td>
@@ -2513,7 +2516,7 @@ export default function SalesReturn() {
                       className="text-brand"
                       onClick={() => requestReturnCorrectionAction('EDIT', r)}
                       disabled={rowBusy || r.corrected || (r.goodsReceiptRequired && r.restockedQty > 0)}
-                      title="اصلاح تعداد/اقلام فقط پیش از دریافت فیزیکی و اصلاح جبرانی مجاز است؛ شاهد رسید با ویرایش پاک نمی‌شود"
+                      title="اصلاح تعداد/اقلام فقط پیش از هر حرکت موجودی و اصلاح جبرانی مجاز است؛ رسیدِ پروندهٔ قدیمی با ویرایش پاک نمی‌شود"
                     >
                       ویرایش
                     </button>
@@ -2523,7 +2526,7 @@ export default function SalesReturn() {
                       className="text-red-600"
                       onClick={() => requestReturnCorrectionAction('VOID', r)}
                       disabled={rowBusy || r.corrected || (r.goodsReceiptRequired && r.restockedQty > 0)}
-                      title="ابطال مستقیم فقط بدون رسید فیزیکی/اصلاح قبلی مجاز است؛ سند دارای رسید به تطبیق شاهددار نیاز دارد"
+                      title="ابطال مستقیم فقط پیش از هر حرکت موجودی و اصلاح قبلی مجاز است؛ اثر رسیدِ پروندهٔ قدیمی با اصلاح تطبیقی برمی‌گردد"
                     >
                       ابطال
                     </button>

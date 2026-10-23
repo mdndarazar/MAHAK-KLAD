@@ -46,7 +46,7 @@ const warehouse = () => seed.one('SELECT qty FROM "SecondaryStockItem" WHERE id=
 const allocation = () => seed.one('SELECT id, restoredQty FROM "SaleItemStockAllocation" WHERE saleItemId=?', saleItemId)
 assert.deepEqual([store(), warehouse(), allocation().restoredQty], [10, 3, 0])
 const ret = await salesService.createReturn({ invoiceId: sale.id, full: true,
-  lines: [{ saleItemId, qty: 2 }], refundMethod: 'NONE', userId, shiftId })
+  lines: [{ saleItemId, qty: 2 }], refundMethod: 'NONE', userId, shiftId }, { goodsReceiptRequired: true })
 assert.deepEqual([store(), warehouse(), allocation().restoredQty], [10, 3, 0], 'document alone cannot restore warehouse stock')
 assert.equal((await pendingRestockService.summary()).unconfirmedQty, 2)
 const item = (await returnGoodsService.items(ret.id)).items[0]

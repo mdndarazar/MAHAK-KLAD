@@ -557,6 +557,7 @@ export interface ExchangeReceiptData {
   settlementLabel: string
   /** تسویهٔ مابه‌التفاوت شاهد دریافت کالای قدیمی نیست. */
   cashReceived: number
+  refundMethod?: string | null
   goodsReceiptRequired?: boolean
   restockPending?: boolean
   restockedQty?: number
@@ -651,12 +652,16 @@ export function exchangeReceiptHtml(d: ExchangeReceiptData, template?: Partial<R
   const goodsState = d.corrected
     ? 'سند تاریخی؛ اثر موجودی در دفتر اصلاح جبرانی ثبت شده است'
     : d.restockPending
-      ? `${faDigits(d.restockedQty ?? 0)} عدد با رسید دریافت شد؛ ${faDigits(d.pendingRestockQty ?? 0)} عدد کالای برگشتی هنوز بدون شاهد و خارج از موجودی قابل‌فروش است`
-      : (d.restockedQty ?? 0) > 0
-        ? `${faDigits(d.restockedQty ?? 0)} عدد کالای برگشتی به انبار رسید`
+      ? d.refundMethod === 'CARD_TO_CARD'
+        ? `${faDigits(d.pendingRestockQty ?? 0)} عدد کالای برگشتی تا تأیید پرداخت مدیرِ همین درخواست در موجودی قابل‌فروش نمی‌نشیند`
         : d.goodsReceiptRequired
-          ? 'دریافت فیزیکی نامشخص است؛ برای شمارش به پروندهٔ کالا مراجعه کنید'
-          : 'فاکتور اصلی بدون کسر موجودی یا سند تاریخی بدون رسید؛ ورود کالا ثبت نشد'
+          ? `${faDigits(d.restockedQty ?? 0)} عدد از پروندهٔ قدیمی دریافت شد؛ ${faDigits(d.pendingRestockQty ?? 0)} عدد دیگر هنوز در انتظار دریافت است`
+          : `${faDigits(d.pendingRestockQty ?? 0)} عدد کالای برگشتی هنوز در انتظار تعیین تکلیف موجودی است`
+      : (d.restockedQty ?? 0) > 0
+        ? `${faDigits(d.restockedQty ?? 0)} عدد کالای برگشتی به انبار برگشت`
+        : d.goodsReceiptRequired
+          ? 'دریافت فیزیکیِ پروندهٔ قدیمی نامشخص است؛ برای جزئیات به پرونده مراجعه کنید'
+          : 'فاکتور اصلی بدون کسر موجودی بود؛ کالایی به انبار اضافه نشد'
   sums.push(`<div class="row"><span>وضعیت کالای برگشتی</span><span>${goodsState}</span></div>`)
 
   const creditBlock =
@@ -774,9 +779,11 @@ export interface ReturnReceiptData {
   /** سندی که باطل شده فقط برای سابقه چاپ می‌شود و باید روی برگه واضح باشد. */
   voidedAt?: string | Date | null
   voidReason?: string | null
-  /** مقدار واقعاً دریافت‌شده و باقی‌ماندهٔ بدون شاهد، مستقل از تسویهٔ پول. */
+  /** مقدار ثبت‌شده در دریافت‌های قدیمیِ جداگانه، مستقل از تسویهٔ پول. */
   restocked: boolean
   restockedQty: number
+  /** Historical marker: only these old papers still need a separate intake. */
+  goodsReceiptRequired?: boolean
   restockPending?: boolean
   pendingRestockQty?: number
   /** دفتر جبرانی اصل سند را نگه می‌دارد ولی دیگر منبعِ دریافت تازه نیست. */
@@ -881,10 +888,16 @@ export function returnReceiptHtml(d: ReturnReceiptData, template?: Partial<Recei
   const goodsState = d.corrected
     ? 'سند تاریخی؛ اثر موجودی در دفتر اصلاح جبرانی ثبت شده است'
     : d.restockPending
-      ? `${faDigits(d.restockedQty)} عدد با رسید دریافت شد؛ ${faDigits(d.pendingRestockQty ?? 0)} عدد هنوز بدون شاهد و خارج از موجودی قابل‌فروش است`
+      ? d.refundMethod === 'CARD_TO_CARD'
+        ? `${faDigits(d.pendingRestockQty ?? 0)} عدد کالای برگشتی تا تأیید پرداخت مدیرِ همین درخواست در موجودی قابل‌فروش نمی‌نشیند`
+        : d.goodsReceiptRequired
+          ? `${faDigits(d.restockedQty)} عدد از پروندهٔ قدیمی دریافت شد؛ ${faDigits(d.pendingRestockQty ?? 0)} عدد دیگر هنوز در انتظار دریافت است`
+          : `${faDigits(d.pendingRestockQty ?? 0)} عدد کالای برگشتی هنوز در انتظار تعیین تکلیف موجودی است`
       : d.restocked
-        ? `به انبار برگشت (${faDigits(d.restockedQty)} عدد)`
-        : 'فاکتور بدون کسر موجودی یا سند تاریخیِ بدون رسید کالا؛ ورود به انبار ثبت نشد'
+        ? `به موجودی برگشت (${faDigits(d.restockedQty)} عدد)`
+        : d.goodsReceiptRequired
+          ? 'دریافت فیزیکیِ پروندهٔ قدیمی نامشخص است؛ برای جزئیات به پرونده مراجعه کنید'
+          : 'فاکتور اصلی بدون کسر موجودی بود؛ کالایی به انبار اضافه نشد'
   sums.push(`<div class="row"><span>وضعیت موجودی</span><span>${goodsState}</span></div>`)
   if (d.hasRemovedItems)
     sums.push('<div class="c kbd">بعضی اقلام این برگشت، کالای حذف‌شده از انبار بودند.</div>')

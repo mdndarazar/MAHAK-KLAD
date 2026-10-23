@@ -18,6 +18,9 @@ process.env.HARNESS_DB = join(dir, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
+const { cardTransferService } = await import('../../src/main/services/CardTransferService.ts')
+const { physicalMovementForCustodyShift } = await import('../../src/main/services/CustodyAggregateService.ts')
+const { DEFAULT_MANAGER_PASSWORD } = await import('@shared/receipt')
 const { issueStoreCredit } = await import('../../src/main/services/StoreCreditService.ts')
 const { getCurrentSaleFundingSources, getCurrentExchangeFundingSources } =
   await import('../../src/main/services/ExchangeFundingLedgerService.ts')
@@ -204,5 +207,18 @@ assert.equal(Number(seed.one('SELECT COUNT(*) AS n FROM "CashMovement" WHERE ref
   'SaleReturn', thirdResult.returnId).n), 0, 'a pending manager transfer does not move drawer cash')
 assert.equal(Number(seed.one('SELECT COUNT(*) AS n FROM "Payment" WHERE invoiceId=? AND amount<0',
   thirdResult.exchangeInvoiceId).n), 0)
+const blueBeforeManagerPayment = await physicalMovementForCustodyShift(shiftId)
+const managerPayment = await cardTransferService.pay({ id: thirdResult.cardTransfer.id,
+  paidAmount: 5_000_000, managerPassword: DEFAULT_MANAGER_PASSWORD, userId })
+assert.equal(managerPayment.releasedQty, 1)
+assert.equal(managerPayment.stockStillPending, false)
+assert.equal(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', thirdSoldVariants[0]).stock, 30,
+  'manager payment returns only the original exchange item to stock')
+assert.equal(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', replacementThird15m).stock, 29,
+  'the replacement stays deducted after manager payment')
+assert.equal(await physicalMovementForCustodyShift(shiftId), blueBeforeManagerPayment,
+  'manager C2C payment and its inventory release do not change blue')
+assert.equal(Number(seed.one('SELECT COUNT(*) AS n FROM "CashMovement" WHERE refType=? AND refId=?',
+  'SaleReturn', thirdResult.returnId).n), 0, 'C2C payment does not create a cash-drawer movement')
 console.log('✓ partial 30M→15M: exactly 5M real cash may be refunded; source credit stays non-cash')
-console.log('✓ partial 30M→15M C2C: 5M request remains pending with no cash-drawer movement')
+console.log('✓ partial 30M→15M C2C: manager payment returns only the returned item; replacement, drawer and blue stay unchanged')

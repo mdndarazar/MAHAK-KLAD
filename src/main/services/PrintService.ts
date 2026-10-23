@@ -410,7 +410,7 @@ export const printService = {
     // seller may print the receipt again without reprinting the credential.
     // Historic receipts retain their layout. Never pick a later replacement.
     const returnPaper = await prisma.saleReturn.findUnique({ where: { id: returnId },
-      select: { creditPaperSeparate: true, restockPending: true, goodsReceiptRequired: true,
+      select: { creditPaperSeparate: true, restockPending: true, goodsReceiptRequired: true, refundMethod: true,
         voidedAt: true, items: { select: { qty: true, restockedQty: true } } } })
     const correction = await prisma.returnCorrection.findUnique({ where: { returnId }, select: { id: true } })
     const claim = await prisma.returnEntitlement.findUnique({ where: { returnId }, select: { id: true } })
@@ -466,6 +466,7 @@ export const printService = {
       diff: row.diff,
       settlementLabel: row.settlementLabel,
       cashReceived: row.cashReceived,
+      refundMethod: returnPaper?.refundMethod ?? null,
       goodsReceiptRequired: returnPaper?.goodsReceiptRequired === true,
       restockPending: returnPaper?.restockPending === true && !correction && returnPaper.voidedAt == null,
       restockedQty: returnPaper?.items.reduce((sum, it) => sum + it.restockedQty, 0) ?? 0,
@@ -651,6 +652,7 @@ export const printService = {
       voidReason: ret.voidReason ?? null,
       restocked: ret.items.some((i) => i.restockedQty > 0),
       restockedQty: ret.items.reduce((s, i) => s + i.restockedQty, 0),
+      goodsReceiptRequired: ret.goodsReceiptRequired === true,
       restockPending: ret.restockPending === true && !correction && ret.voidedAt == null,
       pendingRestockQty: ret.restockPending && !correction && ret.voidedAt == null
         ? ret.items.reduce((s, i) => s + Math.max(0, i.qty - i.restockedQty), 0) : 0,

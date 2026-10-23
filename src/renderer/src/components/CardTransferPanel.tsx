@@ -4,7 +4,6 @@ import { call, CH } from '../lib/api'
 import { exportTable } from '../lib/exportCsv'
 import Modal from './Modal'
 import ManagerGate from './ManagerGate'
-import ReturnGoodsIntake from './ReturnGoodsIntake'
 import PasswordField from './PasswordField'
 import { PANEL_KEYS } from '@shared/panels'
 import { canAdjustCardTransfer } from '@shared/cardTransferUi'
@@ -338,7 +337,7 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
     setDetailBusy(true)
     try {
       const amount = payAmount.trim() === '' ? null : Number(payAmount.trim())
-      const res = await call<{ releasedQty?: number; bankEvidenceState?: string }>(CH.cardTransferPay, {
+      const res = await call<{ releasedQty?: number; bankEvidenceState?: string; stockStillPending?: boolean }>(CH.cardTransferPay, {
         id: detail.request.id,
         paidAmount: amount,
         trackingNo: payTracking.trim() || null,
@@ -347,11 +346,12 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
         managerPassword: payPassword.trim() || undefined
       })
       flash(res.bankEvidenceState === 'UNKNOWN_BANK'
-        ? `اعلام مدیر برای درخواست ${faDigits(detail.request.id)} ثبت شد؛ این ثبت و شماره پیگیری شاهد مستقل بانک نیستند. ` +
-          'کل مبلغ درخواست تا بازبینی صورت‌حساب بانک رزرو است. کالا فقط با شاهد تعدادِ واقعی دریافت می‌شود.'
+        ? `تأیید پرداخت مدیر برای درخواست ${faDigits(detail.request.id)} ثبت شد؛ نتیجهٔ بانک همچنان جداگانه تطبیق می‌شود. ` +
+          'این پرداخت روی صندوق و کارت‌خوان اثر ندارد.' +
+          (res?.releasedQty ? `\n${faDigits(res.releasedQty)} قلم کالای برگشتیِ همین سند به موجودی برگشت.` : '')
         : `پرداخت کارت‌به‌کارتِ پروندهٔ قدیمی ${faDigits(detail.request.id)} ثبت شد. ` +
           'برای پرونده‌های قدیمی شاهد بانک به‌صورت خودکار ایجاد نمی‌شود.' +
-          (res?.releasedQty ? `\n${faDigits(res.releasedQty)} کالا طبق رویهٔ قدیمی وارد موجودی شد.` : ''))
+          (res?.releasedQty ? `\n${faDigits(res.releasedQty)} قلم کالای برگشتیِ همین سند به موجودی برگشت.` : ''))
       setPayPassword('')
       await openDetail(detail.request.id)
       await load()
@@ -384,7 +384,7 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
             ? `\n${faDigits(res.releasedQty)} عدد کالای معلق با تأیید صریح شما و بدون پرداخت، به موجودی قابل‌فروش برگشت.`
             : res?.stillPending
               ? right
-                ? '\nکالای برگشتی همچنان بدون رسید فیزیکی شاهددار معلق است. در همین پرونده تعدادِ واقعاً دریافت‌شده را جداگانه ثبت و وضعیت بانک را با شاهد مستقل بررسی کنید؛ لغو درخواست پروندهٔ مالی را نمی‌بندد.'
+                ? '\nکالای برگشتی تا تأیید پرداخت مدیرِ همین درخواست در موجودی فروش‌پذیر نمی‌نشیند. لغو درخواست کالا را آزاد نمی‌کند و نتیجهٔ بانک همچنان نیازمند تطبیق مستقل است.'
                 : '\nکالای برگشتی همچنان معلق است؛ در پروندهٔ قدیمی با مسیر رسیدگی مدیر، سند برگشت و وضعیت کالا را بررسی کنید.'
               : '\nاین درخواست کالای معلقی نداشت.')
       )
@@ -615,7 +615,7 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
           {pending.needsAttentionQty > 0 && (
             <div className="mt-1 font-bold text-rose-800">
               ⚠️ {faDigits(pending.needsAttentionQty)} عدد از این کالاها درخواستشان رد/لغو شده ولی هنوز معلق‌اند و تکلیفشان
-              روشن نیست. برای درخواست‌های جدید، تعداد واقعاً دیده‌شده را در «دریافت فیزیکی کالا» با شاهد ثبت کنید و وضعیت بانک را جداگانه بررسی کنید؛ لغو درخواست دلیل پرداخت‌نشدن نیست.
+              روشن نیست. در C2C فقط تأیید پرداخت مدیرِ همین درخواست موجودی را آزاد می‌کند؛ لغو درخواست کالا را آزاد نمی‌کند و نتیجهٔ بانک هم جداگانه نامعلوم می‌ماند.
             </div>
           )}
         </div>
@@ -829,7 +829,6 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
                     onClick={() => void deliverSuccessor()}>تأیید تحویل شاهددار و فعال‌سازی</button>
                 </>}
               </div>}
-              {pendingOf(req) > 0 && <ReturnGoodsIntake returnId={req.returnId} onReceived={() => void load()} />}
             </div>}
 
             {req.status === CardTransferStatus.PAID || req.paidAmount != null ? (
@@ -889,7 +888,7 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
                 {pendingOf(req) > 0 && (
                   <div className="rounded border-2 border-sky-400 bg-sky-50 p-2 leading-7">
                     {right
-                      ? <b>{faDigits(pendingOf(req))} عدد هنوز دریافت فیزیکی شاهددار نشده است؛ این دکمه هیچ کالایی را آزاد نمی‌کند و نتیجهٔ بانک را ثابت نمی‌کند.</b>
+                      ? <b>{faDigits(pendingOf(req))} عدد برگشتی معلق است؛ با تأیید پرداخت مدیر همین اقلام به موجودی برمی‌گردند. نتیجهٔ بانک جداگانه بررسی می‌شود.</b>
                       : <><b>برای پروندهٔ قدیمی: با ثبت پرداخت، {faDigits(pendingOf(req))} عدد یکجا به موجودی می‌رود.</b> {PENDING_RESTOCK_EXPLAINER}</>}
                   </div>
                 )}
@@ -897,11 +896,11 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
                   با زدن این دکمه، مبلغ پرداخت‌شده، زمان تأیید، وضعیت، فاکتور و عملیات مرجع، روش پرداخت، شیفت و شماره
                   پیگیری (اگر وارد شده باشد) ثبت می‌شوند. بعد از آن، این رکورد <b>دیگر قابل ویرایش یا حذف نیست</b>.
                   {right
-                    ? ' برای پروندهٔ جدید، اصلاح بانک فقط با پروندهٔ شاهددار مدیر ممکن است؛ اعلام شما نه دریافت کالا است و نه تأیید بانک.'
-                    : ' در پروندهٔ قدیمی، اصلاح با رویداد مستقل انجام می‌شود و ثبت پرداخت می‌تواند کالا را یکجا آزاد کند.'}
+                    ? ' با تأیید پرداخت، اقلام برگشتی همین سند به موجودی برمی‌گردند؛ این ثبت به‌تنهایی جای تطبیق مستقل بانک را نمی‌گیرد.'
+                    : ' در پروندهٔ قدیمی، اصلاح با رویداد مستقل انجام می‌شود؛ ثبت پرداخت کالای معلق همین سند را آزاد می‌کند.'}
                 </div>
                 <button className="btn btn-primary" onClick={() => void pay()} disabled={detailBusy}>
-                  {detailBusy ? 'در حال ثبت…' : right ? 'ثبت اعلام پرداخت (بدون تأیید بانک)' : 'پرداخت شد'}
+                  {detailBusy ? 'در حال ثبت…' : right ? 'تأیید پرداخت مدیر (تطبیق بانک جداگانه)' : 'پرداخت شد'}
                 </button>
               </div>
             )}
@@ -918,7 +917,7 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
                     <input className="inp" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />
                   </label>
                   {right ? <div className="rounded border border-rose-300 p-2">
-                    لغو درخواست اثباتِ «بانک پرداخت نکرده» نیست. رزرو حق مالی نامعلوم می‌ماند؛ کالا فقط با دریافت فیزیکی شاهددار وارد موجودی می‌شود، نه با این دکمه.
+                    لغو درخواست خودش کالا را به موجودی برنمی‌گرداند؛ اقلام همان سند تا تأیید پرداختِ معتبر در انتظار می‌مانند و مورد لغوشده نیازمند پیگیری مدیر است.
                   </div> : <label className="flex items-start gap-2 leading-7">
                     <input type="checkbox" className="mt-2" checked={cancelRelease} onChange={(e) => setCancelRelease(e.target.checked)} />
                     <span><b>رویهٔ قدیمی: کالا را بدون پرداخت به موجودی برگردان.</b> فقط برای پروندهٔ بدون دفتر حق جدید.</span>

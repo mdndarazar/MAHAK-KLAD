@@ -61,21 +61,23 @@ assert.equal(claim.cashRight, 1_000_000)
 assert.equal(claim.cashReserved, 1_000_000)
 assert.equal(claim.open, 0)
 const initialStockNote = seed.one('SELECT stockNote FROM "CardTransferRequest" WHERE id = ?', requestId).stockNote
-assert.match(initialStockNote, /حضور فیزیکی بدون اسکن/)
-assert.doesNotMatch(initialStockNote, /فیزیکی در فروشگاه|به موجودی قابل‌فروش برگشت/)
+assert.match(initialStockNote, /تا تأیید پرداخت مدیر.*به موجودی قابل‌فروش اضافه نمی‌شود/)
+assert.doesNotMatch(initialStockNote, /دریافت فیزیکی|شاهد/)
 const requestAudit = seed.one('SELECT note FROM "AuditLog" WHERE entity = ? AND entityId = ? ORDER BY id DESC LIMIT 1',
   'CardTransferRequest', requestId).note
-assert.match(requestAudit, /دریافت فیزیکی|شاهد.*کالا/,
-  'the append-only audit must state the actual goods-release condition')
-assert.doesNotMatch(requestAudit, /تا زدن «پرداخت شد»|فیزیکی در فروشگاه/,
-  'manager declaration must never be described as the goods receipt')
+assert.match(requestAudit, /در انتظار پرداخت مدیر/)
+assert.doesNotMatch(requestAudit, /دریافت فیزیکی|شاهد.*کالا/,
+  'the append-only audit must not reintroduce the retired physical-receipt path')
+const stockBeforeManagerPay = seed.one('SELECT stock FROM "ProductVariant" WHERE id = ?', v).stock
 const paid = await cardTransferService.pay({ id: requestId, paidAmount: 600_000,
   managerPassword: DEFAULT_MANAGER_PASSWORD, userId })
 assert.equal(paid.bankEvidenceState, 'UNKNOWN_BANK')
-assert.equal(paid.stockStillPending, true)
-assert.equal(paid.releasedQty, 0)
-assert.equal(seed.one('SELECT stockNote FROM "CardTransferRequest" WHERE id = ?', requestId).stockNote,
-  initialStockNote, 'manager declaration must not announce goods received')
+assert.equal(paid.stockStillPending, false)
+assert.equal(paid.releasedQty, 1)
+assert.equal(seed.one('SELECT stock FROM "ProductVariant" WHERE id = ?', v).stock, Number(stockBeforeManagerPay) + 1,
+  'manager-confirmed C2C payment immediately restores the goods from this return')
+assert.match(seed.one('SELECT stockNote FROM "CardTransferRequest" WHERE id = ?', requestId).stockNote,
+  /[۰-۹0-9]+ عدد کالای برگشتی از این سند به موجودی قابل‌فروش برگشت؛ تأیید پرداخت مدیر همین درخواست [۰-۹0-9]+ عدد معلق را آزاد کرد/)
 claim = await viewReturnEntitlement(ret.id)
 assert.equal(claim.cashPaid, 0, 'typed payment is not independent bank evidence')
 assert.equal(claim.cashReserved, 1_000_000, 'all of the originally requested amount remains locked')
@@ -83,32 +85,23 @@ assert.equal(claim.open, 0)
 await assert.rejects(() => cardTransferService.adjust({ id: requestId, amount: -50_000,
   reason: 'تلاش اصلاح بدون شاهد بانک', managerPassword: DEFAULT_MANAGER_PASSWORD }), /دفتر حق مالی/)
 await assert.rejects(() => cardTransferService.cancel({ id: requestId, reason: 'آزمون لغو با دریافت',
-  releaseStock: true, managerPassword: DEFAULT_MANAGER_PASSWORD }), /مستقل از وضعیت بانک/)
+  releaseStock: true, managerPassword: DEFAULT_MANAGER_PASSWORD }), /فقط تأیید پرداخت مدیر/)
 await assert.rejects(() => convertCashRight({ returnId: ret.id, amount: 400_000, expectedVersion: claim.version,
   idempotencyKey: 'f5-convert-before-bank', managerPassword: DEFAULT_MANAGER_PASSWORD }), /تطبیق|باز/)
 assert.equal(seed.one('SELECT COUNT(*) AS n FROM "CreditDelivery"').n, 0)
-console.log('✓ manager declaration 600k leaves 400k LOCKED; no stock received and no code issued')
+console.log('✓ manager-confirmed C2C payment restores returned stock; 400k stays LOCKED and no code is issued')
 
 const goods = await returnGoodsService.items(ret.id)
-assert.equal(goods.managed, true)
-const good = goods.items[0]
-assert.equal(good.pending, 1)
-await assert.rejects(() => returnGoodsService.receive({ returnId: ret.id, returnItemId: good.id, qty: 2,
-  eventKey: 'f5-receive-too-many', witnessKind: 'SELECTED_CONFIRMED', witnessRef: 'کالای واقعی مشاهده شد',
-  physicalConfirmed: true, actorUserId: userId }), /تغییر|تازه/)
-const receivePayload = { returnId: ret.id, returnItemId: good.id, qty: 1,
-  eventKey: 'f5-receive-good-once', witnessKind: 'SELECTED_CONFIRMED', witnessRef: 'کالای واقعی مشاهده شد',
-  physicalConfirmed: true, actorUserId: userId }
-assert.equal((await returnGoodsService.receive(receivePayload)).releasedQty, 1)
-const receivedNote = seed.one('SELECT stockNote, stockReleasedQty FROM "CardTransferRequest" WHERE id = ?', requestId)
-assert.equal(receivedNote.stockReleasedQty, 1)
-assert.match(receivedNote.stockNote, /1 عدد.*رسید فیزیکیِ شاهددار.*نتیجهٔ بانک مستقل/)
-assert.equal((await returnGoodsService.receive(receivePayload)).replayed, true)
-assert.equal(seed.one('SELECT stockNote FROM "CardTransferRequest" WHERE id = ?', requestId).stockNote,
-  receivedNote.stockNote, 'replayed witness must not rewrite the display evidence')
-assert.equal(seed.one('SELECT stock FROM "ProductVariant" WHERE id = ?', v).stock, 100)
-assert.equal((await viewReturnEntitlement(ret.id)).cashPaid, 0, 'physical receipt must NOT confirm any bank payment')
-console.log('✓ witnessed physical receipt works independently, exact qty once; bank reservation remains locked')
+assert.equal(goods.managed, false, 'C2C returns never expose a separate physical-receipt form')
+const goodId = seed.one('SELECT id FROM "SaleReturnItem" WHERE returnId = ?', ret.id).id
+await assert.rejects(() => returnGoodsService.receive({ returnId: ret.id, returnItemId: goodId, qty: 1,
+  eventKey: 'f5-receive-after-manager-payment', witnessKind: 'SELECTED_CONFIRMED',
+  witnessRef: 'کالای واقعی مشاهده شد', physicalConfirmed: true, actorUserId: userId }), /تغییر|تازه/)
+assert.equal(seed.one('SELECT stock FROM "ProductVariant" WHERE id = ?', v).stock, 100,
+  'a second physical-receipt attempt cannot double-add the goods')
+assert.equal((await viewReturnEntitlement(ret.id)).cashPaid, 0,
+  'manager payment confirmation still does not create independent bank evidence')
+console.log('✓ manager payment releases once; no separate receipt can double-add and bank reservation stays locked')
 
 const document = { name: 'bank-statement.pdf', bytes: Buffer.from('%PDF-1.7\nBank statement line 600000\n%%EOF\n') }
 const proof = await reconcileBankDocument({ requestId, confirmedAmount: 600_000, document,
@@ -162,8 +155,8 @@ assert.equal(seed.one('SELECT COUNT(*) AS n FROM "ReturnEntitlementEvent" WHERE 
   seed.one('SELECT id FROM "ReturnEntitlement" WHERE returnId = ?', ret.id).id).n, 6)
 console.log('✓ witnessed delivery activates only successor; two purchases 150k + 250k exhaust exactly 400k')
 
-// Multi-stage stock receipt, no bank action at all: amount and stock are
-// independent origins. This also tests stale quantity and idempotent retries.
+// C2C goods remain out of sellable inventory until the manager confirms the
+// linked payment; no partial physical-receipt path can release them.
 const v3 = variant(100)
 const s3 = await salesService.create({ userId, shiftId,
   lines: [{ variantId: v3, qty: 3, unitPrice: 100, discount: 0, tax: 0 }],
@@ -171,30 +164,22 @@ const s3 = await salesService.create({ userId, shiftId,
 const s3item = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId = ?', s3.id).id
 const r3 = await salesService.createReturn({ invoiceId: s3.id, full: true,
   lines: [{ saleItemId: s3item, qty: 3 }], refundMethod: 'CARD_TO_CARD', refundAmount: 300, userId, shiftId })
-const g3 = (await returnGoodsService.items(r3.id)).items[0]
 assert.equal(seed.one('SELECT stock FROM "ProductVariant" WHERE id = ?', v3).stock, 97)
-const g3a = { returnId: r3.id, returnItemId: g3.id, qty: 1, eventKey: 'f5-staged-receipt-001',
-  witnessKind: 'SELECTED_CONFIRMED', witnessRef: 'یک کالا شمارش شد', physicalConfirmed: true, actorUserId: userId }
-assert.equal((await returnGoodsService.receive(g3a)).allReceived, false)
-const stageOne = seed.one('SELECT stockNote, stockReleasedQty FROM "CardTransferRequest" WHERE id = ?', r3.cardTransfer.id)
-assert.equal(stageOne.stockReleasedQty, 1)
-assert.match(stageOne.stockNote, /1 عدد.*رسید فیزیکیِ شاهددار.*2 عدد هنوز بدون شاهد/)
-assert.equal(seed.one('SELECT stock FROM "ProductVariant" WHERE id = ?', v3).stock, 98)
-assert.equal((await returnGoodsService.receive(g3a)).replayed, true)
-await assert.rejects(() => returnGoodsService.receive({ ...g3a, eventKey: 'f5-staged-over-receipt', qty: 3 }), /تغییر|تازه/)
-const g3b = { ...g3a, eventKey: 'f5-staged-receipt-002', qty: 2, witnessRef: 'دو کالای دیگر شمارش شد' }
-assert.equal((await returnGoodsService.receive(g3b)).allReceived, true)
-const stageTwo = seed.one('SELECT stockNote, stockReleasedQty FROM "CardTransferRequest" WHERE id = ?', r3.cardTransfer.id)
-assert.equal(stageTwo.stockReleasedQty, 3)
-assert.match(stageTwo.stockNote, /3 عدد.*رسید فیزیکیِ شاهددار.*نتیجهٔ بانک مستقل/)
-assert.doesNotMatch(stageTwo.stockNote, /هنوز بدون شاهد/)
+const g3id = seed.one('SELECT id FROM "SaleReturnItem" WHERE returnId = ?', r3.id).id
+await assert.rejects(() => returnGoodsService.receive({ returnId: r3.id, returnItemId: g3id, qty: 1,
+  eventKey: 'f5-staged-receipt-001', witnessKind: 'SELECTED_CONFIRMED',
+  witnessRef: 'یک کالا شمارش شد', physicalConfirmed: true, actorUserId: userId }), /کارت‌به‌کارت.*فقط با تأیید پرداخت مدیر/)
+assert.equal(seed.one('SELECT COUNT(*) AS n FROM "ReturnGoodsReceipt" WHERE returnId = ?', r3.id).n, 0)
+const paid3 = await cardTransferService.pay({ id: r3.cardTransfer.id,
+  managerPassword: DEFAULT_MANAGER_PASSWORD, userId })
+assert.equal(paid3.releasedQty, 3)
 assert.equal(seed.one('SELECT stock FROM "ProductVariant" WHERE id = ?', v3).stock, 100)
+assert.equal(seed.one('SELECT restockedQty FROM "SaleReturnItem" WHERE returnId = ?', r3.id).restockedQty, 3)
 assert.equal((await viewReturnEntitlement(r3.id)).cashReserved, 300)
-assert.equal(seed.one('SELECT COUNT(*) AS n FROM "ReturnGoodsReceipt" WHERE returnId = ?', r3.id).n, 2)
-console.log('✓ physical 3 units arrive 1+2 with witnesses; stale third rejected; no bank confirmation')
+console.log('✓ C2C quantity 3 releases together on manager payment; physical-receipt route is unavailable')
 
-// دو قلم مستقل: رسید قلم اول نباید قلم دوم را دریافت‌شده یا موجودی آن را
-// افزایش‌یافته جلوه دهد؛ پس از هر دو شاهد، درخواست یک متن/تعداد جمعی دارد.
+// Two separate variants in one return still release together as one linked
+// request. The payment authorization does not split by item or receipt.
 const v4a = variant(100), v4b = variant(100)
 const s4 = await salesService.create({ userId, shiftId,
   lines: [v4a, v4b].map((variantId) => ({ variantId, qty: 1, unitPrice: 100, discount: 0, tax: 0 })),
@@ -203,30 +188,21 @@ const saleItems4 = seed.rows('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId =
 const r4 = await salesService.createReturn({ invoiceId: s4.id, full: true,
   lines: saleItems4.map(({ id }) => ({ saleItemId: id, qty: 1 })),
   refundMethod: 'CARD_TO_CARD', refundAmount: 200, userId, shiftId })
-const goods4 = (await returnGoodsService.items(r4.id)).items
-assert.equal(goods4.length, 2)
-const before4 = await returnGoodsService.receive({
-  returnId: r4.id, returnItemId: goods4[0].id, qty: 1,
-  eventKey: 'f5-multi-item-receipt-001', witnessKind: 'SELECTED_CONFIRMED',
-  witnessRef: 'قلم اول جداگانه شمارش شد', physicalConfirmed: true, actorUserId: userId
-})
-assert.equal(before4.allReceived, false)
-assert.equal(seed.one('SELECT restockPending FROM "SaleReturn" WHERE id = ?', r4.id).restockPending, 1)
-assert.equal(seed.one('SELECT stock FROM "ProductVariant" WHERE id = ?', goods4[0].variantId).stock, 100)
-assert.equal(seed.one('SELECT stock FROM "ProductVariant" WHERE id = ?', goods4[1].variantId).stock, 99)
-const note4a = seed.one('SELECT stockNote, stockReleasedQty FROM "CardTransferRequest" WHERE id = ?', r4.cardTransfer.id)
-assert.equal(note4a.stockReleasedQty, 1)
-assert.match(note4a.stockNote, /1 عدد.*رسید فیزیکیِ شاهددار.*1 عدد هنوز بدون شاهد/)
-const after4 = await returnGoodsService.receive({
-  returnId: r4.id, returnItemId: goods4[1].id, qty: 1,
-  eventKey: 'f5-multi-item-receipt-002', witnessKind: 'SELECTED_CONFIRMED',
-  witnessRef: 'قلم دوم جداگانه شمارش شد', physicalConfirmed: true, actorUserId: userId
-})
-assert.equal(after4.allReceived, true)
-assert.equal(seed.one('SELECT restockPending FROM "SaleReturn" WHERE id = ?', r4.id).restockPending, 0)
-assert.equal(seed.one('SELECT stock FROM "ProductVariant" WHERE id = ?', goods4[1].variantId).stock, 100)
-const note4b = seed.one('SELECT stockNote, stockReleasedQty FROM "CardTransferRequest" WHERE id = ?', r4.cardTransfer.id)
-assert.equal(note4b.stockReleasedQty, 2)
-assert.match(note4b.stockNote, /2 عدد.*رسید فیزیکیِ شاهددار.*نتیجهٔ بانک مستقل/)
+const returned4 = seed.rows('SELECT id, variantId FROM "SaleReturnItem" WHERE returnId = ? ORDER BY id', r4.id)
+assert.equal(returned4.length, 2)
+for (const item of returned4) {
+  assert.equal(seed.one('SELECT stock FROM "ProductVariant" WHERE id = ?', item.variantId).stock, 99)
+  await assert.rejects(() => returnGoodsService.receive({ returnId: r4.id, returnItemId: item.id, qty: 1,
+    eventKey: `f5-multi-item-receipt-${item.id}`, witnessKind: 'SELECTED_CONFIRMED',
+    witnessRef: 'کالا مشاهده شد', physicalConfirmed: true, actorUserId: userId }), /کارت‌به‌کارت.*فقط با تأیید پرداخت مدیر/)
+}
+const paid4 = await cardTransferService.pay({ id: r4.cardTransfer.id,
+  managerPassword: DEFAULT_MANAGER_PASSWORD, userId })
+assert.equal(paid4.releasedQty, 2)
+for (const item of returned4) {
+  assert.equal(seed.one('SELECT stock FROM "ProductVariant" WHERE id = ?', item.variantId).stock, 100)
+  assert.equal(seed.one('SELECT restockedQty FROM "SaleReturnItem" WHERE id = ?', item.id).restockedQty, 1)
+}
+assert.equal(seed.one('SELECT stockReleasedQty FROM "CardTransferRequest" WHERE id = ?', r4.cardTransfer.id).stockReleasedQty, 2)
 assert.equal((await viewReturnEntitlement(r4.id)).cashReserved, 200)
-console.log('✓ two different returned items received independently; pending, note and bank reservation remain truthful')
+console.log('✓ one manager payment releases both C2C return lines together; no per-item receipt path remains')

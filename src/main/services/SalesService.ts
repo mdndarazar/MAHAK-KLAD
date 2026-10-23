@@ -3681,8 +3681,8 @@ async function runReturn(
      * کالا را آزاد می‌کند.
      */
     deferRestock?: boolean
-    /** Protocol cutover: every NEW stock-deducted return (even NONE/CASH/CARD)
-     * waits for its own witnessed receipt. Not read from renderer input. */
+    /** Legacy-only compatibility marker. Normal return/exchange routes leave this false;
+     * only records created under the previous physical-intake protocol may carry true. */
     goodsReceiptRequired?: boolean
     /** نشست ۷۳ — رمز مدیر پیش از تراکنش برای مبلغ کاملِ بدون تخفیف تایید شده است */
     fullRefundOverride?: boolean
@@ -4148,20 +4148,13 @@ async function runReturn(
     const restock = invoice.deductInventory
 
     /**
-     * ================== جلسه ۴۰ · کار ب — معلق ماندن کالا ==================
-     * در درخواست کارت‌به‌کارت، اعلام مدیر شاهد بانک یا رسید فیزیکی نیست.
-     * `restockedQty = 0` می‌ماند و تنها دریافتِ مقداربه‌مقدار و شاهددارِ
-     * `ReturnGoodsService.receive` برای پروندهٔ جدید آن را آزاد می‌کند؛ مسیر
-     * تاریخیِ بدون دفتر حق در `PendingRestockService` استثنای جداگانه دارد.
-     *
-     * از cutover، همهٔ مسیرهای تازهٔ دارای کسر موجودی (ازجمله NONE/نقد/
-     * کارت/اعتبار و تعویض بدون بدهی مدیر) منتظر شاهد مستقل می‌مانند. marker
-     * افزایشیِ goodsReceiptRequired اسناد تاریخی را دست‌نخورده نگه می‌دارد؛
-     * حتی بدون دفتر حق/درخواست کارت‌به‌کارت نیز دریافت باید مقدارمحور باشد.
+     * برگشت‌های معمولی همان لحظه موجودی را برمی‌گردانند. فقط کارت‌به‌کارت
+     * تا تأیید پرداخت مدیر معلق می‌ماند. goodsReceiptRequired فقط برای حفظ
+     * سازگاری با پرونده‌های قدیمیِ در انتظار دریافت فیزیکی است و از IPC تازه
+     * فعال نمی‌شود. تعویض هم این گزینه را فقط تا روشن‌شدن روش مابه‌التفاوت نگه می‌دارد.
      *
      * ⚠️ فاکتور «بدون کسر از موجودی» هیچ‌وقت معلق نمی‌شود: آنجا `restock` از
-     * ابتدا false است و کالایی در کار نیست که برگردد (وگرنه انبارگردانی یک
-     * کسری کاذب می‌ساخت).
+     * ابتدا false است و کالایی در کار نیست که برگردد.
      */
     const goodsReceiptRequired = restock && opts.goodsReceiptRequired === true
     const deferRestock =
@@ -4505,8 +4498,9 @@ async function runReturn(
         restoredToWarehouses: restoreSplit?.warehouseQty ?? 0
       }),
       note: deferRestock
-        ? 'کالای برگشتی به موجودی قابل‌فروش اضافه نشد؛ حضور فیزیکی‌اش هنوز شاهد ندارد. ' +
-          'اعلام مدیر یا وضعیت بانک جای رسیدِ مقداربه‌مقدار کالا نیست.'
+        ? refund?.method === RefundMethod.CARD_TO_CARD
+          ? 'کالای برگشتی تا تأیید پرداخت مدیرِ همین درخواست در موجودی قابل‌فروش نمی‌نشیند؛ تطبیق بانک مستقل می‌ماند.'
+          : 'این پروندهٔ قدیمی برای دریافت جداگانه علامت‌خورده است؛ موجودی تا ثبت دریافتش معلق می‌ماند.'
         : restockNow
           ? hasRemovedItems
             ? 'برگشت موجودی به انبار (شامل کالای حذف‌شده، با تایید دستی کاربر)'
@@ -7261,8 +7255,9 @@ export const salesService = {
   },
 
   /**
-   * برگشت جزئی یا کلی. از cutover، موجودی برگشتی فقط پس از رسید مستقل کالا
-   * به انبار می‌رود؛ مسیر تاریخی با marker=false و بدون backfill حفظ می‌شود.
+   * برگشت جزئی یا کلی. روش‌های غیر کارت‌به‌کارت موجودی را همان لحظه برمی‌گردانند؛
+   * فقط کارت‌به‌کارت تا پرداخت مدیر معلق می‌ماند. پرونده‌های قدیمیِ معلق با
+   * نشانگر دریافت فیزیکی، بدون backfill و حدس، مسیر قبلی‌شان را حفظ می‌کنند.
    *
    * قواعد:
    *   • تعداد قابل برگشت هر قلم = تعداد فروش − برگشت‌های قبلی. بیشتر از آن فقط
@@ -7279,7 +7274,7 @@ export const salesService = {
     goodsReceiptRequired?: boolean; requireIdempotencyKey?: boolean
   } = {}) {
     validateReturnMutation(input)
-    const goodsReceiptRequired = protocol.goodsReceiptRequired !== false
+    const goodsReceiptRequired = protocol.goodsReceiptRequired === true
     const idempotencyKey = returnRequestIdempotencyKey(input?.idempotencyKey, protocol.requireIdempotencyKey === true)
     const idempotencyFingerprint = returnRequestFingerprint(input, goodsReceiptRequired)
     const idempotency = { key: idempotencyKey, fingerprint: idempotencyFingerprint }
@@ -7381,11 +7376,9 @@ export const salesService = {
             unitPrice: l.unitPrice
           })),
           /**
-           * جلسه ۴۰ · کار ب — `stockNote` باید *وضعیت واقعی* را بگوید. در این
-           * مسیر (کارت‌به‌کارت مدیر) کالا **به انبار نرفته** و معلق است؛ متن
-           * قبلی («برگشت N عدد به انبار») از این نسخه دروغ می‌شد. فقط رسید
-           * فیزیکیِ شاهددار این ستون را به «دریافت شد» به‌روز می‌کند؛ اعلام
-           * مدیر و حتی شاهد بانک، دریافت کالا نیستند.
+           * در لحظهٔ ساخت درخواست C2C، کالا هنوز معلق است و باید همین را بگوییم.
+           * با تأیید پرداخت مدیر، CardTransferService همین کالا را آزاد و stockNote
+           * را به وضعیت نهایی به‌روز می‌کند. دریافت جداگانه فقط برای پرونده‌های قدیمی است.
            */
           stockNote: full.restockPending
             ? pendingStockNote(full.pendingRestockQty ?? 0, faDigits)
@@ -7421,7 +7414,7 @@ export const salesService = {
               `درخواست کارت‌به‌کارت ${money(cardTransfer.amount)} ریال ثبت شد (در انتظار پرداخت مدیر) · ` +
               'هیچ پولی در این لحظه جابه‌جا نشد و این مبلغ در سرجمع فروش نمی‌آید' +
               (full.restockPending
-                ? ` · ${faDigits(full.pendingRestockQty ?? 0)} قلم کالای برگشتی تا دریافت فیزیکیِ شاهددار در موجودی قابل‌فروش نمی‌نشیند؛ اعلام مدیر یا حتی شاهد بانک جای رسید کالا نیست`
+                ? ` · ${faDigits(full.pendingRestockQty ?? 0)} قلم کالای برگشتی تا تأیید پرداخت مدیرِ همین درخواست در موجودی قابل‌فروش نمی‌نشیند`
                 : '') +
               '.'
           }
@@ -7513,7 +7506,7 @@ export const salesService = {
     if (!input.full && !(input.lines ?? []).some((l) => l.qty > 0))
       throw new BusinessError('برای تعویض، تعداد حداقل یک «کالای برگشتی» را بزرگ‌تر از صفر بگذارید.')
     const idempotencyKey = exchangeRequestIdempotencyKey(input.idempotencyKey, protocol.requireIdempotencyKey === true)
-    const idempotencyFingerprint = exchangeRequestFingerprint(input, protocol.goodsReceiptRequired !== false)
+    const idempotencyFingerprint = exchangeRequestFingerprint(input, protocol.goodsReceiptRequired === true)
     const exchangeIdempotency = { key: idempotencyKey, fingerprint: idempotencyFingerprint }
     const replayedExchange = await replayExchangeRequestInTx(prisma, idempotencyKey, idempotencyFingerprint)
     if (replayedExchange) return replayedExchange
@@ -7689,7 +7682,7 @@ export const salesService = {
            * آگاهانه — نه برعکس.
            */
           deferRestock: refundMode === 'CARD_TO_CARD',
-          goodsReceiptRequired: protocol.goodsReceiptRequired !== false
+          goodsReceiptRequired: protocol.goodsReceiptRequired === true
         }
       )
       const source = back.invoice
@@ -9008,9 +9001,9 @@ export const salesService = {
         })
       }
 
-      /** Historical exchange only: a C2C intent with no actual payout was
-       * once released immediately. A NEW goodsReceiptRequired paper stays
-       * pending for the independent physical witness, even at diff >= 0. */
+      /** If the user selected C2C but the final exchange needs no manager payout,
+       * there is nothing to wait for: release the returned goods in this same
+       * transaction. Otherwise C2C stays pending until the manager confirms pay. */
       let releasedPending = 0
       if (back.restockPending && !back.goodsReceiptRequired && cardToCard <= 0) {
         const rel = await pendingRestockService.releaseReturnStock(tx, {
@@ -9052,9 +9045,9 @@ export const salesService = {
             ...repLines.map((l) => ({ name: `جایگزین: ${l.name}`, qty: l.qty, unitPrice: l.unitPrice }))
           ],
           /**
-           * جلسه ۴۰ · کار ب — متن باید همان چیزی باشد که واقعاً اتفاق افتاده:
-           * کالای جایگزین **همان لحظه** از انبار کم شد (این تغییر نکرده و نباید
-           * بکند)، ولی کالای برگشتی معلق است و منتظر پرداخت مدیر.
+           * کالای جایگزین همان لحظه کم می‌شود. در C2C، کالای برگشتی تا ثبت
+           * پرداخت مدیر معلق می‌ماند و همان پرداخت فقط همین قلم‌های برگشتی را
+           * آزاد می‌کند؛ برگشت‌های دیگر پیش از این نقطه، در همان تراکنش آزاد شده‌اند.
            */
           stockNote: !deductInventory
             ? 'فاکتور بدون کسر موجودی بود؛ حرکت انبار ثبت نشد'
@@ -10077,8 +10070,8 @@ export const salesService = {
       restockedQty: r.items.reduce((s, i) => s + i.restockedQty, 0),
       goodsReceiptRequired: r.goodsReceiptRequired,
       corrected: r.corrections.length > 0,
-      /** وضعیت دریافت فیزیکیِ شاهددار مستقل از نتیجهٔ تسویهٔ مدیر است.
-       * پروندهٔ دارای اصلاح جبرانی فقط تاریخی است، نه صفِ ورود کالای تازه. */
+      /** وضعیت کالای معلق C2C یا پروندهٔ قدیمیِ دریافت‌محور؛ پروندهٔ اصلاح‌شده
+       * فقط تاریخی است، نه صفِ ورود کالای تازه. تطبیق بانک همچنان مستقل می‌ماند. */
       restockPending: r.restockPending === true && r.corrections.length === 0,
       pendingRestockQty: r.restockPending === true && r.corrections.length === 0
         ? pendingQtyOfItems(r.items) : 0,

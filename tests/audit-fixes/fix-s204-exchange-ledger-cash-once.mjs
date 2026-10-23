@@ -17,7 +17,6 @@ process.env.HARNESS_DB = join(DIR, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
-const { returnGoodsService } = await import('../../src/main/services/ReturnGoodsService.ts')
 const { salesLedger } = await import('../../src/main/services/SalesLedger.ts')
 const { toJalaliDate } = await import('@shared/jalali')
 
@@ -68,11 +67,9 @@ const exchange = await salesService.createExchange({
 })
 
 const pending = await salesLedger.ledger({ fromJalali: today, toJalali: today })
-eq('تعویض نقدی پیش از رسید فیزیکی ورود انبار ندارد', pending.totals.stockIn, 0)
-const goods = (await returnGoodsService.items(exchange.returnId)).items[0]
-await returnGoodsService.receive({ returnId: exchange.returnId, returnItemId: goods.id,
-  qty: 1, eventKey: 's204-exchange-physical-item', witnessKind: 'SELECTED_CONFIRMED',
-  witnessRef: 'کالای تعویض دریافت شد', physicalConfirmed: true, actorUserId: userId })
+eq('تعویض نقدی برگشت کالا را همان لحظه وارد انبار کرد', pending.totals.stockIn, 1)
+eq('موجودی برگشتی بدون رسید جداگانه کامل شد', exchange.restockedQty, 1)
+eq('تعویض جدید رسید فیزیکی جداگانه نساخت', seed.one('SELECT COUNT(*) n FROM "ReturnGoodsReceipt" WHERE returnId=?', exchange.returnId).n, 0)
 const led = await salesLedger.ledger({ fromJalali: today, toJalali: today })
 const saleRows = led.rows.filter((r) => r.eventType === 'SALE')
 const expRows = led.rows.filter((r) => r.eventType === 'EXCHANGE_REPLACEMENT')

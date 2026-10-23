@@ -48,7 +48,7 @@ const sellFrom = async (variantId, qty, warehouseId) => {
   return { sale, saleItemId, allocation }
 }
 const retOf = async (sale, saleItemId) => salesService.createReturn({ invoiceId: sale.id, full: false,
-  lines: [{ saleItemId, qty: 1 }], refundMethod: 'NONE', userId, shiftId })
+  lines: [{ saleItemId, qty: 1 }], refundMethod: 'NONE', userId, shiftId }, { goodsReceiptRequired: true })
 const receive = async (ret, code, key) => {
   const item = (await returnGoodsService.items(ret.id)).items[0]
   return returnGoodsService.receive({ returnId: ret.id, returnItemId: item.id,
@@ -110,7 +110,7 @@ const exchangeRow = seed.insert('SecondaryStockItem', { name: 'source of exchang
 const exchangeSale = await sellFrom(exchanged.id, 1, branchA)
 const ex = await salesService.createExchange({ invoiceId: exchangeSale.sale.id,
   lines: [{ saleItemId: exchangeSale.saleItemId, qty: 1 }],
-  replacements: [{ variantId: replacement.id, qty: 1 }], userId, shiftId })
+  replacements: [{ variantId: replacement.id, qty: 1 }], userId, shiftId }, { goodsReceiptRequired: true })
 assert.equal(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', replacement.id).stock, 9)
 assert.equal(seed.one('SELECT qty FROM "SecondaryStockItem" WHERE id=?', exchangeRow).qty, 0)
 await receive({ id: ex.returnId }, exchanged.code, 'warehouse-exchange-witness')

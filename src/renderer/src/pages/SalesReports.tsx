@@ -3814,7 +3814,7 @@ function ExchangeTable({
                   className="text-red-600 mr-2"
                   onClick={() => onVoid(r)}
                   disabled={r.corrected || (r.goodsReceiptRequired && (r.restockedQty ?? 0) > 0)}
-                  title="ابطال مستقیم فقط قبل از رسید فیزیکی و اصلاح جبرانی مجاز است؛ سند شاهددار به رسیدگی تطبیقی نیاز دارد"
+                  title="ابطال مستقیم فقط پیش از هر حرکت موجودی و اصلاح جبرانی مجاز است؛ اثر رسیدِ پروندهٔ قدیمی با رسیدگی تطبیقی برمی‌گردد"
                 >
                   ابطال
                 </button>

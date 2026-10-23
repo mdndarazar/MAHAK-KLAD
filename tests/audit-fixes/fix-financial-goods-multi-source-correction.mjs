@@ -51,7 +51,7 @@ const stock = () => [seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', v
 const allocations = () => seed.rows('SELECT id, sourceKind, warehouseId, restoredQty FROM "SaleItemStockAllocation" WHERE saleItemId=? ORDER BY id', saleItemId)
 assert.deepEqual(stock(), [0, 0, 0, 0])
 const ret = await salesService.createReturn({ invoiceId: sale.id, full: true,
-  lines: [{ saleItemId, qty: 4 }], refundMethod: 'NONE', userId, shiftId })
+  lines: [{ saleItemId, qty: 4 }], refundMethod: 'NONE', userId, shiftId }, { goodsReceiptRequired: true })
 const item = (await returnGoodsService.items(ret.id)).items[0]
 const receive = (qty, eventKey) => returnGoodsService.receive({ returnId: ret.id,
   returnItemId: item.id, qty, eventKey, witnessKind: 'SCAN', witnessRef: code,

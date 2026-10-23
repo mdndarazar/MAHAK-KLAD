@@ -1,6 +1,6 @@
 import { prisma } from '../db/client'
 import { toJalaliDate, faDigits } from '@shared/jalali'
-import { AuditAction, CardTransferKind, CardTransferStatus } from '@shared/enums'
+import { AuditAction, CardTransferKind, CardTransferStatus, RefundMethod } from '@shared/enums'
 import {
   ageInDays,
   EMPTY_PENDING_RESTOCK,
@@ -44,13 +44,13 @@ function chunksOf<T>(values: T[], size = PENDING_RESTOCK_IN_CHUNK): T[][] {
  * دو کار:
  *   ۱) `summary` — عدد واحد معلق برای انبار، گزارش، انبارگردانی، صندوق و
  *      پنل کارت‌به‌کارت؛ اسناد دارای اصلاح جبرانی از فهرست اقدامات حذف‌اند.
- *   ۲) `releaseReturnStock` — فقط مسیر تاریخیِ بدون دفتر حق و بدون نشانگر
- *      الزام رسید فیزیکی. برای پروندهٔ جدید تنها ReturnGoodsService.receive
- *      موجودی را مقداربه‌مقدار، با شاهد واقعی، افزایش می‌دهد.
+ *   ۲) `releaseReturnStock` — پروندهٔ تاریخیِ مجاز، یا درخواست کارت‌به‌کارت
+ *      همان برگشت/تعویض پس از تأیید پرداخت مدیر. برای سایر پرونده‌های جدید،
+ *      مسیر دریافتِ قدیمی فقط برای پرونده‌های از قبل علامت‌خورده باقی است؛ پرونده‌های تازه غیر C2C هم‌زمان با ثبت به‌روز می‌شوند.
  *
  * ⚠️ این سرویس جدول موجودی موازی نمی‌سازد. تعداد از `restockedQty` و
- * `restockPending` می‌آید؛ `goodsReceiptRequired`/دفتر حق تعیین می‌کنند که
- * حضور فیزیکی هنوز اثبات نشده است؛ اصلاح جبرانی درخواست را می‌بندد.
+ * `restockPending` می‌آید؛ اصلاح جبرانی درخواست را می‌بندد. پرداخت مدیر فقط
+ * همان اقلام برگشتی را آزاد می‌کند، نه کالای جایگزین یا گردش صندوق/کارت‌خوان.
  *
  * ⚠️ `releaseReturnStock` **idempotent** است: فقط اقلامی را برمی‌گرداند که
  * `restockedQty < qty`. پس دو بار زدن «پرداخت شد» (یا یک retry) هیچ‌وقت کالا
@@ -238,12 +238,13 @@ export const pendingRestockService = {
 
   /**
    * -------------------------------------------------------------------------
-   * مسیر تاریخیِ آزادسازی کالای معلقِ بدون دفتر حق. همیشه با `tx` صدا زده
-   * می‌شود و صدازننده باید قبلاً تأیید مدیر را گرفته باشد. پروندهٔ جدید این
-   * تابع را حتی با تأیید مدیر نمی‌گذراند: فقط ReturnGoodsService.receive.
+   * آزادسازی کالای معلق فقط از دو مسیر مجاز است: پروندهٔ تاریخیِ بدون دفتر حق،
+   * یا پرداخت مدیر برای درخواست کارت‌به‌کارتِ متصل به همان سند برگشت/تعویض.
+   * مسیر دوم با `managerPaymentRequestId` اعتبارسنجی می‌شود؛ دریافت فیزیکیِ
+   * عادی همچنان از ReturnGoodsService.receive انجام می‌شود.
    *
    * idempotent: اقلامی که `restockedQty >= qty` دارند نادیده گرفته می‌شوند، پس
-   * هیچ مسیری نمی‌تواند کالا را دو بار به موجودی اضافه کند.
+   * retry یا پرداخت تکراری هرگز کالا را دو بار به موجودی اضافه نمی‌کند.
    * -------------------------------------------------------------------------
    */
   async releaseReturnStock(
@@ -254,6 +255,8 @@ export const pendingRestockService = {
       /** برای متن AuditLog: «پرداخت مدیر» یا «آزادسازی صریح مدیر» */
       reason: string
       requestId?: number | null
+      /** Internal authorization: release only after this matching C2C request is paid. */
+      managerPaymentRequestId?: number | null
       at?: Date
     }
   ): Promise<{
@@ -265,19 +268,44 @@ export const pendingRestockService = {
     const returnId = Number(params.returnId ?? 0)
     if (!returnId) return { releasedQty: 0, variants: [], alreadyDone: true }
 
+    const managerPaymentRequestId = params.managerPaymentRequestId == null
+      ? null : Number(params.managerPaymentRequestId)
+    let managerPaymentOperationKind: string | null = null
+    if (managerPaymentRequestId != null) {
+      const request = await tx.cardTransferRequest.findUnique({
+        where: { id: managerPaymentRequestId },
+        select: { id: true, kind: true, status: true, returnId: true, operationKind: true, amount: true, paidAt: true }
+      })
+      managerPaymentOperationKind = request?.operationKind == null ? null : String(request.operationKind)
+      if (!request || Number(request.returnId) !== returnId || request.kind !== CardTransferKind.REQUEST ||
+          request.status !== CardTransferStatus.PENDING || request.paidAt != null ||
+          (request.operationKind != null && !['RETURN', 'EXCHANGE'].includes(String(request.operationKind))) ||
+          toNumberRial(request.amount) <= 0) {
+        throw new Error('آزادسازی موجودی فقط پس از تأیید پرداختِ درخواست کارت‌به‌کارتِ باز و متصل به همین برگشت/تعویض مجاز است.')
+      }
+    }
+
     const ret = await tx.saleReturn.findUnique({
       where: { id: returnId },
       include: { items: true, invoice: { select: { id: true, receiptNo: true, deductInventory: true } } }
     })
     if (!ret) throw new Error('سند برگشت مرجع پیدا نشد، پس کالایی به انبار برنگشت.')
+    if (managerPaymentRequestId != null) {
+      if (ret.refundMethod != null && ret.refundMethod !== RefundMethod.CARD_TO_CARD)
+        throw new Error('پرداخت نامرتبط با کارت‌به‌کارت نمی‌تواند کالای برگشتی را آزاد کند.')
+      const expectedOperationKind = ret.kind === 'EXCHANGE' || ret.exchangeInvoiceId != null ? 'EXCHANGE' : 'RETURN'
+      if (managerPaymentOperationKind != null && managerPaymentOperationKind !== expectedOperationKind)
+        throw new Error('نوع درخواست کارت‌به‌کارت با همان برگشت/تعویض سازگار نیست؛ آزادسازی موجودی رد شد.')
+    }
     await assertOrdinaryReturnLineage(tx, returnId, Number(ret.invoiceId))
     if (await tx.returnCorrection.findUnique({ where: { returnId }, select: { id: true } }))
       throw new Error('این برگشت اصلاح جبرانی ثبت‌شده دارد؛ سند اصلی تاریخی است و کالایی از این مسیر آزاد نمی‌شود.')
+    const managerPaymentRelease = managerPaymentRequestId != null
     const managed = await tx.returnEntitlement.findUnique({ where: { returnId } })
-    if (managed)
-      throw new Error('برای برگشت جدید، دریافت کالا باید مستقل از پرداخت و مقداربه‌مقدار با شاهد ثبت شود؛ آزادسازی یکجای قدیمی مجاز نیست.')
-    if (ret.goodsReceiptRequired)
-      throw new Error('برای برگشت جدید، دریافت کالا فقط با رسید فیزیکیِ شاهددار و مقداربه‌مقدار ثبت می‌شود؛ آزادسازی یکجای قدیمی مجاز نیست.')
+    if (managed && !managerPaymentRelease)
+      throw new Error('کالای برگشتیِ کارت‌به‌کارتِ جدید فقط با تأیید پرداخت مدیرِ همان درخواست آزاد می‌شود.')
+    if (ret.goodsReceiptRequired && !managerPaymentRelease)
+      throw new Error('این پروندهٔ قدیمی نشانگر دریافت جداگانه دارد؛ برای آزادسازی از مسیر دریافت همان پرونده اقدام کنید.')
 
     /**
      * اگر این سند اصلاً معلق نیست، هیچ کاری انجام نمی‌شود. دو حالتِ ممکن:

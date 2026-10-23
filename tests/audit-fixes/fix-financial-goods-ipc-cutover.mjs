@@ -1,6 +1,5 @@
-/** Renderer-supplied flags cannot disable the new receipt protocol. Test the
- * actual Main IPC path, session actor, ordinary non-bank goods intake, and UI
- * reachability for returns/exchanges without a card-transfer request.
+/** Renderer-supplied flags cannot restore the retired witness-required protocol.
+ * The real Main IPC route returns non-C2C goods immediately and still binds the actor to the session.
  * node --import ./test/harness/register.mjs tests/audit-fixes/fix-financial-goods-ipc-cutover.mjs
  */
 import assert from 'node:assert/strict'
@@ -28,7 +27,7 @@ const seed = makeSeeder(db)
 const sql = db.$harness.db
 const userId = seed.user('real cashier')
 const cat = seed.category('ipc goods')
-const product = seed.product('witnessed item', cat)
+const product = seed.product('returned item', cat)
 const variantId = seed.variant(product)
 sql.prepare('UPDATE "ProductVariant" SET stock=10, salePrice=100 WHERE id=?').run(variantId)
 const shiftId = seed.insert('Shift', { name: 'cashier', number: 1, userId,
@@ -42,34 +41,34 @@ const saleItemId = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?'
 const result = await invoke(IPC.saleReturn, { invoiceId: sale.id, full: true,
   lines: [{ saleItemId, qty: 1 }], refundMethod: 'NONE',
   idempotencyKey: 'return-request:goods-ipc-cutover-0001',
-  userId: 999_999, goodsReceiptRequired: false,
-  protocol: { goodsReceiptRequired: false } })
+  userId: 999_999, goodsReceiptRequired: true,
+  protocol: { goodsReceiptRequired: true } })
 assert.equal(result.ok, true, JSON.stringify(result))
 const ret = result.data
-assert.equal(ret.goodsReceiptRequired, true)
-assert.equal(ret.restockPending, true)
-assert.equal(seed.one('SELECT goodsReceiptRequired FROM "SaleReturn" WHERE id=?', ret.id).goodsReceiptRequired, 1)
+assert.equal(ret.goodsReceiptRequired, false, 'renderer cannot opt an ordinary return back into the old receipt protocol')
+assert.equal(ret.restockPending, false)
+assert.equal(ret.restockedQty, 1)
+assert.equal(seed.one('SELECT goodsReceiptRequired FROM "SaleReturn" WHERE id=?', ret.id).goodsReceiptRequired, 0)
 assert.equal(seed.one('SELECT userId FROM "SaleReturn" WHERE id=?', ret.id).userId, userId)
-assert.equal(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', variantId).stock, 9)
+assert.equal(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', variantId).stock, 10,
+  'non-C2C goods return in the same IPC operation')
 const goods = await invoke(IPC.returnGoodsItems, { returnId: ret.id })
 assert.equal(goods.ok, true)
-assert.equal(goods.data.managed, true)
-assert.equal(goods.data.items[0].pending, 1)
-const witness = await invoke(IPC.returnGoodsReceive, { returnId: ret.id, returnItemId: goods.data.items[0].id,
-  qty: 1, eventKey: 'ipc-noncard-witness-unique', witnessKind: 'SELECTED_CONFIRMED',
-  witnessRef: 'یک کالا واقعاً تحویل شد', physicalConfirmed: true,
-  actorUserId: 999_999 })
-assert.equal(witness.ok, true, JSON.stringify(witness))
+assert.equal(goods.data.managed, false)
+const separateReceipt = await invoke(IPC.returnGoodsReceive, { returnId: ret.id,
+  returnItemId: seed.one('SELECT id FROM "SaleReturnItem" WHERE returnId=?', ret.id).id,
+  qty: 1, eventKey: 'ipc-return-already-restocked', witnessKind: 'SELECTED_CONFIRMED',
+  witnessRef: 'کالای تحویل‌شده', physicalConfirmed: true, actorUserId: 999_999 })
+assert.equal(separateReceipt.ok, false, 'a second receipt cannot add stock again')
 assert.equal(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', variantId).stock, 10)
-assert.equal(seed.one('SELECT actorUserId FROM "ReturnGoodsReceipt" WHERE id=?', witness.data.id).actorUserId, userId)
-assert.equal(seed.one('SELECT COUNT(*) n FROM "ReturnEntitlement" WHERE returnId=?', ret.id).n, 0)
-console.log('✓ live IPC NONE: forged protocol/actor ignored, authenticated goods receipt moves stock once')
+console.log('✓ live IPC: forged witness flags ignored, non-C2C return is immediate and cannot be double-added')
 const root = resolve(new URL('../../', import.meta.url).pathname)
 const ui = readFileSync(join(root, 'src/renderer/src/pages/SalesReturn.tsx'), 'utf8')
 const intake = readFileSync(join(root, 'src/renderer/src/components/ReturnGoodsIntake.tsx'), 'utf8')
-assert.match(ui, /retResult\.restockPending\s*&&\s*retResult\.goodsReceiptRequired/)
+assert.match(ui, /retResult\.restockPending\s*&&\s*retResult\.goodsReceiptRequired/,
+  'only legacy papers marked for physical intake can expose that action')
 assert.match(ui, /exResult\.restockPending/)
 assert.match(ui, /exResult\.goodsReceiptRequired/)
 assert.match(ui, /r\.corrected/)
-assert.match(intake, /!goods\.corrected/)
-console.log('✓ cashier can reach non-bank return/exchange intake; corrected paper cannot show action')
+assert.match(intake, /پرونده‌های قدیمی/)
+console.log('✓ physical-intake UI is limited to legacy marked papers; corrected papers remain closed')

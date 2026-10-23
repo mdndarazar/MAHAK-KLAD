@@ -1374,8 +1374,8 @@ export default function CashClose() {
                   {faDigits(pending.totalQty)} قلم کالای برگشتی · {PENDING_RESTOCK_LABEL}
                   <div className="kbd font-normal leading-6">{pending.shiftWarning}</div>
                   <div className="kbd font-normal leading-6">
-                    جمع درخواست‌های کارت‌به‌کارتِ هنوز باز: <b>{money(pending.summary.pendingAmount)}</b> ریال. اعلام
-                    مدیر شاهد پرداخت بانک نیست و دریافت کالا هم مستقل است. این عدد از نقد انتظاری داخل کشو کم نمی‌شود
+                    جمع درخواست‌های کارت‌به‌کارتِ هنوز باز: <b>{money(pending.summary.pendingAmount)}</b> ریال. تأیید پرداخت مدیر
+                    کالای همان برگشت/تعویض را به موجودی برمی‌گرداند؛ تطبیق بانک جداگانه است. این عدد از نقد انتظاری داخل کشو کم نمی‌شود
                     و در کسری/اضافی بالا اثری ندارد؛ «{MANAGER_ACCOUNT_ROW_LABEL}» پول دریافتی از مشتری است، نه حق برگشت.
                   </div>
                   <div className="kbd font-normal leading-6">

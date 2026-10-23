@@ -2,7 +2,7 @@ import { prisma } from '../db/client'
 import { BusinessError } from '../errors'
 import { stockAllocationService } from './StockAllocationService'
 import { inventoryService } from './InventoryService'
-import { AuditAction } from '@shared/enums'
+import { AuditAction, RefundMethod } from '@shared/enums'
 import { toJalaliDate } from '@shared/jalali'
 import { assertOrdinaryReturnLineage } from './ReturnEntitlementService'
 
@@ -60,14 +60,16 @@ export const returnGoodsService = {
         include: { items: true, invoice: { select: { id: true, receiptNo: true, deductInventory: true } } }
       })
       const claim = await tx.returnEntitlement.findUnique({ where: { returnId } })
-      // Existing claim-backed card returns remain accepted, including those
-      // predating the new marker. No claim is required for new non-bank goods,
-      // but a historical pending paper without either guard is NOT promoted.
-      if (!claim && !ret?.goodsReceiptRequired)
-        throw new BusinessError('این برگشت پیش از دفتر دریافت شاهددار ثبت شده است؛ برای سابقهٔ قدیمی، مسیر مستقل رسیدگی مدیر لازم است.')
-      if (claim && (claim.state === 'QUARANTINED' || claim.requestId == null || ret?.invoiceId !== claim.invoiceId))
-        throw stale()
+      // New non-C2C returns/exchanges already updated inventory in their own
+      // transaction. This witnessed receipt path is legacy-only; C2C stock is
+      // released only by approval of its linked manager-payment request.
       if (!ret || ret.voidedAt != null || !ret.invoice?.deductInventory || !ret.restockPending)
+        throw stale()
+      if (ret.refundMethod === RefundMethod.CARD_TO_CARD)
+        throw new BusinessError('کالای برگشتیِ کارت‌به‌کارت فقط با تأیید پرداخت مدیرِ همان درخواست آزاد می‌شود؛ دریافت فیزیکی مسیر این سند نیست.')
+      if (!ret.goodsReceiptRequired)
+        throw new BusinessError('این برگشت در روال فعلی هم‌زمان با ثبت به موجودی برگشته است؛ رسید فیزیکیِ جداگانه لازم نیست.')
+      if (claim && (claim.state === 'QUARANTINED' || claim.requestId == null || ret.invoiceId !== claim.invoiceId))
         throw stale()
       const item = ret.items.find((row) => row.id === returnItemId)
       if (!item || item.qty - item.restockedQty < qty || item.qty <= 0) throw stale()
@@ -121,9 +123,9 @@ export const returnGoodsService = {
         })
         if (closed.count !== 1) throw stale()
       }
-      // «اعلام پرداخت مدیر» شاهد دریافت کالا نیست؛ متن درخواست هم باید فقط
-      // وضعیتِ واقعاً شمارش‌شده را نشان بدهد، حتی اگر دریافت مرحله‌ای باشد یا
-      // درخواست پیش‌تر لغو شده باشد. شمارش/یادداشت با رسید در همین تراکنش است.
+      // این مسیر فقط دریافت فیزیکیِ شمارش‌شده را ثبت می‌کند؛ پرداخت C2C مسیر
+      // جداگانهٔ آزادسازی خودش را دارد. یادداشت رسید باید تعداد واقعاً دیده‌شده
+      // را نشان بدهد، حتی اگر دریافت مرحله‌ای باشد یا درخواست لغو شده باشد.
       const receivedQty = ret.items.reduce((sum, row) => sum + row.restockedQty + (row.id === item.id ? qty : 0), 0)
       const remainingQty = ret.items.reduce((sum, row) =>
         sum + Math.max(0, row.qty - row.restockedQty - (row.id === item.id ? qty : 0)), 0)
@@ -157,7 +159,7 @@ export const returnGoodsService = {
   async items(returnIdRaw: number) {
     const returnId = positive(returnIdRaw, 'شناسه برگشت')
     const ret = await prisma.saleReturn.findUnique({ where: { id: returnId },
-      select: { invoiceId: true, voidedAt: true, restockPending: true, goodsReceiptRequired: true,
+      select: { invoiceId: true, voidedAt: true, restockPending: true, goodsReceiptRequired: true, refundMethod: true,
         invoice: { select: { orderType: true, sourceInvoiceId: true, exchangeReturnId: true } },
         items: { select: {
           id: true, qty: true, restockedQty: true, variantCode: true, variantName: true, variantId: true
@@ -169,9 +171,10 @@ export const returnGoodsService = {
       : null
     const unsupportedLineage = !!ret?.invoice && (ret.invoice.orderType === 'EXCHANGE' ||
       ret.invoice.sourceInvoiceId != null || ret.invoice.exchangeReturnId != null) || !!parentExchangeReturn
-    const managed = !unsupportedLineage && (!!claim || !!ret?.goodsReceiptRequired)
+    const c2cPending = ret?.refundMethod === RefundMethod.CARD_TO_CARD && ret.restockPending
+    const managed = !unsupportedLineage && !c2cPending && !!ret?.goodsReceiptRequired
     return { managed, unsupportedLineage,
-      state: unsupportedLineage ? 'UNSUPPORTED_LINEAGE' : claim?.state ?? (ret?.goodsReceiptRequired ? 'GOODS_ONLY' : null),
+      state: unsupportedLineage ? 'UNSUPPORTED_LINEAGE' : c2cPending ? 'WAITING_MANAGER_PAYMENT' : claim?.state ?? (ret?.goodsReceiptRequired ? 'GOODS_ONLY' : null),
       corrected, voided: !!ret?.voidedAt, restockPending: !!ret?.restockPending,
       // An old return has no new witness protocol, and child lineage is held
       // until its source shares and active line scope are proven end-to-end.
