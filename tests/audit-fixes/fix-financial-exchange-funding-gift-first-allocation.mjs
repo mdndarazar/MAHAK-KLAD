@@ -3,6 +3,7 @@ import {
   allocateExchangeFundingByLine,
   allocateExchangeFundingCashFirst,
   allocateExchangeFundingGiftFirst,
+  allocateExchangeFundingGiftFirstBySource,
   allocateExchangeFundingProportionalFloor,
   allocateExchangeFundingProRata
 } from '../../src/shared/exchangeFundingAllocation.ts'
@@ -329,6 +330,40 @@ for (const invalid of [
 ]) {
   assert.throws(() => allocateExchangeFundingGiftFirst(invalid), RangeError)
 }
+
+const chainedGiftFirst = allocateExchangeFundingGiftFirstBySource({
+  replacementTotal: 14_000_000,
+  sources: [
+    { sourceEventId: 202, sourceKind: 'SOURCE_CASH', available: 13_000_000 },
+    { sourceEventId: 101, sourceKind: 'SOURCE_GIFT', available: 2_000_000 }
+  ]
+})
+assert.deepEqual(chainedGiftFirst, {
+  giftCarry: 2_000_000,
+  realMoneyCarry: 12_000_000,
+  allocations: [
+    { sourceEventId: 202, sourceKind: 'SOURCE_CASH', carry: 12_000_000, remainder: 1_000_000 },
+    { sourceEventId: 101, sourceKind: 'SOURCE_GIFT', carry: 2_000_000, remainder: 0 }
+  ]
+}, 'chained cheaper exchange carries the rooted barcode first and leaves a separately identifiable real-money remainder')
+const chainGiftRemainder = allocateExchangeFundingGiftFirstBySource({
+  replacementTotal: 1_000_000,
+  sources: [
+    { sourceEventId: 202, sourceKind: 'SOURCE_CASH', available: 13_000_000 },
+    { sourceEventId: 101, sourceKind: 'SOURCE_GIFT', available: 2_000_000 }
+  ]
+})
+assert.deepEqual(chainGiftRemainder, {
+  giftCarry: 1_000_000,
+  realMoneyCarry: 0,
+  allocations: [
+    { sourceEventId: 202, sourceKind: 'SOURCE_CASH', carry: 0, remainder: 13_000_000 },
+    { sourceEventId: 101, sourceKind: 'SOURCE_GIFT', carry: 1_000_000, remainder: 1_000_000 }
+  ]
+}, 'unused rooted credit and actual cash remain separate for their distinct return choices')
+assert.throws(() => allocateExchangeFundingGiftFirstBySource({
+  replacementTotal: 1, sources: [{ sourceEventId: 1, sourceKind: 'SOURCE_B', available: 1 }]
+}), RangeError, 'B/N rights cannot be guessed into the generic gift/cash chain policy')
 
 const proRata = allocateExchangeFundingProRata(300, [
   { id: 20, available: 300 },

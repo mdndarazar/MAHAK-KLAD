@@ -162,6 +162,68 @@ export function allocateExchangeFundingGiftFirst(input: {
   }
 }
 
+/** Allocate an already-proven SOURCE_GIFT/CASH/CARD child ledger to a cheaper
+ * replacement. In this narrow chained-exchange policy, rooted barcode value is
+ * carried first; real-money shares follow in immutable event order. The caller
+ * remains responsible for refund choice, successor-code issuance and atomic
+ * persistence. Other source kinds are rejected so B/N rights and uncleared
+ * cheques cannot be guessed into a public credit or a payout.
+ */
+export function allocateExchangeFundingGiftFirstBySource(input: {
+  replacementTotal: number
+  sources: readonly {
+    sourceEventId: number
+    sourceKind: 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD'
+    available: number
+  }[]
+}): {
+  giftCarry: number
+  realMoneyCarry: number
+  allocations: Array<{
+    sourceEventId: number
+    sourceKind: 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD'
+    carry: number
+    remainder: number
+  }>
+} {
+  const { replacementTotal, sources } = input
+  if (!Number.isSafeInteger(replacementTotal) || replacementTotal < 0 || !Array.isArray(sources))
+    throw new RangeError('Exchange funding amounts must be non-negative safe integer rials')
+  const seen = new Set<number>()
+  let total = 0n
+  for (const source of sources) {
+    if (!source || !Number.isSafeInteger(source.sourceEventId) || source.sourceEventId <= 0 ||
+        seen.has(source.sourceEventId) || !Number.isSafeInteger(source.available) || source.available < 0 ||
+        !['SOURCE_GIFT', 'SOURCE_CASH', 'SOURCE_CARD'].includes(source.sourceKind))
+      throw new RangeError('Gift-first chained exchange requires unique proven gift/cash/card shares')
+    seen.add(source.sourceEventId)
+    total += BigInt(source.available)
+  }
+  if (total > BigInt(Number.MAX_SAFE_INTEGER) || BigInt(replacementTotal) > total)
+    throw new RangeError('Replacement value exceeds proven source shares')
+  const ordered = [...sources].sort((a, b) => {
+    const aCredit = a.sourceKind === 'SOURCE_GIFT' ? 0 : 1
+    const bCredit = b.sourceKind === 'SOURCE_GIFT' ? 0 : 1
+    return aCredit - bCredit || a.sourceEventId - b.sourceEventId
+  })
+  let left = replacementTotal
+  const carryById = new Map<number, number>()
+  for (const source of ordered) {
+    const carry = Math.min(left, source.available)
+    carryById.set(source.sourceEventId, carry)
+    left -= carry
+  }
+  if (left !== 0) throw new RangeError('Gift-first source allocation does not reconcile')
+  const allocations = sources.map((source) => {
+    const carry = carryById.get(source.sourceEventId) ?? 0
+    return { sourceEventId: source.sourceEventId, sourceKind: source.sourceKind,
+      carry, remainder: source.available - carry }
+  })
+  const giftCarry = allocations.filter((row) => row.sourceKind === 'SOURCE_GIFT')
+    .reduce((sum, row) => sum + row.carry, 0)
+  return { giftCarry, realMoneyCarry: replacementTotal - giftCarry, allocations }
+}
+
 /** Split an integer-rial target across source shares by largest remainder.
  * IDs provide a stable tie-break, so replaying the same snapshot yields the
  * same allocations without converting Rial values to floating point.

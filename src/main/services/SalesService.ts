@@ -22,9 +22,9 @@ import {
   reverseExchangeFundingReturnTransfersForChildReturn,
   transferExchangeFundingShare
 } from './ExchangeFundingLedgerService'
-import { allocateExchangeFundingCashFirst, allocateExchangeFundingProRata } from '@shared/exchangeFundingAllocation'
+import { allocateExchangeFundingCashFirst, allocateExchangeFundingGiftFirstBySource, allocateExchangeFundingProRata } from '@shared/exchangeFundingAllocation'
 import {
-  openS1ExchangeResidualRights, openS11ExchangeDebtResidualRights, voidS1ExchangeResidualRightsForReturn,
+  issueChainedExchangeGiftResidualBarcode, openS1ExchangeResidualRights, openS11ExchangeDebtResidualRights, voidS1ExchangeResidualRightsForReturn,
   reserveS1ExchangeResidualRight, commitS1ExchangeResidualRight,
   planS1ResidualRightSaleReturn, restoreS1ExchangeResidualRight,
   reverseS1ResidualRightRestorationsForReturn, recordS7ChequeResidualRightDisposition
@@ -32,6 +32,7 @@ import {
 import { allocateExchangeFundingLineReturn, type ExchangeReturnSourceKind } from '@shared/exchangeFundingLineReturn'
 import {
   openCardTransferEntitlement,
+  openChainedExchangeCardTransferEntitlement,
   openS8ExchangeChildCashRight,
   correctPendingEntitlement,
   quarantineEntitlement
@@ -7848,12 +7849,12 @@ export const salesService = {
         throw new BusinessError('بارکد باقیماندهٔ S1 فقط برای تعویض ارزان‌تر با ماندهٔ اعتبار اثبات‌شده قابل انتخاب است.')
 
       /**
-       * A no-difference exchange may carry a fully proven, complete source set
-       * (including a matched, live gift redemption) only when the whole original
-       * invoice is returned, every source Rial is transferred, and no debt,
-       * overpay, older return, unresolved tender, or stale snapshot exists.
-       * This is provenance carry only: diff != 0 never enters this path, so no
-       * CASH_RIGHT, B/N entitlement, payout, or new tender is inferred here.
+       * Preserve the existing equal-value full-return rule: only a complete,
+       * reconciled source set may be carried, with no debt, overpay, older
+       * return, unresolved tender, or stale snapshot. Nonzero child deltas do
+       * not enter this legacy branch; the narrowly-scoped full-child delta
+       * planner below validates the tender/refund separately and leaves all
+       * ordinary-sale and partial-return policies unchanged.
        */
       let fundingSourcesForTransfer: Array<{ event: any; available: number }> | null = null
       let s1ResidualRightsEligible = false
@@ -7862,6 +7863,8 @@ export const salesService = {
       let partialExchangeCarryPlan: Array<{ sourceEventId: number; sourceKind: 'SOURCE_GIFT' | 'SOURCE_N' | 'SOURCE_B' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'; carry: number; remainder: number }> | null = null
       let s1GiftResidualAmount = 0
       let s1RealResidualAmount = 0
+      let chainedGiftResidualSources: Array<{ sourceEventId: number; amount: number }> = []
+      let chainedGiftFirstSettlement = false
       let s11DebtOffsetEligible = false
       let s11DebtOffsetAmount = 0
       let s11DebtOffsetPaymentId = 0
@@ -8257,13 +8260,66 @@ export const salesService = {
           }
         }
       }
+
+      // Chained full-return deltas are admitted only from an exact, persisted
+      // child ledger. More-expensive replacements carry every proven source and
+      // collect the difference through the existing tender path. For cheaper
+      // replacements this one narrow route applies the owner's gift-first rule:
+      // carry rooted barcode value first, then cash/card, and keep both kinds of
+      // unused remainder separate for their respective settlement choices.
+      const fullChildFundingIsReconciled = sourceIsExchangeChild && fullChildSourceReturn &&
+        funding?.snapshotExists === true && !funding.stale && funding.unresolved.length === 0 &&
+        funding.lineAllocationStatus === 'PERSISTED_RECONCILED' &&
+        funding.activeReturnIds.length === 1 && funding.activeReturnIds[0] === Number(back.id) &&
+        funding.debt === 0 && funding.overpay === 0 && funding.sources.length > 0 &&
+        funding.sources.every((share) => share.available > 0 && share.available === toNumberRial(share.event.amount)) &&
+        funding.sources.reduce((sum, share) => sum + share.available, 0) === returnTotal &&
+        returnTotal === toNumberRial(source.grandTotal)
+      if (fullChildFundingIsReconciled && diff > 0 && funding &&
+          funding.sources.every((share) => ['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(share.sourceKind))) {
+        fundingSourcesForTransfer = funding.sources
+      } else if (fullChildFundingIsReconciled && diff < 0 && funding &&
+          funding.sources.every((share) => ['SOURCE_GIFT', 'SOURCE_CASH', 'SOURCE_CARD'].includes(share.sourceKind))) {
+        try {
+          const plan = allocateExchangeFundingGiftFirstBySource({
+            replacementTotal: exchangeTotal,
+            sources: funding.sources.map((share) => ({
+              sourceEventId: Number(share.event.id),
+              sourceKind: share.sourceKind as 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD',
+              available: share.available
+            }))
+          })
+          if (plan.allocations.reduce((sum, row) => sum + row.carry, 0) !== exchangeTotal ||
+              plan.allocations.reduce((sum, row) => sum + row.remainder, 0) !== returnTotal - exchangeTotal)
+            throw new RangeError('Gift-first chained exchange does not reconcile')
+          fundingSourcesForTransfer = funding.sources
+          partialExchangeCarryPlan = plan.allocations
+          s1CarryAllocations = plan.allocations
+          chainedGiftResidualSources = plan.allocations
+            .filter((row) => row.sourceKind === 'SOURCE_GIFT' && row.remainder > 0)
+            .map((row) => ({ sourceEventId: row.sourceEventId, amount: row.remainder }))
+          chainedGiftFirstSettlement = true
+          s1GiftResidualAmount = chainedGiftResidualSources.reduce((sum, row) => sum + row.amount, 0)
+          s1RealResidualAmount = plan.allocations
+            .filter((row) => row.sourceKind === 'SOURCE_CASH' || row.sourceKind === 'SOURCE_CARD')
+            .reduce((sum, row) => sum + row.remainder, 0)
+          if (s1GiftResidualAmount > 0) {
+            s1ResidualRightsEligible = true
+            s1MixedResidualEligible = s1RealResidualAmount > 0
+          }
+        } catch {
+          // An unsupported or inexact source set remains blocked below.
+        }
+      }
+
       if (refundMode === 'S11_DEBT_OFFSET_RIGHTS' && !s11DebtOffsetEligible)
         throw new BusinessError('گزینهٔ S11 فقط برای برگشت کاملِ فرزند تعویض با بدهی چکِ یکتا و carry مختلطِ پرداخت‌شده قابل استفاده است؛ هیچ تغییری ثبت نشد.')
       if (s11DebtOffsetEligible && refundMode !== 'S11_DEBT_OFFSET_RIGHTS')
         throw new BusinessError('این تعویض واجد S11 است؛ ابتدا بدهی چک کسر می‌شود و ماندهٔ اعتبار فقط با یک بارکد غیرنقدی صادر می‌شود. گزینهٔ S11 را انتخاب کنید.')
 
-      if (sourceIsExchangeChild && diff !== 0 && funding?.snapshotExists && !funding.stale &&
-          funding.unresolved.length === 0 && funding.lineAllocationStatus === 'PERSISTED_RECONCILED' &&
+      if (sourceIsExchangeChild && diff !== 0 && fundingSourcesForTransfer == null &&
+          funding?.snapshotExists && !funding.stale && funding.unresolved.length === 0 &&
+          funding.lineAllocationStatus === 'PERSISTED_RECONCILED' &&
           funding.activeReturnIds.length === 1 && funding.activeReturnIds[0] === back.id &&
           funding.debt === 0 && funding.overpay === 0 && funding.sources.length > 0 &&
           funding.sources.every((share) => share.available > 0 && share.available === toNumberRial(share.event.amount)) &&
@@ -8273,8 +8329,8 @@ export const salesService = {
             (back.returnedLines ?? []).some((returnedLine: any) =>
               Number(returnedLine.saleItemId) === Number(saleItem.id) && Number(returnedLine.qty) === Number(saleItem.qty))))
         throw new BusinessError(
-          'تعویض زنجیره‌ای فقط وقتی مجاز است که مبلغ جایگزین دقیقاً با carry اثبات‌شده برابر باشد. ' +
-          'این زنجیره مابه‌التفاوت را به نقد، B/N یا اعتبار عمومی تبدیل نمی‌کند؛ هیچ انتقال یا اثر مالی ثبت نشد.'
+          'این برگشت کاملِ فاکتور فرزند برای مابه‌التفاوت قابل تسویه نیست: منشأ یا نوع حق برای مسیر زنجیره‌ایِ این مبلغ پشتیبانی نمی‌شود. ' +
+          'هیچ انتقال، بازپرداخت یا بارکد تازه‌ای ثبت نشد.'
         )
       if (refundMode === 'S11_DEBT_OFFSET_RIGHTS' && !s11DebtOffsetEligible)
         throw new BusinessError('گزینهٔ S11 برای این برگشت قابل اثبات نیست؛ هیچ مبلغی جابه‌جا نشد.')
@@ -8293,8 +8349,8 @@ export const salesService = {
           'هیچ سهمی به وجه نقد یا اعتبار تازه تبدیل نشد.'
         )
       // runReturn defers only this evidence decision. Discharge the exact same
-      // guard here, before the transaction can commit; a proven transfer plan is
-      // the sole exemption. Nonzero-diff mixed credit remains no-effect blocked.
+      // guard here before commit; only a proven full-child transfer plan (equal
+      // value or the explicit nonzero-delta route above) is an exemption.
       if (await hasUnresolvedExchangeFundingEvidence(tx, source.id) && !fundingSourcesForTransfer)
         throw new BusinessError(
           'تعویضِ این فاکتور به‌دلیل وجود پرداخت اعتباری/ارزش برگشتی، منشأ پرداخت نامعلوم، چکِ پاس‌نشده یا ردپای ردمپشن فعال، ' +
@@ -8436,9 +8492,12 @@ export const salesService = {
                 exchangeDays: (await readCreditSettings(tx)).types.EXCHANGE.days,
                 returnCodeDays: defaults.returnCodeDays }),
               length: defaults.returnCodeLength,
+              status: chainedGiftFirstSettlement ? CreditStatus.DRAFT : undefined,
               note: `اعتبار غیرنقدی برای سهم پول واقعیِ ماندهٔ مختلط S1 · سند ${faDigits(exchangeInvoice.receiptNo)}`,
               userId: input.userId ?? null, issuedAt: now
             })
+            if (chainedGiftFirstSettlement)
+              await tx.creditDelivery.create({ data: { creditId: Number(credit.id), sourceKind: 'CHAIN_REAL_REFUND' } })
             sourceSpecificCredits.push(credit)
             settlement = ExchangeSettlement.CREDIT
           } else {
@@ -8698,7 +8757,7 @@ export const salesService = {
         const srcDebt = await invoiceRemaining(tx, source.id, toNumberRial(source.grandTotal), receivedTotalOf(srcRows))
         debtCut = Math.min(owedTotal, Math.max(0, srcDebt.remaining))
         const owed = owedTotal - debtCut
-        if (owed > 0) {
+        if (owed > 0 && !chainedGiftFirstSettlement) {
           /**
            * سقف ایمنی: بازپرداخت از پول *دریافتی* بیشتر نمی‌شود (پول دریافتی خالص
            * منهای بازپرداخت‌های قبلیِ تعویض‌های همین فاکتور). در عمل با debtCut
@@ -8744,7 +8803,7 @@ export const salesService = {
            * (exchangeDiff + exchangeSettlement + refundMethod/refundAmount) و برای
            * نقد در `CashMovement(EXCHANGE_REFUND)` — دقیقاً یک‌بار.
            */
-          await assertExchangeCashLikeRefund(tx, {
+          if (!chainedGiftFirstSettlement) await assertExchangeCashLikeRefund(tx, {
             sourceId: source.id,
             netReceived: srcDebt.netReceived,
             owed,
@@ -8770,7 +8829,7 @@ export const salesService = {
            * پول در این لحظه جابه‌جا نشده است؛ فقط یک تعهد ثبت می‌گردد که مدیر
            * بعداً در تب «درخواست‌های کارت‌به‌کارت» تاییدش می‌کند.
            */
-          await assertExchangeCashLikeRefund(tx, {
+          if (!chainedGiftFirstSettlement) await assertExchangeCashLikeRefund(tx, {
             sourceId: source.id,
             netReceived: srcDebt.netReceived,
             owed,
@@ -8821,10 +8880,13 @@ export const salesService = {
             returnCodeDays: defaults.returnCodeDays
           }),
             length: defaults.returnCodeLength,
+            status: chainedGiftFirstSettlement ? CreditStatus.DRAFT : undefined,
             note: `مابه‌التفاوت تعویض کالا · سند تعویض ${faDigits(exchangeInvoice.receiptNo)}`,
             userId: input.userId ?? null,
             issuedAt: now
           })
+          if (chainedGiftFirstSettlement)
+            await tx.creditDelivery.create({ data: { creditId: Number(credit.id), sourceKind: 'CHAIN_REAL_REFUND' } })
           settlement = ExchangeSettlement.CREDIT
         }
       }
@@ -8992,7 +9054,18 @@ export const salesService = {
           chequePolicyVersion: chequePolicyVersion ?? undefined
         })
         await recordExchangeFundingLineAllocations(tx, exchangeInvoice.id)
-        if (s1ResidualRightsEligible) {
+        if (chainedGiftFirstSettlement && chainedGiftResidualSources.length > 0) {
+          for (const remainder of chainedGiftResidualSources) {
+            const issued = await issueChainedExchangeGiftResidualBarcode(tx, {
+              sourceInvoiceId: Number(source.id), childInvoiceId: Number(exchangeInvoice.id),
+              returnId: Number(back.id), sourceEventId: remainder.sourceEventId,
+              amount: remainder.amount, actorUserId: input.userId ?? null
+            })
+            sourceSpecificCredits.push(issued.credit)
+            if (!credit) credit = issued.credit
+          }
+        }
+        if (s1ResidualRightsEligible && !chainedGiftFirstSettlement) {
           if (partialExchangeCreditRestorePlan) {
             const restored = await applyCreditReturn(tx, {
               invoiceId: Number(source.id), returnId: Number(back.id), full: false,
@@ -9101,10 +9174,16 @@ export const salesService = {
           shiftName: shiftRow?.name ?? null,
           note: 'ثبت‌شده از پنل تعویض کالا'
         })
-        await openCardTransferEntitlement(tx, {
-          returnId: back.id, invoiceId: source.id, requestId: cardTransfer.id,
-          amount: cardToCard, debtReduced: debtCut, actorUserId: input.userId ?? null
-        })
+        if (chainedGiftFirstSettlement)
+          await openChainedExchangeCardTransferEntitlement(tx, {
+            returnId: back.id, invoiceId: source.id, requestId: cardTransfer.id,
+            amount: cardToCard, actorUserId: input.userId ?? null
+          })
+        else
+          await openCardTransferEntitlement(tx, {
+            returnId: back.id, invoiceId: source.id, requestId: cardTransfer.id,
+            amount: cardToCard, debtReduced: debtCut, actorUserId: input.userId ?? null
+          })
         await tx.auditLog.create({
           data: {
             action: AuditAction.CARD_TRANSFER_REQUEST,
@@ -9173,9 +9252,12 @@ export const salesService = {
           (diff > 0
             ? `${money(diff)} ریال از مشتری دریافت شد`
             : diff < 0
-              ? s1ResidualRightsEligible
-                ? `${money(returnTotal - exchangeTotal)} ریال بارکد غیرنقدیِ ریشه‌دار ایجاد شد`
-                : (debtCut > 0 ? `${money(debtCut)} ریال از بدهی فاکتور اصلی کم شد` : '') +
+              ? chainedGiftFirstSettlement
+                ? `${s1GiftResidualAmount > 0 ? `${money(s1GiftResidualAmount)} ریال اعتبارِ ریشه‌دار باقی‌مانده جداگانه ثبت شد` : 'اعتبارِ ریشه‌دار در کالای جایگزین مصرف شد'}` +
+                  (s1RealResidualAmount > 0 ? ` · ${money(s1RealResidualAmount)} ریال ماندهٔ واقعی با روش انتخابی تسویه شد` : '')
+                : s1ResidualRightsEligible
+                  ? `${money(s1GiftResidualAmount)} ریال بارکد غیرنقدیِ ریشه‌دار ایجاد شد`
+                  : (debtCut > 0 ? `${money(debtCut)} ریال از بدهی فاکتور اصلی کم شد` : '') +
                 (debtCut > 0 && -diff - debtCut > 0 ? ' و ' : '') +
                 (-diff - debtCut > 0
                   ? credit
@@ -9206,6 +9288,7 @@ export const salesService = {
         storeCredit: credit ? shapeStoreCreditSafe(credit) : null,
         storeCredits: [...new Map([...sourceSpecificCredits, ...(credit ? [credit] : [])]
           .filter(Boolean).map((row: any) => [Number(row.id), row])).values()].map((row: any) => shapeStoreCreditSafe(row)),
+        creditHandoffRequired: chainedGiftFirstSettlement && (sourceSpecificCredits.length > 0 || !!credit),
         residualRights: s1ResidualRights?.rights?.length ? {
           giftCarry: s1ResidualRights.giftCarry, cashCarry: s1ResidualRights.cashCarry,
           rights: s1ResidualRights.rights.map((right: any) => ({

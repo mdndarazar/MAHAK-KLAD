@@ -103,7 +103,7 @@ async function ensureRightCode(tx: Client, opening: any, replayed: boolean) {
  */
 async function issueResidualBarcode(tx: Client, input: {
   sourceInvoiceId: number; childInvoiceId: number; returnId: number; amount: number
-  source: any; actorUserId?: number | null
+  source: any; actorUserId?: number | null; deliverySourceKind?: string
 }) {
   const amount = int(input.amount, 'مبلغ اعتبار باقیمانده')
   let rootEvent = input.source.row.event
@@ -174,7 +174,9 @@ async function issueResidualBarcode(tx: Client, input: {
       issuedAt: new Date(), userId: input.actorUserId ?? null
     })
     if (!credit) throw stale()
-    await tx.creditDelivery.create({ data: { creditId: Number(credit.id), sourceKind: 'CREDIT_RETURN_OPPORTUNITY' } })
+    await tx.creditDelivery.create({ data: {
+      creditId: Number(credit.id), sourceKind: input.deliverySourceKind ?? 'CREDIT_RETURN_OPPORTUNITY'
+    } })
     await appendCreditReturnAllocation(tx, {
       returnId: input.returnId, invoiceId: Number(redemption.invoiceId), redemptionId: Number(redemption.id),
       parentCreditId, rootCreditId, originNominal: BigInt(toNumberRial(rootCredit.amount)),
@@ -199,8 +201,62 @@ async function issueResidualBarcode(tx: Client, input: {
     evidenceRef: `StoreCredit:${Number(credit.id)}`, actorUserId: input.actorUserId ?? null
   })
   const delivery = await tx.creditDelivery.findUnique({ where: { creditId: Number(credit.id) } })
-  if (!delivery || delivery.sourceKind !== 'CREDIT_RETURN_OPPORTUNITY') throw stale()
+  if (!delivery || delivery.sourceKind !== (input.deliverySourceKind ?? 'CREDIT_RETURN_OPPORTUNITY')) throw stale()
   return { credit, delivery, amount, expiresAt, rootCreditId, replayed: !!existingAllocation }
+}
+
+/** Issue a successor for the exact unused SOURCE_GIFT share in a complete
+ * nested exchange. This wrapper verifies the reciprocal return/child links and
+ * both persisted funding ledgers before allowing the lower-level lineage code
+ * to debit that gift share. It deliberately does not handle B/N rights.
+ */
+export async function issueChainedExchangeGiftResidualBarcode(tx: Client, input: {
+  sourceInvoiceId: number; childInvoiceId: number; returnId: number;
+  sourceEventId: number; amount: number; actorUserId?: number | null
+}) {
+  const sourceInvoiceId = id(input.sourceInvoiceId, 'شناسه فاکتور مبدأ')
+  const childInvoiceId = id(input.childInvoiceId, 'شناسه فرزند')
+  const returnId = id(input.returnId, 'شناسه برگشت')
+  const sourceEventId = id(input.sourceEventId, 'شناسه سهم اعتبار')
+  const amount = int(input.amount, 'مبلغ اعتبار باقیمانده')
+  const [ret, sourceInvoice, childInvoice, parentFunding, childFunding] = await Promise.all([
+    tx.saleReturn.findUnique({ where: { id: returnId }, select: {
+      id: true, invoiceId: true, kind: true, total: true, exchangeInvoiceId: true,
+      exchangeTotal: true, voidedAt: true
+    } }),
+    tx.saleInvoice.findUnique({ where: { id: sourceInvoiceId }, select: {
+      id: true, orderType: true, sourceInvoiceId: true, exchangeReturnId: true, voidedAt: true
+    } }),
+    tx.saleInvoice.findUnique({ where: { id: childInvoiceId }, select: {
+      id: true, orderType: true, sourceInvoiceId: true, exchangeReturnId: true, grandTotal: true, voidedAt: true
+    } }),
+    getCurrentExchangeFundingSources(tx, sourceInvoiceId, {
+      allowReturnBalanceChanges: true, allowExpiredGiftForReturnAttribution: true
+    }),
+    getCurrentExchangeFundingSources(tx, childInvoiceId, {
+      allowReturnBalanceChanges: true, allowExpiredGiftForReturnAttribution: true
+    })
+  ])
+  if (!ret || !sourceInvoice || !childInvoice || ret.voidedAt != null || sourceInvoice.voidedAt != null ||
+      childInvoice.voidedAt != null || ret.kind !== 'EXCHANGE' ||
+      Number(ret.invoiceId) !== sourceInvoiceId || Number(ret.exchangeInvoiceId) !== childInvoiceId ||
+      sourceInvoice.orderType !== 'EXCHANGE' || childInvoice.orderType !== 'EXCHANGE' ||
+      Number(childInvoice.sourceInvoiceId) !== sourceInvoiceId || Number(childInvoice.exchangeReturnId) !== returnId ||
+      toNumberRial(ret.exchangeTotal) !== toNumberRial(childInvoice.grandTotal) ||
+      !parentFunding.snapshotExists || parentFunding.stale || parentFunding.unresolved.length > 0 ||
+      parentFunding.activeReturnIds.length !== 1 || parentFunding.activeReturnIds[0] !== returnId ||
+      !childFunding.snapshotExists || childFunding.stale || childFunding.unresolved.length > 0 ||
+      childFunding.sourceInvoiceId !== sourceInvoiceId || childFunding.returnId !== returnId ||
+      childFunding.activeReturnIds.length !== 0 || childFunding.lineAllocationStatus !== 'PERSISTED_RECONCILED')
+    throw invalid()
+  const source = parentFunding.sources.find((row) => Number(row.event.id) === sourceEventId)
+  if (!source || source.sourceKind !== 'SOURCE_GIFT' || source.available !== amount ||
+      !Number.isSafeInteger(toNumberRial(source.event.amount)) || toNumberRial(source.event.amount) <= 0)
+    throw invalid()
+  return issueResidualBarcode(tx, {
+    sourceInvoiceId, childInvoiceId, returnId, amount, source: { row: source },
+    actorUserId: input.actorUserId, deliverySourceKind: 'CHAIN_GIFT_RESIDUAL'
+  })
 }
 
 /** Issue one non-cash successor barcode for the exact S1 gift/barcode remainder

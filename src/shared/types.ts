@@ -2372,9 +2372,11 @@ export interface ExchangeSaleResult {
   settlement: string
   settlementLabel: string
   /** اعتبار اصلی صادرشده؛ کد فقط از مسیر چاپ مجاز. */
-  storeCredit: StoreCreditSafeRow | null
+  storeCredit: (StoreCreditSafeRow & { firstPrintGrant?: string | null }) | null
   /** Multiple source-specific non-cash barcodes can accompany one mixed-source exchange. */
-  storeCredits?: StoreCreditSafeRow[]
+  storeCredits?: Array<StoreCreditSafeRow & { firstPrintGrant?: string | null }>
+  /** These exchange-return barcodes are draft until printed and witnessed as handed to the customer. */
+  creditHandoffRequired?: boolean
   /** S1/S11: provenance-backed, non-cash successor barcode(s); never cash refunds. */
   residualRights?: {
     giftCarry: number

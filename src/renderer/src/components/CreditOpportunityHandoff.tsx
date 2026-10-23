@@ -93,7 +93,8 @@ export default function CreditOpportunityHandoff({ credits }: {
       <button className="btn" disabled={busy !== null || (!password.trim() && !credit.firstPrintGrant)}
         onClick={() => void print(credit.creditId)}>{printed.includes(credit.creditId) ? 'چاپ مجدد با رمز مدیر' :
           credit.firstPrintGrant ? 'چاپ اول تحت مجوز صدور' : 'چاپ تحت نظر مدیر'}</button>
-      <button className="btn btn-primary" disabled={busy !== null || !password.trim() || !confirmed || delivered.includes(credit.creditId)}
+      <button className="btn btn-primary" disabled={busy !== null || !password.trim() || !confirmed ||
+        (['DRAFT', 'PENDING_DELIVERY'].includes(credit.status) && !printed.includes(credit.creditId)) || delivered.includes(credit.creditId)}
         onClick={() => void deliver(credit.creditId)}>ثبت تحویل واقعی</button>
     </div>)}
     {message && <p className="text-emerald-800">{message}</p>}

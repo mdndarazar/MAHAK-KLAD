@@ -12,7 +12,7 @@ import { PANEL_KEYS } from '@shared/panels'
 import { releasedStockNote } from '@shared/pendingRestock'
 import { assertPanelPassword } from './AuthService'
 import { pendingRestockService } from './PendingRestockService'
-import { assertOrdinaryReturnLineage, markBankDeclaration, markBankCancellationUnknown } from './ReturnEntitlementService'
+import { assertOrdinaryReturnLineage, assertReturnEntitlementLineage, markBankDeclaration, markBankCancellationUnknown } from './ReturnEntitlementService'
 import { toNumberRial } from '@shared/money'
 
 /**
@@ -362,7 +362,9 @@ export const cardTransferService = {
       if (!row) throw new Error('این درخواست کارت‌به‌کارت پیدا نشد.')
       if (row.kind !== CardTransferKind.REQUEST)
         throw new Error('رویداد اصلاحی خودش قابل پرداخت نیست؛ روی درخواست اصلی اقدام کنید.')
-      await assertOrdinaryReturnLineage(tx, Number(row.returnId))
+      const existingEntitlement = await tx.returnEntitlement.findUnique({ where: { requestId: id } })
+      if (existingEntitlement) await assertReturnEntitlementLineage(tx, existingEntitlement)
+      else await assertOrdinaryReturnLineage(tx, Number(row.returnId))
       if (row.status !== CardTransferStatus.PENDING)
         throw new Error(
           'این درخواست قبلاً پرداخت شده است. رکورد پرداخت‌شده ویرایش نمی‌شود؛ ' +

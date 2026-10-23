@@ -12,7 +12,7 @@ import {
 } from '@shared/pendingRestock'
 import { inventoryService } from './InventoryService'
 import { stockAllocationService } from './StockAllocationService'
-import { assertOrdinaryReturnLineage } from './ReturnEntitlementService'
+import { assertOrdinaryReturnLineage, assertReturnEntitlementLineage } from './ReturnEntitlementService'
 import { toNumberRial } from '@shared/money'
 
 const PENDING_RESTOCK_READ_PAGE = 2000
@@ -297,11 +297,12 @@ export const pendingRestockService = {
       if (managerPaymentOperationKind != null && managerPaymentOperationKind !== expectedOperationKind)
         throw new Error('نوع درخواست کارت‌به‌کارت با همان برگشت/تعویض سازگار نیست؛ آزادسازی موجودی رد شد.')
     }
-    await assertOrdinaryReturnLineage(tx, returnId, Number(ret.invoiceId))
-    if (await tx.returnCorrection.findUnique({ where: { returnId }, select: { id: true } }))
-      throw new Error('این برگشت اصلاح جبرانی ثبت‌شده دارد؛ سند اصلی تاریخی است و کالایی از این مسیر آزاد نمی‌شود.')
     const managerPaymentRelease = managerPaymentRequestId != null
     const managed = await tx.returnEntitlement.findUnique({ where: { returnId } })
+    if (managed) await assertReturnEntitlementLineage(tx, managed)
+    else await assertOrdinaryReturnLineage(tx, returnId, Number(ret.invoiceId))
+    if (await tx.returnCorrection.findUnique({ where: { returnId }, select: { id: true } }))
+      throw new Error('این برگشت اصلاح جبرانی ثبت‌شده دارد؛ سند اصلی تاریخی است و کالایی از این مسیر آزاد نمی‌شود.')
     if (managed && !managerPaymentRelease)
       throw new Error('کالای برگشتیِ کارت‌به‌کارتِ جدید فقط با تأیید پرداخت مدیرِ همان درخواست آزاد می‌شود.')
     if (ret.goodsReceiptRequired && !managerPaymentRelease)

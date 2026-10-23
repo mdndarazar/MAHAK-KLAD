@@ -178,9 +178,9 @@ const REFUND_CHOICES: { value: RefundMethodValue; title: string; hint: string }[
 const EXCHANGE_REFUND_CHOICES: { value: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | 'S1_RESIDUAL_RIGHTS' | 'S11_DEBT_OFFSET_RIGHTS'; title: string; hint: string }[] = [
   { value: 'S11_DEBT_OFFSET_RIGHTS', title: 'کسر بدهی چک + یک بارکد غیرنقدی (فقط S11)', hint: 'فقط برای برگشت کامل فرزند تعویض با یک بدهیِ چکِ باز؛ ابتدا بدهی کسر می‌شود، سپس وجه واقعی اول carry می‌شود و باقیماندهٔ اعتبار ریشه‌دار با یک بارکد و مهلت اصلی صادر می‌شود. چک منبع پرداخت نیست.' },
   { value: 'S1_RESIDUAL_RIGHTS', title: 'ماندهٔ فقط اعتباری S1 → بارکد ریشه‌دار', hint: 'برای مانده‌ای که تماماً از اعتبار ریشه‌دار است. در ماندهٔ مختلط هدیه+وجه، سهم هدیه جداگانه به ریشه برمی‌گردد و این انتخاب برای سهم واقعی لازم نیست.' },
-  { value: 'CASH', title: 'بازپرداخت نقدیِ سهم واقعی', hint: 'فقط تا سقف وجه واقعاً دریافت‌شده؛ سهم اعتبار هدیه جداگانه به منبع خودش برمی‌گردد و نقد نمی‌شود.' },
-  { value: 'CARD', title: 'بازپرداخت کارتیِ سهم واقعی', hint: 'فقط سهم واقعی پول به کارت برگشت می‌شود و تأیید مدیر لازم است؛ سهم اعتبار به ریشهٔ خودش برمی‌گردد.' },
-  { value: 'STORE_CREDIT', title: 'اعتبار غیرنقدی برای سهم واقعی', hint: 'فقط سهم پول واقعی به بارکد غیرنقدی تازه تبدیل می‌شود؛ سهم هدیه هم جداگانه به ریشهٔ خودش برمی‌گردد.' },
+  { value: 'CASH', title: 'بازپرداخت نقدیِ سهم واقعی', hint: 'فقط ماندهٔ نقد/کارتِ اثبات‌شده از منشأ فاکتور برمی‌گردد؛ بارکد اعتبار هرگز نقد نمی‌شود.' },
+  { value: 'CARD', title: 'بازپرداخت کارتیِ سهم واقعی', hint: 'فقط ماندهٔ وجه واقعی به کارت برمی‌گردد و تأیید مدیر لازم است؛ سهم بارکد جدا می‌ماند.' },
+  { value: 'STORE_CREDIT', title: 'اعتبار غیرنقدی برای سهم واقعی', hint: 'ماندهٔ وجه واقعی به کد تازه تبدیل می‌شود؛ در تعویض زنجیره‌ای، تا چاپ و تحویل شاهددار خرج‌پذیر نیست.' },
   { value: 'CARD_TO_CARD', title: 'کارت‌به‌کارت توسط مدیر', hint: 'پرداخت فوری انجام نمی‌شود؛ درخواست پرداخت برای تایید مدیر ثبت می‌شود.' }
 ]
 
@@ -1118,8 +1118,12 @@ export default function SalesReturn() {
       setOrdinaryCreditPrint((before) => before && { ...before, firstPrintGrant: null })
       setRetResult((before: any) => before?.storeCredit?.id === ordinaryCreditPrint.creditId
         ? { ...before, firstPrintGrant: null } : before)
-      setExResult((before) => before?.storeCredit?.id === ordinaryCreditPrint.creditId
-        ? { ...before, firstPrintGrant: null } : before)
+      setExResult((before) => before ? {
+        ...before,
+        firstPrintGrant: before.storeCredit?.id === ordinaryCreditPrint.creditId ? null : before.firstPrintGrant,
+        storeCredits: before.storeCredits?.map((credit) => credit.id === ordinaryCreditPrint.creditId
+          ? { ...credit, firstPrintGrant: null } : credit)
+      } : before)
     }
     try {
       const result = await call<{ warnings?: string[] }>(CH.returnCreditPrint, {
@@ -1567,6 +1571,14 @@ export default function SalesReturn() {
               </span>
             </span>
           ))}
+          {exResult.creditHandoffRequired && (exResult.storeCredits?.length || exResult.storeCredit?.id) ? (
+            <CreditOpportunityHandoff key={`chained-credit-handoff-${exResult.returnId}`} credits={
+              (exResult.storeCredits?.length ? exResult.storeCredits : [exResult.storeCredit!]).map((credit) => ({
+                creditId: credit.id, amount: credit.amount, status: credit.status,
+                returnId: exResult.returnId, firstPrintGrant: credit.firstPrintGrant ?? exResult.firstPrintGrant ?? null
+              }))
+            } />
+          ) : null}
           {exResult.residualRights && (
             <div className="w-full rounded border-2 border-sky-400 bg-sky-50 p-3 space-y-2">
               <b>سهم‌های منشأدار ثبت شدند؛ اعتبار بارکدی نقدشدنی نیست.</b>
@@ -1581,10 +1593,10 @@ export default function SalesReturn() {
           <button className="btn btn-primary" onClick={() => void printExchange(exResult.returnId)} disabled={printing}>
             {printing ? 'در حال چاپ…' : 'چاپ سند تعویض'}
           </button>
-          {(exResult.storeCredits?.length ? exResult.storeCredits : (exResult.storeCredit?.id ? [exResult.storeCredit] : [])).map((credit) => (
+          {!exResult.creditHandoffRequired && (exResult.storeCredits?.length ? exResult.storeCredits : (exResult.storeCredit?.id ? [exResult.storeCredit] : [])).map((credit) => (
             <button key={`exchange-credit-print-${credit.id}`} className="btn" disabled={printing} onClick={() => {
               setOrdinaryCreditPrint({ creditId: credit.id, returnId: exResult.returnId,
-                firstPrintGrant: exResult.firstPrintGrant ?? null })
+                firstPrintGrant: credit.firstPrintGrant ?? exResult.firstPrintGrant ?? null })
               setOrdinaryCreditPrintError(null)
             }}>{`چاپ اعتبار غیرنقدی ${money(credit.amount)} ریال`}</button>
           ))}

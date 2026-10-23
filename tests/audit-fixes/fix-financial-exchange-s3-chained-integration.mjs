@@ -76,8 +76,6 @@ const rootPrices = [7_500_000, 7_500_000]
 const rootVariants = rootPrices.map((price, i) => variant(`root-${i}`, price))
 const firstChildVariants = rootPrices.map((price, i) => variant(`child-${i}`, price))
 const grandchildVariants = rootPrices.map((price, i) => variant(`grandchild-${i}`, price))
-const overValueNestedVariant = variant('over-value', 15_000_001)
-const underValueNestedVariant = variant('under-value', 14_999_999)
 const blueBeforeRootSale = await physicalMovementForCustodyShift(shiftId)
 const rootSale = await salesService.create({
   userId, shiftId,
@@ -138,17 +136,6 @@ const secondRequest = {
   managerPassword: DEFAULT_MANAGER_PASSWORD,
   overrideReason: 'S3 child to grandchild equal-value exchange',
   idempotencyKey: 'exchange-request:s3-child-to-grandchild-0001'
-}
-for (const [mismatchVariant, amount, key] of [
-  [overValueNestedVariant, 15_000_001, 'exchange-request:s3-overvalue-mismatch-001'],
-  [underValueNestedVariant, 14_999_999, 'exchange-request:s3-undervalue-mismatch-001']
-]) {
-  await assert.rejects(() => salesService.createExchange({
-    ...secondRequest, replacements: [line(mismatchVariant, amount)], idempotencyKey: key
-  }, { goodsReceiptRequired: false }), /تعویض زنجیره‌ای فقط وقتی مجاز است/u,
-  'a nested price difference is not silently converted to an unproven tender or S1 residual right')
-  assertNoSideEffectDelta(beforeSecond,
-    'unsupported nested exchange difference rolls back return, replacement, stock, payment and ledger effects')
 }
 const second = await salesService.createExchange(secondRequest, { goodsReceiptRequired: false })
 assert.equal(second.diff, 0)

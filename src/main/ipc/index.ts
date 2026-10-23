@@ -6,7 +6,8 @@ import { financialInspectorService } from '../services/financialInspectorService
 import { pendingRestockService } from '../services/PendingRestockService'
 import { returnGoodsService } from '../services/ReturnGoodsService'
 import { managerReplaceLostCredit } from '../services/CreditRecoveryService'
-import { viewReturnEntitlement, reconcileBankDocument, convertCashRight, confirmCreditDelivery } from '../services/ReturnEntitlementService'
+import { viewReturnEntitlement, reconcileBankDocument, convertCashRight, confirmCreditDelivery,
+  assertChainedExchangeCreditDeliveryLineage } from '../services/ReturnEntitlementService'
 import { adjustS7NResidualRight, setS7NResidualRightSourceDisposition,
   reviewS7CardSourceBankStatement } from '../services/ExchangeResidualRightsService'
 import { stockCountService } from '../services/StockCountService'
@@ -783,20 +784,25 @@ export function registerIpcHandlers(): void {
     await assertPanelUnlocked(PANEL_KEYS.salesReturn, 'ثبت تعویض کالا')
     const input = await withSessionActor(p ?? {}, 'ثبت تعویض کالا')
     const result = await salesService.createExchange(input, { requireIdempotencyKey: true })
-    const creditId = result.storeCredit?.id
-    const firstPrintGrant = result.replayed !== true &&
-      ['CREDIT', 'S1_RESIDUAL_RIGHTS', 'S11_DEBT_OFFSET_RIGHTS'].includes(String(result.settlement)) && creditId
-      ? issueCreditFirstPrintGrant(currentPanelSessionOwner(), input.userId, result.returnId, creditId) : null
+    const grants = new Map<number, string | null>()
+    const grantForCredit = (creditId: number | null | undefined) => {
+      if (!creditId || result.replayed === true) return null
+      if (!grants.has(Number(creditId))) grants.set(Number(creditId), issueCreditFirstPrintGrant(
+        currentPanelSessionOwner(), input.userId, result.returnId, Number(creditId)))
+      return grants.get(Number(creditId)) ?? null
+    }
+    const rawCredits = result.storeCredits?.length ? result.storeCredits : (result.storeCredit ? [result.storeCredit] : [])
+    const storeCredits = rawCredits.map((credit) => ({
+      ...credit, firstPrintGrant: grantForCredit(Number(credit.id))
+    }))
+    const firstPrintGrant = grantForCredit(result.storeCredit?.id)
     const residualRights = result.residualRights ? {
       ...result.residualRights,
       rights: result.residualRights.rights.map((right) => ({
-        ...right,
-        firstPrintGrant: result.replayed !== true
-          ? issueCreditFirstPrintGrant(currentPanelSessionOwner(), input.userId, result.returnId, right.creditId)
-          : null
+        ...right, firstPrintGrant: grantForCredit(right.creditId)
       }))
     } : null
-    return { ...result, firstPrintGrant, residualRights }
+    return { ...result, storeCredits, firstPrintGrant, residualRights }
   })
   handle(IPC.saleExchangeList, async (p) => {
     await assertSalesReportsRead('دیدن فهرست تعویض‌های کالا در گزارشات')
@@ -1995,6 +2001,14 @@ export function registerIpcHandlers(): void {
             throw new BusinessError('منشأ/ماندهٔ اعتبارِ برگشتی برای چاپ معتبر نیست؛ مدیر پرونده را بررسی کند.')
           if (grant && (origin.userId !== actor.userId || ret.userId !== actor.userId))
             throw new BusinessError('مجوز چاپ اول فقط برای کارمند ثبت‌کنندهٔ همان برگشت معتبر است.')
+        } else if (delivery.sourceKind === 'CHAIN_GIFT_RESIDUAL' || delivery.sourceKind === 'CHAIN_REAL_REFUND') {
+          const returnId = p?.returnId
+          if (typeof returnId !== 'number' || !Number.isSafeInteger(returnId) || returnId <= 0)
+            throw new BusinessError('سند برگشتِ این اعتبار زنجیره‌ای برای چاپ مشخص نیست.')
+          const checked = await assertChainedExchangeCreditDeliveryLineage(prisma, id, returnId)
+          if (grant && (checked.credit.status !== 'DRAFT' || Number(checked.credit.usedAmount) !== 0 ||
+              checked.credit.userId !== actor.userId || checked.returnRow.userId !== actor.userId))
+            throw new BusinessError('مجوز چاپ اول فقط برای کد خرج‌نشدهٔ همین کارمند و همین برگشت زنجیره‌ای معتبر است.')
         } else if (grant || !['MANAGER_REPLACEMENT', 'CASH_RIGHT_CONVERSION'].includes(delivery.sourceKind))
           throw new BusinessError('این اعتبار مجوز چاپ اول فروشنده ندارد؛ چاپ کنترل‌شده با تأیید مدیر انجام شود.')
       } else {
