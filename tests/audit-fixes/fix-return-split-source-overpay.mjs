@@ -57,6 +57,11 @@ const mixed = await salesService.create({
 })
 assert.equal(Number(mixed.grandTotal), 5_000_000)
 assert.equal(Number(mixed.paidTotal), 5_000_000)
+assert.equal(Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', v5m).stock), 99,
+  'selling the item deducts one unit from stock')
+const spentSourceGift = seed.one('SELECT status, usedAmount, usedCount FROM "StoreCredit" WHERE id=?', sourceGift.id)
+assert.deepEqual([spentSourceGift.status, Number(spentSourceGift.usedAmount), Number(spentSourceGift.usedCount)],
+  ['USED', 1_000_000, 1], 'the old 1M barcode is consumed by the original sale')
 const saleItemId = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', mixed.id).id
 const preview = await salesService.returnProvenancePreview({ invoiceId: mixed.id, lines: [{ saleItemId, qty: 1 }] })
 assert.deepEqual([preview.returnTotal, preview.debtReduced, preview.giftOpportunity, preview.cashRight],
@@ -74,6 +79,9 @@ assert.deepEqual([
 assert.equal(Number(result.invoiceOverpaid), 0, 'restoring gift source does not create overpay')
 assert.equal(Number(result.invoiceRemaining), 0)
 assert.equal(Number(result.creditOpportunity?.restored), 1_000_000)
+const oldGiftAfterReturn = seed.one('SELECT status, usedAmount, usedCount FROM "StoreCredit" WHERE id=?', sourceGift.id)
+assert.deepEqual([oldGiftAfterReturn.status, Number(oldGiftAfterReturn.usedAmount), Number(oldGiftAfterReturn.usedCount)],
+  ['USED', 1_000_000, 1], 'the old spent barcode stays USED; the restored 1M is represented by a successor')
 assert.equal(Object.hasOwn(result, 'storeCreditCode'), false, 'the spendable barcode is not returned to renderer memory')
 assert.equal(Object.hasOwn(result.storeCredit ?? {}, 'code'), false, 'the split-credit DTO contains only a safe reference')
 assert.equal(Number(seed.one('SELECT SUM(amount) AS n FROM "CreditReturnAllocation" WHERE returnId=?', result.id).n), 1_000_000)
@@ -116,13 +124,19 @@ assert.match(returnHtml, /2,000,000|۲٬۰۰۰٬۰۰۰/)
 assert.doesNotMatch(returnHtml, new RegExp(sourceGift.code), 'return receipt must not expose the spent source barcode')
 assert.equal(refundFromReceivedOf({ kind: 'RETURN', total: 5_000_000, refundMethod: 'CASH',
   refundAmount: 2_000_000, refundStoreCreditAmount: 2_000_000 }), 4_000_000)
-const creditBarcode = seed.one('SELECT id, amount FROM "StoreCredit" WHERE id=(SELECT storeCreditId FROM "SaleReturn" WHERE id=?)', result.id)
+const creditBarcode = seed.one('SELECT id, amount, code FROM "StoreCredit" WHERE id=(SELECT storeCreditId FROM "SaleReturn" WHERE id=?)', result.id)
 assert.equal(Number(creditBarcode.amount), 2_000_000)
 assert.deepEqual(seed.rows('SELECT amount, source, status FROM "StoreCredit" WHERE returnId=? ORDER BY amount', result.id)
   .map((row) => [Number(row.amount), row.source, row.status]), [
   [1_000_000, 'MANUAL', 'DRAFT'], [2_000_000, 'EXCHANGE', 'ACTIVE']
 ], 'full mixed return stages the restored 1M source barcode and activates the separate 2M real-right code')
 const restoredSourceCredit = seed.one('SELECT id, code, status, amount FROM "StoreCredit" WHERE returnId=? AND amount=1000000', result.id)
+const splitBarcodePaper = await printService.creditDocDataFor(Number(creditBarcode.id), { shopName: 'Test shop' })
+const restoredBarcodePaper = await printService.creditDocDataFor(Number(restoredSourceCredit.id), { shopName: 'Test shop' })
+for (const [paper, expectedCode] of [[splitBarcodePaper, creditBarcode.code], [restoredBarcodePaper, restoredSourceCredit.code]]) {
+  assert.equal(paper.code, expectedCode, 'credit paper is generated from the exact main-database code')
+  assert.match(paper.barcodeDataUrl ?? '', /^data:image\/png;base64,/, 'print paper contains a rendered barcode image')
+}
 assert.deepEqual(result.creditOpportunity.pendingDelivery.map((row) => [row.creditId, row.amount, row.status, row.returnId]),
   [[restoredSourceCredit.id, 1_000_000, 'PENDING_DELIVERY', result.id]],
   'the restored-source barcode is surfaced in the controlled handoff list')
@@ -187,6 +201,32 @@ assert.throws(() => sql.prepare('UPDATE "SaleReturn" SET refundStoreCreditAmount
 assert.throws(() => sql.prepare("UPDATE \"SaleReturn\" SET refundMethod='CARD' WHERE id=?").run(result.id),
   /Split store-credit refunds require the CASH primary settlement/)
 
+// Same scenario, different customer choice: refund all 4M in cash; restore the
+// original 1M gift as its own successor code. No 4M barcode is created.
+const vCashFull = variant(5_000_000)
+const cashFullGift = await credit(1_000_000, 'source credit for full-cash variant')
+const cashFullSale = await salesService.create({ userId, shiftId,
+  lines: [line(vCashFull, 5_000_000)],
+  payments: [{ methodId, amount: 4_000_000, destination: 'CASH' }],
+  storeCreditCode: cashFullGift.code, storeCreditAmount: 1_000_000,
+  storeCreditIdempotencyKey: 'full-cash-source-gift-spend'
+})
+assert.equal(Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', vCashFull).stock), 99)
+const cashFullItemId = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', cashFullSale.id).id
+const cashFullReturn = await salesService.createReturn({ invoiceId: cashFullSale.id, full: true,
+  lines: [{ saleItemId: cashFullItemId, qty: 1 }], refundMethod: 'CASH', refundAmount: 4_000_000,
+  userId, shiftId })
+assert.deepEqual([
+  Number(cashFullReturn.total), Number(cashFullReturn.refundAmount),
+  Number(cashFullReturn.refundStoreCreditAmount), Number(cashFullReturn.creditOpportunity.restored)
+], [5_000_000, 4_000_000, 0, 1_000_000])
+assert.equal(Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', vCashFull).stock), 100)
+assert.equal(Number(seed.one('SELECT SUM(amount) AS n FROM "CashMovement" WHERE refType=\'SaleReturn\' AND refId=?', cashFullReturn.id).n), 4_000_000)
+assert.equal(Number(seed.one('SELECT amount FROM "StoreCredit" WHERE id=(SELECT storeCreditId FROM "SaleReturn" WHERE id=?)', cashFullReturn.id).amount),
+  1_000_000, 'only the original spent gift becomes a successor; no 4M barcode is issued')
+assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', cashFullGift.id).status, 'USED')
+assert.equal(4_000_000 - 4_000_000, 0, 'returning all real money leaves zero net cash effect')
+
 // 2) Historical overpay attribution: store credit is applied to invoice value
 // before actual cash, regardless of the insertion order of the payment rows.
 const overpayGift = await credit(1_000_000, 'credit tender for legacy overpay provenance test')
@@ -240,4 +280,5 @@ console.log('✓ return stock and report totals reflect the separate settlement 
 console.log('✓ cash ledger outflow remains 2M; real-money net effect is +2M')
 console.log('✓ split barcode can use only its remaining balance; replay and overspend are blocked')
 console.log('✓ source-aware overpay stays on cash, independent of tender row order')
+console.log('✓ full-cash alternative: 4M out, 1M source successor only, stock restored, blue net zero')
 console.log('✓ DB trigger blocks settlement legs above the authorized right')

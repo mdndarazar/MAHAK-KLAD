@@ -24,6 +24,7 @@ const { registerIpcHandlers } = await import('../../src/main/ipc/index.ts')
 const { runWithPanelSessionOwner, notePanelUnlocked, isManagerSessionUnlocked } = await import('../../src/main/services/panelSession.ts')
 const { PANEL_KEYS } = await import('@shared/panels')
 const { salesService } = await import('../../src/main/services/SalesService.ts')
+const { issueStoreCredit } = await import('../../src/main/services/StoreCreditService.ts')
 const { printService, exchangeAccountingPrintData } = await import('../../src/main/services/PrintService.ts')
 const { IPC } = await import('@shared/ipc')
 const { DEFAULT_MANAGER_PASSWORD } = await import('@shared/receipt')
@@ -218,7 +219,48 @@ try {
   assert.equal((await ipc(IPC.returnCreditPrint, { creditId: retryFirst.creditId,
     returnId: retryFirst.returnId, managerPassword: DEFAULT_MANAGER_PASSWORD })).ok, true,
   'manager may print the SAME issued code after printer failure, not replace/burn it')
-  console.log('✓ paper: optional holders, window/actor-scoped first print, manager reprint/recovery, no code in DTO')
+
+  // Mixed 5M return: the direct 2M split code and the restored 1M source
+  // successor each receive their own controlled first-print path.
+  const sourceGift = await db.$transaction((tx) => issueStoreCredit(tx, {
+    source: 'MANUAL', amount: 1_000_000, multiUse: false, maxUses: 1,
+    days: 30, userId, note: 'mixed return source print test'
+  }))
+  const splitVariant = seed.variant(product, 'MIXED-5M-PRINT')
+  sql.prepare('UPDATE "ProductVariant" SET stock=10, salePrice=5000000 WHERE id=?').run(splitVariant)
+  const mixedSale = await salesService.create({ userId, shiftId,
+    lines: [{ variantId: splitVariant, qty: 1, unitPrice: 5_000_000, discount: 0, tax: 0 }],
+    payments: [{ methodId, amount: 4_000_000, destination: 'CASH' }],
+    storeCreditCode: sourceGift.code, storeCreditAmount: 1_000_000,
+    storeCreditIdempotencyKey: 'ordinary-paper-mixed-source-spend'
+  })
+  const mixedItemId = itemId(mixedSale.id)
+  const mixedReturn = await ipc(IPC.saleReturn, { invoiceId: mixedSale.id, full: true,
+    lines: [{ saleItemId: mixedItemId, qty: 1 }], refundMethod: 'CASH',
+    refundAmount: 2_000_000, refundStoreCreditAmount: 2_000_000,
+    idempotencyKey: 'return-request:mixed-paper-split-0001', userId: -1, shiftId })
+  assert.equal(mixedReturn.ok, true, mixedReturn.error)
+  assert.equal(mixedReturn.data.storeCredit.code, undefined)
+  assert.equal(mixedReturn.data.storeCreditCode, undefined)
+  assert.match(mixedReturn.data.firstPrintGrant, /^[0-9a-f]{64}$/,
+    'the 2M cash-right barcode receives a first-print permit')
+  assert.equal(mixedReturn.data.creditOpportunity.pendingDelivery.length, 1)
+  const restored = mixedReturn.data.creditOpportunity.pendingDelivery[0]
+  assert.equal(restored.amount, 1_000_000)
+  assert.match(restored.firstPrintGrant, /^[0-9a-f]{64}$/,
+    'the 1M source successor receives a separate first-print permit')
+  for (const credit of [
+    { creditId: mixedReturn.data.storeCredit.id, returnId: mixedReturn.data.id,
+      firstPrintGrant: mixedReturn.data.firstPrintGrant },
+    { creditId: restored.creditId, returnId: restored.returnId, firstPrintGrant: restored.firstPrintGrant }
+  ]) {
+    const printed = await ipc(IPC.returnCreditPrint, credit)
+    assert.equal(printed.ok, true, printed.error)
+    assert.equal(printCalls.at(-1).id, credit.creditId)
+    assert.equal(printCalls.at(-1).firstPrintAuthorized, true)
+    assert.equal(printCalls.at(-1).password, undefined)
+  }
+  console.log('✓ paper: both split-return codes get their own safe, scoped first-print flow; no code in DTO')
 } finally {
   printService.printCredit = originalPrint
 }
