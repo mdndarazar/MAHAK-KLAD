@@ -37,7 +37,10 @@ export async function debtAdjustmentsByInvoice(client: Client, ids: number[], as
     const rets = await (client as any).saleReturn.findMany({
       // نشست ۶۴ · بند ۴-۲۲ — برگشت باطل‌شده بدهی را کم نمی‌کند
       where: { invoiceId: { in: chunk }, voidedAt: null, ...(asOf ? { returnedAt: { lte: asOf } } : {}) },
-      select: { id: true, invoiceId: true, kind: true, total: true, refundMethod: true, refundAmount: true, exchangeDiff: true, debtReduction: true }
+      select: {
+        id: true, invoiceId: true, kind: true, exchangeInvoiceId: true,
+        total: true, refundMethod: true, refundAmount: true, refundStoreCreditAmount: true, exchangeDiff: true, debtReduction: true
+      }
     })
     if (!rets.length) continue
     /**
@@ -75,10 +78,122 @@ export async function debtAdjustmentsByInvoice(client: Client, ids: number[], as
       })
       for (const q of reqs) canceled.add(q.returnId)
     }
+    // A canceled NEW transfer still has a reserved cash entitlement until
+    // independent bank evidence settles its outcome. Treating it as ordinary
+    // OVERPAY would invent a second origin for the same customer right.
+    const managedCanceled = new Set<number>()
+    const canceledIds = [...canceled]
+    for (let j = 0; j < canceledIds.length; j += 500) {
+      const claims = await (client as any).returnEntitlement.findMany({
+        where: { returnId: { in: canceledIds.slice(j, j + 500) } }, select: { returnId: true }
+      })
+      for (const claim of claims) managedCanceled.add(Number(claim.returnId))
+    }
+    // Read only the immutable allocations of these active returns. An older
+    // invoice has no rows: do not infer that its credit was/wasn't returned.
+    // The sum is a non-cash refund of the Payment funded by store credit;
+    // otherwise settlement would invent OVERPAY out of a restored gift.
+    const nonCashByReturn = new Map<number, number>()
+    for (let j = 0; j < activeRets.length; j += 500) {
+      const allocated = await (client as any).creditReturnAllocation.groupBy({
+        by: ['returnId'],
+        where: { returnId: { in: activeRets.slice(j, j + 500).map((r: any) => r.id) } },
+        _sum: { amount: true }
+      })
+      for (const row of allocated)
+        nonCashByReturn.set(Number(row.returnId), toNumberRial(row._sum.amount ?? 0))
+    }
+    // S1 B/N restoration is an immutable right-ledger event, not a generic
+    // CreditReturnAllocation successor. Count it as the same non-cash return
+    // adjustment so the sale cannot manufacture OVERPAY from restored rights.
+    const restoredEvents = await (client as any).exchangeResidualRightEvent.findMany({
+      where: { relatedReturnId: { in: activeRets.map((r: any) => Number(r.id)) }, eventKind: 'RESTORED',
+        ...(asOf ? { createdAt: { lte: asOf } } : {}) },
+      select: { relatedReturnId: true, amount: true }
+    })
+    for (const event of restoredEvents) {
+      const returnId = Number(event.relatedReturnId)
+      nonCashByReturn.set(returnId, (nonCashByReturn.get(returnId) ?? 0) + toNumberRial(event.amount))
+    }
+    // A child return releases exchange carry back to its source share; it is a
+    // non-cash settlement adjustment just like restored B/N rights. Only live
+    // RETURN_TRANSFER_OUT rows count (voided returns are excluded above).
+    const activeReturnIds = activeRets.map((r: any) => Number(r.id))
+    const childCarryReturnedByReturn = new Map<number, number>()
+    const directResidualReturnByReturn = new Map<number, number>()
+    const carryChunks: number[][] = []
+    for (let j = 0; j < activeReturnIds.length; j += 500)
+      carryChunks.push(activeReturnIds.slice(j, j + 500))
+    for (const ids of carryChunks) {
+      const released = await (client as any).exchangeFundingEvent.findMany({
+        where: { relatedReturnId: { in: ids }, kind: 'RETURN_TRANSFER_OUT', reversesEventId: null,
+          ...(asOf ? { createdAt: { lte: asOf } } : {}) },
+        select: { relatedReturnId: true, amount: true, parentEventId: true }
+      })
+      const directTenderIds = [...new Set(released.map((event: any) => Number(event.parentEventId))
+        .filter((id: number) => Number.isSafeInteger(id) && id > 0))]
+      const directTenderKindById = new Map<number, string>()
+      for (let k = 0; k < directTenderIds.length; k += 500) {
+        const origins = await (client as any).exchangeFundingEvent.findMany({
+          where: { id: { in: directTenderIds.slice(k, k + 500) } }, select: { id: true, kind: true }
+        })
+        for (const origin of origins) directTenderKindById.set(Number(origin.id), String(origin.kind))
+      }
+      for (const event of released) {
+        const returnId = Number(event.relatedReturnId)
+        const amount = Math.abs(toNumberRial(event.amount))
+        nonCashByReturn.set(returnId, (nonCashByReturn.get(returnId) ?? 0) + amount)
+        if (directTenderKindById.get(Number(event.parentEventId)) === 'TRANSFER_IN')
+          childCarryReturnedByReturn.set(returnId,
+            (childCarryReturnedByReturn.get(returnId) ?? 0) + amount)
+        // A B/N tender return both restores the same residual right and consumes
+        // its direct child funding share. Those are two records of one non-cash
+        // settlement, not two credits against the return value.
+        if (['SOURCE_N', 'SOURCE_B'].includes(directTenderKindById.get(Number(event.parentEventId)) ?? ''))
+          directResidualReturnByReturn.set(returnId, (directResidualReturnByReturn.get(returnId) ?? 0) + amount)
+      }
+    }
+    // For returns with the immutable per-item source matrix, do not infer
+    // that every released child share is non-cash: cash/card/cleared-cheque
+    // roots may now be paid through the ordinary return settlement. The row's
+    // sourceKind is the validated root tender kind captured at return time.
+    const returnAllocationRows = await (client as any).exchangeFundingReturnLineAllocation.findMany({
+      where: { returnId: { in: activeReturnIds }, eventKind: 'ALLOCATION' },
+      select: { returnId: true, sourceKind: true, amountDelta: true, reversesAllocationId: true }
+    })
+    const allocationTotals = new Map<number, { total: bigint; nonCash: bigint }>()
+    for (const row of returnAllocationRows) {
+      const returnId = Number(row.returnId)
+      const ret = activeRets.find((candidate: any) => Number(candidate.id) === returnId)
+      const amount = toNumberRial(row.amountDelta)
+      if (!ret || row.reversesAllocationId != null || !Number.isSafeInteger(amount) || amount < 0 ||
+          !['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(String(row.sourceKind)))
+        throw new Error('EXCHANGE_CHILD_RETURN_ALLOCATION_INVALID')
+      const current = allocationTotals.get(returnId) ?? { total: 0n, nonCash: 0n }
+      current.total += BigInt(amount)
+      if (['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B'].includes(String(row.sourceKind))) current.nonCash += BigInt(amount)
+      allocationTotals.set(returnId, current)
+    }
+    const allocationBackedReturnIds = new Set<number>()
+    for (const [returnId, totals] of allocationTotals) {
+      const ret = activeRets.find((candidate: any) => Number(candidate.id) === returnId)
+      if (!ret || totals.total !== BigInt(toNumberRial(ret.total)) ||
+          totals.nonCash > BigInt(Number.MAX_SAFE_INTEGER))
+        throw new Error('EXCHANGE_CHILD_RETURN_ALLOCATION_TOTAL_MISMATCH')
+      allocationBackedReturnIds.add(returnId)
+      nonCashByReturn.set(returnId, Number(totals.nonCash))
+    }
+    for (const [returnId, duplicateRightReturn] of directResidualReturnByReturn) {
+      if (allocationBackedReturnIds.has(returnId)) continue
+      const amount = nonCashByReturn.get(returnId) ?? 0
+      if (duplicateRightReturn > amount) throw new Error('EXCHANGE_RESIDUAL_RIGHT_RETURN_SETTLEMENT_MISMATCH')
+      nonCashByReturn.set(returnId, amount - duplicateRightReturn)
+    }
     const byInv = new Map<number, any[]>()
     for (const r of activeRets) {
       const list = byInv.get(r.invoiceId) ?? []
-      list.push({ ...r, refundCanceled: canceled.has(r.id) })
+      list.push({ ...r, creditRestored: nonCashByReturn.get(Number(r.id)) ?? 0,
+        refundCanceled: canceled.has(r.id) && !managedCanceled.has(r.id) })
       byInv.set(r.invoiceId, list)
     }
     for (const [id, list] of byInv) out.set(id, debtAdjustmentsOf(list))
@@ -106,14 +221,50 @@ export async function debtAdjustmentsByInvoice(client: Client, ids: number[], as
         voidedAt: null,
         ...(asOf ? { returnedAt: { lte: asOf } } : {})
       },
-      select: { invoiceId: true, kind: true, total: true, refundMethod: true, refundAmount: true }
+      select: { id: true, invoiceId: true, kind: true, total: true, refundMethod: true, refundAmount: true, refundStoreCreditAmount: true }
     })
+    const childReturnIds = childRets.map((r: any) => Number(r.id))
+    for (let j = 0; j < childReturnIds.length; j += 500) {
+      const carryRows = await (client as any).exchangeFundingEvent.findMany({
+        where: { relatedReturnId: { in: childReturnIds.slice(j, j + 500) },
+          kind: 'RETURN_TRANSFER_OUT', reversesEventId: null,
+          ...(asOf ? { createdAt: { lte: asOf } } : {}) },
+        select: { relatedReturnId: true, amount: true, parentEventId: true }
+      })
+      const parentEventIds = [...new Set(carryRows.map((event: any) => Number(event.parentEventId))
+        .filter((id: number) => Number.isSafeInteger(id) && id > 0))]
+      const parentTransferIns = new Set<number>()
+      for (let k = 0; k < parentEventIds.length; k += 500) {
+        const origins = await (client as any).exchangeFundingEvent.findMany({
+          where: { id: { in: parentEventIds.slice(k, k + 500) }, kind: 'TRANSFER_IN' },
+          select: { id: true }
+        })
+        for (const origin of origins) parentTransferIns.add(Number(origin.id))
+      }
+      for (const event of carryRows) {
+        if (!parentTransferIns.has(Number(event.parentEventId))) continue
+        const returnId = Number(event.relatedReturnId)
+        const amount = Math.abs(toNumberRial(event.amount))
+        childCarryReturnedByReturn.set(returnId,
+          (childCarryReturnedByReturn.get(returnId) ?? 0) + amount)
+      }
+    }
     for (const r of childRets) {
       if (refundFromReceivedOf(r) > 0) continue
       const srcId = sourceOf.get(r.invoiceId)
       if (srcId == null || !Number.isFinite(srcId)) continue
       const prev = out.get(srcId) ?? { returnedValue: 0, refundFromReceived: 0 }
-      prev.returnedValue += Math.max(0, toNumberRial(r.total))
+      const childReturnValue = Math.max(0, toNumberRial(r.total))
+      const returnedCarry = childCarryReturnedByReturn.get(Number(r.id)) ?? 0
+      if (!Number.isSafeInteger(returnedCarry) || returnedCarry > childReturnValue)
+        throw new Error('EXCHANGE_CHILD_CARRY_RETURN_EXCEEDS_RETURN_TOTAL')
+      prev.returnedValue += childReturnValue
+      // Returned carry is non-cash. Reduce the parent invoice's net received
+      // by the same amount as the returned value so recalcSettlement cannot
+      // manufacture OVERPAY on the source when the carry simply moves home.
+      prev.refundFromReceived += returnedCarry
+      if (!Number.isSafeInteger(prev.returnedValue) || !Number.isSafeInteger(prev.refundFromReceived))
+        throw new Error('EXCHANGE_CHILD_RETURN_ADJUSTMENT_OUT_OF_RANGE')
       out.set(srcId, prev)
     }
   }
@@ -151,12 +302,14 @@ export async function recalcPaymentOverpay(
 ): Promise<{ total: number; changes: { id: number; before: number; after: number }[] }> {
   const rows = await (client as any).payment.findMany({
     where: { invoiceId, voidedAt: null },
-    select: { id: true, amount: true, kind: true, chequeStatus: true, overpayAmount: true, seq: true },
+    select: { id: true, amount: true, kind: true, chequeStatus: true, overpayAmount: true, seq: true, storeCreditId: true, destination: true, method: { select: { kind: true } } },
     orderBy: [{ seq: 'asc' }, { id: 'asc' }]
   })
   const alloc = allocateOverpay(
     // نشست ۱۸۱: `p` عمداً `any` است، پس typecheck این را نگرفت؛ هارنس وفادار گرفت.
-    rows.map((p: any) => ({ id: p.id, amount: toNumberRial(p.amount ?? 0), received: isReceived(p) })),
+    rows.map((p: any) => ({ id: p.id, amount: toNumberRial(p.amount ?? 0), received: isReceived(p),
+      cashable: p.storeCreditId == null && String(p.destination ?? '').toUpperCase() !== 'MANAGER' &&
+      !['STORE_CREDIT', 'EXCHANGE_CREDIT'].includes(String(p.method?.kind ?? '').toUpperCase()) })),
     info
   )
   const changes: { id: number; before: number; after: number }[] = []

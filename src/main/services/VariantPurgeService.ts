@@ -130,6 +130,25 @@ async function dropVariantForeignKeys(tx: Tx): Promise<boolean> {
   const needPurchase = stillHasVariantFk(purchaseSql)
   if (!needSale && !needReturn && !needPurchase) return false
 
+  const rebuiltTables = new Set([
+    ...(needSale || needReturn ? [SALE_ITEM, RETURN_ITEM] : []),
+    ...(needPurchase ? [PURCHASE_ITEM] : [])
+  ])
+  const allTriggers = await tx.$queryRawUnsafe<{ name: string; tbl_name: string; sql: string | null }[]>(
+    `SELECT name, tbl_name, sql FROM sqlite_master WHERE type='trigger' AND sql IS NOT NULL ORDER BY name`
+  )
+  const dependentTriggers = (allTriggers ?? []).filter((trigger) =>
+    rebuiltTables.has(String(trigger.tbl_name)) || [...rebuiltTables].some((table) =>
+      new RegExp(`\\b${table}\\b`, 'i').test(String(trigger.sql))))
+  // SQLite leaves triggers attached to other tables (e.g. SaleReturn) in place
+  // while a referenced SaleReturnItem is temporarily absent. Their next write
+  // then fails with “no such table”; drop their exact DDL transactionally and
+  // restore it after both replacement tables have their final names.
+  for (const trigger of dependentTriggers) {
+    const quotedName = `"${String(trigger.name).replace(/"/g, '""')}"`
+    await tx.$executeRawUnsafe(`DROP TRIGGER ${quotedName}`)
+  }
+
   // ---- جدول فاکتور خرید: مستقل است، پس بازسازی ساده ----
   if (needPurchase) {
     const cols = await columnList(tx, PURCHASE_ITEM)
@@ -168,6 +187,11 @@ async function dropVariantForeignKeys(tx: Tx): Promise<boolean> {
     await tx.$executeRawUnsafe(`ALTER TABLE "${saleTmp}" RENAME TO "${SALE_ITEM}"`)
     await tx.$executeRawUnsafe(`ALTER TABLE "${returnTmp}" RENAME TO "${RETURN_ITEM}"`)
     for (const ddl of [...saleIdx, ...returnIdx]) await tx.$executeRawUnsafe(ddl)
+  }
+
+  for (const trigger of dependentTriggers) {
+    if (!trigger.sql) throw new BusinessError('تعریف trigger محافظ تاریخچه خوانده نشد؛ حذف همیشگی لغو شد.')
+    await tx.$executeRawUnsafe(String(trigger.sql))
   }
 
   // ---- کنترل نهایی: هیچ ارجاع شکسته‌ای نمانده باشد ----

@@ -143,6 +143,8 @@ export interface CustodyConfig {
   dayCutoverMinute: number
   overrunGraceMinutes: number
   continueMaxMinutes: number
+  /** Stable per-attempt deadline: read on successful OUT only; 1–30 minutes. */
+  handoverTtlMinutes: number
 }
 
 export const DEFAULT_CUSTODY_CONFIG: CustodyConfig = {
@@ -153,7 +155,8 @@ export const DEFAULT_CUSTODY_CONFIG: CustodyConfig = {
   reminderEnabled: true,
   dayCutoverMinute: 300,
   overrunGraceMinutes: 60,
-  continueMaxMinutes: 240
+  continueMaxMinutes: 240,
+  handoverTtlMinutes: 10
 }
 
 export function parseCustodyConfig(raw: unknown): CustodyConfig {
@@ -178,7 +181,12 @@ export function parseCustodyConfig(raw: unknown): CustodyConfig {
     reminderEnabled: o.reminderEnabled !== false,
     dayCutoverMinute: whole(o.dayCutoverMinute, DEFAULT_CUSTODY_CONFIG.dayCutoverMinute, 0, 1439),
     overrunGraceMinutes: whole(o.overrunGraceMinutes, DEFAULT_CUSTODY_CONFIG.overrunGraceMinutes, 0, 720),
-    continueMaxMinutes: whole(o.continueMaxMinutes, DEFAULT_CUSTODY_CONFIG.continueMaxMinutes, 0, 720)
+    continueMaxMinutes: whole(o.continueMaxMinutes, DEFAULT_CUSTODY_CONFIG.continueMaxMinutes, 0, 720),
+    // Unlike a display threshold, a malformed TTL is NOT rounded/clamped:
+    // unknown policy falls back to exactly ten minutes in Main.
+    handoverTtlMinutes: Number.isInteger(Number(o.handoverTtlMinutes)) &&
+      Number(o.handoverTtlMinutes) >= 1 && Number(o.handoverTtlMinutes) <= 30
+      ? Number(o.handoverTtlMinutes) : DEFAULT_CUSTODY_CONFIG.handoverTtlMinutes
   }
 }
 
@@ -1077,6 +1085,8 @@ export interface ShiftConfig {
   /** در تک‌شیفت دقیقاً یک مسئول اصلی روزانه مشخص می‌شود؛ در چندشیفت نادیده
    * گرفته می‌شود و کارکنان هر template مستقل‌اند. */
   singleShiftCustodianUserId: number | null
+  /** مجوز صریح تحویل میان‌روز در تک‌شیفت؛ پیش‌فرض امن = خاموش. */
+  singleShiftAllowMidDayHandover: boolean
   /** یادآوری پایان برنامه‌های canonical روشن است؟ */
   reminderEnabled: boolean
   /** مهلت هشدار بعد از پایان برنامه، دقیقه. */
@@ -1117,6 +1127,7 @@ export const DEFAULT_SHIFT_CONFIG: ShiftConfig = {
   custodyMode: 'SINGLE_SHIFT',
   custodyModeConfigured: false,
   singleShiftCustodianUserId: null,
+  singleShiftAllowMidDayHandover: false,
   reminderEnabled: true,
   overrunGraceMinutes: 60,
   templates: DEFAULT_SHIFT_TEMPLATES.map((t) => ({ ...t, staffIds: [...t.staffIds] })),
@@ -1583,6 +1594,7 @@ export const parseShiftConfig = (raw: unknown): ShiftConfig => {
       Number.isSafeInteger(singleShiftCustodianUserId) && singleShiftCustodianUserId > 0
         ? singleShiftCustodianUserId
         : null,
+    singleShiftAllowMidDayHandover: obj.singleShiftAllowMidDayHandover === true,
     reminderEnabled: obj.reminderEnabled !== false,
     overrunGraceMinutes: Math.min(1440, Math.max(0, Math.round(Number(obj.overrunGraceMinutes)) || 60)),
     templates,

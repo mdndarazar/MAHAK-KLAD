@@ -257,7 +257,10 @@ truthy('پنجره‌ی پرداخت‌ها از @shared/overpayFlow می‌خو
 truthy('پنجره‌ی پرداخت‌ها overpayAsCredit می‌فرستد (از درخواست فلو)', modal.includes('overpayFlowNext') && modal.includes('...req,'))
 truthy('دیالوگ دوم «کد اعتبار خرید برای مبلغ اضافه صادر بشود؟»', modal.includes('کد اعتبار خرید برای مبلغ اضافه صادر بشود؟'))
 truthy('دکمه‌ی «صدور اعتبار از اضافه‌دریافت» کانال saleOverpayCredit را صدا می‌زند', modal.includes('CH.saleOverpayCredit') && modal.includes('overpayCreditButton'))
-truthy('کد صادرشده از همان کانال چاپ اعتبار چاپ می‌شود', modal.includes("creditPrintOpRequest('print'"))
+// First OVERPAY paper cannot use the manager-only general print: a committed,
+// window/actor/invoice-bound grant is now checked by its dedicated IPC route.
+truthy('کد صادرشده از کانال کنترل‌شدهٔ چاپ اضافه‌دریافت چاپ می‌شود',
+  modal.includes('call(CH.overpayCreditPrint') && !modal.includes("creditPrintOpRequest('print'"))
 truthy('پنجره‌ی پرداخت‌ها رمز مدیر را برای سقف اعتبار می‌پرسد', modal.includes('overpayFlowPassword'))
 // ⚠️ ناتمام (نشست ۶۲): سیم‌کشی همین فلو در صفحه‌ی فاکتور عمده (SalesInvoice.tsx) هنوز انجام نشده؛ سرور sale:create کامل است.
 const types = src('src/shared/types.ts')

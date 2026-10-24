@@ -21,8 +21,16 @@ const sensitiveHandlers = source
 truthy('helper اختصاصی actor نشست وجود دارد', /async function withSessionActor/.test(source))
 truthy('actor از payload renderer کپی نمی‌شود', /return \{ \.\.\.\(payload \?\? \{\}\), userId: actorId \}/.test(source))
 truthy('نبود نشست عملیات را متوقف می‌کند', /برای ثبت یا تغییر پرداخت، ابتدا یک نشست بازِ کارمند لازم است/.test(source))
-truthy('افزودن پرداخت از actor نشست استفاده می‌کند', /salePaymentAdd[\s\S]{0,180}withSessionActor\(p\)/.test(source))
-truthy('صدور اعتبار اضافه‌دریافت از actor نشست استفاده می‌کند', /saleOverpayCredit[\s\S]{0,180}withSessionActor\(p\)/.test(source))
+// These two handlers now wrap the committed credit in a first-print grant.
+// Check the full handler, not the old single-line text shape.
+const addHandler = source.slice(source.indexOf('handle(IPC.salePaymentAdd,'), source.indexOf('handle(IPC.saleOverpayCredit,'))
+const issueHandler = source.slice(source.indexOf('handle(IPC.saleOverpayCredit,'), source.indexOf('handle(IPC.salePaymentUpdate,'))
+truthy('افزودن پرداخت actor نشست را پیش از سرویس می‌گیرد',
+  /withSessionActor\(p \?\? \{\}, 'ثبت یا تغییر پرداخت'\)/.test(addHandler) &&
+  addHandler.indexOf('withSessionActor(') < addHandler.indexOf('salesService.addPayment('))
+truthy('صدور اعتبار اضافه‌دریافت actor نشست را پیش از سرویس می‌گیرد',
+  /withSessionActor\(p \?\? \{\}, 'صدور اعتبار اضافه‌دریافت'\)/.test(issueHandler) &&
+  issueHandler.indexOf('withSessionActor(') < issueHandler.indexOf('salesService.overpayCreditIssue('))
 truthy('ویرایش پرداخت از actor نشست استفاده می‌کند', /salePaymentUpdate[\s\S]{0,180}withSessionActor\(p\)/.test(source))
 truthy('ابطال پرداخت از actor نشست استفاده می‌کند', /salePaymentDelete[\s\S]{0,180}withSessionActor\(p \?\? \{\}\)/.test(source))
 truthy('تغییر وضعیت چک از actor نشست استفاده می‌کند', /saleChequeStatus[\s\S]{0,180}withSessionActor\(p \?\? \{\}\)/.test(source))

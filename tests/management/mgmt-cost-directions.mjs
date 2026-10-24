@@ -99,7 +99,7 @@ const ret = await salesService.createReturn({
   full: true,
   lines: [{ saleItemId: Number(item.id), qty: 1 }],
   refundMethod: 'CASH'
-})
+}, { goodsReceiptRequired: false }) // fixture تاریخی FIFO با restock فوری و ابطال مستقیم
 await costEngine.run()
 eq('برگشت جنس را به لات برگرداند', lotLeft(), 2)
 

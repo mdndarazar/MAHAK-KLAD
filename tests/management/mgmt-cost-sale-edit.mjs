@@ -134,7 +134,7 @@ await salesService.createReturn({
   full: true,
   lines: [{ saleItemId: Number(item.id), qty: 2 }],
   refundMethod: 'CASH'
-})
+}, { goodsReceiptRequired: false }) // fixture تاریخی: هزینهٔ ویرایش با برگشتِ پیش از cutover
 await costEngine.run()
 eq('برگشت بعد از ویرایش لات را کامل کرد', lotLeft(), 3)
 

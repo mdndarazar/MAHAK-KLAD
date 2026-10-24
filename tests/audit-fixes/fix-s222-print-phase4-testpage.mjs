@@ -34,6 +34,8 @@ register('./support/s129-hooks.mjs', import.meta.url)
 const root = process.env.MAHAK_ROOT ? resolve(process.env.MAHAK_ROOT) : resolve('.')
 const mock = await import('./support/s129-electron-mock.mjs')
 const electron = await import('electron')
+const { attachTestIpcWindow } = await import('../../test/harness/ipcWindow.mjs')
+const { event: ipcEvent } = attachTestIpcWindow(electron)
 const handlers = new Map()
 electron.ipcMain.handle = (ch, fn) => handlers.set(ch, fn)
 
@@ -273,7 +275,7 @@ console.log('\n— ۶) مسیر واقعی: هندلر printTestPage با ماک
    * قرارداد واقعی هندلرها: `handler(event, payload)` و خروجی `{ok,data}` یا
    * `{ok:false,error}` — دقیقاً همان چیزی که preload به renderer می‌دهد.
    */
-  const call = (payload) => handler(null, payload)
+  const call = (payload) => handler(ipcEvent, payload)
 
   await writeSetting(SETTING_KEYS.receiptTemplate, {
     printerName: 'Axiom',

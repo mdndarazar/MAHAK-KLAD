@@ -316,7 +316,7 @@ export function ScopePicker({
           value={scope}
           onChange={(v) => onChange({ restrictScope: v })}
           options={CREDIT_SCOPE_OPTIONS}
-          hint="محدودیت در Backend اعمال می‌شود، نه فقط در UI."
+          hint="اعتبارِ «همهٔ کالاها» عمومی است و در برگشت به قلم‌ها سهم نمی‌گیرد؛ دامنهٔ کالا/دسته، بازگشت اعتبار را فقط به همان اقلام محدود می‌کند. محدودیت در Backend اعمال می‌شود، نه فقط در UI."
         />
         <NumberField
           label="حداقل مبلغ خرید (ریال)"

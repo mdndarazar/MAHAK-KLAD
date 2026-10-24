@@ -43,10 +43,18 @@ ok('saleCreate دیگر withOptionalSessionActor نیست',
   !/IPC\.saleCreate[^\n]*withOptionalSessionActor/.test(IPC))
 ok('saleUpdate هم همین‌طور',
   !/IPC\.saleUpdate[^\n]*withOptionalSessionActor/.test(IPC))
-ok('saleCreate از withSessionActor استفاده می‌کند',
-  /IPC\.saleCreate[^\n]*withSessionActor\(p \?\? \{\}, 'ثبت فاکتور فروش'\)/.test(IPC))
+// Sale creation now passes through the verified custody-operator wrapper;
+// its financial actor still MUST come from withSessionActor, never the payload.
+const saleCreateHandler = IPC.slice(IPC.indexOf('handle(IPC.saleCreate,'), IPC.indexOf('handle(IPC.saleUpdate,'))
+const verifiedSaleOperator = IPC.slice(IPC.indexOf('async function withVerifiedSaleOperator'), IPC.indexOf('async function cardTransferActor'))
+ok('saleCreate از نشست معتبر کارمند/مسئول کشو استفاده می‌کند',
+  /withVerifiedSaleOperator\(p \?\? \{\}\)/.test(saleCreateHandler) &&
+  /withSessionActor\(raw, 'ثبت فاکتور فروش'\)/.test(verifiedSaleOperator))
+// The edit handler now validates a Main-issued form witness around actor
+// acquisition; the actor gate remains inside that handler, not on one line.
+const saleUpdateHandler = IPC.slice(IPC.indexOf('handle(IPC.saleUpdate,'), IPC.indexOf('handle(IPC.saleList,'))
 ok('saleUpdate از withSessionActor استفاده می‌کند',
-  /IPC\.saleUpdate[^\n]*withSessionActor\(p \?\? \{\}, 'ویرایش فاکتور فروش'\)/.test(IPC))
+  /withSessionActor\(p \?\? \{\}, 'ویرایش فاکتور فروش'\)/.test(saleUpdateHandler))
 {
   // و خودِ withSessionActor واقعاً throw می‌کند (نه اینکه فقط نام مشابه باشد)
   const body = IPC.slice(IPC.indexOf('async function withSessionActor'), IPC.indexOf('async function withOptionalSessionActor'))
@@ -55,7 +63,8 @@ ok('saleUpdate از withSessionActor استفاده می‌کند',
 }
 {
   // برگشت و تعویض نباید عقب‌گرد کرده باشند
-  ok('ثبت برگشت هنوز گیت نشست دارد', /IPC\.saleReturn,[^\n]*withSessionActor/.test(IPC))
+  const returnHandler = IPC.slice(IPC.indexOf('handle(IPC.saleReturn,'), IPC.indexOf('handle(IPC.saleReturnProvenancePreview,'))
+  ok('ثبت برگشت هنوز گیت نشست دارد', /withSessionActor\(p \?\? \{\}, 'ثبت برگشت از فروش'\)/.test(returnHandler))
   ok('ویرایش برگشت هم گیت نشست دارد', /IPC\.saleReturnUpdate,[^\n]*withSessionActor/.test(IPC))
 }
 

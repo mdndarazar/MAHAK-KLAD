@@ -18,6 +18,8 @@ const { IPC } = await import('../../src/shared/ipc.ts')
 const { PANEL_KEYS } = await import('../../src/shared/panels.ts')
 const { clearPanelSessions, notePanelUnlocked } = await import('../../src/main/services/panelSession.ts')
 const electron = await import('../../test/harness/stubs/electron.mjs')
+const { attachTestIpcWindow } = await import('../../test/harness/ipcWindow.mjs')
+const { event: ipcEvent, owner: ipcOwner } = attachTestIpcWindow(electron)
 
 const handlers = new Map()
 electron.ipcMain.handle = (channel, fn) => handlers.set(channel, fn)
@@ -41,7 +43,7 @@ const eq = (label, got, want) => {
 const invoke = async (channel, payload = {}) => {
   const handler = handlers.get(channel)
   if (!handler) throw new Error(`IPC handler ثبت نشده: ${channel}`)
-  return handler(undefined, payload)
+  return handler(ipcEvent, payload)
 }
 const readData = (reply) => (reply?.ok ? reply.data : undefined)
 
@@ -87,16 +89,16 @@ eq('پیش‌نمایشِ قیمت خریدِ گروهی بدون نشست ما�
 eq('فهرست تاریخچهٔ تغییر قیمت بدون نشست ماژولش رد می‌شود', (await invoke(IPC.priceAdjustBatches, {}))?.ok, false)
 eq('ردیف‌های تاریخچهٔ قیمت بدون نشست ماژولش رد می‌شود', (await invoke(IPC.priceAdjustBatchLines, { batchId: 1 }))?.ok, false)
 
-notePanelUnlocked(PANEL_KEYS.products, 'PANEL')
+notePanelUnlocked(PANEL_KEYS.products, 'PANEL', ipcOwner)
 const unlockedProductList = await invoke(IPC.productList, { take: 10 })
 eq('پس از بازشدن سروریِ پنل کالا، فرم کالا فی خرید را می‌گیرد', Number(readData(unlockedProductList)?.[0]?.purchasePrice), 123456)
 eq('بازبودن پنل کالا، قفل مستقل فاکتور خرید را دور نمی‌زند', (await invoke(IPC.purchaseGet, { id: purchaseId }))?.ok, false)
 
-notePanelUnlocked(PANEL_KEYS.purchase, 'PANEL')
+notePanelUnlocked(PANEL_KEYS.purchase, 'PANEL', ipcOwner)
 eq('پس از بازشدن سروریِ پنل خرید، جزئیات فاکتور خوانده می‌شود', (await invoke(IPC.purchaseGet, { id: purchaseId }))?.ok, true)
 eq('پس از بازشدن سروریِ پنل خرید، فهرست فاکتور خوانده می‌شود', (await invoke(IPC.purchaseList, {}))?.ok, true)
 
-notePanelUnlocked(PANEL_KEYS.priceAdjust, 'PANEL')
+notePanelUnlocked(PANEL_KEYS.priceAdjust, 'PANEL', ipcOwner)
 const pricePreview = await invoke(IPC.priceAdjustPreview, purchasePreviewInput)
 eq('پس از بازشدن سروریِ ماژول تغییر قیمت، پیش‌نمایش قیمت خرید باز می‌شود', pricePreview?.ok, true)
 eq('پیش‌نمایش مجاز دقیقاً قیمت خرید کارت را نشان می‌دهد', Number(readData(pricePreview)?.lines?.[0]?.oldPrice), 123456)

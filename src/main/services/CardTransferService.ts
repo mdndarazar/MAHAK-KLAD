@@ -12,19 +12,18 @@ import { PANEL_KEYS } from '@shared/panels'
 import { releasedStockNote } from '@shared/pendingRestock'
 import { assertPanelPassword } from './AuthService'
 import { pendingRestockService } from './PendingRestockService'
+import { assertOrdinaryReturnLineage, assertReturnEntitlementLineage, markBankDeclaration, markBankCancellationUnknown } from './ReturnEntitlementService'
 import { toNumberRial } from '@shared/money'
 
 /**
  * ===========================================================================
  * جلسه ۱۷ · بند ۱ — «کارت‌به‌کارت توسط مدیر»، با گردش تأیید.
  *
- * ⚠️⚠️ جلسه ۴۰ · کار ب — از این نسخه `pay` **موجودی انبار را هم عوض می‌کند**:
- * کالای برگشتیِ معلق (که در لحظه‌ی ثبت فروشنده عمداً به موجودی قابل‌فروش اضافه
- * نشد) دقیقاً در همان تراکنش به انبار برمی‌گردد. پس:
- *   • `pay` و `cancel` هر دو **سمت سرور** تأیید مدیر می‌گیرند
- *     (`assertPanelPassword(PANEL_KEYS.cardTransfers, …)`) و نه فقط در رندرر.
- *   • آزادسازی کالا فقط و فقط از `pendingRestockService.releaseReturnStock`
- *     انجام می‌شود و idempotent است.
+ * `pay` پس از تأیید مدیر، فقط کالای برگشتیِ متصل به همان درخواست RETURN/EXCHANGE
+ * را از PendingRestockService به موجودی برمی‌گرداند؛ کالای جایگزین، صندوق و
+ * کارت‌خوان را تغییر نمی‌دهد. این اقدام هنوز جای تطبیق مستقل سند بانک نیست.
+ * برگشت/تعویضِ غیر کارت‌به‌کارت موجودی را همان لحظه به‌روز می‌کند؛ درخواست
+ * جدید C2C فقط با تأیید پرداخت مدیر آزاد می‌شود. `cancel` خودش موجودی را آزاد نمی‌کند.
  *
  * چرا یک مدل و سرویس مستقل و نه گسترش `Payment`؟
  * چون این جریان **پرداخت فوری نیست**: در لحظه‌ی ثبت برگشت/تعویض هیچ پولی جابه‌جا
@@ -325,21 +324,15 @@ export const cardTransferService = {
    *    عمداً *بیرون* تراکنش است: نوشتن روی `AuthLockout` وسط تراکنشِ باز روی
    *    SQLite تک‌نویسنده همان بن‌بست آشنای پروژه است.
    *
-   * ۲) **ورود کالای معلق به انبار، در همین تراکنش.** تنها نقطه‌ی آزادسازی،
-   *    `pendingRestockService.releaseReturnStock` است و idempotent است (فقط
-   *    اقلامی که `restockedQty < qty`). پس دو بار زدن دکمه هیچ‌وقت کالا را دو
-   *    بار اضافه نمی‌کند — و ضمناً خودِ `status !== PENDING` هم دومین بار را
-   *    از قبل رد می‌کند.
+   * ۲) در پروندهٔ جدید C2C، تأیید مدیر هم‌زمان کالای برگشتیِ همان سند را
+   *    آزاد می‌کند. این تأیید شاهد بانک نیست و دفتر حق مالی تا تطبیق بانک جدا
+   *    می‌ماند؛ هیچ گردش صندوق/کارت‌خوانی ساخته نمی‌شود. `status !== PENDING`
+   *    تأیید دوم را رد می‌کند.
    *
-   * ============ تصمیم: پرداخت کمتر/بیشتر از `amount` ============
-   * `pay` اجازه می‌دهد مدیر مبلغی غیر از `amount` بزند. تصمیم: **کالا در هر
-   * حالت کامل برمی‌گردد.** دلیل: تکلیف کالا یک واقعیت *فیزیکی* است، نه یک
-   * نسبت مالی. مشتری جنس را پس داده و جنس در فروشگاه است؛ نگه‌داشتنِ نیمی از
-   * یک شلوار بیرون از موجودی هیچ معنای انباری ندارد و فقط انبارگردانی را
-   * خراب می‌کند. اختلاف مبلغ همان جایی حل می‌شود که برایش ساخته شده: یک ردیف
-   * `ADJUSTMENT` (مثبت = پرداخت بیشتر، منفی = برگشت مبلغ) که سابقه را هم حفظ
-   * می‌کند. برای اینکه این تصمیم *دیده* شود، مبلغ کمتر/بیشتر در `note` و در
-   * AuditLog صریح ثبت می‌شود.
+   * ============ مبلغ اعلامی کمتر از درخواست ============
+   * اعلام مبلغ کمتر، اثباتِ پرداخت یا نبودِ پرداخت برای باقیمانده نیست؛ کل
+   * مبلغ اصلی رزرو می‌ماند تا بازبینی انسانیِ صورت‌حساب بانک. در پروندهٔ قدیمی
+   * تکلیف کالا و اصلاح‌های تاریخی مثل قبل است؛ به پروندهٔ جدید تعمیم نمی‌یابد.
    * -------------------------------------------------------------------------
    */
   async pay(payload: {
@@ -357,20 +350,21 @@ export const cardTransferService = {
     const id = ctId(payload?.id, 'درخواست کارت‌به‌کارتی برای پرداخت مشخص نشده است.')
     // نشست ۱۴۳ — مبلغ پرداختی پیش از رمز/تراکنش سنجیده می‌شود، بدون گرد بی‌صدا.
     if (payload?.paidAmount != null) assertCtInteger(payload.paidAmount, 'مبلغ پرداخت‌شده')
-    /**
-     * تأیید مدیر، *قبل* از تراکنش. اگر رد شود، هیچ رکوردی نوشته نمی‌شود و هیچ
-     * کالایی به انبار برنمی‌گردد.
-     */
+    /** تأیید مدیر، *قبل* از تراکنش؛ اگر رد شود نه پرداخت ثبت می‌شود و نه
+     * آزادسازی کالای برگشتی انجام می‌گیرد. */
     const scope = await assertPanelPassword(
       PANEL_KEYS.cardTransfers,
       payload?.managerPassword ?? null,
-      'ثبت «پرداخت شد» کارت‌به‌کارت و بازگرداندن کالای برگشتی به موجودی قابل‌فروش'
+      'تأیید پرداخت کارت‌به‌کارت و آزادسازی کالای برگشتی همان سند'
     )
     return prisma.$transaction(async (tx) => {
       const row = await tx.cardTransferRequest.findUnique({ where: { id } })
       if (!row) throw new Error('این درخواست کارت‌به‌کارت پیدا نشد.')
       if (row.kind !== CardTransferKind.REQUEST)
         throw new Error('رویداد اصلاحی خودش قابل پرداخت نیست؛ روی درخواست اصلی اقدام کنید.')
+      const existingEntitlement = await tx.returnEntitlement.findUnique({ where: { requestId: id } })
+      if (existingEntitlement) await assertReturnEntitlementLineage(tx, existingEntitlement)
+      else await assertOrdinaryReturnLineage(tx, Number(row.returnId))
       if (row.status !== CardTransferStatus.PENDING)
         throw new Error(
           'این درخواست قبلاً پرداخت شده است. رکورد پرداخت‌شده ویرایش نمی‌شود؛ ' +
@@ -395,18 +389,29 @@ export const cardTransferService = {
             'اگر اصلاح لازم است از «ثبت رویداد اصلاحی» استفاده کنید تا سابقه از بین نرود.'
         )
 
-      /**
-       * جلسه ۴۰ · کار ب — کالای معلق، *در همین تراکنش*. اول انبار و بعد
-       * برچسب پرداخت، تا اگر آزادسازی به هر دلیلی بشکند، رکورد «پرداخت‌شده»ی
-       * بدون کالا جا نماند (تراکنش کامل rollback می‌شود).
+      /** The manager's confirmed C2C payment also accepts the exact linked
+       * return/exchange goods into inventory. Financial entitlement and bank
+       * evidence remain independently tracked; this changes no cash/POS ledger.
        */
+      const managedClaim = await markBankDeclaration(tx, {
+        requestId: id, declaredAmount: paid, actorUserId: payload.userId ?? null
+      })
       const released = await pendingRestockService.releaseReturnStock(tx, {
         returnId: row.returnId,
         userId: payload.userId ?? null,
         requestId: id,
-        reason: `پرداخت کارت‌به‌کارت درخواست ${faDigits(id)} توسط مدیر`,
+        managerPaymentRequestId: id,
+        reason: `تأیید پرداخت کارت‌به‌کارت درخواست ${faDigits(id)} توسط مدیر؛ کالای همان برگشت/تعویض به موجودی برگشت`,
         at: now
       })
+      const afterRelease = await tx.saleReturn.findUnique({
+        where: { id: row.returnId },
+        select: { restockPending: true, items: { select: { restockedQty: true } } }
+      })
+      const stockStillPending = afterRelease?.restockPending === true
+      const totalReleasedQty = (afterRelease?.items ?? []).reduce(
+        (sum: number, item: { restockedQty: number }) => sum + item.restockedQty, 0
+      )
 
       /** تفاوت مبلغ پرداخت‌شده با مبلغ درخواست — عمداً دیده می‌شود، نه بی‌صدا. */
       // نشست ۱۸۱: `row.amount` حالا BigInt است و `Math.round` روی BigInt استثنا
@@ -417,10 +422,12 @@ export const cardTransferService = {
         delta === 0
           ? ''
           : delta > 0
-            ? ` · ${faDigits(delta)} ریال بیشتر از مبلغ درخواست پرداخت شد`
-            : ` · ${faDigits(-delta)} ریال کمتر از مبلغ درخواست پرداخت شد`
+            ? ` · ${faDigits(delta)} ریال بیشتر از مبلغ درخواست ${managedClaim ? 'اعلام' : 'پرداخت'} شد`
+            : ` · ${faDigits(-delta)} ریال کمتر از مبلغ درخواست ${managedClaim ? 'اعلام' : 'پرداخت'} شد`
       const stockLine = released.releasedQty > 0
-        ? releasedStockNote(released.releasedQty, faDigits)
+        ? `${row.operationKind === 'EXCHANGE' ? 'کالای جایگزین طبق سند تعویض از موجودی کسر شد · ' : ''}` +
+          `${faDigits(totalReleasedQty)} عدد کالای برگشتی از این سند به موجودی قابل‌فروش برگشت؛ ` +
+          `تأیید پرداخت مدیر همین درخواست ${faDigits(released.releasedQty)} عدد معلق را آزاد کرد`
         : row.stockNote ?? null
 
       const updated = await tx.cardTransferRequest.update({
@@ -443,7 +450,7 @@ export const cardTransferService = {
            * `REQUEST` اجرا می‌شود؛ بالاتر رد شده است).
            */
           ...(released.releasedQty > 0
-            ? { stockNote: stockLine, stockReleasedAt: now, stockReleasedQty: released.releasedQty }
+            ? { stockNote: stockLine, stockReleasedAt: now, stockReleasedQty: totalReleasedQty }
             : {}),
           note: payload.note?.trim() ? `${row.note ? row.note + ' · ' : ''}${payload.note.trim()}` : row.note
         }
@@ -462,18 +469,26 @@ export const cardTransferService = {
           shiftId: payload.shiftId ?? null,
           approvedWith: scope,
           releasedQty: released.releasedQty,
-          releasedVariants: released.variants
+          releasedVariants: released.variants,
+          bankEvidenceState: managedClaim ? 'UNKNOWN_BANK' : 'LEGACY',
+          stockStillPending
         },
         note:
-          `ثبت پرداخت کارت‌به‌کارت درخواست ${faDigits(id)} · مبلغ ${faDigits(paid)} ریال` +
+          `${managedClaim ? 'ثبت اعلام مدیر (نه شاهد بانک)' : 'ثبت پرداخت پروندهٔ قدیمی'} برای کارت‌به‌کارت درخواست ${faDigits(id)} · مبلغ ${faDigits(paid)} ریال` +
           (updated.trackingNo ? ` · پیگیری ${updated.trackingNo}` : '') +
           deltaNote +
           ' · خارج از جریان فروش (در سرجمع فروش نمی‌آید)' +
           (released.releasedQty > 0
-            ? ` · ${releasedStockNote(released.releasedQty, faDigits)}`
-            : ' · این درخواست کالای معلقی نداشت، موجودی انبار تغییر نکرد')
+            ? ` · ${releasedStockNote(released.releasedQty, faDigits)}؛ نتیجهٔ بانکی همچنان مستقل است`
+            : stockStillPending
+              ? ' · بخشی از کالای برگشتی همچنان معلق است و نیاز به پیگیری مدیر دارد'
+              : ' · کالای معلقی برای این درخواست باقی نمانده بود، موجودی انبار تغییر نکرد')
       })
-      return { ...shapeRow(updated), releasedQty: released.releasedQty, releasedVariants: released.variants }
+      return {
+        ...shapeRow(updated), releasedQty: released.releasedQty, releasedVariants: released.variants,
+        bankEvidenceState: managedClaim ? 'UNKNOWN_BANK' : 'LEGACY',
+        stockStillPending
+      }
     })
   },
 
@@ -481,23 +496,11 @@ export const cardTransferService = {
    * -------------------------------------------------------------------------
    * جلسه ۴۰ · کار ب — «رد/لغو» یک درخواست کارت‌به‌کارت.
    *
-   * چرا لازم شد: از این نسخه کالای برگشتی تا پرداخت مدیر معلق می‌ماند. اگر مدیر
-   * پرداخت را رد کند و هیچ مسیری برای بستن پرونده نباشد، آن کالا برای همیشه
-   * «معلق» می‌ماند و در انبارگردانی هر ماه به‌عنوان مغایرت باز دیده می‌شود.
-   *
-   * سه قاعده:
-   *   ۱) رکورد **حذف یا بازنویسی نمی‌شود** (قاعده‌ی ۲ بالای همین فایل): فقط
-   *      `status = CANCELED` + `cancelReason` می‌گیرد و در سابقه می‌ماند.
-   *   ۲) دلیل **اجباری** است. سابقه باید خودگویا باشد.
-   *   ۳) لغو، به‌خودیِ‌خود کالا را به موجودی قابل‌فروش برنمی‌گرداند. تکلیف کالا
-   *      یک تصمیم *صریح* است: `releaseStock: true` یعنی «مدیر تأیید می‌کند که
-   *      کالا بی‌پرداخت به موجودی قابل‌فروش برگردد» (مثلاً برگشت اشتباه ثبت
-   *      شده و مشتری پولی طلب ندارد). `false` یعنی کالا معلق می‌ماند تا
-   *      فروشنده خودِ سند برگشت را ویرایش یا حذف کند. هر دو حالت در پنل با
-   *      متن روشن دیده می‌شوند و در AuditLog می‌نشینند.
-   *
-   * همان گیت سمت سرور `pay` را دارد، چون مسیر `releaseStock` هم موجودی را
-   * عوض می‌کند.
+   * رکورد درخواست **حذف نمی‌شود** و دلیل اجباری است. در پروندهٔ جدید لغو
+   * شاهدی بر «بانک پولی نداده» نیست: حق مالی UNKNOWN می‌ماند و لغو با
+   * `releaseStock:true` صریحاً رد می‌شود. لغو خودش کالای C2C را آزاد نمی‌کند؛
+   * فقط تأیید پرداختِ همان درخواست این کار را می‌کند. پروندهٔ تاریخیِ بدون دفتر
+   * حق مسیر مشروطِ آزادسازی مدیر را حفظ می‌کند. گیت رمزِ سرور برقرار است.
    * -------------------------------------------------------------------------
    */
   async cancel(payload: {
@@ -526,6 +529,13 @@ export const cardTransferService = {
       if (!row) throw new Error('این درخواست کارت‌به‌کارت پیدا نشد.')
       if (row.kind !== CardTransferKind.REQUEST)
         throw new Error('رویداد اصلاحی خودش لغو نمی‌شود؛ روی درخواست اصلی اقدام کنید.')
+      const managed = await tx.returnEntitlement.findUnique({ where: { requestId: id } })
+      if (managed) await assertReturnEntitlementLineage(tx, managed)
+      else await assertOrdinaryReturnLineage(tx, Number(row.returnId))
+      if (managed && release)
+        throw new Error('درخواست کارت‌به‌کارتِ جدید با لغو آزاد نمی‌شود؛ فقط تأیید پرداخت مدیرِ همین درخواست کالای برگشتی را به موجودی برمی‌گرداند.')
+      if (managed && (row.status === CardTransferStatus.PAID || row.paidAt != null))
+        throw new Error('اعلام پرداخت این درخواست، شاهد بانک نیست؛ لغو/اصلاح آن بدون تطبیق بانک و پروندهٔ اصلاح شاهددار مجاز نیست.')
       /**
        * ممیزی A115-01 (AUDIT-D47) — هر ردیفی که `paidAt` دارد (PAID یا ADJUSTED پرداخت‌شده) پولش واقعاً رفته است؛
        * لغوش پرداخت واقعی را از «پرداخت‌شده» و خروج خالص حذف می‌کرد و releaseStock را هم باز می‌کرد.
@@ -538,7 +548,10 @@ export const cardTransferService = {
       if (row.status === CardTransferStatus.CANCELED && !release)
         throw new Error('این درخواست قبلاً رد/لغو شده است.')
 
+      if (managed && row.status === CardTransferStatus.CANCELED)
+        throw new Error('این درخواست قبلاً لغو شده است؛ نتیجهٔ بانک هنوز نیازمند تطبیق است.')
       const now = new Date()
+      if (managed) await markBankCancellationUnknown(tx, { requestId: id, actorUserId: payload.userId ?? null, reason })
       const released = release
         ? await pendingRestockService.releaseReturnStock(tx, {
             returnId: row.returnId,
@@ -564,8 +577,10 @@ export const cardTransferService = {
           stockNote: released.releasedQty > 0
             ? releasedStockNote(released.releasedQty, faDigits) + ' (بدون پرداخت، با تأیید صریح مدیر)'
             : stillPending
-              ? 'کالای برگشتی هنوز در انتظار تکلیف است و در موجودی قابل‌فروش نیست؛ ' +
-                'برای بستن پرونده، سند برگشت را ویرایش/حذف کنید یا کالا را با تأیید مدیر آزاد کنید'
+              ? managed
+                ? 'کالای برگشتی هنوز معلق است؛ لغو درخواست نه پرداخت بانک را ثابت می‌کند و نه کالا را آزاد می‌کند. نتیجهٔ بانک مستقل می‌ماند.'
+                : 'کالای برگشتی هنوز در انتظار تکلیف است و در موجودی قابل‌فروش نیست؛ ' +
+                  'برای بستن پروندهٔ قدیمی، سند برگشت را اصلاح کنید یا آزادسازی مجاز مدیر را بررسی کنید'
               : row.stockNote,
           ...(released.releasedQty > 0
             ? { stockReleasedAt: now, stockReleasedQty: released.releasedQty }
@@ -584,6 +599,7 @@ export const cardTransferService = {
           releaseStock: release,
           releasedQty: released.releasedQty,
           stillPending: !release && stillPending,
+          bankEvidenceState: managed ? 'UNKNOWN_BANK' : 'LEGACY',
           approvedWith: scope
         },
         note:
@@ -637,6 +653,13 @@ export const cardTransferService = {
     return prisma.$transaction(async (tx) => {
       const base = await tx.cardTransferRequest.findUnique({ where: { id } })
       if (!base) throw new Error('درخواست مرجع این اصلاح پیدا نشد.')
+      // Do not let an adjustment bypass the CAS-protected new entitlement.
+      // Legacy requests keep their existing append-only correction path.
+      const managed = await tx.returnEntitlement.findUnique({ where: { requestId: id } })
+      if (managed) await assertReturnEntitlementLineage(tx, managed)
+      else await assertOrdinaryReturnLineage(tx, Number(base.returnId))
+      if (managed)
+        throw new Error('این درخواست دفتر حق مالی دارد؛ اصلاح بانک بدون سند جدید و تطبیق مجدد مجاز نیست. پرونده را برای رسیدگی شاهددار مدیر نگه دارید.')
       if (base.kind !== CardTransferKind.REQUEST)
         throw new Error('رویداد اصلاحی فقط روی یک «درخواست پرداخت» ثبت می‌شود، نه روی یک اصلاح دیگر.')
       /**
@@ -771,7 +794,8 @@ export const cardTransferService = {
       warnings: ctcWarnings(rows.length, totalCount, skip),
       note:
         'این مبالغ «کارت‌به‌کارت توسط مدیر» هستند و عمداً در سرجمع فروش، فروش ناخالص و ' +
-        'موجودی انتظاری صندوق وارد نمی‌شوند: نه فروش‌اند و نه از کشوی صندوق خارج شده‌اند.'
+        'موجودی انتظاری صندوق وارد نمی‌شوند: نه فروش‌اند و نه از کشوی صندوق خارج شده‌اند. ' +
+        'ردیف پرداختِ اعلامی برای درخواست‌های جدید، تا بایگانی و بازبینی سند بانک، شاهد خروج وجه نیست.'
     }
   }
 }

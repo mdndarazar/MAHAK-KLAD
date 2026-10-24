@@ -298,15 +298,16 @@ async function documentForSource(source: SaleBridgeSource): Promise<FinancialDoc
     if (!ret) throw new BusinessError('سند برگشت/تعویض منبع دیگر وجود ندارد.')
     const sourceInvoiceContext = invoiceContext(ret.invoice)
     const own = await actorAndShift(ret.userId, ret.shiftId)
-    const method = String(ret.refundMethod || ret.exchangeSettlement || 'NONE')
+    const isExchange = ret.kind === 'EXCHANGE' || ret.exchangeInvoiceId != null
+    const method = String(ret.refundMethod || (isExchange ? ret.exchangeSettlement : null) || 'NONE')
     const labels: Record<string, string> = {
       CASH: 'بازپرداخت نقدی', CARD: 'بازپرداخت کارتی (پوز)', CARD_TO_CARD: 'کارت‌به‌کارت مدیر',
       STORE_CREDIT: 'اعتبار خرید', CREDIT: 'اعتبار خرید', DEBT_REDUCTION: 'کاهش بدهی', NONE: 'بدون بازپرداخت'
     }
     return {
       ...base,
-      title: ret.kind === 'EXCHANGE' ? 'شناسنامهٔ تعویض' : 'شناسنامهٔ برگشت از فروش',
-      documentAmount: n(ret.refundAmount || ret.exchangeDiff || ret.total),
+      title: isExchange ? 'شناسنامهٔ تعویض' : 'شناسنامهٔ برگشت از فروش',
+      documentAmount: n(ret.refundAmount) + n(ret.refundStoreCreditAmount) || n(ret.exchangeDiff || ret.total),
       occurredAt: { dateJalali: ret.returnedAtJalali || null, time: ret.returnedAtTime || null },
       ...sourceInvoiceContext,
       actor: own.actor,
@@ -323,6 +324,9 @@ async function documentForSource(source: SaleBridgeSource): Promise<FinancialDoc
       settlement: {
         method,
         methodLabel: labels[method] || method,
+        primaryAmount: n(ret.refundAmount),
+        storeCreditAmount: n(ret.refundStoreCreditAmount),
+        totalSettled: n(ret.refundAmount) + n(ret.refundStoreCreditAmount),
         reference: ret.refundReference ?? null,
         status: ret.voidedAt
           ? 'VOIDED'
@@ -428,7 +432,7 @@ async function documentForSource(source: SaleBridgeSource): Promise<FinancialDoc
       status: String(credit.status ?? 'ACTIVE'),
       expiresAt
     })
-    const creditRemaining = remainingOf({ amount: n(credit.amount), usedAmount: n(credit.usedAmount) })
+    const creditRemaining = remainingOf({ amount: n(credit.amount), usedAmount: n(credit.usedAmount), status: creditStatus })
     return {
       ...base,
       title: 'شناسنامهٔ اعتبار خرید',

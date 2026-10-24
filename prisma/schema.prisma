@@ -784,6 +784,8 @@ model SaleReturn {
   /// اعتبار خرید بعدیِ صادرشده برای این تعویض (اگر ما بدهکار شدیم)
   storeCreditId      Int?
   storeCreditCode    String?
+  /// سندهای تازه کد خرج‌پذیر را فقط در برگهٔ جدا چاپ می‌کنند؛ legacy بدون تغییر.
+  creditPaperSeparate Boolean @default(false)
   /// کاربر ثبت‌کننده‌ی برگشت (scalar، بدون relation تا مدل User تغییر نکند)
   userId             Int?
   /// شیفتی که برگشت در آن ثبت شده
@@ -794,6 +796,14 @@ model SaleReturn {
   /// روش بازپرداخت؛ برای برگشت‌های قدیمی تهی می‌ماند تا فرض تاریخی جعل نشود.
   refundMethod       String?
   refundAmount       BigInt    @default(0)
+  /// Real-money right explicitly issued as a second, non-cash settlement barcode.
+  refundStoreCreditAmount BigInt @default(0)
+  /// Central policy ceiling: only actually funded money can be settled; barcode-credit shares are excluded.
+  realMoneyRefundAmount BigInt @default(0)
+  creditReturnPolicyVersion Int?
+  /// Immutable non-cash restoration of redeemed credit on this new return.
+  /// Legacy rows default to zero; this is NOT money, debt reduction or a payout.
+  creditRestored     BigInt    @default(0)
   refundPaymentId    Int?
   /// نشست ۶۰ · خوشه B (بند ۴-۵) — فقط برای تعویض (kind = EXCHANGE): بخشی از
   /// مابه‌التفاوت منفی که به‌جای پرداخت پول، از بدهی فاکتور اصلی کم شد.
@@ -813,23 +823,34 @@ model SaleReturn {
   refundNote         String?
   legacyAssumption   String?
 
-  /// ------------- جلسه ۴۰ · کار ب — «کالای در انتظار تأیید مدیر» -------------
-  /// true یعنی کالای این برگشت **فیزیکی در فروشگاه هست ولی هنوز به موجودی
-  /// قابل‌فروش اضافه نشده**، چون بازپرداختش «کارت‌به‌کارت توسط مدیر» است و مدیر
-  /// هنوز «پرداخت شد» نزده. در همین حالت `SaleReturnItem.restockedQty = 0`
-  /// می‌ماند و تنها نقطه‌ی آزادسازی، `CardTransferService.pay` است.
+  /// ------------- کالای برگشتیِ هنوز واردِ موجودی‌نشده -------------
+  /// true یعنی تعدادی کالا هنوز به موجودی برنگشته‌اند؛ حضور فیزیکی پروندهٔ
+  /// جدید بدون `ReturnGoodsReceipt` مقداربه‌مقدار فرض نمی‌شود. «پرداخت شد» مدیر
+  /// شاهد بانک یا دریافت کالا نیست و این پرچم را برای پروندهٔ جدید نمی‌بندد.
+  /// پروندهٔ قدیمیِ بدون دفتر حق، مسیر تاریخیِ آزادسازی مدیر را حفظ می‌کند.
   ///
   /// ⚠️ چرا یک ستون جدا لازم است و `restockedQty = 0` کافی نیست؟ چون
   /// `restockedQty = 0` دو معنای کاملاً متفاوت دارد: (۱) «فاکتور اصلی بدون کسر
-  /// از موجودی بود، پس هیچ‌وقت چیزی برنمی‌گردد» و (۲) «معلق تا تأیید مدیر».
+  /// از موجودی بود، پس هیچ‌وقت چیزی برنمی‌گردد» و (۲) «دریافت واقعی کالا معلق است».
   /// بدون این ستون، برگشت‌های فروش عمده‌ی بدون کسر موجودی هم «معلق» شمرده
   /// می‌شدند و انبارگردانی یک کسری کاذب می‌ساخت.
   /// پیش‌فرض false ⇒ همه‌ی برگشت‌های قبلی دقیقاً مثل امروز رفتار می‌کنند.
   restockPending          Boolean   @default(false)
-  /// لحظه‌ای که کالای معلق واقعاً به موجودی قابل‌فروش برگشت (پرداخت مدیر یا
-  /// آزادسازی صریح مدیر). فقط برای سابقه و گزارش.
+  /// پروتکل مستقلِ دریافت کالا برای *اسناد تازهٔ دارای کسر موجودی*.
+  /// false برای تمام داده‌های پیش از این migration و فاکتور بی‌کسر می‌ماند؛
+  /// صرفاً از restockPending یا نبود دفتر حق، حضور فیزیکی حدس زده نمی‌شود.
+  /// true یعنی هر قلم فقط با ReturnGoodsReceipt مقداربه‌مقدار به انبار برمی‌گردد؛
+  /// بدون درخواست کارت‌به‌کارت هم مسیر آزادسازی تاریخی مدیر مجاز نیست.
+  goodsReceiptRequired    Boolean   @default(false)
+  /// لحظهٔ تکمیل دریافت شاهددار همهٔ اقلام جدید؛ در پروندهٔ قدیمی ممکن است
+  /// پرداخت/آزادسازیِ تاریخی مدیر باشد. فقط سابقه و گزارش، نه شاهد بانک.
   restockReleasedAt       DateTime?
   restockReleasedAtJalali String?
+  /// Immutable request identity for retry-safe return creation. Historical rows are NULL.
+  idempotencyKey          String?   @unique
+  idempotencyFingerprint   String?
+  /// Sanitized result snapshot; never contains manager credentials or redeemable credit codes.
+  idempotencyResponseJson  String?
 
   items SaleReturnItem[]
   /// دفتر جبرانیِ مستقل: سند برگشت اصلی دست‌نخورده می‌ماند و اثر اصلاحی جداست.
@@ -1119,7 +1140,7 @@ model StoreCredit {
   /// در حالت یک‌بارمصرف، اولین مصرف — حتی جزئی — وضعیت را قطعاً می‌بندد.
   multiUse   Boolean @default(false)
   /// نشست ۱۸۳ — تکلیف باقی‌مانده وقتی این اعتبار یک‌بارمصرف است:
-  /// true (پیش‌فرض) = باقی‌مانده به بارکد جدید برمی‌گردد · false = می‌سوزد.
+  /// true (پیش‌فرض) = مانده روی همین کد باز می‌ماند تا صفر شود · false = کوپن واقعاً تک‌مصرف است.
   /// عمداً روی خودِ رکورد **اسنپ‌شات** می‌شود، نه خوانده‌شده از تنظیمات لحظه‌ی
   /// مصرف: مشتری بارکد را در جیبش دارد و قاعده‌اش نباید بعداً زیر پایش عوض شود.
   carryRemainder   Boolean  @default(true)
@@ -1163,9 +1184,13 @@ model StoreCredit {
   printCount    Int       @default(0)
   lastPrintedAt DateTime?
 
-  // ------------- جلسه ۲۰ · یادآوری (§۱۴ — بدون اتصال واقعی پیامک) -------------
-  reminderOptOut   Boolean   @default(false)
-  reminderCount    Int       @default(0)
+  // ------------- یادآوری: شماره/نبود opt-out هرگز رضایت نیست -------------
+  reminderOptOut       Boolean   @default(false)
+  /// فقط پس از ثبت جداگانهٔ رضایت مستندِ همان شماره؛ رکوردهای قدیمی NULL می‌مانند.
+  reminderConsentAt    DateTime?
+  reminderConsentPhone String?
+  reminderConsentEvidence String?
+  reminderCount        Int       @default(0)
   lastReminderAt   DateTime?
   lastReminderKind String?
 
@@ -1191,6 +1216,8 @@ model StoreCredit {
   returnId          Int?
   /// سند تعویضی که این اعتبار رویش چاپ شد (scalar)
   exchangeInvoiceId Int?
+  /// پیوند به دفتر append-only حق B/N تعویض (scalar، بدون FK)
+  exchangeResidualRightKey String? @unique
   /// فاکتور اصلی مشتری (scalar)
   sourceInvoiceId   Int?
   customerId        Int?
@@ -1276,9 +1303,17 @@ model StoreCreditRedemption {
   /// اگر فاکتور مرجع بعداً Refund/Reverse شد، این مصرف برگشت خورد (§۸)
   reversedAt     DateTime?
   reversedReason String?
+  /// جبران با شاخهٔ B/E: مصرف اصلی *برنمی‌گردد* و در ابطال بعدی نیز
+  /// نباید دوباره به اعتبار والد اضافه شود.
+  compensatedAt       DateTime?
+  compensatedReturnId Int?
+  /// Snapshot زمان مصرف؛ false برای تاریخچهٔ قبل از این migration = نامعلوم.
+  expiryCaptured     Boolean  @default(false)
+  expiryAtRedeem     DateTime?
 
   note String?
 
+  @@index([compensatedReturnId])
   @@unique([idempotencyKey])
   @@index([creditId])
   @@index([invoiceId])
@@ -1547,7 +1582,8 @@ model CardTransferRequest {
 
   /// REQUEST = درخواست پرداخت · ADJUSTMENT = رویداد اصلاحی روی یک درخواست قبلی
   kind   String @default("REQUEST")
-  /// PENDING = در انتظار پرداخت · PAID = پرداخت شد · ADJUSTED = با رویداد بعدی اصلاح شد
+  /// PENDING = درخواست باز · PAID = اعلام مدیر (برای پروندهٔ جدید، نه شاهد بانک)
+  /// ADJUSTED = با رویداد بعدی اصلاح شد؛ دادهٔ قدیمی، معنای تاریخی خود را دارد.
   status String @default("PENDING")
 
   /// RETURN | EXCHANGE — عملیات مرجع (هیچ‌وقت خالی نیست؛ قاعده‌ی سیستم)
@@ -1602,11 +1638,10 @@ model CardTransferRequest {
   /// حذف نمی‌شود؛ فقط برچسب و دلیل می‌گیرد (همان قاعده‌ی ۲ بالای سرویس).
   canceledAt       DateTime?
   cancelReason     String?
-  /// لحظه‌ای که کالای معلقِ این درخواست به موجودی قابل‌فروش برگشت. تنها دو مسیر
-  /// این ستون را پر می‌کنند و هر دو پشت قفل «پرداخت‌های مدیر» هستند: `pay` و
-  /// آزادسازی صریح در `cancel({ releaseStock: true })`.
+  /// پروندهٔ جدید: زمان آخرین دریافت شاهددار کالا؛ پروندهٔ قدیمی: زمان آزادسازی
+  /// با تأیید مدیر. این زمان هیچ‌وقت اثبات پرداخت بانکی نیست.
   stockReleasedAt  DateTime?
-  /// تعداد کالایی که در همان لحظه آزاد شد (برای سابقه‌ی خوانا)
+  /// تعداد تجمعیِ کالای واردشده به موجودی (برای پروندهٔ جدید با رسید مستقل).
   stockReleasedQty Int?
 
   /// این ردیف، رویداد اصلاحیِ کدام ردیف است؟ (فقط برای kind = ADJUSTMENT)
@@ -2138,6 +2173,10 @@ model CustodyState {
   activeShiftId     Int?
   pendingHandoverId Int?
   epoch             Int      @default(0)
+  /// Monotonic SQLite-triggered revision of financial rows, independent of
+  /// state epoch. A sale between blind counts invalidates that attempt only;
+  /// it never prevents the sale or transfers its owner prematurely.
+  financialRevision Int      @default(0)
   updatedAt         DateTime @updatedAt
 }
 
@@ -2255,11 +2294,151 @@ model CustodyHandover {
   idempotencyKey          String   @unique
   stateKey                String   @default("MAIN")
   startedAt               DateTime @default(now())
+  /// New attempts pin their TTL when OUT commits; never extend on IN/retry.
+  /// NULL protocolVersion is a pre-deadline V2 attempt (startedAt + 10 min).
+  protocolVersion         Int?
+  deadlineAt              DateTime?
+  deadlinePolicyMinutes   Int?
   finishedAt              DateTime?
   version                 Int      @default(1)
   operationalDay          String
+  blueSnapshots           CustodyBlueSnapshot[]
 
   @@index([fromShiftId])
+}
+
+/// Immutable, blind count and full-scope blue-reference evidence. Historical
+/// custody aggregates/counts retain their prior cash-only / aggregate meaning.
+/// A null reference or variance means unknown, NEVER a presumed zero.
+model CustodyBlueSnapshot {
+  id                       Int      @id @default(autoincrement())
+  handoverId               Int?
+  handover                 CustodyHandover? @relation(fields: [handoverId], references: [id], onDelete: Restrict)
+  shiftId                  Int
+  /// OUT | IN | OPENING | RECOVERY | FINAL_CLOSE | ...
+  role                     String
+  actorUserId              Int
+  authMethod               String
+  countOrigin              String
+  humanAmount              BigInt?
+  arithmeticAmount         BigInt?
+  referenceFromDay         String
+  referenceToDay           String
+  /// PRIOR_AND_TODAY | TODAY; this is a comparable lineage, not a shifted sum.
+  scopeKind                String
+  referenceStatus          String
+  referenceAmount          BigInt?
+  knownSubtotal            BigInt?
+  /// Separate from old CREDIT/null: unknown destination may be drawer, POS or manager account.
+  /// NULL on frozen V1 evidence means the destination was not measured; V2 writes 0 explicitly.
+  destinationUnknownReceived BigInt?
+  ambiguousLegacyCredit    BigInt?
+  calculationVersion       String
+  /// V3 seals the original count/reference/domain/links; old V1/V2 remain NULL.
+  evidenceDigest           String?
+  sourceScope              String?
+  sourceHash               String?
+  financialRevision        Int
+  epochAtCount             Int
+  priorSnapshotId          Int?
+  rawDifference            BigInt?
+  inheritedDifference      BigInt?
+  freshDifference          BigInt?
+  freshStatus              String
+  idempotencyKey           String   @unique
+  operationalDay           String
+  at                       DateTime @default(now())
+  resolutions              CustodyBlueResolution[]
+  managerNotes             CustodyBlueNote[]
+
+  @@unique([handoverId, role])
+  @@index([shiftId, at])
+  @@index([operationalDay, role, at])
+  @@index([priorSnapshotId])
+}
+
+/// Each manager decision is a NEW row attached to the ORIGINAL snapshot.
+/// It never edits the old blue value, payment, count, day or responsibility.
+model CustodyBlueResolution {
+  id                      Int      @id @default(autoincrement())
+  snapshotId              Int
+  snapshot                CustodyBlueSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
+  managerUserId           Int
+  authMethod              String
+  /// Legacy CREDIT/null: RECEIVED_CASH | RECEIVED_CARD | NOT_RECEIVED | NO_LEGACY_CREDIT.
+  decisionKind            String
+  evidenceDay             String
+  evidenceReference       String
+  reason                  String
+  ambiguousAmount         BigInt
+  /// Independent UNKNOWN-destination proof. Nullable for pre-upgrade decisions.
+  destinationDecisionKind String?
+  destinationAmbiguousAmount BigInt?
+  destinationEvidenceDay  String?
+  destinationEvidenceReference String?
+  effectiveReferenceAmount BigInt
+  resolvedRawDifference   BigInt?
+  resolvedFreshDifference BigInt?
+  freshStatus             String
+  idempotencyKey          String   @unique
+  at                      DateTime @default(now())
+
+  @@index([snapshotId, at])
+  @@index([managerUserId, at])
+}
+
+/// Optional manager annotations are independent of any financial decision.
+/// They never rewrite the source count, reference, responsibility or resolution.
+model CustodyBlueNote {
+  id             Int      @id @default(autoincrement())
+  snapshotId     Int
+  snapshot       CustodyBlueSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
+  managerUserId  Int
+  authMethod     String   @default("MANAGER_CUSTODY_PIN")
+  text           String
+  idempotencyKey String   @unique
+  at             DateTime @default(now())
+
+  @@index([snapshotId, at])
+  @@index([managerUserId, at])
+}
+
+/// Durable, immutable quarantine for a corrupt BLUE witness or pending pointer.
+/// The case remains linked to the original Shift even after system rollover.
+/// Resolution is an independent append-only CustodyEvidenceRecovery row.
+model CustodyEvidenceQuarantine {
+  id                  Int      @id @default(autoincrement())
+  sourceKey           String   @unique
+  shiftId             Int
+  handoverId          Int?
+  snapshotId          Int?
+  reasonCode          String
+  detectedEpoch       Int
+  detectedAt          DateTime @default(now())
+  recovery            CustodyEvidenceRecovery?
+
+  @@index([shiftId, detectedAt])
+  @@index([handoverId])
+}
+
+model CustodyEvidenceRecovery {
+  id                  Int      @id @default(autoincrement())
+  quarantineId        Int      @unique
+  quarantine          CustodyEvidenceQuarantine @relation(fields: [quarantineId], references: [id], onDelete: Restrict)
+  shiftId             Int
+  managerUserId       Int
+  authMethod          String   @default("MANAGER_CUSTODY_PIN")
+  countedAmount       BigInt
+  reason              String
+  outcome             String
+  recoverySnapshotId  Int?
+  seenEpoch           Int
+  epochAfter          Int
+  idempotencyKey      String   @unique
+  requestFingerprint  String
+  at                  DateTime @default(now())
+
+  @@index([shiftId, at])
 }
 
 model CustodyResolution {
@@ -2267,6 +2446,11 @@ model CustodyResolution {
   shiftId               Int      @unique
   status                String   @default("OPEN")
   nightExpectedCash     BigInt?
+  /// Historical auto-timeout columns: already added by 20271019190000 migration.
+  /// Keep them nullable in the model; no old row or migration is rewritten.
+  expectedCard          BigInt?
+  effectiveAt           DateTime?
+  detectedAt            DateTime?
   nightEvidenceCountId  Int?
   morningWitnessCountId Int?
   provisionalDifference BigInt?
@@ -2452,4 +2636,397 @@ model LegacyRecoveryOpeningLink {
   at                  DateTime @default(now())
 
   @@index([openingCountId])
+}
+
+/// Permanent receipt-code tombstone. The original SaleInvoice is the claim;
+/// it is deliberately NOT an FK so purging an invoice cannot free its code.
+/// Legacy duplicate codes occupy one reservation, not a guessed invoice owner.
+model ReceiptCodeReservation {
+  code      String   @id
+  invoiceId Int?     @unique
+  source    String   @default("ISSUED") // HISTORICAL | ISSUED
+  createdAt DateTime @default(now())
+}
+
+/// Cash rights are separate from invoice debt, gift opportunity, bank evidence
+/// and StoreCredit. No cascading FK: financial claims survive source deletion.
+/// Legacy records are not silently backfilled with inferred cash entitlement.
+model ReturnEntitlement {
+  id              Int      @id @default(autoincrement())
+  returnId        Int      @unique
+  invoiceId       Int
+  requestId       Int?     @unique
+  cashRight       BigInt   @default(0)
+  giftOpportunity BigInt   @default(0)
+  debtReduced     BigInt   @default(0)
+  cashPaid        BigInt   @default(0)
+  cashReserved    BigInt   @default(0)
+  cashConverted   BigInt   @default(0)
+  /// OPEN | UNKNOWN_BANK | OVER_ALLOCATED | VOID | QUARANTINED
+  state           String   @default("OPEN")
+  version         Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now())
+
+  @@index([invoiceId])
+  @@index([state])
+}
+
+/// Immutable idempotent allocation/evidence record. The mutable claim above
+/// is only a CAS-protected projection, never a substitute for this journal.
+model ReturnEntitlementEvent {
+  id            Int      @id @default(autoincrement())
+  entitlementId Int
+  eventKey      String   @unique
+  kind          String
+  amount        BigInt   @default(0)
+  requestId     Int?
+  creditId      Int?
+  actorUserId   Int?
+  evidenceKind  String   @default("SYSTEM")
+  evidenceHash  String?
+  reason        String?
+  beforeVersion Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  @@index([entitlementId, id])
+  @@index([requestId])
+  @@index([creditId])
+}
+
+/// Issuing/printing a spendable code does not prove delivery. The credit stays
+/// DRAFT until an authorized, witnessed delivery in a separate transaction.
+model CreditDelivery {
+  id                Int      @id @default(autoincrement())
+  creditId          Int      @unique
+  originCreditId Int?     @unique
+  sourceKind     String
+  /// PENDING_DELIVERY | DELIVERED | VOID
+  status            String   @default("PENDING_DELIVERY")
+  version           Int      @default(0)
+  createdAt         DateTime @default(now())
+  deliveredAt       DateTime?
+  deliveredByUserId Int?
+  witnessKind       String?
+  witnessRef        String?
+
+  @@index([originCreditId])
+  @@index([status])
+}
+
+/// Archived bank statement/export reviewed by a manager. A typed tracking
+/// number, PIN or 'paid' click alone is NOT bank evidence. Blob base64 is
+/// private and included in the normal SQLite backup; never expose via IPC.
+/// شاهد مقدارمحورِ رسیدن کالای برگشتی، جدا از هر وضعیت تسویهٔ بانک.
+/// Scalar IDs: تاریخچه با حذف کالای آزمایشی یا سند دستکاری/پاک نمی‌شود.
+/// انتقال ماندهٔ معتبر کد گم‌شده به جانشینِ غیرفعال تا تحویل شاهددار.
+model CreditReplacement {
+  id                 Int      @id @default(autoincrement())
+  originalCreditId   Int      @unique
+  successorCreditId  Int      @unique
+  transferredAmount  BigInt
+  receiptRef         String
+  witnessRef         String
+  reason             String
+  approvingManagerId Int
+  actorUserId        Int?
+  createdAt          DateTime @default(now())
+}
+
+/// هر سهم اعتباریِ کالای برگشتی، مستقل از وجه نقد و کاهش بدهی.
+/// صرفاً ردیف جدید؛ مصرف/پرداخت/سند قدیمی را backfill یا پاک نمی‌کنیم.
+model CreditReturnAllocation {
+  id                Int       @id @default(autoincrement())
+  returnId          Int
+  invoiceId         Int
+  redemptionId      Int
+  parentCreditId    Int
+  rootCreditId      Int
+  originNominal      BigInt
+  /// فقط سهم واقعی برگشتِ این فاکتور؛ برای debt/OVERPAY.
+  amount             BigInt
+  /// باقی‌ماندهٔ خاموشِ کد یک‌بارمصرف که فقط یک‌بار به شاخه منتقل می‌شود.
+  supplementUnspent  BigInt    @default(0)
+  successorCreditId Int?      @unique
+  /// ORIGINAL_REVERSED | BRANCH | SUPPLEMENT | EXPIRED
+  kind              String
+  originalExpiresAt DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@unique([returnId, redemptionId])
+  @@index([parentCreditId, id])
+  @@index([rootCreditId, id])
+  @@index([invoiceId])
+}
+
+/// Append-only compensating ledger for an eligible multi-use gift remainder
+/// restored onto its original barcode by an exchange. The paired reversal lets
+/// voiding that exchange debit the same balance without rewriting old redemptions.
+model StoreCreditBalanceAdjustment {
+  id               Int      @id @default(autoincrement())
+  eventKey         String   @unique
+  creditId         Int
+  returnId         Int
+  invoiceId        Int
+  redemptionId     Int
+  amount           BigInt
+  kind             String
+  beforeUsedAmount BigInt
+  afterUsedAmount  BigInt
+  beforeUsedCount  Int
+  afterUsedCount   Int
+  reversesEventId  Int?     @unique
+  actorUserId      Int?
+  createdAt        DateTime @default(now())
+
+  @@index([creditId, id])
+  @@index([returnId, id])
+  @@index([redemptionId])
+}
+
+model ReturnGoodsReceipt {
+  id          Int      @id @default(autoincrement())
+  eventKey    String   @unique
+  returnId    Int
+  returnItemId Int
+  variantId   Int
+  qty         Int
+  actorUserId Int?
+  witnessKind String
+  witnessRef  String
+  createdAt   DateTime @default(now())
+
+  @@index([returnId, id])
+  @@index([returnItemId, id])
+}
+
+/// Immutable, append-only provenance journal for proven funding shares carried
+/// through replacement invoices. Scalar links intentionally have no FKs so
+/// deleting a business record cannot delete or alter financial history.
+/// Event kinds and signs are validated by the service; unknown origins are not
+/// backfilled or relabelled. The only zero-amount rows are snapshot state markers
+/// (SNAPSHOT_STALE / SNAPSHOT_RECONCILED), never monetary shares.
+model ExchangeFundingEvent {
+  id                    Int       @id @default(autoincrement())
+  eventKey              String    @unique
+  kind                  String
+  amount                BigInt
+  shareId               String
+  rootShareId           String
+  sourceInvoiceId       Int?
+  childInvoiceId        Int?
+  returnId              Int?
+  /// Direct link to an ordinary return of the child exchange invoice (S1 carry release).
+  relatedReturnId       Int?
+  sourcePaymentId       Int?
+  sourceRedemptionId    Int?
+  sourceCreditId        Int?
+  parentEventId         Int?
+  debtId                Int?
+  sourceMethodKind      String?
+  sourceDestination      String?
+  evidenceKind          String    @default("SYSTEM")
+  evidenceRef           String?
+  actorUserId           Int?
+  reversesEventId       Int?      @unique
+  createdAt             DateTime  @default(now())
+
+  @@index([shareId, id])
+  @@index([sourceInvoiceId, id])
+  @@index([childInvoiceId, id])
+  @@index([returnId, id])
+  @@index([relatedReturnId, id])
+  @@index([parentEventId])
+}
+
+/// Immutable source-to-item split for a fully reconciled exchange child. Each
+/// row ties one active incoming transfer event to one replacement sale item and
+/// freezes that item's quantity/net value for later return reconciliation;
+/// scalar references deliberately avoid cascading business-document deletes.
+/// These rows are descriptive provenance, not a spend permit or refund right.
+model ExchangeFundingLineAllocation {
+  id              Int      @id @default(autoincrement())
+  eventKey        String   @unique
+  sourceInvoiceId Int
+  childInvoiceId  Int
+  returnId        Int
+  sourceEventId   Int
+  saleItemId      Int
+  saleItemQty     Int
+  saleItemValue   BigInt
+  sourceKind      String
+  amount          BigInt
+  createdAt       DateTime @default(now())
+
+  @@unique([sourceEventId, saleItemId])
+  @@index([childInvoiceId, saleItemId])
+  @@index([returnId, id])
+  @@index([sourceInvoiceId, id])
+}
+
+/// Immutable accounting provenance of a returned item from an exchange child.
+/// It records the cumulative source split and exact reversals, but never grants
+/// a cash refund, gift restoration, or store-credit entitlement. Scalar links
+/// intentionally have no FKs so business-record deletion cannot rewrite history.
+model ExchangeFundingReturnLineAllocation {
+  id                    Int      @id @default(autoincrement())
+  eventKey              String   @unique
+  eventKind             String
+  returnId              Int
+  returnItemId          Int
+  sourceInvoiceId       Int
+  childInvoiceId        Int
+  saleItemId            Int
+  sourceEventId          Int
+  sourceKind             String
+  saleItemQty            Int
+  saleItemValue          BigInt
+  sourceItemAmount       BigInt
+  returnedQtyBefore      Int
+  returningQty           Int
+  returnedQtyAfter       Int
+  priorReturnValue       BigInt
+  returnValue            BigInt
+  cumulativeReturnValue  BigInt
+  priorAmount            BigInt
+  amountDelta            BigInt
+  cumulativeAmount       BigInt
+  allocationVersion      Int      @default(1)
+  reversesAllocationId   Int?     @unique
+  createdAt              DateTime @default(now())
+
+  @@unique([returnItemId, sourceEventId, eventKind])
+  @@index([childInvoiceId, saleItemId])
+  @@index([returnId, id])
+  @@index([returnItemId, id])
+  @@index([sourceEventId, id])
+}
+
+/// سهم واقعیِ هر رسید فیزیکی از منابع فروش: STORE یا ردیف *مشخص* انبار
+/// مرکزی/شعبه. در همان تراکنش دریافت، پس از بازگشت موجودی ثبت می‌شود؛ اصلاح
+/// جبرانی فقط از این شاهد مقداربه‌مقدار کم می‌کند. شناسه‌ها scalar اند تا حذف
+/// احتمالی سند/ردیف، تاریخچه را پاک نکند. رسیدهای قدیمی حدسی backfill نمی‌شوند.
+model ReturnGoodsReceiptSource {
+  id                   Int      @id @default(autoincrement())
+  receiptId            Int
+  returnItemId         Int
+  variantId            Int
+  allocationId         Int?
+  sourceKind           String
+  /// null برای فروشگاه یا انبار مرکزی پیش‌فرض؛ sourceKind این دو را جدا می‌کند.
+  warehouseId          Int?
+  warehouseName        String   @default("")
+  /// شناسهٔ ردیفی که *واقعاً* دریافت را گرفت، حتی اگر ردیف فروش حذف شده بود.
+  secondaryStockItemId Int?
+  /// snapshot برای جلوگیری از کسر از ردیفی که بعداً برای کالای دیگری ویرایش شد.
+  stockItemName        String?
+  stockItemCode        String?
+  qty                  Int
+  createdAt            DateTime @default(now())
+
+  @@index([receiptId, id])
+  @@index([allocationId])
+  @@index([secondaryStockItemId])
+}
+
+model BankStatementEvidence {
+  id               Int      @id @default(autoincrement())
+  requestId        Int      @unique
+  confirmedAmount  BigInt
+  sha256           String
+  fileName         String
+  documentBase64   String
+  mimeType         String
+  reviewedByUserId Int?
+  reviewNote       String
+  createdAt        DateTime @default(now())
+
+  @@index([sha256])
+}
+
+/// Append-only ledger for the B/N surplus produced by an exchange. The OPENED
+/// event freezes source/root lineage and B expiry; subsequent reservation and
+/// consumption events never edit or reuse that evidence. This is a liability
+/// ledger only, not a StoreCredit code, bank payout, or permission to settle.
+model ExchangeResidualRightEvent {
+  id               Int      @id @default(autoincrement())
+  eventKey         String   @unique
+  rightKey         String
+  rightKind        String   // B | N
+  eventKind        String   // OPENED | RESERVED | COMMITTED | CANCELLED | RESTORED | VOIDED
+  amount           BigInt
+  availableDelta   BigInt
+  reservedDelta    BigInt
+  spentDelta       BigInt
+  sourceInvoiceId  Int
+  childInvoiceId   Int
+  returnId         Int
+  sourceEventId    Int
+  rootShareId      String
+  expiresAt        DateTime?
+  operationKey     String?
+  relatedInvoiceId Int?
+  relatedPaymentId Int?
+  relatedReturnId  Int?
+  actorUserId      Int?
+  evidenceKind     String   @default("SYSTEM")
+  evidenceRef      String?
+  reversesEventId  Int?     @unique
+  createdAt        DateTime @default(now())
+
+  @@index([rightKey, id])
+  @@index([returnId, id])
+  @@index([sourceEventId, id])
+  @@index([sourceInvoiceId, childInvoiceId, id])
+}
+
+/// S7 witnessed corrections layered over an immutable N right. This journal
+/// never rewrites its opening or spend events: unused unsupported N is adjusted
+/// out, consumed excess is tracked as disputed recovery (never debt), and
+/// matching returns offset that dispute while restoring only the valid share.
+model ExchangeResidualRightPaymentEvidence {
+  id               Int      @id @default(autoincrement())
+  paymentId        Int      @unique
+  confirmedAmount  BigInt
+  sha256           String
+  fileName         String
+  documentBase64   String
+  mimeType         String
+  reviewedByUserId Int?
+  reviewNote       String
+  createdAt        DateTime @default(now())
+
+  @@index([sha256])
+}
+
+model ExchangeResidualRightCorrectionEvent {
+  id                       Int      @id @default(autoincrement())
+  eventKey                 String   @unique
+  operationKey             String
+  rightKey                 String
+  rightKind                String   // N only
+  eventKind                String   // RIGHT_ADJUST | DISPUTED_RECOVERY_OPEN | DISPUTE_OFFSET_BY_RETURN | SOURCE_QUARANTINED | SOURCE_REATTRIBUTED
+  amount                   BigInt
+  availableDelta           BigInt   @default(0)
+  disputedDelta            BigInt   @default(0)
+  basisAmount              BigInt   @default(0)
+  sourceInvoiceId          Int
+  childInvoiceId           Int
+  rootReturnId             Int
+  sourceEventId            Int
+  rootShareId              String
+  relatedInvoiceId         Int?
+  relatedPaymentId         Int?
+  relatedReturnId          Int?
+  parentCorrectionEventId  Int?
+  actorUserId              Int?
+  evidenceKind             String
+  evidenceRef              String
+  reason                   String
+  createdAt                DateTime @default(now())
+
+  @@index([rightKey, id])
+  @@index([operationKey, id])
+  @@index([relatedReturnId, id])
+  @@index([parentCorrectionEventId])
 }

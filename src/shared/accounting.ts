@@ -14,10 +14,19 @@
  * مابه‌التفاوت منفی یک تعویض = −exchangeDiff − debtReduction. تعویض قدیمی
  * (debtReduction = ۰) ⇒ دقیقاً همان −exchangeDiff قبلی.
  */
-export function exchangeRefundPartOf(r: { exchangeDiff?: RialLike | null; debtReduction?: RialLike | null }): number {
+export function exchangeRefundPartOf(r: {
+  exchangeDiff?: RialLike | null
+  debtReduction?: RialLike | null
+  /** Source-specific non-cash barcode value restored alongside an exchange refund. */
+  creditRestored?: RialLike | null
+  /** Exact cash/card/credit settlement amount recorded on the return, when present. */
+  refundAmount?: RialLike | null
+}): number {
   const r0 = (x: unknown): number => { const v = Math.round(Number(x ?? 0)); return Number.isFinite(v) ? v : 0 }
   const owed = Math.max(0, -r0(r.exchangeDiff))
-  return Math.max(0, owed - Math.max(0, r0(r.debtReduction)))
+  const eligible = Math.max(0, owed - Math.max(0, r0(r.debtReduction)) - Math.max(0, r0(r.creditRestored)))
+  if (r.refundAmount != null) return Math.min(eligible, Math.max(0, r0(r.refundAmount)))
+  return eligible
 }
 
 export type Rial = number
@@ -83,13 +92,18 @@ export interface InvoiceTotals {
 export interface ReturnEvent {
   id?: number | string
   kind?: ReturnKind | string
+  /** Durable inverse link remains authoritative if legacy kind is corrupted. */
+  exchangeInvoiceId?: number | string | null
   total?: RialLike
   refundMethod?: RefundMethod | string | null
   refundAmount?: RialLike
+  refundStoreCreditAmount?: RialLike
   returnedAt?: Date | string | number
   exchangeTotal?: RialLike
   exchangeDiff?: RialLike
   exchangeSettlement?: string | null
+  /** Non-cash source-specific credit restored (H1/B/E or mixed S1), never cash. */
+  creditRestored?: RialLike | null
   /** نشست ۶۰ (بند ۴-۵) — کاهش بدهی فاکتور اصلی از مابه‌التفاوت منفی تعویض */
   debtReduction?: RialLike | null
   sourceInvoiceId?: number | string | null
@@ -575,7 +589,7 @@ export function calculateReturnTotals(events: ReturnEvent[] = [], period?: Perio
   for (const r of events) {
     if (period && !inPeriod(r.returnedAt, period)) continue
     const total = Math.max(0, n(r.total))
-    const exchange = r.kind === 'EXCHANGE'
+    const exchange = r.kind === 'EXCHANGE' || r.exchangeInvoiceId != null
     out.count++
     if (exchange) {
       out.exchangeReturned += total
@@ -587,28 +601,39 @@ export function calculateReturnTotals(events: ReturnEvent[] = [], period?: Perio
            که نویسنده‌ی سند می‌نوشت دیگر به سبد «اعتبار خرید» نمی‌افتد. */
         const { bucket } = normalizeSettlement({ exchangeSettlement: r.exchangeSettlement, refundMethod: r.refundMethod })
         /* نشست ۶۰ (بند ۴-۵) — فقط بخش بازپرداخت‌شده؛ کاهش بدهی فاکتور اصلی پول نیست */
-        const refunded = exchangeRefundPartOf({ exchangeDiff: diff, debtReduction: r.debtReduction })
-        if (refunded <= 0) { /* فقط کاهش بدهی */ }
+        const creditRestored = Math.max(0, n(r.creditRestored))
+        if (creditRestored > 0) out.exchangeStoreCreditIssued += creditRestored
+        const refunded = exchangeRefundPartOf({ exchangeDiff: diff, debtReduction: r.debtReduction, creditRestored, refundAmount: r.refundAmount })
+        if (refunded <= 0) { /* فقط کاهش بدهی یا بازگردانی اعتبار به منبع */ }
         else if (bucket === 'CASH_REFUND') out.exchangeCashRefunds += refunded
         else if (bucket === 'CARD_REFUND') out.exchangeCardRefunds += refunded
         /* جلسه ۱۷ · بند ۱ — کارت‌به‌کارت مدیر: نه نقد، نه کارت‌خوان، نه اعتبار خرید */
         else if (bucket === 'CARD_TO_CARD') {
           if (!r.refundCanceled) out.exchangeCardToCardPending += refunded
         }
-        else out.exchangeStoreCreditIssued += refunded
+        else if (bucket === 'STORE_CREDIT') out.exchangeStoreCreditIssued += refunded
       }
       continue
     }
     out.simpleReturns += total
-    const amount = Math.min(total, Math.max(0, n(r.refundAmount || total)))
+    const amount = Math.min(total, Math.max(0, n(r.refundAmount == null ? total : r.refundAmount)))
+    const actualRefund = ['CASH', 'CARD', 'STORE_CREDIT', 'CARD_TO_CARD'].includes(String(r.refundMethod))
+      ? amount : 0
+    const sourceCredit = Math.max(0, n(r.creditRestored))
+    const splitStoreCredit = Math.min(Math.max(0, total - actualRefund - sourceCredit), Math.max(0, n(r.refundStoreCreditAmount)))
+    // Neither the restored gift opportunity nor a real-money payout reduces
+    // customer debt. In particular a gift-only return with method NONE must
+    // not appear as a "debt-only return" in the drawer/manager report.
+    out.debtOnlyReturns += Math.max(0, total - actualRefund - splitStoreCredit - Math.max(0, n(r.creditRestored)))
     if (r.refundMethod === 'CASH') out.cashRefunds += amount
     else if (r.refundMethod === 'CARD') out.cardRefunds += amount
-    else if (r.refundMethod === 'STORE_CREDIT') { out.storeCreditIssued += amount }
+    else if (r.refundMethod === 'STORE_CREDIT') out.storeCreditIssued += amount
     /* جلسه ۱۷ · بند ۱ — تعهد کارت‌به‌کارت؛ «کاهش بدهی» نیست، «پرداخت فوری» هم نیست */
     else if (r.refundMethod === 'CARD_TO_CARD') {
       if (!r.refundCanceled) out.cardToCardPending += amount
     }
-    else out.debtOnlyReturns += total
+    out.storeCreditIssued += splitStoreCredit
+    // NONE/null: debt-only portion was already accounted for above.
   }
   return out
 }
@@ -912,6 +937,9 @@ export function normalizeSettlement(input: {
     case 'NONE':
     // نشست ۶۰ (بند ۴-۵) — فقط کاهش بدهی؛ بخش بازپرداخت‌شده صفر است (exchangeRefundPartOf)
     case 'DEBT_REDUCTION':
+    case 'SAME_BARCODE_RESTORED':
+    case 'S1_RESIDUAL_RIGHTS':
+    case 'S11_DEBT_OFFSET_RIGHTS':
       return { bucket: 'NONE', legacy: false }
     default:
       return { bucket: 'STORE_CREDIT', legacy: true }
@@ -1039,9 +1067,14 @@ export function physicalMoneyInDrawerAndCard(input: {
   return n(input.receivedTotal) - n(input.refundCashTotal) - n(input.refundCardTotal)
 }
 
-/** مبلغ اعتبار صادرشده روی یک سند برگشت (صفر اگر تسویه اعتبار نبوده). */
-export function returnCreditAmountOf(r: { refundMethod?: string | null; refundAmount?: RialLike } = {}): Rial {
-  return r.refundMethod === 'STORE_CREDIT' ? Math.max(0, n(r.refundAmount)) : 0
+/** مبلغ بارکد اعتباریِ صادرشده روی سند برگشت؛ شامل تسویهٔ کامل یا leg جدا از حق پول واقعی. */
+export function returnCreditAmountOf(r: {
+  refundMethod?: string | null
+  refundAmount?: RialLike
+  refundStoreCreditAmount?: RialLike
+} = {}): Rial {
+  const direct = r.refundMethod === 'STORE_CREDIT' ? Math.max(0, n(r.refundAmount)) : 0
+  return direct + Math.max(0, n(r.refundStoreCreditAmount))
 }
 
 export function calculateReconciliationBridge(input: BridgeInput = {}): ReconciliationBridge {
@@ -1250,7 +1283,7 @@ export function calculateStaffPerformance(
     const row = rowOf(r.userId, r.userName)
     // همان تفکیک kind که calculateReturnTotals می‌کند، ولی برای یک کارمند
     const one = calculateReturnTotals([r])
-    if (r.kind === 'EXCHANGE') {
+    if (r.kind === 'EXCHANGE' || r.exchangeInvoiceId != null) {
       row.exchangeCount += one.count
       /** نشست ۱۸۹ · ۱-۷ — «مبلغ تعویض» ارزش کالای *جایگزین* است، نه کالای برگشتی. */
       row.exchangeTotal += one.exchangeReplacement

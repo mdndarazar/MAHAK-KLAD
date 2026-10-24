@@ -1,13 +1,12 @@
 /**
- * s397 — custody aggregate: live mid-day policy + segment-scoped bootstrap.
+ * s397 — historical aggregate-v2 compatibility + live blue custody policy.
  *
- *  • A manager's mid-day permission saved while a drawer is live applies to it.
- *    The receiver need not be on the template roster, only an active staff
- *    member with a personal, non-temporary PIN.
- *  • A segment opened cash-only (no aggregate baseline) is bootstrapped by the
- *    first real aggregate count: evidence-neutral, no guessed expected, no
- *    historical delta, no case, and no POS money turned into OPENING_FLOAT.
- *  • A handover that is started and then canceled leaves no active baseline.
+ *  • Sections 1–4 preserve the old cash-only→aggregate migration evidence.
+ *    A canceled old attempt leaves no accepted baseline; rollback is atomic.
+ *  • New exception/close routes record blue snapshots, never new aggregate-v2
+ *    cases or an OPENING_FLOAT from the combined drawer/POS amount.
+ *  • The manager's live mid-day permission admits an independently PIN-verified
+ *    receiver not on the schedule roster; inactive/temporary PINs are denied.
  *
  * node --import ./test/harness/register.mjs tests/audit-fixes/fix-s397-custody-aggregate-live-midday-bootstrap.mjs
  */
@@ -21,6 +20,7 @@ process.env.HARNESS_DB = join(DIR, 'shop.db')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await import('../../test/harness/seed.mjs')
 const { custodyService } = await import('../../src/main/services/CustodyService.ts')
+const { settingsService } = await import('../../src/main/services/SettingsService.ts')
 const { SETTING_KEYS } = await import('@shared/receipt')
 
 const db = harnessClient()
@@ -58,11 +58,13 @@ for (const person of Object.values(staff)) {
   await custodyService.setPin({ userId: person.id, newPassword: person.temporary, managerUserId: manager, managerPassword: 'Manager397!', reason: 'راه‌اندازی آزمون s397' })
   await custodyService.setPin({ userId: person.id, currentPassword: person.temporary, newPassword: person.permanent })
 }
+// Earlier sections exercise bootstrap arithmetic with different openers, not
+// permission; seed an explicit positive single-shift policy in this fixture.
+seed.setting(SETTING_KEYS.shiftConfig, { singleShiftAllowMidDayHandover: true })
 const SHIFT_BOUNDARY_NOTE = 'مرز نهایی را با مبلغ واقعی ببندید.'
 void SHIFT_BOUNDARY_NOTE
 
-/** Reset to NO_SESSION through an aggregate final close (its own boundary is
- * reconciled against the current segment's baseline, if any). */
+/** Reset to NO_SESSION with the authenticated blue final count. */
 async function resetWith(person, total) {
   const status = await custodyService.status()
   if (status.state !== 'ACTIVE') return
@@ -150,38 +152,49 @@ console.log('\n[5] پوشش اضطراری و بستن نهایی روی segment
   const giver = staff.c
   const cover = staff.d
   const opened = await custodyService.open({ userId: giver.id, password: giver.permanent, countedCash: 0 })
-  await custodyService.emergencyCover({ userId: cover.id, password: cover.permanent, operationalTotal: 3_000_000, reason: 'مسئول قبلی حاضر نیست و باید پوشش داده شود.' })
-  const emergencyBoundary = seed.one('SELECT * FROM "CustodyAggregateBoundary" WHERE boundaryKind=?', 'EMERGENCY_COVER')
-  eq('پوشش اضطراری baseline ADOPTION دارد', emergencyBoundary?.baselineSource, 'ADOPTION')
-  eq('پوشش اضطراری پروندهٔ مغایرت نمی‌سازد', count('SELECT COUNT(*) AS n FROM "CustodyDiscrepancyCase" WHERE boundaryKind=?', 'EMERGENCY_COVER'), 0)
-  eq('پوشش اضطراری expected جعلی روی شمارش نمی‌نشاند', count('SELECT COUNT(*) AS n FROM "CustodyCount" WHERE shiftId=? AND kind=? AND expectedCash IS NOT NULL', opened.shiftId, 'EMERGENCY_COVER_AGGREGATE_COUNT'), 0)
+  const emergency = await custodyService.emergencyCover({ userId: cover.id, password: cover.permanent, operationalTotal: 3_000_000, reason: 'مسئول قبلی حاضر نیست و باید پوشش داده شود.' })
+  const emergencyBoundary = seed.one('SELECT * FROM "CustodyBlueSnapshot" WHERE shiftId=? AND role=? ORDER BY id DESC LIMIT 1', emergency.shiftId, 'IN')
+  eq('پوشش اضطراری فقط سند آبی با شمارش واقعی می‌سازد', Number(emergencyBoundary?.humanAmount), 3_000_000)
+  eq('شمارش جدید در نشست قبلی ثبت نمی‌شود', count('SELECT COUNT(*) AS n FROM "CustodyCount" WHERE shiftId=? AND kind=?', opened.shiftId, 'BLUE_EMERGENCY_IN'), 0)
+  eq('پوشش اضطراری بدون شمارش واقعی قبلی، اختلاف تازهٔ ساختگی ندارد', emergencyBoundary?.freshDifference, null)
+  eq('پوشش اضطراری پروندهٔ مغایرت قدیمی نمی‌سازد', count('SELECT COUNT(*) AS n FROM "CustodyDiscrepancyCase" WHERE boundaryKind=?', 'EMERGENCY_COVER'), 0)
+  eq('پوشش اضطراری expected جعلی روی شمارش نمی‌نشاند', count('SELECT COUNT(*) AS n FROM "CustodyCount" WHERE shiftId=? AND kind=? AND expectedCash IS NOT NULL', emergency.shiftId, 'BLUE_EMERGENCY_IN'), 0)
   eq('مسئولیت به پوشش‌دهنده منتقل شد', (await custodyService.status()).custodian?.id, cover.id)
   await resetWith(cover, 3_000_000)
   eq('بستن نهایی با segment تازه بی‌خطر است', (await custodyService.status()).state, 'NO_SESSION')
 }
 
-console.log('\n[6] Master Override روی segment بدون baseline: همان شمارش، بدون expected جعلی')
+console.log('\n[6] Master Override روی segment بدون سابقهٔ آبی: PIN شخصی و سند واقعی، بدون expected جعلی')
 {
   const giver = staff.e
-  await custodyService.open({ userId: giver.id, password: giver.permanent, countedCash: 0 })
-  await custodyService.masterOverride({ managerUserId: manager, managerPassword: '1111', operationalTotal: 1_500_000, reason: 'مسئول غایب است و مدیر مسئولیت صندوق را می‌گیرد.' })
-  eq('Master Override baseline ADOPTION دارد', seed.one('SELECT baselineSource FROM "CustodyAggregateBoundary" WHERE boundaryKind=?', 'MASTER_OVERRIDE')?.baselineSource, 'ADOPTION')
+  const opened = await custodyService.open({ userId: giver.id, password: giver.permanent, countedCash: 0 })
+  const override = await custodyService.masterOverride({ managerUserId: manager, managerPassword: 'Manager397!', operationalTotal: 1_500_000, reason: 'مسئول غایب است و مدیر مسئولیت صندوق را می‌گیرد.' })
+  const witness = seed.one('SELECT * FROM "CustodyBlueSnapshot" WHERE shiftId=? AND role=? ORDER BY id DESC LIMIT 1', override.shiftId, 'IN')
+  eq('Master Override به جای aggregate-v2 سند مستقل آبی دارد', Number(witness?.humanAmount), 1_500_000)
+  eq('شمارش مدیر برای شیفت قبلی ثبت نمی‌شود', count('SELECT COUNT(*) AS n FROM "CustodyCount" WHERE shiftId=? AND kind=?', opened.shiftId, 'BLUE_MASTER_OVERRIDE_IN'), 0)
+  eq('سند Master Override PIN شخصی مدیر را ثبت می‌کند', witness?.authMethod, 'MANAGER_CUSTODY_PIN')
+  eq('بدون شمارش انسانی قبلی، اختلاف تازه نامعلوم می‌ماند', witness?.freshDifference, null)
   eq('مدیر منتخب مسئول شد', (await custodyService.status()).custodian?.id, manager)
   eq('Master Override پرونده نمی‌سازد', count('SELECT COUNT(*) AS n FROM "CustodyDiscrepancyCase" WHERE boundaryKind=?', 'MASTER_OVERRIDE'), 0)
 }
 
-console.log('\n[7] بستن نهایی segment بدون baseline: ADOPTION بی‌خطر و rollback در خطا')
+console.log('\n[7] بستن نهایی بدون مبنای آبی: rollback کاملِ snapshot، بدون اختلاف تازهٔ جعلی')
 {
   await resetWith({ id: manager, permanent: 'Manager397!' }, 1_500_000)
   const giver = staff.f
-  await custodyService.open({ userId: giver.id, password: giver.permanent, countedCash: 0 })
-  db.$harness.breakNext('CustodyAggregateBoundary', 'create')
-  try { await custodyService.finalClose({ password: giver.permanent, operationalTotal: 800_000 }) } catch {}
+  const opened = await custodyService.open({ userId: giver.id, password: giver.permanent, countedCash: 0 })
+  db.$harness.breakNext('CustodyBlueSnapshot', 'create')
+  let fault = ''
+  try { await custodyService.finalClose({ password: giver.permanent, operationalTotal: 800_000 }) }
+  catch (error) { fault = error?.message ?? '' }
+  eq('خطای ثبت سند نهایی به فراخواننده برمی‌گردد', fault.includes('HARNESS-FAULT'), true)
   eq('خطای بستن نهایی segment را نیمه‌بسته نمی‌گذارد', (await custodyService.status()).state, 'ACTIVE')
+  eq('ثبت شکست‌خورده سند ناقص نمی‌گذارد', count('SELECT COUNT(*) AS n FROM "CustodyBlueSnapshot" WHERE role=? AND shiftId=?', 'FINAL_CLOSE', opened.shiftId), 0)
   await custodyService.finalClose({ password: giver.permanent, operationalTotal: 800_000 })
-  const final = seed.one('SELECT baselineSource, newDifference FROM "CustodyAggregateBoundary" WHERE boundaryKind=? ORDER BY id DESC LIMIT 1', 'FINAL_CLOSE')
-  eq('بستن نهایی بدون baseline ADOPTION است', final?.baselineSource, 'ADOPTION')
-  eq('بستن نهایی بدون baseline اختلاف جعلی ندارد', Number(final?.newDifference), 0)
+  const final = seed.one('SELECT * FROM "CustodyBlueSnapshot" WHERE role=? AND shiftId=? ORDER BY id DESC LIMIT 1', 'FINAL_CLOSE', opened.shiftId)
+  eq('تلاش تازه شمارش واقعی را در سند نهایی ثبت می‌کند', Number(final?.humanAmount), 800_000)
+  eq('مرجع صفر واقعی، اختلاف خام مثبت را نگه می‌دارد', Number(final?.rawDifference), 800_000)
+  eq('بدون مبنای انسانی آبی، اختلاف تازه قابل انتساب نیست', final?.freshDifference, null)
   eq('بستن نهایی segment را NO_SESSION می‌کند', (await custodyService.status()).state, 'NO_SESSION')
 }
 
@@ -197,16 +210,20 @@ console.log('\n[8] سیاست میان‌روز زنده: گیرندهٔ خار�
   })
   await resetWith(staff.d, 0).catch(() => {})
   setTemplate(false)
+  // The live-template setting is a MULTI_SHIFT policy; a single-shift template
+  // toggle must never silently grant its separate midday permission.
+  await settingsService.saveCustodySchedulingWorkflow({ shift: { ...await settingsService.shiftConfig(), custodyMode: 'MULTI_SHIFT' }, managerUserId: manager, managerPassword: 'Manager397!', reason: 'ثبت گردش‌کار چندشیفت برای آزمون مجوز زندهٔ قالب' })
   await custodyService.open({ userId: midGiver.id, password: midGiver.permanent, countedCash: 0 })
-  await rejectsWith('سیاست خاموش: گیرندهٔ غیرroster رد می‌شود', 'MIDDAY_HANDOVER_DISABLED', () => custodyService.handoverStart({ password: midGiver.permanent, operationalTotal: 0, toUserId: outsider.id, idempotencyKey: 's397-mid-off' }))
+  await rejectsWith('سیاست خاموش: گیرندهٔ غیرroster رد می‌شود', 'MIDDAY_HANDOVER_DISABLED', () => custodyService.handoverStart({ password: midGiver.permanent, operationalTotal: 0, blueReference: true, toUserId: outsider.id, idempotencyKey: 's397-mid-off' }))
   setTemplate(true)
-  const started = await custodyService.handoverStart({ password: midGiver.permanent, operationalTotal: 0, toUserId: outsider.id, idempotencyKey: 's397-mid-on' })
+  const started = await custodyService.handoverStart({ password: midGiver.permanent, operationalTotal: 0, blueReference: true, toUserId: outsider.id, idempotencyKey: 's397-mid-on' })
   eq('سیاست زنده روشن: تحویل میان‌روز به گیرندهٔ غیرroster شروع شد', started.state, 'HANDOVER_PENDING')
   const watermark = JSON.parse(seed.one('SELECT ledgerWatermark FROM "CustodyHandover" WHERE id=?', started.id)?.ledgerWatermark ?? '{}')
   eq('منبع مجوز در evidence ثبت شد (CURRENT_SETTINGS)', watermark.midDayPolicySource, 'CURRENT_SETTINGS')
   eq('رویداد زندهٔ سیاست ثبت شد', count('SELECT COUNT(*) AS n FROM "CustodyEvent" WHERE type=?', 'MIDDAY_POLICY_LIVE_APPLIED'), 1)
   eq('snapshot افتتاح دست‌نخورده است', JSON.parse(seed.one('SELECT scheduleSnapshotJson FROM "CustodyShiftMeta" WHERE shiftId=?', (await custodyService.status()).shift?.id ?? 0)?.scheduleSnapshotJson ?? '{}').allowMidDayHandover, false)
-  const accepted = await custodyService.handoverAccept({ handoverId: started.id, password: outsider.permanent, operationalTotal: 0 })
+  await custodyService.handoverCountBlue({ handoverId: started.id, password: outsider.permanent, operationalTotal: 0 })
+  const accepted = await custodyService.handoverConfirmBlue({ handoverId: started.id, password: outsider.permanent })
   eq('گیرندهٔ خارج از roster با شمارش مستقل پذیرفته شد', accepted.state, 'ACTIVE')
   eq('مسئولیت به گیرندهٔ میان‌روز رفت', (await custodyService.status()).custodian?.id, outsider.id)
   setTemplate(false)
@@ -222,10 +239,10 @@ console.log('\n[9] گیرندهٔ نامعتبر: غیرفعال، PIN موقت�
   const tempUser = seed.user('موقت S397')
   db.$harness.db.prepare('UPDATE "User" SET role=? WHERE id=?').run('CASHIER', tempUser)
   await custodyService.setPin({ userId: tempUser, newPassword: 'Temp397!', managerUserId: manager, managerPassword: 'Manager397!', reason: 'آزمون گیرندهٔ موقت' })
-  await rejectsWith('PIN موقت گیرنده رد می‌شود', 'RECEIVER_NO_PIN', () => custodyService.handoverStart({ password: staff.e.permanent, operationalTotal: 0, toUserId: tempUser, idempotencyKey: 's397-temp' }))
+  await rejectsWith('PIN موقت گیرنده رد می‌شود', 'RECEIVER_NO_PIN', () => custodyService.handoverStart({ password: staff.e.permanent, operationalTotal: 0, blueReference: true, toUserId: tempUser, idempotencyKey: 's397-temp' }))
   const noPin = seed.user('بی‌PIN S397')
   db.$harness.db.prepare('UPDATE "User" SET role=? WHERE id=?').run('CASHIER', noPin)
-  await rejectsWith('گیرندهٔ بدون PIN رد می‌شود', 'RECEIVER_NO_PIN', () => custodyService.handoverStart({ password: staff.e.permanent, operationalTotal: 0, toUserId: noPin, idempotencyKey: 's397-nopin' }))
+  await rejectsWith('گیرندهٔ بدون PIN رد می‌شود', 'RECEIVER_NO_PIN', () => custodyService.handoverStart({ password: staff.e.permanent, operationalTotal: 0, blueReference: true, toUserId: noPin, idempotencyKey: 's397-nopin' }))
   await resetWith(staff.e, 0)
 }
 

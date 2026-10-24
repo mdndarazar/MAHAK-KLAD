@@ -31,6 +31,11 @@ const { salesService } = await import(join(root, 'src/main/services/SalesService
 const { jalaliToday } = await import(join(root, 'src/shared/jalali.ts'))
 const { DEFAULT_MANAGER_PASSWORD: PW } = await import(join(root, 'src/shared/receipt.ts'))
 registerIpcHandlers()
+// تستِ actor با عبور از قفل مستقل صفحه اجرا می‌شود؛ قفلِ IPC برای پنجرهٔ
+// دیگری باز نیست و نبود نشست کارمند همچنان باید جداگانه رد شود.
+const { notePanelUnlocked } = await import(join(root, 'src/main/services/panelSession.ts'))
+const { PANEL_KEYS } = await import(join(root, 'src/shared/panels.ts'))
+notePanelUnlocked(PANEL_KEYS.salesReturn, 'PANEL', sender.id)
 const ipc = (ch, payload) => handlers.get(ch)({ sender }, payload)
 const today = jalaliToday()
 const A = seed.user('فروشنده الف ۱۴۱')
@@ -48,7 +53,8 @@ let saleNoShift
   saleNoShift = await salesService.create({ userId: A, shiftId: shift0, lines: [{ variantId: v1, qty: 1, unitPrice: 500_000, discount: 0, tax: 0 }], payments: [{ methodId: cash, amount: 500_000, destination: 'CASH' }] })
   db.$harness.db.prepare('UPDATE "Shift" SET closedAt = ? WHERE id = ?').run(Date.now() - 3600_000, shift0)
   const [i1] = itemsOf(saleNoShift.id)
-  const r = await ipc(IPC.saleReturn, { invoiceId: saleNoShift.id, full: false, lines: [{ saleItemId: i1, qty: 1 }], refundMethod: 'NONE', userId: forged })
+  const r = await ipc(IPC.saleReturn, { invoiceId: saleNoShift.id, full: false, lines: [{ saleItemId: i1, qty: 1 }], refundMethod: 'NONE', userId: forged,
+    idempotencyKey: 'return-request:audit-s141-no-shift-001' })
   eq('بی‌نشست باز: برگشت رد با پیام «نشست باز»', r?.ok === false && /نشست بازِ کارمند/.test(String(r?.error)), true)
   eq('هیچ سند برگشتی ساخته نشد', seed.count('SaleReturn', 'invoiceId = ?', saleNoShift.id), 0)
 }
@@ -66,6 +72,7 @@ let retId, sale
     lines: [{ saleItemId: i1, qty: 1 }],
     refundMethod: 'NONE',
     confirmOverpay: true,
+    idempotencyKey: 'return-request:audit-s141-valid-001',
     userId: forged
   })
   eq('برگشت ثبت شد', r?.ok ? true : r?.error, true)
@@ -93,7 +100,7 @@ console.log('\n— ۳) saleExchangeCreate با userId جعلی')
 {
   const s2 = await salesService.create({ userId: A, shiftId: shiftA, lines: [{ variantId: v1, qty: 1, unitPrice: 500_000, discount: 0, tax: 0 }], payments: [{ methodId: cash, amount: 500_000, destination: 'CASH' }] })
   const [i1] = itemsOf(s2.id)
-  const r = await ipc(IPC.saleExchangeCreate, { invoiceId: s2.id, lines: [{ saleItemId: i1, qty: 1 }], replacements: [{ variantId: vr, qty: 1 }], userId: forged })
+  const r = await ipc(IPC.saleExchangeCreate, { invoiceId: s2.id, lines: [{ saleItemId: i1, qty: 1 }], replacements: [{ variantId: vr, qty: 1 }], idempotencyKey: 'exchange-request:audit-s141-actor-01', userId: forged })
   eq('تعویض ثبت شد', r?.ok ? true : r?.error, true)
   const row = seed.one('SELECT userId, exchangeInvoiceId FROM "SaleReturn" WHERE invoiceId = ? ORDER BY id DESC', s2.id)
   eq('برگشتِ تعویض: userId = کارمند نشست باز', Number(row?.userId), A)

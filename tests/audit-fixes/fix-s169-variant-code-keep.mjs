@@ -22,6 +22,8 @@ process.env.HARNESS_DIR = DIR
 process.env.HARNESS_DB = join(DIR, 'shop.db')
 
 const electron = await import('electron')
+const { attachTestIpcWindow } = await import('../../test/harness/ipcWindow.mjs')
+const { event: ipcEvent } = attachTestIpcWindow(electron)
 const handlers = new Map()
 electron.ipcMain.handle = (ch, fn) => handlers.set(ch, fn)
 
@@ -32,7 +34,7 @@ const seed = makeSeeder(db)
 const { registerIpcHandlers } = await import('../../src/main/ipc/index.ts')
 const { IPC } = await import('@shared/ipc')
 registerIpcHandlers()
-const ipc = (ch, payload) => handlers.get(ch)(null, payload)
+const ipc = (ch, payload) => handlers.get(ch)(ipcEvent, payload)
 
 let ok = 0
 let bad = 0

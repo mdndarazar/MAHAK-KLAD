@@ -26,7 +26,7 @@ const check = (label, actual, expected = true) => {
 }
 
 check('دفتر رویداد متادیتای بخش‌ها را قرارداد می‌دهد', /sections:\s*\{/.test(types) && /invoices:\s*SaleReportPage/.test(types))
-check('فاکتورهای دفتر count واقعی دارند', /prisma\.saleInvoice\.count\(\{ where \}\)/.test(ledger))
+check('فاکتورهای دفتر count واقعی و فیلتر status مشترک دارند', /prisma\.saleInvoice\.count\(\{ where: saleInvoiceWhere \}\)/.test(ledger))
 check('برگشت‌های دفتر count واقعی دارند', /prisma\.saleReturn\.count\(\{ where: returnWhere \}\)/.test(ledger))
 check('وصول نسیه هشدار برش فارسی دارد', /وصول نسیه‌ی بازه‌های قبل پیدا شد/.test(ledger))
 check('چک و مصرف اعتبار هر دو متادیتای truncated دارند', /clearedChequePage[\s\S]{0,500}truncated/.test(ledger) && /storeCreditsUsedPage[\s\S]{0,500}truncated/.test(ledger))

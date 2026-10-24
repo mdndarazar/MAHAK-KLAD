@@ -142,7 +142,7 @@ const ret = await salesService.createReturn({
   refundMethod: RefundMethod.NONE,
   confirmOverpay: true,
   userId
-})
+}, { goodsReceiptRequired: false }) // fixture قبل از cutover: restockedQty=1 در snapshotِ ویرایش تاریخی
 const oldReturnRows = returnItems(ret.id)
 await salesService.returnUpdate({
   id: ret.id,

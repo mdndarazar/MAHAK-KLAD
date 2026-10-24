@@ -8,8 +8,8 @@
  *   ۱) هر فیلد عددی اسکیما دقیقاً در **یک** گروه آمده باشد،
  *   ۲) هیچ گروهی به فیلدی اشاره نکند که در اسکیما وجود ندارد (بازمانده‌ی
  *      تغییرنامِ فراموش‌شده)،
- *   ۳) بعد از مهاجرت، دقیقاً همان فیلدهای گروه «پول» در اسکیما `BigInt` باشند
- *      و بقیه `Int` مانده باشند.
+ *   ۳) بعد از مهاجرت، فقط مبلغ‌های ریالی و دنباله‌های وسیعِ صریحِ Woo در
+ *      اسکیما `BigInt` باشند و شناسه‌ها/تعدادهای معمولی `Int` بمانند.
  *
  * اگر فردا کسی یک ستون مالی جدید اضافه کند و اینجا ثبتش نکند، این بررسی قرمز
  * می‌شود — یعنی «فراموش کردن» گران می‌شود، که تنها راه واقعیِ زنده ماندن یک
@@ -19,7 +19,7 @@
  * ===========================================================================
  */
 import { readFileSync } from 'node:fs'
-import { MONEY_FIELDS, ID_FIELDS, COUNT_FIELDS, parseIntFields, parseBigIntFields } from './money-fields.mjs'
+import { MONEY_FIELDS, ID_FIELDS, COUNT_FIELDS, WIDE_COUNT_FIELDS, parseIntFields, parseBigIntFields } from './money-fields.mjs'
 
 const schema = readFileSync(new URL('../prisma/schema.prisma', import.meta.url), 'utf-8')
 const intFields = parseIntFields(schema)
@@ -29,23 +29,29 @@ const problems = []
 const money = new Set(MONEY_FIELDS)
 const ids = new Set(ID_FIELDS)
 const counts = new Set(COUNT_FIELDS)
+const wideCounts = new Set(WIDE_COUNT_FIELDS)
+const groups = [
+  ['MONEY', MONEY_FIELDS, money], ['ID', ID_FIELDS, ids],
+  ['COUNT', COUNT_FIELDS, counts], ['WIDE_COUNT', WIDE_COUNT_FIELDS, wideCounts]
+]
 
 // ۰) هیچ فیلدی دو بار در فهرست‌ها نیامده باشد (نه داخل یک گروه، نه بین گروه‌ها).
-for (const [name, list, set] of [['MONEY', MONEY_FIELDS, money], ['ID', ID_FIELDS, ids], ['COUNT', COUNT_FIELDS, counts]]) {
+for (const [name, list, set] of groups) {
   if (list.length !== set.size) {
     const seen = new Set()
     const dupes = list.filter((k) => (seen.has(k) ? true : (seen.add(k), false)))
     problems.push(`گروه ${name} تکراری دارد: ${[...new Set(dupes)].join(', ')}`)
   }
 }
-for (const k of money) {
-  if (ids.has(k)) problems.push(`${k} هم در MONEY و هم در ID آمده`)
-  if (counts.has(k)) problems.push(`${k} هم در MONEY و هم در COUNT آمده`)
+for (const [name, , fields] of groups) {
+  for (const [otherName, , otherFields] of groups) {
+    if (otherName <= name) continue
+    for (const k of fields) if (otherFields.has(k)) problems.push(`${k} هم در ${name} و هم در ${otherName} آمده`)
+  }
 }
-for (const k of ids) if (counts.has(k)) problems.push(`${k} هم در ID و هم در COUNT آمده`)
 
-// ۱) پوشش کامل: هر فیلد Int/BigInt اسکیما باید در یکی از سه گروه باشد.
-const declared = new Set([...money, ...ids, ...counts])
+// ۱) پوشش کامل: هر فیلد Int/BigInt اسکیما باید در یکی از چهار گروه باشد.
+const declared = new Set([...money, ...ids, ...counts, ...wideCounts])
 const inSchema = new Set([...intFields, ...bigIntFields].map((f) => f.key))
 for (const key of inSchema) {
   if (!declared.has(key)) problems.push(`فیلد «${key}» در اسکیما هست ولی در هیچ گروهی طبقه‌بندی نشده`)
@@ -63,14 +69,18 @@ if (migrated) {
   for (const key of money) {
     if (!bigSet.has(key)) problems.push(`فیلد پولِ «${key}» هنوز BigInt نشده`)
   }
+  for (const key of wideCounts) {
+    if (!bigSet.has(key)) problems.push(`دنبالهٔ وسیعِ «${key}» باید BigInt باشد`)
+  }
   for (const key of bigSet) {
-    if (!money.has(key)) problems.push(`فیلد «${key}» در اسکیما BigInt است ولی فیلد پول نیست`)
+    if (!money.has(key) && !wideCounts.has(key))
+      problems.push(`فیلد «${key}» در اسکیما BigInt است ولی مبلغ یا دنبالهٔ وسیعِ صریح نیست`)
   }
 }
 
-const counted = money.size + ids.size + counts.size
+const counted = money.size + ids.size + counts.size + wideCounts.size
 console.log(`فیلدهای عددی اسکیما : ${inSchema.size}  (Int: ${intFields.length} · BigInt: ${bigIntFields.length})`)
-console.log(`طبقه‌بندی‌شده        : ${counted}  (پول: ${money.size} · شناسه: ${ids.size} · تعداد/شمارنده: ${counts.size})`)
+console.log(`طبقه‌بندی‌شده        : ${counted}  (پول: ${money.size} · شناسه: ${ids.size} · تعداد/شمارنده: ${counts.size} · دنبالهٔ وسیع: ${wideCounts.size})`)
 console.log(`وضعیت مهاجرت         : ${migrated ? 'انجام شده' : 'هنوز انجام نشده (همه Int)'}`)
 
 if (problems.length) {

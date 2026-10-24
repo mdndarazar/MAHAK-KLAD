@@ -377,6 +377,14 @@ export const ExchangeSettlement = {
   CARD_TO_CARD: 'CARD_TO_CARD',
   /** نشست ۶۰ (بند ۴-۵) — کل مابه‌التفاوت منفی از بدهی فاکتور اصلی کم شد؛ پولی جابه‌جا نشد */
   DEBT_REDUCTION: 'DEBT_REDUCTION',
+  /** A proven multi-use gift remainder was restored onto its original barcode. */
+  SAME_BARCODE_RESTORED: 'SAME_BARCODE_RESTORED',
+  /** S1: real-money carry first; gift-root remainder becomes one non-cash barcode. */
+  S1_RESIDUAL_RIGHTS: 'S1_RESIDUAL_RIGHTS',
+  /** S11: clear cheque debt first, then carry real money and issue one gift-root barcode remainder. */
+  S11_DEBT_OFFSET_RIGHTS: 'S11_DEBT_OFFSET_RIGHTS',
+  /** مابه‌التفاوت مثبت با چک در جریان؛ تا وصول، پشتوانهٔ بدهی باز است */
+  CHEQUE_PENDING: 'CHEQUE_PENDING',
   /** مابه‌التفاوت صفر بود */
   NONE: 'NONE'
 } as const
@@ -390,6 +398,10 @@ export const EXCHANGE_SETTLEMENT_LABELS: Record<string, string> = {
   CARD_TO_CARD: 'کارت‌به‌کارت توسط مدیر (درخواست پرداخت ثبت شد)',
   /** نشست ۶۰ (بند ۴-۵) — مابه‌التفاوت به‌جای پول از بدهی فاکتور اصلی کم شد */
   DEBT_REDUCTION: 'مابه‌التفاوت از بدهی فاکتور اصلی کم شد (پولی جابه‌جا نشد)',
+  SAME_BARCODE_RESTORED: 'ماندهٔ اعتبار به همان بارکد چندباره برگشت؛ بارکد تازه‌ای صادر نشد',
+  S1_RESIDUAL_RIGHTS: 'وجه واقعی carry شد و ماندهٔ اعتبار با یک بارکد غیرنقدی ریشه‌دار ثبت شد',
+  S11_DEBT_OFFSET_RIGHTS: 'بدهی چک ابتدا بسته شد و ماندهٔ اعتبار با یک بارکد غیرنقدی ریشه‌دار ثبت شد',
+  CHEQUE_PENDING: 'چک مابه‌التفاوت در جریان؛ بدهی باز تا وصول',
   NONE: 'مابه‌التفاوت صفر بود'
 }
 
@@ -482,7 +494,9 @@ export const SecondaryStockAction = {
    */
   SALE_WHOLESALE: 'SALE_WHOLESALE',
   /** برگشتِ همان کسر به همان انبار (برگشت از فروش / ویرایش / حذف فاکتور). */
-  SALE_WHOLESALE_RESTORE: 'SALE_WHOLESALE_RESTORE'
+  SALE_WHOLESALE_RESTORE: 'SALE_WHOLESALE_RESTORE',
+  /** خروجِ جبرانیِ فقط سهم دریافت‌شده از همان ردیف انبار مبدأ. */
+  SALE_RETURN_CORRECTION: 'SALE_RETURN_CORRECTION'
 } as const
 export type SecondaryStockAction = (typeof SecondaryStockAction)[keyof typeof SecondaryStockAction]
 
@@ -495,7 +509,8 @@ export const SECONDARY_STOCK_ACTION_LABELS: Record<string, string> = {
   WITHDRAW: 'برداشت خودکار برای فروش',
   TRANSFER_STORE: 'انتقال به انبار فروشگاه',
   SALE_WHOLESALE: 'کسر برای فاکتور فروش عمده',
-  SALE_WHOLESALE_RESTORE: 'برگشت کسر فاکتور فروش عمده'
+  SALE_WHOLESALE_RESTORE: 'برگشت کسر فاکتور فروش عمده',
+  SALE_RETURN_CORRECTION: 'خروج جبرانی رسید برگشتی از انبار مبدأ'
 }
 
 /** وضعیت یک چک ثبت‌شده روی فاکتور. */
@@ -505,7 +520,10 @@ export type ChequeStatus = (typeof ChequeStatus)[keyof typeof ChequeStatus]
 export const CHEQUE_STATUS_LABELS: Record<string, string> = {
   PENDING: 'در جریان (پاس نشده)',
   CLEARED: 'پاس شد',
-  BOUNCED: 'برگشت خورد'
+  BOUNCED: 'برگشت خورد',
+  DEBT_OFFSET: 'بدهی از ارزش برگشتی کسر شد؛ چک هنوز وصول نشده',
+  SUSPENSE: 'تعلیق/تطبیق لازم',
+  SUSPENSE_REFUNDED: 'تطبیق شد / بازپرداخت شد'
 }
 
 /** وضعیت تسویه‌ی یک فاکتور (از مقایسه‌ی جمع کل با جمع پرداختی‌های دریافت‌شده). */
@@ -557,6 +575,8 @@ export const AuditAction = {
    * `cardTransfer:pay` و آزادسازی صریح در `cardTransfer:cancel`.
    */
   CARD_TRANSFER_RESTOCK: 'CARD_TRANSFER_RESTOCK',
+  /** دریافت فیزیکیِ شاهددارِ کالای برگشت/تعویض بدون درخواست کارت‌به‌کارت. */
+  RETURN_GOODS_RECEIVE: 'RETURN_GOODS_RECEIVE',
   /** جلسه ۴۰ · کار ب — رد/لغو یک درخواست کارت‌به‌کارت (با دلیل اجباری) */
   CARD_TRANSFER_CANCEL: 'CARD_TRANSFER_CANCEL',
   /** جلسه ۱۷ · بند ۴ — ثبت یک جلسه‌ی شمارش فیزیکی انبار */
@@ -722,7 +742,9 @@ export const AuditAction = {
   CREDIT_PRINT: 'CREDIT_PRINT',
   /** چاپ مجدد (روی کاغذ برچسب «نسخه‌ی مجدد» می‌خورد — §۱۳) */
   CREDIT_REPRINT: 'CREDIT_REPRINT',
-  /** ثبت یک یادآوری در صف (بدون هیچ ارسال واقعی — §۱۴) */
+  /** ثبت رضایت مثبت و مستند برای یادآوریِ همان شماره؛ بدون backfill. */
+  CREDIT_REMINDER_CONSENT: 'CREDIT_REMINDER_CONSENT',
+  /** ثبت یک یادآوری در صف (ارسال فقط با رضایت مستقل) */
   CREDIT_REMINDER_QUEUE: 'CREDIT_REMINDER_QUEUE',
   /** تغییر تنظیمات مرکزی اعتبار خرید (§۲۲) */
   CREDIT_SETTINGS_UPDATE: 'CREDIT_SETTINGS_UPDATE',

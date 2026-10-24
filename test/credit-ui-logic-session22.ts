@@ -2,27 +2,27 @@
  * سوییت منطق خالصِ لایه‌ی نمایش ماژول اعتبار (جلسه ۲۲) — بدون node_modules،
  * بدون دیتابیس، بدون React. هدفش این است که «تصمیم»های فرم‌ها واقعاً اجرا و
  * سنجیده شوند، نه این‌که فقط داخل JSX پنهان بمانند.
- * اجرا: node --experimental-strip-types test/credit-ui-logic-session22.ts
+ * اجرا: node --import ./test/harness/register.mjs test/credit-ui-logic-session22.ts
  */
 /**
  * ⚠️ چرا import پویا و نه ساده؟ `src/shared/creditUi.ts` مثل بقیه‌ی فایل‌های
  * پروژه با مسیرِ بی‌پسوند (`./credit`) import می‌کند — قرارداد باندلر پروژه.
- * اجرای مستقیم با node ESM پسوند می‌خواهد، پس دو فایل را با پسوندِ اصلاح‌شده
- * در یک پوشه‌ی موقت کپی و همان‌ها را اجرا می‌کنیم. **سورس اصلی دست‌نخورده
- * می‌ماند** و همان کدِ واقعی تست می‌شود، نه یک نسخه‌ی بازنویسی‌شده.
+ * یک کپیِ تنها از credit.ts وابستگی‌های money/phone را گم می‌کند. پس UI را
+ * در temp با import به URL ماژول واقعی اجرا می‌کنیم؛ سورس اصلی دست‌نخورده است.
  */
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'credit-ui-'))
-fs.writeFileSync(path.join(tmp, 'credit.ts'), fs.readFileSync('src/shared/credit.ts'))
+const creditUrl = pathToFileURL(path.resolve('src/shared/credit.ts')).href
 fs.writeFileSync(
   path.join(tmp, 'creditUi.ts'),
-  fs.readFileSync('src/shared/creditUi.ts', 'utf8').replace(/from '\.\/credit'/g, "from './credit.ts'")
+  fs.readFileSync('src/shared/creditUi.ts', 'utf8').replace(/from '\.\/credit'/g, `from '${creditUrl}'`)
 )
 const ui: any = await import(path.join(tmp, 'creditUi.ts'))
-const rules: any = await import(path.join(tmp, 'credit.ts'))
+const rules: any = await import(creditUrl)
 
 const {
   EMPTY_BULK_DRAFT, EMPTY_ISSUE_DRAFT, buildBulkPayload, buildIssuePayload, buildOpPayload, cleanIds,

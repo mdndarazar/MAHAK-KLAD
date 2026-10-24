@@ -2083,6 +2083,8 @@ export interface CreditViewFilterLike {
   fromJalali?: string
   toJalali?: string
   search?: string
+  /** Safe identity-only search on the credit management page. */
+  holderSearch?: string
   source?: string
   status?: string
   /** فقط نمای «یادآوری»: نامزدهای واجد شرایطِ همین حالا. */
@@ -2128,6 +2130,7 @@ export function creditViewRequest(view: CreditView, filter: CreditViewFilterLike
   const source = trimmed(filter.source)
   const status = trimmed(filter.status)
   const search = trimmed(filter.search)
+  const holderSearch = trimmed(filter.holderSearch)
   switch (view) {
     case 'settings':
       return { channel, payload: null, envelope: 'object' }
@@ -2144,6 +2147,7 @@ export function creditViewRequest(view: CreditView, filter: CreditViewFilterLike
         payload: {
           ...rangeKeys(filter),
           ...(search ? { search } : {}),
+          ...(holderSearch ? { holderSearch } : {}),
           ...(source ? { source } : {}),
           ...(status ? { status } : {}),
           ...(filter.onlyWithRemaining ? { onlyWithRemaining: true } : {}),
@@ -2240,7 +2244,7 @@ export function creditCellText(cell: string | number | null | undefined, fmt: Cr
  * می‌شود (سوییت جلسه ۳۴ همین هم‌پوشانی را می‌سنجد)، به‌جز `take` که ردیف‌ها را
  * عوض نمی‌کند بلکه فقط تعدادشان را زیاد می‌کند.
  */
-export const CREDIT_SELECTION_RESET_KEYS: readonly string[] = ['fromJalali', 'toJalali', 'search', 'source', 'status', 'onlyWithRemaining']
+export const CREDIT_SELECTION_RESET_KEYS: readonly string[] = ['fromJalali', 'toJalali', 'search', 'holderSearch', 'source', 'status', 'onlyWithRemaining']
 
 /**
  * امضای همان فیلترها. صفحه به *این یک رشته* وابسته می‌شود، نه به یک آرایه‌ی

@@ -80,8 +80,11 @@ const twoItems = async (paid) => {
   const inv = await salesService.create({ userId, shiftId, lines: [line(a, 600), line(b, 400)], payments: paid > 0 ? [{ methodId: cash, amount: paid, destination: 'CASH' }] : [] })
   return { inv, a, b, items: itemsOf(inv.id) }
 }
+// Void graph fixtures are pre-cutover documents; new exchange-goods receipts
+// are exercised independently without rewriting historic stock assertions.
 const exchange = (invoiceId, saleItemId, repVariant, refundMode) =>
-  salesService.createExchange({ invoiceId, lines: [{ saleItemId, qty: 1 }], replacements: [{ variantId: repVariant, qty: 1 }], refundMode, methodId: cash, userId, shiftId })
+  salesService.createExchange({ invoiceId, lines: [{ saleItemId, qty: 1 }], replacements: [{ variantId: repVariant, qty: 1 }], refundMode, methodId: cash, userId, shiftId },
+    { goodsReceiptRequired: false })
 const report = async () => {
   const filter = { fromJalali: today, toJalali: today }
   const { statements } = await buildStatements({
@@ -212,20 +215,21 @@ truthy('سند تعویض فعال ماند', invRow(exE?.exchangeInvoiceId ?? -
 eq('ردیف «رسیدگی مدیر»', reviewRows(exE?.returnId ?? -1), 1)
 
 // ===========================================================================
-console.log('\n۶) روی خودِ سند تعویض برگشت ثبت شده ⇒ ابطال ناممکن')
+console.log('\n۶) برگشت روی فاکتور فرزند تعویض تا تکمیل lineage و entitlement مسدود است')
 const F = await safe('نسیه‌ی ۱٬۰۰۰', () => twoItems(0))
 const exF = await safe('تعویض ۶۰۰ با ۲۰۰', () => exchange(F.inv.id, F.items[0].id, variant(200), 'CASH'))
 const exItems = itemsOf(exF?.exchangeInvoiceId ?? -1)
-await safe('برگشت کالای جایگزین از سند تعویض', () => salesService.createReturn({ invoiceId: exF.exchangeInvoiceId, full: false, lines: [{ saleItemId: exItems[0].id, qty: 1 }], refundMethod: 'STORE_CREDIT', refundAmount: 200, userId }))
-await throwsWith('ابطال رد می‌شود (برگشت روی سند تعویض)', () => voidIt(exF?.returnId), 'سند تعویض')
-truthy('سند تعویض فعال ماند', invRow(exF?.exchangeInvoiceId ?? -1)?.voidedAt == null)
-await throwsWith('اصلاح جبرانی هم روی گراف دارای برگشت بعدی رد می‌شود', () =>
-  salesService.returnReconcileVoid({
-    id: exF?.returnId, userId, reason: 'تلاش اصلاح با برگشت جایگزین',
-    cashRecovered: 0, cardRecovered: 0, cashPaidOut: 0, cardPaidOut: 0, creditOutcome: 'NONE'
-  }),
-  'برگشت فعال'
-)
+const childReturnCountBefore = seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', exF.exchangeInvoiceId).n
+await throwsWith('برگشت اعتبارمحور روی سند تعویض fail-closed می‌ماند', () => salesService.createReturn({
+  invoiceId: exF.exchangeInvoiceId, full: false,
+  lines: [{ saleItemId: exItems[0].id, qty: 1 }],
+  refundMethod: 'STORE_CREDIT', refundAmount: 200, userId
+}), 'تخصیص منشأ به قلم')
+eq('درخواست ردشده هیچ برگشتی روی فرزند نساخت',
+  seed.one('SELECT COUNT(*) n FROM "SaleReturn" WHERE invoiceId=?', exF.exchangeInvoiceId).n, childReturnCountBefore)
+const safeChildGraphVoid = await safe('ابطال گراف تعویض وقتی برگشت فرزند مسدود مانده', () => voidIt(exF?.returnId))
+truthy('تعویض بدون برگشت فرزند باطل شد', safeChildGraphVoid?.exchangeVoided === true)
+truthy('فاکتور فرزند باطل شد', invRow(exF?.exchangeInvoiceId ?? -1)?.voidedAt != null)
 
 // ===========================================================================
 console.log('\n۷) کارت‌به‌کارت در انتظار ⇒ ابطال + لغو درخواست، کالای معلق وارد موجودی نمی‌شود')
@@ -343,11 +347,17 @@ truthy('دفتر، لغو تعهد کارت‌به‌کارت را اثر مست
 eq('کالای جایگزینِ تعویض معلق به موجودی برگشت', stockOf(repL), 100)
 
 // ===========================================================================
-console.log('\n۱۳) کارت‌به‌کارتِ ناقص: سقف بازیافت فقط پرداخت واقعی است')
+console.log('\n۱۳) مسیر legacy کارت‌به‌کارتِ ناقص: سقف بازیافت فقط پرداخت ثبت‌شده است')
 const M = await safe('فاکتور پرداخت‌شده‌ی ۱٬۰۰۰ برای کارت‌به‌کارت ناقص', () => twoItems(1000))
 const repM = variant(200)
 const exM = await safe('تعویض ۶۰۰ با ۲۰۰ کارت‌به‌کارت', () => exchange(M.inv.id, M.items[0].id, repM, 'CARD_TO_CARD'))
 const reqM = seed.one('SELECT id FROM "CardTransferRequest" WHERE returnId = ?', exM?.returnId ?? -1)
+// Explicit legacy fixture: old requests have no new entitlement. The old
+// correction/recovery regression remains valid ONLY for those rows; new rows
+// must wait for a reviewed bank document and cannot use adjust to unlock rights.
+const legacyClaim = seed.one('SELECT id FROM "ReturnEntitlement" WHERE requestId = ?', reqM?.id ?? -1)
+sql.prepare('DELETE FROM "ReturnEntitlementEvent" WHERE entitlementId = ?').run(legacyClaim?.id)
+sql.prepare('DELETE FROM "ReturnEntitlement" WHERE id = ?').run(legacyClaim?.id)
 await safe('ثبت پرداخت واقعیِ ناقص ۲۰۰', () => cardTransferService.pay({ id: reqM?.id, paidAmount: 200, userId, managerPassword: PW }))
 await safe('ثبت اصلاح منفی ۵۰ برای پرداخت کارت‌به‌کارت', () => cardTransferService.adjust({ id: reqM?.id, amount: -50, reason: 'بخشی از پرداخت برگشت خورد', userId, managerPassword: PW }))
 await throwsWith('بازیافت بیشتر از خالص پرداخت واقعیِ کارت‌به‌کارت رد می‌شود', () =>

@@ -276,6 +276,8 @@ export default function Settings() {
   /** تغییر روش حضانت مستقل از ذخیره‌ی عمومی است تا Main بتواند مسئولیت باز را
    * قبل از commit اتمی fence کند؛ رمز/علت هرگز ذخیره نمی‌شود. */
   const [custodySchedulingReason, setCustodySchedulingReason] = useState('')
+  const [custodySchedulingManagerId, setCustodySchedulingManagerId] = useState<number | ''>('')
+  const [custodySchedulingPin, setCustodySchedulingPin] = useState('')
   const [custodySchedulingBusy, setCustodySchedulingBusy] = useState(false)
   /** legacy ShiftPlanها تا بازبینی صریح مدیر به تنظیمات canonical تبدیل نمی‌شوند. */
   const [legacyShiftPlanReview, setLegacyShiftPlanReview] = useState<LegacyShiftPlanReview | null>(null)
@@ -467,6 +469,19 @@ export default function Settings() {
   const [policyBusy, setPolicyBusy] = useState(false)
   /** نشست ۱۵۴ (S151-b، بند ۴-۲۹) — رمز مدیر همیشه لازم؛ بعد از هر تلاش پاک می‌شود */
   const [policyPw, setPolicyPw] = useState('')
+  const [s10Policy, setS10Policy] = useState<any>(null)
+  const [s10Managers, setS10Managers] = useState<{ id: number; name: string; role: string; isActive: boolean }[]>([])
+  const [s10Enabled, setS10Enabled] = useState(false)
+  const [s10MinimumDelta, setS10MinimumDelta] = useState('')
+  const [s10ProposalReason, setS10ProposalReason] = useState('')
+  const [s10ProposalEvidence, setS10ProposalEvidence] = useState('')
+  const [s10ProposerId, setS10ProposerId] = useState('')
+  const [s10ProposerPin, setS10ProposerPin] = useState('')
+  const [s10ApprovalReason, setS10ApprovalReason] = useState('')
+  const [s10ApprovalEvidence, setS10ApprovalEvidence] = useState('')
+  const [s10ApproverId, setS10ApproverId] = useState('')
+  const [s10ApproverPin, setS10ApproverPin] = useState('')
+  const [s10PolicyBusy, setS10PolicyBusy] = useState(false)
 
   // ---------------- جلسه ۱۸ · بند ۲ — کارمندان ----------------
   const [staffRows, setStaffRows] = useState<
@@ -896,23 +911,26 @@ export default function Settings() {
     if (!isManager) return setErr('تغییر روش حضانت فقط با نشست فعال مدیر ممکن است.')
     if (shift.custodyMode === 'SINGLE_SHIFT' && !shift.singleShiftCustodianUserId)
       return setErr('برای تک‌شیفت، مسئول اصلی روزانه را انتخاب کنید.')
+    if (!custodySchedulingManagerId || !custodySchedulingPin.trim() || custodySchedulingReason.trim().length < 10)
+      return setErr('مدیر، PIN شخصی او و دلیل حداقل ۱۰ نویسه‌ای را وارد کنید؛ حتی اگر صندوق بسته باشد.')
     setCustodySchedulingBusy(true)
     try {
       const saved = await call<ShiftConfig>(CH.settingsCustodySchedulingWorkflow, {
-        shift: { ...shift, custodyModeConfigured: true },
-        reason: custodySchedulingReason
+        shift: { ...shift, custodyModeConfigured: true }, reason: custodySchedulingReason.trim(),
+        managerUserId: custodySchedulingManagerId, managerPassword: custodySchedulingPin
       })
       setShift(parseShiftConfig(saved))
       setCustodySchedulingReason('')
       setDirty(false)
       flash(
         saved.custodyMode === 'SINGLE_SHIFT'
-          ? 'گردش‌کار تک‌شیفت با مسئول اصلی روزانه ذخیره شد. مسئولیت صندوق فقط با PIN و شمارش فیزیکی او آغاز می‌شود.'
-          : 'گردش‌کار چندشیفت با کارکنان مستقل هر شیفت ذخیره شد. مسئولیت صندوق فقط با PIN و شمارش فیزیکی آغاز می‌شود.'
+          ? 'گردش‌کار تک‌شیفت با مسئول اصلی روزانه ذخیره شد. در غیبت او، فرد مجاز دیگری فقط با PIN شخصی، شمارش واقعی و دلیل ثبت‌شده صندوق تازه را باز می‌کند.'
+          : 'گردش‌کار چندشیفت ذخیره شد. فرد خارج از برنامه برای افتتاح مستقل به PIN شخصی، شمارش واقعی و دلیل ثبت‌شده نیاز دارد.'
       )
     } catch (e: any) {
       setErr(e?.message ?? 'ذخیره‌ی روش حضانت انجام نشد.')
     } finally {
+      setCustodySchedulingPin('')
       setCustodySchedulingBusy(false)
     }
   }
@@ -1703,6 +1721,54 @@ export default function Settings() {
    * ۱۴ ثبت‌شده و آماده بود.
    * =========================================================================
    */
+  const loadS10ChequePolicy = useCallback(async () => {
+    try {
+      const [state, directory] = await Promise.all([
+        call<any>(CH.exchangeChequePolicyGet),
+        call<{ rows?: { id: number; name: string; role: string; isActive: boolean }[] }>(CH.staffDirectory, { includeInactive: false })
+      ])
+      setS10Policy(state)
+      setS10Enabled(Boolean(state?.active?.enabled))
+      setS10MinimumDelta(String(state?.active?.minimumDelta ?? ''))
+      setS10Managers((directory.rows ?? []).filter((row) => row.role === 'MANAGER' && row.isActive))
+    } catch (e: any) { setErr(e.message) }
+  }, [])
+
+  const proposeS10ChequePolicy = async () => {
+    const min = Number(toLatinDigits(s10MinimumDelta).replace(/[^\d]/g, ''))
+    if (!s10ProposerId || !s10ProposerPin.trim() || !Number.isSafeInteger(min) || min < 0 ||
+        (s10Enabled && min <= 0) || s10ProposalReason.trim().length < 10 || s10ProposalEvidence.trim().length < 8)
+      return setErr('فعال/خاموش، حداقل مابه‌التفاوت، مدیر پیشنهاددهنده، رمز شخصی، دلیل و شاهد معتبر را وارد کنید.')
+    setS10PolicyBusy(true)
+    try {
+      const next = await call<any>(CH.exchangeChequePolicyPropose, {
+        enabled: s10Enabled, minimumDelta: min, reason: s10ProposalReason.trim(), evidenceRef: s10ProposalEvidence.trim(),
+        proposerUserId: Number(s10ProposerId), proposerPin: s10ProposerPin.trim()
+      })
+      setS10Policy(next); setS10ProposerPin(''); setS10ProposalReason(''); setS10ProposalEvidence('')
+      flash('پیشنهاد سیاست ثبت شد؛ تا تأیید مدیر دوم نسخهٔ فعال تغییر نمی‌کند.')
+    } catch (e: any) { setErr(e.message) }
+    finally { setS10PolicyBusy(false); setS10ProposerPin('') }
+  }
+
+  const approveS10ChequePolicy = async () => {
+    const pending = s10Policy?.pending
+    if (!pending || !s10ApproverId || Number(s10ApproverId) === Number(pending.proposerUserId) || !s10ApproverPin.trim() ||
+        s10ApprovalReason.trim().length < 10 || s10ApprovalEvidence.trim().length < 8)
+      return setErr('برای تأیید، مدیر دومی متفاوت از پیشنهاددهنده، رمز شخصی، دلیل و شاهد لازم است.')
+    setS10PolicyBusy(true)
+    try {
+      const next = await call<any>(CH.exchangeChequePolicyApprove, {
+        proposalId: pending.id, approvingManagerUserId: Number(s10ApproverId), approvingManagerPin: s10ApproverPin.trim(),
+        approvalReason: s10ApprovalReason.trim(), approvalEvidenceRef: s10ApprovalEvidence.trim()
+      })
+      setS10Policy(next); setS10Enabled(Boolean(next?.active?.enabled)); setS10MinimumDelta(String(next?.active?.minimumDelta ?? ''))
+      setS10ApproverPin(''); setS10ApprovalReason(''); setS10ApprovalEvidence('')
+      flash(`سیاست فعال شد · نسخه ${faDigits(next.active.version)} · ${next.active.enabled ? 'روشن' : 'خاموش'}`)
+    } catch (e: any) { setErr(e.message) }
+    finally { setS10PolicyBusy(false); setS10ApproverPin('') }
+  }
+
   const loadPolicy = useCallback(async () => {
     try {
       setPolicy(parseAccountingPolicy(await call<AccountingPolicy>(CH.settingsAccountingPolicy)))
@@ -1893,7 +1959,10 @@ export default function Settings() {
       void loadBackupConfig()
     }
     if (tab === 'slim') void loadStats()
-    if (tab === 'accounting') void loadPolicy()
+    if (tab === 'accounting') {
+      void loadPolicy()
+      if (isManager) void loadS10ChequePolicy()
+    }
     if (tab === 'time') {
       const t = window.setInterval(() => setTimeNow(new Date()), 1000)
       return () => window.clearInterval(t)
@@ -3644,7 +3713,7 @@ export default function Settings() {
               <div className="rounded border-2 border-indigo-300 bg-indigo-50 p-3 space-y-3">
                 <div className="font-bold text-indigo-950">گردش‌کار مسئولیت و برنامه‌ریزی حضانت</div>
                 <p className="kbd leading-6">
-                  این دو روش عمداً جدا هستند؛ تیک مشترک یا انتخاب نام، مسئولیت مالی ایجاد نمی‌کند. در هر دو روش فقط PIN شخصی و شمارش فیزیکی هنگام بازکردن صندوق مسئولیت می‌سازد.
+                  این دو روش عمداً جدا هستند؛ تیک مشترک یا انتخاب نام، مسئولیت مالی ایجاد نمی‌کند. مسئولیت تازه با PIN شخصی و شمارش واقعی هنگام افتتاح شروع می‌شود. افتتاح خارج از برنامه دلیل ثبت‌شده هم می‌خواهد و مسئولیت قبلی را منتقل نمی‌کند.
                 </p>
                 <div className="grid md:grid-cols-2 gap-2">
                   <button
@@ -3663,7 +3732,7 @@ export default function Settings() {
                     onClick={() => { setShift((current) => ({ ...current, custodyMode: 'MULTI_SHIFT', singleShiftCustodianUserId: null })); setDirty(true) }}
                   >
                     <b>چندشیفت: کارکنان مستقل هر شیفت</b>
-                    <span className="block kbd mt-1 leading-6">کارکنانِ هر قالب زمانی پایین جداگانه تعیین می‌شوند؛ فقط فرد ثبت‌شده در بازهٔ فعال می‌تواند صندوق را تحویل بگیرد.</span>
+                    <span className="block kbd mt-1 leading-6">کارکنانِ هر بازه برای افتتاح عادی تعیین می‌شوند؛ در غیبت آن‌ها، صندوق‌دار یا مدیر فعال با PIN، شمارش واقعی و دلیل می‌تواند مستقل افتتاح کند.</span>
                   </button>
                 </div>
 
@@ -3682,7 +3751,13 @@ export default function Settings() {
                         {staffRows.filter((staff) => staff.isActive && (staff.role === 'MANAGER' || staff.role === 'CASHIER')).map((staff) => <option key={staff.id} value={staff.id}>{staff.name} · {staff.roleLabel}</option>)}
                       </select>
                     </label>
-                    <p className="kbd leading-6">این انتخاب فقط واجدبودن برای تحویل‌گیری را مشخص می‌کند. حتی همین فرد نیز بدون PIN شخصی و ثبت شمارش واقعی نمی‌تواند مسئول صندوق شود.</p>
+                    <p className="kbd leading-6">این انتخاب مسئول برنامه‌ریزی‌شده را مشخص می‌کند، نه مالکیت خودکار صندوق. او هم به PIN شخصی و شمارش واقعی نیاز دارد؛ جانشین خارج از برنامه علاوه بر این‌ها باید دلیل ثبت کند.</p>
+                    <label className="flex items-center gap-2 text-sm font-semibold">
+                      <input type="checkbox" checked={shift.singleShiftAllowMidDayHandover} disabled={!isManager || custodySchedulingBusy}
+                        onChange={(e) => { setShift((current) => ({ ...current, singleShiftAllowMidDayHandover: e.target.checked })); setDirty(true) }} />
+                      مجوز تحویل میان‌روز تک‌شیفت (پیش‌فرض خاموش)
+                    </label>
+                    <p className="kbd leading-6">فقط از همین گردش‌کار با PIN شخصی مدیر ذخیره می‌شود. مجوز مثبتِ ثبت‌شده برای نشست باز پایدار است؛ خاموش‌کردن گزینه برای نشست‌های آینده است، نه لغو تحویل در جریان.</p>
                   </div>
                 ) : (
                   <div className="rounded border border-indigo-200 bg-white p-3">
@@ -3699,8 +3774,21 @@ export default function Settings() {
                   <span>مهلت هشدار بعد از پایان (دقیقه)</span>
                   <input className="inp w-24" inputMode="numeric" value={String(shift.overrunGraceMinutes)} onChange={(e) => { const minutes = Math.max(0, Math.min(1440, Math.round(Number(toLatinDigits(e.target.value).replace(/\D/g, '')) || 0))); setShift((current) => ({ ...current, overrunGraceMinutes: minutes })); setDirty(true) }} />
                 </label>
+                <div className="grid md:grid-cols-2 gap-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm">مدیر تصمیم‌گیرنده (با PIN شخصی حضانت)</span>
+                    <select className="inp" value={custodySchedulingManagerId} disabled={!isManager || custodySchedulingBusy} onChange={(e) => setCustodySchedulingManagerId(e.target.value ? Number(e.target.value) : '')}>
+                      <option value="">مدیر را انتخاب کنید…</option>
+                      {staffRows.filter((staff) => staff.isActive && staff.role === 'MANAGER').map((staff) => <option key={staff.id} value={staff.id}>{staff.name}</option>)}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm">PIN شخصی همین مدیر (هر بار لازم است)</span>
+                    <PasswordField value={custodySchedulingPin} onChange={(e) => setCustodySchedulingPin(e.target.value)} />
+                  </label>
+                </div>
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm">علت تغییر روش یا مسئول اصلی (هنگام بازبودن مسئولیت، حداقل ۱۰ کاراکتر و اجباری است)</span>
+                  <span className="text-sm">دلیل مدیر (همیشه اجباری؛ حداقل ۱۰ نویسه، حتی با صندوق بسته)</span>
                   <input className="inp" value={custodySchedulingReason} onChange={(e) => setCustodySchedulingReason(e.target.value)} disabled={!isManager || custodySchedulingBusy} placeholder="مثلاً تغییر رسمی برنامهٔ کاری امروز" />
                 </label>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -3903,7 +3991,7 @@ export default function Settings() {
               {shift.custodyMode === 'MULTI_SHIFT' ? (
               <div className="space-y-2">
                 <div className="font-bold">برنامهٔ چندشیفت: کارکنان و مجوز تحویل میان‌روز هر شیفت</div>
-                <p className="kbd leading-6">این بخش منبع canonical برنامه‌های جدید است. کارمند برنامه‌ریزی‌شده فقط «واجد انتخاب» می‌شود؛ تا PIN خودش را وارد و صندوق را باز نکند، هیچ مسئولیت مالی ندارد.</p>
+                <p className="kbd leading-6">این بخش منبع برنامه‌های جدید است. کارمند برنامه‌ریزی‌شده با انتخاب نام صاحب صندوق نمی‌شود؛ PIN و شمارش واقعی لازم دارد. جانشین خارج از برنامه با دلیل ثبت‌شده، بدون انتقال اسناد قبلی، مستقل افتتاح می‌کند.</p>
                 {shift.templates.map((template, index) => (
                   <details key={`schedule-${template.id}`} className="rounded border bg-slate-50 p-3" open={shift.templates.length === 1}>
                     <summary className="cursor-pointer font-bold">{template.name || `شیفت ${faDigits(index + 1)}`} · {faDigits(index + 1)}</summary>
@@ -3935,7 +4023,7 @@ export default function Settings() {
               ) : (
                 <div className="rounded border border-indigo-200 bg-indigo-50 p-3 space-y-1">
                   <b>تک‌شیفت: برنامهٔ کارکنانِ هر قالب غیرفعال است</b>
-                  <p className="kbd leading-6">در این روش فقط مسئول اصلی روزانهٔ بالا برای تحویل‌گیری صندوق واجد است. نام و ساعت قالب‌ها همچنان برای نمایش و گزارش نشست‌های عادی نگه داشته می‌شوند، اما انتخاب کارمند در آن‌ها نمی‌تواند مسئولیت حضانت بسازد.</p>
+                  <p className="kbd leading-6">در این روش فرد بالا مسئول اصلی برنامه‌ریزی‌شده است. در غیبت او، صندوق‌دار یا مدیر فعال می‌تواند با PIN شخصی، شمارش واقعی و دلیل، صندوق تازه را بدون جابه‌جایی مسئولیت قبلی باز کند. قالب‌های چندشیفت همچنان مسئول جایگزین را به‌طور خودکار تعیین نمی‌کنند.</p>
                 </div>
               )}
 
@@ -4388,6 +4476,38 @@ export default function Settings() {
                   این بخش دکمه‌ی ذخیره‌ی خودش را دارد و با «ذخیره‌ی تنظیمات» بالای صفحه ذخیره نمی‌شود.
                 </span>
               </div>
+
+              {isManager && <section className="mt-6 rounded border-2 border-violet-400 bg-violet-50 p-4 space-y-3">
+                <div>
+                  <h3 className="font-bold text-lg">S10 · سیاست نسخه‌دار پذیرش چک مابه‌التفاوت تعویض</h3>
+                  <p className="text-sm leading-6">پیش‌فرض خاموش است. پذیرش فقط وقتی انجام می‌شود که سیاست فعال باشد و مبلغ خالص مابه‌التفاوت به حداقل تعیین‌شده برسد. تغییرها با پیشنهاد یک مدیر و تأیید مدیر دومی فعال می‌شوند و روی اسناد قبلی اثر نمی‌گذارند.</p>
+                </div>
+                {s10Policy && <div className="rounded bg-white p-3 text-sm">
+                  نسخهٔ فعال <b>{faDigits(s10Policy.active.version)}</b> · وضعیت <b>{s10Policy.active.enabled ? 'روشن' : 'خاموش'}</b> · حداقل <b>{money(s10Policy.active.minimumDelta)} ریال</b>
+                  {s10Policy.active.proposerName && <> · پیشنهاد {s10Policy.active.proposerName} / تأیید {s10Policy.active.approverName}</>}
+                  {s10Policy.pending && <p className="mt-1 text-amber-800 font-bold">پیشنهاد در انتظار تأیید · نسخهٔ پایه {faDigits(s10Policy.pending.baseVersion)} · {s10Policy.pending.enabled ? 'روشن' : 'خاموش'} · حداقل {money(s10Policy.pending.minimumDelta)} ریال · پیشنهاددهنده: {s10Policy.pending.proposerName}</p>}
+                </div>}
+                <div className="grid md:grid-cols-2 gap-3">
+                  <label className="flex items-center gap-2 font-bold"><input type="checkbox" className="w-4 h-4" checked={s10Enabled} onChange={(e) => setS10Enabled(e.target.checked)} />پذیرش چک مابه‌التفاوت روشن باشد</label>
+                  <Field label="حداقل خالص مابه‌التفاوت (ریال)"><input className="inp" dir="ltr" inputMode="numeric" value={s10MinimumDelta} onChange={(e) => setS10MinimumDelta(toLatinDigits(e.target.value).replace(/[^\d]/g, ''))} /></Field>
+                  <Field label="مدیر پیشنهاددهنده"><select className="inp" value={s10ProposerId} onChange={(e) => setS10ProposerId(e.target.value)}><option value="">انتخاب کنید…</option>{s10Managers.map((m) => <option key={m.id} value={m.id}>{m.name} · #{faDigits(m.id)}</option>)}</select></Field>
+                  <Field label="رمز شخصی مدیر پیشنهاددهنده"><PasswordField value={s10ProposerPin} onChange={(e) => setS10ProposerPin(e.target.value)} /></Field>
+                  <Field label="دلیل تغییر (حداقل ۱۰ نویسه)"><input className="inp" value={s10ProposalReason} onChange={(e) => setS10ProposalReason(e.target.value)} /></Field>
+                  <Field label="شاهد مستند/مرجع (حداقل ۸ نویسه)"><input className="inp" value={s10ProposalEvidence} onChange={(e) => setS10ProposalEvidence(e.target.value)} /></Field>
+                </div>
+                <button className="btn btn-primary" disabled={s10PolicyBusy} onClick={() => void proposeS10ChequePolicy()}>{s10PolicyBusy ? 'در حال ثبت…' : 'ثبت پیشنهاد تغییر سیاست'}</button>
+                {s10Policy?.pending && <div className="border-t border-violet-200 pt-3 space-y-3">
+                  <h4 className="font-bold">تأیید مستقل مدیر دوم</h4>
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <Field label="مدیر تأییدکننده (باید متفاوت باشد)"><select className="inp" value={s10ApproverId} onChange={(e) => setS10ApproverId(e.target.value)}><option value="">انتخاب کنید…</option>{s10Managers.filter((m) => m.id !== s10Policy.pending.proposerUserId).map((m) => <option key={m.id} value={m.id}>{m.name} · #{faDigits(m.id)}</option>)}</select></Field>
+                    <Field label="رمز شخصی مدیر تأییدکننده"><PasswordField value={s10ApproverPin} onChange={(e) => setS10ApproverPin(e.target.value)} /></Field>
+                    <Field label="دلیل تأیید مستقل (حداقل ۱۰ نویسه)"><input className="inp" value={s10ApprovalReason} onChange={(e) => setS10ApprovalReason(e.target.value)} /></Field>
+                    <Field label="شاهد تأیید مستقل (حداقل ۸ نویسه)"><input className="inp" value={s10ApprovalEvidence} onChange={(e) => setS10ApprovalEvidence(e.target.value)} /></Field>
+                  </div>
+                  <button className="btn btn-primary" disabled={s10PolicyBusy} onClick={() => void approveS10ChequePolicy()}>{s10PolicyBusy ? 'در حال تأیید…' : 'تأیید و فعال‌سازی نسخهٔ جدید'}</button>
+                </div>}
+                <button className="btn" disabled={s10PolicyBusy} onClick={() => void loadS10ChequePolicy()}>تازه‌سازی سیاست و مدیرها</button>
+              </section>}
             </>
           )}
 
@@ -4580,9 +4700,9 @@ export default function Settings() {
                 <CustodyChip showOperations={false} />
               </div>
               <div className="rounded border p-4 space-y-3 bg-white">
-                <div className="font-bold">رمزهای موقت و بازبینی دادهٔ قدیمی</div>
+                <div className="font-bold">ریست بازیابانهٔ شیفت، رمزهای موقت و بازبینی اسناد</div>
                 <p className="text-sm text-slate-600">
-                  پس از فعال‌سازی، رمز موقت شخصی صادر یا بازنشانی می‌شود و برنامه‌های Legacy فقط قابل بازبینی‌اند؛ هیچ رمز خام قبلی نمایش داده نمی‌شود. برای ساخت یا ویرایش برنامهٔ جدید به تب «شیفت‌ها» بروید.
+                  ریست شیفت با PIN شخصی، دلیل و تأیید مدیر همیشه در همین بخش در دسترس است، حتی اگر صندوق بسته باشد. ریست فروش یا شمارش گذشته را حذف نمی‌کند و مسئول جدیدی نمی‌سازد. رمز موقت شخصی نیز در این بخش صادر می‌شود؛ برای برنامهٔ جدید به تب «شیفت‌ها» بروید.
                 </p>
                 <CustodyAdminChip />
               </div>
@@ -5000,6 +5120,11 @@ export default function Settings() {
                   <Info label="فاکتور فروش" value={faDigits(slimPreview.saleInvoices)} strong />
                   <Info label="اقلام فاکتور" value={faDigits(slimPreview.saleItems)} />
                   <Info label="برگشت از فروش" value={faDigits(slimPreview.saleReturns)} />
+                  {(slimPreview.saleInvoicesRetained ?? 0) > 0 && <>
+                    <Info label="فاکتورهای متصل به اصلاح برگشت (حفظ می‌شود)" value={faDigits(slimPreview.saleInvoicesRetained)} />
+                    <Info label="اقلامِ فاکتورهای حفظ‌شده" value={faDigits(slimPreview.saleItemsRetained)} />
+                    <Info label="برگشت‌های دارای اصلاح (حفظ می‌شود)" value={faDigits(slimPreview.saleReturnsRetained)} />
+                  </>}
                   <Info label="فاکتور خرید" value={faDigits(slimPreview.purchaseInvoices)} />
                   <Info label="حرکت انبار قدیمی (حفظ می‌شود)" value={faDigits(slimPreview.stockMovements)} />
                   <Info label="لاگ عملیات (پاک می‌شود)" value={faDigits(slimPreview.auditLogs)} />
@@ -5397,7 +5522,7 @@ export default function Settings() {
         }
       >
         <p className="font-bold text-base">
-          همه‌ی داده‌ی قبل از {faDigits(slimBefore)} برای همیشه از جدول‌های اصلی پاک می‌شود.
+          داده‌های مشمول پاک‌سازی و قدیمی‌تر از {faDigits(slimBefore)} حذف می‌شوند؛ موارد محافظت‌شده‌ی پایین حفظ خواهند شد.
         </p>
         <p className="leading-7">
           {faDigits(slimPreview?.saleInvoices ?? 0)} فاکتور فروش · {faDigits(slimPreview?.purchaseInvoices ?? 0)} فاکتور
@@ -5405,6 +5530,12 @@ export default function Settings() {
           {faDigits(slimPreview?.stockMovements ?? 0)} حرکت انبار قدیمی (دفتر append-only، حفظ می‌شود) · جمع فروش{' '}
           {money(slimPreview?.grandTotal ?? 0)} ریال
         </p>
+        {(slimPreview?.saleInvoicesRetained ?? 0) > 0 && (
+          <p className="leading-7 text-amber-800">
+            {faDigits(slimPreview?.saleInvoicesRetained ?? 0)} فاکتور، {faDigits(slimPreview?.saleItemsRetained ?? 0)} قلم و
+            {' '}{faDigits(slimPreview?.saleReturnsRetained ?? 0)} برگشتِ متصل به «اصلاح جبرانی» حذف نمی‌شوند تا دفتر مالی و سند مرجع سالم بمانند.
+          </p>
+        )}
         <p className="leading-7">
           {slimBackup ? (
             <b>اول یک بکاپ کامل گرفته می‌شود</b>

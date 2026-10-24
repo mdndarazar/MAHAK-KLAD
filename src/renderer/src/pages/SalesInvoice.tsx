@@ -159,6 +159,9 @@ export default function SalesInvoice() {
   const [editId, setEditId] = useState<number | null>(null)
   const [editNo, setEditNo] = useState<number | null>(null)
   const [loadingEdit, setLoadingEdit] = useState(false)
+  /** Main-only form witness; never an actor/PIN. A stale form keeps its draft. */
+  const [editFormToken, setEditFormToken] = useState<string | null>(null)
+  const [editFormStale, setEditFormStale] = useState(false)
 
   const [dateJalali, setDateJalali] = useState(jalaliToday())
   const [customer, setCustomer] = useState<Party | null>(null)
@@ -598,6 +601,8 @@ export default function SalesInvoice() {
     setPriceNeedPw(null)
     setEditId(null)
     setEditNo(null)
+    setEditFormToken(null)
+    setEditFormStale(false)
     // جلسه ۵۱ — «دفتر مبدأ داشتن» خصوصیتِ همان فاکتورِ در حال ویرایش است
     setHasLedger(false)
     searchRef.current?.clear()
@@ -668,6 +673,10 @@ export default function SalesInvoice() {
 
   const save = useCallback(async (overpayReq: OverpayRequest = {}) => {
     if (busy) return
+    if (editId && editFormStale) {
+      setErr('فرم ویرایش قدیمی است؛ پیش از ذخیره دربارهٔ بارگذاری دوبارهٔ فاکتور تصمیم بگیرید.')
+      return
+    }
     if (!lines.length) return setErr('فاکتور خالی است؛ حداقل یک قلم اضافه کنید')
     if (!isValidJalaliDate(dateJalali)) return setErr('تاریخ فاکتور معتبر نیست')
     setBusy(true)
@@ -759,7 +768,9 @@ export default function SalesInvoice() {
            * نباید با ویرایش اقلام پاک شود.
            */
           const inv = editId
-            ? await call<any>(CH.saleUpdate, { ...payload, payments: undefined, keepPayments: true, id: editId })
+            ? await call<any>(CH.saleUpdate, {
+                ...payload, payments: undefined, keepPayments: true, id: editId, editFormToken
+              })
             : await call<any>(CH.saleCreate, payload)
           overpayPlanRef.current = null
           setLastSaved({ id: inv.id, receiptNo: inv.receiptNo, paid: Math.max(0, Math.round(paid)) })
@@ -843,7 +854,13 @@ export default function SalesInvoice() {
        * ثبت شود. این حالت قبل از پارس هشدار اضافه‌دریافت می‌آید چون withSessionActor
        * بیرون‌ترین دروازه‌ی ثبت است.
        */
-      if (e?.code === 'SESSION_REQUIRED') {
+      if (e?.code === 'SALE_EDIT_FORM_STALE' && editId) {
+        // No auto-retry/reload: the user's typed lines, prices and notes remain
+        // in renderer state until they explicitly agree to discard them.
+        overpayPlanRef.current = null
+        setEditFormStale(true)
+        setErr(message)
+      } else if (e?.code === 'SESSION_REQUIRED') {
         overpayPlanRef.current = null
         sessionBlockedRef.current = true
         setSessionBlock(message)
@@ -884,6 +901,8 @@ export default function SalesInvoice() {
     totals,
     resetForm,
     editId,
+    editFormToken,
+    editFormStale,
     autoCentral,
     remoteCustomer,
     chargePw,
@@ -1008,15 +1027,19 @@ export default function SalesInvoice() {
    * پس از تخفیف» دقیقاً مثل لحظه‌ی ثبت دیده شوند. اگر قیمت یک ردیف با درصد
    * سراسری نمی‌خواند، به‌عنوان «قیمت دستی» علامت می‌خورد.
    */
-  const startEdit = useCallback(async (row: any) => {
+  const startEdit = useCallback(async (row: any, discardConfirmed = false) => {
+    if (editFormStale && !discardConfirmed &&
+        !window.confirm('فرم ویرایش قبلی هنوز تغییرات ذخیره‌نشده دارد. بارگذاری فاکتور، آن داده‌ها را کنار می‌گذارد. ادامه می‌دهید؟')) return
     setLoadingEdit(true)
     setErr(null)
     try {
-      const inv = await call<any>(CH.saleGet, { id: row.id })
+      const inv = await call<any>(CH.saleGet, { id: row.id, forEdit: true })
       if (!inv) throw new Error('این فاکتور پیدا نشد؛ لیست را تازه کنید')
       const pct = inv.wholesaleDiscountPercent ?? 0
       setEditId(inv.id)
       setEditNo(inv.receiptNo)
+      setEditFormToken(typeof inv.editFormToken === 'string' ? inv.editFormToken : null)
+      setEditFormStale(false)
       setDateJalali(inv.issuedAtJalali)
       setCustomer(inv.customer ?? null)
       setPercent(pct)
@@ -1084,7 +1107,7 @@ export default function SalesInvoice() {
     } finally {
       setLoadingEdit(false)
     }
-  }, [])
+  }, [editFormStale])
 
   const cancelEdit = useCallback(() => {
     resetForm(false)
@@ -1120,6 +1143,25 @@ export default function SalesInvoice() {
               </span>
               <button className="btn ms-auto" onClick={cancelEdit} disabled={busy}>
                 انصراف از ویرایش
+              </button>
+            </div>
+          )}
+          {editId && editFormStale && (
+            <div className="rounded shadow p-3 border-2 border-amber-500 bg-amber-50 text-amber-950 flex flex-wrap items-center gap-3">
+              <span>
+                مسئول صندوق عوض شده یا اعتبار فرم پایان یافته/مصرف شده است؛ این تلاش برای ذخیره رد شد. اگر ذخیرهٔ قبلی‌تان
+                بی‌پاسخ مانده، ممکن است همان ذخیره انجام شده باشد؛ پیش از تلاش تازه فاکتور را بازبینی کنید. داده‌های
+                واردشده هنوز در همین فرم باقی‌اند؛ برای حفظشان فعلاً بارگذاری تازه را نزنید و در صورت نیاز کپی کنید.
+              </span>
+              <button
+                className="btn border-2 border-amber-700 font-bold"
+                disabled={busy || loadingEdit}
+                onClick={() => {
+                  if (!window.confirm('بارگذاری تازه، تغییرات ذخیره‌نشدهٔ همین فرم را کنار می‌گذارد. بعد از بررسی یا کپی اطلاعات، ادامه می‌دهید؟')) return
+                  void startEdit({ id: editId }, true)
+                }}
+              >
+                بارگذاری تازه و بازبینی فاکتور
               </button>
             </div>
           )}
@@ -1689,7 +1731,7 @@ export default function SalesInvoice() {
           </div>
 
           <div className="flex gap-2 flex-wrap">
-            <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>
+            <button className="btn btn-primary" onClick={() => void save()} disabled={busy || editFormStale}>
               {busy ? 'در حال ذخیره…' : editId ? 'ذخیره‌ی ویرایش' : 'ذخیره'} <span className="kbd">{SHORTCUTS.save}</span>
             </button>
             <button className="btn" onClick={() => resetForm(false)} disabled={busy}>

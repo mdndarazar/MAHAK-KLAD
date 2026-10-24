@@ -67,7 +67,7 @@ const throwsWith = async (name, fn, needle) => {
   } catch (e) {
     const msg = String(e?.message ?? e)
     if (String(msg).startsWith('HARNESS:')) return ok(name, false, msg)
-    return ok(name, needle ? msg.includes(needle) : true, `پیام: ${msg.split('\n')[0]}`)
+    return ok(name, needle ? msg.includes(needle) : true, `پیام: ${msg.slice(0, 180).replace(/\n/g, ' ')}`)
   }
 }
 
@@ -114,7 +114,9 @@ section('بند ۱ · ایجاد اعتبار (§۱، §۲، §۳، §۱۲)')
   eq('اطلاعات گیرنده ثبت شد (§۱۲)', row.holderCompany, 'شرکت الف')
   const log = auditRows(AuditAction.CREDIT_ISSUE_MANUAL, manual.id)
   eq('یک ردیف AuditLog صدور ثبت شد (§۱۰)', log.length, 1)
-  ok('متن سند صدور مبلغ و نوع را دارد', /صدور اعتبار خرید/.test(log[0]?.note ?? ''), log[0]?.note)
+  ok('متن سند صدور مبلغ و نوع را دارد',
+    String(log[0]?.note ?? '').includes('صادرشده توسط مدیریت') &&
+    String(log[0]?.note ?? '').includes(`${money(7_000_000)} ریال`), log[0]?.note)
 
   const exchange = await issue({ amount: 3_000_000, source: 'EXCHANGE' })
   const exRow = creditRow(exchange.id)
@@ -247,7 +249,7 @@ section('بند ۴ · فضای کد ناکافی (§۶)')
 // ===========================================================================
 section('بند ۵ و ۶ · مصرف تک/چندباره، جزئی/کامل (§۴)')
 {
-  // یک‌بارمصرف با مصرف جزئی ⇒ بسته می‌شود و باقی‌مانده اعتبار جدید می‌گیرد
+  // پیش‌فرض حفظ مانده: مصرف جزئی، همان کد را برای فاکتور بعدی تا صفر باز نگه می‌دارد.
   const single = await issue({ amount: 10_000_000 })
   const inv1 = plainInvoice(4_000_000)
   const r1 = await svc.redeemStoreCredit(db, {
@@ -268,10 +270,20 @@ section('بند ۵ و ۶ · مصرف تک/چندباره، جزئی/کامل (§
   ok('هیچ بارکد جانشینی ساخته نشد', r1.remainder == null && singleRow.remainderCreditId == null)
   eq('و باقی‌مانده روی همان رکورد است', Number(singleRow.amount) - Number(singleRow.usedAmount), 6_000_000)
   await throwsWith(
-    'مصرف دوباره‌ی اعتبار یک‌بارمصرف رد می‌شود',
+    'همان فاکتور تسویه‌شده دوباره اعتبار نمی‌گیرد، حتی با کلید جدید',
     () => svc.redeemStoreCredit(db, { code: single.code, invoiceId: inv1.id, receiptNo: inv1.receiptNo, userId }),
-    'مصرف'
+    'باقی‌مانده'
   )
+  eq('تلاش تکراری ماندهٔ اعتبار را کم نکرد', creditRow(single.id).usedAmount, 4_000_000)
+  eq('هیچ پرداخت تکراری روی فاکتور اول نماند', seed.count('Payment', 'invoiceId = ?', inv1.id), 1)
+  const invRemainder = plainInvoice(6_000_000)
+  const secondUse = await svc.redeemStoreCredit(db, {
+    code: single.code, invoiceId: invRemainder.id, receiptNo: invRemainder.receiptNo, userId
+  })
+  eq('مانده روی فاکتور بعدی با همان کد تا صفر مصرف شد', secondUse.applied, 6_000_000)
+  eq('پس از مصرف کامل، همان اعتبار بسته شد', creditRow(single.id).status, StoreCreditStatus.USED)
+  eq('سند یک‌بارمصرفِ دارای مانده به غلط روی برگه یک‌بارمصرف نام ندارد',
+    svc.shapeStoreCredit(creditRow(single.id)).usesLabel, 'تا پایان مبلغ (مانده روی همین کد)')
 
   // چندباره تا سقف مبلغ
   const multi = await issue({ amount: 10_000_000, multiUse: true, maxUses: 3, overrideReason: 'قرارداد' })
@@ -854,6 +866,14 @@ section('افزوده ۳ · زیرساخت یادآوری (§۱۴)')
   const customerId = seed.customer('شرکت یادآوری', '09129998877')
   const credit = await issue({ amount: 4_000_000, customerId, customerName: 'شرکت یادآوری', holderPhone: '09129998877' })
   seed.rows('UPDATE "StoreCredit" SET issuedAt = ? WHERE id = ?', Date.now() - 40 * DAY, credit.id)
+  const blocked = await svc.storeCreditService.queueReminder({ id: credit.id, force: true, userId })
+  eq('شماره و نبود Opt-out بدون رضایت، پیامک نمی‌سازند', blocked.status, 'SKIPPED')
+  ok('در سابقهٔ درخواستِ ردشده، کد خرج‌پذیر ذخیره نشد',
+    !String(seed.one('SELECT text FROM "CreditReminderLog" WHERE creditId = ? ORDER BY id DESC', credit.id)?.text).includes(credit.code))
+  // بقیهٔ این بخش رفتار زمان‌بندی/قالب *پس از* رضایت صریح را می‌سنجد.
+  // ثبت واقعی مدیر، IPC، و لغو رضایت در سوییت اختصاصیِ consent آزموده می‌شود.
+  seed.rows('UPDATE "StoreCredit" SET reminderConsentAt = ?, reminderConsentPhone = ?, reminderConsentEvidence = ? WHERE id = ?',
+    Date.now() - DAY, '09129998877', 'رسید امضاشده مشتری در fixture پذیرش', credit.id)
 
   const cand = await svc.storeCreditService.reminderCandidates({ take: 500 })
   const mine = cand.rows.find((r) => r.credit.id === credit.id)

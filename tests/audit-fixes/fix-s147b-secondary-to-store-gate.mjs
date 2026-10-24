@@ -26,6 +26,8 @@ process.env.HARNESS_DIR = DIR
 process.env.HARNESS_DB = join(DIR, 'shop.db')
 
 const electron = await import('electron')
+const { attachTestIpcWindow } = await import('../../test/harness/ipcWindow.mjs')
+const { event: ipcEvent, owner: ipcOwner } = attachTestIpcWindow(electron)
 const handlers = new Map()
 electron.ipcMain.handle = (ch, fn) => handlers.set(ch, fn)
 
@@ -52,10 +54,10 @@ registerIpcHandlers()
  * کاری را می‌کند که کاربر واقعی می‌کند: اول قفل پنل انبار مرکزی را باز
  * می‌کند. (تست اختصاصی خودِ گیت: `fix-s186-review-high2.mjs`)
  */
-const { notePanelUnlocked: __unlock186 } = await import('../../src/main/services/panelSession.ts')
+const { notePanelUnlocked: __unlock186, runWithPanelSessionOwner } = await import('../../src/main/services/panelSession.ts')
 const { PANEL_KEYS: __PK186 } = await import('../../src/shared/panels.ts')
-__unlock186(__PK186.secondaryStock, 'MANAGER')
-const ipc = (ch, payload) => handlers.get(ch)(null, payload)
+runWithPanelSessionOwner(ipcOwner, () => __unlock186(__PK186.secondaryStock, 'MANAGER'))
+const ipc = (ch, payload) => handlers.get(ch)(ipcEvent, payload)
 
 let ok = 0
 let bad = 0

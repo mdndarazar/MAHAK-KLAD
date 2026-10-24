@@ -57,7 +57,7 @@ for (const [id, temporary, permanent] of [[giver, 'GiverTemp383!', 'GiverFinal38
 }
 
 const opened = await custodyService.open({ userId: giver, password: 'GiverFinal383!', countedCash: 500 })
-const started = await custodyService.handoverStart({ password: 'GiverFinal383!', countedCash: 500, toUserId: receiver, idempotencyKey: 's383-boundary' })
+const started = await custodyService.handoverStart({ password: 'GiverFinal383!', operationalTotal: 500, blueReference: true, toUserId: receiver, idempotencyKey: 's383-boundary' })
 const watermark = JSON.parse(seed.one('SELECT ledgerWatermark FROM "CustodyHandover" WHERE id=?', started.id)?.ledgerWatermark ?? '{}')
 const captured = JSON.parse(watermark?.incomingSchedule?.scheduleSnapshotJson ?? '{}')
 eq('handover مرزی kind صریح SHIFT_CHANGE دارد', watermark.handoverKind, 'SHIFT_CHANGE')
@@ -77,7 +77,8 @@ seed.setting(SETTING_KEYS.shiftConfig, {
   }]
 })
 
-const accepted = await custodyService.handoverAccept({ handoverId: started.id, password: 'ReceiverFinal383!', countedCash: 500 })
+await custodyService.handoverCountBlue({ handoverId: started.id, password: 'ReceiverFinal383!', operationalTotal: 500 })
+const accepted = await custodyService.handoverConfirmBlue({ handoverId: started.id, password: 'ReceiverFinal383!' })
 const received = seed.one('SELECT templateId, planTitle, scheduledEndAt, rolloverAt, scheduleSnapshotJson FROM "CustodyShiftMeta" WHERE shiftId=?', accepted.shiftId)
 const receivedSnapshot = JSON.parse(received?.scheduleSnapshotJson ?? '{}')
 eq('segment گیرنده identity template captureشده را می‌گیرد', received?.templateId, 'incoming-s383')
@@ -90,7 +91,7 @@ eq('اجازهٔ میان‌روز جدید Settings جای policy watermark ر�
 eq('پایان segment گیرنده همان پایان captureشده است', new Date(received?.scheduledEndAt).toISOString(), captured.scheduledEndAt)
 eq('expiry segment گیرنده از overtime captureشده محاسبه می‌شود', new Date(received?.rolloverAt).getTime(), new Date(captured.scheduledEndAt).getTime() + 27 * 60_000)
 eq('مسئولیت واقعی فقط پس از PIN/count گیرنده منتقل شده است', (await custodyService.status()).custodian?.id, receiver)
-eq('segment خروجی واقعا خاتمه یافته است', seed.one('SELECT endKind FROM "CustodyShiftMeta" WHERE shiftId=?', opened.shiftId)?.endKind, 'HANDED_OVER')
+eq('segment خروجی واقعا خاتمه یافته است', seed.one('SELECT endKind FROM "CustodyShiftMeta" WHERE shiftId=?', opened.shiftId)?.endKind, 'BLUE_HANDOVER')
 
 console.log(`\n${bad === 0 ? '✓' : '✗'} ${ok} بررسی موفق · ${bad} ناموفق`)
 process.exitCode = bad ? 1 : 0

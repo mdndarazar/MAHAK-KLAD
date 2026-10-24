@@ -143,6 +143,8 @@ export interface CreateSaleInput {
    * شمرده نمی‌شود. همان لحظه «مصرف‌شده» علامت می‌خورد (یک‌بار‌مصرف).
    */
   storeCreditCode?: string | null
+  /** Multiple access codes may be consumed in the submitted order; S1 uses N then B. */
+  storeCreditCodes?: string[]
   /**
    * جلسه ۲۱ · §۱۷ — **پرداخت ترکیبی**: چه مقدار از این اعتبار روی همین فاکتور
    * خرج شود (خالی = حداکثر ممکن، یعنی رفتار مو‌به‌موی قبل). بقیه‌ی فاکتور با
@@ -262,6 +264,8 @@ export interface InvoicePaymentRow {
   clearedAtJalali: string | null
   /** روزهای مانده تا سررسید (منفی = گذشته). null = چک نیست یا سررسید ندارد. */
   dueInDays: number | null
+  /** این پرداخت چک، پشتوانهٔ بازپرداخت/بدهی تعویض است و ویرایش/حذف آن ممنوع است؟ */
+  exchangeDebtBacking?: boolean
   /** مبلغ این ردیف در «جمع پرداختی‌های دریافت‌شده» شمرده می‌شود؟ */
   counted: boolean
   /**
@@ -392,6 +396,10 @@ export interface AddInvoicePaymentInput {
   overpayAsCredit?: boolean
   /** رمز مدیر، فقط اگر مبلغ اعتبار از سقف «صدور اعتبار» تنظیمات بیشتر باشد */
   managerPassword?: string | null
+  /** تأیید آگاهانه‌ی مدیر برای دریافت چک با وجود بدهی چکِ تسویه‌نشده */
+  chequeDebtOverride?: boolean
+  /** دلیل شاهددارِ override (اجباری) */
+  overrideReason?: string | null
   // ---- چک ----
   chequeNo?: string | null
   bankName?: string | null
@@ -547,6 +555,8 @@ export interface PrintLabel {
 export interface ReturnSaleInput {
   invoiceId: number
   full: boolean
+  /** Required by the production IPC boundary; retained across retries of one intent. */
+  idempotencyKey?: string
   lines?: { saleItemId: number; qty: number }[]
   note?: string
   userId?: number | null
@@ -566,6 +576,8 @@ export interface ReturnSaleInput {
   refundMethod?: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | 'NONE' | null
   /** مبلغ بازپرداخت‌شده؛ خالی = کل مبلغ برگشت (برای CASH/CARD/STORE_CREDIT) */
   refundAmount?: number | null
+  /** Optional second settlement leg: real-money refund issued as a new barcode. */
+  refundStoreCreditAmount?: number | null
   /**
    * بند ۴-۱۱ — مدیر می‌تواند با رمز و دلیل، مبلغ کاملِ بدون کسر تخفیف را
    * برگرداند. این پرچم فقط برای برگشت ساده است و هرگز سقف اعتبار خرید را دور
@@ -577,6 +589,10 @@ export interface ReturnSaleInput {
   refundNote?: string | null
   /** مهلت بارکد اعتبارِ صادرشده وقتی refundMethod = STORE_CREDIT */
   creditDays?: number | null
+  /** فقط اطلاعات اختیاریِ روی برگهٔ کد؛ نه مدرک مالکیت، UNIQUE یا مجوز پیامک. */
+  printedHolderFirstName?: string | null
+  printedHolderLastName?: string | null
+  printedHolderPhone?: string | null
   /**
    * ------------------------ جلسه ۱۵ (بند ۱۷ سند مرجع) ------------------------
    * فقط وقتی لازم می‌شوند که تاریخ این سند در دوره‌ی بسته‌شده باشد (صندوق بسته
@@ -1469,6 +1485,8 @@ export interface SaleAccountingStatements {
   cheques: SaleChequeBlock
   storeCredits: SaleStoreCreditBlock
   cash: SaleCashBlock
+  /** Full-scope aggregate; unlike report-row creditTotal it cannot depend on skip/take. */
+  ambiguousLegacyCreditTotal?: number
   bridge: SaleBridgeBlock
   /**
    * جاهایی که یک فیلتر ذاتاً روی یک عدد قابل اعمال نبود.
@@ -1502,6 +1520,8 @@ export type PagedRows<T> = T[] & {
 export interface SaleReportResult {
   rows: SaleReportRow[]
   totals: SaleReportTotals
+  /** Official blue-reference verdict, computed from full financial aggregates. */
+  custodyReference?: import('./custodyReference').CustodyReference
   /** گروه‌بندی روز → شیفت (برای چک‌باکس «جداسازی بر اساس شیفت») */
   groups: SaleReportGroup[]
   /**
@@ -1980,6 +2000,8 @@ export interface ExchangeReplacementLine {
  * در یک تراکنش اتمیک.
  */
 export interface ExchangeSaleInput {
+  /** کلید caller-held برای replay امن همان درخواست تعویض پس از timeout */
+  idempotencyKey?: string
   /** فاکتور اصلی مشتری */
   invoiceId: number
   /** اقلام برگشتی (همان ورودی برگشت از فروش) */
@@ -1995,11 +2017,34 @@ export interface ExchangeSaleInput {
   /** روش پرداخت مابه‌التفاوت (وقتی مشتری باید بپردازد) */
   methodId?: number | null
   /**
-   * پرداخت ترکیبیِ مابه‌التفاوت مثبت تعویض. فقط CASH + CARD با مقصدهای متناظر
-   * پذیرفته می‌شود؛ هر سهم Payment مستقل می‌سازد.
+   * پرداخت ترکیبیِ مابه‌التفاوت مثبت تعویض. مسیر قدیمی CASH + CARD با مقصدهای
+   * متناظر حفظ می‌شود. در tender ریشه‌دار، کد N/B فقط با مقدار صریح در
+   * `deltaStoreCreditCode` / `deltaStoreCreditAmount` همراه یک یا چند tender
+   * نقدی/کارتی مصرف می‌شود؛ اعتبار هرگز cash محسوب نمی‌شود.
    */
   splitPayment?: boolean
-  payments?: { methodId: number; amount: number; destination?: string | null }[]
+  payments?: {
+    methodId: number
+    amount: number
+    destination?: string | null
+    kind?: 'CASH' | 'CHEQUE'
+    chequeNo?: string | null
+    bankName?: string | null
+    dueDateJalali?: string | null
+    reference?: string | null
+    note?: string | null
+  }[]
+  /** Override شاهددار برای چک تازه در حضور بدهی چکِ تسویه‌نشده (رمز مدیر + دلیل). */
+  chequeDebtOverride?: boolean
+  /** مشخصات چک برای مابه‌التفاوت مثبتِ تک‌روش؛ چک تا پاس‌شدن بدهی باز می‌ماند. */
+  chequeNo?: string | null
+  bankName?: string | null
+  dueDateJalali?: string | null
+  reference?: string | null
+  /** کد حق B/N معتبر برای پرداخت بخشی از مابه‌التفاوت مثبت تعویض */
+  deltaStoreCreditCode?: string | null
+  /** مبلغ دقیق مصرف از کد بالا؛ مصرف جزئی/نامعتبر پیش از commit رد می‌شود */
+  deltaStoreCreditAmount?: number | null
   /**
    * مقصد پول مابه‌التفاوت مثبت. برای نقد/کارت از `kind` روش قابل استنتاج است؛
    * روش CUSTOM بدون این فیلد رد می‌شود (همان قاعده‌ی `addPayment`).
@@ -2013,6 +2058,10 @@ export interface ExchangeSaleInput {
   serviceCharge?: number
   /** اعتبار بارکدِ صادرشده به روز (خالی = همان مهلت کد فاکتور فروش تکی) */
   creditDays?: number | null
+  /** اطلاعات اختیاریِ چاپ کد تعویض؛ هیچ‌کدام مالکیت/راستی‌گویی را ثابت نمی‌کنند. */
+  printedHolderFirstName?: string | null
+  printedHolderLastName?: string | null
+  printedHolderPhone?: string | null
   /** برداشت خودکار کمبود موجودی کالای جایگزین از انبار مرکزی */
   autoCentralWithdraw?: boolean
   /**
@@ -2032,9 +2081,10 @@ export interface ExchangeSaleInput {
    *
    * ------------------------ جلسه ۴۶ (رفعِ بدهیِ تایپ) ------------------------
    *   CARD_TO_CARD = بازپرداخت کارت‌به‌کارت **توسط مدیر** (جلسه ۱۷ · بند ۱)؛ یک
-   *   `CardTransferRequest` با وضعیت PENDING ساخته می‌شود و — از جلسه ۴۰ — کالای
-   *   برگشتی تا زدن «پرداخت شد» در پنل قفل‌دار به موجودی قابل‌فروش برنمی‌گردد
-   *   (`deferRestock`). این مقدار **عمداً جدا** از `CARD` است، نه حالتی از آن.
+   *   `CardTransferRequest` با وضعیت PENDING ساخته می‌شود. کالای برگشتی تا
+   *   تأیید پرداخت مدیر معلق است و همان پرداخت آن را به موجودی برمی‌گرداند؛
+   *   دریافت فیزیکی مسیر روش‌های دیگر است. تطبیق بانک همچنان مستقل است. این مقدار
+   *   جدا از `CARD` است.
    *
    * چرا تا حالا نبود: مسیر IPC از `withUser` با تایپ `any` رد می‌شود، پس `tsc`
    * خطا نمی‌داد؛ ولی `SalesService.createExchange` (فهرست معتبرها) و
@@ -2042,7 +2092,7 @@ export interface ExchangeSaleInput {
    * نمی‌گفت. اضافه‌شدنش فقط یونیون را **گسترده** می‌کند (هیچ مصرف‌کننده‌ای
    * روی این یونیون `switch` جامع ندارد) ⇒ هیچ مسیر دیگری تنگ‌تر نمی‌شود.
    */
-  refundMode?: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | null
+  refundMode?: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | 'S1_RESIDUAL_RIGHTS' | null
   /**
    * تایید مدیر برای «قیمت دستیِ کالای جایگزین» (بند ۱۸).
    * بدون این رمز، قیمت کالای جایگزین همیشه از `variant.salePrice` خوانده می‌شود.
@@ -2122,6 +2172,8 @@ export interface StoreCreditRow {
   printCount: number
   lastPrintedAtJalali: string | null
   reminderOptOut: boolean
+  /** فقط تاریخِ رضایت مستند؛ مجوز ارسال نهایی در main برای شمارهٔ فعلی بازسنجی می‌شود. */
+  reminderConsentAtJalali: string | null
   reminderCount: number
   lastReminderAtJalali: string | null
   lastReminderKind: string | null
@@ -2269,6 +2321,9 @@ export interface CreditDetail {
   batch: CreditBatchRow | null
   /** اعتبار جدیدی که باقی‌مانده‌ی این اعتبار به آن رفت (مسیر یک‌بارمصرف) */
   remainderCredit: { id: number; publicReference: string; amount: number } | null
+  /** فقط شناسه/وضعیت؛ مدرک، رمز و شاهد خصوصی از جزئیات عادی عبور نمی‌کند. */
+  delivery?: { creditId: number; sourceKind: string; status: string } | null
+  replacement?: { originalCreditId: number; successorCreditId: number; transferredAmount: number } | null
 }
 
 /** داشبورد اعتبار خرید (§۱۵). */
@@ -2297,6 +2352,8 @@ export interface CreditDashboard {
 
 /** نتیجه‌ی ثبت یک تعویض کالا. */
 export interface ExchangeSaleResult {
+  /** true وقتی کلید درخواست قبلاً ثبت شده و پاسخ همان تعویض replay می‌شود */
+  replayed?: boolean
   returnId: number
   /** فاکتور اصلی */
   invoiceId: number
@@ -2314,10 +2371,28 @@ export interface ExchangeSaleResult {
   /** CASH | CREDIT | NONE */
   settlement: string
   settlementLabel: string
-  /** اعتبار صادرشده (فقط وقتی ما بدهکار شدیم)؛ کد فقط از reveal مدیر. */
-  storeCredit: StoreCreditSafeRow | null
-  /** تعدادی که به موجودی فروشگاه برگشت */
+  /** اعتبار اصلی صادرشده؛ کد فقط از مسیر چاپ مجاز. */
+  storeCredit: (StoreCreditSafeRow & { firstPrintGrant?: string | null }) | null
+  /** Multiple source-specific non-cash barcodes can accompany one mixed-source exchange. */
+  storeCredits?: Array<StoreCreditSafeRow & { firstPrintGrant?: string | null }>
+  /** These exchange-return barcodes are draft until printed and witnessed as handed to the customer. */
+  creditHandoffRequired?: boolean
+  /** S1/S11: provenance-backed, non-cash successor barcode(s); never cash refunds. */
+  residualRights?: {
+    giftCarry: number
+    cashCarry: number
+    rights: Array<{ rightKey: string; rightKind: 'B' | 'N'; amount: number; available: number;
+      expiresAt: Date | null; creditId: number; publicReference: string; deliveryStatus: string;
+      firstPrintGrant?: string | null }>
+  } | null
+  /** مجوز کوتاه‌مدت چاپ اول همین کد در پنجرهٔ صادرکننده؛ خودِ کد خرج‌پذیر نیست. */
+  firstPrintGrant?: string | null
+  /** تعدادی که با رسید فیزیکی یا تأیید پرداخت مدیر C2C به موجودی برگشت */
   restockedQty: number
+  /** آیا رسید فیزیکی برای مسیر غیر C2C فعال است؟ */
+  goodsReceiptRequired: boolean
+  restockPending: boolean
+  pendingRestockQty: number
   /** هشدارهای موجودی کالای جایگزین */
   stockWarnings: string[]
   /**
@@ -2339,6 +2414,10 @@ export interface ExchangeSaleResult {
 /** یک ردیف در تب «تعویض کالا»ی گزارشات فروش — با جزئیات کامل، دقیق به ثانیه. */
 export interface ExchangeReportRow {
   returnId: number
+  /** سند دارای دفتر اصلاح جبرانی؛ برای تاریخچه چاپ می‌شود ولی دوباره تغییر نمی‌کند. */
+  corrected?: boolean
+  goodsReceiptRequired?: boolean
+  restockedQty?: number
   /** فاکتور اصلی */
   invoiceId: number
   receiptNo: number
@@ -2373,6 +2452,25 @@ export interface ExchangeReportRow {
   note: string
 }
 
+export type ReturnFundingAttributionStatus = 'NOT_APPLICABLE' | 'INCOMPLETE' | 'ATTRIBUTION_ONLY'
+export type ReturnFundingAttributionSourceKind = 'SOURCE_GIFT' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'
+export interface ReturnFundingAttributionShare {
+  sourceKind: ReturnFundingAttributionSourceKind
+  amount: number
+}
+export interface ReturnFundingAttributionItem {
+  returnItemId: number
+  saleItemId: number
+  sources: ReturnFundingAttributionShare[]
+}
+/** Read-only provenance. It is never a cash-right or settlement plan. */
+export interface ReturnFundingAttribution {
+  status: ReturnFundingAttributionStatus
+  settlementReady: false
+  sources: ReturnFundingAttributionShare[]
+  items: ReturnFundingAttributionItem[]
+}
+
 /** یک قلم داخل یک سند برگشت (نمایش در فهرست برگشت‌ها). */
 export interface ReturnListItem {
   name: string
@@ -2387,9 +2485,9 @@ export interface ReturnListItem {
 /**
  * یک ردیف فهرست «برگشت از فروش» (خروجی `sale:return:list`).
  *
- * تا این نسخه این خروجی تایپ نداشت و پنل گزارشات آن را `any[]` می‌گرفت. برای
- * مورد ۵ (جزئیات یک شیفت) تایپ شد تا مودال جزئیات شیفت با تایپ درست کار کند.
- * هیچ فیلدی کم نشده است؛ فقط `kind` / `isExchange` اضافه شده‌اند.
+ * خروجی تایپ‌دار گزارش برگشت. `fundingAttribution` فقط منشأ حسابداریِ برگشت
+ * فرزند تعویض را نشان می‌دهد؛ هرگز مجوز پرداخت/اعتبار یا مبلغ حق وجه نیست.
+ * برگشت‌های قدیمی/ناقص با status=INCOMPLETE از صفر یا وجه حدس‌زده تفکیک می‌شوند.
  */
 export interface ReturnListRow {
   id: number
@@ -2408,6 +2506,14 @@ export interface ReturnListRow {
   note: string
   qty: number
   restockedQty: number
+  /** نشانگر رسید فیزیکی؛ پرداخت C2C مدیر می‌تواند برگشتی همان سند را آزاد کند. */
+  goodsReceiptRequired: boolean
+  /** اصلاح جبرانی اصل سند را دست‌نخورده می‌گذارد ولی دریافت/ویرایش تازه را می‌بندد. */
+  corrected: boolean
+  restockPending: boolean
+  pendingRestockQty: number
+  /** Read-only child-exchange provenance; never a cash-right or settlement plan. */
+  fundingAttribution: ReturnFundingAttribution
   items: ReturnListItem[]
   /**
    * ---------------------- افزوده‌های جلسه ۱۴ (بند ۱۰ و ۱۱) ----------------------
@@ -2416,8 +2522,10 @@ export interface ReturnListRow {
   /** CASH | CARD | STORE_CREDIT | NONE · null = داده‌ی قدیمی */
   refundMethod: string | null
   refundMethodLabel: string
-  /** مبلغی که واقعاً بازپرداخت شد */
+  /** مبلغ روش اصلیِ تسویه */
   refundAmount: number
+  /** سهمی از حق پول واقعی که به بارکد جدید تبدیل شد */
+  refundStoreCreditAmount: number
   /** فقط این عدد از کشوی صندوق بیرون رفته است */
   cashRefundAmount: number
   refundedAtJalali: string | null
@@ -3019,6 +3127,10 @@ export interface MaintenancePreview {
   saleInvoices: number
   saleItems: number
   saleReturns: number
+  /** Old sale documents whose ReturnCorrection ledger must retain the full invoice graph. */
+  saleInvoicesRetained: number
+  saleItemsRetained: number
+  saleReturnsRetained: number
   purchaseInvoices: number
   /** تعداد ردیف‌های قدیمی ledger که عمداً حفظ می‌شوند؛ هرگز حذف نمی‌شوند */
   stockMovements: number
@@ -3464,6 +3576,7 @@ export interface BridgeDiagFlag {
     | 'largest'            // جزو بزرگ‌ترین ردیف‌های غیرصفر — پیشنهاد نقطه‌ی شروع
     | 'equals-unexplained' // مبلغ ردیف دقیقاً برابر |باقیمانده‌ی بی‌توضیح| است
     | 'date'               // تاریخ سند بیرون از بازه است / تاریخی ثبت نشده
+    | 'note'               // یادداشت راهنمای خواندن نمای تشخیصی
   text: string
   certainty: 'TENTATIVE'
 }
@@ -3525,7 +3638,8 @@ export interface BridgeSuspect {
 
 /** شناسنامه‌ی کامل سند — فقط خواندنی */
 export interface BridgeDocDetail {
-  ref: { kind: SaleBridgeSource['kind']; id: number }
+  // Exchange is a SaleReturn row but the detail view preserves its EXCHANGE label.
+  ref: { kind: SaleBridgeSource['kind'] | 'EXCHANGE'; id: number }
   docType: 'SIMPLE_RETURN' | 'EXCHANGE' | 'CREDIT_PAYMENT' | 'STORE_CREDIT' | 'OVERPAY' | 'CASH_MOVEMENT' | 'INVOICE'
   docNo: string
   parent: {

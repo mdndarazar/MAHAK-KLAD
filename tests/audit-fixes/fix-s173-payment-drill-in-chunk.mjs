@@ -73,9 +73,9 @@ const inv = await salesService.create({ userId, shiftId, lines: [{ variantId: va
 const basePay = seed.rows('SELECT * FROM "Payment" WHERE invoiceId = ?', inv.id)[0]
 eq('پرداخت نقدی پایه ساخته شد', Number(basePay?.amount ?? 0), 1000)
 // ۵۹۹ کپی از همان پرداخت (همان فاکتور/روز/مقصد) ⇒ جمعاً ۶۰۰ سند پرداخت نقدی امروز
-const cols = Object.keys(basePay).filter((c) => c !== 'id')
-const ins = sql.prepare(`INSERT INTO "Payment" (${cols.map((c) => `"${c}"`).join(',')}) SELECT ${cols.map((c) => `"${c}"`).join(',')} FROM "Payment" WHERE id = ?`)
-for (let i = 0; i < 599; i++) ins.run(basePay.id)
+const cols = Object.keys(basePay).filter((c) => c !== 'id' && c !== 'seq')
+const ins = sql.prepare(`INSERT INTO "Payment" ("seq",${cols.map((c) => `"${c}"`).join(',')}) SELECT ?,${cols.map((c) => `"${c}"`).join(',')} FROM "Payment" WHERE id = ?`)
+for (let i = 0; i < 599; i++) ins.run(basePay.seq + i + 1, basePay.id)
 const N = 600
 
 const report = async (skip, take) => {

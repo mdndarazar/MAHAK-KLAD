@@ -284,7 +284,7 @@ export const salesLedger = {
       where: returnWhere,
       select: {
         id: true, kind: true, total: true, returnedAt: true, returnedAtJalali: true, returnedAtTime: true,
-        refundMethod: true, refundAmount: true, refundReference: true, note: true,
+        refundMethod: true, refundAmount: true, refundStoreCreditAmount: true, refundReference: true, creditRestored: true, note: true,
         exchangeTotal: true, exchangeDiff: true, exchangeSettlement: true, exchangeInvoiceId: true, debtReduction: true,
         exchangeReceiptNo: true, storeCreditId: true, userId: true, shiftId: true,
         invoiceId: true,
@@ -371,7 +371,7 @@ export const salesLedger = {
         sourceId: r.id,
         sourceKind: 'RETURN'
       }
-      if (r.kind === ReturnKind.EXCHANGE) {
+      if (r.kind === ReturnKind.EXCHANGE || r.exchangeInvoiceId != null) {
         const diff = n(r.exchangeDiff)
         const settle = r.exchangeSettlement ?? null
         rows.push({
@@ -388,8 +388,11 @@ export const salesLedger = {
         })
         const replacementQty = r.exchangeInvoiceId != null ? exQty.get(r.exchangeInvoiceId) ?? 0 : 0
         /** نشست ۶۰ (بند ۴-۵/۴-۴۹) — فقط بخش بازپرداخت‌شده؛ کاهش بدهی فاکتور اصلی پول نیست */
-        const refundPart = exchangeRefundPartOf({ exchangeDiff: diff, debtReduction: (r as any).debtReduction })
-        const debtCut = Math.max(0, -diff - refundPart)
+        const refundPart = exchangeRefundPartOf({
+          exchangeDiff: diff, debtReduction: (r as any).debtReduction,
+          creditRestored: (r as any).creditRestored, refundAmount: r.refundAmount, refundStoreCreditAmount: (r as any).refundStoreCreditAmount
+        })
+        const debtCut = Math.max(0, n((r as any).debtReduction))
         const exDrawer = r.exchangeInvoiceId != null ? exDrawerCash.get(r.exchangeInvoiceId) ?? null : null
         const cashEffect = exchangeCashEffect(diff, settle, refundPart, exDrawer)
         rows.push({
@@ -407,15 +410,19 @@ export const salesLedger = {
               : diff < 0
                 ? (debtCut > 0 ? `${money(debtCut)} ریال از بدهی فاکتور اصلی کم شد (اثر نقدی صفر)` : '') +
                   (debtCut > 0 && refundPart > 0 ? ' · ' : '') +
-                  (refundPart <= 0
-                    ? ''
-                    : cashEffect < 0
-                      ? `${money(refundPart)} ریال مابه‌التفاوت نقدی به مشتری برگشت`
-                      : settle === ExchangeSettlement.CARD_REFUND
-                        ? `${money(refundPart)} ریال به کارت مشتری برگشت (اثر نقدی کشو صفر)`
-                        : settle === ExchangeSettlement.CARD_TO_CARD
-                          ? `${money(refundPart)} ریال در درخواست کارت‌به‌کارت مدیر ثبت شد (اثر نقدی صفر)`
-                          : `${money(refundPart)} ریال اعتبار خرید صادر شد (اثر نقدی صفر، بدهی ما)`)
+                  (settle === ExchangeSettlement.SAME_BARCODE_RESTORED
+                    ? `${money(n((r as any).creditRestored))} ریال به همان بارکد اعتبار چندباره برگشت شد؛ بارکد تازه‌ای صادر نشد`
+                    : refundPart <= 0
+                      ? ''
+                      : settle === ExchangeSettlement.S1_RESIDUAL_RIGHTS || settle === ExchangeSettlement.S11_DEBT_OFFSET_RIGHTS
+                      ? `${money(refundPart)} ریال فقط به حق B/N ریشه‌دار از منشأ پرداخت‌شده تبدیل شد؛ بازپرداخت یا اعتبار عمومی صادر نشد`
+                      : cashEffect < 0
+                        ? `${money(refundPart)} ریال مابه‌التفاوت نقدی به مشتری برگشت`
+                        : settle === ExchangeSettlement.CARD_REFUND
+                          ? `${money(refundPart)} ریال به کارت مشتری برگشت (اثر نقدی کشو صفر)`
+                          : settle === ExchangeSettlement.CARD_TO_CARD
+                            ? `${money(refundPart)} ریال در درخواست کارت‌به‌کارت مدیر ثبت شد (اثر نقدی صفر)`
+                            : `${money(refundPart)} ریال اعتبار خرید صادر شد (اثر نقدی صفر، بدهی ما)`)
                 : 'مابه‌التفاوت صفر',
           stockEffect: -replacementQty,
           invoiceId: r.exchangeInvoiceId ?? r.invoiceId,
@@ -425,6 +432,7 @@ export const salesLedger = {
         continue
       }
       const refundAmount = n(r.refundAmount)
+      const splitCredit = n((r as any).refundStoreCreditAmount)
       rows.push({
         ...base,
         key: `RET-${r.id}`,
@@ -446,6 +454,7 @@ export const salesLedger = {
         stockEffect: restocked,
         note:
           `روش بازپرداخت: ${refundMethodLabel(r.refundMethod)}` +
+          (splitCredit > 0 ? ` · ${money(splitCredit)} ریال بارکد اعتبار از سهم پول واقعی صادر شد` : '') +
           (r.refundReference ? ` · مرجع ${r.refundReference}` : '') +
           (r.note ? ` · ${r.note}` : '')
       })

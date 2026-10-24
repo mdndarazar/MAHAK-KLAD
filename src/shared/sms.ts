@@ -12,6 +12,8 @@
  * ===========================================================================
  */
 import { toLatinDigits } from '@shared/jalali'
+import { normalizeSmsPhone } from './phone'
+export { normalizeSmsPhone } from './phone'
 
 // ---------------------------------------------------------------------------
 // ۱) وضعیت‌های صف
@@ -157,23 +159,7 @@ export function smsProviderNeedsCredentials(key: unknown): boolean {
 // ۴) اعتبارسنجی شماره
 // ---------------------------------------------------------------------------
 
-/**
- * یکسان‌سازی شماره موبایل ایران.
- *
- * عمداً از `normalizePhone` پنل مشتریان جدا است ولی همان منطق را دارد: ورودی
- * می‌تواند «۰۹۱۲…»، «+۹۸۹۱۲…»، «۹۸۹۱۲…» یا با فاصله/خط تیره باشد.
- * خروجی همیشه `09XXXXXXXXX` است، و اگر شماره موبایل معتبر نباشد **رشته‌ی
- * خالی** برمی‌گردد (هیچ‌وقت شماره‌ی نیم‌بند تحویل سرویس‌دهنده نمی‌دهیم).
- */
-export function normalizeSmsPhone(raw: unknown): string {
-  let p = toLatinDigits(String(raw ?? '')).replace(/[^0-9+]/g, '').replace(/^\+/, '')
-  if (p.startsWith('0098')) p = p.slice(4)
-  else if (p.startsWith('98') && p.length > 10) p = p.slice(2)
-  p = p.replace(/^0+/, '')
-  const out = `0${p}`
-  return /^09\d{9}$/.test(out) ? out : ''
-}
-
+/** پیاده‌سازی واحد در phone.ts است؛ نام صادرات قدیمی پنل پیامک حفظ می‌شود. */
 export function isValidSmsPhone(raw: unknown): boolean {
   return normalizeSmsPhone(raw) !== ''
 }

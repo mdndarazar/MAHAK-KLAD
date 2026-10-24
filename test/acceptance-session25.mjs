@@ -51,21 +51,19 @@ const useSettings = read('src/renderer/src/hooks/useSettings.ts')
  * جلسه ۳۲ — بندهای ۲۷ و ۲۸ از «گزاره روی متن» به «اجرای واقعیِ لایه‌ی مشترک»
  * رفتند، پس همان ترفند سوییت‌های ۳۰/۳۱ لازم شد: سورس واقعی `creditUi.ts` با
  * یک specifier قابل‌اجرا برای ESM خالص در پوشه‌ی موقت کپی و import می‌شود
- * (هیچ تغییر منطقی؛ فقط `./credit` ⇒ `./credit.ts`).
+ * (هیچ تغییر منطقی؛ فقط `./credit` ⇒ URL همان ماژول واقعی).
  */
 const uiTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'acc-s25-ui-'))
-fs.copyFileSync('src/shared/credit.ts', path.join(uiTmp, 'credit.ts'))
+// credit.ts اکنون وابستگی‌های مشترک money/phone دارد؛ کپیِ تنها فایل، resolve
+// نسبی را می‌شکند. UI را در temp نگه داریم ولی قواعد را از مسیر واقعی import کنیم.
+const creditUrl = pathToFileURL(path.resolve('src/shared/credit.ts')).href
 fs.writeFileSync(
   path.join(uiTmp, 'creditUi.ts'),
-  creditUi.replace(/from '\.\/credit'/g, "from './credit.ts'")
+  creditUi.replace(/from '\.\/credit'/g, `from '${creditUrl}'`)
 )
 const ui = await import(pathToFileURL(path.join(uiTmp, 'creditUi.ts')).href)
-/**
- * جلسه ۳۳ — بندهای ۱۰/۱۵/۱۶/۲۵/۲۸ از STRUCTURAL به REAL رفتند، پس دو ماژول
- * قاعده هم واقعاً import می‌شوند: `credit.ts` (همان کپیِ بالا) و
- * `creditPrint.ts` که هیچ import نسبی‌ای ندارد و مستقیم خوانده می‌شود.
- */
-const rules = await import(pathToFileURL(path.join(uiTmp, 'credit.ts')).href)
+/** همان ماژول قاعده که سرویس استفاده می‌کند، نه کپیِ ناقصِ بدون وابستگی. */
+const rules = await import(creditUrl)
 const printRules = await import(pathToFileURL(path.resolve('src/shared/creditPrint.ts')).href)
 const enums = read('src/shared/enums.ts')
 /**
@@ -299,7 +297,9 @@ check(15, '§۲۱ — perPage از renderer کلمپ می‌شود و مستقی
   if (printRules.creditBatchPerPage(a4, 1e9) !== max) throw new Error('perPage نجومی باید به سقف برسد')
   if (printRules.creditBatchPerPage(thermal, undefined) !== 1) throw new Error('رسید حرارتی = یک سند در هر صفحه')
   if (printRules.creditBatchPerPage(a4, 3) !== 3) throw new Error('مقدار معتبر باید محترم بماند')
-  return /creditBatchPerPage\(paper, input\?\.perPage\)/.test(printSvc)
+  const spec = read('src/main/print/creditSpec.ts')
+  return /creditPerPageWith\(paper, input\?\.perPage\)/.test(printSvc) &&
+    /creditEffectivePerPage\(creditBatchPerPage\(spec, override\), spec\.layout\)/.test(spec)
 })
 /** جلسه ۳۳ — REAL شد: سقف روی هر دو مسیر واقعاً اجرا و مقایسه می‌شود. */
 check(16, 'سقف سند در هر فایل یک قاعده‌ی مشترک است (هم ids دستی، هم کل دسته)', 'REAL', () => {
@@ -532,9 +532,9 @@ check(31, 'سوییت منطق خالص چاپ (۲۴ گزاره‌ی واقعی)
   return / 0 FAIL/.test(out)
 })
 check(32, 'سوییت‌های جلسه ۲۱ و ۲۲ بعد از تغییرات این نشست هم پاس‌اند (بدون رگرسیون)', 'REAL', () => {
-  const a = execFileSync(process.execPath, ['--experimental-strip-types', '--no-warnings', 'test/credit-logic-session21.ts'], { encoding: 'utf8' })
-  const b = execFileSync(process.execPath, ['--experimental-strip-types', '--no-warnings', 'test/credit-ui-logic-session22.ts'], { encoding: 'utf8' })
-  const c = execFileSync(process.execPath, ['test/acceptance-session21.mjs'], { encoding: 'utf8' })
+  const a = execFileSync(process.execPath, ['--import', './test/harness/register.mjs', 'test/credit-logic-session21.ts'], { encoding: 'utf8' })
+  const b = execFileSync(process.execPath, ['--import', './test/harness/register.mjs', 'test/credit-ui-logic-session22.ts'], { encoding: 'utf8' })
+  const c = execFileSync(process.execPath, ['--import', './test/harness/register.mjs', 'test/acceptance-session21.mjs'], { encoding: 'utf8' })
   return / 0 FAIL/.test(a) && / 0 FAIL/.test(b) && /34 PASS · 0 FAIL/.test(c)
 })
 

@@ -33,6 +33,7 @@ const byShift = await fraudService.review({ fromJalali: today, toJalali: today, 
 eq('فیلتر شیفت شب: برگشت ۶۰۰٬۰۰۰ روی فروش ۱٬۰۰۰٬۰۰۰ همان شیفت (۶۰٪) هشدار می‌دهد', flag(byShift)?.count ?? 0, 1)
 eq('برچسب نسبت ۶۰٪ است (نه ۶٪ رقیق‌شده با فروش شیفت دیگر)', /۶۰٪/.test(flag(byShift)?.sources?.[0]?.label ?? ''), true)
 // فاکتور لغوشده/پیش‌نویسِ بزرگ نباید مخرج را رقیق کند
+sql.prepare('UPDATE "SaleReturn" SET voidedAt=COALESCE(voidedAt, ?)').run(Date.now())
 sql.prepare('DELETE FROM "SaleReturn"').run(); sql.prepare('DELETE FROM "SaleInvoice"').run()
 const i3 = inv(s1, 1_000_000)
 inv(s1, 20_000_000, 'CANCELED'); inv(s1, 20_000_000, 'DRAFT')

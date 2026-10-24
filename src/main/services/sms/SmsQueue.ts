@@ -26,6 +26,7 @@ import { prisma } from '../../db/client'
 import { BusinessError } from '../../errors'
 import { audit } from '../AuditService'
 import { AuditAction } from '@shared/enums'
+import { creditReminderConsentValid, effectiveStatus, remainingOf, REDEEMABLE_STATUSES } from '@shared/credit'
 import {
   SmsOutboxStatus,
   SMS_MAX_ATTEMPTS,
@@ -197,6 +198,42 @@ export interface SmsEnqueueResult {
 }
 
 /**
+ * مرز جداگانهٔ یادآوری اعتبار: هیچ تماسِ مستقیم با صف، پیامِ مانده از نصب
+ * قدیمی یا requeue دستی نباید بتواند رضایت مدیر/مخاطب را دور بزند.
+ * فقط شمارهٔ snapshot روی همان اعتبار پذیرفته می‌شود، نه تلفنِ مشتریِ مرتبط؛
+ * پیام ساخته‌شده *پیش از* ثبت رضایت بعدی نیز هرگز backfill نمی‌شود.
+ */
+function isCreditReminderEvent(eventType: unknown): boolean {
+  return eventType === SmsEventType.CREDIT_REMINDER || eventType === SmsEventType.CREDIT_REMINDER_NO_EXPIRY
+}
+
+async function creditReminderDeliveryAllowed(
+  db: any,
+  eventType: unknown,
+  relatedEntity: unknown,
+  relatedEntityId: unknown,
+  phoneInput: unknown,
+  createdAt: Date
+): Promise<boolean> {
+  if (!isCreditReminderEvent(eventType)) return true
+  const creditId = Number(relatedEntityId)
+  if (relatedEntity !== 'CreditReminder' || !Number.isSafeInteger(creditId) || creditId <= 0) return false
+  const credit = await db.storeCredit.findUnique({
+    where: { id: creditId },
+    select: {
+      deletedAt: true, status: true, amount: true, usedAmount: true, expiresAt: true,
+      holderPhone: true, reminderOptOut: true, reminderConsentAt: true,
+      reminderConsentPhone: true, reminderConsentEvidence: true
+    }
+  })
+  if (!credit || credit.deletedAt || !REDEEMABLE_STATUSES.includes(effectiveStatus(credit)) || remainingOf(credit) <= 0)
+    return false
+  const phone = normalizeSmsPhone(phoneInput)
+  return !!phone && normalizeSmsPhone(credit.holderPhone) === phone &&
+    creditReminderConsentValid(credit, phone, Date.now(), createdAt)
+}
+
+/**
  * ثبت یک پیام در صف.
  *
  * ⚠️ این تابع **هرگز throw نمی‌کند** و همیشه یک نتیجه‌ی قابل‌فهم برمی‌گرداند.
@@ -237,6 +274,11 @@ export async function enqueueSms(
     let body = String(input?.body ?? '')
     if (!body.trim()) {
       return { ok: false, id: null, duplicate: false, skipped: true, detail: 'متن پیام خالی بود.' }
+    }
+    if (!(await creditReminderDeliveryAllowed(db, input.eventType, input.relatedEntity,
+      input.relatedEntityId, phone, new Date()))) {
+      return { ok: false, id: null, duplicate: false, skipped: true,
+        detail: 'برای این اعتبار و همین شماره، رضایت مثبت و مستندِ فعلی ثبت نشده است؛ پیام در صف قرار نگرفت.' }
     }
 
     /**
@@ -499,6 +541,37 @@ async function processOne(
 
   const provider = getSmsProvider(providerCfg.providerKey)
   const cfg = await secretsOf(providerCfg.id)
+
+  // بازسنجی درست پیش از علامت‌گذاری تلاش و تحویل به سرویس‌دهنده.
+  // پیامِ ساخته‌شده پیش از فعال‌شدن این قاعده، یا رضایتِ لغوشده/شمارهٔ عوض‌شده
+  // را هرگز به سرویس‌دهنده نده. UNKNOWN عمداً اینجا خودکار retry نمی‌شود.
+  if (isCreditReminderEvent(row.eventType)) {
+    let allowed: boolean
+    try {
+      allowed = await creditReminderDeliveryAllowed(prisma as any, row.eventType, row.relatedEntity,
+        row.relatedEntityId, row.phoneSnapshot, new Date(row.createdAt))
+    } catch (e) {
+      // خطای خواندن DB یعنی «نمی‌دانیم»، نه اجازهٔ ارسال یا لغو قطعی.
+      console.error('[sms:consent] read failed', e)
+      await (prisma as any).smsOutbox.updateMany({
+        where: { id: row.id, status: SmsOutboxStatus.PROCESSING },
+        data: { status: SmsOutboxStatus.PENDING, lockedAt: null, lockedBy: null,
+          nextAttemptAt: new Date(now.getTime() + 60_000) }
+      }).catch(() => undefined)
+      return
+    }
+    if (!allowed) {
+      const canceled = await (prisma as any).smsOutbox.updateMany({
+        where: { id: row.id, status: SmsOutboxStatus.PROCESSING },
+        data: { status: SmsOutboxStatus.CANCELED, lockedAt: null, lockedBy: null,
+          nextAttemptAt: null, canceledAt: now, cancelReason: 'رضایت معتبر برای این شماره/این زمان وجود ندارد',
+          lastErrorCode: 'NO_CREDIT_REMINDER_CONSENT',
+          lastErrorMessage: 'شمارهٔ تنها مجوز پیامک نیست؛ یادآوریِ پیش از رضایت یا پس از لغو آن ارسال نشد.' }
+      })
+      if (canceled?.count) emitOutcome(row, 'CANCELED', 'لغو بدون ارسال: رضایت معتبرِ همین مخاطب موجود نبود')
+      return
+    }
+  }
 
   const attemptsMade = Math.max(0, Math.round(Number(row.attemptCount ?? 0)))
   const maxAttempts = Math.max(1, Math.round(Number(row.maxAttempts ?? SMS_MAX_ATTEMPTS)))

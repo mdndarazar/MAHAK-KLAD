@@ -22,6 +22,7 @@
  */
 
 import { toNumberRial } from './money'
+import { normalizeSmsPhone } from './phone'
 
 // ---------------------------------------------------------------------------
 // ۱) نوع اعتبار (§۲ سند مرجع)
@@ -1143,8 +1144,30 @@ export interface ReminderCandidate {
   lastReminderAt?: Date | string | null
   reminderCount?: number | null
   reminderOptOut?: boolean | null
+  /** رضایت اثباتیِ ثبت‌شده برای شمارهٔ مشخص؛ null/شمارهٔ تنها مجوز نیست. */
+  reminderConsentAt?: Date | string | null
+  reminderConsentPhone?: string | null
+  reminderConsentEvidence?: string | null
   /** شماره تماس دارنده (بدون شماره، پیام قابل ارسال نیست) */
   phone?: string | null
+}
+
+/** رضایت فقط برای همان موبایل، با تاریخ معتبر و شاهد مثبت؛ نه برای پیام‌های قدیمی‌تر. */
+export function creditReminderConsentValid(
+  c: Pick<ReminderCandidate, 'reminderOptOut' | 'reminderConsentAt' | 'reminderConsentPhone' | 'reminderConsentEvidence'>,
+  phoneInput: unknown,
+  now: Date | number = Date.now(),
+  queuedAt?: Date | number | null
+): boolean {
+  if (c.reminderOptOut === true) return false
+  const phone = normalizeSmsPhone(phoneInput)
+  const at = asTime(c.reminderConsentAt)
+  const clock = now instanceof Date ? now.getTime() : now
+  const queued = queuedAt instanceof Date ? queuedAt.getTime() : queuedAt
+  return !!phone && !!at && at <= clock &&
+    (queued == null || (Number.isFinite(queued) && at <= queued)) &&
+    normalizeSmsPhone(c.reminderConsentPhone) === phone &&
+    !!String(c.reminderConsentEvidence ?? '').trim()
 }
 
 export interface ReminderDecision {
@@ -1163,7 +1186,7 @@ export interface ReminderDecision {
    * مصرف‌شده، معلق، منقضی، بی‌شماره. با این کد، تماس‌کننده‌ی داخلی می‌تواند
    * فقط دلیل‌های زمان‌بندی/سهمیه را رد کند، نه «قابل ارسال نبودن» را.
    */
-  code: 'DISABLED' | 'OPTOUT' | 'STATUS' | 'REMAINING' | 'NO_PHONE' | 'MAX_COUNT' | 'GAP' | 'NOT_DUE' | null
+  code: 'DISABLED' | 'OPTOUT' | 'STATUS' | 'REMAINING' | 'NO_PHONE' | 'NO_CONSENT' | 'MAX_COUNT' | 'GAP' | 'NOT_DUE' | null
 }
 
 /**
@@ -1238,7 +1261,9 @@ export function reminderDecision(
 
   const remaining = remainingOf({ amount: c.amount, usedAmount: c.usedAmount, status: c.status })
   if (remaining <= 0) return no('باقی‌مانده‌ی این اعتبار صفر است.', 'REMAINING')
-  if (!String(c.phone ?? '').trim()) return no('شماره تماسی برای دارنده‌ی این اعتبار ثبت نشده است.', 'NO_PHONE')
+  if (!normalizeSmsPhone(c.phone)) return no('شماره موبایل معتبری برای دارنده‌ی این اعتبار ثبت نشده است.', 'NO_PHONE')
+  if (!creditReminderConsentValid(c, c.phone, now))
+    return no('رضایت مثبت و مستند برای ارسال یادآوری به همین شماره ثبت نشده است؛ داشتن شماره مجوز پیامک نیست.', 'NO_CONSENT')
 
   const sent = Math.max(0, Math.round(Number(c.reminderCount ?? 0) || 0))
   if (settings.maxCount > 0 && sent >= settings.maxCount)
