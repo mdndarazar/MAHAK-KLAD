@@ -717,6 +717,15 @@ async function provenSourceRootEvent(
   return null
 }
 
+/** Resolve and re-validate the immutable root tender behind an exchange share.
+ * Callers still need to enforce operation-specific settlement rules. */
+export async function getProvenExchangeFundingRoot(
+  tx: LedgerClient, event: any,
+  options: { allowExpiredGiftForReturnAttribution?: boolean } = {}
+): Promise<any | null> {
+  return provenSourceRootEvent(tx, event, options)
+}
+
 async function hasProvableTransferLineage(
   tx: LedgerClient, event: any, options: { allowExpiredGiftForReturnAttribution?: boolean } = {}
 ): Promise<boolean> {

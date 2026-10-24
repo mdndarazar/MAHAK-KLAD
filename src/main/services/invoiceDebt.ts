@@ -153,7 +153,38 @@ export async function debtAdjustmentsByInvoice(client: Client, ids: number[], as
           directResidualReturnByReturn.set(returnId, (directResidualReturnByReturn.get(returnId) ?? 0) + amount)
       }
     }
+    // For returns with the immutable per-item source matrix, do not infer
+    // that every released child share is non-cash: cash/card/cleared-cheque
+    // roots may now be paid through the ordinary return settlement. The row's
+    // sourceKind is the validated root tender kind captured at return time.
+    const returnAllocationRows = await (client as any).exchangeFundingReturnLineAllocation.findMany({
+      where: { returnId: { in: activeReturnIds }, eventKind: 'ALLOCATION' },
+      select: { returnId: true, sourceKind: true, amountDelta: true, reversesAllocationId: true }
+    })
+    const allocationTotals = new Map<number, { total: bigint; nonCash: bigint }>()
+    for (const row of returnAllocationRows) {
+      const returnId = Number(row.returnId)
+      const ret = activeRets.find((candidate: any) => Number(candidate.id) === returnId)
+      const amount = toNumberRial(row.amountDelta)
+      if (!ret || row.reversesAllocationId != null || !Number.isSafeInteger(amount) || amount < 0 ||
+          !['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(String(row.sourceKind)))
+        throw new Error('EXCHANGE_CHILD_RETURN_ALLOCATION_INVALID')
+      const current = allocationTotals.get(returnId) ?? { total: 0n, nonCash: 0n }
+      current.total += BigInt(amount)
+      if (['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B'].includes(String(row.sourceKind))) current.nonCash += BigInt(amount)
+      allocationTotals.set(returnId, current)
+    }
+    const allocationBackedReturnIds = new Set<number>()
+    for (const [returnId, totals] of allocationTotals) {
+      const ret = activeRets.find((candidate: any) => Number(candidate.id) === returnId)
+      if (!ret || totals.total !== BigInt(toNumberRial(ret.total)) ||
+          totals.nonCash > BigInt(Number.MAX_SAFE_INTEGER))
+        throw new Error('EXCHANGE_CHILD_RETURN_ALLOCATION_TOTAL_MISMATCH')
+      allocationBackedReturnIds.add(returnId)
+      nonCashByReturn.set(returnId, Number(totals.nonCash))
+    }
     for (const [returnId, duplicateRightReturn] of directResidualReturnByReturn) {
+      if (allocationBackedReturnIds.has(returnId)) continue
       const amount = nonCashByReturn.get(returnId) ?? 0
       if (duplicateRightReturn > amount) throw new Error('EXCHANGE_RESIDUAL_RIGHT_RETURN_SETTLEMENT_MISMATCH')
       nonCashByReturn.set(returnId, amount - duplicateRightReturn)

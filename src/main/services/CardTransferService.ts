@@ -529,8 +529,9 @@ export const cardTransferService = {
       if (!row) throw new Error('این درخواست کارت‌به‌کارت پیدا نشد.')
       if (row.kind !== CardTransferKind.REQUEST)
         throw new Error('رویداد اصلاحی خودش لغو نمی‌شود؛ روی درخواست اصلی اقدام کنید.')
-      await assertOrdinaryReturnLineage(tx, Number(row.returnId))
       const managed = await tx.returnEntitlement.findUnique({ where: { requestId: id } })
+      if (managed) await assertReturnEntitlementLineage(tx, managed)
+      else await assertOrdinaryReturnLineage(tx, Number(row.returnId))
       if (managed && release)
         throw new Error('درخواست کارت‌به‌کارتِ جدید با لغو آزاد نمی‌شود؛ فقط تأیید پرداخت مدیرِ همین درخواست کالای برگشتی را به موجودی برمی‌گرداند.')
       if (managed && (row.status === CardTransferStatus.PAID || row.paidAt != null))
@@ -652,10 +653,11 @@ export const cardTransferService = {
     return prisma.$transaction(async (tx) => {
       const base = await tx.cardTransferRequest.findUnique({ where: { id } })
       if (!base) throw new Error('درخواست مرجع این اصلاح پیدا نشد.')
-      await assertOrdinaryReturnLineage(tx, Number(base.returnId))
       // Do not let an adjustment bypass the CAS-protected new entitlement.
       // Legacy requests keep their existing append-only correction path.
-      const managed = await tx.returnEntitlement.findUnique({ where: { requestId: id }, select: { id: true } })
+      const managed = await tx.returnEntitlement.findUnique({ where: { requestId: id } })
+      if (managed) await assertReturnEntitlementLineage(tx, managed)
+      else await assertOrdinaryReturnLineage(tx, Number(base.returnId))
       if (managed)
         throw new Error('این درخواست دفتر حق مالی دارد؛ اصلاح بانک بدون سند جدید و تطبیق مجدد مجاز نیست. پرونده را برای رسیدگی شاهددار مدیر نگه دارید.')
       if (base.kind !== CardTransferKind.REQUEST)

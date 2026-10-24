@@ -3,6 +3,7 @@ import { prisma } from '../db/client'
 import { createCardTransferRequest } from './CardTransferService'
 import {
   getCurrentExchangeFundingSources,
+  getProvenExchangeFundingRoot,
   getCurrentSaleFundingSources,
   exchangeFundingBalance,
   recordExchangeDebtSettlement,
@@ -33,7 +34,7 @@ import { allocateExchangeFundingLineReturn, type ExchangeReturnSourceKind } from
 import {
   openCardTransferEntitlement,
   openChainedExchangeCardTransferEntitlement,
-  openS8ExchangeChildCashRight,
+  openS8ExchangeChildReturnEntitlement,
   correctPendingEntitlement,
   quarantineEntitlement
 } from './ReturnEntitlementService'
@@ -3916,18 +3917,48 @@ async function runReturn(
       )
     if (opts.applyRefund) {
       if (isExchangeChildReturn) {
-        if (String(input.refundMethod ?? '').toUpperCase() !== RefundMethod.NONE ||
-            (input.refundAmount != null && Number(input.refundAmount) !== 0) || splitStoreCreditAmount !== 0)
-          throw new BusinessError('برگشت کالای فرزند تعویض فقط carry خود را برمی‌گرداند؛ روش باید «بدون بازپرداخت» و مبلغ صفر باشد.')
         exchangeChildReturnPlan = await previewExchangeReturnFunding(tx, invoice, {
           invoiceId: Number(invoice.id), lines: items.map((item) => ({ saleItemId: item.saleItemId, qty: item.qty }))
         })
         if (exchangeChildReturnPlan.settlementReady !== true ||
             exchangeChildReturnPlan.exchangeCarryRestoration !== true ||
-            exchangeChildReturnPlan.returnTotal !== returnTotal || returnTotal <= 0)
+            exchangeChildReturnPlan.returnTotal !== returnTotal || returnTotal <= 0 ||
+            exchangeChildReturnPlan.giftOpportunity + exchangeChildReturnPlan.cashRight !== returnTotal)
           throw new BusinessError(exchangeReturnFundingBlockedMessage())
-        refund = { method: RefundMethod.NONE, amount: 0,
-          note: `فقط carry فرزند تعویض به منشأ خودش برگشت؛ ${money(returnTotal)} ریال` }
+        creditReturnPlan = { credit: exchangeChildReturnPlan.giftOpportunity,
+          cash: exchangeChildReturnPlan.cashRight, fundedReturning: returnTotal, shares: [] }
+        const askedMethod = String(input.refundMethod ?? '').toUpperCase()
+        const cashRight = exchangeChildReturnPlan.cashRight
+        if (cashRight === 0) {
+          if (askedMethod !== RefundMethod.NONE ||
+              (input.refundAmount != null && Number(input.refundAmount) !== 0) || splitStoreCreditAmount !== 0)
+            throw new BusinessError('این برگشت فقط سهم اعتبار غیرنقدی دارد؛ روش باید «بدون بازپرداخت» و مبلغ صفر باشد.')
+          refund = { method: RefundMethod.NONE, amount: 0,
+            note: `سهم اعتبارِ منشأدار به حق اعتباری برگشت؛ ${money(exchangeChildReturnPlan.giftOpportunity)} ریال` }
+        } else {
+          if (![RefundMethod.NONE, RefundMethod.CASH, RefundMethod.CARD, RefundMethod.CARD_TO_CARD, RefundMethod.STORE_CREDIT].includes(askedMethod as any))
+            throw new BusinessError('برای سهم پول واقعیِ اثبات‌شده روش نقدی، کارت‌به‌کارت مدیر، اعتبار تازه، بازپرداخت کارتیِ مجاز یا نگه‌داشت حق باز را انتخاب کنید.')
+          if (splitStoreCreditAmount > 0 && askedMethod !== RefundMethod.CASH)
+            throw new BusinessError('تقسیم سهم پول واقعی به نقد و اعتبار فقط در روش نقدی انجام می‌شود.')
+          if (askedMethod === RefundMethod.NONE) {
+            if ((input.refundAmount != null && Number(input.refundAmount) !== 0) || splitStoreCreditAmount !== 0)
+              throw new BusinessError('برای نگه‌داشت حق پول واقعی بدون تسویه، مبلغ پرداخت و اعتبار پولی باید صفر باشد.')
+            refund = { method: RefundMethod.NONE, amount: 0,
+              note: `حق پول واقعی منشأدار ${money(cashRight)} ریال باز ماند؛ هنوز پرداخت یا اعتبار صادر نشده است.` }
+          } else {
+            const primary = input.refundAmount == null
+              ? cashRight - splitStoreCreditAmount : Number(input.refundAmount)
+            refund = resolveRefund({
+              method: askedMethod, requested: primary, returnTotal, fullAmount: returnTotal,
+              allowReceivedOverflow: false, fullRefundOverride: false,
+              receivedOnInvoice: cashRight, receivedForCredit: cashRight,
+              remainingDebt: 0, maxKeepSettled: cashRight, receiptNo: invoice.receiptNo
+            })
+            if (refund.amount + splitStoreCreditAmount !== cashRight ||
+                (askedMethod === RefundMethod.STORE_CREDIT && splitStoreCreditAmount !== 0))
+              throw new BusinessError(`تسویهٔ سهم پول واقعی باید دقیقاً ${money(cashRight)} ریال باشد؛ منشأ را فروشنده تعیین نمی‌کند.`)
+          }
+        }
       } else {
       s1ResidualReturnPlan = await planS1ResidualRightSaleReturn(tx, {
         invoiceId: invoice.id, returnValue: returnTotal
@@ -4006,7 +4037,9 @@ async function runReturn(
        * نشست ۱۹۷ — سقف خروج = پول واقعی (نقد/کارت/چک پاس‌شده)، نه `paidTotal`
        * و نه `EXCHANGE_CREDIT`. اعتبار خرج‌شده دوباره اعتبار می‌شود، نقد نه.
        */
-      const receivedOnInvoice = await cashLikeRefundableOf(tx, invoice, previouslyRefunded - previouslyRestoredCredit)
+      const receivedOnInvoice = exchangeChildReturnPlan
+        ? exchangeChildReturnPlan.cashRight
+        : await cashLikeRefundableOf(tx, invoice, previouslyRefunded - previouslyRestoredCredit)
       const fullRefundAmount = opts.fullRefundOverride
         ? items.reduce((sum, item) => {
             const src = invoice.items.find((candidate) => candidate.id === item.saleItemId)
@@ -4075,9 +4108,11 @@ async function runReturn(
       // An item/source-aware credit plan already proves which actual-money share
       // belongs to returned goods. Otherwise, cover retained goods first; pending
       // cheque can remain on those goods but is never promoted to cash received.
-      const cashRefundCapacityAfterRetainedGoods = creditReturnPlan?.shares.length
-        ? remainingRealMoney
-        : Math.min(
+      const cashRefundCapacityAfterRetainedGoods = exchangeChildReturnPlan
+        ? exchangeChildReturnPlan.cashRight
+        : creditReturnPlan?.shares.length
+          ? remainingRealMoney
+          : Math.min(
             remainingRealMoney,
             Math.max(0, remainingRealMoney + pendingChequeOnRetainedGoods - retainedGoodsValue)
           )
@@ -4210,7 +4245,7 @@ async function runReturn(
         total: returnTotal,
         // Proven gift opportunity snapshot for aggregate reports. The B/E
         // allocation is written atomically below in this same transaction.
-        creditRestored: exchangeChildReturnPlan?.returnTotal ??
+        creditRestored: exchangeChildReturnPlan?.giftOpportunity ??
           s1ResidualReturnPlan?.returnValue ?? creditReturnPlan?.credit ?? 0,
         refundStoreCreditAmount: splitStoreCreditAmount,
         // New return/exchange receipts are accounting papers. The spendable
@@ -4278,7 +4313,6 @@ async function runReturn(
      * =====================================================================
      */
     let exchangeCarryReturned = 0
-    let exchangeChildCashRight = 0
     if (exchangeChildReturnPlan) {
       for (const returnItem of ret.items as any[]) {
         const attribution = await recordExchangeFundingReturnLineAllocation(tx, {
@@ -4295,19 +4329,31 @@ async function runReturn(
             const credit = sourceEvent.sourceCreditId == null ? null : await tx.storeCredit.findUnique({
               where: { id: Number(sourceEvent.sourceCreditId) }, select: { exchangeResidualRightKey: true }
             })
-            const rightKey = String(credit?.exchangeResidualRightKey ?? '')
-            if (!rightKey || sourceEvent.sourcePaymentId == null)
-              throw new BusinessError(exchangeReturnFundingBlockedMessage())
-            const operationKey = `s8-child-return:${ret.id}:source:${sourceEvent.id}`
-            await releaseExchangeFundingTenderForChildReturn(tx, {
-              returnId: Number(ret.id), returnItemId: Number(returnItem.id),
-              sourceEventId: Number(sourceEvent.id), amount, actorUserId: input.userId ?? null
-            })
-            await restoreS1ExchangeResidualRight(tx, {
-              rightKey, operationKey, amount, relatedInvoiceId: Number(invoice.id),
-              relatedPaymentId: Number(sourceEvent.sourcePaymentId), relatedReturnId: Number(ret.id),
-              actorUserId: input.userId ?? null
-            })
+            if (sourceKind === 'SOURCE_GIFT' && !credit?.exchangeResidualRightKey) {
+              await releaseExchangeFundingTenderForChildReturn(tx, {
+                returnId: Number(ret.id), returnItemId: Number(returnItem.id),
+                sourceEventId: Number(sourceEvent.id), amount, actorUserId: input.userId ?? null
+              })
+              const branch = await openS8ExchangeChildGiftBranch(tx, {
+                returnId: Number(ret.id), childInvoiceId: Number(invoice.id),
+                sourceEventId: Number(sourceEvent.id), amount, actorUserId: input.userId ?? null
+              })
+              s8ChildReturnRights.push({ kind: 'B', ...branch })
+            } else {
+              const rightKey = String(credit?.exchangeResidualRightKey ?? '')
+              if (!rightKey || sourceEvent.sourcePaymentId == null)
+                throw new BusinessError(exchangeReturnFundingBlockedMessage())
+              const operationKey = `s8-child-return:${ret.id}:source:${sourceEvent.id}`
+              await releaseExchangeFundingTenderForChildReturn(tx, {
+                returnId: Number(ret.id), returnItemId: Number(returnItem.id),
+                sourceEventId: Number(sourceEvent.id), amount, actorUserId: input.userId ?? null
+              })
+              await restoreS1ExchangeResidualRight(tx, {
+                rightKey, operationKey, amount, relatedInvoiceId: Number(invoice.id),
+                relatedPaymentId: Number(sourceEvent.sourcePaymentId), relatedReturnId: Number(ret.id),
+                actorUserId: input.userId ?? null
+              })
+            }
           } else if (sourceKind === 'TRANSFER_IN') {
             const transfer = await returnExchangeFundingShareForChildReturn(tx, {
               returnId: Number(ret.id), returnItemId: Number(returnItem.id),
@@ -4316,28 +4362,37 @@ async function runReturn(
             })
             if (!Number.isSafeInteger(Number(transfer.outEvent.id)))
               throw new BusinessError(exchangeReturnFundingBlockedMessage())
-            if (sourceEvent.parentEventId != null) {
-              const rootParent = await tx.exchangeFundingEvent.findUnique({
-                where: { id: Number(sourceEvent.parentEventId) }
+            const rootSource = await getProvenExchangeFundingRoot(tx, sourceEvent, {
+              allowExpiredGiftForReturnAttribution: true
+            })
+            if (!rootSource) throw new BusinessError(exchangeReturnFundingBlockedMessage())
+            if (String(rootSource.kind) === 'SOURCE_GIFT') {
+              const branch = await openS8ExchangeChildGiftBranch(tx, {
+                returnId: Number(ret.id), childInvoiceId: Number(invoice.id),
+                sourceEventId: Number(sourceEvent.id), amount, actorUserId: input.userId ?? null
               })
-              if (exchangeChildReturnPlan.s8BranchEligible && rootParent && String(rootParent.kind) === 'SOURCE_GIFT') {
-                const branch = await openS8ExchangeChildGiftBranch(tx, {
-                  returnId: Number(ret.id), childInvoiceId: Number(invoice.id),
-                  sourceEventId: Number(sourceEvent.id), amount, actorUserId: input.userId ?? null
-                })
-                s8ChildReturnRights.push({ kind: 'B', ...branch })
-              } else if (exchangeChildReturnPlan.s8BranchEligible && rootParent &&
-                  ['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(String(rootParent.kind))) {
-                exchangeChildCashRight += amount
-              }
+              s8ChildReturnRights.push({ kind: 'B', ...branch })
+            } else if (['SOURCE_N', 'SOURCE_B'].includes(String(rootSource.kind))) {
+              const rootCredit = rootSource.sourceCreditId == null ? null : await tx.storeCredit.findUnique({
+                where: { id: Number(rootSource.sourceCreditId) }, select: { exchangeResidualRightKey: true }
+              })
+              const rightKey = String(rootCredit?.exchangeResidualRightKey ?? '')
+              if (!rightKey || rootSource.sourcePaymentId == null || rootSource.sourceInvoiceId == null)
+                throw new BusinessError(exchangeReturnFundingBlockedMessage())
+              await restoreS1ExchangeResidualRight(tx, {
+                rightKey, operationKey: `s8-child-return:${ret.id}:root:${rootSource.id}:${rootSource.kind}`,
+                amount, relatedInvoiceId: Number(rootSource.sourceInvoiceId),
+                relatedPaymentId: Number(rootSource.sourcePaymentId), relatedReturnId: Number(ret.id),
+                actorUserId: input.userId ?? null
+              })
+            } else if (!['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(String(rootSource.kind))) {
+              throw new BusinessError(exchangeReturnFundingBlockedMessage())
             }
-          } else if (exchangeChildReturnPlan.s8BranchEligible &&
-              ['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(sourceKind)) {
+          } else if (['SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'].includes(sourceKind)) {
             await releaseExchangeFundingTenderForChildReturn(tx, {
               returnId: Number(ret.id), returnItemId: Number(returnItem.id),
               sourceEventId: Number(sourceEvent.id), amount, actorUserId: input.userId ?? null
             })
-            exchangeChildCashRight += amount
           } else {
             throw new BusinessError(exchangeReturnFundingBlockedMessage())
           }
@@ -4346,13 +4401,6 @@ async function runReturn(
       }
       if (exchangeCarryReturned !== exchangeChildReturnPlan.returnTotal)
         throw new BusinessError(exchangeReturnFundingBlockedMessage())
-      if (exchangeChildCashRight > 0) {
-        const cashRight = await openS8ExchangeChildCashRight(tx, {
-          returnId: Number(ret.id), invoiceId: Number(invoice.id), amount: exchangeChildCashRight,
-          actorUserId: input.userId ?? null
-        })
-        s8ChildReturnRights.push({ kind: 'CASH_RIGHT', ...cashRight })
-      }
     }
 
     // Persist the real-money-only ceiling for simple returns before any cash
@@ -4627,6 +4675,14 @@ async function runReturn(
       refundStoreCreditAmount: splitStoreCreditAmount,
       reversedCreditRedemptions,
       s8ChildReturnRights: s8ChildReturnRights.map((right) => ({ ...right })),
+      exchangeChildSettlement: exchangeChildReturnPlan ? {
+        cashRight: exchangeChildReturnPlan.cashRight,
+        giftOpportunity: exchangeChildReturnPlan.giftOpportunity,
+        method: refund?.method ?? RefundMethod.NONE,
+        paidAmount: refund?.method === RefundMethod.CASH || refund?.method === RefundMethod.CARD
+          ? refund.amount : 0,
+        convertedAmount: refund?.method === RefundMethod.STORE_CREDIT ? refund.amount : splitStoreCreditAmount
+      } : null,
       creditOpportunity: creditRestoration ? {
         restored: creditRestoration.restored,
         expiredShare: creditRestoration.expiredShare,
@@ -4637,6 +4693,14 @@ async function runReturn(
           new Date(s1ResidualReturnPlan.bRight.expiresAt).getTime() <= Date.now()
           ? s1ResidualReturnPlan.b.amount : 0,
         pendingDelivery: []
+      } : exchangeChildReturnPlan ? {
+        restored: exchangeChildReturnPlan.giftOpportunity,
+        expiredShare: 0,
+        pendingDelivery: s8ChildReturnRights.filter((right) => right.kind === 'B').map((right) => ({
+          creditId: right.creditId, amount: right.amount, status: right.status,
+          deliveryStatus: right.deliveryStatus, returnId: Number(ret.id), rightKind: 'B' as const,
+          sourceKind: 'S8_EXCHANGE_B'
+        }))
       } : null,
       refundNote: refund?.note ?? null,
       storeCredit: refundCredit ? shapeStoreCredit(refundCredit) : null,
@@ -4668,8 +4732,8 @@ async function openS8ExchangeChildGiftBranch(tx: any, input: {
     } }),
     tx.exchangeFundingEvent.findUnique({ where: { id: input.sourceEventId } })
   ])
-  const rootEvent = sourceEvent?.kind === 'TRANSFER_IN' && sourceEvent.parentEventId != null
-    ? await tx.exchangeFundingEvent.findUnique({ where: { id: Number(sourceEvent.parentEventId) } }) : null
+  const rootEvent = sourceEvent
+    ? await getProvenExchangeFundingRoot(tx, sourceEvent, { allowExpiredGiftForReturnAttribution: true }) : null
   const parentReturn = child?.exchangeReturnId
     ? await tx.saleReturn.findUnique({ where: { id: Number(child.exchangeReturnId) }, select: {
         id: true, invoiceId: true, exchangeInvoiceId: true, voidedAt: true
@@ -4679,7 +4743,7 @@ async function openS8ExchangeChildGiftBranch(tx: any, input: {
       !Number.isSafeInteger(Number(child.sourceInvoiceId)) || Number(child.sourceInvoiceId) <= 0 ||
       !parentReturn || parentReturn.voidedAt != null || Number(parentReturn.invoiceId) !== Number(child.sourceInvoiceId) ||
       Number(parentReturn.exchangeInvoiceId) !== input.childInvoiceId || !rootEvent || rootEvent.kind !== 'SOURCE_GIFT' ||
-      Number(rootEvent.sourceInvoiceId) !== Number(child.sourceInvoiceId) || !Number.isSafeInteger(input.amount) ||
+      !Number.isSafeInteger(Number(rootEvent.sourceInvoiceId)) || Number(rootEvent.sourceInvoiceId) <= 0 || !Number.isSafeInteger(input.amount) ||
       input.amount <= 0 || input.amount > toNumberRial(sourceEvent.amount))
     throw new BusinessError(exchangeReturnFundingBlockedMessage())
   const rootCreditId = Number(rootEvent.sourceCreditId)
@@ -5131,17 +5195,29 @@ async function previewExchangeReturnFunding(tx: any, invoice: any, input: {
     fundingSources.length > 1 && fundingSources.every((source: any) => supportedReturnKinds.has(String(source.sourceKind))) &&
     funding.sources.length > 0 && funding.sources.every((source: any) => Number.isSafeInteger(source.available) && source.available >= 0) &&
     (activeReturns.some((ret: any) => String(ret.kind) === ReturnKind.EXCHANGE) || hasResidualRightCarry)
-  const s1CarryReturnEligible = s1LegacyCarryReturnEligible || s8MixedCarryReturnEligible
+  const supportedSources = fundingSources.length > 0 && fundingSources.every((source: any) =>
+    supportedReturnKinds.has(String(source.sourceKind)) && Number.isSafeInteger(source.available) && source.available >= 0)
+  const s1CarryReturnEligible = carryBalanceMatches && supportedSources && returnShares.size > 0
+  let giftOpportunity = 0n
+  let cashRight = 0n
+  for (const share of returnShares.values()) {
+    if (['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B'].includes(share.kind)) giftOpportunity += BigInt(share.amount)
+    else cashRight += BigInt(share.amount)
+  }
+  if (giftOpportunity + cashRight !== returnTotal ||
+      giftOpportunity > BigInt(Number.MAX_SAFE_INTEGER) || cashRight > BigInt(Number.MAX_SAFE_INTEGER))
+    throw new BusinessError(exchangeReturnFundingBlockedMessage())
   return {
     returnTotal: Number(returnTotal),
     debtReduced: 0,
-    giftOpportunity: 0,
-    cashRight: 0,
+    giftOpportunity: Number(giftOpportunity),
+    cashRight: Number(cashRight),
+    exchangeChildReturn: true,
     exchangeCarryRestoration: s1CarryReturnEligible,
     attributionOnly: !s1CarryReturnEligible,
     settlementReady: s1CarryReturnEligible,
     s8BranchEligible: s8MixedCarryReturnEligible,
-    settlementState: s1CarryReturnEligible ? 'S1_CARRY_RELEASE_ONLY' : 'BLOCKED_UNTIL_ENTITLEMENT_AND_REVERSAL',
+    settlementState: s1CarryReturnEligible ? 'S8_PROVEN_SOURCE_SETTLEMENT' : 'BLOCKED_UNTIL_ENTITLEMENT_AND_REVERSAL',
     shares: [...returnShares].map(([sourceEventId, share]) => ({
       sourceEventId, sourceKind: share.kind, amount: share.amount
     })),
@@ -7385,6 +7461,7 @@ export const salesService = {
         storeCreditCode: _storeCreditCode,
         storeCredit: rawStoreCredit,
         overpayCredit: rawOverpayCredit,
+        exchangeChildSettlement: rawExchangeChildSettlement,
         ...res
       } = full
 
@@ -7434,14 +7511,27 @@ export const salesService = {
           shiftName: shift?.name ?? null,
           note: 'ثبت‌شده از پنل برگشت از فروش'
         })
-        await openCardTransferEntitlement(tx, {
-          returnId: rec.id, invoiceId: inv.id, requestId: cardTransfer.id,
-          amount: toNumberRial(cardTransfer.amount),
-          giftOpportunity: full.creditOpportunity?.restored ?? 0,
-          debtReduced: Math.max(0, toNumberRial(rec.total) - toNumberRial(cardTransfer.amount) -
-            toNumberRial(rec.refundStoreCreditAmount ?? 0) - (full.creditOpportunity?.restored ?? 0)),
-          actorUserId: input.userId ?? null
-        })
+        if (rawExchangeChildSettlement) {
+          const childClaim = await openS8ExchangeChildReturnEntitlement(tx, {
+            returnId: rec.id, invoiceId: inv.id,
+            cashRight: rawExchangeChildSettlement.cashRight,
+            giftOpportunity: rawExchangeChildSettlement.giftOpportunity,
+            method: RefundMethod.CARD_TO_CARD, requestId: cardTransfer.id,
+            actorUserId: input.userId ?? null
+          })
+          if (childClaim) (res as any).s8ChildReturnRights = [
+            ...((res as any).s8ChildReturnRights ?? []), { kind: 'CASH_RIGHT', ...childClaim }
+          ]
+        } else {
+          await openCardTransferEntitlement(tx, {
+            returnId: rec.id, invoiceId: inv.id, requestId: cardTransfer.id,
+            amount: toNumberRial(cardTransfer.amount),
+            giftOpportunity: full.creditOpportunity?.restored ?? 0,
+            debtReduced: Math.max(0, toNumberRial(rec.total) - toNumberRial(cardTransfer.amount) -
+              toNumberRial(rec.refundStoreCreditAmount ?? 0) - (full.creditOpportunity?.restored ?? 0)),
+            actorUserId: input.userId ?? null
+          })
+        }
         await tx.auditLog.create({
           data: {
             action: AuditAction.CARD_TRANSFER_REQUEST,
@@ -7462,6 +7552,22 @@ export const salesService = {
               '.'
           }
         })
+      } else if (rawExchangeChildSettlement && rawExchangeChildSettlement.cashRight > 0) {
+        const rec: any = _rec
+        const inv: any = _inv
+        const childClaim = await openS8ExchangeChildReturnEntitlement(tx, {
+          returnId: rec.id, invoiceId: inv.id,
+          cashRight: rawExchangeChildSettlement.cashRight,
+          giftOpportunity: rawExchangeChildSettlement.giftOpportunity,
+          method: full.refundMethod,
+          paidAmount: rawExchangeChildSettlement.paidAmount,
+          convertedAmount: rawExchangeChildSettlement.convertedAmount,
+          creditId: rawStoreCredit?.id ?? null,
+          actorUserId: input.userId ?? null
+        })
+        if (childClaim) (res as any).s8ChildReturnRights = [
+          ...((res as any).s8ChildReturnRights ?? []), { kind: 'CASH_RIGHT', ...childClaim }
+        ]
       }
       const response = {
         ...res,

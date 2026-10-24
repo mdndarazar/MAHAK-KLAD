@@ -232,20 +232,196 @@ export async function openChainedExchangeCardTransferEntitlement(tx: Client, inp
   return safeView(claim)
 }
 
-/** Validate an entitlement using either the existing ordinary-return rules or
- * the narrow proven full-child exchange C2C rule above. */
+/** Validate a physical return from an exchange child against the persisted
+ * per-item provenance matrix and the fully revalidated funding lineage. */
+async function assertS8ExchangeChildReturnLineage(tx: Client, claim: any, requestId?: number) {
+  const returnId = safeId(Number(claim?.returnId), 'شناسه برگشت')
+  const invoiceId = safeId(Number(claim?.invoiceId), 'شناسه فاکتور')
+  const [ret, child] = await Promise.all([
+    tx.saleReturn.findUnique({ where: { id: returnId } }),
+    tx.saleInvoice.findUnique({ where: { id: invoiceId }, select: {
+      id: true, orderType: true, sourceInvoiceId: true, exchangeReturnId: true, voidedAt: true
+    } })
+  ])
+  const parentReturn = child?.exchangeReturnId
+    ? await tx.saleReturn.findUnique({ where: { id: Number(child.exchangeReturnId) } }) : null
+  if (!ret || ret.kind !== 'RETURN' || ret.voidedAt != null || ret.exchangeInvoiceId != null ||
+      !child || child.orderType !== 'EXCHANGE' || child.voidedAt != null ||
+      Number(ret.invoiceId) !== invoiceId || !Number.isSafeInteger(Number(child.sourceInvoiceId)) ||
+      Number(child.sourceInvoiceId) <= 0 || !parentReturn || parentReturn.kind !== 'EXCHANGE' ||
+      parentReturn.voidedAt != null || Number(parentReturn.invoiceId) !== Number(child.sourceInvoiceId) ||
+      Number(parentReturn.exchangeInvoiceId) !== invoiceId ||
+      Number(parentReturn.id) !== Number(child.exchangeReturnId))
+    throw new BusinessError('برگشت عادیِ فرزند با زنجیرهٔ والد و فاکتور فرزند منطبق نیست؛ تسویه متوقف شد.')
+
+  const funding = await getCurrentExchangeFundingSources(tx, invoiceId, {
+    allowReturnBalanceChanges: true, allowExpiredGiftForReturnAttribution: true
+  })
+  if (!funding.snapshotExists || funding.stale || funding.unresolved.length || funding.debt !== 0 ||
+      funding.overpay !== 0 || funding.sourceInvoiceId !== Number(child.sourceInvoiceId) ||
+      funding.returnId !== Number(child.exchangeReturnId) || funding.lineAllocationStatus !== 'PERSISTED_RECONCILED')
+    throw new BusinessError('دفتر منشأ فرزند تعویض stale/نامعلوم یا ناقص است؛ هیچ وجهی پرداخت یا تبدیل نمی‌شود.')
+
+  const [items, rows] = await Promise.all([
+    tx.saleReturnItem.findMany({ where: { returnId }, orderBy: { id: 'asc' } }),
+    tx.exchangeFundingReturnLineAllocation.findMany({ where: { returnId, eventKind: 'ALLOCATION' }, orderBy: [{ returnItemId: 'asc' }, { sourceEventId: 'asc' }] })
+  ])
+  const sourceKinds = new Set(['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
+  const sources = new Map<number, any>((funding.sources as any[]).map((row: any) => [Number(row.event?.id), row]))
+  const lineCells = new Map<string, number>()
+  for (const row of funding.lineAllocations as any[]) {
+    const key = `${Number(row.saleItemId)}:${Number(row.sourceEventId)}`
+    if (!sourceKinds.has(String(row.sourceKind)) || lineCells.has(key))
+      throw new BusinessError('ماتریس منشأ قلم فرزند تکراری/نامعتبر است؛ entitlement مسدود شد.')
+    lineCells.set(key, Number(row.amount))
+  }
+  const itemById = new Map<number, any>(items.map((item: any) => [Number(item.id), item]))
+  const perCell = new Map<string, number>()
+  const perItem = new Map<number, bigint>()
+  let giftRight = 0n
+  let cashRight = 0n
+  for (const row of rows as any[]) {
+    const rowItemId = Number(row.returnItemId)
+    const item = itemById.get(rowItemId)
+    const sourceEventId = Number(row.sourceEventId)
+    const source = sources.get(sourceEventId)
+    const amount = toNumberRial(row.amountDelta)
+    const kind = String(row.sourceKind)
+    const cell = `${Number(row.saleItemId)}:${sourceEventId}`
+    const nextCell = (perCell.get(cell) ?? 0) + amount
+    if (!item || Number(row.returnItemId) <= 0 || Number(row.returnId) !== returnId ||
+        Number(item.returnId) !== returnId || Number(row.childInvoiceId) !== invoiceId ||
+        Number(row.sourceInvoiceId) !== Number(child.sourceInvoiceId) ||
+        Number(row.saleItemId) !== Number(item.saleItemId) || !source ||
+        String(source.sourceKind) !== kind || !sourceKinds.has(kind) ||
+        row.reversesAllocationId != null || !Number.isSafeInteger(amount) || amount <= 0 ||
+        !Number.isSafeInteger(nextCell) || nextCell > (lineCells.get(cell) ?? -1))
+      throw new BusinessError('انتساب برگشت از قلم/سهم ریشهٔ معتبر جدا شده است؛ هیچ حق مالی صادر نشد.')
+    perCell.set(cell, nextCell)
+    perItem.set(rowItemId, (perItem.get(rowItemId) ?? 0n) + BigInt(amount))
+    if (['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B'].includes(kind)) giftRight += BigInt(amount)
+    else cashRight += BigInt(amount)
+  }
+  if (!items.length || itemById.size !== items.length || rows.length === 0 ||
+      items.some((item: any) => perItem.get(Number(item.id)) !== BigInt(toNumberRial(item.lineTotal))) ||
+      [...perCell].some(([cell, amount]) => amount > (lineCells.get(cell) ?? -1)) ||
+      giftRight + cashRight !== BigInt(toNumberRial(ret.total)) ||
+      giftRight > BigInt(Number.MAX_SAFE_INTEGER) || cashRight > BigInt(Number.MAX_SAFE_INTEGER))
+    throw new BusinessError('جمع سهم‌های منشأ با اقلام برگشتی تطبیق ندارد؛ تسویه متوقف شد.')
+
+  const real = Number(cashRight)
+  const gift = Number(giftRight)
+  const method = String(ret.refundMethod ?? '').toUpperCase()
+  const amount = toNumberRial(ret.refundAmount)
+  const splitCredit = toNumberRial(ret.refundStoreCreditAmount)
+  if (toNumberRial(claim.cashRight) !== real || toNumberRial(claim.giftOpportunity) !== gift ||
+      toNumberRial(claim.debtReduced) !== 0 || toNumberRial(ret.realMoneyRefundAmount) !== real ||
+      !['CASH', 'CARD', 'CARD_TO_CARD', 'STORE_CREDIT', 'NONE'].includes(method) ||
+      (real === 0 && (method !== 'NONE' || amount !== 0 || splitCredit !== 0)) ||
+      (real > 0 && method === 'CASH' && amount + splitCredit !== real) ||
+      (real > 0 && method !== 'CASH' && method !== 'NONE' && (amount !== real || splitCredit !== 0)) ||
+      (real > 0 && method === 'NONE' && (amount !== 0 || splitCredit !== 0)))
+    throw new BusinessError('روش/مبلغ تسویه از حق پول واقعیِ منشأدار فراتر رفته یا با آن منطبق نیست.')
+  if (method === 'CARD_TO_CARD') {
+    if (requestId == null || claim.requestId == null || Number(claim.requestId) !== requestId)
+      throw new BusinessError('حق کارت‌به‌کارت فرزند به درخواست مدیر متصل نیست.')
+    const request = await tx.cardTransferRequest.findUnique({ where: { id: safeId(requestId, 'شناسه درخواست') } })
+    if (!request || Number(request.returnId) !== returnId || Number(request.sourceInvoiceId) !== invoiceId ||
+        request.operationKind !== 'RETURN' || request.kind !== 'REQUEST' || toNumberRial(request.amount) !== real)
+      throw new BusinessError('درخواست کارت‌به‌کارت با حق واقعی و برگشت فرزند منطبق نیست.')
+  } else if (requestId != null || claim.requestId != null) {
+    throw new BusinessError('درخواست بانکی به روش تسویهٔ غیرکارت‌به‌کارت متصل شده است.')
+  }
+  return { ret, child, giftOpportunity: gift, cashRight: real, funding }
+}
+
+/** Create the single-return cash entitlement only after its proven child
+ * allocations and selected settlement have been persisted in this transaction. */
+export async function openS8ExchangeChildReturnEntitlement(tx: Client, input: {
+  returnId: number; invoiceId: number; cashRight: number; giftOpportunity: number;
+  method: string; paidAmount?: number; convertedAmount?: number; requestId?: number | null;
+  creditId?: number | null; actorUserId?: number | null
+}) {
+  const returnId = safeId(input.returnId, 'شناسه برگشت')
+  const invoiceId = safeId(input.invoiceId, 'شناسه فرزند')
+  const cashRight = secureInt(input.cashRight, 'حق پول واقعی', 0)
+  const giftOpportunity = secureInt(input.giftOpportunity, 'سهم اعتبار غیرنقدی', 0)
+  if (cashRight === 0) return null
+  const method = String(input.method ?? '').toUpperCase()
+  const paid = secureInt(input.paidAmount ?? 0, 'وجه پرداخت‌شده', 0)
+  const converted = secureInt(input.convertedAmount ?? 0, 'وجه تبدیل‌شده به اعتبار', 0)
+  const requestId = input.requestId == null ? null : safeId(input.requestId, 'شناسه درخواست')
+  if (!['NONE', 'CASH', 'CARD', 'CARD_TO_CARD', 'STORE_CREDIT'].includes(method) ||
+      (method === 'NONE' && (paid !== 0 || converted !== 0 || requestId != null)) ||
+      (method === 'CASH' && (paid + converted !== cashRight || (converted > 0 && !input.creditId))) ||
+      (method === 'CARD' && (paid !== cashRight || converted !== 0)) ||
+      (method === 'STORE_CREDIT' && (converted !== cashRight || paid !== 0 || !input.creditId)) ||
+      (method === 'CARD_TO_CARD' && (paid !== 0 || converted !== 0 || requestId == null)) ||
+      (method !== 'CARD_TO_CARD' && requestId != null))
+    throw new BusinessError('مقدار پرداخت/اعتبار/رزرو با سهم واقعیِ برگشت فرزند منطبق نیست.')
+  const claimShape = {
+    returnId, invoiceId, requestId,
+    cashRight, giftOpportunity, debtReduced: 0,
+    cashPaid: paid, cashConverted: converted,
+    cashReserved: method === 'CARD_TO_CARD' ? cashRight : 0,
+    state: 'OPEN'
+  }
+  await assertS8ExchangeChildReturnLineage(tx, claimShape, requestId ?? undefined)
+  const existing = await tx.returnEntitlement.findUnique({ where: { returnId } })
+  if (existing) {
+    if (Number(existing.invoiceId) !== invoiceId || Number(existing.requestId ?? 0) !== Number(requestId ?? 0) ||
+        toNumberRial(existing.cashRight) !== cashRight || toNumberRial(existing.cashPaid) !== paid ||
+        toNumberRial(existing.cashConverted) !== converted || toNumberRial(existing.cashReserved) !== claimShape.cashReserved ||
+        toNumberRial(existing.giftOpportunity) !== giftOpportunity) throw stale()
+    return safeView(existing)
+  }
+  const claim = await tx.returnEntitlement.create({ data: claimShape as any })
+  await tx.returnEntitlementEvent.create({ data: {
+    entitlementId: claim.id, eventKey: `s8-child-return:${returnId}:opened`, kind: 'CASH_RIGHT_OPENED',
+    amount: cashRight, requestId, actorUserId: input.actorUserId ?? null,
+    evidenceKind: 'S8_PROVEN_CHILD_CARRY_RETURN',
+    reason: method === 'CARD_TO_CARD'
+      ? 'حق واقعی منشأدار برای درخواست مدیر رزرو شد؛ تا تطبیق بانک پرداختی اثبات‌شده نیست.'
+      : 'حق واقعی منشأدار با روش ثبت‌شدهٔ برگشت تسویه شد.', beforeVersion: 0
+  } })
+  if (paid > 0) await tx.returnEntitlementEvent.create({ data: {
+    entitlementId: claim.id, eventKey: `s8-child-return:${returnId}:paid`, kind: 'CASH_PAID',
+    amount: paid, actorUserId: input.actorUserId ?? null,
+    evidenceKind: method === 'CASH' ? 'CASH_MOVEMENT_RECORDED' : 'MANAGER_AUTHORIZED_CARD_REFUND',
+    reason: 'تسویهٔ فوری فقط در حد سهم واقعیِ دفتر منشأ ثبت شد.', beforeVersion: 0
+  } })
+  if (converted > 0) await tx.returnEntitlementEvent.create({ data: {
+    entitlementId: claim.id, eventKey: `s8-child-return:${returnId}:converted`, kind: 'CASH_RIGHT_CONVERTED',
+    amount: converted, creditId: input.creditId!, actorUserId: input.actorUserId ?? null,
+    evidenceKind: 'RETURN_REAL_SOURCE_TO_STORE_CREDIT',
+    reason: 'سهم واقعیِ برگشت طبق انتخاب روش به اعتبار خرید تبدیل شد.', beforeVersion: 0
+  } })
+  if (requestId != null) await tx.returnEntitlementEvent.create({ data: {
+    entitlementId: claim.id, eventKey: `s8-child-return:${returnId}:reserved`, kind: 'BANK_RESERVED',
+    amount: cashRight, requestId, actorUserId: input.actorUserId ?? null,
+    evidenceKind: 'MANAGER_C2C_REQUEST', reason: 'تا تطبیق مستقل صورت‌حساب بانک، حق رزرو است.', beforeVersion: 0
+  } })
+  return safeView(claim)
+}
+
+/** Validate an entitlement using ordinary-return rules or one of the two
+ * narrowly proven exchange settlement paths. */
 export async function assertReturnEntitlementLineage(tx: Client, claim: any) {
   const returnId = safeId(Number(claim?.returnId), 'شناسه برگشت')
   const invoiceId = safeId(Number(claim?.invoiceId), 'شناسه فاکتور')
   const source = await tx.saleInvoice.findUnique({ where: { id: invoiceId }, select: { orderType: true } })
   if (source?.orderType === 'EXCHANGE') {
     const ret = await tx.saleReturn.findUnique({ where: { id: returnId } })
-    if (ret?.kind !== 'EXCHANGE') throw new BusinessError('برگشت فرزند تعویض با مسیر تسویهٔ زنجیره‌ای منطبق نیست.')
-    return assertChainedExchangeCashSettlementLineage(tx, {
-      returnId, invoiceId, amount: toNumberRial(claim.cashRight),
-      refundMethod: String(ret.refundMethod ?? ''),
-      requestId: claim.requestId == null ? undefined : Number(claim.requestId)
-    })
+    if (ret?.kind === 'EXCHANGE')
+      return assertChainedExchangeCashSettlementLineage(tx, {
+        returnId, invoiceId, amount: toNumberRial(claim.cashRight),
+        refundMethod: String(ret.refundMethod ?? ''),
+        requestId: claim.requestId == null ? undefined : Number(claim.requestId)
+      })
+    if (ret?.kind === 'RETURN')
+      return assertS8ExchangeChildReturnLineage(tx, claim,
+        claim.requestId == null ? undefined : Number(claim.requestId))
+    throw new BusinessError('برگشت فرزند تعویض با مسیر تسویهٔ زنجیره‌ای منطبق نیست.')
   }
   return assertOrdinaryReturnLineage(tx, returnId, invoiceId)
 }
@@ -295,7 +471,7 @@ export async function markBankCancellationUnknown(
   const requestId = safeId(input.requestId, 'شناسه درخواست')
   const claim = await tx.returnEntitlement.findUnique({ where: { requestId } })
   if (!claim) return false
-  await assertOrdinaryReturnLineage(tx, Number(claim.returnId), Number(claim.invoiceId))
+  await assertReturnEntitlementLineage(tx, claim)
   if (claim.state !== 'OPEN') throw stale()
   const changed = await tx.returnEntitlement.updateMany({
     where: { id: claim.id, version: claim.version, state: 'OPEN' },
@@ -321,7 +497,7 @@ export async function correctPendingEntitlement(
   const returnId = safeId(input.returnId, 'شناسه برگشت')
   const claim = await tx.returnEntitlement.findUnique({ where: { returnId } })
   if (!claim) return false
-  await assertOrdinaryReturnLineage(tx, returnId, Number(claim.invoiceId))
+  await assertReturnEntitlementLineage(tx, claim)
   const right = secureInt(input.newRight, 'حق اصلاح‌شده')
   if (claim.requestId !== input.requestId || claim.state !== 'OPEN' ||
       toNumberRial(claim.cashPaid) !== 0 || toNumberRial(claim.cashConverted) !== 0 ||
@@ -353,7 +529,7 @@ export async function quarantineEntitlement(
   const returnId = safeId(input.returnId, 'شناسه برگشت')
   const claim = await tx.returnEntitlement.findUnique({ where: { returnId } })
   if (!claim) return false
-  await assertOrdinaryReturnLineage(tx, returnId, Number(claim.invoiceId))
+  await assertReturnEntitlementLineage(tx, claim)
   if (claim.state === 'QUARANTINED') return true
   const changed = await tx.returnEntitlement.updateMany({
     where: { id: claim.id, version: claim.version, state: claim.state },
@@ -406,7 +582,7 @@ export async function reconcileBankDocument(input: {
   return prisma.$transaction(async (tx) => {
     const claim = await tx.returnEntitlement.findUnique({ where: { requestId } })
     if (!claim) throw new BusinessError('این درخواست فاقد حق مالیِ قابل‌تبدیل است؛ پروندهٔ قدیمی به رسیدگی مدیر نیاز دارد.')
-    await assertOrdinaryReturnLineage(tx, Number(claim.returnId), Number(claim.invoiceId))
+    await assertReturnEntitlementLineage(tx, claim)
     const existing = await tx.bankStatementEvidence.findUnique({ where: { requestId } })
     if (existing) {
       if (existing.sha256 !== digest || toNumberRial(existing.confirmedAmount) !== amount) throw stale()
@@ -477,7 +653,7 @@ export async function convertCashRight(input: {
       if (toNumberRial(previous.amount) !== amount || !previous.creditId) throw stale()
       const priorClaim = await tx.returnEntitlement.findUnique({ where: { id: previous.entitlementId } })
       if (!priorClaim) throw stale()
-      await assertOrdinaryReturnLineage(tx, returnId, Number(priorClaim.invoiceId))
+      await assertReturnEntitlementLineage(tx, priorClaim)
       const delivery = await tx.creditDelivery.findUnique({ where: { creditId: previous.creditId } })
       return { creditId: previous.creditId, publicReference: `اعتبار #${previous.creditId}`,
         deliveryStatus: delivery?.status ?? 'PENDING_DELIVERY', replayed: true }
@@ -485,7 +661,7 @@ export async function convertCashRight(input: {
     const claim = await tx.returnEntitlement.findUnique({ where: { returnId } })
     if (!claim || claim.state !== 'OPEN' || claim.version !== version)
       throw new BusinessError('حق مالی هنوز باز/تطبیق‌شده نیست یا نسخهٔ آن تغییر کرده است؛ تبدیل انجام نشد.')
-    const ret = await assertOrdinaryReturnLineage(tx, returnId, Number(claim.invoiceId))
+    const ret = await assertReturnEntitlementLineage(tx, claim)
     const balance = cashClaimBalance(claim)
     if (balance.overAllocated || amount > balance.open)
       throw new BusinessError('مبلغ مورد درخواست از حق نقدی باز بیشتر است؛ کدی صادر نشد. پرداخت و رزرو بانک را بررسی کنید.')
@@ -635,7 +811,7 @@ async function assertCreditDeliverySourceLineage(tx: Client, delivery: any, cred
         Number(credit.returnId) !== Number(claim.returnId) ||
         Number(credit.sourceInvoiceId) !== Number(claim.invoiceId))
       throw new BusinessError('منشأ/lineage حق نقدی و کد جانشین یکتا/سازگار نیست؛ تحویل تا تطبیق مدیر متوقف است.')
-    const ret = await assertOrdinaryReturnLineage(tx, Number(claim.returnId), Number(claim.invoiceId))
+    const ret = await assertReturnEntitlementLineage(tx, claim)
     if (ret.voidedAt != null)
       throw new BusinessError('سند مرجع کد تبدیل‌شده باطل است؛ تحویل یا بازپخش کد مجاز نیست.')
   } else if (delivery.sourceKind === 'CHAIN_GIFT_RESIDUAL' || delivery.sourceKind === 'CHAIN_REAL_REFUND') {
