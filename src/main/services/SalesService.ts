@@ -89,6 +89,7 @@ import {
   reverseInvoiceRedemptions
 } from './StoreCreditService'
 import { applyCreditReturn, authorizeReturnRealMoneyRefund, planCreditReturn, RETURN_CREDIT_POLICY_VERSION, type CreditReturnPlan } from './CreditReturnService'
+import { restoreExchangeGiftRemainderToSameBarcode, reverseExchangeGiftRemainderOnVoid } from './ExchangeSameBarcodeCreditService'
 import {
   exchangeCreditDays,
   CreditSource,
@@ -7858,6 +7859,7 @@ export const salesService = {
        */
       let fundingSourcesForTransfer: Array<{ event: any; available: number }> | null = null
       let s1ResidualRightsEligible = false
+      let sameBarcodeCreditRestore: { sourceEventId: number; redemptionId: number; amount: number } | null = null
       let s1MixedResidualEligible = false
       let partialExchangeCreditRestorePlan: CreditReturnPlan | null = null
       let partialExchangeCarryPlan: Array<{ sourceEventId: number; sourceKind: 'SOURCE_GIFT' | 'SOURCE_N' | 'SOURCE_B' | 'SOURCE_CASH' | 'SOURCE_CARD' | 'SOURCE_CHEQUE'; carry: number; remainder: number }> | null = null
@@ -7998,13 +8000,63 @@ export const salesService = {
           Number.isSafeInteger(totalAvailable) && totalAvailable === returnTotal &&
           funding.sources.every((sourceShare) => sourceKinds.has(sourceShare.sourceKind) &&
             sourceShare.available > 0 && sourceShare.available === toNumberRial(sourceShare.event.amount))
+        // A fully proven, single multi-use gift barcode has a direct restoration
+        // path: carry the replacement value and put only the surplus back on the
+        // very same code. This is deliberately narrower than the generic S1
+        // successor-barcode path and does not relax any lineage/return checks.
+        if (fullyProvenFullReturn && !sourceIsExchangeChild && diff < 0 &&
+            (!refundMode || ['STORE_CREDIT', 'S1_RESIDUAL_RIGHTS'].includes(refundMode)) &&
+            funding!.sources.length === 1 && funding!.sources[0].sourceKind === 'SOURCE_GIFT' &&
+            funding!.sources[0].available === returnTotal &&
+            Number(funding!.sources[0].event.amount) === returnTotal) {
+          try {
+            const sourceShare = funding!.sources[0]
+            const sourceEventId = Number(sourceShare.event.id)
+            const redemptionId = Number(sourceShare.event.sourceRedemptionId)
+            const creditId = Number(sourceShare.event.sourceCreditId)
+            const [rootCredit, redemption, priorReturnAllocation, priorBalanceEvents] = await Promise.all([
+              tx.storeCredit.findUnique({ where: { id: creditId } }),
+              tx.storeCreditRedemption.findUnique({ where: { id: redemptionId } }),
+              tx.creditReturnAllocation.count({ where: { redemptionId } }),
+              tx.storeCreditBalanceAdjustment.findMany({ where: { redemptionId },
+                select: { id: true, kind: true, reversesEventId: true } })
+            ])
+            const reversedRestoreIds = new Set(priorBalanceEvents
+              .filter((event: any) => event.kind === 'EXCHANGE_REMAINDER_RESTORATION_REVERSED' && event.reversesEventId != null)
+              .map((event: any) => Number(event.reversesEventId)))
+            const hasOpenOrUnknownBalanceAdjustment = priorBalanceEvents.some((event: any) =>
+              event.kind !== 'EXCHANGE_REMAINDER_RESTORED' && event.kind !== 'EXCHANGE_REMAINDER_RESTORATION_REVERSED' ||
+              (event.kind === 'EXCHANGE_REMAINDER_RESTORED' && !reversedRestoreIds.has(Number(event.id))))
+            const plan = allocateExchangeFundingCashFirst({ replacementTotal: exchangeTotal,
+              sources: [{ sourceEventId, sourceKind: 'SOURCE_GIFT', available: sourceShare.available }] })
+            const allocation = plan.allocations[0]
+            if (rootCredit?.multiUse === true && rootCredit.deletedAt == null && rootCredit.voidedAt == null &&
+                rootCredit.exchangeResidualRightKey == null && ['ACTIVE', 'PARTIALLY_USED'].includes(String(rootCredit.status)) &&
+                Number(rootCredit.usedCount) > 0 && Number(rootCredit.usedCount) < Number(rootCredit.maxUses) &&
+                redemption && redemption.reversedAt == null && redemption.compensatedAt == null &&
+                redemption.expiryCaptured === true && Number(redemption.creditId) === creditId &&
+                Number(redemption.invoiceId) === Number(source.id) && Number(redemption.amount) === returnTotal &&
+                priorReturnAllocation === 0 && !hasOpenOrUnknownBalanceAdjustment && allocation &&
+                allocation.sourceEventId === sourceEventId && allocation.carry === exchangeTotal &&
+                allocation.remainder === returnTotal - exchangeTotal && allocation.remainder > 0 &&
+                plan.allocations.reduce((sum, row) => sum + row.carry, 0) === exchangeTotal &&
+                plan.allocations.reduce((sum, row) => sum + row.remainder, 0) === returnTotal - exchangeTotal) {
+              sameBarcodeCreditRestore = { sourceEventId, redemptionId, amount: allocation.remainder }
+              fundingSourcesForTransfer = funding!.sources
+              s1CarryAllocations = plan.allocations
+              s1GiftResidualAmount = allocation.remainder
+            }
+          } catch {
+            // If same-code restoration cannot be proven, keep the existing gates closed.
+          }
+        }
         if (fullyProvenFullReturn && diff === 0 && returnTotal === exchangeTotal) {
           fundingSourcesForTransfer = funding!.sources
         } else if (fullyProvenFullReturn && !sourceIsExchangeChild && diff > 0) {
           // S9: the original sale value remains a distinct carried share; only
           // the additional customer tender fills the positive exchange delta.
           fundingSourcesForTransfer = funding!.sources
-        } else if (fullyProvenFullReturn && !sourceIsExchangeChild && diff < 0 &&
+        } else if (fullyProvenFullReturn && !sourceIsExchangeChild && diff < 0 && !sameBarcodeCreditRestore &&
             funding!.sources.every((sourceShare) => sourceKinds.has(sourceShare.sourceKind)) &&
             (funding!.sources.some((sourceShare) => sourceShare.sourceKind === 'SOURCE_GIFT')
               ? funding!.sources.some((sourceShare) => sourceShare.sourceKind !== 'SOURCE_GIFT')
@@ -8334,8 +8386,10 @@ export const salesService = {
         )
       if (refundMode === 'S11_DEBT_OFFSET_RIGHTS' && !s11DebtOffsetEligible)
         throw new BusinessError('گزینهٔ S11 برای این برگشت قابل اثبات نیست؛ هیچ مبلغی جابه‌جا نشد.')
-      if (refundMode === 'S1_RESIDUAL_RIGHTS' && !s1ResidualRightsEligible)
+      if (refundMode === 'S1_RESIDUAL_RIGHTS' && !s1ResidualRightsEligible && !sameBarcodeCreditRestore)
         throw new BusinessError('گزینهٔ S1 فقط وقتی فعال است که منشأ، lineage سالم و carry/remnant قابل اثبات داشته باشد؛ منشأ این تعویض واجد شرایط نیست.')
+      if (sameBarcodeCreditRestore && refundMode && !['STORE_CREDIT', 'S1_RESIDUAL_RIGHTS'].includes(refundMode))
+        throw new BusinessError('برای ماندهٔ این بارکد چندباره فقط بازگشت به همان بارکد پذیرفته است؛ بازپرداخت نقدی/کارتی یا صدور بارکد تازه مجاز نیست.')
       if (s1MixedResidualEligible && !['CASH', 'CARD', 'CARD_TO_CARD', 'STORE_CREDIT'].includes(String(refundMode ?? '').toUpperCase()))
         throw new BusinessError('در ماندهٔ مختلط S1، سهم اعتبار ریشه‌دار غیرنقدی برمی‌گردد؛ برای سهم وجه واقعی، نقد، کارت، کارت‌به‌کارت مدیر، یا اعتبار غیرنقدی را انتخاب کنید.')
       if (s1ResidualRightsEligible && !s1MixedResidualEligible && refundMode !== 'S1_RESIDUAL_RIGHTS' &&
@@ -8453,7 +8507,9 @@ export const salesService = {
       /** نشست ۶۰ (بند ۴-۵) — بخشی از مابه‌التفاوت منفی که از بدهی فاکتور اصلی کم شد */
       let debtCut = 0
 
-      if (s1ResidualRightsEligible) {
+      if (sameBarcodeCreditRestore) {
+        settlement = ExchangeSettlement.SAME_BARCODE_RESTORED
+      } else if (s1ResidualRightsEligible) {
         if (!s1MixedResidualEligible) {
           // A credit-only S1 remainder is one non-cash successor with exact root expiry.
           settlement = ExchangeSettlement.S1_RESIDUAL_RIGHTS
@@ -8930,7 +8986,7 @@ export const salesService = {
           exchangeDiff: diff,
           exchangeSettlement: settlement,
           debtReduction: debtCut,
-          creditRestored: s1ResidualRightsEligible ? s1GiftResidualAmount : 0,
+          creditRestored: sameBarcodeCreditRestore?.amount ?? (s1ResidualRightsEligible ? s1GiftResidualAmount : 0),
           storeCreditId: credit?.id ?? null,
           storeCreditCode: credit?.code ?? null,
           /**
@@ -9020,7 +9076,7 @@ export const salesService = {
       // it before moving the exact-value, homogeneous proven funding shares. Any
       // later failure in createExchange rolls these two-sided writes back too.
       if (fundingSourcesForTransfer) {
-        const allocations = (s1ResidualRightsEligible || s11DebtOffsetEligible || partialExchangeCarryPlan)
+        const allocations = (s1ResidualRightsEligible || sameBarcodeCreditRestore || s11DebtOffsetEligible || partialExchangeCarryPlan)
           ? ((s1CarryAllocations ?? partialExchangeCarryPlan ?? []).map((row) => ({
               id: row.sourceEventId, amount: row.carry
             })))
@@ -9028,7 +9084,7 @@ export const salesService = {
               id: Number(event.id), available
             })))
         const sourceByEventId = new Map(fundingSourcesForTransfer.map((row) => [Number(row.event.id), row]))
-        const expectedTransferTotal = (s1ResidualRightsEligible || s11DebtOffsetEligible || partialExchangeCarryPlan)
+        const expectedTransferTotal = (s1ResidualRightsEligible || sameBarcodeCreditRestore || s11DebtOffsetEligible || partialExchangeCarryPlan)
           ? exchangeTotal : returnTotal
         if (allocations.reduce((sum, allocation) => sum + allocation.amount, 0) !== expectedTransferTotal)
           throw new BusinessError('تخصیص منشأ مالی تعویض دقیقاً با ارزش برگشتی برابر نشد؛ تراکنش لغو شد.')
@@ -9054,6 +9110,14 @@ export const salesService = {
           chequePolicyVersion: chequePolicyVersion ?? undefined
         })
         await recordExchangeFundingLineAllocations(tx, exchangeInvoice.id)
+        if (sameBarcodeCreditRestore) {
+          await restoreExchangeGiftRemainderToSameBarcode(tx, {
+            returnId: Number(back.id), sourceInvoiceId: Number(source.id),
+            sourceEventId: sameBarcodeCreditRestore.sourceEventId,
+            redemptionId: sameBarcodeCreditRestore.redemptionId,
+            amount: sameBarcodeCreditRestore.amount, actorUserId: input.userId ?? null
+          })
+        }
         if (chainedGiftFirstSettlement && chainedGiftResidualSources.length > 0) {
           for (const remainder of chainedGiftResidualSources) {
             const issued = await issueChainedExchangeGiftResidualBarcode(tx, {
@@ -9252,7 +9316,9 @@ export const salesService = {
           (diff > 0
             ? `${money(diff)} ریال از مشتری دریافت شد`
             : diff < 0
-              ? chainedGiftFirstSettlement
+              ? sameBarcodeCreditRestore
+                ? `${money(sameBarcodeCreditRestore.amount)} ریال به همان بارکد اعتبار چندباره برگشت شد؛ بارکد تازه‌ای صادر نشد`
+                : chainedGiftFirstSettlement
                 ? `${s1GiftResidualAmount > 0 ? `${money(s1GiftResidualAmount)} ریال اعتبارِ ریشه‌دار باقی‌مانده جداگانه ثبت شد` : 'اعتبارِ ریشه‌دار در کالای جایگزین مصرف شد'}` +
                   (s1RealResidualAmount > 0 ? ` · ${money(s1RealResidualAmount)} ریال ماندهٔ واقعی با روش انتخابی تسویه شد` : '')
                 : s1ResidualRightsEligible
@@ -9326,7 +9392,8 @@ export const salesService = {
         /** جلسه ۱۷ · بند ۱ — تعهد کارت‌به‌کارت و شناسه‌ی درخواست ساخته‌شده */
         cardToCard,
         cardTransfer,
-        refundMode: s1ResidualRightsEligible && !s1MixedResidualEligible ? null : (refundMode ?? null),
+        refundMode: sameBarcodeCreditRestore || (s1ResidualRightsEligible && !s1MixedResidualEligible)
+          ? null : (refundMode ?? null),
         exchangeCreditApplied,
         /** نشست ۶۰ (بند ۴-۵) — کاهش بدهی فاکتور اصلی و باقی‌مانده‌ی جدیدش */
         debtReduction: debtCut,
@@ -11253,6 +11320,9 @@ export const salesService = {
           await voidS1ExchangeResidualRightsForReturn(tx, {
             returnId: ret.id, actorUserId: input.userId ?? null
           })
+          await reverseExchangeGiftRemainderOnVoid(tx, {
+            returnId: ret.id, actorUserId: input.userId ?? null
+          })
         }
 
         // Exchange funding shares are append-only: restore the source and
@@ -11721,6 +11791,7 @@ export const salesService = {
           ExchangeSettlement.CARD_REFUND,
           ExchangeSettlement.CARD_TO_CARD,
           ExchangeSettlement.DEBT_REDUCTION,
+          ExchangeSettlement.SAME_BARCODE_RESTORED,
           ExchangeSettlement.S1_RESIDUAL_RIGHTS,
           ExchangeSettlement.S11_DEBT_OFFSET_RIGHTS,
           ExchangeSettlement.NONE

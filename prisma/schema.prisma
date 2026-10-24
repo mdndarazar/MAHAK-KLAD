@@ -2759,6 +2759,31 @@ model CreditReturnAllocation {
   @@index([invoiceId])
 }
 
+/// Append-only compensating ledger for an eligible multi-use gift remainder
+/// restored onto its original barcode by an exchange. The paired reversal lets
+/// voiding that exchange debit the same balance without rewriting old redemptions.
+model StoreCreditBalanceAdjustment {
+  id               Int      @id @default(autoincrement())
+  eventKey         String   @unique
+  creditId         Int
+  returnId         Int
+  invoiceId        Int
+  redemptionId     Int
+  amount           BigInt
+  kind             String
+  beforeUsedAmount BigInt
+  afterUsedAmount  BigInt
+  beforeUsedCount  Int
+  afterUsedCount   Int
+  reversesEventId  Int?     @unique
+  actorUserId      Int?
+  createdAt        DateTime @default(now())
+
+  @@index([creditId, id])
+  @@index([returnId, id])
+  @@index([redemptionId])
+}
+
 model ReturnGoodsReceipt {
   id          Int      @id @default(autoincrement())
   eventKey    String   @unique

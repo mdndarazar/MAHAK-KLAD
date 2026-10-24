@@ -410,9 +410,11 @@ export const salesLedger = {
               : diff < 0
                 ? (debtCut > 0 ? `${money(debtCut)} ریال از بدهی فاکتور اصلی کم شد (اثر نقدی صفر)` : '') +
                   (debtCut > 0 && refundPart > 0 ? ' · ' : '') +
-                  (refundPart <= 0
-                    ? ''
-                    : settle === ExchangeSettlement.S1_RESIDUAL_RIGHTS || settle === ExchangeSettlement.S11_DEBT_OFFSET_RIGHTS
+                  (settle === ExchangeSettlement.SAME_BARCODE_RESTORED
+                    ? `${money(n((r as any).creditRestored))} ریال به همان بارکد اعتبار چندباره برگشت شد؛ بارکد تازه‌ای صادر نشد`
+                    : refundPart <= 0
+                      ? ''
+                      : settle === ExchangeSettlement.S1_RESIDUAL_RIGHTS || settle === ExchangeSettlement.S11_DEBT_OFFSET_RIGHTS
                       ? `${money(refundPart)} ریال فقط به حق B/N ریشه‌دار از منشأ پرداخت‌شده تبدیل شد؛ بازپرداخت یا اعتبار عمومی صادر نشد`
                       : cashEffect < 0
                         ? `${money(refundPart)} ریال مابه‌التفاوت نقدی به مشتری برگشت`

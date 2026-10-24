@@ -937,6 +937,7 @@ export function normalizeSettlement(input: {
     case 'NONE':
     // نشست ۶۰ (بند ۴-۵) — فقط کاهش بدهی؛ بخش بازپرداخت‌شده صفر است (exchangeRefundPartOf)
     case 'DEBT_REDUCTION':
+    case 'SAME_BARCODE_RESTORED':
     case 'S1_RESIDUAL_RIGHTS':
     case 'S11_DEBT_OFFSET_RIGHTS':
       return { bucket: 'NONE', legacy: false }

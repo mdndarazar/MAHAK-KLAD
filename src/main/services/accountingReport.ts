@@ -1478,7 +1478,7 @@ async function returnBridgeItems(scope: StatementScope): Promise<ReturnBridgeIte
     const method = diff < 0 ? BUCKET_TO_METHOD[bucket] ?? 'NONE' : 'NONE'
     /** نشست ۶۰ (بند ۴-۵) — فقط بخش بازپرداخت‌شده؛ کاهش بدهی جداست */
     const refundPart = exchangeRefundPartOf(r)
-    const residualRightSettlement = ['S1_RESIDUAL_RIGHTS', 'S11_DEBT_OFFSET_RIGHTS'].includes(String(r.exchangeSettlement))
+    const residualRightSettlement = ['SAME_BARCODE_RESTORED', 'S1_RESIDUAL_RIGHTS', 'S11_DEBT_OFFSET_RIGHTS'].includes(String(r.exchangeSettlement))
     const refund = diff < 0 && !residualRightSettlement && !(method === 'CARD_TO_CARD' && canceled.has(r.id)) ? refundPart : 0
     const debtCut = exchangeDebtReductionOf(r)
     /**

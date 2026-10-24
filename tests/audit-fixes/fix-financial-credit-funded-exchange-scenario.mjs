@@ -166,7 +166,7 @@ assert.equal(seed.count('CashMovement', '1=1'), s1CashMovementsBefore,
 assert.equal(Number(seed.one('SELECT COALESCE(SUM(amount), 0) AS amount FROM "CashMovement"').amount),
   Number(blueCashBeforeS1Exchange), 'S1 does not change the blue cash total: the 980K residual is non-cash')
 const s1StockAfter = seed.rows('SELECT id, stock FROM "ProductVariant" WHERE id IN (?, ?) ORDER BY id', source, replacement)
-assert.equal(s1StockAfter[0].stock, stockBefore[0].stock, 'returned source stock remains pending until goods receipt')
+assert.equal(s1StockAfter[0].stock, stockBefore[0].stock + 1, 'returned source stock is added immediately; no receipt witness is required')
 assert.equal(s1StockAfter[1].stock, stockBefore[1].stock - 1, 'replacement stock is deducted exactly once')
 console.log('✓ mixed S1 source 15,980,000 = 2,000,000 gift + 13,980,000 cash; 15M carried cash-first; exact 980K gift-rooted non-cash remainder; original gift stays USED')
 
