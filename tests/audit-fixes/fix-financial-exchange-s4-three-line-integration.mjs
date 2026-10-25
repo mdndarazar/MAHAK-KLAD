@@ -435,15 +435,15 @@ assert.deepEqual(rootFundingAfterReorderedVoid.sources.map(({ sourceKind, availa
 assert.equal(seed.count('CashMovement', '1=1'), reversedExchangeBefore.cash)
 
 async function pooledAcceptanceCase(label, creditAmount) {
-  const cashAmount = 10_000_000 - creditAmount
+  const cashAmount = 1_000_000 - creditAmount
   const caseCredit = await db.$transaction((tx) => issueStoreCredit(tx, {
     source: 'MANUAL', amount: creditAmount, multiUse: false, maxUses: 1,
     carryRemainder: false, days: 30, note: `${label} pooled-return fixture`, userId
   }))
-  const sourceCaseVariants = [variant(5_000_000), variant(5_000_000)]
-  const replacementCaseVariants = [variant(5_000_000), variant(5_000_000)]
+  const sourceCaseVariants = [variant(500_000), variant(500_000)]
+  const replacementCaseVariants = [variant(500_000), variant(500_000)]
   const caseSale = await salesService.create({
-    userId, shiftId, lines: sourceCaseVariants.map((variantId) => item(variantId, 5_000_000)),
+    userId, shiftId, lines: sourceCaseVariants.map((variantId) => item(variantId, 500_000)),
     payments: cashAmount > 0 ? [{ methodId: cashMethodId, amount: cashAmount, destination: 'CASH' }] : [],
     storeCreditCode: caseCredit.code, storeCreditAmount: creditAmount,
     storeCreditIdempotencyKey: `${label}-pooled-sale`
@@ -451,7 +451,7 @@ async function pooledAcceptanceCase(label, creditAmount) {
   const caseItems = seed.rows('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id', caseSale.id)
   const caseExchange = await salesService.createExchange({
     invoiceId: caseSale.id, lines: caseItems.map(({ id }) => ({ saleItemId: id, qty: 1 })),
-    replacements: replacementCaseVariants.map((variantId) => item(variantId, 5_000_000)),
+    replacements: replacementCaseVariants.map((variantId) => item(variantId, 500_000)),
     refundMode: 'STORE_CREDIT', userId, shiftId, managerPassword: DEFAULT_MANAGER_PASSWORD,
     overrideReason: `${label} zero-difference pooled-return acceptance`,
     idempotencyKey: `${label}-pooled-exchange`
@@ -460,9 +460,9 @@ async function pooledAcceptanceCase(label, creditAmount) {
     caseExchange.exchangeInvoiceId)
   const previewCase = await salesService.returnProvenancePreview({ invoiceId: caseExchange.exchangeInvoiceId,
     lines: [{ saleItemId: childItemsForCase[0].id, qty: 1 }] })
-  const expectedCredit = Math.min(5_000_000, creditAmount)
-  const expectedCash = 5_000_000 - expectedCredit
-  assert.equal(previewCase.returnTotal, 5_000_000)
+  const expectedCredit = Math.min(500_000, creditAmount)
+  const expectedCash = 500_000 - expectedCredit
+  assert.equal(previewCase.returnTotal, 500_000)
   assert.equal(previewCase.giftOpportunity, expectedCredit, `${label}: pooled credit is min(R,C), not per-line share`)
   assert.equal(previewCase.cashRight, expectedCash, `${label}: only the excess over pooled credit is real-money right`)
   assert.equal(previewCase.settlementReady, true)
@@ -472,7 +472,7 @@ async function pooledAcceptanceCase(label, creditAmount) {
     refundMethod: expectedCash > 0 ? 'CASH' : 'NONE', refundAmount: expectedCash,
     userId, shiftId
   })
-  assert.equal(actualReturn.total, 5_000_000)
+  assert.equal(actualReturn.total, 500_000)
   assert.equal(actualReturn.creditOpportunity.restored, expectedCredit)
   assert.equal(actualReturn.refundAmount, expectedCash,
     `${label}: the real-money remainder is actually paid only under the customer's selected tender`)
@@ -487,11 +487,11 @@ async function pooledAcceptanceCase(label, creditAmount) {
     actualReturn.id).length > 0)
 
   const remainingCreditPool = creditAmount - expectedCredit
-  const expectedSecondCredit = Math.min(5_000_000, remainingCreditPool)
-  const expectedSecondCash = 5_000_000 - expectedSecondCredit
+  const expectedSecondCredit = Math.min(500_000, remainingCreditPool)
+  const expectedSecondCash = 500_000 - expectedSecondCredit
   const secondPreview = await salesService.returnProvenancePreview({ invoiceId: caseExchange.exchangeInvoiceId,
     lines: [{ saleItemId: childItemsForCase[1].id, qty: 1 }] })
-  assert.equal(secondPreview.returnTotal, 5_000_000)
+  assert.equal(secondPreview.returnTotal, 500_000)
   assert.equal(secondPreview.giftOpportunity, expectedSecondCredit,
     `${label}: subsequent return spends only the pooled credit still unreturned`)
   assert.equal(secondPreview.cashRight, expectedSecondCash)
@@ -512,12 +512,14 @@ async function pooledAcceptanceCase(label, creditAmount) {
     `${label}: active return history keeps pooled credit and money rights cumulative`)
   return { previewCase, actualReturn, secondPreview, secondReturn, caseExchange }
 }
-const creditSix = await pooledAcceptanceCase('pooled-c600', 6_000_000)
-assert.equal(creditSix.previewCase.giftOpportunity, 5_000_000,
+const creditFive = await pooledAcceptanceCase('pooled-c500', 500_000)
+assert.equal(creditFive.previewCase.giftOpportunity, 500_000)
+const creditSix = await pooledAcceptanceCase('pooled-c600', 600_000)
+assert.equal(creditSix.previewCase.giftOpportunity, 500_000,
   'R=500k,C=600k returns only the 500k item value as credit')
-const creditFour = await pooledAcceptanceCase('pooled-c400', 4_000_000)
-assert.equal(creditFour.previewCase.giftOpportunity, 4_000_000)
-assert.equal(creditFour.previewCase.cashRight, 1_000_000,
+const creditFour = await pooledAcceptanceCase('pooled-c400', 400_000)
+assert.equal(creditFour.previewCase.giftOpportunity, 400_000)
+assert.equal(creditFour.previewCase.cashRight, 100_000,
   'R=500k,C=400k returns 400k credit plus 100k actual-money right')
 
 // Customer-selected conversion of a real-money right to a fresh barcode is
