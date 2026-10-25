@@ -1153,8 +1153,8 @@ async function storeCreditStatement(
    * گذشته باید وضعیت *همان زمان* را بگوید، نه امروز را.
    */
   const asOf = (range && scope.to) || new Date()
-  const notExpired = { OR: [{ expiresAt: null }, { expiresAt: { gt: asOf } }] }
-  const isExpired = { expiresAt: { not: null, lte: asOf } }
+  const notExpired = { OR: [{ expiresAt: null }, { expiresAt: { gte: asOf } }] }
+  const isExpired = { expiresAt: { not: null, lt: asOf } }
 
   const liveSum = async (statuses: string[]) => {
     const agg = await aggregateByIdChunks(
@@ -1706,7 +1706,7 @@ async function bridgeSources(
       const { range: creditRange, scopedIds } = await storeCreditScopes(scope, [])
       const asOf = (creditRange && scope.to) || new Date()
       const issuedBeforeEnd = creditRange && scope.to ? { issuedAt: { lte: scope.to } } : {}
-      const isExpired = { expiresAt: { not: null, lte: asOf } }
+      const isExpired = { expiresAt: { not: null, lt: asOf } }
       const isExpiredKey = key === 'storeCreditExpired'
       const isExpiredInRangeKey = key === 'storeCreditExpiredInRange'
       const statusWhere: any = isExpiredKey

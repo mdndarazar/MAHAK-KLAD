@@ -360,6 +360,8 @@ export const RETURN_KIND_LABELS: Record<string, string> = {
 export const ExchangeSettlement = {
   /** مشتری مابه‌التفاوت را نقد/کارت پرداخت کرد */
   CASH: 'CASH',
+  /** بخشی از مابه‌التفاوت با اعتبار بارکدی و باقی‌مانده با وجه واقعی تسویه شد. */
+  CREDIT_TENDER: 'CREDIT_TENDER',
   /** ما به مشتری بدهکار شدیم ⇒ «بارکد اعتبار خرید بعدی» صادر شد */
   CREDIT: 'CREDIT',
   /**
@@ -392,6 +394,7 @@ export type ExchangeSettlement = (typeof ExchangeSettlement)[keyof typeof Exchan
 
 export const EXCHANGE_SETTLEMENT_LABELS: Record<string, string> = {
   CASH: 'مشتری مابه‌التفاوت را پرداخت کرد',
+  CREDIT_TENDER: 'اعتبار بارکدی + دریافت وجه واقعی مابه‌التفاوت',
   CREDIT: 'بارکد اعتبار خرید بعدی صادر شد',
   CASH_REFUND: 'مابه‌التفاوت نقدی به مشتری برگشت (خروج از صندوق)',
   CARD_REFUND: 'مابه‌التفاوت به کارت مشتری برگشت',

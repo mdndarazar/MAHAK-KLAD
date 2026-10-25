@@ -340,7 +340,7 @@ export const salesLedger = {
              */
             payments: {
               where: { voidedAt: null },
-              select: { amount: true, kind: true, chequeStatus: true, destination: true, method: { select: { kind: true } } }
+              select: { amount: true, kind: true, chequeStatus: true, destination: true, storeCreditId: true, method: { select: { kind: true } } }
             }
           }
         })
@@ -357,6 +357,13 @@ export const salesLedger = {
     const exDrawerCash = new Map(
       exInvoices.map((i) => [i.id, (i.payments ?? []).filter(drawerCash).reduce((s, p) => s + n(p.amount), 0)])
     )
+    const exCardReceived = new Map(exInvoices.map((i) => [i.id, (i.payments ?? [])
+      .filter((p) => p.method?.kind === PaymentKind.CARD && p.kind === PaymentEntryKind.CASH &&
+        p.destination === PaymentDestination.CARD && n(p.amount) > 0)
+      .reduce((sum, p) => sum + n(p.amount), 0)]))
+    const exBarcodeCreditApplied = new Map(exInvoices.map((i) => [i.id, (i.payments ?? [])
+      .filter((p) => p.storeCreditId != null && p.method?.kind === PaymentKind.STORE_CREDIT && n(p.amount) > 0)
+      .reduce((sum, p) => sum + n(p.amount), 0)]))
     for (const r of returns.slice(0, sectionCap)) {
       const restocked = r.items.reduce((s, i) => s + n(i.restockedQty), 0)
       const customerName = r.invoice?.customer?.name ?? 'مشتری عمومی'
@@ -394,7 +401,12 @@ export const salesLedger = {
         })
         const debtCut = Math.max(0, n((r as any).debtReduction))
         const exDrawer = r.exchangeInvoiceId != null ? exDrawerCash.get(r.exchangeInvoiceId) ?? null : null
+        const exCard = r.exchangeInvoiceId != null ? exCardReceived.get(r.exchangeInvoiceId) ?? 0 : 0
+        const exBarcodeCredit = r.exchangeInvoiceId != null ? exBarcodeCreditApplied.get(r.exchangeInvoiceId) ?? 0 : 0
         const cashEffect = exchangeCashEffect(diff, settle, refundPart, exDrawer)
+        const positiveSettlementNote = settle === ExchangeSettlement.CREDIT_TENDER
+          ? `${money(exBarcodeCredit)} ریال اعتبار بارکدی غیرنقدی + ${money(exDrawer + exCard)} ریال دریافت واقعی (نقد ${money(exDrawer)}، کارت ${money(exCard)})؛ جمع دقیق ${money(diff)} ریال`
+          : `${money(diff)} ریال مابه‌التفاوت از مشتری دریافت شد`
         rows.push({
           ...base,
           key: `EXP-${r.id}`,
@@ -405,7 +417,7 @@ export const salesLedger = {
           cashEffect,
           cashNote:
             diff > 0
-              ? `${money(diff)} ریال مابه‌التفاوت از مشتری دریافت شد` +
+              ? `${positiveSettlementNote}` +
                 (cashEffect > 0 ? ' (اثر نقدی فقط همین ردیف است؛ در فروش سند تعویض تکرار نمی‌شود)' : '')
               : diff < 0
                 ? (debtCut > 0 ? `${money(debtCut)} ریال از بدهی فاکتور اصلی کم شد (اثر نقدی صفر)` : '') +

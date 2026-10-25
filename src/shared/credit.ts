@@ -458,7 +458,9 @@ export function isExpiredAt(c: CreditCore, now: Date | number = Date.now()): boo
   const t = c.expiresAt instanceof Date ? c.expiresAt.getTime() : new Date(c.expiresAt).getTime()
   if (!Number.isFinite(t)) return false
   const ref = now instanceof Date ? now.getTime() : now
-  return t <= ref
+  // Expiry timestamps are inclusive: a credit set to Jalali end-of-day remains
+  // usable at that exact millisecond and becomes expired immediately after it.
+  return t < ref
 }
 
 /**
@@ -1402,7 +1404,7 @@ export interface CreditStatusBucket {
  * تاریخ‌گذشته از سطل خودش کم و به سطل EXPIRED اضافه می‌شود.
  *
  * `all` = groupBy روی کل بازه · `expiring` = همان groupBy با شرط
- * `expiresAt <= now`. جمع تعداد/مبلغ عوض نمی‌شود، فقط جای درستش را پیدا می‌کند.
+ * `expiresAt < now` (timestamp تا لحظهٔ انقضای ذخیره‌شده شامل است). جمع تعداد/مبلغ عوض نمی‌شود، فقط جای درستش را پیدا می‌کند.
  */
 export function rollExpiredBuckets(
   all: CreditStatusBucket[],

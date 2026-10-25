@@ -113,20 +113,26 @@ await confirmCreditDelivery({ creditId: b.id, witnessKind: 'CUSTOMER_HANDOFF',
   witnessRef: 'دریافت کد چاپی توسط مشتری با شاهد', managerPassword: DEFAULT_MANAGER_PASSWORD, actorUserId: userId })
 console.log('✓ unrestricted 300 gift + 200 cash; a 100 return restores 100 gift first, with no cash entitlement')
 
-// The B branch itself may fund a separate mixed purchase. Its child E must
-// not free the same 25 in B, and later H1 compensation must not double E.
+// B is a multi-use barcode. A partial return restores its share onto B itself;
+// it must not create a child E or reopen H1 in parallel.
 const bSale = await sale([line(v50, 50, 2)], [50], { storeCreditCode: b.code,
   storeCreditAmount: 50, storeCreditIdempotencyKey: 'b-spend-50' })
 const bReturn = await salesService.createReturn({ invoiceId: bSale.id, full: false,
   lines: [{ saleItemId: getItem(bSale.id, v50), qty: 1 }], refundMethod: 'NONE',
   refundAmount: 0, userId, shiftId })
 assert.equal(bReturn.creditOpportunity.restored, 50)
-const e = seed.one('SELECT * FROM "StoreCredit" WHERE id=?', bReturn.creditOpportunity.pendingDelivery[0].creditId)
-assert.equal(Number(e.amount), 50)
-assert.equal(new Date(e.expiresAt).getTime(), expiry, 'E retains original H1 deadline')
-assert.equal(seed.one('SELECT rootCreditId FROM "CreditReturnAllocation" WHERE returnId=?', bReturn.id).rootCreditId, h1.id)
-assert.equal(seed.one('SELECT usedAmount FROM "StoreCredit" WHERE id=?', b.id).usedAmount, 50)
-console.log('✓ child E25 of B retains H1 root/expiry; B still has just 10 spendable')
+assert.deepEqual(bReturn.creditOpportunity.pendingDelivery, [], 'return does not issue an E successor for multi-use B')
+const bAllocation = seed.one('SELECT kind, amount, parentCreditId, rootCreditId, successorCreditId FROM "CreditReturnAllocation" WHERE returnId=?', bReturn.id)
+assert.equal(bAllocation.kind, 'MULTI_USE_RESTORED')
+assert.equal(Number(bAllocation.amount), 50)
+assert.equal(bAllocation.parentCreditId, b.id)
+assert.equal(bAllocation.rootCreditId, h1.id)
+assert.equal(bAllocation.successorCreditId, null)
+assert.equal(Number(seed.one('SELECT usedAmount FROM "StoreCredit" WHERE id=?', b.id).usedAmount), 0,
+  'returned share restores the same B barcode')
+assert.equal(Number(seed.one('SELECT usedCount FROM "StoreCredit" WHERE id=?', b.id).usedCount), 1,
+  'the prior redemption count is not rewound')
+console.log('✓ multi-use B restores 50 on the same barcode; no E successor and no second H1 right')
 
 const rest = await ret(mixed.id, getItem(mixed.id, v400), 'CASH', 200, true)
 assert.equal(rest.refundAmount, 200)

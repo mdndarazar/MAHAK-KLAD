@@ -123,7 +123,7 @@ async function issueResidualBarcode(tx: Client, input: {
   if (!redemption || redemption.expiryCaptured !== true || Number(redemption.creditId) !== parentCreditId ||
       !parentCredit || !sameDate(parentCredit.expiresAt, redemption.expiryAtRedeem)) throw invalid()
   const expiresAt = redemption.expiryAtRedeem == null ? null : new Date(redemption.expiryAtRedeem)
-  if ((expiresAt && !Number.isFinite(expiresAt.getTime())) || (expiresAt && expiresAt.getTime() <= Date.now()))
+  if ((expiresAt && !Number.isFinite(expiresAt.getTime())) || (expiresAt && expiresAt.getTime() < Date.now()))
     throw new BusinessError('اعتبار ریشه منقضی شده است؛ بارکد جانشین صادر نشد.')
 
   let rootCreditId = parentCreditId
@@ -642,7 +642,7 @@ export async function getExchangeResidualRightBalance(tx: Client, rightKey: stri
       !(at instanceof Date) || !Number.isFinite(at.getTime())) throw invalid()
   const state = await readState(tx, rightKey)
   const expired = state.opening.rightKind === 'B' && state.opening.expiresAt != null &&
-    new Date(state.opening.expiresAt).getTime() <= at.getTime()
+    new Date(state.opening.expiresAt).getTime() < at.getTime()
   const correction = state.opening.rightKind === 'N'
     ? await correctionProjection(tx, state.opening, state) : null
   const quarantineIds = correction?.rows.filter((row) => row.eventKind === 'SOURCE_QUARANTINED')
@@ -1143,7 +1143,7 @@ export async function restoreS1ExchangeResidualRight(tx: Client, input: {
   if (!restored.replayed) {
     const usedAfter = usedBefore - op.amount
     const expiresAt = code.expiresAt == null ? null : new Date(code.expiresAt)
-    const expired = state.opening.rightKind === 'B' && expiresAt != null && expiresAt.getTime() <= Date.now()
+    const expired = state.opening.rightKind === 'B' && expiresAt != null && expiresAt.getTime() < Date.now()
     const nextStatus = expired ? 'EXPIRED' : usedAfter === 0 ? 'ACTIVE' : 'PARTIALLY_USED'
     const updated = await tx.storeCredit.updateMany({
       where: { id: Number(code.id), usedAmount: code.usedAmount, status: code.status },
@@ -1244,7 +1244,7 @@ export async function reverseS1ResidualRightRestorationsForReturn(tx: Client, in
     })
     if (!result.replayed) {
       const expiresAt = code.expiresAt == null ? null : new Date(code.expiresAt)
-      const expired = openingState.opening.rightKind === 'B' && expiresAt != null && expiresAt.getTime() <= Date.now()
+      const expired = openingState.opening.rightKind === 'B' && expiresAt != null && expiresAt.getTime() < Date.now()
       const nextStatus = expired ? 'EXPIRED' : usedAfter === toNumberRial(code.amount) ? 'USED'
         : usedAfter > 0 ? 'PARTIALLY_USED' : 'ACTIVE'
       const update = await tx.storeCredit.updateMany({

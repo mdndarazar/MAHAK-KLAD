@@ -4,7 +4,8 @@ import { prisma } from '../db/client'
 import { auditOrThrow as audit } from './AuditService'
 import { issueStoreCredit, reverseInvoiceRedemptions } from './StoreCreditService'
 import { allocateCreditReturn } from '@shared/creditReturnProvenance'
-import { CreditRestrictScope, normalizeRestrictScope, parseIdList } from '@shared/credit'
+import { CreditRestrictScope, isExpiredAt, normalizeRestrictScope, parseIdList } from '@shared/credit'
+import { money } from '@shared/jalali'
 import { toNumberRial } from '@shared/money'
 import type { RemainingResult } from '@shared/settlement'
 
@@ -142,11 +143,17 @@ export async function planCreditReturn(
     carriedByRedemption.set(row.redemptionId, row.amount)
   }
   const priorShares: { redemptionId: number; amount: number }[] = []
+  const activeReturnIds = [...new Set(input.activeReturns.map((row) => Number(row.id)))].filter((id) => id > 0)
   for (const redemption of redemptions) {
-    const prior = await tx.creditReturnAllocation.aggregate({
-      where: { redemptionId: redemption.id }, _sum: { amount: true }
-    })
-    const restored = toNumberRial(prior._sum.amount ?? 0)
+    // A voided same-barcode restoration has an immutable reversal event but no
+    // longer counts as a live return allocation for the next partial return.
+    let restored = 0
+    for (const returnId of activeReturnIds) {
+      const prior = await tx.creditReturnAllocation.aggregate({
+        where: { redemptionId: redemption.id, returnId }, _sum: { amount: true }
+      })
+      restored += toNumberRial(prior._sum.amount ?? 0)
+    }
     const carried = carriedByRedemption.get(Number(redemption.id)) ?? 0
     const cumulative = restored + carried
     if (!Number.isSafeInteger(cumulative) || cumulative > toNumberRial(redemption.amount)) throw unknown()
@@ -353,7 +360,7 @@ async function originOf(tx: Client, parentId: number): Promise<{ id: number; nom
     const firstBranch = await tx.creditReturnAllocation.findFirst({
       // A complete, branch-free reversal leaves no parallel B/E right. Only
       // a live/expired allocated branch freezes the root's earlier terms.
-      where: { rootCreditId: id, kind: { in: ['BRANCH', 'SUPPLEMENT', 'EXPIRED'] } },
+      where: { rootCreditId: id, kind: { in: ['BRANCH', 'SUPPLEMENT', 'EXPIRED', 'MULTI_USE_RESTORED'] } },
       orderBy: { id: 'asc' }
     })
     // Once ANY B/E branch exists the root's expiry/face value is frozen by
@@ -395,30 +402,37 @@ export async function applyCreditReturn(
     const root = await originOf(tx, parent.id)
     const capturedExpiry = redemption.expiryAtRedeem?.getTime() ?? null
     if (capturedExpiry !== (root.expiresAt?.getTime() ?? null)) throw unknown()
-    const prior = await tx.creditReturnAllocation.aggregate({
+    const isMultiUseBarcode = parent.multiUse === true
+    const prior = isMultiUseBarcode ? null : await tx.creditReturnAllocation.aggregate({
       // ORIGINAL_REVERSED has already returned its entire redemption to H1;
       // it must not consume H1's capacity again in a *later* purchase/return.
       where: { parentCreditId: parent.id, kind: { in: ['BRANCH', 'SUPPLEMENT', 'EXPIRED'] } },
       _sum: { amount: true, supplementUnspent: true }
     })
-    const previouslyAllocated = toNumberRial(prior._sum.amount ?? 0)
-    const previousSupplement = toNumberRial(prior._sum.supplementUnspent ?? 0)
+    // Multi-use value has already been restored on the original record, so a
+    // later partial return can legitimately reduce usedAmount below the sum of
+    // earlier shares. Its cap is this redemption's proven prior allocation.
+    const previouslyAllocated = isMultiUseBarcode ? toNumberRial(s.prior) : toNumberRial(prior?._sum.amount ?? 0)
+    const previousSupplement = toNumberRial(prior?._sum.supplementUnspent ?? 0)
     const used = toNumberRial(parent.usedAmount)
-    if (previouslyAllocated + s.amount > used || used > toNumberRial(parent.amount)) throw unknown()
+    if ((isMultiUseBarcode
+        ? previouslyAllocated + s.amount > toNumberRial(redemption.amount) || s.amount > used
+        : previouslyAllocated + s.amount > used) || used > toNumberRial(parent.amount)) throw unknown()
     const hasPriorBranch = await tx.creditReturnAllocation.count({
-      where: { redemptionId: redemption.id, kind: { in: ['BRANCH', 'SUPPLEMENT', 'EXPIRED'] } }
+      where: { redemptionId: redemption.id, kind: { in: ['BRANCH', 'SUPPLEMENT', 'EXPIRED', 'MULTI_USE_RESTORED'] } }
     })
     const parentAfterReversalUsed = used - toNumberRial(redemption.amount)
-    const expired = root.expiresAt != null && new Date(root.expiresAt).getTime() <= now.getTime()
+    const expired = isExpiredAt({ amount: toNumberRial(root.nominal), status: 'ACTIVE', expiresAt: root.expiresAt }, now)
     // A full return after H1's original deadline is still recorded, but
     // cannot make an expired opportunity ACTIVE (nor issue a fresh B/E).
-    const mayReactivateOriginal = input.full && !expired && !hasPriorBranch &&
+    const mayReactivateOriginal = input.full && parent.multiUse !== true && !expired && !hasPriorBranch &&
       !parent.remainderCreditId && parentAfterReversalUsed >= previouslyAllocated &&
       !parent.deletedAt && !parent.voidedAt && parent.status !== 'CANCELED'
     let kind = expired ? 'EXPIRED' : 'BRANCH'
     if (expired) expiredShare += s.amount
     let supplementUnspent = 0
     let credit: any = null
+    let successorCreditId: number | null = null
     if (mayReactivateOriginal) {
       // Restores the original H1 (e.g. 1M with 300k used and a hidden 700k
       // remainder) iff no previous branch of this redemption exists.
@@ -451,9 +465,38 @@ export async function applyCreditReturn(
         creditId: successor.id, sourceKind: 'CREDIT_RETURN_OPPORTUNITY', status: 'PENDING_DELIVERY'
       } })
       credit = { ...successor, status: 'DRAFT' }
+      successorCreditId = Number(successor.id)
       credits.push({ creditId: successor.id, amount: s.amount, status: 'PENDING_DELIVERY', returnId: input.returnId })
       reversedOriginal++
       kind = 'ORIGINAL_REVERSED'
+    } else if (!expired && parent.multiUse === true && !parent.deletedAt && !parent.voidedAt &&
+        ['ACTIVE', 'PARTIALLY_USED', 'USED', 'SUSPENDED'].includes(String(parent.status))) {
+      // Restore this share to the exact multi-use barcode. Keep usedCount
+      // unchanged so decideRedeem remains authoritative for maxUses.
+      const usedAfter = used - s.amount
+      if (usedAfter < 0 || usedAfter > toNumberRial(parent.amount)) throw unknown()
+      const maxUses = Math.max(1, Number(parent.maxUses ?? 1))
+      const usesRemain = Number(parent.usedCount ?? 0) < maxUses
+      const nextStatus = parent.status === 'SUSPENDED' ? 'SUSPENDED'
+        : !usesRemain || usedAfter >= toNumberRial(parent.amount) ? 'USED'
+          : usedAfter > 0 ? 'PARTIALLY_USED' : 'ACTIVE'
+      const updated = await tx.storeCredit.updateMany({
+        where: { id: parent.id, status: parent.status, usedAmount: parent.usedAmount, usedCount: parent.usedCount },
+        data: { usedAmount: BigInt(usedAfter), status: nextStatus }
+      })
+      if (updated.count !== 1) throw stale()
+      await tx.storeCreditBalanceAdjustment.create({ data: {
+        eventKey: `return-multiuse-restored:${input.returnId}:redemption:${s.redemptionId}`,
+        creditId: parent.id, returnId: input.returnId, invoiceId: input.invoiceId,
+        redemptionId: s.redemptionId, amount: BigInt(s.amount), kind: 'RETURN_MULTI_USE_RESTORED',
+        beforeUsedAmount: BigInt(used), afterUsedAmount: BigInt(usedAfter),
+        beforeUsedCount: Number(parent.usedCount ?? 0), afterUsedCount: Number(parent.usedCount ?? 0),
+        actorUserId: input.userId ?? null
+      } })
+      credit = { ...parent, usedAmount: BigInt(usedAfter), status: nextStatus }
+      kind = 'MULTI_USE_RESTORED'
+    } else if (!expired && parent.multiUse === true) {
+      throw new BusinessError('اعتبار چندبارمصرف در همان بارکد قابل احیا نیست؛ برای جلوگیری از صدور جانشین موازی، عملیات ثبت نشد و تطبیق شاهددار مدیر لازم است.')
     } else if (!expired) {
       // Only a USED, unusable one-shot parent may move its dormant balance;
       // not a still-active credit, an already-transferred replacement, an
@@ -479,6 +522,7 @@ export async function applyCreditReturn(
         holderAddress: parent.holderAddress, holderAgent: parent.holderAgent,
         note: `بازگشت سهم اعتبار غیرنقدیِ فاکتور #${input.invoiceId}`
       })
+      successorCreditId = Number(credit.id)
       await tx.creditDelivery.create({ data: {
         creditId: credit.id, sourceKind: 'CREDIT_RETURN_OPPORTUNITY', status: 'PENDING_DELIVERY'
       } })
@@ -487,7 +531,7 @@ export async function applyCreditReturn(
     const allocation = await appendCreditReturnAllocation(tx, {
       returnId: input.returnId, invoiceId: input.invoiceId, redemptionId: s.redemptionId,
       parentCreditId: parent.id, rootCreditId: root.id, originNominal: root.nominal,
-      amount: s.amount, supplementUnspent, successorCreditId: credit?.id ?? null,
+      amount: s.amount, supplementUnspent, successorCreditId,
       kind, originalExpiresAt: root.expiresAt
     })
     if (input.full && !mayReactivateOriginal) {
@@ -501,9 +545,81 @@ export async function applyCreditReturn(
       entityId: allocation.id, userId: input.userId ?? null,
       after: JSON.stringify({ invoiceId: input.invoiceId, returnId: input.returnId,
         redemptionId: redemption.id, parentCreditId: parent.id, rootCreditId: root.id,
-        share: s.amount, supplementUnspent, successorCreditId: credit?.id ?? null,
+        share: s.amount, supplementUnspent, successorCreditId,
         kind, expiresAt: root.expiresAt }),
       note: `سهم غیرنقدی برگشت #${input.returnId} از اعتبار #${parent.id}: ${s.amount} ریال؛ ${kind}` })
   }
   return { restored: input.plan.credit, expiredShare, reversedOriginal, credits }
+}
+
+/** Revoke a prior same-barcode multi-use restoration when its return is voided.
+ * The customer's original max-use counter is never rewound; if later uses spent
+ * more than the remaining face value allows, void is blocked for witnessed
+ * manual settlement instead of creating a negative/phantom balance.
+ */
+export async function reverseMultiUseReturnRestorationsOnVoid(
+  tx: Client,
+  input: { returnId: number; userId?: number | null }
+): Promise<number> {
+  const allocations = await tx.creditReturnAllocation.findMany({
+    where: { returnId: input.returnId, kind: 'MULTI_USE_RESTORED' },
+    orderBy: { id: 'asc' }
+  })
+  if (!allocations.length) return 0
+  const now = new Date()
+  let reversed = 0
+  for (const allocation of allocations) {
+    if (allocation.successorCreditId != null || allocation.supplementUnspent !== 0n ||
+        allocation.amount <= 0n) throw stale()
+    const original = await tx.storeCreditBalanceAdjustment.findUnique({
+      where: { eventKey: `return-multiuse-restored:${input.returnId}:redemption:${allocation.redemptionId}` }
+    })
+    if (!original || original.kind !== 'RETURN_MULTI_USE_RESTORED' || original.returnId !== input.returnId ||
+        original.invoiceId !== allocation.invoiceId || original.redemptionId !== allocation.redemptionId ||
+        original.creditId !== allocation.parentCreditId || original.amount !== allocation.amount ||
+        original.reversesEventId != null) throw stale()
+    const priorReversal = await tx.storeCreditBalanceAdjustment.findUnique({
+      where: { reversesEventId: original.id }, select: { id: true }
+    })
+    if (priorReversal) throw stale()
+    const credit = await tx.storeCredit.findUnique({ where: { id: original.creditId } })
+    if (!credit || credit.multiUse !== true || credit.deletedAt != null || credit.voidedAt != null ||
+        credit.status === 'CANCELED') throw stale()
+    const usedBefore = toNumberRial(credit.usedAmount)
+    const usedAfter = usedBefore + toNumberRial(original.amount)
+    const face = toNumberRial(credit.amount)
+    if (!Number.isSafeInteger(usedAfter) || usedAfter > face) {
+      throw new BusinessError('اعتبار چندبارمصرف پس از برگشت دوباره مصرف شده و ابطال برگشت، مانده را منفی می‌کند؛ هیچ اثری معکوس نشد و تطبیق شاهددار مدیر لازم است.')
+    }
+    const usedCount = Number(credit.usedCount ?? 0)
+    const maxUses = Math.max(1, Number(credit.maxUses ?? 1))
+    const expired = credit.status === 'EXPIRED' || isExpiredAt({ amount: face, status: String(credit.status), expiresAt: credit.expiresAt }, now)
+    const nextStatus = expired ? 'EXPIRED'
+      : credit.status === 'SUSPENDED' ? 'SUSPENDED'
+        : usedCount >= maxUses || usedAfter >= face ? 'USED'
+          : usedAfter > 0 ? 'PARTIALLY_USED' : 'ACTIVE'
+    const updated = await tx.storeCredit.updateMany({
+      where: { id: credit.id, usedAmount: credit.usedAmount, usedCount: credit.usedCount, status: credit.status },
+      data: { usedAmount: BigInt(usedAfter), status: nextStatus }
+    })
+    if (updated.count !== 1) throw stale()
+    await tx.storeCreditBalanceAdjustment.create({ data: {
+      eventKey: `void-return-multiuse-restoration:${input.returnId}:adjustment:${original.id}`,
+      creditId: credit.id, returnId: input.returnId, invoiceId: allocation.invoiceId,
+      redemptionId: allocation.redemptionId, amount: original.amount,
+      kind: 'RETURN_MULTI_USE_RESTORATION_REVERSED',
+      beforeUsedAmount: BigInt(usedBefore), afterUsedAmount: BigInt(usedAfter),
+      beforeUsedCount: usedCount, afterUsedCount: usedCount,
+      reversesEventId: original.id, actorUserId: input.userId ?? null
+    } })
+    await audit(tx, {
+      action: 'CREDIT_RETURN_MULTI_USE_REVERSED', entity: 'StoreCreditBalanceAdjustment',
+      entityId: original.id, userId: input.userId ?? null,
+      before: JSON.stringify({ creditId: credit.id, usedAmount: usedBefore, usedCount, returnId: input.returnId }),
+      after: JSON.stringify({ creditId: credit.id, usedAmount: usedAfter, usedCount, status: nextStatus, reversesEventId: original.id }),
+      note: `ابطال برگشت #${input.returnId}: سهم ${money(toNumberRial(original.amount))} ریالی از اعتبار چندبارمصرف #${credit.id} روی همان بارکد معکوس شد؛ شمارندهٔ مصرف دست‌نخورده ماند.`
+    })
+    reversed++
+  }
+  return reversed
 }

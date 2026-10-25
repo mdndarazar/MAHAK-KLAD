@@ -245,7 +245,20 @@ async function assertS8ExchangeChildReturnLineage(tx: Client, claim: any, reques
   ])
   const parentReturn = child?.exchangeReturnId
     ? await tx.saleReturn.findUnique({ where: { id: Number(child.exchangeReturnId) } }) : null
-  if (!ret || ret.kind !== 'RETURN' || ret.voidedAt != null || ret.exchangeInvoiceId != null ||
+  let voidedPooledReturnReversed = false
+  if (ret?.voidedAt != null) {
+    const ledger = await tx.exchangeFundingReturnLineAllocation.findMany({ where: { returnId },
+      orderBy: [{ eventKind: 'asc' }, { id: 'asc' }] }) as any[]
+    const allocations = ledger.filter((row) => row.eventKind === 'ALLOCATION')
+    const reversals = ledger.filter((row) => row.eventKind === 'REVERSAL')
+    voidedPooledReturnReversed = allocations.length > 0 &&
+      allocations.every((row) => Number(row.allocationVersion) >= 4 && reversals.some((reverse) =>
+        Number(reverse.reversesAllocationId) === Number(row.id) &&
+        Number(reverse.amountDelta) === -Number(row.amountDelta) &&
+        Number(reverse.allocationVersion) === Number(row.allocationVersion))) &&
+      reversals.length === allocations.length
+  }
+  if (!ret || ret.kind !== 'RETURN' || (ret.voidedAt != null && !voidedPooledReturnReversed) || ret.exchangeInvoiceId != null ||
       !child || child.orderType !== 'EXCHANGE' || child.voidedAt != null ||
       Number(ret.invoiceId) !== invoiceId || !Number.isSafeInteger(Number(child.sourceInvoiceId)) ||
       Number(child.sourceInvoiceId) <= 0 || !parentReturn || parentReturn.kind !== 'EXCHANGE' ||
@@ -269,14 +282,20 @@ async function assertS8ExchangeChildReturnLineage(tx: Client, claim: any, reques
   const sourceKinds = new Set(['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
   const sources = new Map<number, any>((funding.sources as any[]).map((row: any) => [Number(row.event?.id), row]))
   const lineCells = new Map<string, number>()
+  const sourcePoolAmounts = new Map<number, number>()
   for (const row of funding.lineAllocations as any[]) {
     const key = `${Number(row.saleItemId)}:${Number(row.sourceEventId)}`
     if (!sourceKinds.has(String(row.sourceKind)) || lineCells.has(key))
       throw new BusinessError('ماتریس منشأ قلم فرزند تکراری/نامعتبر است؛ entitlement مسدود شد.')
     lineCells.set(key, Number(row.amount))
+    const eventId = Number(row.sourceEventId)
+    const nextPool = (sourcePoolAmounts.get(eventId) ?? 0) + Number(row.amount)
+    if (!Number.isSafeInteger(nextPool)) throw new BusinessError('جمع pooled منشأ در دفتر سرریز کرده است؛ entitlement مسدود شد.')
+    sourcePoolAmounts.set(eventId, nextPool)
   }
   const itemById = new Map<number, any>(items.map((item: any) => [Number(item.id), item]))
   const perCell = new Map<string, number>()
+  const perPool = new Map<number, number>()
   const perItem = new Map<number, bigint>()
   let giftRight = 0n
   let cashRight = 0n
@@ -287,17 +306,23 @@ async function assertS8ExchangeChildReturnLineage(tx: Client, claim: any, reques
     const source = sources.get(sourceEventId)
     const amount = toNumberRial(row.amountDelta)
     const kind = String(row.sourceKind)
+    const pooled = Number(row.allocationVersion) >= 4
     const cell = `${Number(row.saleItemId)}:${sourceEventId}`
     const nextCell = (perCell.get(cell) ?? 0) + amount
+    const nextPool = (perPool.get(sourceEventId) ?? 0) + amount
+    const sourceLimit = pooled ? sourcePoolAmounts.get(sourceEventId) : lineCells.get(cell)
     if (!item || Number(row.returnItemId) <= 0 || Number(row.returnId) !== returnId ||
         Number(item.returnId) !== returnId || Number(row.childInvoiceId) !== invoiceId ||
         Number(row.sourceInvoiceId) !== Number(child.sourceInvoiceId) ||
         Number(row.saleItemId) !== Number(item.saleItemId) || !source ||
         String(source.sourceKind) !== kind || !sourceKinds.has(kind) ||
         row.reversesAllocationId != null || !Number.isSafeInteger(amount) || amount <= 0 ||
-        !Number.isSafeInteger(nextCell) || nextCell > (lineCells.get(cell) ?? -1))
+        !Number.isSafeInteger(pooled ? nextPool : nextCell) ||
+        (sourceLimit == null) || (pooled ? nextPool : nextCell) > sourceLimit ||
+        (pooled && toNumberRial(row.sourceItemAmount) !== sourceLimit))
       throw new BusinessError('انتساب برگشت از قلم/سهم ریشهٔ معتبر جدا شده است؛ هیچ حق مالی صادر نشد.')
-    perCell.set(cell, nextCell)
+    if (!pooled) perCell.set(cell, nextCell)
+    perPool.set(sourceEventId, nextPool)
     perItem.set(rowItemId, (perItem.get(rowItemId) ?? 0n) + BigInt(amount))
     if (['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B'].includes(kind)) giftRight += BigInt(amount)
     else cashRight += BigInt(amount)

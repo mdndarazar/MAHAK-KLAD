@@ -1,6 +1,7 @@
 /** S4 zero-difference integration: actual 5M gift + 20M cash sale across 3 lines.
- * Proves source roots, paired transfer, persisted item matrix, and keeps later
- * child-return settlement closed. This is not sign-off for nonzero exchange diff.
+ * Proves source roots, paired transfer, persisted item matrix, and pooled
+ * gift-first settlement when a replacement item is returned. This is not
+ * sign-off for nonzero exchange diff.
  *
  * node --import ./test/harness/register.mjs tests/audit-fixes/fix-financial-exchange-s4-three-line-integration.mjs
  */
@@ -216,12 +217,12 @@ const preview = await salesService.returnProvenancePreview({
 })
 assert.equal(preview.returnTotal, 5_000_000)
 assert.deepEqual(preview.shares.map(({ sourceKind, amount }) => ({ sourceKind, amount })), [
-  { sourceKind: 'SOURCE_CASH', amount: 4_000_000 },
-  { sourceKind: 'SOURCE_GIFT', amount: 1_000_000 }
-])
-assert.equal(preview.settlementReady, false)
+  { sourceKind: 'SOURCE_GIFT', amount: 5_000_000 }
+], 'the whole gift-credit pool is used first; the replacement line matrix is not prorated')
+assert.equal(preview.settlementReady, true)
 assert.equal(preview.cashRight, 0)
-assert.equal(preview.giftOpportunity, 0)
+assert.equal(preview.giftOpportunity, 5_000_000,
+  'a 5M-rial returned item receives 5M credit when the original invoice used a 5M-rial barcode')
 const beforeChildReturn = {
   returns: seed.count('SaleReturn', 'invoiceId=?', exchange.exchangeInvoiceId),
   cashMovements: seed.count('CashMovement', '1=1'),
@@ -230,21 +231,60 @@ const beforeChildReturn = {
   events: seed.count('ExchangeFundingEvent', '1=1'),
   stockMovements: seed.count('StockMovement', '1=1')
 }
-await assert.rejects(() => salesService.createReturn({
+const childReturn = await salesService.createReturn({
   invoiceId: exchange.exchangeInvoiceId,
   lines: [{ saleItemId: thirdChildItemId, qty: 1 }],
-  refundMethod: 'CASH', refundAmount: 5_000_000, userId, shiftId
-}), /(?:تخصیص منشأ به قلم|فقط carry خود را برمی‌گرداند)/)
-assert.deepEqual({
-  returns: seed.count('SaleReturn', 'invoiceId=?', exchange.exchangeInvoiceId),
-  cashMovements: seed.count('CashMovement', '1=1'),
-  credits: seed.count('StoreCredit', '1=1'),
-  entitlements: seed.count('ReturnEntitlement', '1=1'),
-  events: seed.count('ExchangeFundingEvent', '1=1'),
-  stockMovements: seed.count('StockMovement', '1=1')
-}, beforeChildReturn, 'child return is attributable but still cannot settle cash/credit or change stock/ledger')
+  refundMethod: 'NONE', refundAmount: 0, userId, shiftId,
+  idempotencyKey: 's4-pooled-child-return-500k-0001'
+})
+assert.equal(childReturn.total, 5_000_000)
+assert.equal(childReturn.refundMethod, 'NONE')
+assert.equal(childReturn.refundAmount, 0)
+assert.equal(childReturn.creditOpportunity.restored, 5_000_000)
+assert.deepEqual(childReturn.creditOpportunity.pendingDelivery.map(({ amount }) => amount), [5_000_000],
+  'one 5M barcode is staged for delivery, not 1M credit plus 4M money')
+assert.equal(seed.count('SaleReturn', 'invoiceId=? AND voidedAt IS NULL', exchange.exchangeInvoiceId),
+  beforeChildReturn.returns + 1)
+assert.equal(seed.count('CashMovement', '1=1'), beforeChildReturn.cashMovements,
+  'returning the credit-funded value creates no cash movement')
+const childPooledAllocation = seed.rows('SELECT sourceKind, amountDelta, allocationVersion FROM "ExchangeFundingReturnLineAllocation" WHERE returnId=? AND eventKind=?',
+  childReturn.id, 'ALLOCATION')
+assert.deepEqual(childPooledAllocation.map(({ sourceKind, amountDelta, allocationVersion }) => ({
+  sourceKind, amountDelta: Number(amountDelta), allocationVersion
+})), [{ sourceKind: 'SOURCE_GIFT', amountDelta: 5_000_000, allocationVersion: 4 }])
+const pooledReturnEventCount = seed.count('ExchangeFundingEvent', '1=1')
+const replayedChildReturn = await salesService.createReturn({
+  invoiceId: exchange.exchangeInvoiceId, lines: [{ saleItemId: thirdChildItemId, qty: 1 }],
+  refundMethod: 'NONE', refundAmount: 0, userId, shiftId,
+  idempotencyKey: 's4-pooled-child-return-500k-0001'
+})
+assert.equal(replayedChildReturn.replayed, true, 'same-key child-return retry replays its settled result')
+assert.equal(seed.count('ExchangeFundingEvent', '1=1'), pooledReturnEventCount,
+  'same-key replay creates no additional transfer, credit or ledger events')
 
-// S12/S4 reversal probe: void the untouched exchange pair and verify both source
+// Void the child return first: pooled source attribution, issued barcode, and
+// physical stock must reverse together before the parent exchange is voidable.
+const voidedChildReturn = await salesService.returnDelete({
+  id: childReturn.id, userId, reason: 'S4 pooled child-return reversal integration',
+  managerPassword: DEFAULT_MANAGER_PASSWORD, overrideReason: 'S4 pooled child-return reversal integration'
+})
+assert.equal(voidedChildReturn.voided, true)
+assert.ok(seed.one('SELECT voidedAt FROM "SaleReturn" WHERE id=?', childReturn.id).voidedAt)
+assert.equal(seed.count('ExchangeFundingReturnLineAllocation', 'returnId=? AND eventKind=?',
+  childReturn.id, 'REVERSAL'), 1, 'pooled allocation has one immutable inverse row')
+assert.equal(seed.one('SELECT status FROM "CreditDelivery" WHERE creditId=?',
+  childReturn.creditOpportunity.pendingDelivery[0].creditId).status, 'VOID',
+  'void invalidates the unclaimed pooled barcode')
+const replayAfterChildVoid = await salesService.createReturn({
+  invoiceId: exchange.exchangeInvoiceId, lines: [{ saleItemId: thirdChildItemId, qty: 1 }],
+  refundMethod: 'NONE', refundAmount: 0, userId, shiftId,
+  idempotencyKey: 's4-pooled-child-return-500k-0001'
+})
+assert.equal(replayAfterChildVoid.replayed, true)
+assert.ok(seed.one('SELECT voidedAt FROM "SaleReturn" WHERE id=?', childReturn.id).voidedAt,
+  'retry after void replays history and cannot resurrect the return')
+
+// S12/S4 reversal probe: now void the untouched exchange pair and verify both source
 // balances and stock return exactly, while the original gift redemption stays USED.
 const sourceFundingBeforeVoid = await getCurrentSaleFundingSources(db, sourceSale.id)
 assert.deepEqual(sourceFundingBeforeVoid.activeReturnIds, [exchange.returnId])
@@ -274,7 +314,7 @@ assert.deepEqual(seed.rows(
   ...sourceVariants, ...replacementVariants
 ), sourceAndReplacementStockBeforeVoid.map((row, index) => ({
   ...row,
-  stock: Number(row.stock) + (index < sourceVariants.length ? 0 : 1)
+  stock: Number(row.stock) + (index < sourceVariants.length ? -1 : 1)
 })), 'void preserves the unreceived source return and reverses the replacement sale exactly once')
 assert.equal(seed.count('CashMovement', '1=1'), cashMovementsBeforeVoid,
   'zero-difference exchange reversal moves no cash')
@@ -394,4 +434,133 @@ assert.deepEqual(rootFundingAfterReorderedVoid.sources.map(({ sourceKind, availa
 ])
 assert.equal(seed.count('CashMovement', '1=1'), reversedExchangeBefore.cash)
 
-console.log('✓ S4 integration: exact 5M/20M three-line matrix, reordered request stability, same-key replay/mismatch, source/report reconciliation, no credit/cash, safe pair reversal')
+async function pooledAcceptanceCase(label, creditAmount) {
+  const cashAmount = 10_000_000 - creditAmount
+  const caseCredit = await db.$transaction((tx) => issueStoreCredit(tx, {
+    source: 'MANUAL', amount: creditAmount, multiUse: false, maxUses: 1,
+    carryRemainder: false, days: 30, note: `${label} pooled-return fixture`, userId
+  }))
+  const sourceCaseVariants = [variant(5_000_000), variant(5_000_000)]
+  const replacementCaseVariants = [variant(5_000_000), variant(5_000_000)]
+  const caseSale = await salesService.create({
+    userId, shiftId, lines: sourceCaseVariants.map((variantId) => item(variantId, 5_000_000)),
+    payments: cashAmount > 0 ? [{ methodId: cashMethodId, amount: cashAmount, destination: 'CASH' }] : [],
+    storeCreditCode: caseCredit.code, storeCreditAmount: creditAmount,
+    storeCreditIdempotencyKey: `${label}-pooled-sale`
+  })
+  const caseItems = seed.rows('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id', caseSale.id)
+  const caseExchange = await salesService.createExchange({
+    invoiceId: caseSale.id, lines: caseItems.map(({ id }) => ({ saleItemId: id, qty: 1 })),
+    replacements: replacementCaseVariants.map((variantId) => item(variantId, 5_000_000)),
+    refundMode: 'STORE_CREDIT', userId, shiftId, managerPassword: DEFAULT_MANAGER_PASSWORD,
+    overrideReason: `${label} zero-difference pooled-return acceptance`,
+    idempotencyKey: `${label}-pooled-exchange`
+  }, { goodsReceiptRequired: false })
+  const childItemsForCase = seed.rows('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id',
+    caseExchange.exchangeInvoiceId)
+  const previewCase = await salesService.returnProvenancePreview({ invoiceId: caseExchange.exchangeInvoiceId,
+    lines: [{ saleItemId: childItemsForCase[0].id, qty: 1 }] })
+  const expectedCredit = Math.min(5_000_000, creditAmount)
+  const expectedCash = 5_000_000 - expectedCredit
+  assert.equal(previewCase.returnTotal, 5_000_000)
+  assert.equal(previewCase.giftOpportunity, expectedCredit, `${label}: pooled credit is min(R,C), not per-line share`)
+  assert.equal(previewCase.cashRight, expectedCash, `${label}: only the excess over pooled credit is real-money right`)
+  assert.equal(previewCase.settlementReady, true)
+  const actualReturn = await salesService.createReturn({
+    invoiceId: caseExchange.exchangeInvoiceId,
+    lines: [{ saleItemId: childItemsForCase[0].id, qty: 1 }],
+    refundMethod: expectedCash > 0 ? 'CASH' : 'NONE', refundAmount: expectedCash,
+    userId, shiftId
+  })
+  assert.equal(actualReturn.total, 5_000_000)
+  assert.equal(actualReturn.creditOpportunity.restored, expectedCredit)
+  assert.equal(actualReturn.refundAmount, expectedCash,
+    `${label}: the real-money remainder is actually paid only under the customer's selected tender`)
+  assert.equal(actualReturn.creditOpportunity.pendingDelivery.reduce((sum, row) => sum + row.amount, 0), expectedCredit)
+  const ledgerByKind = seed.rows('SELECT sourceKind, SUM(amountDelta) AS amount FROM "ExchangeFundingReturnLineAllocation" WHERE returnId=? AND eventKind=? GROUP BY sourceKind ORDER BY sourceKind',
+    actualReturn.id, 'ALLOCATION').map((row) => ({ sourceKind: row.sourceKind, amount: Number(row.amount) }))
+  const expectedLedger = []
+  if (expectedCash > 0) expectedLedger.push({ sourceKind: 'SOURCE_CASH', amount: expectedCash })
+  expectedLedger.push({ sourceKind: 'SOURCE_GIFT', amount: expectedCredit })
+  assert.deepEqual(ledgerByKind, expectedLedger, `${label}: v4 ledger matches pooled preview and actual settlement`)
+  assert.ok(seed.rows('SELECT id FROM "ExchangeFundingReturnLineAllocation" WHERE returnId=? AND allocationVersion=4',
+    actualReturn.id).length > 0)
+
+  const remainingCreditPool = creditAmount - expectedCredit
+  const expectedSecondCredit = Math.min(5_000_000, remainingCreditPool)
+  const expectedSecondCash = 5_000_000 - expectedSecondCredit
+  const secondPreview = await salesService.returnProvenancePreview({ invoiceId: caseExchange.exchangeInvoiceId,
+    lines: [{ saleItemId: childItemsForCase[1].id, qty: 1 }] })
+  assert.equal(secondPreview.returnTotal, 5_000_000)
+  assert.equal(secondPreview.giftOpportunity, expectedSecondCredit,
+    `${label}: subsequent return spends only the pooled credit still unreturned`)
+  assert.equal(secondPreview.cashRight, expectedSecondCash)
+  const secondReturn = await salesService.createReturn({
+    invoiceId: caseExchange.exchangeInvoiceId,
+    lines: [{ saleItemId: childItemsForCase[1].id, qty: 1 }],
+    refundMethod: expectedSecondCash > 0 ? 'CASH' : 'NONE', refundAmount: expectedSecondCash,
+    userId, shiftId
+  })
+  assert.equal(secondReturn.creditOpportunity.restored, expectedSecondCredit)
+  assert.equal(secondReturn.refundAmount, expectedSecondCash)
+  const secondLedgerByKind = seed.rows('SELECT sourceKind, SUM(amountDelta) AS amount FROM "ExchangeFundingReturnLineAllocation" WHERE returnId=? AND eventKind=? GROUP BY sourceKind ORDER BY sourceKind',
+    secondReturn.id, 'ALLOCATION').map((row) => ({ sourceKind: row.sourceKind, amount: Number(row.amount) }))
+  const expectedSecondLedger = []
+  if (expectedSecondCash > 0) expectedSecondLedger.push({ sourceKind: 'SOURCE_CASH', amount: expectedSecondCash })
+  if (expectedSecondCredit > 0) expectedSecondLedger.push({ sourceKind: 'SOURCE_GIFT', amount: expectedSecondCredit })
+  assert.deepEqual(secondLedgerByKind, expectedSecondLedger,
+    `${label}: active return history keeps pooled credit and money rights cumulative`)
+  return { previewCase, actualReturn, secondPreview, secondReturn, caseExchange }
+}
+const creditSix = await pooledAcceptanceCase('pooled-c600', 6_000_000)
+assert.equal(creditSix.previewCase.giftOpportunity, 5_000_000,
+  'R=500k,C=600k returns only the 500k item value as credit')
+const creditFour = await pooledAcceptanceCase('pooled-c400', 4_000_000)
+assert.equal(creditFour.previewCase.giftOpportunity, 4_000_000)
+assert.equal(creditFour.previewCase.cashRight, 1_000_000,
+  'R=500k,C=400k returns 400k credit plus 100k actual-money right')
+
+// Customer-selected conversion of a real-money right to a fresh barcode is
+// distinct from the returned public-credit pool and is voidable while unspent.
+const conversionRoot = await db.$transaction((tx) => issueStoreCredit(tx, {
+  source: 'MANUAL', amount: 4_000_000, multiUse: false, maxUses: 1,
+  carryRemainder: false, days: 30, note: 'pooled cash-right conversion fixture', userId
+}))
+const conversionSourceVariant = variant(5_000_000)
+const conversionReplacementVariant = variant(5_000_000)
+const conversionSale = await salesService.create({
+  userId, shiftId, lines: [item(conversionSourceVariant, 5_000_000)],
+  payments: [{ methodId: cashMethodId, amount: 1_000_000, destination: 'CASH' }],
+  storeCreditCode: conversionRoot.code, storeCreditAmount: 4_000_000,
+  storeCreditIdempotencyKey: 'pooled-cash-right-conversion-sale'
+})
+const conversionSaleItem = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', conversionSale.id)
+const conversionExchange = await salesService.createExchange({
+  invoiceId: conversionSale.id, lines: [{ saleItemId: conversionSaleItem.id, qty: 1 }],
+  replacements: [item(conversionReplacementVariant, 5_000_000)], refundMode: 'STORE_CREDIT',
+  userId, shiftId, managerPassword: DEFAULT_MANAGER_PASSWORD,
+  idempotencyKey: 'pooled-cash-right-conversion-exchange'
+}, { goodsReceiptRequired: false })
+const conversionChildItem = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?',
+  conversionExchange.exchangeInvoiceId)
+const convertedReturn = await salesService.createReturn({
+  invoiceId: conversionExchange.exchangeInvoiceId,
+  lines: [{ saleItemId: conversionChildItem.id, qty: 1 }],
+  refundMethod: 'STORE_CREDIT', refundAmount: 1_000_000, userId, shiftId
+})
+assert.equal(convertedReturn.creditOpportunity.restored, 4_000_000)
+assert.equal(Number(convertedReturn.storeCredit.amount), 1_000_000,
+  'only the real-money remainder is converted to the customer-selected new barcode')
+const convertedCreditId = Number(convertedReturn.storeCredit.id)
+assert.equal(seed.one('SELECT cashConverted FROM "ReturnEntitlement" WHERE returnId=?', convertedReturn.id).cashConverted,
+  1_000_000)
+const conversionVoid = await salesService.returnDelete({
+  id: convertedReturn.id, userId, reason: 'void unused customer-selected real-right barcode',
+  managerPassword: DEFAULT_MANAGER_PASSWORD, overrideReason: 'void unused customer-selected real-right barcode'
+})
+assert.equal(conversionVoid.voided, true)
+assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', convertedCreditId).status, 'CANCELED')
+assert.equal(seed.count('ExchangeFundingReturnLineAllocation', 'returnId=? AND eventKind=?',
+  convertedReturn.id, 'REVERSAL'), 2, 'both pooled credit and real-money attribution reverse append-only')
+
+console.log('✓ S4 integration: pooled R=500k/C=500k, C=600k, C=400k end-to-end; cumulative v4 ledger, cash and customer-selected barcode settlement, item-matrix independence, and void/replay reversal')

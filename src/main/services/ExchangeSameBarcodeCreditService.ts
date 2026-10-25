@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { BusinessError } from '../errors'
+import { isExpiredAt } from '@shared/credit'
 import { auditOrThrow as audit } from './AuditService'
 import { toNumberRial } from '@shared/money'
 
@@ -44,7 +45,7 @@ export async function restoreExchangeGiftRemainderToSameBarcode(tx: Client, inpu
       credit.exchangeResidualRightKey != null || !['ACTIVE', 'PARTIALLY_USED'].includes(String(credit.status)) ||
       Number(redemption.amount) !== Number(sourceEvent.amount) || input.amount > Number(redemption.amount) ||
       new Date(credit.expiresAt ?? 0).getTime() !== new Date(redemption.expiryAtRedeem ?? 0).getTime() ||
-      (credit.expiresAt != null && new Date(credit.expiresAt).getTime() <= Date.now()))
+      isExpiredAt({ amount: Number(credit.amount), status: String(credit.status), expiresAt: credit.expiresAt }))
     throw blocked()
 
   const priorBalanceEvents = await tx.storeCreditBalanceAdjustment.findMany({
@@ -127,7 +128,7 @@ export async function reverseExchangeGiftRemainderOnVoid(tx: Client, input: {
       !Number.isSafeInteger(face) || !Number.isSafeInteger(amount) || amount <= 0 || afterUsed > face)
     throw new BusinessError('ابطال تعویض ممکن نیست: موجودی همان بارکد برای لغو سهمِ بازگردانده‌شده کافی نیست؛ هیچ تغییری ثبت نشد.')
 
-  const isExpired = credit.expiresAt != null && new Date(credit.expiresAt).getTime() <= Date.now()
+  const isExpired = isExpiredAt({ amount: face, status: String(credit.status), expiresAt: credit.expiresAt })
   const afterStatus = isExpired ? 'EXPIRED'
     : afterUsed >= face || beforeCount >= Number(credit.maxUses) ? 'USED' : 'PARTIALLY_USED'
   const updated = await tx.storeCredit.updateMany({

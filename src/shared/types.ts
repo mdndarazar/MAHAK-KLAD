@@ -669,6 +669,8 @@ export interface ReturnLookup {
   daysLeft: number
   expired: boolean
   customerName: string
+  /** Used only for server-equivalent preview of customer-locked store credits. */
+  customerId?: number | null
   shiftName: string | null
   status: string
   statusLabel: string
@@ -2368,7 +2370,9 @@ export interface ExchangeSaleResult {
   exchangeTotal: number
   /** مابه‌التفاوت: مثبت = مشتری می‌پردازد · منفی = ما بدهکاریم */
   diff: number
-  /** CASH | CREDIT | NONE */
+  /** اعتبار بارکدی مصرف‌شده از مابه‌التفاوت مثبت؛ در نقد و کارت جمع نمی‌شود. */
+  storeCreditApplied?: number
+  /** CASH | CREDIT_TENDER | CREDIT | NONE */
   settlement: string
   settlementLabel: string
   /** اعتبار اصلی صادرشده؛ کد فقط از مسیر چاپ مجاز. */

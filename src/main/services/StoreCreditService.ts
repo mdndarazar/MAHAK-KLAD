@@ -406,7 +406,7 @@ export async function nonCashMethodId(client: Client, key: string): Promise<numb
 export function shapeStoreCredit(row: any, receiptNos?: Map<number, number>): StoreCreditRow {
   const issuedAt = row.issuedAt instanceof Date ? row.issuedAt : new Date(row.issuedAt)
   const expiresAt = row.expiresAt ? (row.expiresAt instanceof Date ? row.expiresAt : new Date(row.expiresAt)) : null
-  const expired = !!expiresAt && expiresAt.getTime() <= Date.now()
+  const expired = !!expiresAt && expiresAt.getTime() < Date.now()
   const core = {
     amount: asNum(row.amount),
     usedAmount: asNum(row.usedAmount),
@@ -2767,7 +2767,7 @@ async function liabilityTotal(where: any): Promise<number> {
   })
   const now = Date.now()
   return rows.reduce((sum, r) => {
-    if (r.expiresAt && new Date(r.expiresAt).getTime() <= now) return sum
+    if (r.expiresAt && new Date(r.expiresAt).getTime() < now) return sum
     return sum + Math.max(0, Math.round(asNum(r.amount)) - Math.round(asNum(r.usedAmount)))
   }, 0)
 }
@@ -3023,10 +3023,43 @@ export const storeCreditService = {
     excludedVariantIds: number[]
   }> {
     const row = await guardCreditCode(String(input?.code ?? ''), input?.userId ?? null)
+    const rawLines = input.lines ?? []
+    if (rawLines.length > 1000) throw new BusinessError('پیش‌نمایش اعتبار حداکثر ۱٬۰۰۰ قلم را می‌پذیرد؛ اقلام را بررسی کنید.')
+    if (rawLines.some((line) => !Number.isSafeInteger(Number(line.variantId)) || Number(line.variantId) <= 0 ||
+        !Number.isSafeInteger(Number(line.lineTotal)) || Number(line.lineTotal) < 0))
+      throw new BusinessError('مبلغ یا شناسهٔ یکی از اقلام پیش‌نمایش معتبر نیست.')
+    const variantIds = [...new Set(rawLines.map((line) => Number(line.variantId)).filter((id) => Number.isSafeInteger(id) && id > 0))]
+    if (variantIds.length !== new Set(rawLines.map((line) => Number(line.variantId))).size)
+      throw new BusinessError('شناسهٔ یکی از کالاهای پیش‌نمایش معتبر نیست.')
+    const variantRows = variantIds.length ? await prisma.productVariant.findMany({
+      where: { id: { in: variantIds } }, select: { id: true, product: { select: { categoryId: true } } }
+    }) : []
+    if (variantRows.length !== variantIds.length)
+      throw new BusinessError('یکی از کالاهای پیش‌نمایش دیگر موجود نیست؛ فهرست را تازه کنید.')
+    const variantById = new Map(variantRows.map((variant) => [Number(variant.id), variant]))
+    const categoryParents = new Map<number, number | null>()
+    if (normalizeRestrictScope(row.restrictScope) === CreditRestrictScope.CATEGORY) {
+      const categories = await prisma.category.findMany({ select: { id: true, parentId: true } })
+      for (const category of categories)
+        categoryParents.set(Number(category.id), category.parentId == null ? null : Number(category.parentId))
+    }
+    const trustedLines: CreditCartLine[] = rawLines.map((line) => {
+      const variant = variantById.get(Number(line.variantId))!
+      const categoryId = variant.product?.categoryId == null ? null : Number(variant.product.categoryId)
+      const categoryPath: number[] = []
+      const seen = new Set<number>()
+      let current = categoryId
+      while (current != null && !seen.has(current) && categoryPath.length < 100) {
+        seen.add(current)
+        categoryPath.push(current)
+        current = categoryParents.get(current) ?? null
+      }
+      return { ...line, categoryId, categoryPath }
+    })
     const decision = decideRedeem(row, {
       applicable: Math.max(0, Math.round(Number(input.applicable ?? row.amount) || 0)),
       invoiceTotal: input.invoiceTotal == null ? undefined : Math.max(0, Math.round(Number(input.invoiceTotal) || 0)),
-      lines: input.lines ?? [],
+      lines: trustedLines,
       customerId: input.customerId ?? null,
       requested: input.requested ?? null
     })
@@ -3320,7 +3353,7 @@ export const storeCreditService = {
       prisma.storeCredit.groupBy({ by: ['status'], where, _count: { _all: true }, _sum: { amount: true, usedAmount: true } }),
       prisma.storeCredit.groupBy({
         by: ['status'],
-        where: { ...where, status: { in: [...EXPIRABLE_STATUSES] }, expiresAt: { lte: now } },
+        where: { ...where, status: { in: [...EXPIRABLE_STATUSES] }, expiresAt: { lt: now } },
         _count: { _all: true },
         _sum: { amount: true, usedAmount: true }
       }),

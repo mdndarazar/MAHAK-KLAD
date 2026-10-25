@@ -3,6 +3,7 @@ import { BusinessError } from '../errors'
 import { CHEQUE_METHOD_KEY } from '@shared/enums'
 import { allocateExchangeFundingByLine } from '@shared/exchangeFundingAllocation'
 import { allocateExchangeFundingLineReturn, type ExchangeReturnSourceKind } from '@shared/exchangeFundingLineReturn'
+import { allocatePooledExchangeReturn, type PooledExchangeReturnSourceKind } from '@shared/exchangeFundingPooledReturn'
 import { allocateLineNet } from '@shared/returnValue'
 import { toNumberRial } from '@shared/money'
 
@@ -1308,12 +1309,140 @@ export async function recordExchangeFundingLineAllocations(tx: LedgerClient, inv
   return { invoiceId, allocationCount: view.lineAllocations.length, replayed: false }
 }
 
-function exchangeFundingReturnLineAllocationEventKey(returnItemId: number, sourceEventId: number) {
-  return `exchange-return-item:${returnItemId}:source:${sourceEventId}:allocation:v1`
+function exchangeFundingReturnLineAllocationEventKey(returnItemId: number, sourceEventId: number, allocationVersion = 1) {
+  const keyVersion = allocationVersion >= 4 ? allocationVersion : 1
+  return `exchange-return-item:${returnItemId}:source:${sourceEventId}:allocation:v${keyVersion}`
 }
 
-function exchangeFundingReturnLineReversalEventKey(returnItemId: number, sourceEventId: number) {
-  return `exchange-return-item:${returnItemId}:source:${sourceEventId}:reversal:v1`
+function exchangeFundingReturnLineReversalEventKey(returnItemId: number, sourceEventId: number, allocationVersion = 1) {
+  const keyVersion = allocationVersion >= 4 ? allocationVersion : 1
+  return `exchange-return-item:${returnItemId}:source:${sourceEventId}:reversal:v${keyVersion}`
+}
+
+/** Persist pooled-credit-first return attribution for a complete child return.
+ * Credit is returned against the invoice-wide source pool, never prorated by
+ * the returned replacement item's source matrix. Version 4 rows are still
+ * attached to physical return items for audit/reversal, but the allocation is
+ * computed over the whole active return history and the whole child invoice.
+ */
+export async function recordExchangeFundingPooledReturnAllocations(tx: LedgerClient, input: { returnId: number }) {
+  if (!Number.isSafeInteger(input?.returnId) || input.returnId <= 0) throw invalid()
+  const ret = await tx.saleReturn.findUnique({ where: { id: input.returnId }, include: { items: true } })
+  if (!ret || ret.kind !== 'RETURN' || ret.voidedAt != null || !Array.isArray(ret.items) || ret.items.length === 0)
+    throw new BusinessError('برگشت pooled باید برگشت فعال و دارای قلم باشد؛ تخصیصی ثبت نشد.')
+  const childInvoiceId = Number(ret.invoiceId)
+  const child = await tx.saleInvoice.findUnique({ where: { id: childInvoiceId }, include: { items: true } })
+  if (!child || child.orderType !== 'EXCHANGE' || child.voidedAt != null ||
+      !Number.isSafeInteger(Number(child.sourceInvoiceId)) || !Number.isSafeInteger(Number(child.exchangeReturnId)))
+    throw new BusinessError('فاکتور فرزند برای برگشت pooled معتبر نیست؛ تخصیصی ثبت نشد.')
+  const funding = await getCurrentExchangeFundingSources(tx, childInvoiceId, {
+    allowReturnBalanceChanges: true, allowExpiredGiftForReturnAttribution: true
+  })
+  if (!funding.snapshotExists || funding.unresolved.length > 0 ||
+      funding.lineAllocationStatus !== 'PERSISTED_RECONCILED' ||
+      Number(funding.sourceInvoiceId) !== Number(child.sourceInvoiceId) ||
+      Number(funding.returnId) !== Number(child.exchangeReturnId))
+    throw new BusinessError('دفتر منبع فاکتور فرزند قابل تطبیق نیست؛ برگشت pooled ثبت نشد.')
+  const supported = new Set(['SOURCE_GIFT', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
+  const sources = (funding.sources as any[]).map((source) => ({
+    sourceEventId: Number(source.event.id), sourceKind: String(source.sourceKind) as PooledExchangeReturnSourceKind,
+    amount: toNumberRial(source.event.amount)
+  }))
+  if (!sources.length || sources.some((source) => !supported.has(source.sourceKind) ||
+      !Number.isSafeInteger(source.sourceEventId) || source.sourceEventId <= 0 ||
+      !Number.isSafeInteger(source.amount) || source.amount <= 0))
+    throw new BusinessError('برگشت pooled فقط برای اعتبار عمومی و tender واقعیِ اثبات‌شده مجاز است؛ حق B/N باید در مسیر ریشهٔ خودش بماند.')
+  const activeReturns = await tx.saleReturn.findMany({
+    where: { invoiceId: childInvoiceId, voidedAt: null },
+    include: { items: true }, orderBy: { id: 'asc' }
+  }) as any[]
+  if (activeReturns.some((row) => row.kind !== 'RETURN' || row.exchangeInvoiceId != null ||
+      toNumberRial(row.exchangeTotal ?? 0) !== 0 || row.exchangeSettlement != null ||
+      Number(row.id) > Number(ret.id)))
+    throw new BusinessError('برگشت pooled با تعویض فرزند یا تاریخچهٔ برگشت ناسازگار است؛ تخصیصی ثبت نشد.')
+  const invoiceLines = new Map((child.items as any[]).map((item) => [Number(item.id), item]))
+  const lineNets = new Map(funding.lineItemSnapshots.map((line: any) => [Number(line.saleItemId), {
+    qty: Number(line.qty), netValue: Number(line.netValue)
+  }]))
+  const returnItems = activeReturns.flatMap((active) => (active.items as any[]).map((item) => ({
+    returnId: Number(active.id), returnItemId: Number(item.id), saleItemId: Number(item.saleItemId),
+    amount: toNumberRial(item.lineTotal)
+  }))).sort((a, b) => a.returnId - b.returnId || a.returnItemId - b.returnItemId)
+  const plans = allocatePooledExchangeReturn(sources, returnItems)
+  const planByItem = new Map<number, any[]>()
+  for (const plan of plans) {
+    const bucket = planByItem.get(plan.returnItemId) ?? []
+    bucket.push(plan)
+    planByItem.set(plan.returnItemId, bucket)
+  }
+  const itemRows = new Map<number, any>()
+  for (const active of activeReturns) for (const item of active.items as any[]) itemRows.set(Number(item.id), item)
+  const qtyBeforeBySaleItem = new Map<number, number>()
+  let cumulativeReturn = 0
+  for (const active of activeReturns) {
+    for (const item of (active.items as any[]).slice().sort((a, b) => Number(a.id) - Number(b.id))) {
+      const itemId = Number(item.id)
+      const saleItemId = Number(item.saleItemId)
+      const saleItem = invoiceLines.get(saleItemId)
+      const snapshot = lineNets.get(saleItemId)
+      const qty = Number(item.qty)
+      const amount = toNumberRial(item.lineTotal)
+      const beforeQty = qtyBeforeBySaleItem.get(saleItemId) ?? 0
+      if (!saleItem || !snapshot || !Number.isSafeInteger(itemId) || itemId <= 0 ||
+          Number(item.returnId) !== Number(active.id) || Number(saleItem.invoiceId) !== childInvoiceId ||
+          Number(item.variantId) !== Number(saleItem.variantId) || !Number.isSafeInteger(qty) || qty <= 0 ||
+          beforeQty + qty > snapshot.qty || !Number.isSafeInteger(amount) || amount < 0 ||
+          cumulativeReturn + amount > Number.MAX_SAFE_INTEGER)
+        throw new BusinessError('تعداد یا مبلغ برگشت pooled با snapshot فاکتور فرزند سازگار نیست؛ تخصیصی ثبت نشد.')
+      const currentPlans = planByItem.get(itemId) ?? []
+      if (currentPlans.reduce((sum, row) => sum + row.amount, 0) !== amount)
+        throw new BusinessError('جمع اعتبار و پول واقعی در برگشت pooled با مبلغ قلم برابر نیست.')
+      const expectedRows = currentPlans.map((plan) => {
+        const source = sources.find((row) => row.sourceEventId === plan.sourceEventId)!
+        const eventKey = `exchange-return-item:${itemId}:source:${plan.sourceEventId}:allocation:v4`
+        return {
+          eventKey, eventKind: 'ALLOCATION', returnId: Number(active.id), returnItemId: itemId,
+          sourceInvoiceId: Number(child.sourceInvoiceId), childInvoiceId, saleItemId,
+          sourceEventId: plan.sourceEventId, sourceKind: plan.sourceKind,
+          saleItemQty: snapshot.qty, saleItemValue: snapshot.netValue,
+          sourceItemAmount: source.amount, returnedQtyBefore: beforeQty, returningQty: qty,
+          returnedQtyAfter: beforeQty + qty, priorReturnValue: plan.priorReturnValue,
+          returnValue: amount, cumulativeReturnValue: plan.cumulativeReturnValue,
+          priorAmount: plan.priorAmount, amountDelta: plan.amount,
+          cumulativeAmount: plan.cumulativeAmount, allocationVersion: 4, reversesAllocationId: null
+        }
+      })
+      const existing = await tx.exchangeFundingReturnLineAllocation.findMany({
+        where: { returnItemId: itemId }, orderBy: [{ sourceEventId: 'asc' }, { id: 'asc' }]
+      }) as any[]
+      if (existing.length) {
+        if (existing.length !== expectedRows.length || expectedRows.some((row) =>
+            !existing.some((actual) => actual.eventKind === 'ALLOCATION' && returnAllocationRowMatches(actual, row))) ||
+            existing.some((row) => row.eventKind !== 'ALLOCATION'))
+          throw new BusinessError('تخصیص pooled ثبت‌شده با قاعدهٔ اعتبار‌اول یا تاریخچهٔ برگشت سازگار نیست؛ هیچ اثر تازه‌ای ثبت نشد.')
+      } else {
+        for (const row of expectedRows) {
+          await tx.exchangeFundingReturnLineAllocation.create({ data: {
+            ...row,
+            saleItemValue: BigInt(row.saleItemValue), sourceItemAmount: BigInt(row.sourceItemAmount),
+            priorReturnValue: BigInt(row.priorReturnValue), returnValue: BigInt(row.returnValue),
+            cumulativeReturnValue: BigInt(row.cumulativeReturnValue), priorAmount: BigInt(row.priorAmount),
+            amountDelta: BigInt(row.amountDelta), cumulativeAmount: BigInt(row.cumulativeAmount)
+          } })
+        }
+      }
+      cumulativeReturn += amount
+      qtyBeforeBySaleItem.set(saleItemId, beforeQty + qty)
+    }
+  }
+  const total = activeReturns.reduce((sum, active) => sum + toNumberRial(active.total), 0)
+  if (!Number.isSafeInteger(total) || cumulativeReturn !== total)
+    throw new BusinessError('مبلغ اقلام برگشت pooled با جمع سند سازگار نیست؛ تخصیصی ثبت نشد.')
+  const current = ret.items.flatMap((item: any) => (planByItem.get(Number(item.id)) ?? []).map((row) => ({
+    returnItemId: Number(item.id), sourceEventId: row.sourceEventId, sourceKind: row.sourceKind,
+    amount: row.amount, prior: row.priorAmount, cumulative: row.cumulativeAmount
+  })))
+  return { returnId: input.returnId, allocations: current }
 }
 
 const RETURN_ALLOCATION_NUMERIC_FIELDS = new Set([
@@ -1587,8 +1716,11 @@ export async function reverseExchangeFundingReturnLineAllocationsForReturn(tx: L
     where: { childInvoiceId: Number(childInvoice.id) },
     orderBy: [{ sourceEventId: 'asc' }, { saleItemId: 'asc' }]
   }) as any[]
+  const childSaleItems = await tx.saleInvoiceItem.findMany({ where: { invoiceId: Number(childInvoice.id) } }) as any[]
+  const childSaleItemById = new Map(childSaleItems.map((item) => [Number(item.id), item]))
   const sourceKinds = new Set(['SOURCE_GIFT', 'SOURCE_N', 'SOURCE_B', 'SOURCE_CASH', 'SOURCE_CARD', 'SOURCE_CHEQUE'])
   const lineAllocationByCell = new Map<string, any>()
+  const lineAllocationsBySourceEvent = new Map<number, any[]>()
   for (const source of childLineAllocations) {
     const sourceInvoiceId = Number(source.sourceInvoiceId)
     const childInvoiceId = Number(source.childInvoiceId)
@@ -1609,6 +1741,9 @@ export async function reverseExchangeFundingReturnLineAllocationsForReturn(tx: L
         !sourceKinds.has(String(source.sourceKind)) || lineAllocationByCell.has(key))
       throw new BusinessError('ماتریس immutable منشأ قلم فرزند ناسازگار است؛ reversal ثبت نشد.')
     lineAllocationByCell.set(key, source)
+    const sourceBucket = lineAllocationsBySourceEvent.get(sourceEventId) ?? []
+    sourceBucket.push(source)
+    lineAllocationsBySourceEvent.set(sourceEventId, sourceBucket)
   }
   if (childLineAllocations.length === 0)
     throw new BusinessError('ماتریس immutable منشأ قلم فرزند پیدا نشد؛ reversal ثبت نشد.')
@@ -1643,15 +1778,19 @@ export async function reverseExchangeFundingReturnLineAllocationsForReturn(tx: L
         !returnLedgerRowIds.has(Number(row.id))))
     throw new BusinessError('ردیف دفتر برگشت زیر شناسهٔ برگشت یا قلم دیگری پنهان شده است؛ reversal ثبت نشد.')
   const saleItemIds = [...new Set(items.map((item) => Number(item.saleItemId)))]
-  const laterActive = await tx.saleReturnItem.findMany({
-    where: {
-      saleItemId: { in: saleItemIds },
-      returnId: { not: input.returnId },
-      return: { voidedAt: null, id: { gt: input.returnId } }
-    }, select: { id: true, saleItemId: true, returnId: true }
-  }) as any[]
+  const pooledLedger = rows.some((row) => Number(row.allocationVersion) >= 4)
+  const laterActive = pooledLedger
+    ? await tx.saleReturn.findMany({ where: { invoiceId: Number(ret.invoiceId), voidedAt: null,
+        id: { not: input.returnId, gt: input.returnId } }, select: { id: true } }) as any[]
+    : await tx.saleReturnItem.findMany({
+        where: { saleItemId: { in: saleItemIds }, returnId: { not: input.returnId },
+          return: { voidedAt: null, id: { gt: input.returnId } } },
+        select: { id: true, saleItemId: true, returnId: true }
+      }) as any[]
   if (laterActive.length > 0)
-    throw new BusinessError('برگشت قدیمی‌ترِ همین قلم قابل ابطال نیست؛ ابتدا برگشت فعالِ جدیدتر را تعیین‌تکلیف کنید (LIFO).')
+    throw new BusinessError(pooledLedger
+      ? 'برگشت pooled قدیمی‌تر قابل ابطال نیست؛ ابتدا برگشت فعالِ جدیدتر همین فاکتور را تعیین‌تکلیف کنید (LIFO).'
+      : 'برگشت قدیمی‌ترِ همین قلم قابل ابطال نیست؛ ابتدا برگشت فعالِ جدیدتر را تعیین‌تکلیف کنید (LIFO).')
 
   // Re-derive every active allocation from the immutable child matrix and the
   // preceding active physical returns before writing any inverse. The ledger
@@ -1661,14 +1800,16 @@ export async function reverseExchangeFundingReturnLineAllocationsForReturn(tx: L
     if (reversalRows.length !== rows.length)
       throw new BusinessError('برگشت ابطال‌شده reversal کامل ندارد؛ هیچ ردیف معکوسی افزوده نشد.')
   } else {
-    for (const item of returnItems) {
-      try {
-        await recordExchangeFundingReturnLineAllocation(tx, {
+    try {
+      if (pooledLedger) {
+        await recordExchangeFundingPooledReturnAllocations(tx, { returnId: input.returnId })
+      } else {
+        for (const item of returnItems) await recordExchangeFundingReturnLineAllocation(tx, {
           returnId: input.returnId, returnItemId: Number(item.id)
         })
-      } catch {
-        throw new BusinessError('تاریخچه/سهم تجمعی دفتر برگشت با برگشت‌های فیزیکی فعال سازگار نیست؛ reversal ثبت نشد.')
       }
+    } catch {
+      throw new BusinessError('تاریخچه/سهم تجمعی دفتر برگشت با برگشت‌های فیزیکی فعال سازگار نیست؛ reversal ثبت نشد.')
     }
   }
 
@@ -1676,25 +1817,36 @@ export async function reverseExchangeFundingReturnLineAllocationsForReturn(tx: L
   let replayed = true
   for (const row of rows) {
     const rowItem = items.find((item) => Number(item.id) === Number(row.returnItemId))
-    const sourceLine = lineAllocationByCell.get(`${Number(row.saleItemId)}:${Number(row.sourceEventId)}`)
+    const version = Number(row.allocationVersion)
+    const pooled = version >= 4
+    const sourceLine = pooled
+      ? (lineAllocationsBySourceEvent.get(Number(row.sourceEventId)) ?? [])[0]
+      : lineAllocationByCell.get(`${Number(row.saleItemId)}:${Number(row.sourceEventId)}`)
+    const sourceEventLines = lineAllocationsBySourceEvent.get(Number(row.sourceEventId)) ?? []
+    const sourceEventAmount = sourceEventLines.reduce((sum, line) => sum + toNumberRial(line.amount), 0)
+    const itemSourceLine = childLineAllocations.find((line) => Number(line.saleItemId) === Number(row.saleItemId))
+    const childSaleItem = childSaleItemById.get(Number(row.saleItemId))
     const amountDelta = toNumberRial(row.amountDelta)
-    if (!rowItem || !sourceLine || Number(row.returnId) !== input.returnId ||
+    const scopedSourceAmount = pooled ? sourceEventAmount : toNumberRial(sourceLine?.amount)
+    if (!rowItem || !sourceLine || !itemSourceLine || !childSaleItem || Number(row.returnId) !== input.returnId ||
         Number(row.returnItemId) !== Number(rowItem.id) ||
         Number(row.saleItemId) !== Number(rowItem.saleItemId) ||
         Number(row.sourceInvoiceId) !== Number(childInvoice.sourceInvoiceId) ||
         Number(row.childInvoiceId) !== Number(ret.invoiceId) ||
         String(row.sourceKind) !== String(sourceLine.sourceKind) ||
-        Number(row.saleItemQty) !== Number(sourceLine.saleItemQty) ||
-        toNumberRial(row.saleItemValue) !== toNumberRial(sourceLine.saleItemValue) ||
-        toNumberRial(row.sourceItemAmount) !== toNumberRial(sourceLine.amount) ||
+        (pooled && sourceEventLines.some((line) => String(line.sourceKind) !== String(row.sourceKind))) ||
+        Number(row.saleItemQty) !== Number(itemSourceLine.saleItemQty) ||
+        toNumberRial(row.saleItemValue) !== toNumberRial(itemSourceLine.saleItemValue) ||
+        toNumberRial(row.sourceItemAmount) !== scopedSourceAmount ||
         Number(row.returningQty) !== Number(rowItem.qty) ||
         toNumberRial(row.returnValue) !== toNumberRial(rowItem.lineTotal) ||
-        ![1, 2, 3].includes(Number(row.allocationVersion)) ||
-        String(row.eventKey) !== exchangeFundingReturnLineAllocationEventKey(Number(row.returnItemId), Number(row.sourceEventId)) ||
-        !Number.isSafeInteger(amountDelta) || amountDelta < 0 || amountDelta > toNumberRial(sourceLine.amount) ||
-        toNumberRial(row.cumulativeAmount) > toNumberRial(sourceLine.amount))
+        ![1, 2, 3, 4].includes(version) ||
+        String(row.eventKey) !== exchangeFundingReturnLineAllocationEventKey(Number(row.returnItemId), Number(row.sourceEventId), version) ||
+        !Number.isSafeInteger(amountDelta) || amountDelta < 0 || amountDelta > scopedSourceAmount ||
+        toNumberRial(row.cumulativeAmount) > scopedSourceAmount ||
+        (pooled && (Number(childSaleItem.qty) !== Number(row.saleItemQty) || !Number.isSafeInteger(sourceEventAmount))))
       throw new BusinessError('snapshot تخصیص برگشت با ماتریس immutable منشأ ناسازگار است؛ reversal ثبت نشد.')
-    const reversalKey = exchangeFundingReturnLineReversalEventKey(Number(row.returnItemId), Number(row.sourceEventId))
+    const reversalKey = exchangeFundingReturnLineReversalEventKey(Number(row.returnItemId), Number(row.sourceEventId), version)
     const existing = await tx.exchangeFundingReturnLineAllocation.findUnique({ where: { reversesAllocationId: Number(row.id) } })
     const reversal = {
       eventKey: reversalKey, eventKind: 'REVERSAL', returnId: Number(row.returnId),
