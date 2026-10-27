@@ -1,0 +1,96 @@
+{
+  "generatedAt": "2026-10-27T18:36:13.559Z",
+  "scenario": "D80-S10",
+  "case": "over-ceiling-11pct-control",
+  "mode": "OVER_CAP_CONTROL",
+  "fixture": {
+    "gross": 100000,
+    "lineDiscount": 0,
+    "invoiceDiscount": 11000,
+    "net": 89000,
+    "lines": [
+      {
+        "unitPrice": 100000,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 89000
+      }
+    ]
+  },
+  "isolatedDatabase": "/tmp/mahak-d80-s10-uHM7QP/isolated.db",
+  "status": "PASS",
+  "allocations": [],
+  "returns": [],
+  "credits": [],
+  "managerTransfers": [],
+  "checkpoints": [
+    {
+      "label": "initial isolated DB",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": {
+        "actual": 20,
+        "ledger": 0
+      },
+      "expectedStock": 20,
+      "counts": {
+        "invoices": 0,
+        "returns": 0,
+        "payments": 0,
+        "cashMovements": 0,
+        "credits": 0,
+        "checks": 0
+      }
+    }
+  ],
+  "findings": [],
+  "sale": {
+    "rejected": true,
+    "message": "جمع تخفیف این فاکتور ۱۱٬۰۰۰ ریال است (تخفیف ردیف ۰ ریال، تخفیف کل فاکتور ۱۱٬۰۰۰ ریال و کاهش قیمت زیر قیمت مرجع ۰ ریال) و از سقف مجاز ۱۰٬۰۰۰ ریال بیشتر است (سقف: ۱۰٪ از ۱۰۰٬۰۰۰ ریال). این محدودیت را مدیر در «سیاست تخفیف» تعیین کرده و با رمز مدیر هم باز نمی‌شود.",
+    "mutationFree": true
+  },
+  "operationOutcome": "OVER_CAP_REJECTED_MUTATION_FREE",
+  "final": {
+    "expected": {
+      "cash": 0,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 0
+    },
+    "actual": {
+      "cash": 0,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 0,
+    "stock": {
+      "actual": 20,
+      "ledger": 0
+    },
+    "invoices": 0,
+    "returns": 0,
+    "payments": 0,
+    "credits": 0,
+    "checks": 0
+  }
+}
