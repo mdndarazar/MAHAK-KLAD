@@ -1,0 +1,471 @@
+{
+  "generatedAt": "2026-10-27T19:00:07.588Z",
+  "campaign": "Discount Policy 80",
+  "scenario": "D80-S11",
+  "case": "single-use-full-redemption",
+  "returnMode": "NONE",
+  "fixture": {
+    "discountLabel": "invoice 10%",
+    "discountKind": "PERCENT",
+    "lines": [
+      {
+        "unitPrice": 200000,
+        "qty": 1,
+        "discount": 0
+      }
+    ],
+    "invoiceDiscount": 20000
+  },
+  "saleTenders": [
+    "CASH"
+  ],
+  "isolatedDatabase": "/tmp/mahak-d80-s11-zND5Qs/isolated.db",
+  "status": "POLICY_MISMATCH",
+  "creditIssue": [
+    {
+      "id": 1,
+      "code": "CRABLUXZ",
+      "amount": 50000,
+      "multiUse": false,
+      "carryRemainder": true,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL"
+    }
+  ],
+  "sales": [
+    {
+      "id": 1,
+      "invoiceIndex": 1,
+      "gross": 200000,
+      "lineDiscount": 0,
+      "invoiceDiscount": 20000,
+      "totalDiscount": 20000,
+      "net": 180000,
+      "paid": 180000,
+      "storeCreditRequested": 50000,
+      "storeCreditApplied": 50000,
+      "cashTender": 130000,
+      "posTender": 0,
+      "tender": "CASH",
+      "settled": true,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "gross": 200000,
+          "lineDiscount": 0,
+          "netShare": 180000
+        }
+      ]
+    }
+  ],
+  "redemptions": [
+    {
+      "id": 1,
+      "creditId": 1,
+      "invoiceId": 1,
+      "amount": 50000,
+      "reversedAt": null
+    }
+  ],
+  "returns": [
+    {
+      "id": 1,
+      "invoiceId": 1,
+      "expectedNet": 180000,
+      "actualNet": 180000,
+      "expectedSourceCreditReturn": 50000,
+      "expectedMoneyBackedRight": 130000,
+      "refundMethod": "NONE",
+      "refundAmount": 0,
+      "refundStoreCreditAmount": 0,
+      "sourceCreditReturned": 50000,
+      "sourceCreditRestoredAmount": 50000,
+      "sourceCreditSuccessors": [
+        {
+          "id": 2,
+          "amount": 50000,
+          "status": "ACTIVE",
+          "expiresAt": null
+        }
+      ],
+      "creditReturnAllocations": [
+        {
+          "id": 1,
+          "redemptionId": 1,
+          "sourceCreditId": 1,
+          "amount": 50000,
+          "creditRestored": true
+        }
+      ],
+      "createdCredits": [
+        {
+          "id": 2,
+          "code": "CRWYYTJR",
+          "amount": 50000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "source": "MANUAL",
+          "returnId": 1,
+          "delivery": {
+            "id": 1,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793127607858,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        },
+        {
+          "id": 3,
+          "code": "ERXL4U",
+          "amount": 80000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null,
+          "source": "OVERPAY",
+          "returnId": 1,
+          "delivery": {
+            "id": 2,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793127607871,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        }
+      ],
+      "noMethodCreditExpected": 130000,
+      "overpayCreditAmount": 80000,
+      "customerValue": 130000,
+      "items": [
+        {
+          "saleItemId": 1,
+          "qty": 1,
+          "unitPrice": 200000,
+          "lineTotal": 180000,
+          "restockedQty": 1
+        }
+      ]
+    }
+  ],
+  "sourceCreditSuccessors": [
+    {
+      "id": 2,
+      "amount": 50000,
+      "status": "ACTIVE",
+      "expiresAt": null
+    }
+  ],
+  "managerTransfers": [],
+  "checkpoints": [
+    {
+      "label": "fresh isolated DB",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stocks": [],
+      "credits": [],
+      "counts": {
+        "invoices": 0,
+        "returns": 0,
+        "payments": 0,
+        "credits": 0,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "all test-only ALL barcodes issued",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stocks": [],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRABLUXZ",
+          "amount": 50000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        }
+      ],
+      "counts": {
+        "invoices": 0,
+        "returns": 0,
+        "payments": 0,
+        "credits": 1,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "invoice 1 sold, barcode redemption + cash/POS reconciled",
+      "expected": {
+        "cash": 130000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 130000
+      },
+      "actualService": {
+        "cash": 130000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 130000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 130000,
+      "stocks": [
+        {
+          "variantId": 1,
+          "label": "inv1-item1",
+          "expected": 19,
+          "actual": 19,
+          "ledger": -1
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRABLUXZ",
+          "amount": 50000,
+          "usedAmount": 50000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        }
+      ],
+      "counts": {
+        "invoices": 1,
+        "returns": 0,
+        "payments": 2,
+        "credits": 1,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "official return NONE, expected net 180000, source credits and stock reconciled",
+      "expected": {
+        "cash": 130000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 130000
+      },
+      "actualService": {
+        "cash": 130000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 130000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 130000,
+      "stocks": [
+        {
+          "variantId": 1,
+          "label": "inv1-item1",
+          "expected": 20,
+          "actual": 20,
+          "ledger": 0
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRABLUXZ",
+          "amount": 50000,
+          "usedAmount": 50000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 2,
+          "code": "CRWYYTJR",
+          "amount": 50000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": 1,
+          "exchangeInvoiceId": null,
+          "delivery": {
+            "id": 1,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793127607858,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        },
+        {
+          "id": 3,
+          "code": "ERXL4U",
+          "amount": 80000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null,
+          "restrictScope": "ALL",
+          "source": "OVERPAY",
+          "returnId": 1,
+          "exchangeInvoiceId": null,
+          "delivery": {
+            "id": 2,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793127607871,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        }
+      ],
+      "counts": {
+        "invoices": 1,
+        "returns": 1,
+        "payments": 2,
+        "credits": 3,
+        "deliveries": 2,
+        "checks": 0
+      }
+    }
+  ],
+  "findings": [
+    {
+      "kind": "return-entitlement-shortfall",
+      "expectedNet": 180000,
+      "actualCustomerValue": 130000,
+      "shortfall": 50000,
+      "sourceCreditReturned": 50000,
+      "realMoneyRefund": 0,
+      "newMoneyBackedCredit": 80000,
+      "refundMode": "NONE",
+      "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share."
+    }
+  ],
+  "operationOutcome": "RETURN_VALUE_NOT_FULLY_RECONCILED",
+  "finalCreditState": [
+    {
+      "id": 1,
+      "code": "CRABLUXZ",
+      "amount": 50000,
+      "usedAmount": 50000,
+      "usedCount": 1,
+      "status": "USED",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL",
+      "delivery": null
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 130000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 130000
+    },
+    "actual": {
+      "cash": 130000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 130000,
+    "stocks": [
+      {
+        "variantId": 1,
+        "label": "inv1-item1",
+        "expected": 20,
+        "actual": 20,
+        "ledger": 0
+      }
+    ],
+    "invoiceCount": 1,
+    "returnCount": 1,
+    "paymentCount": 2,
+    "creditCount": 3,
+    "deliveryCount": 2,
+    "checkCount": 0
+  }
+}

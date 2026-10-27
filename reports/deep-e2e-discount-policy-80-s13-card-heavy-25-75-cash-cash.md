@@ -1,0 +1,11 @@
+# بررسی تخفیف ۸۰ — S13 / card-heavy-25-75 / tender CASH / refund CASH
+
+**وضعیت:** PASS; DB SQLite تازه و ایزوله.
+**Fixture تخفیف:** invoice 7.5%؛ نوع ورودی PERCENT؛ مبلغ ثبت‌شده ۱۵٬۰۰۰ ریال.
+**فروش‌ها:** [{"id":1,"invoiceIndex":1,"gross":200000,"lineDiscount":0,"invoiceDiscount":15000,"totalDiscount":15000,"net":185000,"paid":185000,"storeCreditRequested":45000,"storeCreditApplied":45000,"cashTender":35000,"posTender":105000,"tender":"CARD_HEAVY","settled":true,"items":[{"id":1,"variantId":1,"qty":1,"gross":200000,"lineDiscount":0,"netShare":185000}]}]
+**مصرف کدها:** [{"id":1,"creditId":1,"invoiceId":1,"amount":45000,"reversedAt":null}]
+**برگشت:** [{"id":1,"invoiceId":1,"expectedNet":185000,"actualNet":185000,"expectedSourceCreditReturn":45000,"expectedMoneyBackedRight":140000,"refundMethod":"CASH","refundAmount":140000,"refundStoreCreditAmount":0,"sourceCreditReturned":45000,"sourceCreditRestoredAmount":45000,"sourceCreditSuccessors":[{"id":2,"amount":45000,"status":"ACTIVE","expiresAt":null}],"creditReturnAllocations":[{"id":1,"redemptionId":1,"sourceCreditId":1,"amount":45000,"creditRestored":true}],"createdCredits":[{"id":2,"code":"CR6NMQA7","amount":45000,"usedAmount":0,"status":"ACTIVE","expiresAt":1795724999999,"source":"MANUAL","returnId":1,"delivery":{"id":1,"status":"PENDING","handoffType":"CUSTOMER","createdAt":1793127649984,"deliveredAt":null,"userId":null,"note":null,"policyVersion":1}}],"noMethodCreditExpected":null,"overpayCreditAmount":0,"customerValue":185000,"items":[{"saleItemId":1,"qty":1,"unitPrice":200000,"lineTotal":185000,"restockedQty":1}]}]
+**ماندهٔ کدهای مبدأ:** [{"id":1,"code":"CRKAY3EX","amount":45000,"usedAmount":45000,"usedCount":1,"status":"USED","expiresAt":1795724999999,"restrictScope":"ALL","source":"MANUAL","delivery":null}]
+**تطبیق نهایی:** {"expected":{"cash":35000,"card":105000,"refundCash":140000,"refundCard":0,"blue":0},"actual":{"cash":35000,"card":105000,"refundCash":140000,"refundCard":0},"blue":0,"stocks":[{"variantId":1,"label":"inv1-item1","expected":20,"actual":20,"ledger":0}],"invoiceCount":1,"returnCount":1,"paymentCount":3,"creditCount":2,"deliveryCount":1,"checkCount":0}
+**مغایرت/رد ثبت‌شده:** []
+کدهای اعتبار ALL به‌صورت pool کل فاکتور درنظر گرفته شدند؛ هیچ سهم per-item ساختگی برای ALL اعمال نشده است. فقط DB تست ایزوله استفاده شد.
