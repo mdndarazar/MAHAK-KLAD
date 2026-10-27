@@ -1,0 +1,181 @@
+{
+  "generatedAt": "2026-10-27T18:18:47.400Z",
+  "plan": "طرح ۱۳ موردی / ممیزی تخفیف ۸۰ سناریویی",
+  "scenario": "D80-S02",
+  "tender": "POS",
+  "mode": "MANAGER_FULL_PRICE",
+  "isolatedDatabase": "/tmp/mahak-discount80-s02-qZkOwS/isolated.db",
+  "status": "PASS",
+  "policyExpected": {
+    "gross": 100000,
+    "invoiceDiscount": 0,
+    "lineDiscount": 10000,
+    "netSaleAndReturnRight": 90000,
+    "allocatedDiscountShare": 10000
+  },
+  "sale": {
+    "id": 1,
+    "gross": 100000,
+    "invoiceDiscount": 0,
+    "lineDiscount": 10000,
+    "totalDiscount": 10000,
+    "net": 90000,
+    "paid": 90000,
+    "settled": true,
+    "item": {
+      "id": 1,
+      "unitPrice": 100000,
+      "lineDiscount": 10000,
+      "lineTotal": 90000
+    }
+  },
+  "return": {
+    "error": "بازپرداخت مبلغ کاملِ بدون کسر تخفیف (۱۰۰٬۰۰۰ ریال) از فاکتور ۱ ممکن نیست: از پول واقعاً دریافت‌شده فقط ۹۰٬۰۰۰ ریال مانده است.\\nتایید مدیر فقط کسر تخفیف را برمی‌دارد؛ بیشتر از پولی که واقعاً دریافت شده از صندوق/کارت پرداخت نمی‌شود.",
+    "mutationFree": true
+  },
+  "managerTransfer": null,
+  "credits": [],
+  "allocations": [],
+  "checkpoints": [
+    {
+      "label": "initial isolated shift",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": {
+        "actual": 10,
+        "ledger": 0
+      },
+      "counts": {
+        "invoices": 0,
+        "returns": 0,
+        "payments": 0,
+        "cashMovements": 0,
+        "credits": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "sale: gross=100,000, line discount=10,000, net=90,000, tender=POS",
+      "expected": {
+        "cash": 0,
+        "card": 90000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 90000
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 90000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 90000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 90000,
+      "stock": {
+        "actual": 9,
+        "ledger": -1
+      },
+      "counts": {
+        "invoices": 1,
+        "returns": 0,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "return MANAGER_FULL_PRICE blocked mutation-free: بازپرداخت مبلغ کاملِ بدون کسر تخفیف (۱۰۰٬۰۰۰ ریال) از فاکتور ۱ ممکن نیست: از پول واقعاً دریافت‌شده فقط ۹۰٬۰۰۰ ریال مانده است.\\nتایید مدیر فقط کسر تخفیف را برمی‌دارد؛ بیشتر از پولی که واقعاً دریافت شده از صندوق/کارت پرداخت نمی‌شود.",
+      "expected": {
+        "cash": 0,
+        "card": 90000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 90000
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 90000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 90000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 90000,
+      "stock": {
+        "actual": 9,
+        "ledger": -1
+      },
+      "counts": {
+        "invoices": 1,
+        "returns": 0,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 0,
+        "checks": 0
+      }
+    }
+  ],
+  "findings": [],
+  "operationOutcome": "BLOCKED_AS_EXPECTED_TO_PROTECT_DISCOUNT_SHARE",
+  "policyAssessment": {
+    "expectedNetReturnRight": 90000,
+    "actualCustomerValue": 0,
+    "extraDiscountRefunded": 0,
+    "deviations": [],
+    "note": "Manager full-price override was refused because only the discounted 90,000 was actually received."
+  },
+  "final": {
+    "expected": {
+      "cash": 0,
+      "card": 90000,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 90000
+    },
+    "actual": {
+      "cash": 0,
+      "card": 90000,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 90000,
+    "stock": {
+      "actual": 9,
+      "ledger": -1
+    },
+    "invoices": 1,
+    "returns": 0,
+    "payments": 1,
+    "cashMovements": 0,
+    "credits": 0,
+    "checks": 0
+  }
+}
