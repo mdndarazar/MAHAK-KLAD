@@ -362,7 +362,8 @@
       "realMoneyRefund": 0,
       "newMoneyBackedCredit": 80000,
       "refundMode": "NONE",
-      "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share."
+      "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share.",
+      "ownerDisposition": "EXPECTED_NOT_A_MISMATCH_PER_OWNER_CLARIFICATION"
     }
   ],
   "operationOutcome": "RETURN_VALUE_NOT_FULLY_RECONCILED",
@@ -410,5 +411,9 @@
     "creditCount": 2,
     "deliveryCount": 1,
     "checkCount": 0
+  },
+  "ownerReview": {
+    "disposition": "EXPECTED_NOT_A_MISMATCH",
+    "basis": "The owner clarified that leaving the refund method unselected is not itself considered a discrepancy; the observed NONE outcome is retained as evidence but excluded from mismatch counts."
   }
 }

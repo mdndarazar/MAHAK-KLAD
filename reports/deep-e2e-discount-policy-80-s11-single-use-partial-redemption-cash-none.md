@@ -9,3 +9,6 @@
 **تطبیق نهایی:** {"expected":{"cash":130000,"card":0,"refundCash":0,"refundCard":0,"blue":130000},"actual":{"cash":130000,"card":0,"refundCash":0,"refundCard":0},"blue":130000,"stocks":[{"variantId":1,"label":"inv1-item1","expected":20,"actual":20,"ledger":0}],"invoiceCount":1,"returnCount":1,"paymentCount":2,"creditCount":2,"deliveryCount":1,"checkCount":0}
 **مغایرت/رد ثبت‌شده:** [{"kind":"return-entitlement-shortfall","expectedNet":180000,"actualCustomerValue":130000,"shortfall":50000,"sourceCreditReturned":50000,"realMoneyRefund":0,"newMoneyBackedCredit":80000,"refundMode":"NONE","explanation":"The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share."}]
 کدهای اعتبار ALL به‌صورت pool کل فاکتور درنظر گرفته شدند؛ هیچ سهم per-item ساختگی برای ALL اعمال نشده است. فقط DB تست ایزوله استفاده شد.
+
+## Owner review
+The runner recorded this as a value shortfall under the initial oracle. The owner later clarified that the seller leaving the refund method unselected is not considered a discrepancy. This run is therefore **not counted as a mismatch**; the measured values above remain unchanged.

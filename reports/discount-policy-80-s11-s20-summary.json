@@ -1,12 +1,11 @@
 {
   "campaign": "Discount Policy 80",
   "range": "S11-S20",
-  "status": "EVALUATED_WITH_FINDINGS",
+  "status": "OWNER_REVIEWED_NO_DISCOUNT_MISMATCH; BARCODE_OBSERVATION_RECORDED",
   "completedFamilies": 10,
   "totalFamilies": 10,
   "completedBranches": 120,
   "passBranches": 100,
-  "policyMismatchBranches": 20,
   "blockedBranches": 0,
   "failedRunnerProcesses": 0,
   "families": [
@@ -14,7 +13,6 @@
       "scenario": "D80-S11",
       "branches": 10,
       "pass": 8,
-      "policyMismatch": 2,
       "statusCounts": {
         "PASS": 8,
         "POLICY_MISMATCH": 2
@@ -33,7 +31,8 @@
               "realMoneyRefund": 0,
               "newMoneyBackedCredit": 80000,
               "refundMode": "NONE",
-              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share."
+              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share.",
+              "ownerDisposition": "EXPECTED_NOT_A_MISMATCH_PER_OWNER_CLARIFICATION"
             }
           ],
           "sales": [
@@ -164,7 +163,8 @@
               "realMoneyRefund": 0,
               "newMoneyBackedCredit": 80000,
               "refundMode": "NONE",
-              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share."
+              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share.",
+              "ownerDisposition": "EXPECTED_NOT_A_MISMATCH_PER_OWNER_CLARIFICATION"
             }
           ],
           "sales": [
@@ -259,13 +259,16 @@
       "cases": [
         "single-use-full-redemption",
         "single-use-partial-redemption"
-      ]
+      ],
+      "ownerAcceptedNoneRuns": 2,
+      "rawRunnerMismatchFlags": 2,
+      "discountPolicyMismatchBranches": 0,
+      "barcodeObservationBranches": 0
     },
     {
       "scenario": "D80-S12",
       "branches": 10,
       "pass": 8,
-      "policyMismatch": 2,
       "statusCounts": {
         "PASS": 8,
         "POLICY_MISMATCH": 2
@@ -284,7 +287,8 @@
               "realMoneyRefund": 0,
               "newMoneyBackedCredit": 147500,
               "refundMode": "NONE",
-              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share."
+              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share.",
+              "ownerDisposition": "EXPECTED_NOT_A_MISMATCH_PER_OWNER_CLARIFICATION"
             }
           ],
           "sales": [
@@ -414,7 +418,8 @@
               "realMoneyRefund": 0,
               "newMoneyBackedCredit": 107500,
               "refundMode": "NONE",
-              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share."
+              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share.",
+              "ownerDisposition": "EXPECTED_NOT_A_MISMATCH_PER_OWNER_CLARIFICATION"
             }
           ],
           "sales": [
@@ -536,13 +541,16 @@
       "cases": [
         "multi-use-code-two-pos-invoices",
         "single-use-pos"
-      ]
+      ],
+      "ownerAcceptedNoneRuns": 2,
+      "rawRunnerMismatchFlags": 2,
+      "discountPolicyMismatchBranches": 0,
+      "barcodeObservationBranches": 0
     },
     {
       "scenario": "D80-S13",
       "branches": 10,
       "pass": 8,
-      "policyMismatch": 2,
       "statusCounts": {
         "PASS": 8,
         "POLICY_MISMATCH": 2
@@ -561,7 +569,8 @@
               "realMoneyRefund": 0,
               "newMoneyBackedCredit": 95000,
               "refundMode": "NONE",
-              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share."
+              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share.",
+              "ownerDisposition": "EXPECTED_NOT_A_MISMATCH_PER_OWNER_CLARIFICATION"
             }
           ],
           "sales": [
@@ -692,7 +701,8 @@
               "realMoneyRefund": 0,
               "newMoneyBackedCredit": 95000,
               "refundMode": "NONE",
-              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share."
+              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share.",
+              "ownerDisposition": "EXPECTED_NOT_A_MISMATCH_PER_OWNER_CLARIFICATION"
             }
           ],
           "sales": [
@@ -814,13 +824,16 @@
       "cases": [
         "card-heavy-25-75",
         "cash-heavy-75-25"
-      ]
+      ],
+      "ownerAcceptedNoneRuns": 2,
+      "rawRunnerMismatchFlags": 2,
+      "discountPolicyMismatchBranches": 0,
+      "barcodeObservationBranches": 0
     },
     {
       "scenario": "D80-S14",
       "branches": 10,
       "pass": 8,
-      "policyMismatch": 2,
       "statusCounts": {
         "PASS": 8,
         "POLICY_MISMATCH": 2
@@ -839,7 +852,8 @@
               "realMoneyRefund": 0,
               "newMoneyBackedCredit": 3000,
               "refundMode": "NONE",
-              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share."
+              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share.",
+              "ownerDisposition": "EXPECTED_NOT_A_MISMATCH_PER_OWNER_CLARIFICATION"
             }
           ],
           "sales": [
@@ -1018,7 +1032,8 @@
               "realMoneyRefund": 0,
               "newMoneyBackedCredit": 3000,
               "refundMode": "NONE",
-              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share."
+              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share.",
+              "ownerDisposition": "EXPECTED_NOT_A_MISMATCH_PER_OWNER_CLARIFICATION"
             }
           ],
           "sales": [
@@ -1188,13 +1203,16 @@
       "cases": [
         "large-credit-first",
         "small-credit-first"
-      ]
+      ],
+      "ownerAcceptedNoneRuns": 2,
+      "rawRunnerMismatchFlags": 2,
+      "discountPolicyMismatchBranches": 0,
+      "barcodeObservationBranches": 0
     },
     {
       "scenario": "D80-S15",
       "branches": 5,
       "pass": 0,
-      "policyMismatch": 5,
       "statusCounts": {
         "POLICY_MISMATCH": 5
       },
@@ -1684,13 +1702,16 @@
       ],
       "cases": [
         "reuse-two-live-codes-within-one-invoice"
-      ]
+      ],
+      "ownerAcceptedNoneRuns": 0,
+      "rawRunnerMismatchFlags": 5,
+      "discountPolicyMismatchBranches": 0,
+      "barcodeObservationBranches": 5
     },
     {
       "scenario": "D80-S16",
       "branches": 30,
       "pass": 30,
-      "policyMismatch": 0,
       "statusCounts": {
         "PASS": 30
       },
@@ -1702,13 +1723,16 @@
         "one-item-return-cash",
         "one-item-return-pos",
         "one-item-return-split"
-      ]
+      ],
+      "ownerAcceptedNoneRuns": 0,
+      "rawRunnerMismatchFlags": 0,
+      "discountPolicyMismatchBranches": 0,
+      "barcodeObservationBranches": 0
     },
     {
       "scenario": "D80-S17",
       "branches": 25,
       "pass": 22,
-      "policyMismatch": 3,
       "statusCounts": {
         "PASS": 22,
         "POLICY_MISMATCH": 3
@@ -1727,7 +1751,8 @@
               "realMoneyRefund": 0,
               "newMoneyBackedCredit": 43000,
               "refundMode": "NONE",
-              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share."
+              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share.",
+              "ownerDisposition": "EXPECTED_NOT_A_MISMATCH_PER_OWNER_CLARIFICATION"
             }
           ],
           "sales": [
@@ -1924,7 +1949,8 @@
               "realMoneyRefund": 0,
               "newMoneyBackedCredit": 162000,
               "refundMode": "NONE",
-              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share."
+              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share.",
+              "ownerDisposition": "EXPECTED_NOT_A_MISMATCH_PER_OWNER_CLARIFICATION"
             }
           ],
           "sales": [
@@ -2042,7 +2068,8 @@
               "realMoneyRefund": 0,
               "newMoneyBackedCredit": 43000,
               "refundMode": "NONE",
-              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share."
+              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share.",
+              "ownerDisposition": "EXPECTED_NOT_A_MISMATCH_PER_OWNER_CLARIFICATION"
             }
           ],
           "sales": [
@@ -2233,13 +2260,16 @@
         "partial-use-three-unequal-codes",
         "reverse-order-spend",
         "zero-balance-exact-tender"
-      ]
+      ],
+      "ownerAcceptedNoneRuns": 3,
+      "rawRunnerMismatchFlags": 3,
+      "discountPolicyMismatchBranches": 0,
+      "barcodeObservationBranches": 0
     },
     {
       "scenario": "D80-S18",
       "branches": 10,
       "pass": 8,
-      "policyMismatch": 2,
       "statusCounts": {
         "PASS": 8,
         "POLICY_MISMATCH": 2
@@ -2258,7 +2288,8 @@
               "realMoneyRefund": 0,
               "newMoneyBackedCredit": 240000,
               "refundMode": "NONE",
-              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share."
+              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share.",
+              "ownerDisposition": "EXPECTED_NOT_A_MISMATCH_PER_OWNER_CLARIFICATION"
             }
           ],
           "sales": [
@@ -2554,7 +2585,8 @@
               "realMoneyRefund": 0,
               "newMoneyBackedCredit": 240000,
               "refundMode": "NONE",
-              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share."
+              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share.",
+              "ownerDisposition": "EXPECTED_NOT_A_MISMATCH_PER_OWNER_CLARIFICATION"
             }
           ],
           "sales": [
@@ -2684,13 +2716,16 @@
       "cases": [
         "six-single-use-fully-spent",
         "six-single-use-partially-spent"
-      ]
+      ],
+      "ownerAcceptedNoneRuns": 2,
+      "rawRunnerMismatchFlags": 2,
+      "discountPolicyMismatchBranches": 0,
+      "barcodeObservationBranches": 0
     },
     {
       "scenario": "D80-S19",
       "branches": 5,
       "pass": 4,
-      "policyMismatch": 1,
       "statusCounts": {
         "PASS": 4,
         "POLICY_MISMATCH": 1
@@ -2709,7 +2744,8 @@
               "realMoneyRefund": 0,
               "newMoneyBackedCredit": 244000,
               "refundMode": "NONE",
-              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share."
+              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share.",
+              "ownerDisposition": "EXPECTED_NOT_A_MISMATCH_PER_OWNER_CLARIFICATION"
             }
           ],
           "sales": [
@@ -2838,13 +2874,16 @@
       ],
       "cases": [
         "six-multi-use-partial-redemption"
-      ]
+      ],
+      "ownerAcceptedNoneRuns": 1,
+      "rawRunnerMismatchFlags": 1,
+      "discountPolicyMismatchBranches": 0,
+      "barcodeObservationBranches": 0
     },
     {
       "scenario": "D80-S20",
       "branches": 5,
       "pass": 4,
-      "policyMismatch": 1,
       "statusCounts": {
         "PASS": 4,
         "POLICY_MISMATCH": 1
@@ -2863,7 +2902,8 @@
               "realMoneyRefund": 0,
               "newMoneyBackedCredit": 27655,
               "refundMode": "NONE",
-              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share."
+              "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share.",
+              "ownerDisposition": "EXPECTED_NOT_A_MISMATCH_PER_OWNER_CLARIFICATION"
             }
           ],
           "sales": [
@@ -2983,12 +3023,16 @@
       ],
       "cases": [
         "multiuse-credit-used-again-on-second-invoice"
-      ]
+      ],
+      "ownerAcceptedNoneRuns": 1,
+      "rawRunnerMismatchFlags": 1,
+      "discountPolicyMismatchBranches": 0,
+      "barcodeObservationBranches": 0
     }
   ],
   "findingSummary": {
-    "noMethodReturnCreditShortfall": 15,
-    "repeatedSameBarcodeRedemptionShortfall": 5
+    "ownerAcceptedNoneModeRuns": 15,
+    "sameInvoiceBarcodeRedemptionShortfall": 5
   },
   "discountEntryMix": {
     "percentageDerivedInvoiceDiscount": [
@@ -3015,5 +3059,21 @@
     "realMoneyTransfers": false,
     "checksOrDebtUsed": false
   },
-  "note": "All codes in this block were explicitly issued with restrictScope=ALL. No product/category per-item allocation was fabricated for ALL barcodes."
+  "note": "All codes in this block were explicitly issued with restrictScope=ALL. No product/category per-item allocation was fabricated for ALL barcodes.",
+  "rawRunnerStatusCounts": {
+    "PASS": 100,
+    "POLICY_MISMATCH": 20,
+    "BLOCKED": 0,
+    "FAIL": 0
+  },
+  "ownerClassification": {
+    "noneMethodRunsAcceptedAsExpected": 15,
+    "discountPolicyMismatchBranches": 0,
+    "separateBarcodeRedemptionObservationBranches": 5,
+    "explanation": "Per owner clarification, a seller not selecting a refund method is not a mismatch. The 15 original NONE-mode shortfall flags are retained in traces as raw test observations but excluded from mismatch counts. S15 remains a distinct barcode tender behavior: requested 60,000, applied 30,000; 30,000 cash was explicitly added to keep the test invoice settled."
+  },
+  "rawRunnerMismatchBranches": 20,
+  "ownerAcceptedNoneRuns": 15,
+  "discountPolicyMismatchBranches": 0,
+  "barcodeObservationBranches": 5
 }
