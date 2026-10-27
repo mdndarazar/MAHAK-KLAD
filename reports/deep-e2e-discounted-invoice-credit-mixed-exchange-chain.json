@@ -1,0 +1,221 @@
+{
+  "generatedAt": "2026-10-27T14:36:52.699Z",
+  "isolatedDatabase": "/tmp/mahak-discounted-invoice-mixed-credit-chain-d0rtJ7/isolated.db",
+  "verdict": "BLOCKED_AS_OBSERVED",
+  "checks": {
+    "gross20mDiscount2mNet18m": true,
+    "originalBarcodeFullyUsedAndStaysUsed": true,
+    "firstReturnAtDiscountedNet9m": true,
+    "firstReplacement8_5mDiffNegative500k": true,
+    "firstSurplusIsSourceCreditNotCash": true,
+    "secondReturnAtDiscountedNet9m": true,
+    "secondReplacement9_5mCollects500kCash": true,
+    "firstReplacementReturnSucceededAt8500k": true,
+    "secondReplacementReturnBlockedWithTraceabilityError": true,
+    "rejectedB1ReturnCreatedNoDocument": true,
+    "allOriginalItemsReturnAtNet18m": true,
+    "oldBarcodeStillUsedAfterChain": true,
+    "noCashRefundExceedsMoneyPaidAfterTender": true,
+    "successorsKeepSourceExpiryAndALLScope": true,
+    "originalSourceMixIs2mCreditAnd16mCash": true,
+    "returnPolicyPlanConfirms2mCreditAnd7mMoney": true,
+    "firstReturnUses2mCreditAnd7mActualCash": true,
+    "replacementConsumes1_5mCreditAndLeaves500kSurplus": true,
+    "only500kOfCreditReturnRecordedAtRoot": true,
+    "reconstructionOverstatesCashRemovalBy1_5m": true,
+    "reconstructionLeaves7_5mInsteadOf9mCash": true
+  },
+  "originalSale": {
+    "invoiceId": 1,
+    "grossGoods": 20000000,
+    "invoiceDiscount": 2000000,
+    "netInvoice": 18000000,
+    "storeCredit": 2000000,
+    "cashPaid": 16000000,
+    "oldBarcodeAfterSale": "USED"
+  },
+  "chain": [
+    {
+      "source": "A",
+      "discountedNetReturn": 9000000,
+      "replacement": 8500000,
+      "diff": -500000,
+      "cashRefunded": 0,
+      "sourceCreditRestored": 500000,
+      "appliedRefundMode": "STORE_CREDIT",
+      "successors": [
+        {
+          "id": 2,
+          "amount": 500000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "source": "MANUAL",
+          "returnId": 1
+        }
+      ]
+    },
+    {
+      "source": "B",
+      "discountedNetReturn": 9000000,
+      "replacement": 9500000,
+      "diff": 500000,
+      "cashReceived": 500000
+    }
+  ],
+  "exchangeChildPayments": [
+    {
+      "invoiceId": 2,
+      "payments": [
+        {
+          "amount": 8500000,
+          "destination": null,
+          "methodKind": "EXCHANGE_CREDIT"
+        }
+      ]
+    },
+    {
+      "invoiceId": 3,
+      "payments": [
+        {
+          "amount": 9000000,
+          "destination": null,
+          "methodKind": "EXCHANGE_CREDIT"
+        },
+        {
+          "amount": 500000,
+          "destination": "CASH",
+          "methodKind": "CASH"
+        }
+      ]
+    }
+  ],
+  "rootCreditAllocations": [
+    {
+      "returnId": 1,
+      "amount": 500000,
+      "redemptionId": 1,
+      "creditRestored": true,
+      "saleItemId": null
+    }
+  ],
+  "sourceMixDiagnostic": {
+    "originalCreditRedemption": 2000000,
+    "originalCashPayment": 16000000,
+    "policyPlannedFirstReturn": {
+      "credit": 2000000,
+      "realMoneyRight": 7000000,
+      "shares": [
+        {
+          "redemptionId": 1,
+          "creditId": 1,
+          "amount": 2000000,
+          "saleItemId": null
+        }
+      ]
+    },
+    "firstExchangeReturn": 9000000,
+    "firstExchangeCreditAllocationRecorded": 500000,
+    "expectedCashFromFirstReturn": 7000000,
+    "firstReplacement": 8500000,
+    "creditConsumedByReplacement": 1500000,
+    "creditSurplusSuccessor": 500000,
+    "reconstructedCashRemoval": 8500000,
+    "reconstructedCashRemaining": 7500000,
+    "expectedCashRemaining": 9000000,
+    "unexplainedCashGap": 1500000
+  },
+  "childReturns": [
+    {
+      "label": "A1",
+      "exchangeInvoiceId": 2,
+      "itemId": 3,
+      "replacementInvoiceTotal": 8500000,
+      "returnId": 3,
+      "returnTotal": 8500000,
+      "refundMethod": "CASH",
+      "cashRefunded": 7000000,
+      "returnedSourceCreditAmount": 1500000
+    }
+  ],
+  "childReturnBlocked": {
+    "label": "B1",
+    "exchangeInvoiceId": 3,
+    "attemptedReturnTotal": 9500000,
+    "message": "سهم وجه واقعیِ قابل‌تسویه ۹٬۰۰۰٬۰۰۰ ریال است، اما در زنجیره فقط ۷٬۵۰۰٬۰۰۰ ریال وجه وصول‌شده و قابل‌ردیابی وجود دارد. اعتبار، چکِ وصول‌نشده یا بدهی به‌جای پول واقعی بازپرداخت نمی‌شود."
+  },
+  "rootReturns": [
+    {
+      "id": 1,
+      "total": 9000000,
+      "kind": "EXCHANGE",
+      "exchangeDiff": -500000,
+      "refundMethod": "STORE_CREDIT",
+      "refundAmount": 0
+    },
+    {
+      "id": 2,
+      "total": 9000000,
+      "kind": "EXCHANGE",
+      "exchangeDiff": 500000,
+      "refundMethod": "NONE",
+      "refundAmount": 0
+    }
+  ],
+  "sourceBarcodeBefore": {
+    "amount": 2000000,
+    "scope": "ALL",
+    "expiresAt": "1405/09/05"
+  },
+  "sourceBarcodeAfter": {
+    "amount": 2000000,
+    "usedAmount": 2000000,
+    "status": "USED"
+  },
+  "credits": [
+    {
+      "id": 1,
+      "amount": 2000000,
+      "usedAmount": 2000000,
+      "status": "USED",
+      "expiresAtJalali": "1405/09/05",
+      "source": "MANUAL",
+      "scope": "ALL",
+      "returnId": null
+    },
+    {
+      "id": 2,
+      "amount": 500000,
+      "usedAmount": 0,
+      "status": "ACTIVE",
+      "expiresAtJalali": "1405/09/05",
+      "source": "MANUAL",
+      "scope": "ALL",
+      "returnId": 1
+    },
+    {
+      "id": 3,
+      "amount": 1500000,
+      "usedAmount": 0,
+      "status": "ACTIVE",
+      "expiresAtJalali": "1405/09/05",
+      "source": "MANUAL",
+      "scope": "ALL",
+      "returnId": 3
+    }
+  ],
+  "final": {
+    "originalGoodsReturnTotal": 18000000,
+    "replacementReturnTotal": 8500000,
+    "cashRefunded": 7000000,
+    "additionalCashReceived": 500000,
+    "netCashRefunded": 6500000,
+    "activeSuccessorCredit": 2000000
+  },
+  "safety": {
+    "liveDatabase": false,
+    "productionCodeChanged": false,
+    "checksOrDebt": false,
+    "realMoneyMoved": false
+  }
+}
