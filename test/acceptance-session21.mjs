@@ -56,7 +56,9 @@ check(10, 'rate-limit gate is called OUTSIDE any transaction (SQLite deadlock ru
 // دسترسی فرد مورد اعتماد در نبود مدیر). گیت، دلیل اجباری و ردیف Audit دست‌نخورده‌اند.
 check(11, 'every manager operation demands a password gate + a mandatory reason + before/after audit', 'STRUCTURAL', () =>
   /assertPanelPasswordStrict\(PANEL_KEYS\.creditVoid, input\.managerPassword, input\.actionTitle\)/.test(svc) &&
-  /function requireReason/.test(svc) && /before: JSON\.stringify\(built\.before\)/.test(svc))
+  /function requireReason/.test(svc) &&
+  /before: redactCreditAuditPayload\(JSON\.stringify\(built\.before\), row\.code\)/.test(svc) &&
+  /after: redactCreditAuditPayload\(JSON\.stringify\(\{ \.\.\.built\.after, reason \}\), row\.code\)/.test(svc))
 check(12, 'amount change is forbidden (not merely limited) on a redeemed credit', 'STRUCTURAL', () =>
   /changeCreditAmount/.test(svc) && /تغییر مبلغش مجاز نیست/.test(svc))
 // نشست ۱۶۰ · Y7 · بند ۴-۲۲ (S160-D1): «حذف واقعی اعتبار بی‌مصرف» قاعده‌ی قدیمی بود؛ حالا هر دو حالت soft-delete‌اند
@@ -69,29 +71,38 @@ check(15, 'bulk issue assesses code space BEFORE creating anything', 'STRUCTURAL
 check(16, 'bulk insert is batched (createMany with per-row fallback), not one round-trip per record', 'STRUCTURAL', () =>
   /storeCredit\.createMany\(\{ data: rows \}\)/.test(svc) && /i \+= CHUNK/.test(svc))
 check(17, 'bulk reports the REAL created count (batch row is updated after insert)', 'STRUCTURAL', () =>
-  /data: \{ count: created, totalAmount: created \* amountEach \}/.test(svc))
+  /data: \{ count: n, totalAmount: n \* amountEach \}/.test(svc) &&
+  /created = n/.test(svc) && /return \{[^}]*created/.test(svc))
 check(18, 'audit actions of session 20 are all used by the service', 'STRUCTURAL', () =>
   ['CREDIT_ISSUE_MANUAL','CREDIT_BULK_GENERATE','CREDIT_VOID','CREDIT_SUSPEND','CREDIT_REACTIVATE','CREDIT_EXPIRY_CHANGE',
    'CREDIT_AMOUNT_CHANGE','CREDIT_USES_CHANGE','CREDIT_HOLDER_CHANGE','CREDIT_RESTRICTION_CHANGE','CREDIT_DELETE',
    'CREDIT_ARCHIVE','CREDIT_PRINT','CREDIT_REPRINT','CREDIT_REMINDER_QUEUE','CREDIT_REDEEM_BLOCKED','CREDIT_CODE_SPACE_BLOCKED']
     .every((a) => svc.includes(`AuditAction.${a}`) || printSvc.includes(`AuditAction.${a}`) || settings.includes(`AuditAction.${a}`)))
-check(19, 'audit(tx, …) always takes the client first, and TX_OPTIONS is on every interactive transaction', 'STRUCTURAL', () =>
-  !/audit\(\{/.test(svc) &&
-  (svc.match(/\$transaction\(/g) || []).length === (svc.match(/TX_OPTIONS/g) || []).length - 1)
+check(19, 'audit(tx, …) has the client first, and every interactive transaction has explicit options', 'STRUCTURAL', () => {
+  const calls = (svc.match(/prisma\.\$transaction\(/g) || []).length
+  const options = (svc.match(/\}, TX_OPTIONS\)/g) || []).length +
+    (svc.match(/\}, BULK_TX\)/g) || []).length +
+    (svc.match(/^\s+TX_OPTIONS\s*$/gm) || []).length
+  return !/audit\(\{/.test(svc) && calls > 0 && calls === options
+})
 check(20, 'NotificationSender never touches the network and is swappable', 'STRUCTURAL', () =>
   !/fetch\(|http|axios/.test(notify) && /setNotificationSender/.test(notify) && /live: false/.test(notify))
-check(21, 'reminder decision logic is used for real, and nothing is actually sent', 'STRUCTURAL', () =>
-  /reminderDecision\(/.test(svc) && /notificationSender\(\)\.send\(/.test(svc) && /هیچ پیامکی ارسال نشد/.test(svc))
-check(22, 'credit document prints from DB data, barcode carries the code only (no amount)', 'STRUCTURAL', () =>
-  /creditDocDataFor/.test(printSvc) && /barcodePng\(c\.code/.test(printSvc) && !/barcodePng\([^)]*amount/.test(printSvc))
+check(21, 'reminder decision and independent positive consent precede sending', 'STRUCTURAL', () =>
+  /reminderDecision\(/.test(svc) && /creditReminderConsentValid\(/.test(credit) &&
+  /reminderConsentAt: row\.reminderConsentAt/.test(svc) &&
+  /isReminderForceable\(decision\.code\)/.test(svc) && /sender\.sendReminder/.test(svc))
+check(22, 'credit document reads the credential in main from DB, barcode carries only that code', 'STRUCTURAL', () =>
+  /creditDocDataFor/.test(printSvc) &&
+  /prisma\.storeCredit\.findUnique\(\{ where: \{ id \}, select: \{ code: true \} \}\)/.test(printSvc) &&
+  /barcodePng\(code,/.test(printSvc) && !/barcodePng\([^)]*amount/.test(printSvc))
 // جلسه ۳۳ — آستانه‌ی «نسخه‌ی مجدد» دیگر در `PrintService` دستی نوشته نمی‌شود؛
 // تصمیمش `isCreditReprint` (بخش ۹.۲ `shared/credit.ts`) است و همان‌جا اجرا و تست می‌شود.
 check(23, 'reprint stamps «نسخه‌ی مجدد» and never issues a new credit', 'STRUCTURAL', () =>
   /reprint: isCreditReprint\(c\.printCount\)/.test(printSvc) && /نسخه‌ی مجدد/.test(templates) && /markPrinted/.test(svc))
 check(24, 'bulk print = ONE multi-page document + a real PDF path', 'STRUCTURAL', () =>
   /creditBatchHtml/.test(templates) && /page-break-after:always/.test(templates) && /printToPDF/.test(printer))
-check(25, 'paper size comes from credit settings, print identity from ReceiptTemplate', 'STRUCTURAL', () =>
-  /creditPaperSize\(settings\.paper/.test(printSvc) && /settingsService\.receiptTemplate\(\)/.test(printSvc))
+check(25, 'paper specification comes from credit settings, print identity from ReceiptTemplate', 'STRUCTURAL', () =>
+  /creditRenderSpec\(settings\)/.test(printSvc) && /settingsService\.receiptTemplate\(\)/.test(printSvc))
 check(26, 'every new IPC channel has a handler and vice versa', 'STRUCTURAL', () => {
   const keys = [...ipcShared.matchAll(/^\s{2}(credit[A-Za-z]*|printCredit[A-Za-z]*|storeCredit[A-Za-z]*):\s*'/gm)].map((m) => m[1])
   return keys.length >= 24 && keys.every((k) => ipcMain.includes(`IPC.${k},`))
@@ -121,7 +132,7 @@ check(33, 'every changed TS file parses', 'REAL', () => {
   return true
 })
 check(34, 'pure-logic suite of §۲۳ passes (44 real assertions on the rules engine)', 'REAL', () => {
-  const out = execFileSync(process.execPath, ['--experimental-strip-types', '--no-warnings', 'test/credit-logic-session21.ts'], { encoding: 'utf8' })
+  const out = execFileSync(process.execPath, ['--import', './test/harness/register.mjs', 'test/credit-logic-session21.ts'], { encoding: 'utf8' })
   return / 0 FAIL/.test(out)
 })
 

@@ -1,8 +1,15 @@
-import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { readFile, stat } from 'node:fs/promises'
 import { cardTransferService } from '../services/CardTransferService'
 import { bridgeDiagnosticsService } from '../services/bridgeDiagnosticsService'
 import { financialInspectorService } from '../services/financialInspectorService'
 import { pendingRestockService } from '../services/PendingRestockService'
+import { returnGoodsService } from '../services/ReturnGoodsService'
+import { managerReplaceLostCredit } from '../services/CreditRecoveryService'
+import { viewReturnEntitlement, reconcileBankDocument, convertCashRight, confirmCreditDelivery,
+  assertChainedExchangeCreditDeliveryLineage } from '../services/ReturnEntitlementService'
+import { adjustS7NResidualRight, setS7NResidualRightSourceDisposition,
+  reviewS7CardSourceBankStatement } from '../services/ExchangeResidualRightsService'
 import { stockCountService } from '../services/StockCountService'
 import { staffReportService } from '../services/StaffReportService'
 import { staffService } from '../services/StaffService'
@@ -25,15 +32,19 @@ import { variantPurgeService } from '../services/VariantPurgeService'
 import { cashboxService } from '../services/CashboxService'
 import { cashMovementService } from '../services/CashMovementService'
 import { custodyService } from '../services/CustodyService'
+import { custodyBlueResolutionService } from '../services/CustodyBlueResolutionService'
+import { custodyBlueNoteService } from '../services/CustodyBlueNoteService'
+import { cashClosingHistoryService } from '../services/CashClosingHistoryService'
 import { custodyPlanService } from '../services/CustodyPlanService'
 import { fraudService } from '../services/FraudService'
 import { receiptGapReport } from '../services/receiptNo'
 import { shiftService } from '../services/ShiftService'
 import { settingsService } from '../services/SettingsService'
+import { exchangeChequePolicyService } from '../services/ExchangeChequePolicyService'
 import { priceAdjustService } from '../services/PriceAdjustService'
 import { printService } from '../services/PrintService'
 import { exportTableFile } from '../services/ExportService'
-import { authService, assertManagerPassword } from '../services/AuthService'
+import { authService, assertManagerPassword, assertPanelPasswordStrict } from '../services/AuthService'
 import { barcodePng } from '../services/BarcodeService'
 import { backupService } from '../services/BackupService'
 import { maintenanceService } from '../services/MaintenanceService'
@@ -69,6 +80,7 @@ import {
   panelSessionStatus,
   touchManagerSession,
   runWithPanelSessionOwner,
+  currentPanelSessionOwner,
   applyPanelSessionTtlMinutes,
   CREDIT_READ_PANEL
 } from '../services/panelSession'
@@ -76,6 +88,15 @@ import { PANEL_KEYS } from '@shared/panels'
 import { trendService, stockInsightService, profitService, costEngine, targetService } from '../services/management'
 import { smsService, smsCampaignService, smsOptOutService } from '../services/sms'
 import { BusinessError } from '../errors'
+import {
+  issueSaleEditFormGrant, reserveSaleEditFormGrant, assertSaleEditFormActor,
+  assertNoEffectiveSaleEditReset, finishSaleEditFormGrant, clearSaleEditFormGrants
+} from './saleEditFormGrant'
+import {
+  issueCreditFirstPrintGrant, reserveCreditFirstPrintGrant,
+  issueOverpayFirstPrintGrant, reserveOverpayFirstPrintGrant,
+  finishCreditFirstPrintGrant, clearCreditFirstPrintGrants
+} from './creditFirstPrintGrant'
 
 /**
  * wrapper یکسان همه‌ی کانال‌ها.
@@ -100,6 +121,8 @@ function sessionOwnerOf(event: IpcMainInvokeEvent): number {
     sender.once('destroyed', () => {
       observedIpcSenders.delete(id)
       clearPanelSessionsForOwner(id)
+      clearSaleEditFormGrants(id)
+      clearCreditFirstPrintGrants(id)
     })
   }
   return id
@@ -594,17 +617,24 @@ export function registerIpcHandlers(): void {
    *
    * چرا یک هلپرِ کوچک و نه چند خط داخل خودِ هندلر:
    *
-   *   ۱) **قرارداد ساختاری نشست ۱۸۲** می‌گوید خط `handle(IPC.saleCreate, …)`
-   *      باید همان‌جا `withSessionActor(p ?? {}, 'ثبت فاکتور فروش')` را داشته
-   *      باشد (فروش نشست بازِ کارمند لازم دارد). اگر هندلر را چندخطی می‌کردیم،
-   *      آن نگهبانِ امنیتی می‌شکست. با این هلپر، هم نشست سر جایش است و هم
-   *      خط، شکلِ آزموده‌شده‌ی خودش را نگه می‌دارد.
+   *   ۱) فروش به نشست بازِ کارمند نیاز دارد؛ withVerifiedSaleOperator با
+   *      withSessionActor مسئول مالی/کشو را از Main می‌گیرد و هویت اپراتور
+   *      انتخابی را جداگانه راستی‌آزمایی می‌کند. آزمون نشست ۱۸۲ همین زنجیره
+   *      را می‌سنجد، نه شکلِ قدیمیِ تک‌خطی هندلر.
    *   ۲) «هیچ‌وقت فروش را عقب نینداز»: `notifySaleCreated` صدا زده می‌شود و
    *      `await` **نمی‌شود**؛ پاسخ به پنل فروش بلافاصله برمی‌گردد. صف پیامک
    *      خودش (هر ۲۰ ثانیه) می‌فرستد.
    *   ۳) خطا هم نمی‌تواند این‌جا را بشکند: خودِ تابع هر خطایی را می‌گیرد و
    *      `.catch` دوم فقط بیمه‌ی اضافه است.
    */
+  /** Only a freshly committed OVERPAY issuance gets an ephemeral print permit.
+   * Keep the credential inside main; renderer receives a document-bound token. */
+  const grantOverpayPaper = (credit: any, invoiceId: number, actorUserId: number | null): any =>
+    credit?.id && actorUserId != null
+      ? { ...credit, firstPrintGrant: issueOverpayFirstPrintGrant(
+        currentPanelSessionOwner(), actorUserId, invoiceId, credit.id) }
+      : credit
+
   const afterSaleThankYou = async (created: Promise<any>): Promise<any> => {
     const invoice = await created
     void smsService
@@ -614,13 +644,45 @@ export function registerIpcHandlers(): void {
         userId: (invoice as any)?.userId ?? null
       })
       .catch(() => undefined)
-    return invoice
+    return invoice?.overpayCredit
+      ? { ...invoice, overpayCredit: grantOverpayPaper(invoice.overpayCredit, invoice.id, invoice.userId) }
+      : invoice
   }
 
   handle(IPC.saleCreate, async (p) => afterSaleThankYou(salesService.create(await withVerifiedSaleOperator(p ?? {}))))
-  handle(IPC.saleUpdate, async (p) => salesService.update(await withSessionActor(p ?? {}, 'ویرایش فاکتور فروش')))
+  handle(IPC.saleUpdate, async (p) => {
+    const owner = currentPanelSessionOwner()
+    // The witness is reserved before any await; it cannot authorize another
+    // window/invoice or be replayed by two concurrent saves. Legacy has none.
+    const grant = reserveSaleEditFormGrant(owner, p?.id, p?.editFormToken)
+    let committed = false
+    try {
+      const actor = await withSessionActor(p ?? {}, 'ویرایش فاکتور فروش')
+      // Main's *current* actor must match the form-open actor. Validating only
+      // before withSessionActor would let a handover mint B's fence for A's form.
+      assertSaleEditFormActor(grant, actor.custodyFence ?? null)
+      await assertNoEffectiveSaleEditReset(grant, actor.custodyFence ?? null)
+      const { editFormToken: _editFormToken, ...input } = actor
+      const result = await salesService.update(input)
+      committed = true // only a committed edit consumes the witness
+      return result.overpayCredit
+        ? { ...result, overpayCredit: grantOverpayPaper(result.overpayCredit, result.id, actor.userId) }
+        : result
+    } finally {
+      finishSaleEditFormGrant(owner, grant, committed)
+    }
+  })
   handle(IPC.saleList, (p) => salesService.list(p ?? {}))
-  handle(IPC.saleGet, (p) => salesService.get(p.id))
+  handle(IPC.saleGet, async (p) => {
+    if (p?.forEdit !== true) return salesService.get(p.id) // ordinary reads never create grants
+    // Capture the actor BEFORE reading invoice data. If handover happens while
+    // this read is in flight, its A grant will fail under B; reading A's data
+    // first and only then minting a B grant could license a stale snapshot.
+    const fence = await custodyService.actorForFinancialOperation()
+    const invoice = await salesService.get(p.id)
+    if (!invoice || !fence) return invoice // unchanged legacy mode
+    return { ...invoice, editFormToken: issueSaleEditFormGrant(currentPanelSessionOwner(), invoice.id, fence) }
+  })
   // ممیزی S141 (AUDIT-S141-02، AUDIT-D72) — actor برگشت/تعویض/ابطال فقط از نشست باز؛ userId ارسالی renderer
   // نادیده گرفته می‌شود و بی‌نشست باز رد می‌شود (بند ۳ و ۴-۳۰).
   // ManagerGate در renderer یک کنترل بصری است؛ این gate sender-bound همان قفل
@@ -628,7 +690,30 @@ export function registerIpcHandlers(): void {
   // را با ساخت برگشت تغییر دهد.
   handle(IPC.saleReturn, async (p) => {
     await assertPanelUnlocked(PANEL_KEYS.salesReturn, 'ثبت برگشت از فروش')
-    return salesService.createReturn(await withSessionActor(p ?? {}, 'ثبت برگشت از فروش'))
+    const input = await withSessionActor(p ?? {}, 'ثبت برگشت از فروش')
+    const result = await salesService.createReturn(input, { requireIdempotencyKey: true })
+    // Replays must not mint another first-print or overpay-credit grant.
+    const creditId = result.storeCredit?.id
+    const firstPrintGrant = result.replayed !== true && creditId &&
+      (result.refundMethod === 'STORE_CREDIT' ||
+        (result.refundMethod === 'CASH' && Number(result.refundStoreCreditAmount ?? 0) > 0))
+      ? issueCreditFirstPrintGrant(currentPanelSessionOwner(), input.userId, result.id, creditId) : null
+    const creditOpportunity = result.creditOpportunity?.pendingDelivery?.length
+      ? { ...result.creditOpportunity, pendingDelivery: result.creditOpportunity.pendingDelivery.map((credit: any) => ({
+          ...credit,
+          firstPrintGrant: result.replayed !== true
+            ? issueCreditFirstPrintGrant(currentPanelSessionOwner(), input.userId, result.id, Number(credit.creditId))
+            : null
+        })) }
+      : result.creditOpportunity
+    return { ...result, firstPrintGrant, creditOpportunity,
+      overpayCredit: result.replayed === true ? result.overpayCredit
+        : grantOverpayPaper(result.overpayCredit, result.invoiceId, input.userId) }
+  })
+  handle(IPC.saleReturnProvenancePreview, async (p) => {
+    await assertPanelUnlocked(PANEL_KEYS.salesReturn, 'پیش‌نمایش سهم برگشت')
+    await withSessionActor({}, 'پیش‌نمایش سهم برگشت')
+    return salesService.returnProvenancePreview({ invoiceId: p?.invoiceId, full: p?.full, lines: p?.lines })
   })
   handle(IPC.saleByReturnCode, (p) => salesService.findByReturnCode(p?.code ?? ''))
   handle(IPC.saleReturnList, (p) => salesService.returnList(p ?? {}))
@@ -666,11 +751,30 @@ export function registerIpcHandlers(): void {
   })
   // نشست ۶۷ — actor همه‌ی mutationهای Payment فقط از نشست باز می‌آید؛
   // userId ارسالی renderer در این مسیرها عمداً نادیده گرفته می‌شود.
-  handle(IPC.salePaymentAdd, async (p) => salesService.addPayment(await withSessionActor(p)))
-  handle(IPC.saleOverpayCredit, async (p) => salesService.overpayCreditIssue(await withSessionActor(p)))
+  handle(IPC.salePaymentAdd, async (p) => {
+    const input = await withSessionActor(p ?? {}, 'ثبت یا تغییر پرداخت')
+    const result = await salesService.addPayment(input)
+    return result.overpayCredit
+      ? { ...result, overpayCredit: grantOverpayPaper(result.overpayCredit, input.invoiceId, input.userId) }
+      : result
+  })
+  handle(IPC.saleOverpayCredit, async (p) => {
+    const input = await withSessionActor(p ?? {}, 'صدور اعتبار اضافه‌دریافت')
+    const result = await salesService.overpayCreditIssue(input)
+    return grantOverpayPaper(result, input.invoiceId, input.userId)
+  })
   handle(IPC.salePaymentUpdate, async (p) => salesService.updatePayment(await withSessionActor(p)))
   handle(IPC.salePaymentDelete, async (p) => salesService.deletePayment(await withSessionActor(p ?? {})))
   handle(IPC.saleChequeStatus, async (p) => salesService.setChequeStatus(await withSessionActor(p ?? {})))
+  handle(IPC.saleChequeSuspensePreview, async (p) => {
+    assertManagerSession('دیدن پیش‌نمایش تعیین تکلیف چک معلق تعویض')
+    return salesService.exchangeChequeSuspensePreview(p ?? {})
+  })
+  handle(IPC.saleChequeSuspenseResolve, async (p) => {
+    assertManagerSession('تطبیق مستقل و تعیین تکلیف چک معلق تعویض')
+    const actorUserId = await shiftService.currentStaffId()
+    return salesService.resolveExchangeChequeSuspense({ ...(p ?? {}), userId: actorUserId })
+  })
   handle(IPC.saleChequeList, async (p) => {
     await assertSalesReportsRead('دیدن فهرست چک‌های فروش در گزارشات')
     return salesService.chequeList(p ?? {})
@@ -678,7 +782,27 @@ export function registerIpcHandlers(): void {
   // ---- تعویض کالا و بارکد اعتبار خرید بعدی (بخش ۶) ----
   handle(IPC.saleExchangeCreate, async (p) => {
     await assertPanelUnlocked(PANEL_KEYS.salesReturn, 'ثبت تعویض کالا')
-    return salesService.createExchange(await withSessionActor(p ?? {}, 'ثبت تعویض کالا'))
+    const input = await withSessionActor(p ?? {}, 'ثبت تعویض کالا')
+    const result = await salesService.createExchange(input, { requireIdempotencyKey: true })
+    const grants = new Map<number, string | null>()
+    const grantForCredit = (creditId: number | null | undefined) => {
+      if (!creditId || result.replayed === true) return null
+      if (!grants.has(Number(creditId))) grants.set(Number(creditId), issueCreditFirstPrintGrant(
+        currentPanelSessionOwner(), input.userId, result.returnId, Number(creditId)))
+      return grants.get(Number(creditId)) ?? null
+    }
+    const rawCredits = result.storeCredits?.length ? result.storeCredits : (result.storeCredit ? [result.storeCredit] : [])
+    const storeCredits = rawCredits.map((credit) => ({
+      ...credit, firstPrintGrant: grantForCredit(Number(credit.id))
+    }))
+    const firstPrintGrant = grantForCredit(result.storeCredit?.id)
+    const residualRights = result.residualRights ? {
+      ...result.residualRights,
+      rights: result.residualRights.rights.map((right) => ({
+        ...right, firstPrintGrant: grantForCredit(right.creditId)
+      }))
+    } : null
+    return { ...result, storeCredits, firstPrintGrant, residualRights }
   })
   handle(IPC.saleExchangeList, async (p) => {
     await assertSalesReportsRead('دیدن فهرست تعویض‌های کالا در گزارشات')
@@ -777,6 +901,18 @@ export function registerIpcHandlers(): void {
   handle(IPC.settingsAccountingPolicySet, async (p) =>
     settingsService.setAccountingPolicy(await withOptionalSessionActor(p ?? {}))
   )
+  handle(IPC.exchangeChequePolicyGet, async () => {
+    assertManagerSession('دیدن سیاست پذیرش چک مابه‌التفاوت')
+    return exchangeChequePolicyService.get()
+  })
+  handle(IPC.exchangeChequePolicyPropose, async (p) => {
+    assertManagerSession('پیشنهاد تغییر سیاست پذیرش چک مابه‌التفاوت')
+    return exchangeChequePolicyService.propose(p ?? {})
+  })
+  handle(IPC.exchangeChequePolicyApprove, async (p) => {
+    assertManagerSession('تأیید دوم سیاست پذیرش چک مابه‌التفاوت')
+    return exchangeChequePolicyService.approve(p ?? {})
+  })
   handle(IPC.storeCreditLookup, async (p) => storeCreditService.lookup(await withOptionalSessionActor(p ?? {})))
   // ممیزی A97-01 — وضعیت نوار گزارش = وضعیت فاکتور، نه اعتبار
   /**
@@ -854,6 +990,11 @@ export function registerIpcHandlers(): void {
     assertManagerSession('ثبت چاپ سند اعتبار خرید')
     return storeCreditService.markPrinted(await withOptionalSessionActor(p ?? {}))
   })
+  handle(IPC.creditReminderConsentGrant, async (p) =>
+    storeCreditService.grantReminderConsent(await withOptionalSessionActor({
+      id: p?.id, phone: p?.phone, evidence: p?.evidence, managerPassword: p?.managerPassword
+    }))
+  )
   handle(IPC.creditReminderCandidates, async (p) => {
     await assertCreditRead('دیدن فهرست یادآوری اعتبار')
     return storeCreditService.reminderCandidates(p ?? {})
@@ -885,6 +1026,59 @@ export function registerIpcHandlers(): void {
   })
   handle(IPC.creditSettingsGet, () => settingsService.creditSettings())
   handle(IPC.creditSettingsSet, async (p) => settingsService.saveCreditSettings(await withOptionalSessionActor(p ?? {})))
+  /**
+   * OVERPAY first paper is exceptional: no manager session in a normal sale,
+   * but a short, single-use grant from that committed issuance is required.
+   * Every later/uncertain print requires a fresh credit-panel password. No
+   * renderer-supplied reprint/copies/markPrinted/userId can weaken this gate.
+   */
+  handle(IPC.overpayCreditPrint, async (p) => {
+    const actor = await withSessionActor(p ?? {}, 'چاپ اعتبار اضافه‌دریافت')
+    const id = p?.creditId
+    const invoiceId = p?.invoiceId
+    if (typeof id !== 'number' || !Number.isSafeInteger(id) || id <= 0 ||
+        typeof invoiceId !== 'number' || !Number.isSafeInteger(invoiceId) || invoiceId <= 0)
+      throw new BusinessError('شناسهٔ اعتبار/فاکتور برای چاپ معتبر نیست.')
+    const owner = currentPanelSessionOwner()
+    const firstPrint = typeof p?.firstPrintGrant === 'string' && p.firstPrintGrant.length > 0
+    if (firstPrint && p?.reprint === true)
+      throw new BusinessError('مجوز چاپ اول برای چاپ دوباره پذیرفته نمی‌شود؛ رمز ماژول اعتبار لازم است.')
+    const grant = firstPrint ? reserveOverpayFirstPrintGrant(owner, {
+      creditId: id, invoiceId, actorUserId: actor.userId, token: p.firstPrintGrant
+    }) : null
+    let definitelyCanceled = false
+    try {
+      if (!grant)
+        await assertPanelPasswordStrict(PANEL_KEYS.creditManagement, p?.password, 'چاپ دوبارهٔ اعتبار اضافه‌دریافت')
+      const [credit, invoice, delivery] = await Promise.all([
+        prisma.storeCredit.findUnique({ where: { id }, select: { source: true, sourceInvoiceId: true,
+          returnId: true, userId: true, status: true, printCount: true, usedAmount: true,
+          voidedAt: true, deletedAt: true } }),
+        prisma.saleInvoice.findUnique({ where: { id: invoiceId }, select: { status: true, voidedAt: true } }),
+        prisma.creditDelivery.findUnique({ where: { creditId: id }, select: { id: true } })
+      ])
+      if (!credit || credit.source !== 'OVERPAY' || credit.sourceInvoiceId !== invoiceId ||
+          credit.voidedAt || credit.deletedAt || credit.status === 'CANCELED' || delivery ||
+          !invoice || invoice.voidedAt || ['DRAFT', 'CANCELED'].includes(invoice.status))
+        throw new BusinessError('این اعتبار به اضافه‌دریافت معتبرِ این فاکتور تعلق ندارد؛ چاپ انجام نشد.')
+      if (credit.returnId != null) {
+        const ret = await prisma.saleReturn.findUnique({ where: { id: credit.returnId },
+          select: { invoiceId: true, voidedAt: true } })
+        if (!ret || ret.invoiceId !== invoiceId || ret.voidedAt)
+          throw new BusinessError('سند برگشتِ مرتبط با این اعتبار معتبر نیست؛ چاپ انجام نشد.')
+      }
+      if (grant && (credit.userId !== actor.userId || credit.printCount !== 0 ||
+          credit.status !== 'ACTIVE' || Number(credit.usedAmount) !== 0))
+        throw new BusinessError('چاپ اول فقط برای اعتبار تازه و خرج‌نشدهٔ همین کارمند مجاز است؛ مدیر پرونده را بررسی کند.')
+      return await printService.printCredit({ id, copies: 1, markPrinted: true,
+        reprint: !grant, password: grant ? undefined : p?.password, userId: actor.userId })
+    } catch (e: any) {
+      definitelyCanceled = e?.printCancelled === true
+      throw e
+    } finally {
+      finishCreditFirstPrintGrant(owner, grant, definitelyCanceled)
+    }
+  })
   /** سند/PDF/پیش‌نمایش خودِ credential را دارد؛ فقط نشست واقعی مدیر مجاز است. */
   handle(IPC.printCredit, async (p) => {
     assertManagerSession('چاپ اعتبار خرید')
@@ -1085,7 +1279,23 @@ export function registerIpcHandlers(): void {
     return custodyService.exportDiscrepancyReport({ ...safe, managerSession: true })
   })
 
-  handle(IPC.custodyOpen, (p) => custodyService.open(p ?? {}))
+  /** New public openings use the combined blue amount. A stale/forged
+   * cash-only field must not turn POS into OPENING_FLOAT or consume the day's
+   * first real count without a blue reference. A genuinely blank OPTIONAL
+   * opening remains count-pending, not a zero attested by a person. The sole
+   * cash-only exception is the explicit, already-completed legacy Shift
+   * recovery: its historical opening link still needs its original count. */
+  handle(IPC.custodyOpen, async (p) => {
+    const { userId, password, operationalTotal, countedCash, note, boundaryReason } = p ?? {}
+    if (operationalTotal != null)
+      return custodyService.open({ userId, password, operationalTotal, note, boundaryReason })
+    if (countedCash == null)
+      return custodyService.open({ userId, password, note, boundaryReason })
+    const current = await custodyService.status()
+    if (!current.legacyOpeningRequired)
+      throw new BusinessError('افتتاح جدید به مجموع کشو و کارت‌خوان نیاز دارد؛ شمارش نقدی قدیمی فقط پس از بازیابی Shift قدیمی پذیرفته می‌شود.', 'CUSTODY_AGGREGATE_COUNT_REQUIRED')
+    return custodyService.open({ userId, password, countedCash, note, boundaryReason })
+  })
   /** Renderer may supply only the worker's own PIN/count acknowledgement and
    * optimistic snapshot. Main recomputes eligibility, legacy rows, expected
    * evidence and all state transitions; manager/session fields are ignored. */
@@ -1118,16 +1328,88 @@ export function registerIpcHandlers(): void {
     const { managerSession: _ignored, managerUserId: _managerId, managerPassword: _managerPassword, ...safe } = p ?? {}
     return custodyPlanService.remove({ ...safe, managerSession: true })
   })
-  handle(IPC.custodyHandoverStart, (p) => custodyService.handoverStart(p ?? {}))
+  // New starts always use the full-day blue reference. Historical PENDING
+  // handovers still use the old accept route; a new blue attempt cannot call it.
+  handle(IPC.custodyHandoverStart, (p) => custodyService.handoverStart({ ...(p ?? {}), blueReference: true }))
+  handle(IPC.custodyHandoverCountBlue, (p) => custodyService.handoverCountBlue(p ?? {}))
+  handle(IPC.custodyHandoverBlueReview, (p) => custodyService.handoverBlueReview(p ?? {}))
+  handle(IPC.custodyHandoverConfirmBlue, (p) => custodyService.handoverConfirmBlue(p ?? {}))
   handle(IPC.custodyHandoverAccept, (p) => custodyService.handoverAccept(p ?? {}))
   handle(IPC.custodyHandoverCancel, (p) => custodyService.handoverCancel(p ?? {}))
-  handle(IPC.custodyEmergencyCover, (p) => custodyService.emergencyCover(p ?? {}))
-  handle(IPC.custodyMasterOverride, (p) => custodyService.masterOverride(p ?? {}))
-  handle(IPC.custodyFinalClose, (p) => custodyService.finalClose(p ?? {}))
+  /** Both handlers require this sender's manager login instance inside Main;
+   * query uses only SELECTs and export uses only a Main-owned frozen token. */
+  handle(IPC.cashClosingHistory, (p) => cashClosingHistoryService.query(p))
+  handle(IPC.cashClosingHistoryExport, (p) => exportTableFile(cashClosingHistoryService.exportData(p)))
+  handle(IPC.custodyBluePendingList, (p) => {
+    assertManagerSession('دیدن پرونده‌های مرجع آبی در انتظار تطبیق')
+    return custodyBlueResolutionService.pendingList({ skip: p?.skip })
+  })
+  handle(IPC.custodyBlueResolve, (p) => {
+    assertManagerSession('تعیین تکلیف سند مرجع آبیِ تحویل')
+    const { snapshotId, managerUserId, password, decisionKind, evidenceDay,
+      evidenceReference, destinationDecisionKind, destinationEvidenceDay,
+      destinationEvidenceReference, reason, idempotencyKey } = p ?? {}
+    return custodyBlueResolutionService.resolve({ snapshotId, managerUserId, password,
+      decisionKind, evidenceDay, evidenceReference, destinationDecisionKind,
+      destinationEvidenceDay, destinationEvidenceReference, reason, idempotencyKey })
+  })
+  handle(IPC.custodyBlueNoteAdd, (p) => {
+    assertManagerSession('ثبت یادداشت اختیاری مدیر روی سند آبی')
+    const { snapshotId, managerUserId, password, text, idempotencyKey } = p ?? {}
+    return custodyBlueNoteService.append({ snapshotId, managerUserId, password, text, idempotencyKey })
+  })
+  handle(IPC.custodyBlueNoteList, (p) => {
+    assertManagerSession('خواندن یادداشت مدیر روی سند آبی')
+    return custodyBlueNoteService.list({ snapshotId: p?.snapshotId, skip: p?.skip })
+  })
+  handle(IPC.custodyShiftReset, (p) => {
+    assertManagerSession('ریست بازیابانهٔ شیفت')
+    const { managerUserId, password, reason, confirmed } = p ?? {}
+    return custodyService.resetShift({ managerUserId, password, reason, confirmed })
+  })
+  handle(IPC.custodyEvidenceCases, (p) => {
+    assertManagerSession('دیدن پرونده‌های قرنطینهٔ سند آبی')
+    return custodyService.evidenceCases({ skip: p?.skip })
+  })
+  handle(IPC.custodyManagerEvidenceRecovery, (p) => {
+    assertManagerSession('بازیابی مستقل سند قرنطینه با شمارش تازهٔ مدیر')
+    const { caseId, managerUserId, password, operationalTotal, reason, seenEpoch, idempotencyKey } = p ?? {}
+    return custodyService.managerEvidenceRecovery({ caseId, managerUserId, password,
+      operationalTotal, reason, seenEpoch, idempotencyKey })
+  })
+  handle(IPC.custodyOpenResolutions, () => {
+    assertManagerSession('بازبینی شیفت‌های منقضی در تنظیمات مدیر')
+    return custodyService.openResolutions()
+  })
+  /** Public exception routes must not enter a pre-blue cash-only freeze even
+   * if a renderer forges the old field. The user's own real combined count is
+   * required; previous attempts' count/PIN cannot be replayed. */
+  handle(IPC.custodyEmergencyCover, (p) => {
+    const { countedCash: _old, ...safe } = p ?? {}
+    return custodyService.emergencyCover(safe)
+  })
+  handle(IPC.custodyMasterOverride, (p) => {
+    const { countedCash: _old, ...safe } = p ?? {}
+    return custodyService.masterOverride(safe)
+  })
+  handle(IPC.custodyFinalClose, (p) => {
+    const { countedCash: _old, dispositions: _legacy, ...safe } = p ?? {}
+    return custodyService.finalClose(safe)
+  })
   handle(IPC.custodyDispositionConfirm, (p) => custodyService.confirmDisposition(p ?? {}))
   handle(IPC.custodyDispositionReverse, (p) => custodyService.reverseDisposition(p ?? {}))
-  handle(IPC.custodyUnresolvedResolve, (p) => custodyService.resolveUnresolved(p ?? {}))
-  handle(IPC.custodyUnattendedRecover, (p) => custodyService.recoverUnattended(p ?? {}))
+  handle(IPC.custodyUnresolvedResolve, (p) => {
+    assertManagerSession('بازبینی و تعیین تکلیف شیفت منقضی')
+    const { resolutionId, managerUserId, managerPassword, reason, attribution } = p ?? {}
+    return custodyService.resolveUnresolved({ resolutionId, managerUserId, managerPassword,
+      reason, attribution, countedCash: undefined })
+  })
+  /** The system, not the next employee, already ended the last ACTUAL Shift.
+   * Keep the old channel as a clear failure for older renderer builds; an
+   * employee must NOT register a count on somebody else's expired Shift. */
+  handle(IPC.custodyUnattendedRecover, () => {
+    throw new BusinessError('شیفت پیشین را سیستم بسته است؛ نفر تازه فقط صندوق خود را با شمارش واقعی و PIN شخصی باز می‌کند.', 'RECOVERY_NOT_EMPLOYEE_ACTION')
+  })
 
   // ---- شیفت (جلسه ۱۹: هر رکورد = یک «نشست») ----
   // خواندن/ساخت AUTO session نباید payload renderer را به actor حسابرسی تبدیل
@@ -1425,11 +1707,10 @@ export function registerIpcHandlers(): void {
   handle(IPC.settingsShiftOvertimeMax, async (p) => settingsService.setShiftOvertimeMax(await withOptionalSessionActor(p ?? { minutes: 0 })))
   handle(IPC.settingsCustodySchedulingWorkflow, async (p) => {
     assertManagerSession('تغییر روش برنامه‌ریزی حضانت صندوق')
-    // A panel session proves manager authorization but does not carry a
-    // manager user id.  Do not mislabel the current drawer custodian (or any
-    // renderer-provided id) as the approving manager in this configuration audit.
-    const { userId: _ignored, ...safe } = p ?? {}
-    return settingsService.saveCustodySchedulingWorkflow({ ...safe, userId: null })
+    // The panel session is an independent gate. The named manager and PIN are
+    // verified by the service; never label the drawer custodian as approver.
+    const { userId: _ignored, managerSession: _spoofed, ...safe } = p ?? {}
+    return settingsService.saveCustodySchedulingWorkflow(safe)
   })
   /** بند ۹ — «تاریخ و ساعت رسمی»: افست دستی + بررسی ساعت سیستم (بدون اینترنت) */
   handle(IPC.settingsOfficialTime, () => settingsService.officialTime())
@@ -1597,6 +1878,197 @@ export function registerIpcHandlers(): void {
   handle(IPC.cardTransferCancel, async (p) => cardTransferService.cancel(await cardTransferActor(p, 'رد/لغو درخواست کارت‌به‌کارت')))
   handle(IPC.cardTransferAdjust, async (p) => cardTransferService.adjust(await cardTransferActor(p, 'ثبت رویداد اصلاحی کارت‌به‌کارت')))
   handle(IPC.cardTransferOutOfSales, (p) => cardTransferService.outOfSales(p ?? {}))
+
+  handle(IPC.returnEntitlementView, async (p) => {
+    await assertPanelUnlocked(PANEL_KEYS.cardTransfers, 'مشاهدهٔ دفتر حق برگشت')
+    return viewReturnEntitlement(p?.returnId)
+  })
+  handle(IPC.returnBankReview, async (p) => {
+    const actor = await withSessionActor(p ?? {}, 'بازبینی صورت‌حساب بانک')
+    // Renderer cannot choose an arbitrary filesystem path or supply a typed
+    // tracking number as bank proof: ONLY the native picker returns the file.
+    await assertManagerPassword(p?.managerPassword, 'بایگانی شاهد بانک برای برگشت')
+    const picked = await dialog.showOpenDialog({
+      title: 'صورت‌حساب بانک برای تطبیق انسانی (PDF یا CSV)',
+      properties: ['openFile'], filters: [{ name: 'صورت‌حساب بانک', extensions: ['pdf', 'csv'] }]
+    })
+    if (picked.canceled || !picked.filePaths[0]) return { canceled: true }
+    const path = picked.filePaths[0]
+    if ((await stat(path)).size > 5_000_000)
+      throw new BusinessError('حجم فایل صورت‌حساب بیش از ۵ مگابایت است؛ مدرک دیگری انتخاب کنید.')
+    const name = path.split(/[\\/]/).pop() ?? ''
+    return reconcileBankDocument({
+      requestId: p?.requestId, confirmedAmount: p?.confirmedAmount,
+      document: { name, bytes: await readFile(path) },
+      reviewNote: p?.reviewNote, attestedBankAccountReview: p?.attestedBankAccountReview,
+      managerPassword: p?.managerPassword, actorUserId: actor.userId
+    })
+  })
+  handle(IPC.exchangeS7RightAdjust, async (p) => {
+    const actor = await withSessionActor(p ?? {}, 'اصلاح شاهددار حق N در S7')
+    return adjustS7NResidualRight({ ...p, actorUserId: actor.userId })
+  })
+  handle(IPC.exchangeS7SourceDisposition, async (p) => {
+    const actor = await withSessionActor(p ?? {}, 'قرنطینه/رفع قرنطینهٔ lineage در S7')
+    return setS7NResidualRightSourceDisposition({ ...p, actorUserId: actor.userId })
+  })
+  handle(IPC.exchangeS7CardStatementReview, async (p) => {
+    const actor = await withSessionActor(p ?? {}, 'بازبینی صورت‌حساب کارت برای حق N در S7')
+    const picked = await dialog.showOpenDialog({
+      title: 'صورت‌حساب کارت برای بازبینی S7 (PDF یا CSV)',
+      properties: ['openFile'], filters: [{ name: 'صورت‌حساب بانک', extensions: ['pdf', 'csv'] }]
+    })
+    if (picked.canceled || !picked.filePaths[0]) return { canceled: true }
+    const path = picked.filePaths[0]
+    if ((await stat(path)).size > 5_000_000)
+      throw new BusinessError('حجم فایل صورت‌حساب بیش از ۵ مگابایت است؛ مدرک دیگری انتخاب کنید.')
+    const name = path.split(/[\\/]/).pop() ?? ''
+    return reviewS7CardSourceBankStatement({ paymentId: p?.paymentId,
+      confirmedAmount: p?.confirmedAmount, document: { name, bytes: await readFile(path) },
+      reviewNote: p?.reviewNote, attestedBankAccountReview: p?.attestedBankAccountReview,
+      managerPassword: p?.managerPassword, actorUserId: actor.userId })
+  })
+  handle(IPC.returnCashConvert, async (p) => {
+    const actor = await withSessionActor(p ?? {}, 'تبدیل حق نقدی برگشت')
+    return convertCashRight({ returnId: p?.returnId, amount: p?.amount,
+      expectedVersion: p?.expectedVersion, idempotencyKey: p?.idempotencyKey,
+      managerPassword: p?.managerPassword, actorUserId: actor.userId })
+  })
+  handle(IPC.returnCreditPrint, async (p) => {
+    const actor = await withSessionActor(p ?? {}, 'چاپ کنترل‌شدهٔ اعتبار برگشت/تعویض')
+    const id = p?.creditId
+    if (typeof id !== 'number' || !Number.isSafeInteger(id) || id <= 0)
+      throw new BusinessError('شناسهٔ اعتبار برای چاپ معتبر نیست.')
+    const owner = currentPanelSessionOwner()
+    const firstPrint = typeof p?.firstPrintGrant === 'string' && p.firstPrintGrant.length > 0
+    if (firstPrint) await assertPanelUnlocked(PANEL_KEYS.salesReturn, 'چاپ اول کد صادرشده')
+    // Reserve before any awaited database read; a second invoke in the same
+    // window cannot replay a first-print permit while the first is in flight.
+    const grant = firstPrint ? reserveCreditFirstPrintGrant(owner, {
+      creditId: id, returnId: p?.returnId, actorUserId: actor.userId, token: p.firstPrintGrant
+    }) : null
+    let definitelyCanceled = false
+    try {
+      if (!grant) await assertManagerPassword(p?.managerPassword, 'چاپ کد اعتبار برگشت/تعویض')
+      const delivery = await prisma.creditDelivery.findUnique({ where: { creditId: id } })
+      if (delivery) {
+        const s1Right = ['S1_EXCHANGE_B', 'S1_EXCHANGE_N'].includes(String(delivery.sourceKind))
+        if (s1Right) {
+          const origin = await prisma.storeCredit.findUnique({ where: { id }, select: { returnId: true, exchangeInvoiceId: true,
+            sourceInvoiceId: true, exchangeResidualRightKey: true, status: true, source: true,
+            deletedAt: true, voidedAt: true, usedAmount: true, userId: true, amount: true, expiresAt: true } })
+          const [opening, ret] = await Promise.all([
+            origin?.exchangeResidualRightKey ? prisma.exchangeResidualRightEvent.findFirst({
+              where: { rightKey: origin.exchangeResidualRightKey, eventKind: 'OPENED' }
+            }) : Promise.resolve(null),
+            p?.returnId ? prisma.saleReturn.findUnique({ where: { id: p.returnId }, select: {
+              exchangeInvoiceId: true, invoiceId: true, voidedAt: true, userId: true
+            } }) : Promise.resolve(null)
+          ])
+          const expectedKind = delivery.sourceKind === 'S1_EXCHANGE_B' ? 'B' : 'N'
+          if (!origin || !opening || !ret || delivery.status !== 'PENDING_DELIVERY' ||
+              origin.source !== 'EXCHANGE' || origin.returnId !== p.returnId || origin.deletedAt || origin.voidedAt ||
+              origin.exchangeResidualRightKey !== opening.rightKey || opening.rightKind !== expectedKind ||
+              origin.exchangeInvoiceId !== opening.childInvoiceId || origin.sourceInvoiceId !== opening.sourceInvoiceId ||
+              Number(origin.amount) !== Number(opening.amount) ||
+              (expectedKind === 'N' && origin.expiresAt != null) ||
+              ret.voidedAt || ret.invoiceId !== opening.sourceInvoiceId || ret.exchangeInvoiceId !== opening.childInvoiceId)
+            throw new BusinessError('کد B/N برای این سند تعویض/دفتر lineage معتبر ندارد؛ چاپ متوقف شد.')
+          if (grant && (origin.status !== 'DRAFT' || Number(origin.usedAmount) !== 0 ||
+              origin.userId !== actor.userId || ret.userId !== actor.userId))
+            throw new BusinessError('مجوز چاپ اول فقط برای کد DRAFT خرج‌نشدهٔ همین کارمند و همین تعویض معتبر است.')
+        } else if (delivery.sourceKind === 'CREDIT_RETURN_OPPORTUNITY') {
+          const returnId = p?.returnId
+          if (typeof returnId !== 'number' || !Number.isSafeInteger(returnId) || returnId <= 0)
+            throw new BusinessError('سند برگشتِ این اعتبار برای چاپ مشخص نیست.')
+          const [origin, allocation, ret] = await Promise.all([
+            prisma.storeCredit.findUnique({ where: { id }, select: {
+              returnId: true, sourceInvoiceId: true, status: true, userId: true,
+              deletedAt: true, voidedAt: true, usedAmount: true, amount: true, expiresAt: true
+            } }),
+            prisma.creditReturnAllocation.findUnique({ where: { successorCreditId: id } }),
+            prisma.saleReturn.findUnique({ where: { id: returnId }, select: {
+              invoiceId: true, voidedAt: true, userId: true
+            } })
+          ])
+          if (delivery.status !== 'PENDING_DELIVERY' || !origin || !allocation || !ret ||
+              origin.returnId !== returnId || allocation.returnId !== returnId ||
+              allocation.successorCreditId !== id || allocation.invoiceId !== origin.sourceInvoiceId ||
+              ret.invoiceId !== allocation.invoiceId || ret.voidedAt != null ||
+              origin.status !== 'DRAFT' || origin.deletedAt || origin.voidedAt || Number(origin.usedAmount) !== 0 ||
+              Number(allocation.amount) + Number(allocation.supplementUnspent) !== Number(origin.amount) ||
+              (allocation.originalExpiresAt?.getTime() ?? null) !== (origin.expiresAt?.getTime() ?? null))
+            throw new BusinessError('منشأ/ماندهٔ اعتبارِ برگشتی برای چاپ معتبر نیست؛ مدیر پرونده را بررسی کند.')
+          if (grant && (origin.userId !== actor.userId || ret.userId !== actor.userId))
+            throw new BusinessError('مجوز چاپ اول فقط برای کارمند ثبت‌کنندهٔ همان برگشت معتبر است.')
+        } else if (delivery.sourceKind === 'CHAIN_GIFT_RESIDUAL' || delivery.sourceKind === 'CHAIN_REAL_REFUND') {
+          const returnId = p?.returnId
+          if (typeof returnId !== 'number' || !Number.isSafeInteger(returnId) || returnId <= 0)
+            throw new BusinessError('سند برگشتِ این اعتبار زنجیره‌ای برای چاپ مشخص نیست.')
+          const checked = await assertChainedExchangeCreditDeliveryLineage(prisma, id, returnId)
+          if (grant && (checked.credit.status !== 'DRAFT' || Number(checked.credit.usedAmount) !== 0 ||
+              checked.credit.userId !== actor.userId || checked.returnRow.userId !== actor.userId))
+            throw new BusinessError('مجوز چاپ اول فقط برای کد خرج‌نشدهٔ همین کارمند و همین برگشت زنجیره‌ای معتبر است.')
+        } else if (grant || !['MANAGER_REPLACEMENT', 'CASH_RIGHT_CONVERSION'].includes(delivery.sourceKind))
+          throw new BusinessError('این اعتبار مجوز چاپ اول فروشنده ندارد؛ چاپ کنترل‌شده با تأیید مدیر انجام شود.')
+      } else {
+        // Ordinary return/exchange credits have no CreditDelivery. Bind the
+        // paper to the precise unvoided SaleReturn, never a guessed code.
+        const returnId = p?.returnId
+        if (typeof returnId !== 'number' || !Number.isSafeInteger(returnId) || returnId <= 0)
+          throw new BusinessError('سند برگشتِ این اعتبار برای چاپ مشخص نیست.')
+        const ret = await prisma.saleReturn.findUnique({ where: { id: returnId },
+          select: { storeCreditId: true, refundMethod: true, refundAmount: true, refundStoreCreditAmount: true,
+            voidedAt: true, userId: true, creditPaperSeparate: true } })
+        const origin = await prisma.storeCredit.findUnique({ where: { id },
+          select: { returnId: true, source: true, amount: true, deletedAt: true, voidedAt: true,
+            status: true, userId: true, usedAmount: true } })
+        const ordinaryCredit = ret?.refundMethod === 'STORE_CREDIT' &&
+          Number(origin?.amount) === Number(ret.refundAmount)
+        const splitCredit = ret?.refundMethod === 'CASH' &&
+          Number(origin?.amount) === Number(ret.refundStoreCreditAmount)
+        if (!ret || ret.voidedAt || ret.storeCreditId !== id || !(ordinaryCredit || splitCredit) ||
+            !origin || origin.returnId !== returnId || origin.source !== 'EXCHANGE' ||
+            origin.deletedAt || origin.voidedAt || origin.status === 'CANCELED')
+          throw new BusinessError('این کد به صدور عادی یا تقسیمِ حق پول همین سند تعلق ندارد یا دیگر معتبر نیست؛ از پروندهٔ مدیر پیگیری کنید.')
+        if (grant && (ret.userId !== actor.userId || !ret.creditPaperSeparate ||
+            origin.userId !== actor.userId || origin.status !== 'ACTIVE' || Number(origin.usedAmount) !== 0))
+          throw new BusinessError('چاپ اول فروشنده فقط برای اعتبار تازه و خرج‌نشدهٔ خودش مجاز است؛ مدیر پرونده را بررسی کند.')
+      }
+      const printed = await prisma.storeCredit.findUnique({ where: { id }, select: { printCount: true } })
+      if (!printed) throw new BusinessError('اعتبار برای چاپ پیدا نشد.')
+      if (grant && printed.printCount !== 0)
+        throw new BusinessError('این کد قبلاً چاپ شده است؛ چاپ مجدد فقط با تأیید مدیر انجام می‌شود.')
+      return await printService.printCredit({ id, copies: 1, reprint: printed.printCount > 0,
+        firstPrintAuthorized: grant != null,
+        password: grant ? undefined : p.managerPassword, userId: actor.userId })
+    } catch (e: any) {
+      definitelyCanceled = e?.printCancelled === true
+      throw e
+    } finally {
+      finishCreditFirstPrintGrant(owner, grant, definitelyCanceled)
+    }
+  })
+  handle(IPC.returnCreditDeliver, async (p) => {
+    const actor = await withSessionActor(p ?? {}, 'تحویل اعتبار جایگزین')
+    return confirmCreditDelivery({ creditId: p?.creditId, witnessKind: p?.witnessKind,
+      witnessRef: p?.witnessRef, managerPassword: p?.managerPassword, actorUserId: actor.userId })
+  })
+  handle(IPC.creditManagerReplaceLost, async (p) => {
+    assertManagerSession('جایگزینی اعتبار گم‌شده')
+    const actor = await withSessionActor(p ?? {}, 'جایگزینی اعتبار گم‌شده')
+    return managerReplaceLostCredit({ creditId: p?.creditId, receiptNo: p?.receiptNo,
+      receiptRef: p?.receiptRef, witnessRef: p?.witnessRef, reason: p?.reason,
+      approvingManagerId: p?.approvingManagerId, managerPin: p?.managerPin, actorUserId: actor.userId })
+  })
+  handle(IPC.returnGoodsItems, async (p) => returnGoodsService.items(p?.returnId))
+  handle(IPC.returnGoodsReceive, async (p) => {
+    const actor = await withSessionActor(p ?? {}, 'دریافت فیزیکی کالای برگشتی')
+    return returnGoodsService.receive({ returnId: p?.returnId, returnItemId: p?.returnItemId,
+      qty: p?.qty, eventKey: p?.eventKey, witnessKind: p?.witnessKind,
+      witnessRef: p?.witnessRef, physicalConfirmed: p?.physicalConfirmed,
+      actorUserId: actor.userId })
+  })
 
   /**
    * جلسه ۴۱ · کار ب — خلاصه‌ی «معلق برگشتی» برای پنج صفحه.

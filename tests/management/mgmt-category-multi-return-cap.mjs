@@ -64,7 +64,15 @@ const sale = await salesService.create({
 })
 const saleItemId = Number(sql.prepare('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId = ?').get(sale.id).id)
 
-/** دادهٔ خراب/قدیمی: دو سند برگشتِ ۲تایی روی همان ردیفِ ۳تایی (جمع برگشت ۴). */
+/** دادهٔ خراب/قدیمی: دو سند برگشتِ ۲تایی روی همان ردیفِ ۳تایی (جمع برگشت ۴).
+ * migrationهای جدید از درج چنین وضعیتی جلوگیری می‌کنند؛ موقتاً فقط trigger سقفِ
+ * برگشت را برای ساخت fixture تاریخی کنار می‌گذاریم و پیش از اجرای گزارش برمی‌گردانیم.
+ */
+const returnScopeTrigger = sql.prepare(`SELECT sql FROM sqlite_master WHERE type='trigger'
+  AND name='sale_return_item_scope_insert'`).get()?.sql
+if (!returnScopeTrigger) throw new Error('legacy-overreturn fixture requires the sale-return quantity guard')
+sql.exec('DROP TRIGGER "sale_return_item_scope_insert"')
+try {
 for (const [index, qty] of [2, 2].entries()) {
   const returnId = seed.insert('SaleReturn', {
     invoiceId: Number(sale.id),
@@ -87,6 +95,9 @@ for (const [index, qty] of [2, 2].entries()) {
     lineTotal: qty * 1_000_000,
     restockedQty: 0
   })
+}
+} finally {
+  sql.exec(returnScopeTrigger)
 }
 
 const result = await trendService.category({ fromJalali: today, toJalali: today })

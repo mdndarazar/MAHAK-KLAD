@@ -124,6 +124,9 @@ export default function InvoicePaymentsModal({
   const [chequeNo, setChequeNo] = useState('')
   const [bankName, setBankName] = useState('')
   const [dueDateJalali, setDueDateJalali] = useState(jalaliToday())
+  const [chequeDebtOverride, setChequeDebtOverride] = useState(false)
+  const [chequeDebtOverridePassword, setChequeDebtOverridePassword] = useState('')
+  const [chequeDebtOverrideReason, setChequeDebtOverrideReason] = useState('')
   /** پرداختی/چکی که کاربر دکمه‌ی حذفش را زده (تایید دو مرحله‌ای) */
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
   /**
@@ -170,6 +173,19 @@ export default function InvoicePaymentsModal({
   /** نشست ۲۰۰ — پاس/برگشت/در جریان چک در دوره‌ی باز هم رمز می‌خواهد. */
   const [chequePw, setChequePw] = useState('')
   const [chequeGate, setChequeGate] = useState(false)
+  const [suspenseCase, setSuspenseCase] = useState<{ paymentId: number; preview: any } | null>(null)
+  const [suspenseManagers, setSuspenseManagers] = useState<{ id: number; name: string; role: string; isActive: boolean }[]>([])
+  const [suspenseProposerId, setSuspenseProposerId] = useState('')
+  const [suspenseProposerPin, setSuspenseProposerPin] = useState('')
+  const [suspenseApproverId, setSuspenseApproverId] = useState('')
+  const [suspenseApproverPin, setSuspenseApproverPin] = useState('')
+  const [suspenseReason, setSuspenseReason] = useState('')
+  const [suspenseReconciliationEvidence, setSuspenseReconciliationEvidence] = useState('')
+  const [suspenseApprovalReason, setSuspenseApprovalReason] = useState('')
+  const [suspenseApprovalEvidence, setSuspenseApprovalEvidence] = useState('')
+  const [suspenseRefundEvidence, setSuspenseRefundEvidence] = useState('')
+  const [suspenseRefundDestination, setSuspenseRefundDestination] = useState<'CASH' | 'MANAGER'>('CASH')
+  const [suspenseBusy, setSuspenseBusy] = useState(false)
   const lockFields = () =>
     lockNeeded && lockPw ? { managerPassword: lockPw, overrideReason: lockReason.trim() || null } : {}
   const noteLock = (message: string) => {
@@ -237,6 +253,54 @@ export default function InvoicePaymentsModal({
     setMsg(m)
     setErr(null)
     onChanged?.(m)
+  }
+
+  const beginSuspenseResolution = async (paymentId: number) => {
+    setSuspenseBusy(true); setErr(null)
+    try {
+      const [preview, directory] = await Promise.all([
+        call<any>(CH.saleChequeSuspensePreview, { paymentId }),
+        call<{ rows?: { id: number; name: string; role: string; isActive: boolean }[] }>(CH.staffDirectory, { includeInactive: false })
+      ])
+      setSuspenseManagers((directory.rows ?? []).filter((row) => row.role === 'MANAGER' && row.isActive))
+      setSuspenseCase({ paymentId, preview })
+      setSuspenseProposerId(''); setSuspenseProposerPin(''); setSuspenseApproverId(''); setSuspenseApproverPin('')
+      setSuspenseReason(''); setSuspenseReconciliationEvidence(''); setSuspenseApprovalReason(''); setSuspenseApprovalEvidence('')
+      setSuspenseRefundEvidence(''); setSuspenseRefundDestination('CASH')
+    } catch (e: any) { setErr(e.message) }
+    finally { setSuspenseBusy(false) }
+  }
+
+  const closeSuspenseResolution = () => {
+    if (suspenseBusy) return
+    setSuspenseCase(null); setSuspenseProposerPin(''); setSuspenseApproverPin('')
+  }
+
+  const resolveSuspense = async () => {
+    const preview = suspenseCase?.preview
+    if (!preview || !suspenseProposerId || !suspenseApproverId || suspenseProposerId === suspenseApproverId ||
+        !suspenseProposerPin.trim() || !suspenseApproverPin.trim() || suspenseReason.trim().length < 10 ||
+        suspenseReconciliationEvidence.trim().length < 8 || suspenseApprovalReason.trim().length < 10 ||
+        suspenseApprovalEvidence.trim().length < 8 ||
+        (preview.refundAmount > 0 && suspenseRefundEvidence.trim().length < 8)) {
+      setErr('دو مدیر متفاوت، رمزهای شخصی، دو دلیل و دو شاهد لازم است؛ برای مازاد نیز شاهد بازپرداخت واقعی را وارد کنید.')
+      return
+    }
+    setSuspenseBusy(true); setErr(null)
+    try {
+      const result = await call<any>(CH.saleChequeSuspenseResolve, {
+        paymentId: suspenseCase.paymentId, reason: suspenseReason.trim(),
+        reconciliationEvidenceRef: suspenseReconciliationEvidence.trim(),
+        refundEvidenceRef: suspenseRefundEvidence.trim(), refundDestination: preview.refundAmount > 0 ? suspenseRefundDestination : null,
+        proposerManagerUserId: Number(suspenseProposerId), proposerManagerPin: suspenseProposerPin.trim(),
+        approverManagerUserId: Number(suspenseApproverId), approverManagerPin: suspenseApproverPin.trim(),
+        approverReason: suspenseApprovalReason.trim(), approverEvidenceRef: suspenseApprovalEvidence.trim()
+      })
+      setSuspenseCase(null); setSuspenseProposerPin(''); setSuspenseApproverPin('')
+      await load()
+      flash(`تطبیق چک ثبت شد · ${money(result.appliedAmount)} ریال به بدهی اعمال شد · ${money(result.refundAmount)} ریال بازپرداخت شد${result.replayed ? ' · تکرار امن' : ''}`)
+    } catch (e: any) { setErr(e.message) }
+    finally { setSuspenseBusy(false); setSuspenseProposerPin(''); setSuspenseApproverPin('') }
   }
 
   const printDebtReceipt = async (paymentId: number, reprint = false) => {
@@ -333,6 +397,9 @@ export default function InvoicePaymentsModal({
     if (busy) return
     const value = Math.round(amount || 0)
     if (value <= 0) return setErr('مبلغ پرداختی باید بزرگ‌تر از صفر باشد.')
+    if (kind === 'CHEQUE' && chequeDebtOverride &&
+        (!chequeDebtOverridePassword.trim() || chequeDebtOverrideReason.trim().length < 10))
+      return setErr('برای استثنای مدیر در ثبت چک، رمز مدیر و دلیل حداقل ۱۰ نویسه لازم است.')
     /**
      * کار الف — مقصد پول برای پرداختیِ *دریافت‌شده* اجباری است. ثبت خودِ چک
      * مقصد نمی‌خواهد (چکِ در جریان هنوز پولی نیست و مقصدش لحظه‌ی «پاس شد»
@@ -362,7 +429,12 @@ export default function InvoicePaymentsModal({
         chequeNo: kind === 'CHEQUE' ? chequeNo.trim() || null : null,
         bankName: kind === 'CHEQUE' ? bankName.trim() || null : null,
         dueDateJalali: kind === 'CHEQUE' ? dueDateJalali : null,
-        ...lockFields()
+        ...lockFields(),
+        ...(kind === 'CHEQUE' && chequeDebtOverride ? {
+          chequeDebtOverride: true,
+          managerPassword: chequeDebtOverridePassword.trim(),
+          overrideReason: chequeDebtOverrideReason.trim()
+        } : {})
       })
       // پاسخ commit شد؛ اقدام بعدی باید کلید تازه داشته باشد. اگر call خطا بدهد
       // این خط اجرا نمی‌شود و همان کلید برای retry امن حفظ می‌ماند.
@@ -371,6 +443,9 @@ export default function InvoicePaymentsModal({
       setNote('')
       setChequeNo('')
       setBankName('')
+      setChequeDebtOverride(false)
+      setChequeDebtOverridePassword('')
+      setChequeDebtOverrideReason('')
       // مقصد هم پاک می‌شود تا برای پرداختی بعدی دوباره و آگاهانه انتخاب شود
       setDestination(null)
       setFlow(null)
@@ -675,11 +750,15 @@ export default function InvoicePaymentsModal({
                         {r.overpayAmount > 0 ? money(r.overpayAmount) : '—'}
                       </td>
                       <td className="whitespace-nowrap">
-                        {r.kind === 'CHEQUE' && r.chequeStatus !== 'CLEARED' && (
+                        {r.kind === 'CHEQUE' && r.chequeStatus === 'SUSPENSE' && (
+                          <button className="text-violet-800 font-bold" onClick={() => void beginSuspenseResolution(r.id)} disabled={suspenseBusy}>
+                            تطبیق مستقل دو مدیر
+                          </button>
+                        )}
+                        {r.kind === 'CHEQUE' && r.chequeStatus !== 'CLEARED' && r.chequeStatus !== 'SUSPENSE' && r.chequeStatus !== 'SUSPENSE_REFUNDED' && (
                           <button
                             className="text-emerald-700 font-bold"
                             onClick={() => {
-                              // کار الف: «پاس شد» بی‌واسطه ثبت نمی‌شود؛ اول مقصد پول پرسیده می‌شود
                               setClearDest(null)
                               setClearWarn(null)
                               setClearing({ id: r.id, amount: r.amount, methodKind: null })
@@ -690,7 +769,7 @@ export default function InvoicePaymentsModal({
                             پاس شد
                           </button>
                         )}
-                        {r.kind === 'CHEQUE' && r.chequeStatus === 'CLEARED' && (
+                        {r.kind === 'CHEQUE' && r.chequeStatus === 'CLEARED' && !r.exchangeDebtBacking && (
                           <button
                             className="text-brand"
                             onClick={() => void setStatus(r.id, 'PENDING')}
@@ -720,16 +799,18 @@ export default function InvoicePaymentsModal({
                             </button>
                           </>
                         )}
-                        <span className="opacity-40 px-1">|</span>
-                        {confirmDelete === r.id ? (
-                          <button className="text-red-600 font-bold" onClick={() => void removePayment(r.id)} disabled={busy}>
-                            مطمئنم، حذف کن
-                          </button>
-                        ) : (
-                          <button className="text-red-500" onClick={() => setConfirmDelete(r.id)} disabled={busy}>
-                            حذف
-                          </button>
-                        )}
+                        {!r.exchangeDebtBacking && r.chequeStatus !== 'SUSPENSE' && r.chequeStatus !== 'SUSPENSE_REFUNDED' && <>
+                          <span className="opacity-40 px-1">|</span>
+                          {confirmDelete === r.id ? (
+                            <button className="text-red-600 font-bold" onClick={() => void removePayment(r.id)} disabled={busy}>
+                              مطمئنم، حذف کن
+                            </button>
+                          ) : (
+                            <button className="text-red-500" onClick={() => setConfirmDelete(r.id)} disabled={busy}>
+                              حذف
+                            </button>
+                          )}
+                        </>}
                       </td>
                     </tr>
                   ))}
@@ -865,10 +946,27 @@ export default function InvoicePaymentsModal({
                 </label>
               )}
               {kind === 'CHEQUE' && (
-                <label>
-                  <div className="mb-1">بانک</div>
-                  <input className="inp" value={bankName} onChange={(e) => setBankName(e.target.value)} />
-                </label>
+                <>
+                  <label>
+                    <div className="mb-1">بانک</div>
+                    <input className="inp" value={bankName} onChange={(e) => setBankName(e.target.value)} />
+                  </label>
+                  <div className="md:col-span-2 rounded border border-amber-300 bg-amber-50 p-2">
+                    <label className="flex items-center gap-2 font-bold">
+                      <input type="checkbox" checked={chequeDebtOverride}
+                        onChange={(e) => setChequeDebtOverride(e.target.checked)} />
+                      استثنای مدیر برای ثبت چک جدید با وجود بدهی چک باز
+                    </label>
+                    {chequeDebtOverride && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                        <label><div className="kbd">رمز مدیر</div><input type="password" className="inp" dir="ltr"
+                          value={chequeDebtOverridePassword} onChange={(e) => setChequeDebtOverridePassword(e.target.value)} /></label>
+                        <label><div className="kbd">دلیل/شاهد (حداقل ۱۰ نویسه)</div><input className="inp"
+                          value={chequeDebtOverrideReason} onChange={(e) => setChequeDebtOverrideReason(e.target.value)} /></label>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
             {/* ---------- کار الف: کادر اجباری «مقصد پول» ---------- */}
@@ -1051,6 +1149,40 @@ export default function InvoicePaymentsModal({
             creditPrinting={creditPrinting}
             creditPrintProblem={creditPrintProblem}
           />
+          <Modal
+            open={!!suspenseCase}
+            title="تطبیق مستقل چک دیررس در تعویض"
+            onClose={closeSuspenseResolution}
+            width="max-w-3xl"
+            footer={<>
+              <button className="btn" onClick={closeSuspenseResolution} disabled={suspenseBusy}>انصراف</button>
+              <button className="btn btn-primary" onClick={() => void resolveSuspense()} disabled={suspenseBusy}>
+                {suspenseBusy ? 'در حال ثبت اتمیک…' : 'تأیید دو مدیر و تعیین تکلیف'}
+              </button>
+            </>}
+          >
+            {suspenseCase && <div className="space-y-3">
+              <div className="rounded border-2 border-amber-400 bg-amber-50 p-3 leading-6">
+                این چک پس از تهاتر/تسویهٔ بدهی رسیده و در تعلیق است. مبلغ واقعی چک دوباره به حق قبلی اضافه نمی‌شود؛ سرور فقط ماندهٔ بدهی فعلی را تا سقف ارزش چک تسویه می‌کند و مازاد را به‌عنوان بازپرداخت واقعی ثبت می‌کند.
+                <div className="mt-2 font-bold">ارزش چک {money(suspenseCase.preview.faceAmount)} · مانده بدهی تعویض {money(suspenseCase.preview.openDebt)} · اعمال به بدهی {money(suspenseCase.preview.applyAmount)} · مازاد قابل بازپرداخت {money(suspenseCase.preview.refundAmount)} ریال</div>
+              </div>
+              <div className="grid md:grid-cols-2 gap-3">
+                <label><div className="kbd">مدیر اول · ثبت تطبیق</div><select className="inp" value={suspenseProposerId} onChange={(e) => setSuspenseProposerId(e.target.value)}><option value="">انتخاب مدیر…</option>{suspenseManagers.map((m) => <option key={m.id} value={m.id}>{m.name} · #{faDigits(m.id)}</option>)}</select></label>
+                <label><div className="kbd">رمز شخصی مدیر اول</div><PasswordField className="inp w-full" value={suspenseProposerPin} onChange={(e) => setSuspenseProposerPin(e.target.value)} /></label>
+                <label><div className="kbd">دلیل تطبیق اولیه (حداقل ۱۰ نویسه)</div><input className="inp" value={suspenseReason} onChange={(e) => setSuspenseReason(e.target.value)} /></label>
+                <label><div className="kbd">شاهد مستقل بانک/چک (حداقل ۸ نویسه)</div><input className="inp" value={suspenseReconciliationEvidence} onChange={(e) => setSuspenseReconciliationEvidence(e.target.value)} /></label>
+                <label><div className="kbd">مدیر دوم · تأیید مستقل</div><select className="inp" value={suspenseApproverId} onChange={(e) => setSuspenseApproverId(e.target.value)}><option value="">انتخاب مدیر متفاوت…</option>{suspenseManagers.filter((m) => String(m.id) !== suspenseProposerId).map((m) => <option key={m.id} value={m.id}>{m.name} · #{faDigits(m.id)}</option>)}</select></label>
+                <label><div className="kbd">رمز شخصی مدیر دوم</div><PasswordField className="inp w-full" value={suspenseApproverPin} onChange={(e) => setSuspenseApproverPin(e.target.value)} /></label>
+                <label><div className="kbd">دلیل تأیید مستقل (حداقل ۱۰ نویسه)</div><input className="inp" value={suspenseApprovalReason} onChange={(e) => setSuspenseApprovalReason(e.target.value)} /></label>
+                <label><div className="kbd">شاهد تأیید مستقل (حداقل ۸ نویسه)</div><input className="inp" value={suspenseApprovalEvidence} onChange={(e) => setSuspenseApprovalEvidence(e.target.value)} /></label>
+                {suspenseCase.preview.refundAmount > 0 && <>
+                  <label><div className="kbd">مقصد بازپرداخت واقعی مازاد</div><select className="inp" value={suspenseRefundDestination} onChange={(e) => setSuspenseRefundDestination(e.target.value as 'CASH' | 'MANAGER')}><option value="CASH">نقدی از کشوی صندوق (با ثبت CashMovement)</option><option value="MANAGER">حساب مدیر / انتقال بانکی</option></select></label>
+                  <label><div className="kbd">شاهد بازپرداخت واقعی (حداقل ۸ نویسه)</div><input className="inp" value={suspenseRefundEvidence} onChange={(e) => setSuspenseRefundEvidence(e.target.value)} /></label>
+                </>}
+              </div>
+              {err && <div className="rounded border border-rose-300 bg-rose-50 p-2 whitespace-pre-line">{err}</div>}
+            </div>}
+          </Modal>
         </>
       )}
     </Modal>

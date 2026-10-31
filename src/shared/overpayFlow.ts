@@ -131,6 +131,9 @@ export interface OverpayCreditLike {
   /** فقط پاسخ‌های legacy ممکن است داشته باشند؛ UI هرگز آن را نمایش نمی‌دهد. */
   code?: string
   id?: number
+  /** مجوز چاپ اول فقط در پاسخِ همان صدور IPC، برای این فاکتور/پنجره/کارمند. */
+  invoiceId?: number
+  firstPrintGrant?: string | null
   publicReference?: string
   amount: number
   expiresAtJalali?: string | null

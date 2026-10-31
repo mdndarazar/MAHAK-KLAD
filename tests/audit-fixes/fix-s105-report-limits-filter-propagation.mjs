@@ -12,6 +12,7 @@ import { resolve } from 'node:path'
 
 const root = process.env.MAHAK_ROOT ? resolve(process.env.MAHAK_ROOT) : resolve('.')
 const service = readFileSync(resolve(root, 'src/main/services/reportLimits.ts'), 'utf8')
+const sales = readFileSync(resolve(root, 'src/main/services/SalesService.ts'), 'utf8')
 
 let ok = 0
 let bad = 0
@@ -26,10 +27,20 @@ const check = (label, actual, expected = true) => {
 }
 
 // ممیزی A99-03/A99-04 — شمارنده حالا where خودِ جدول‌ها را از SalesService می‌گیرد (نه بازسازی موازی)
+const exchangeStart = sales.indexOf('async exchangeList(')
+const returnStart = sales.indexOf('async returnList(')
+const exchangeBody = exchangeStart >= 0 ? sales.slice(exchangeStart, exchangeStart + 12_000) : ''
+const returnBody = returnStart >= 0 ? sales.slice(returnStart, returnStart + 10_000) : ''
 check('helper دامنه‌ی مشترک برگشت/تعویض و چک از SalesService وارد شده', /returnReportScopeWhere/.test(service) && /chequeReportWhere/.test(service))
 check('نوع سفارش و کانال: همان helper جدول (orderTypeWhere داخل returnReportScopeWhere/chequeReportWhere)', /const returnScope = await returnReportScopeWhere\(filter\)/.test(service))
 check('where مشترک چک ساخته می‌شود', /const chequeWhere = await chequeReportWhere\(/.test(service))
-check('برگشت و تعویض همان دامنه‌ی جدول را مصرف می‌کنند', /\.\.\.returnScope,[\s\S]{0,200}kind: ReturnKind\.RETURN/.test(service) && /\{ \.\.\.returnScope, kind: ReturnKind\.EXCHANGE \}/.test(service))
+check('برگشت و تعویض همان دامنه‌ی جدول را مصرف می‌کنند و لینک پایدار kind خراب‌شده را جدا می‌کند',
+  exchangeBody.includes('...(await returnReportScopeWhere(filter))') &&
+  exchangeBody.includes('OR: [{ kind: ReturnKind.EXCHANGE }, { exchangeInvoiceId: { not: null } }]') &&
+  returnBody.includes('...(await returnReportScopeWhere(filter))') &&
+  returnBody.includes('...kindFilter') &&
+  returnBody.includes('{ kind: ReturnKind.RETURN, exchangeInvoiceId: null }') &&
+  returnBody.includes('{ OR: [{ kind: ReturnKind.EXCHANGE }, { exchangeInvoiceId: { not: null } }] }'))
 check('چک همان where جدول را مصرف می‌کند', /prisma\.payment\.count\(\{ where: chequeWhere \}\)/.test(service))
 check('اعتبار legacy از totalCount سرویس واقعی استفاده می‌کند', /storeCreditService[\s\S]{0,500}result\.page\.totalCount/.test(service))
 check(

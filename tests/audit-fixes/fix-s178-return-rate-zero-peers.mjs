@@ -74,6 +74,7 @@ eq('فیلتر شیفت صبح: همان دو هشدار (همتای بی‌بر
 const onlyE = await fraudService.review({ fromJalali: today, toJalali: today, userId: E })
 eq('فیلتر فقط کاربر ه: بدون همتا ⇒ کف ۲۵٪ ⇒ ۳۰٪ هشدار (رفتار قبلی حفظ)', (flag(onlyE)?.sources ?? []).map((s) => s.id), [E])
 // کنترل منفی: وقتی همتایان واقعاً نرخ بالای مشابه دارند، ۵۵٪ عادی است
+sql.prepare('UPDATE "SaleReturn" SET voidedAt=COALESCE(voidedAt, ?)').run(Date.now())
 sql.prepare('DELETE FROM "SaleReturn"').run()
 ret(iA, A, 2_750_000); ret(iA, A, 2_750_000)
 for (const [u, i] of [[B, 2], [C, 3], [D, 4], [E, iE]]) { ret(i, u, 2_500_000); ret(i, u, 2_500_000) }

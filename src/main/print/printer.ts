@@ -117,6 +117,39 @@ interface LoadedPrintDocument {
   cleanup: () => Promise<void>
 }
 
+/** Fixed-size A4 skips the receipt-height measurement (which waits for fonts).
+ * A local @font-face may still be loading after loadURL/loadFile resolves.
+ * Printing during the fallback phase changes line breaks/page count; wait
+ * *before* sending anything to a printer or resolving a PDF. Only documents
+ * with an embedded font take this path; existing receipts remain untouched.
+ */
+async function waitForEmbeddedFonts(win: BrowserWindow, html: string): Promise<void> {
+  if (!html.includes('font-family: Vazirmatn') || !html.includes('data:font/woff2;base64,')) return
+  let timer: ReturnType<typeof setTimeout> | null = null
+  try {
+    const ready = win.webContents.executeJavaScript(`(async () => {
+      await document.fonts.ready
+      const faces = [...document.fonts].filter((face) => face.family === 'Vazirmatn')
+      // An empty report may use only its bold heading, so unused faces may
+      // remain 'unloaded'. But a failed face must not silently fall back.
+      return faces.length >= 2 && faces.some((face) => face.status === 'loaded') &&
+        faces.every((face) => face.status !== 'error')
+    })()`, true)
+    ready.catch(() => {})
+    const verified = await Promise.race([
+      ready,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('FONT_READY_TIMEOUT')), 30_000)
+      })
+    ])
+    if (verified !== true) throw new Error('FONT_NOT_LOADED')
+  } catch {
+    throw new BusinessError('فونت فارسی گزارش پیش از چاپ آماده نشد؛ چیزی چاپ یا ذخیره نشد. دوباره تلاش کنید.')
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 async function loadOrExplain(load: () => Promise<unknown>): Promise<void> {
   try {
     await load()
@@ -136,6 +169,7 @@ export async function loadPrintDocument(win: BrowserWindow, html: string): Promi
   const url = htmlDataUrlOrNull(html)
   if (url) {
     await loadOrExplain(() => win.loadURL(url))
+    await waitForEmbeddedFonts(win, html)
     return { via: 'data-url', cleanup: async () => {} }
   }
 
@@ -167,6 +201,7 @@ export async function loadPrintDocument(win: BrowserWindow, html: string): Promi
       )
     }
     await loadOrExplain(() => win.loadFile(file))
+    await waitForEmbeddedFonts(win, html)
   } catch (err) {
     await cleanup()
     throw err

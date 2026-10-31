@@ -16,7 +16,7 @@ console.log('--- ۱. تب برگشت به‌طور پیش‌فرض فقط برگ
 assert.match(reports, /const \[includeExchanges, setIncludeExchanges\] = useState\(false\)/)
 assert.match(
   sales,
-  /filter\.includeExchanges === true\s*\?\s*\{\}[\s\S]{0,1200}?:\s*\{\s*kind:\s*ReturnKind\.RETURN\s*\}/,
+  /filter\.includeExchanges === true\s*\?\s*\{\}[\s\S]{0,1600}?:\s*\{\s*kind:\s*ReturnKind\.RETURN,\s*exchangeInvoiceId:\s*null\s*\}/,
   'خاموش بودن تیک باید فقط RETURN را بگیرد؛ SaleReturn.kind در schema nullable نیست'
 )
 assert.doesNotMatch(sales, /kind:\s*null\s+as\s+any/, 'نباید null نامعتبر به Prisma واقعی فرستاده شود')

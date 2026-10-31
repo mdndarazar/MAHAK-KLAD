@@ -1,0 +1,337 @@
+{
+  "generatedAt": "2026-10-27T18:33:55.740Z",
+  "scenario": "D80-S07",
+  "case": "qty-1-then-1-then-1",
+  "mode": "STORE_CREDIT",
+  "fixture": {
+    "gross": 300000,
+    "lineDiscount": 0,
+    "invoiceDiscount": 30000,
+    "net": 270000,
+    "lines": [
+      {
+        "unitPrice": 100000,
+        "qty": 3,
+        "discount": 0,
+        "netShare": 270000
+      }
+    ]
+  },
+  "isolatedDatabase": "/tmp/mahak-d80-s07-YdLPtP/isolated.db",
+  "status": "PASS",
+  "allocations": [
+    {
+      "saleItemId": 1,
+      "gross": 300000,
+      "lineDiscount": 0,
+      "lineBase": 300000,
+      "invoiceDiscountShare": 30000,
+      "netShare": 270000
+    }
+  ],
+  "returns": [
+    {
+      "id": 1,
+      "step": 1,
+      "expectedNet": 90000,
+      "actualNet": 90000,
+      "refundMethod": "STORE_CREDIT",
+      "refundAmount": 90000,
+      "refundStoreCreditAmount": 0,
+      "items": [
+        {
+          "saleItemId": 1,
+          "qty": 1,
+          "unitPrice": 100000,
+          "lineTotal": 90000,
+          "restockedQty": 1
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "step": 2,
+      "expectedNet": 90000,
+      "actualNet": 90000,
+      "refundMethod": "STORE_CREDIT",
+      "refundAmount": 90000,
+      "refundStoreCreditAmount": 0,
+      "items": [
+        {
+          "saleItemId": 1,
+          "qty": 1,
+          "unitPrice": 100000,
+          "lineTotal": 90000,
+          "restockedQty": 1
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "step": 3,
+      "expectedNet": 90000,
+      "actualNet": 90000,
+      "refundMethod": "STORE_CREDIT",
+      "refundAmount": 90000,
+      "refundStoreCreditAmount": 0,
+      "items": [
+        {
+          "saleItemId": 1,
+          "qty": 1,
+          "unitPrice": 100000,
+          "lineTotal": 90000,
+          "restockedQty": 1
+        }
+      ]
+    }
+  ],
+  "credits": [
+    {
+      "id": 1,
+      "amount": 90000,
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "returnId": 1
+    },
+    {
+      "id": 2,
+      "amount": 90000,
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "returnId": 2
+    },
+    {
+      "id": 3,
+      "amount": 90000,
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "returnId": 3
+    }
+  ],
+  "managerTransfers": [],
+  "checkpoints": [
+    {
+      "label": "initial isolated DB",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": {
+        "actual": 20,
+        "ledger": 0
+      },
+      "expectedStock": 20,
+      "counts": {
+        "invoices": 0,
+        "returns": 0,
+        "payments": 0,
+        "cashMovements": 0,
+        "credits": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "sale recorded and paid: gross, direct/invoice discount, net and stock",
+      "expected": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 270000
+      },
+      "actualService": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 270000,
+      "stock": {
+        "actual": 17,
+        "ledger": -3
+      },
+      "expectedStock": 17,
+      "counts": {
+        "invoices": 1,
+        "returns": 0,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "qty-1-then-1-then-1 STORE_CREDIT step 1: return, settlement, stock and credit reconciled",
+      "expected": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 270000
+      },
+      "actualService": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 270000,
+      "stock": {
+        "actual": 18,
+        "ledger": -2
+      },
+      "expectedStock": 18,
+      "counts": {
+        "invoices": 1,
+        "returns": 1,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 1,
+        "checks": 0
+      }
+    },
+    {
+      "label": "qty-1-then-1-then-1 STORE_CREDIT step 2: return, settlement, stock and credit reconciled",
+      "expected": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 270000
+      },
+      "actualService": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 270000,
+      "stock": {
+        "actual": 19,
+        "ledger": -1
+      },
+      "expectedStock": 19,
+      "counts": {
+        "invoices": 1,
+        "returns": 2,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 2,
+        "checks": 0
+      }
+    },
+    {
+      "label": "qty-1-then-1-then-1 STORE_CREDIT step 3: return, settlement, stock and credit reconciled",
+      "expected": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 270000
+      },
+      "actualService": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 270000,
+      "stock": {
+        "actual": 20,
+        "ledger": 0
+      },
+      "expectedStock": 20,
+      "counts": {
+        "invoices": 1,
+        "returns": 3,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 3,
+        "checks": 0
+      }
+    }
+  ],
+  "findings": [],
+  "sale": {
+    "id": 1,
+    "gross": 300000,
+    "lineDiscount": 0,
+    "invoiceDiscount": 30000,
+    "totalDiscount": 30000,
+    "net": 270000,
+    "paid": 270000,
+    "settled": true
+  },
+  "policyAssessment": {
+    "expectedNetReturnRight": 270000,
+    "actualCustomerValue": 270000,
+    "discountReturned": 0,
+    "deviations": []
+  },
+  "operationOutcome": "COMPLETED",
+  "final": {
+    "expected": {
+      "cash": 270000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 270000
+    },
+    "actual": {
+      "cash": 270000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 270000,
+    "stock": {
+      "actual": 20,
+      "ledger": 0
+    },
+    "invoices": 1,
+    "returns": 3,
+    "payments": 1,
+    "credits": 3,
+    "checks": 0
+  }
+}

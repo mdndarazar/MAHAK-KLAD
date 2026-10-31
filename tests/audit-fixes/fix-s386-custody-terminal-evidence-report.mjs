@@ -128,7 +128,10 @@ eq('report فقط فیلدهای غیرمحرمانهٔ Count را نگاشت م
 eq('report نام تصمیم‌گیرنده/منتسب را server-side resolve می‌کند', service.includes('attributedToName: row.attributedToUserId ? userName.get'), true)
 eq('UI شواهد را فقط به‌عنوان خواندنی و غیرمحاسباتی معرفی می‌کند', ui.includes('شواهد نهایی و تطبیق') && ui.includes('مبلغ موردانتظار هرگز در Renderer محاسبه نمی‌شود'), true)
 eq('UI نوع terminal evidence و وضعیت disposition را به برچسب ایمن تبدیل می‌کند', ui.includes('custodyCountKindLabel') && ui.includes('custodyDispositionStatusLabel'), true)
-eq('بازشدن segment تازه، اسناد نهایی segment پیشین را پنهان نمی‌کند', ui.includes("row.kind !== 'OPENING'") && ui.includes('همهٔ segmentها'), true)
+// The newer manager timeline shows the entire bounded count page (including
+// OPENING) instead of taking a hidden 12-row slice. This is stronger than the
+// old non-OPENING filter and still retains yesterday's final evidence.
+eq('بازشدن segment تازه، اسناد نهایی segment پیشین را پنهان نمی‌کند', ui.includes('const custodyTerminalCounts = custodyTimeline?.counts ?? []') && ui.includes('همهٔ segmentها'), true)
 
 console.log(`\n${bad === 0 ? '✓' : '✗'} ${ok} بررسی موفق · ${bad} ناموفق`)
 process.exitCode = bad ? 1 : 0

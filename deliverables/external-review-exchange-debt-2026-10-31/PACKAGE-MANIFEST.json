@@ -1,0 +1,23 @@
+{
+  "repository": "mdndarazar/MAHAK-KLAD",
+  "branch": "arena/8a852de1-mahak-klad",
+  "remote_branch_head": "4c1be6387c212b7d25e6c7b82978909b3ee9ce15",
+  "remote_source_commit": "686dfc4a4d8330aa4fc034df47e9abafd6547b23",
+  "local_worktree_base_commit": "44a86434d9f26dc85b3be68dc48d7b4bcf4b94ea",
+  "snapshot_date": "2026-10-31",
+  "purpose": "external technical review only; separate unmerged source snapshots; not installable",
+  "remote_source": {
+    "directory": "REMOTE-SOURCE-686dfc4",
+    "files": 2589,
+    "uncompressed_bytes": 46181875
+  },
+  "local_worktree": {
+    "directory": "LOCAL-WORKTREE-44a8643-LATEST",
+    "files": 3496,
+    "uncompressed_bytes": 101883685,
+    "note": "current non-ignored tracked and untracked files from the local checkout; package folder and ZIP archives excluded"
+  },
+  "prompt": "REVIEW-PROMPT-FA.txt",
+  "excluded": " .git, node_modules, ignored/build outputs, ZIP archives, local database files, secrets/environment files",
+  "verification": "ZIP structure and SHA-256 are checked at packaging; no fresh application build or installer verification is claimed."
+}

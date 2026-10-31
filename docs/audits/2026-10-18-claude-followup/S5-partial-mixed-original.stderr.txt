@@ -1,0 +1,6 @@
+(node:5080) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:5080) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/work/mahak-audit/unzipped/MAHAK-KLAD-6379c5fa14ad430a5862af45f16cb3a14cb7f0cc/src/main/services/SalesService.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/work/mahak-audit/unzipped/MAHAK-KLAD-6379c5fa14ad430a5862af45f16cb3a14cb7f0cc/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)

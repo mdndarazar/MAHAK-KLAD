@@ -1,0 +1,11 @@
+# Discount Policy 80 — S06 / item-04-only / CASH
+
+**Status:** PASS; isolated SQLite database per branch.
+**Fixture:** gross=1450132; direct line discount=0; invoice discount=12345; net=1437787.
+**Sale:** {"id":1,"gross":1450132,"lineDiscount":0,"invoiceDiscount":12345,"totalDiscount":12345,"net":1437787,"paid":1437787,"settled":true}
+**Per-item discount/net allocation:** [{"saleItemId":1,"gross":100001,"lineDiscount":0,"lineBase":100001,"invoiceDiscountShare":851,"netShare":99150},{"saleItemId":2,"gross":110003,"lineDiscount":0,"lineBase":110003,"invoiceDiscountShare":936,"netShare":109067},{"saleItemId":3,"gross":120007,"lineDiscount":0,"lineBase":120007,"invoiceDiscountShare":1022,"netShare":118985},{"saleItemId":4,"gross":130009,"lineDiscount":0,"lineBase":130009,"invoiceDiscountShare":1107,"netShare":128902},{"saleItemId":5,"gross":140011,"lineDiscount":0,"lineBase":140011,"invoiceDiscountShare":1192,"netShare":138819},{"saleItemId":6,"gross":150013,"lineDiscount":0,"lineBase":150013,"invoiceDiscountShare":1277,"netShare":148736},{"saleItemId":7,"gross":160017,"lineDiscount":0,"lineBase":160017,"invoiceDiscountShare":1362,"netShare":158655},{"saleItemId":8,"gross":170021,"lineDiscount":0,"lineBase":170021,"invoiceDiscountShare":1447,"netShare":168574},{"saleItemId":9,"gross":180023,"lineDiscount":0,"lineBase":180023,"invoiceDiscountShare":1533,"netShare":178490},{"saleItemId":10,"gross":190027,"lineDiscount":0,"lineBase":190027,"invoiceDiscountShare":1618,"netShare":188409}]
+**Returns:** [{"id":1,"step":1,"expectedNet":128902,"actualNet":128902,"refundMethod":"CASH","refundAmount":128902,"refundStoreCreditAmount":0,"items":[{"saleItemId":4,"qty":1,"unitPrice":130009,"lineTotal":128902,"restockedQty":1}]}]
+**Credits:** []
+**Policy assessment:** {"expectedNetReturnRight":128902,"actualCustomerValue":128902,"discountReturned":0,"deviations":[]}
+**Final reconciliation:** {"expected":{"cash":1437787,"card":0,"refundCash":128902,"refundCard":0,"blue":1308885},"actual":{"cash":1437787,"card":0,"refundCash":128902,"refundCard":0},"blue":1308885,"stock":{"actual":191,"ledger":-9},"invoices":1,"returns":1,"payments":1,"credits":0,"checks":0}
+Only test code and isolated test DB were used; no production/live/staging DB or policy was changed.

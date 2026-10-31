@@ -24,6 +24,8 @@ process.env.HARNESS_DIR = DIR
 process.env.HARNESS_DB = join(DIR, 'shop.db')
 
 const electron = await import('electron')
+const { attachTestIpcWindow } = await import('../../test/harness/ipcWindow.mjs')
+const { event: ipcEvent } = attachTestIpcWindow(electron)
 const handlers = new Map()
 electron.ipcMain.handle = (ch, fn) => handlers.set(ch, fn)
 
@@ -38,7 +40,7 @@ const { SETTING_KEYS, DEFAULT_MANAGER_PASSWORD: PW } = await import('@shared/rec
 const { PANEL_KEYS } = await import('@shared/panels')
 const { jalaliToday } = await import('@shared/jalali')
 registerIpcHandlers()
-const ipc = (ch, payload) => handlers.get(ch)(null, payload)
+const ipc = (ch, payload) => handlers.get(ch)(ipcEvent, payload)
 
 let ok = 0
 let bad = 0

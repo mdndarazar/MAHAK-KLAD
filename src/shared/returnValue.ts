@@ -33,6 +33,19 @@ export function roundRial(x: number): number {
  */
 type RialIn = number | bigint
 
+function rialBigInt(value: RialIn | null | undefined): bigint {
+  if (value == null) return 0n
+  if (typeof value === 'bigint') return value
+  if (!Number.isSafeInteger(value)) throw new RangeError('Return-value Rial snapshot is not a safe integer')
+  return BigInt(value)
+}
+
+function safeRialNumber(value: bigint): number {
+  if (value > BigInt(Number.MAX_SAFE_INTEGER) || value < -BigInt(Number.MAX_SAFE_INTEGER))
+    throw new RangeError('Return-value Rial snapshot exceeds Number.MAX_SAFE_INTEGER')
+  return Number(value)
+}
+
 export interface InvoiceForReturnValue {
   grandTotal?: RialIn | null
   deliveryFee?: RialIn | null
@@ -41,45 +54,61 @@ export interface InvoiceForReturnValue {
 
 /** «پرداختنی کالا» = جمع کل فاکتور منهای هزینه‌ی ارسال (هرگز منفی نیست). */
 export function goodsPayableOf(inv: InvoiceForReturnValue): number {
-  return Math.max(0, Math.round(Number(inv.grandTotal ?? 0)) - Math.max(0, Math.round(Number(inv.deliveryFee ?? 0))))
+  const grandTotal = rialBigInt(inv.grandTotal)
+  const deliveryFee = rialBigInt(inv.deliveryFee)
+  const goods = grandTotal - (deliveryFee > 0n ? deliveryFee : 0n)
+  return goods > 0n ? safeRialNumber(goods) : 0
 }
 
 /** snapshot خالص قلم؛ اگر ردیف قدیمی lineTotal نداشت از اجزایش ساخته می‌شود. */
-function lineBaseOf(it: InvoiceForReturnValue['items'][number]): number {
-  const raw =
-    it.lineTotal != null && Number.isFinite(Number(it.lineTotal))
-      ? Number(it.lineTotal)
-      : Number(it.unitPrice) * Number(it.qty) - Number(it.discount ?? 0) + Number(it.tax ?? 0)
-  return Math.max(0, Math.round(raw))
+function lineBaseOf(it: InvoiceForReturnValue['items'][number]): bigint {
+  if (!Number.isSafeInteger(it.qty) || it.qty < 0)
+    throw new RangeError('Return-value item quantity snapshot is invalid')
+  const raw = it.lineTotal != null
+    ? rialBigInt(it.lineTotal)
+    : rialBigInt(it.unitPrice) * BigInt(it.qty) - rialBigInt(it.discount) + rialBigInt(it.tax)
+  return raw > 0n ? raw : 0n
 }
 
 /**
  * سهم هر قلم فاکتور از «پرداختنی کالا» (کل قلم، همه‌ی تعدادها).
- * جمع مقادیر برگشتی دقیقاً برابر `goodsPayableOf(inv)` است.
+ * جمع مقادیر برگشتی دقیقاً برابر `goodsPayableOf(inv)` است. تمام حاصل‌ضرب‌ها
+ * و باقیمانده‌ها BigInt هستند تا snapshot بزرگ، ترتیب ریال را با float عوض نکند.
  */
 export function allocateLineNet(inv: InvoiceForReturnValue): Map<number, number> {
   const out = new Map<number, number>()
-  const bases = inv.items.map((it) => ({ id: it.id, base: lineBaseOf(it) }))
-  const sumBase = bases.reduce((s, b) => s + b.base, 0)
+  const seen = new Set<number>()
+  const bases = inv.items.map((it) => {
+    if (!Number.isSafeInteger(it.id) || it.id <= 0 || seen.has(it.id))
+      throw new RangeError('Return-value item identity snapshot is invalid')
+    seen.add(it.id)
+    return { id: it.id, base: lineBaseOf(it) }
+  })
+  const sumBase = bases.reduce((sum, base) => sum + base.base, 0n)
   const target = goodsPayableOf(inv)
-  if (sumBase <= 0 || target <= 0) {
-    for (const b of bases) out.set(b.id, 0)
+  if (sumBase <= 0n || target <= 0) {
+    for (const base of bases) out.set(base.id, 0)
     return out
   }
-  // تخصیص دقیق، سپس floor، سپس بزرگ‌ترین باقی‌مانده تا جمع = target
-  const parts = bases.map((b) => {
-    const exact = (target * b.base) / sumBase
-    const fl = Math.floor(exact)
-    return { id: b.id, fl, rem: exact - fl }
+
+  // تخصیص دقیق، سپس floor، سپس بزرگ‌ترین باقیمانده تا جمع = target
+  const targetBig = BigInt(target)
+  const parts = bases.map((base) => {
+    const numerator = targetBig * base.base
+    const floor = numerator / sumBase
+    const remainder = numerator % sumBase
+    return { id: base.id, floor, remainder }
   })
-  let left = target - parts.reduce((s, p) => s + p.fl, 0)
-  const order = [...parts].sort((a, b) => b.rem - a.rem || a.id - b.id)
-  for (const p of order) {
-    if (left <= 0) break
-    p.fl += 1
-    left -= 1
+  let left = targetBig - parts.reduce((sum, part) => sum + part.floor, 0n)
+  const order = [...parts].sort((a, b) =>
+    a.remainder === b.remainder ? a.id - b.id : a.remainder > b.remainder ? -1 : 1)
+  for (const part of order) {
+    if (left <= 0n) break
+    part.floor += 1n
+    left -= 1n
   }
-  for (const p of parts) out.set(p.id, p.fl)
+  if (left !== 0n) throw new RangeError('Return-value line allocation did not reconcile')
+  for (const part of parts) out.set(part.id, safeRialNumber(part.floor))
   return out
 }
 
@@ -87,11 +116,31 @@ export function allocateLineNet(inv: InvoiceForReturnValue): Map<number, number>
  * ارزش برگشت `qty` عدد از یک قلم، وقتی `prevReturnedQty` عدد از قبل برگشت خورده.
  * سهم تجمعی ⇒ جمع برگشت‌های جزئی = سهم کل قلم.
  */
+function roundRatioHalfUp(numerator: bigint, denominator: bigint): bigint {
+  if (denominator <= 0n) throw new RangeError('INVALID_RETURN_VALUE_DENOMINATOR')
+  const negative = numerator < 0n
+  const absolute = negative ? -numerator : numerator
+  const quotient = absolute / denominator
+  const remainder = absolute % denominator
+  const rounded = quotient + (remainder * 2n >= denominator ? 1n : 0n)
+  return negative ? -rounded : rounded
+}
+
 export function returnValueOf(lineNet: number, soldQty: number, prevReturnedQty: number, qty: number): number {
   const sold = Math.max(0, Math.round(soldQty))
   if (sold <= 0 || qty <= 0) return 0
   const prev = Math.min(sold, Math.max(0, Math.round(prevReturnedQty)))
-  const upto = Math.min(sold, prev + Math.round(qty))
+  const take = Math.round(qty)
+  const upto = Math.min(sold, prev + take)
+  if ([lineNet, sold, prev, take, upto].every(Number.isSafeInteger)) {
+    const net = BigInt(lineNet)
+    const denominator = BigInt(sold)
+    const before = roundRatioHalfUp(net * BigInt(prev), denominator)
+    const after = roundRatioHalfUp(net * BigInt(upto), denominator)
+    return Number(after - before)
+  }
+  // Preserve legacy display behavior for non-integral/non-finite callers.
+  // Persisted Rial snapshots and quantities take the exact BigInt path above.
   return roundRial((lineNet * upto) / sold) - roundRial((lineNet * prev) / sold)
 }
 

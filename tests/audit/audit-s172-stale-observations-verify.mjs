@@ -37,6 +37,11 @@ const { allowedDestinationsFor } = await import(join(root, 'src/shared/enums.ts'
 const { SETTING_KEYS, DEFAULT_MANAGER_PASSWORD: PW } = await import(join(root, 'src/shared/receipt.ts'))
 const { jalaliToday } = await import(join(root, 'src/shared/jalali.ts'))
 registerIpcHandlers()
+// قفل صفحهٔ برگشت/تعویض با پنجرهٔ همین درخواست باز است؛ سپس مرز نشست،
+// تخفیف و مقصد پرداخت جداگانه (بدون دور زدن گیت) بررسی می‌شوند.
+const { notePanelUnlocked } = await import(join(root, 'src/main/services/panelSession.ts'))
+const { PANEL_KEYS } = await import(join(root, 'src/shared/panels.ts'))
+notePanelUnlocked(PANEL_KEYS.salesReturn, 'PANEL', sender.id)
 const ipc = (ch, payload) => handlers.get(ch)({ sender }, payload)
 const today = jalaliToday()
 const A = seed.user('فروشنده ۱۷۲')
@@ -52,7 +57,8 @@ seed.setting(SETTING_KEYS.discountPolicy, { mode: 'FREE', fixedMode: 'PERCENT', 
 
 console.log('\n— ۱) نشست ۱۴۰: actor برگشت از نشست باز، نه userId renderer')
 {
-  const r0 = await ipc(IPC.saleReturn, { invoiceId: 1, full: true, refundMethod: 'NONE', userId: forged })
+  const r0 = await ipc(IPC.saleReturn, { invoiceId: 1, full: true, refundMethod: 'NONE', userId: forged,
+    idempotencyKey: 'return-request:audit-s172-no-shift-001' })
   eq('بی‌نشست باز: برگشت IPC با پیام فارسی «نشست باز» رد', r0?.ok === false && /نشست بازِ کارمند/.test(String(r0?.error)), true)
 }
 const shiftId = seed.insert('Shift', { name: 'صبح', number: 1, dayJalali: today, openedAt: Date.now() - 3600_000, userId: A, staffConfirmed: 1 })
@@ -66,6 +72,7 @@ const shiftId = seed.insert('Shift', { name: 'صبح', number: 1, dayJalali: tod
     lines: [{ saleItemId: itemsOf(s.id)[0], qty: 1 }],
     refundMethod: 'NONE',
     confirmOverpay: true,
+    idempotencyKey: 'return-request:audit-s172-valid-001',
     userId: forged
   })
   eq('برگشت ثبت شد', r?.ok ? true : r?.error, true)
@@ -89,12 +96,12 @@ console.log('\n— ۲) نشست ۱۴۱: سقف تخفیف روی کالای جا
   const s = await salesService.create({ userId: A, shiftId, lines: [line()], payments: [{ methodId: cash, amount: 1_000_000, destination: 'CASH' }] })
   const it = itemsOf(s.id)[0]
   const c0 = counts()
-  const r1 = await ipc(IPC.saleExchangeCreate, { invoiceId: s.id, lines: [{ saleItemId: it, qty: 1 }], replacements: [{ variantId: vr, qty: 1, unitPrice: 1_000_000, discount: 300_000 }], refundMode: 'STORE_CREDIT', userId: forged })
+  const r1 = await ipc(IPC.saleExchangeCreate, { invoiceId: s.id, lines: [{ saleItemId: it, qty: 1 }], replacements: [{ variantId: vr, qty: 1, unitPrice: 1_000_000, discount: 300_000 }], refundMode: 'STORE_CREDIT', idempotencyKey: 'exchange-request:audit-s172-r1', userId: forged })
   eq('تخفیف ۳۰٪ روی جایگزین با سقف ۱۰٪ ⇒ رد با «سقف مجاز»', r1?.ok === false && /سقف مجاز/.test(String(r1?.error)), true)
-  const r2 = await ipc(IPC.saleExchangeCreate, { invoiceId: s.id, lines: [{ saleItemId: it, qty: 1 }], replacements: [{ variantId: vr, qty: 1, unitPrice: 1_000_000, discount: 300_000 }], refundMode: 'STORE_CREDIT', managerPassword: PW, userId: forged })
+  const r2 = await ipc(IPC.saleExchangeCreate, { invoiceId: s.id, lines: [{ saleItemId: it, qty: 1 }], replacements: [{ variantId: vr, qty: 1, unitPrice: 1_000_000, discount: 300_000 }], refundMode: 'STORE_CREDIT', managerPassword: PW, idempotencyKey: 'exchange-request:audit-s172-r2', userId: forged })
   eq('با رمز مدیر هم رد (بند ۴-۲۶)', r2?.ok === false && /سقف مجاز/.test(String(r2?.error)), true)
   eq('هیچ سند/اعتبار/پرداختی ساخته نشد', counts(), c0)
-  const r3 = await ipc(IPC.saleExchangeCreate, { invoiceId: s.id, lines: [{ saleItemId: it, qty: 1 }], replacements: [{ variantId: vr, qty: 1, unitPrice: 1_000_000, discount: 100_000 }], refundMode: 'STORE_CREDIT', userId: forged })
+  const r3 = await ipc(IPC.saleExchangeCreate, { invoiceId: s.id, lines: [{ saleItemId: it, qty: 1 }], replacements: [{ variantId: vr, qty: 1, unitPrice: 1_000_000, discount: 100_000 }], refundMode: 'STORE_CREDIT', idempotencyKey: 'exchange-request:audit-s172-r3', userId: forged })
   eq('کنترل: تخفیف دقیقاً ۱۰٪ پذیرفته', r3?.ok ? true : r3?.error, true)
 }
 

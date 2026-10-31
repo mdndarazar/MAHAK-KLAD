@@ -33,6 +33,28 @@ import { MATCH_REASON_LABELS, matchRank, variantTitle } from './SecondaryStockSe
 
 type Client = Prisma.TransactionClient | typeof prisma
 
+/** The physical recipient of one witnessed unit group, not merely the logical
+ * warehouse from the sale plan. Only new goods receipts request this trace. */
+export interface RestoredReceiptSource {
+  allocationId: number | null
+  sourceKind: StockSourceKind
+  warehouseId: number | null
+  warehouseName: string
+  secondaryStockItemId: number | null
+  stockItemName: string | null
+  stockItemCode: string | null
+  variantId: number
+  qty: number
+}
+
+type RestoredWarehouseRow = {
+  secondaryStockItemId: number
+  warehouseId: number | null
+  stockItemName: string
+  stockItemCode: string | null
+  qty: number
+}
+
 /**
  * ===========================================================================
  * جلسه ۴۷ — «از کدام انبار کسر شود؟» (فقط فاکتور فروش عمده)
@@ -60,7 +82,14 @@ type Client = Prisma.TransactionClient | typeof prisma
  * ===========================================================================
  */
 
-const REASONS: Record<number, string> = MATCH_REASON_LABELS ?? MATCH_REASON_LABELS_FALLBACK
+/**
+ * SecondaryStockService also reaches this module through the inventory graph.
+ * Reading its exported const during module initialization creates an ESM TDZ
+ * when that graph is imported in the other order. Resolve the label only while
+ * building a row, after both modules have initialized.
+ */
+const reasonFor = (rank: number): string =>
+  (MATCH_REASON_LABELS ?? MATCH_REASON_LABELS_FALLBACK)[rank] ?? 'تطبیق متنی'
 
 interface VariantInfo {
   id: number
@@ -157,7 +186,7 @@ const rowInfoOf = (x: { row: StockRow; rank: number }): StockSourceRowInfo => ({
   name: x.row.name,
   code: x.row.code ?? null,
   qty: Math.round(x.row.qty),
-  matchReason: REASONS[x.rank] ?? 'تطبیق متنی'
+  matchReason: reasonFor(x.rank)
 })
 
 /** جمع موجودیِ *مثبتِ* ردیف‌های تطبیق‌خورده (ردیف منفی چیزی برای برداشت ندارد). */
@@ -678,16 +707,20 @@ export const stockAllocationService = {
       targets: { saleItemId: number; variantId: number; qty: number }[]
       userId?: number | null
       reason: string
+      /** A new physical receipt needs every actual stock row for compensation. */
+      captureSources?: boolean
     }
   ): Promise<{
     storeLines: { variantId: number; qty: number }[]
     warehouseLines: { variantId: number; warehouseId: number | null; warehouseName: string; qty: number }[]
     warehouseQty: number
     notes: string[]
+    sources: RestoredReceiptSource[]
   }> {
     const store = new Map<number, number>()
     const warehouse: { variantId: number; warehouseId: number | null; warehouseName: string; qty: number }[] = []
     const notes: string[] = []
+    const sources: RestoredReceiptSource[] = []
     let warehouseQty = 0
 
     const addStore = (variantId: number, qty: number) => {
@@ -704,13 +737,25 @@ export const stockAllocationService = {
       })
 
       if (!allocations.length) {
-        // فاکتور قدیمی / بی‌دفتر ⇒ مو‌به‌مو مثل قبل: همه به انبار فروشگاه
+        // Only an invoice with NO source ledger is known to be store-only.
+        // A missing sale-item row inside a mixed invoice is not such proof.
+        if (params.captureSources && await tx.saleItemStockAllocation.findFirst({
+          where: { invoiceId: params.invoiceId }, select: { id: true }
+        })) throw new BusinessError('دفتر مبدأ این قلم ناقص است؛ رسید نباید به حدس وارد انبار فروشگاه شود.')
         addStore(t.variantId, left)
+        if (params.captureSources) sources.push({ allocationId: null, sourceKind: StockSourceKind.STORE,
+          warehouseId: null, warehouseName: STORE_SOURCE_LABEL, secondaryStockItemId: null,
+          stockItemName: null, stockItemCode: null, variantId: t.variantId, qty: left })
         continue
       }
 
       for (const a of allocations) {
         if (left <= 0) break
+        if (params.captureSources && (a.variantId !== t.variantId ||
+            !Number.isSafeInteger(a.qty) || a.qty <= 0 ||
+            !Number.isSafeInteger(a.restoredQty) || a.restoredQty < 0 || a.restoredQty > a.qty ||
+            ![StockSourceKind.STORE, StockSourceKind.WAREHOUSE].includes(a.sourceKind as StockSourceKind)))
+          throw new BusinessError('دفتر مبدأ فروش با کالای برگشتی سازگار نیست؛ رسید بدون حدس ثبت نمی‌شود.')
         const capacity = Math.max(0, Math.round(a.qty) - Math.round(a.restoredQty ?? 0))
         if (capacity <= 0) continue
         const take = Math.min(left, capacity)
@@ -718,15 +763,26 @@ export const stockAllocationService = {
 
         if (a.sourceKind === StockSourceKind.STORE) {
           addStore(t.variantId, take)
+          if (params.captureSources) sources.push({ allocationId: a.id, sourceKind: StockSourceKind.STORE,
+            warehouseId: null, warehouseName: STORE_SOURCE_LABEL, secondaryStockItemId: null,
+            stockItemName: null, stockItemCode: null, variantId: t.variantId, qty: take })
         } else {
-          await this.restoreWarehouseRows(tx, {
+          const restored = await this.restoreWarehouseRows(tx, {
             allocation: a,
             qty: take,
             alreadyRestored: Math.round(a.restoredQty ?? 0),
             variantId: t.variantId,
             userId: params.userId ?? null,
             receiptNo: params.receiptNo ?? null,
-            reason: params.reason
+            reason: params.reason,
+            requireExact: params.captureSources === true
+          })
+          if (params.captureSources) for (const row of restored) sources.push({
+            allocationId: a.id, sourceKind: StockSourceKind.WAREHOUSE,
+            warehouseId: row.warehouseId, warehouseName: a.warehouseName || DEFAULT_CENTRAL_WAREHOUSE_LABEL,
+            secondaryStockItemId: row.secondaryStockItemId,
+            stockItemName: row.stockItemName, stockItemCode: row.stockItemCode,
+            variantId: t.variantId, qty: row.qty
           })
           warehouse.push({
             variantId: t.variantId,
@@ -750,6 +806,8 @@ export const stockAllocationService = {
        * می‌رود و در سابقه هم گفته می‌شود.
        */
       if (left > 0) {
+        if (params.captureSources)
+          throw new BusinessError('تعداد برگشتی از ماندهٔ دفتر مبدأ فروش بیشتر است؛ رسید فیزیکی به انبار حدسی وارد نشد.')
         addStore(t.variantId, left)
         notes.push(
           `${faDigits(left)} عدد مبدأ ثبت‌شده نداشت و مثل قبل به «${STORE_SOURCE_LABEL}» برگشت.`
@@ -771,7 +829,8 @@ export const stockAllocationService = {
       storeLines: [...store.entries()].map(([variantId, qty]) => ({ variantId, qty })),
       warehouseLines: warehouse,
       warehouseQty,
-      notes
+      notes,
+      sources
     }
   },
 
@@ -822,9 +881,11 @@ export const stockAllocationService = {
       userId?: number | null
       receiptNo?: number | null
       reason: string
+      requireExact?: boolean
     }
-  ): Promise<void> {
+  ): Promise<RestoredWarehouseRow[]> {
     const warehouseName = p.allocation.warehouseName || DEFAULT_CENTRAL_WAREHOUSE_LABEL
+    const restored: RestoredWarehouseRow[] = []
     let details: { id: number; name: string; code: string | null; taken: number; remaining: number }[] = []
     try {
       const parsed = p.allocation.rowDetails ? JSON.parse(p.allocation.rowDetails) : []
@@ -832,6 +893,9 @@ export const stockAllocationService = {
     } catch {
       details = []
     }
+    if (p.requireExact && (!details.length || details.some((d) =>
+      !Number.isSafeInteger(d?.id) || d.id <= 0 || !Number.isSafeInteger(d?.taken) || d.taken <= 0)))
+      throw new BusinessError('ردیف‌های دفتر مبدأ انبار ناقص است؛ رسید جدید بدون شاهدِ ردیف واقعی ثبت نمی‌شود.')
 
     /**
      * «چه مقدار از این برداشت قبلاً برگشته» را روی همان ترتیبِ ردیف‌ها جلو
@@ -852,7 +916,14 @@ export const stockAllocationService = {
       const give = Math.min(left, capacity)
       if (give <= 0) continue
       const row = await tx.secondaryStockItem.findUnique({ where: { id: d.id } })
-      if (row) {
+      // An original row might have been transferred to another branch. New
+      // receipts must not restore into that branch just because the ID matches.
+      const sameWarehouse = !p.requireExact || (row && (
+        (row.warehouseId ?? null) === (p.allocation.warehouseId ?? null) ||
+        (p.allocation.warehouseId == null && row.warehouseId != null &&
+          (await tx.secondaryWarehouse.findUnique({ where: { id: row.warehouseId }, select: { isDefault: true } }))?.isDefault === true)
+      ))
+      if (row && sameWarehouse) {
         const before = row.qty
         await tx.secondaryStockItem.update({ where: { id: row.id }, data: { qty: before + give } })
         await this.logRow(tx, {
@@ -864,14 +935,20 @@ export const stockAllocationService = {
           userId: p.userId ?? null,
           note: `${p.reason}${p.receiptNo ? ` · فاکتور ${faDigits(p.receiptNo)}` : ''} · ${faDigits(give)} عدد برگشت`
         })
-        left -= give
+        restored.push({ secondaryStockItemId: row.id, warehouseId: row.warehouseId ?? null,
+          stockItemName: row.name, stockItemCode: row.code ?? null, qty: give })
       } else {
-        await this.restoreByMatch(tx, { ...p, warehouseName, qty: give })
-        left -= give
+        restored.push(await this.restoreByMatch(tx, { ...p, warehouseName, qty: give }))
       }
+      left -= give
     }
 
-    if (left > 0) await this.restoreByMatch(tx, { ...p, warehouseName, qty: left })
+    if (left > 0) {
+      if (p.requireExact)
+        throw new BusinessError('دفتر ردیف‌های انبار همهٔ مقدار این رسید را پوشش نمی‌دهد؛ موجودی بدون مبدأ ثبت نشد.')
+      restored.push(await this.restoreByMatch(tx, { ...p, warehouseName, qty: left }))
+    }
+    return restored
   },
 
   /** ردیف مبدأ حذف شده بود ⇒ تطبیق متنی در همان انبار، وگرنه ردیف تازه. */
@@ -886,7 +963,7 @@ export const stockAllocationService = {
       receiptNo?: number | null
       reason: string
     }
-  ): Promise<void> {
+  ): Promise<RestoredWarehouseRow> {
     const v = (await tx.productVariant.findUnique({
       where: { id: p.variantId },
       select: VARIANT_SELECT
@@ -912,7 +989,8 @@ export const stockAllocationService = {
           `${p.reason}${p.receiptNo ? ` · فاکتور ${faDigits(p.receiptNo)}` : ''} · ` +
           `ردیف مبدأ پیدا نشد؛ با تطبیق متنی به ردیف «${hit.name}» برگشت`
       })
-      return
+      return { secondaryStockItemId: hit.id, warehouseId: hit.warehouseId ?? null,
+        stockItemName: hit.name, stockItemCode: hit.code ?? null, qty: p.qty }
     }
 
     const created = await tx.secondaryStockItem.create({
@@ -933,6 +1011,8 @@ export const stockAllocationService = {
       userId: p.userId ?? null,
       note: `${p.reason}${p.receiptNo ? ` · فاکتور ${faDigits(p.receiptNo)}` : ''} · ردیف مبدأ نبود؛ ردیف تازه ساخته شد`
     })
+    return { secondaryStockItemId: created.id, warehouseId: created.warehouseId ?? null,
+      stockItemName: created.name, stockItemCode: created.code ?? null, qty: p.qty }
   },
 
   /**

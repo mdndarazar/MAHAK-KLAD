@@ -27,7 +27,8 @@ type CorrectionRow = {
 
 const effectLabel = (type: string) =>
   ({
-    INVENTORY_OUT: 'خروج جبرانی از موجودی',
+    INVENTORY_OUT: 'خروج جبرانی از موجودی فروشگاه',
+    WAREHOUSE_INVENTORY_OUT: 'خروج جبرانی از ردیف انبار مبدأ',
     CASH_RECOVERED: 'نقد بازیافتیِ کشو',
     CARD_RECOVERED: 'کارت/بانک بازیافتی',
     CASH_PAID_OUT: 'پرداخت نقدی جبرانی',

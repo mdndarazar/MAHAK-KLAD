@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { call, CH } from '../lib/api'
+import {
+  clearStoredExchangeRequestIdentity,
+  clearStoredReturnRequestIdentity,
+  resolveExchangeRequestIdentity,
+  resolveReturnRequestIdentity,
+  type ExchangeRequestIdentity,
+  type ReturnRequestIdentity
+} from '../lib/returnIdempotency'
 // نشست ۳۱۶ — جداکننده‌ی هزارگانِ زنده در ورودی «مبلغ بازپرداخت» (state همچنان رقمِ خام)
 import { digitsOnly, groupThousands } from '../lib/moneyInput'
 // نشست ۲۲۲ · فاز ۳ — نقطه‌ی مشترک چاپ (پرسش/بی‌پرس + چاپگر)
 import { printWith } from '../lib/printFlow'
-import { isUnknownPrintMessage } from '../lib/printErrors'
+import { isPrintCancelledError, isUnknownPrintMessage } from '../lib/printErrors'
 import { useBarcodeScanner, useFieldScanDetector } from '../hooks/useBarcodeScanner'
 import ConfirmDialog from '../components/ConfirmDialog'
 import PasswordField from '../components/PasswordField'
@@ -20,6 +28,8 @@ import {
   type OverpayRequest
 } from '@shared/overpayFlow'
 import ReturnEditModal from '../components/ReturnEditModal'
+import ReturnGoodsIntake from '../components/ReturnGoodsIntake'
+import CreditOpportunityHandoff from '../components/CreditOpportunityHandoff'
 import JalaliDateInput from '../components/JalaliDateInput'
 import VariantSearchBox, { type VariantSearchBoxHandle } from '../components/VariantSearchBox'
 import { useCharges } from '../hooks/useCharges'
@@ -43,7 +53,7 @@ import { PANEL_KEYS } from '@shared/panels'
  *   ۲) سیستم فاکتور فروش تکی متناظر را — در بازه‌ی اعتبار یک‌هفته‌ای کد — پیدا
  *      می‌کند و اقلامش را نشان می‌دهد.
  *   ۳) کاربر تعداد برگشتی هر قلم را می‌گذارد (کامل یا جزئی) و ثبت می‌کند؛
- *      همان تعداد به موجودی انبار برمی‌گردد (حرکت انبار SALE_RETURN، قطعی).
+ *      روش‌های غیر C2C همان لحظه موجودی را به‌روز می‌کنند و فقط C2C تا پرداخت مدیر معلق می‌ماند.
  *
  * ---------------------------- تعویض کالا (بخش ۶) ----------------------------
  * با روشن کردن چک‌باکس «تعویض کالا»، زیر جدول اقلام یک بخش «کالای جایگزین» باز
@@ -55,12 +65,13 @@ import { PANEL_KEYS } from '@shared/panels'
  * «مابه‌التفاوت» زنده و همان لحظه حساب می‌شود (جمع کالای جایگزین − جمع کالای
  * برگشتی) و روی صفحه سه حالتش روشن نوشته می‌شود:
  *   • مثبت ⇒ مشتری می‌پردازد (روش پرداختش را همان‌جا انتخاب می‌کنید).
- *   • منفی ⇒ ما بدهکاریم و «بارکد اعتبار خرید بعدی» صادر می‌شود.
+ *   • منفی ⇒ ما بدهکاریم؛ پول واقعی یا اعتبار تا صفر چندبارمصرف با انتخاب صریح ثبت می‌شود.
  *   • صفر  ⇒ تسویه‌ای لازم نیست.
  * دکمه‌ی «ثبت تعویض کالا» کانال IPC `sale:exchange:create` را صدا می‌زند و کل
  * کار (برگشت + سند تعویض + تسویه + صدور بارکد) در یک تراکنش سمت main انجام
  * می‌شود؛ این صفحه هیچ محاسبه‌ی مالی‌ای را «تصمیم» نمی‌گیرد، فقط نمایش می‌دهد.
- * بعد از ثبت، دکمه‌ی «چاپ سند تعویض» (کانال `print:exchange`) همان‌جا می‌آید.
+ * بعد از ثبت، چاپ رسید مالی تعویض و چاپ جداگانهٔ کد اعتبار همان‌جا می‌آیند؛
+ * چاپ اول کد محدود به همان پنجره/کارمند و چاپ بعدی نیازمند تأیید مدیر است.
  *
  * کالای حذف‌شده از انبار:
  *   اگر کالای یک قلم از فهرست کالاهای انبار حذف شده باشد، پیام روشن
@@ -140,7 +151,7 @@ const REFUND_CHOICES: { value: RefundMethodValue; title: string; hint: string }[
   {
     value: 'STORE_CREDIT',
     title: 'بارکد اعتبار خرید بعدی',
-    hint: 'هیچ نقدی جابه‌جا نمی‌شود؛ یک بدهی ما به مشتری ثبت و بارکد یک‌بارمصرف صادر می‌شود.'
+    hint: 'هیچ نقدی جابه‌جا نمی‌شود؛ اعتبار برگشت/تعویض تا صفر چندبارمصرف است. اعتبار هدیهٔ دستی می‌تواند یک‌بارمصرف باشد.'
   },
   /**
    * ---------------------- جلسه ۱۷ · بند ۱ ----------------------
@@ -158,16 +169,18 @@ const REFUND_CHOICES: { value: RefundMethodValue; title: string; hint: string }[
   },
   {
     value: 'NONE',
-    title: 'بدون بازپرداخت (فقط بدهی مشتری کم شود)',
-    hint: 'برای فاکتور نسیه‌ی پرداخت‌نشده: طلب ما کم می‌شود و هیچ پولی جابه‌جا نمی‌گردد.'
+    title: 'بدون خروج پول (کاهش بدهی/بازگشت سهم اعتبار)',
+    hint: 'برای کاهش بدهی یا سهم ۱۰۰٪ اعتبارِ غیرنقدی بدون پول واقعی؛ حق پول واقعی با این گزینه بی‌سند حذف نمی‌شود.'
   }
 ]
 
-/** بند ۱۲ — سه گزینه‌ی *متقابلاً انحصاری* تسویه‌ی مابه‌التفاوت منفی تعویض. */
-const EXCHANGE_REFUND_CHOICES: { value: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD'; title: string; hint: string }[] = [
-  { value: 'CASH', title: 'بازپرداخت نقدی', hint: 'پول از کشوی صندوق بیرون می‌رود (یک بازپرداخت واقعی ثبت می‌شود).' },
-  { value: 'CARD', title: 'بازپرداخت کارتی', hint: 'به کارت مشتری برگشت؛ از کشو پولی بیرون نمی‌رود.' },
-  { value: 'STORE_CREDIT', title: 'صدور اعتبار خرید', hint: 'بارکد یک‌بارمصرف صادر می‌شود؛ اثر نقدی صفر.' },
+/** روش انتخابی برای سهم پولیِ مابه‌التفاوت منفی؛ سهم اعتبار ریشه‌دار در صورت وجود جداگانه بازمی‌گردد. */
+const EXCHANGE_REFUND_CHOICES: { value: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | 'S1_RESIDUAL_RIGHTS' | 'S11_DEBT_OFFSET_RIGHTS'; title: string; hint: string }[] = [
+  { value: 'S11_DEBT_OFFSET_RIGHTS', title: 'کسر بدهی چک + یک بارکد غیرنقدی (فقط S11)', hint: 'فقط برای برگشت کامل فرزند تعویض با یک بدهیِ چکِ باز؛ ابتدا بدهی کسر می‌شود، سپس وجه واقعی اول carry می‌شود و باقیماندهٔ اعتبار ریشه‌دار با یک بارکد و مهلت اصلی صادر می‌شود. چک منبع پرداخت نیست.' },
+  { value: 'S1_RESIDUAL_RIGHTS', title: 'ماندهٔ فقط اعتباری S1 → منشأ ریشه‌دار', hint: 'اگر منشأ یک بارکد چندبارهٔ زنده باشد، مانده به همان بارکد برمی‌گردد؛ در سایر حالت‌های S1 بارکد جانشینِ ریشه‌دار صادر می‌شود. در ماندهٔ مختلط هدیه+وجه، این انتخاب برای سهم واقعی لازم نیست.' },
+  { value: 'CASH', title: 'بازپرداخت نقدیِ سهم واقعی', hint: 'فقط ماندهٔ نقد/کارتِ اثبات‌شده از منشأ فاکتور برمی‌گردد؛ بارکد اعتبار هرگز نقد نمی‌شود.' },
+  { value: 'CARD', title: 'بازپرداخت کارتیِ سهم واقعی', hint: 'فقط ماندهٔ وجه واقعی به کارت برمی‌گردد و تأیید مدیر لازم است؛ سهم بارکد جدا می‌ماند.' },
+  { value: 'STORE_CREDIT', title: 'اعتبار غیرنقدی برای سهم واقعی', hint: 'ماندهٔ وجه واقعی به کد تازه تبدیل می‌شود؛ در تعویض زنجیره‌ای، تا چاپ و تحویل شاهددار خرج‌پذیر نیست.' },
   { value: 'CARD_TO_CARD', title: 'کارت‌به‌کارت توسط مدیر', hint: 'پرداخت فوری انجام نمی‌شود؛ درخواست پرداخت برای تایید مدیر ثبت می‌شود.' }
 ]
 
@@ -197,10 +210,18 @@ export default function SalesReturn() {
   const [busy, setBusy] = useState(false)
   const [printing, setPrinting] = useState(false)
   const printingRef = useRef(false)
+  const returnIdempotencyRef = useRef<ReturnRequestIdentity | null>(null)
+  const exchangeIdempotencyRef = useRef<ExchangeRequestIdentity | null>(null)
+  const [ordinaryCreditPrint, setOrdinaryCreditPrint] = useState<{
+    creditId: number; returnId: number; firstPrintGrant: string | null
+  } | null>(null)
+  const [ordinaryCreditPrintPassword, setOrdinaryCreditPrintPassword] = useState('')
+  const [ordinaryCreditPrintError, setOrdinaryCreditPrintError] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [confirmForce, setConfirmForce] = useState<string | null>(null)
   const [history, setHistory] = useState<any[]>([])
+  const [goodsReturnId, setGoodsReturnId] = useState<number | null>(null)
   /**
    * ==================== بند ۱۱ — روش بازپرداخت (اجباری) ====================
    * `null` یعنی «کاربر هنوز انتخاب نکرده»، و همین حالت، دکمه‌ی ثبت را می‌بندد.
@@ -210,13 +231,28 @@ export default function SalesReturn() {
   const [refundMethod, setRefundMethod] = useState<RefundMethodValue | null>(null)
   /** خالی = کل مبلغ برگشت (همان پیش‌فرض سمت سرور) */
   const [refundAmount, setRefundAmount] = useState('')
+  /** Optional second leg: barcode funded from the proved real-money refund right. */
+  const [refundStoreCreditAmount, setRefundStoreCreditAmount] = useState('')
   const [refundReference, setRefundReference] = useState('')
   const [refundNote, setRefundNote] = useState('')
+  /** Only on NEW credit papers; blank fields do not block return/exchange. */
+  const [printedHolderFirstName, setPrintedHolderFirstName] = useState('')
+  const [printedHolderLastName, setPrintedHolderLastName] = useState('')
+  const [printedHolderPhone, setPrintedHolderPhone] = useState('')
   const [managerFullRefund, setManagerFullRefund] = useState(false)
   const [fullRefundPw, setFullRefundPw] = useState('')
   const [fullRefundReason, setFullRefundReason] = useState('')
   /** نتیجه‌ی برگشت ساده‌ی تازه ثبت‌شده — برای دکمه‌ی «چاپ رسید برگشت» (بند ۱۳) */
   const [retResult, setRetResult] = useState<any | null>(null)
+  const [creditPreview, setCreditPreview] = useState<{
+    returnTotal: number; debtReduced: number; giftOpportunity: number; cashRight: number;
+    s1ResidualRestoration?: { b: number; n: number };
+    previewOnly: true; previewKey: string; settlementReady?: boolean; attributionOnly?: boolean;
+    exchangeCarryRestoration?: boolean; exchangeChildReturn?: boolean; settlementState?: string; shares?: { sourceEventId: number; sourceKind: string; amount: number }[];
+    remainingAttributionBySource?: { sourceEventId: number; sourceKind: string; attributedAmount: number;
+      alreadyReturnedAttribution: number; remainingAttribution: number; ledgerBalance: number }[]
+  } | null>(null)
+  const [creditPreviewError, setCreditPreviewError] = useState<string | null>(null)
   /** نشست ۱۸۹ · بند ۴-۳۵ — فلو چهارمرحله‌ای اضافه‌دریافت ساخته‌شده با برگشت */
   const [overpayFlow, setOverpayFlow] = useState<OverpayFlowState | null>(null)
   const [overpayReq, setOverpayReq] = useState<OverpayRequest>({})
@@ -229,7 +265,7 @@ export default function SalesReturn() {
    * جلسه ۱۷ · بند ۱ — گزینه‌ی چهارم «کارت‌به‌کارت توسط مدیر» هم اضافه شد و
    * عمداً یک مقدار *جدا* است، نه حالتی از `CARD`.
    */
-  const [exRefundMode, setExRefundMode] = useState<'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | null>(null)
+  const [exRefundMode, setExRefundMode] = useState<'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | 'S1_RESIDUAL_RIGHTS' | 'S11_DEBT_OFFSET_RIGHTS' | null>(null)
   /**
    * بند ۱۸ — قفل قیمت دستیِ کالای جایگزین. تا این قفل با رمز مدیر باز نشود،
    * کادرهای قیمت غیرفعال‌اند و همیشه همان `variant.salePrice` را نشان می‌دهند.
@@ -253,8 +289,22 @@ export default function SalesReturn() {
   const [reps, setReps] = useState<RepLine[]>([])
   const [methods, setMethods] = useState<Method[]>([])
   const [methodId, setMethodId] = useState<number | null>(null)
+  const [exCheque, setExCheque] = useState(false)
+  const [exChequeNo, setExChequeNo] = useState('')
+  const [exChequeBank, setExChequeBank] = useState('')
+  const [exChequeDueDate, setExChequeDueDate] = useState('')
+  const [exChequeDebtOverride, setExChequeDebtOverride] = useState(false)
+  const [exChequeOverridePassword, setExChequeOverridePassword] = useState('')
+  const [exChequeOverrideReason, setExChequeOverrideReason] = useState('')
   /** پرداخت مثبت تعویض با دو ردیف واقعی نقد و کارت، نه یک پرداخت مصنوعی. */
   const [exSplitPayment, setExSplitPayment] = useState(false)
+  /** Optional barcode credit tender for a positive exchange delta. The server determines its usable amount. */
+  const [exDeltaRightCode, setExDeltaRightCode] = useState('')
+  const [exDeltaTenderAmount, setExDeltaTenderAmount] = useState('')
+  const [exDeltaCreditPreview, setExDeltaCreditPreview] = useState<{
+    key: string; applied: number; error: string | null
+  } | null>(null)
+  const [exDeltaCreditPreviewBusy, setExDeltaCreditPreviewBusy] = useState(false)
   const [exSplitCash, setExSplitCash] = useState('')
   const [exSplitCard, setExSplitCard] = useState('')
   const [exSplitCashMethodId, setExSplitCashMethodId] = useState<number | null>(null)
@@ -445,6 +495,9 @@ export default function SalesReturn() {
       setQty({})
       setAllowRemoved(false)
       setNote('')
+      // Contact details belong to this paper only; never leak to the next
+      // customer when a different receipt is scanned or current one reloaded.
+      setPrintedHolderFirstName(''); setPrintedHolderLastName(''); setPrintedHolderPhone('')
       setCode(res.returnCode)
       scan.reset()
       if (res.warnings.length) setErr(res.warnings.join('\n'))
@@ -593,6 +646,25 @@ export default function SalesReturn() {
     const total = exSplitCashAmount + exSplitCardAmount
     return Number.isSafeInteger(total) ? total : null
   }, [exSplitCashAmount, exSplitCardAmount])
+  const exDeltaTenderAmountValue = useMemo(
+    () => exDeltaTenderAmount.trim() === '' ? null : parseGroupedInteger(exDeltaTenderAmount),
+    [exDeltaTenderAmount]
+  )
+  const hasExDeltaCreditInput = !!exDeltaRightCode.trim()
+  const deltaCreditLines = useMemo(() => reps.map((line) => ({
+    variantId: line.variantId,
+    categoryId: line.categoryId,
+    qty: line.qty,
+    lineTotal: Math.max(0, line.unitPrice * line.qty - line.discount)
+  })), [reps])
+  const deltaCreditPreviewKey = useMemo(() => JSON.stringify({
+    code: exDeltaRightCode.trim(), diff: exTotals.diff, invoiceTotal: exTotals.exchangeTotal,
+    customerId: lookup?.customerId ?? null, lines: deltaCreditLines
+  }), [exDeltaRightCode, exTotals.diff, exTotals.exchangeTotal, lookup?.customerId, deltaCreditLines])
+  const currentDeltaCreditPreview = exDeltaCreditPreview?.key === deltaCreditPreviewKey
+    ? exDeltaCreditPreview : null
+  const exDeltaCreditApplied = currentDeltaCreditPreview?.applied ?? 0
+  const exDeltaTenderRemainder = Math.max(0, exTotals.diff - exDeltaCreditApplied)
   /** بند ۱۸ — قلم‌هایی که قیمتشان دستی از قیمت واقعی کالا جدا شده است. */
   const priceChanged = useMemo(() => reps.filter((l) => l.unitPrice !== l.realPrice), [reps])
 
@@ -601,6 +673,51 @@ export default function SalesReturn() {
     () => !!items.length && items.every((i) => (qty[i.saleItemId] ?? 0) >= i.remainingQty && i.remainingQty > 0),
     [items, qty]
   )
+  const selectedKey = selected.map((i) => `${i.saleItemId}:${qty[i.saleItemId]}`).join(',')
+  useEffect(() => {
+    let canceled = false
+    setCreditPreview(null); setCreditPreviewError(null)
+    if (!lookup || !selectedKey) return () => { canceled = true }
+    void call<{ returnTotal: number; debtReduced: number; giftOpportunity: number; cashRight: number;
+      s1ResidualRestoration?: { b: number; n: number };
+      previewOnly: true; settlementReady?: boolean; attributionOnly?: boolean;
+      exchangeCarryRestoration?: boolean; exchangeChildReturn?: boolean; settlementState?: string;
+      shares?: { sourceEventId: number; sourceKind: string; amount: number }[];
+      remainingAttributionBySource?: { sourceEventId: number; sourceKind: string; attributedAmount: number;
+        alreadyReturnedAttribution: number; remainingAttribution: number; ledgerBalance: number }[] }>(
+      CH.saleReturnProvenancePreview,
+      { invoiceId: lookup.invoiceId, full: isFull,
+        lines: selected.map((i) => ({ saleItemId: i.saleItemId, qty: qty[i.saleItemId] })) }
+    ).then((res) => {
+      if (!canceled) {
+        setCreditPreview({ ...res, previewKey: selectedKey })
+        if (res.exchangeChildReturn && res.cashRight === 0) setRefundMethod('NONE')
+      }
+    }).catch((e: Error) => {
+      if (!canceled) setCreditPreviewError(e.message)
+    })
+    return () => { canceled = true }
+    // selectedKey represents the exact selected quantities. A late response
+    // must never replace a preview for another receipt or selection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lookup?.invoiceId, selectedKey, isFull, exchangeMode])
+
+  // The same server provenance preview drives ordinary returns and exchanges.
+  // In a partial exchange, real money carries first; if only a pooled barcode
+  // share remains, no payout method is needed and that share returns to its root.
+  const exchangeCreditOnlyResidual = (() => {
+    if (!exchangeMode || !creditPreview || creditPreview.previewKey !== selectedKey ||
+        creditPreview.returnTotal !== totals.amount || creditPreview.debtReduced !== 0 ||
+        creditPreview.settlementReady === false || creditPreview.exchangeCarryRestoration === true ||
+        creditPreview.giftOpportunity <= 0 || creditPreview.cashRight < 0 || exTotals.diff >= 0)
+      return false
+    const cashCarry = Math.min(creditPreview.cashRight, exTotals.exchangeTotal)
+    const giftCarry = Math.min(creditPreview.giftOpportunity,
+      Math.max(0, exTotals.exchangeTotal - creditPreview.cashRight))
+    const remainingCash = creditPreview.cashRight - cashCarry
+    const remainingGift = creditPreview.giftOpportunity - giftCarry
+    return remainingGift > 0 && remainingCash === 0
+  })()
 
   const setQtyFor = (i: ReturnLookupItem, v: number) =>
     setQty((p) => ({ ...p, [i.saleItemId]: Math.max(0, Math.min(Math.round(v || 0), i.remainingQty)) }))
@@ -634,12 +751,44 @@ export default function SalesReturn() {
        * همین قاعده هست؛ این بررسی فقط برای این است که کاربر پیام را *قبل* از
        * رفت‌وبرگشت ببیند، نه این‌که تصمیم جای دیگری گرفته شود.
        */
-      if (!refundMethod)
+      if (!refundMethod && creditPreview?.exchangeCarryRestoration !== true)
         return setErr(
           'روش بازپرداخت این برگشت را انتخاب کنید:\n' +
             REFUND_CHOICES.map((c) => `• ${c.title} — ${c.hint}`).join('\n') +
             '\nبدون این انتخاب، سیستم نمی‌داند چقدر از صندوق خارج شده و کسری واقعی از کسری کاذب قابل تفکیک نیست.'
         )
+      if (creditPreviewError) return setErr(`منشأ این برگشت هنوز قابل تطبیق نیست: ${creditPreviewError}`)
+      if (!creditPreview || creditPreview.previewKey !== selectedKey)
+        return setErr('تقسیم منشأ و بدهی در حال محاسبه است؛ چند لحظه صبر کنید و دوباره تأیید کنید.')
+      if (creditPreview.settlementReady === false)
+        return setErr('این پیش‌نمایش فقط انتساب حسابداری است؛ برگشت فرزند تعویض تا تکمیل entitlement، حق تسویه و reversal در سرور بسته می‌ماند.')
+      const childGiftOnly = creditPreview.exchangeChildReturn === true && creditPreview.cashRight === 0
+      const effectiveRefundMethod = childGiftOnly ? 'NONE' : refundMethod
+      if (creditPreview.exchangeCarryRestoration && !creditPreview.exchangeChildReturn &&
+          refundAmount.trim() !== '' && Number(refundAmount) !== 0)
+        return setErr('برگشت carry فقط سهم منشأ را بازمی‌گرداند؛ مبلغ تسویه باید صفر باشد.')
+      if (creditPreview.exchangeChildReturn && creditPreview.cashRight > 0 && !effectiveRefundMethod)
+        return setErr('این برگشت سهم پول واقعیِ منشأدار دارد؛ روش تسویه را انتخاب کنید.')
+      if (childGiftOnly && (refundAmount.trim() !== '' && Number(refundAmount) !== 0 || refundStoreCreditAmount.trim() !== ''))
+        return setErr('این برگشت فقط سهم اعتبار غیرنقدی دارد؛ مبلغ تسویه و اعتبارِ پولی باید صفر باشد.')
+      if (creditPreview.s1ResidualRestoration && effectiveRefundMethod !== 'NONE')
+        return setErr('این برگشت باید سهم B/N را به همان دفتر حق بازگرداند؛ فقط گزینهٔ «بدون بازپرداخت» مجاز است.')
+      const splitCredit = Math.max(0, Math.round(Number(refundStoreCreditAmount.replace(/[^0-9]/g, '')) || 0))
+      const primaryAmount = refundAmount.trim() === ''
+        ? splitCredit > 0 ? Math.max(0, creditPreview.cashRight - splitCredit)
+          : creditPreview.exchangeChildReturn || creditPreview.giftOpportunity > 0 ? creditPreview.cashRight : 0
+        : Math.max(0, Math.round(Number(refundAmount.replace(/[^0-9]/g, '')) || 0))
+      if (splitCredit > 0 && effectiveRefundMethod !== 'CASH')
+        return setErr('تقسیم حق پول واقعی در این مرحله فقط با پرداخت نقدی پشتیبانی می‌شود؛ روش نقدی را انتخاب کنید.')
+      if (splitCredit > 0 && (primaryAmount <= 0 || primaryAmount + splitCredit > creditPreview.cashRight))
+        return setErr(`جمع مبلغ نقدی و بارکد جدید نباید از حق پول واقعی ${money(creditPreview.cashRight)} ریال بیشتر شود.`)
+      if ((creditPreview.giftOpportunity > 0 || creditPreview.exchangeChildReturn) &&
+          primaryAmount + splitCredit !== creditPreview.cashRight)
+        return setErr(`این برگشت ${money(creditPreview.cashRight)} ریال حق پول واقعی و ${money(creditPreview.giftOpportunity)} ریال سهم اعتبار دارد؛ روش تسویه + بارکد پولی باید دقیقاً برابر حق پول واقعی باشد.`)
+      if (creditPreview.exchangeChildReturn && effectiveRefundMethod === 'STORE_CREDIT' && splitCredit > 0)
+        return setErr('در روش «اعتبار خرید»، تمام سهم پول واقعی در یک اعتبار تازه صادر می‌شود؛ تقسیم نقدی را پاک کنید.')
+      if (creditPreview.giftOpportunity > 0 && creditPreview.cashRight > 0 && effectiveRefundMethod === 'NONE')
+        return setErr(`این برگشت ${money(creditPreview.cashRight)} ریال حق پول واقعی دارد؛ بدون بازپرداخت آن را بی‌سند رها نکنید.`)
       if (managerFullRefund && !fullRefundPw.trim())
         return setErr('برای بازپرداخت مبلغ کاملِ بدون کسر تخفیف، رمز مدیر را وارد کنید.')
       if (managerFullRefund && fullRefundReason.trim().length < 3)
@@ -652,7 +801,7 @@ export default function SalesReturn() {
         )
       setBusy(true)
       try {
-        const res = await call<any>(CH.saleReturn, {
+        const returnPayload = {
           invoiceId: lookup.invoiceId,
           full: isFull,
           lines: selected.map((i) => ({ saleItemId: i.saleItemId, qty: qty[i.saleItemId] ?? 0 })),
@@ -660,17 +809,37 @@ export default function SalesReturn() {
           allowRemoved: allowRemoved || undefined,
           force: force || undefined,
           // ---- بند ۱۱: روش و مبلغ بازپرداخت روی خودِ سند برگشت می‌نشیند ----
-          refundMethod,
-          refundAmount: refundAmount.trim() === '' ? undefined : Math.max(0, Math.round(Number(refundAmount.replace(/[^0-9]/g, '')) || 0)),
+          refundMethod: effectiveRefundMethod,
+          ...(effectiveRefundMethod === 'STORE_CREDIT' ? {
+            printedHolderFirstName, printedHolderLastName, printedHolderPhone
+          } : {}),
+          refundAmount: childGiftOnly || (creditPreview.exchangeCarryRestoration && !creditPreview.exchangeChildReturn) ? 0 : splitCredit > 0
+            ? primaryAmount
+            : refundAmount.trim() === ''
+              ? (creditPreview.exchangeChildReturn || creditPreview.giftOpportunity > 0) ? creditPreview.cashRight : undefined
+              : Math.max(0, Math.round(Number(refundAmount.replace(/[^0-9]/g, '')) || 0)),
+          refundStoreCreditAmount: splitCredit || undefined,
           managerFullRefund: managerFullRefund || undefined,
           refundReference: refundReference.trim() || undefined,
           refundNote: refundNote.trim() || undefined,
-          cardPosOverride: refundMethod === 'CARD' ? cardPosOverride : undefined,
+          cardPosOverride: effectiveRefundMethod === 'CARD' ? cardPosOverride : undefined,
           // ---- بند ۱۷: فقط وقتی دوره بسته است و کاربر رمز/دلیل داده ----
           ...req,
           managerPassword: req.managerPassword || (managerFullRefund ? fullRefundPw : lockPw).trim() || undefined,
           overrideReason: (managerFullRefund ? fullRefundReason : lockReason).trim() || undefined
+        }
+        const { managerPassword: _managerPassword, cardPosOverride: posOverride, ...intent } = returnPayload
+        const intentPayload = JSON.stringify({
+          ...intent,
+          cardPosOverride: posOverride ? {
+            acknowledgedNoReverse: posOverride.acknowledgedNoReverse === true,
+            reason: String(posOverride.reason ?? '').trim()
+          } : null
         })
+        const requestIdentity = await resolveReturnRequestIdentity(intentPayload, returnIdempotencyRef.current)
+        returnIdempotencyRef.current = requestIdentity
+        const idempotencyKey = requestIdentity.key
+        const res = await call<any>(CH.saleReturn, { ...returnPayload, idempotencyKey })
         setOverpayFlow(null)
         setOverpayReq({})
         setRetResult(res)
@@ -682,7 +851,9 @@ export default function SalesReturn() {
             `${faDigits(totals.qty)} عدد · ${money(res.total)} ریال · ` +
             (res.restocked
               ? `${faDigits(res.restockedQty)} عدد به موجودی انبار برگشت`
-              : 'این فاکتور بدون کسر از موجودی بود، پس موجودی تغییر نکرد') +
+              : res.restockPending
+                ? 'کالا هنوز وارد موجودی نشده؛ تعداد واقعی را جداگانه با شاهد دریافت کنید.'
+                : 'این فاکتور بدون کسر از موجودی بود؛ حرکت انبار ثبت نشد') +
             (res.fullyReturned ? ' · وضعیت فاکتور: برگشت کامل' : ' · وضعیت فاکتور: برگشت جزئی') +
             (res.refundNote ? `\n${res.refundNote}` : '') +
             (res.storeCreditReference ? ` · ${res.storeCreditReference} صادر شد` : '') +
@@ -692,13 +863,15 @@ export default function SalesReturn() {
                 ? ` · مبلغ اضافه‌ی دریافتی: ${money(res.overpayAmount)} ریال (ردیف «دریافت پول اضافه»)`
                 : '')
         )
-        if (res.overpayCredit?.id) {
+        if (res.overpayCredit?.id && res.replayed !== true) {
           issuedOverpayCreditOpenRef.current = true
           setIssuedOverpayCredit(res.overpayCredit)
           await printIssuedOverpayCredit(res.overpayCredit)
         }
         await lookupCode(lookup.returnCode)
         await loadHistory()
+        clearStoredReturnRequestIdentity(idempotencyKey)
+        if (returnIdempotencyRef.current?.key === idempotencyKey) returnIdempotencyRef.current = null
       } catch (e: any) {
         const message = String(e.message ?? '')
         // پیام «بیشتر از تعداد قابل برگشت» یک هشدار قابل‌تایید است، نه دیوار
@@ -721,10 +894,44 @@ export default function SalesReturn() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       lookup, selected, qty, note, allowRemoved, isFull, totals.qty, removedSelected.length,
-      refundMethod, refundAmount, refundReference, refundNote, managerFullRefund, fullRefundPw, fullRefundReason,
+      refundMethod, refundAmount, refundReference, refundNote, creditPreview, creditPreviewError, selectedKey,
+      printedHolderFirstName, printedHolderLastName, printedHolderPhone,
+      managerFullRefund, fullRefundPw, fullRefundReason,
       lockPw, lockReason, loadHistory, lookupCode
     ]
   )
+
+  const previewDeltaCredit = useCallback(async () => {
+    const code = exDeltaRightCode.trim()
+    if (!code) return setErr('ابتدا بارکد اعتباری را وارد کنید.')
+    if (!lookup || exTotals.diff <= 0 || !reps.length)
+      return setErr('برای محاسبهٔ اعتبار بارکدی، اقلام جایگزین و مابه‌التفاوت مثبت لازم است.')
+    setExDeltaCreditPreviewBusy(true)
+    setExDeltaCreditPreview(null)
+    try {
+      const preview = await call<{
+        ok: boolean; applied: number; error: string | null
+      }>(CH.creditPreview, {
+        code,
+        applicable: exTotals.diff,
+        invoiceTotal: exTotals.exchangeTotal,
+        customerId: lookup.customerId ?? null,
+        lines: deltaCreditLines
+      })
+      const key = JSON.stringify({ code, diff: exTotals.diff, invoiceTotal: exTotals.exchangeTotal,
+        customerId: lookup.customerId ?? null, lines: deltaCreditLines })
+      if (!preview.ok || !Number.isSafeInteger(preview.applied) || preview.applied <= 0)
+        setExDeltaCreditPreview({ key, applied: 0, error: preview.error || 'این اعتبار روی اقلام تعویض قابل مصرف نیست.' })
+      else
+        setExDeltaCreditPreview({ key, applied: preview.applied, error: null })
+    } catch (error: any) {
+      setExDeltaCreditPreview({ key: deltaCreditPreviewKey, applied: 0,
+        error: String(error?.message ?? 'بررسی اعتبار ناموفق بود.') })
+    } finally {
+      setExDeltaCreditPreviewBusy(false)
+    }
+  }, [exDeltaRightCode, lookup, exTotals.diff, exTotals.exchangeTotal, reps.length,
+    deltaCreditLines, deltaCreditPreviewKey])
 
   /**
    * ------------------------- ثبت تعویض کالا (بخش ۶) -------------------------
@@ -743,19 +950,40 @@ export default function SalesReturn() {
        * ضمنی نیست، چون مشتری‌ای که پول نقدش را می‌خواست، بی‌خبر یک بارکد
        * می‌گرفت و از نظر حسابداری یک بدهی تازه برای فروشگاه ساخته می‌شد.
        */
-      if (exTotals.diff < 0 && !exRefundMode)
-        return setErr(
-          `مابه‌التفاوت این تعویض منفی است (ما ${money(-exTotals.diff)} ریال بدهکاریم).\n` +
-            'یکی از این چهار مورد را صریح انتخاب کنید:\n' +
-            EXCHANGE_REFUND_CHOICES.map((c) => `• ${c.title} — ${c.hint}`).join('\n')
-        )
-      if (exTotals.diff > 0 && exSplitPayment) {
+      const deltaRightCode = exDeltaRightCode.trim()
+      let remainingDelta = exTotals.diff
+      if (hasExDeltaCreditInput) {
+        if (!deltaRightCode || !currentDeltaCreditPreview || currentDeltaCreditPreview.error ||
+            currentDeltaCreditPreview.applied <= 0 || currentDeltaCreditPreview.applied > exTotals.diff)
+          return setErr(currentDeltaCreditPreview?.error ?? 'ابتدا بارکد را بررسی کنید تا مبلغ قابل‌مصرف و ماندهٔ دقیق محاسبه شود.')
+        remainingDelta = exTotals.diff - currentDeltaCreditPreview.applied
+        if (!Number.isSafeInteger(remainingDelta) || remainingDelta < 0)
+          return setErr('محاسبهٔ ماندهٔ مابه‌التفاوت معتبر نیست؛ ثبت متوقف شد.')
+      }
+      if (exCheque && (exSplitPayment || hasExDeltaCreditInput))
+        return setErr('چک pending را نمی‌توان با پرداخت ترکیبی یا اعتبار بارکدی در یک ثبت ترکیب کرد؛ ابتدا یکی از مسیرهای مستقل را انتخاب کنید.')
+      if (exTotals.diff > 0 && remainingDelta > 0 && exCheque &&
+          (!exChequeNo.trim() || !exChequeBank.trim() || !/^\d{4}\/\d{2}\/\d{2}$/.test(exChequeDueDate.trim())))
+        return setErr('برای چک مابه‌التفاوت، شماره چک، نام بانک و سررسید شمسی به قالب yyyy/MM/dd لازم است.')
+      if (exCheque && exChequeDebtOverride &&
+          (!exChequeOverridePassword.trim() || exChequeOverrideReason.trim().length < 10))
+        return setErr('برای استثنای مدیر در چک مابه‌التفاوت، رمز مدیر و دلیل حداقل ۱۰ نویسه لازم است.')
+      if (exTotals.diff > 0 && remainingDelta > 0 && !exSplitPayment && !hasExDeltaCreditInput && !exCheque && !methodId)
+        return setErr('روش دریافت مابه‌التفاوت را انتخاب کنید.')
+      if (exTotals.diff > 0 && remainingDelta > 0 && exSplitPayment) {
         if (!exSplitCashMethodId || !exSplitCardMethodId)
-          return setErr('برای پرداخت ترکیبی، یک روش فعال نقدی و یک روش فعال کارتی انتخاب کنید.')
+          return setErr('برای پرداخت ترکیبیِ مانده، یک روش فعال نقدی و یک روش فعال کارتی انتخاب کنید.')
         if (exSplitCashAmount == null || exSplitCardAmount == null || exSplitTotal == null)
           return setErr('مبلغ نقد یا کارت معتبر نیست؛ فقط عدد صحیح ریالیِ بدون اعشار، منفی یا حرف وارد کنید.')
-        if (exSplitCashAmount <= 0 || exSplitCardAmount <= 0 || exSplitTotal !== exTotals.diff)
-          return setErr(`جمع سهم نقد و کارت باید دقیقاً ${money(exTotals.diff)} ریال باشد و هر دو سهم مثبت باشند.`)
+        if (exSplitCashAmount <= 0 || exSplitCardAmount <= 0 || exSplitTotal !== remainingDelta)
+          return setErr(`جمع سهم نقد و کارت باید دقیقاً ${money(remainingDelta)} ریال باشد و هر دو سهم مثبت باشند.`)
+      } else if (exTotals.diff > 0 && remainingDelta > 0 && hasExDeltaCreditInput) {
+        if (exDeltaTenderAmount.trim() !== '' &&
+            (exDeltaTenderAmountValue == null || exDeltaTenderAmountValue !== remainingDelta))
+          return setErr(`مبلغ باقی‌مانده باید دقیقاً ${money(remainingDelta)} ریال باشد؛ مبلغ کمتر یا بیشتر پذیرفته نیست.`)
+        const selectedMethod = methods.find((method) => method.id === methodId)
+        if (!selectedMethod || !['CASH', 'CARD'].includes(selectedMethod.kind))
+          return setErr('ماندهٔ مابه‌التفاوت پس از اعتبار فقط با دریافت واقعی نقد یا کارت‌خوان تسویه می‌شود.')
       }
       if (priceOverrideOn && !managerPw.trim())
         return setErr(
@@ -770,55 +998,100 @@ export default function SalesReturn() {
         )
       setBusy(true)
       try {
+        const exchangePayload = {
+          invoiceId: lookup.invoiceId,
+          lines: selected.map((i) => ({ saleItemId: i.saleItemId, qty: qty[i.saleItemId] ?? 0 })),
+          replacements: reps.map((l, i) => ({
+            variantId: l.variantId,
+            qty: l.qty,
+            unitPrice: l.unitPrice,
+            discount: Math.max(0, Math.round(l.discount)),
+            // نشست ۱۵۸ (Y16) — خرده: عوارض روی ردیف؛ عمده: ردیف صفر
+            tax: exCharges.taxPerLine[i] != null && exScope === 'pos' ? exCharges.taxPerLine[i] : 0
+          })),
+          invoiceTax: exScope === 'wholesale' ? exCharges.taxTotal : 0,
+          serviceCharge: exCharges.serviceTotal,
+          note: note.trim() || undefined,
+          allowRemoved: allowRemoved || undefined,
+          force: force || undefined,
+          // N/B حق، در صورت انتخاب، یک قلم جدا از tender نقدی/کارتی باقی می‌ماند.
+          deltaStoreCreditCode: hasExDeltaCreditInput ? deltaRightCode : undefined,
+          // The main process computes and consumes the maximum eligible amount; UI values are never authoritative.
+          // پرداخت تک‌روشِ قبلی دقیقاً همان payload قبلی است؛ با حق، فقط مانده ارسال می‌شود.
+          methodId: exTotals.diff > 0 && !exSplitPayment && !hasExDeltaCreditInput && !exCheque ? methodId : null,
+          chequeNo: exCheque ? exChequeNo.trim() : undefined,
+          bankName: exCheque ? exChequeBank.trim() : undefined,
+          dueDateJalali: exCheque ? exChequeDueDate.trim() : undefined,
+          splitPayment: exTotals.diff > 0 && exSplitPayment && !hasExDeltaCreditInput ? true : undefined,
+          payments: hasExDeltaCreditInput
+            ? remainingDelta === 0
+              ? []
+              : exSplitPayment
+                ? [
+                    { methodId: exSplitCashMethodId!, amount: exSplitCashAmount!, destination: 'CASH' },
+                    { methodId: exSplitCardMethodId!, amount: exSplitCardAmount!, destination: 'CARD' }
+                  ]
+                : [{
+                    methodId: methodId!, amount: remainingDelta,
+                    destination: methods.find((method) => method.id === methodId)?.kind === 'CARD' ? 'CARD' : 'CASH'
+                  }]
+            : exTotals.diff > 0 && exSplitPayment
+              ? [
+                  { methodId: exSplitCashMethodId!, amount: exSplitCashAmount!, destination: 'CASH' },
+                  { methodId: exSplitCardMethodId!, amount: exSplitCardAmount!, destination: 'CARD' }
+                ]
+              : undefined,
+          autoCentralWithdraw: repAutoCentral || undefined,
+          // ---- بند ۱۲: تسویه‌ی مابه‌التفاوت منفی (انتخاب انحصاری کاربر) ----
+          refundMode: exTotals.diff < 0 && !exchangeCreditOnlyResidual ? exRefundMode : undefined,
+          ...(exTotals.diff < 0 && exRefundMode === 'STORE_CREDIT' ? {
+            printedHolderFirstName, printedHolderLastName, printedHolderPhone
+          } : {}),
+          cardPosOverride: exRefundMode === 'CARD' ? cardPosOverride : undefined,
+          // ---- بند ۱۸: رمز مدیر، فقط وقتی قیمت دستی باز شده باشد ----
+          chequeDebtOverride: exCheque && exChequeDebtOverride ? true : undefined,
+          managerPassword: (exCheque && exChequeDebtOverride
+            ? exChequeOverridePassword.trim()
+            : (priceOverrideOn ? managerPw.trim() : lockPw.trim())) || undefined,
+          overrideReason: (exCheque && exChequeDebtOverride
+            ? exChequeOverrideReason.trim()
+            : lockReason.trim()) || undefined
+        }
+        const { managerPassword: _managerPassword, cardPosOverride: posOverride, ...exchangeIntent } = exchangePayload
+        const intentPayload = JSON.stringify({
+          ...exchangeIntent,
+          cardPosOverride: posOverride ? {
+            acknowledgedNoReverse: posOverride.acknowledgedNoReverse === true,
+            reason: String(posOverride.reason ?? '').trim()
+          } : null
+        })
+        const requestIdentity = await resolveExchangeRequestIdentity(intentPayload, exchangeIdempotencyRef.current)
+        exchangeIdempotencyRef.current = requestIdentity
         const res = await call<
           ExchangeSaleResult & {
             cashReceived?: number
             exchangeCreditApplied?: number
             cardTransfer?: { id: number; amount: number; status: string } | null
           }
-        >(
-          CH.saleExchangeCreate,
-          {
-            invoiceId: lookup.invoiceId,
-            lines: selected.map((i) => ({ saleItemId: i.saleItemId, qty: qty[i.saleItemId] ?? 0 })),
-            replacements: reps.map((l, i) => ({
-              variantId: l.variantId,
-              qty: l.qty,
-              unitPrice: l.unitPrice,
-              discount: Math.max(0, Math.round(l.discount)),
-              // نشست ۱۵۸ (Y16) — خرده: عوارض روی ردیف؛ عمده: ردیف صفر
-              tax: exCharges.taxPerLine[i] != null && exScope === 'pos' ? exCharges.taxPerLine[i] : 0
-            })),
-            invoiceTax: exScope === 'wholesale' ? exCharges.taxTotal : 0,
-            serviceCharge: exCharges.serviceTotal,
-            note: note.trim() || undefined,
-            allowRemoved: allowRemoved || undefined,
-            force: force || undefined,
-            // پرداخت تک‌روشِ قبلی دقیقاً همان payload قبلی است؛ split فقط مسیر افزوده است.
-            methodId: exTotals.diff > 0 && !exSplitPayment ? methodId : null,
-            splitPayment: exTotals.diff > 0 && exSplitPayment ? true : undefined,
-            payments:
-              exTotals.diff > 0 && exSplitPayment
-                ? [
-                    { methodId: exSplitCashMethodId!, amount: exSplitCashAmount!, destination: 'CASH' },
-                    { methodId: exSplitCardMethodId!, amount: exSplitCardAmount!, destination: 'CARD' }
-                  ]
-                : undefined,
-            autoCentralWithdraw: repAutoCentral || undefined,
-            // ---- بند ۱۲: تسویه‌ی مابه‌التفاوت منفی (انتخاب انحصاری کاربر) ----
-            refundMode: exTotals.diff < 0 ? exRefundMode : undefined,
-            cardPosOverride: exRefundMode === 'CARD' ? cardPosOverride : undefined,
-            // ---- بند ۱۸: رمز مدیر، فقط وقتی قیمت دستی باز شده باشد ----
-            managerPassword: (priceOverrideOn ? managerPw.trim() : lockPw.trim()) || undefined,
-            overrideReason: lockReason.trim() || undefined
-          }
-        )
+        >(CH.saleExchangeCreate, { ...exchangePayload, idempotencyKey: requestIdentity.key })
+        clearStoredExchangeRequestIdentity(requestIdentity.key)
+        if (exchangeIdempotencyRef.current?.key === requestIdentity.key) exchangeIdempotencyRef.current = null
         setExResult(res)
         setReps([])
         setQty({})
         setRepFor(null)
         setExRefundMode(null)
         setExSplitPayment(false)
+        setExCheque(false)
+        setExChequeNo('')
+        setExChequeBank('')
+        setExChequeDueDate('')
+        setExChequeDebtOverride(false)
+        setExChequeOverridePassword('')
+        setExChequeOverrideReason('')
+        setExDeltaRightCode('')
+        setExDeltaCreditPreview(null)
+        setExDeltaTenderAmount('')
         setExSplitCash('')
         setExSplitCard('')
         setPriceOverrideOn(false)
@@ -830,7 +1103,9 @@ export default function SalesReturn() {
           `تعویض کالا ثبت شد · سند تعویض شماره ${faDigits(res.exchangeReceiptNo)} · ` +
             `کالای برگشتی ${money(res.returnTotal)} ریال · کالای جایگزین ${money(res.exchangeTotal)} ریال · ` +
             (res.diff > 0
-              ? `${money(res.diff)} ریال از مشتری دریافت شد`
+              ? res.settlement === 'CHEQUE_PENDING'
+                ? `${money(res.diff)} ریال چک مابه‌التفاوت ثبت شد؛ بدهی تا وصول باز است`
+                : `${money(res.diff)} ریال از مشتری دریافت شد`
               : res.diff < 0
                 ? `${money(-res.diff)} ریال ${res.storeCredit?.publicReference ?? 'اعتبار خرید'} صادر شد و برای مشتری چاپ شد`
                 : 'مابه‌التفاوت صفر بود') +
@@ -858,9 +1133,12 @@ export default function SalesReturn() {
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      lookup, selected, qty, reps, note, allowRemoved, exTotals.diff, methodId, exSplitPayment, exSplitCashAmount,
-      exSplitCardAmount, exSplitTotal, exSplitCashMethodId, exSplitCardMethodId, repAutoCentral, exCharges, exScope,
-      removedSelected.length, exRefundMode, priceOverrideOn, managerPw, lockPw, lockReason, loadHistory, lookupCode
+      lookup, selected, qty, reps, note, allowRemoved, exTotals.diff, methodId, methods, exCheque, exChequeNo, exChequeBank, exChequeDueDate, exChequeDebtOverride, exChequeOverridePassword, exChequeOverrideReason, exSplitPayment, exSplitCashAmount,
+      exSplitCardAmount, exSplitTotal, exSplitCashMethodId, exSplitCardMethodId, exDeltaRightCode,
+      exDeltaTenderAmount, exDeltaTenderAmountValue, currentDeltaCreditPreview, hasExDeltaCreditInput,
+      repAutoCentral, exCharges, exScope,
+      removedSelected.length, exRefundMode, exchangeCreditOnlyResidual, printedHolderFirstName, printedHolderLastName, printedHolderPhone,
+      priceOverrideOn, managerPw, lockPw, lockReason, loadHistory, lookupCode
     ]
   )
 
@@ -868,7 +1146,7 @@ export default function SalesReturn() {
    * ---------------------- بند ۱۳ — رسید چاپیِ «برگشت از فروش» ----------------------
    * خواهرِ `print:exchange`. محتوایش سمت main در `returnReceiptHtml` ساخته می‌شود
    * (شماره‌ی سند، فاکتور اصلی، تاریخ/ساعت دقیق، مشتری، اقلام، مبلغ، **روش
-   * بازپرداخت**، وضعیت موجودی و کد/بارکد اعتبار اگر صادر شده باشد) و از همان
+   * بازپرداخت** و وضعیت موجودی؛ کد خرج‌پذیر اعتبار روی برگهٔ جداست) و از همان
    * قالب تنظیمات رسید تبعیت می‌کند.
    */
   const printReturn = useCallback(async (returnId: number) => {
@@ -894,6 +1172,54 @@ export default function SalesReturn() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /** برگهٔ کد مشتری مستقل از رسید مالی است؛ هیچ کدی به renderer برنمی‌گردد. */
+  const printOrdinaryCredit = async () => {
+    if (!ordinaryCreditPrint || printingRef.current) return
+    const firstPrint = Boolean(ordinaryCreditPrint.firstPrintGrant && !ordinaryCreditPrintPassword.trim())
+    if (!firstPrint && !ordinaryCreditPrintPassword.trim()) return
+    printingRef.current = true
+    setPrinting(true)
+    setOrdinaryCreditPrintError(null)
+    const forgetGrant = () => {
+      setOrdinaryCreditPrint((before) => before && { ...before, firstPrintGrant: null })
+      setRetResult((before: any) => before?.storeCredit?.id === ordinaryCreditPrint.creditId
+        ? { ...before, firstPrintGrant: null } : before)
+      setExResult((before) => before ? {
+        ...before,
+        firstPrintGrant: before.storeCredit?.id === ordinaryCreditPrint.creditId ? null : before.firstPrintGrant,
+        storeCredits: before.storeCredits?.map((credit) => credit.id === ordinaryCreditPrint.creditId
+          ? { ...credit, firstPrintGrant: null } : credit)
+      } : before)
+    }
+    try {
+      const result = await call<{ warnings?: string[] }>(CH.returnCreditPrint, {
+        creditId: ordinaryCreditPrint.creditId, returnId: ordinaryCreditPrint.returnId,
+        ...(firstPrint ? { firstPrintGrant: ordinaryCreditPrint.firstPrintGrant }
+          : { managerPassword: ordinaryCreditPrintPassword.trim() })
+      })
+      forgetGrant() // also when print/counter outcome is a warning
+      if (result?.warnings?.length) {
+        setOrdinaryCreditPrintError(result.warnings.join('\n'))
+      } else {
+        flash('برگهٔ اعتبار برای چاپ فرستاده شد؛ چاپ به‌تنهایی اثبات تحویل به مشتری نیست.')
+        setOrdinaryCreditPrint(null)
+      }
+    } catch (e: any) {
+      // Definite cancellation is the only outcome for which main retains
+      // the first-print permit. Printer failure/UNKNOWN requires the manager.
+      if (firstPrint && !isPrintCancelledError(e)) forgetGrant()
+      setOrdinaryCreditPrintError(isPrintCancelledError(e)
+        ? 'چاپ با انصراف قطعی لغو شد؛ مجوز چاپ اول همین سند هنوز معتبر است.'
+        : isUnknownPrintMessage(e)
+          ? `ممکن است برگه چاپ شده باشد؛ قبل از چاپ مجدد خروجی چاپگر را بررسی کنید. ${e.message}`
+          : `چاپ برگهٔ اعتبار انجام نشد؛ کد صادرشده همچنان در پروندهٔ اعتبار است. ${e.message}`)
+    } finally {
+      setOrdinaryCreditPrintPassword('')
+      printingRef.current = false
+      setPrinting(false)
+    }
+  }
 
   /** چاپ «سند تعویض» (قالب exchangeReceiptHtml سمت main). */
   const printExchange = useCallback(async (returnId: number) => {
@@ -1073,6 +1399,7 @@ export default function SalesReturn() {
     setRetResult(null)
     setRefundMethod(null)
     setRefundAmount('')
+    setRefundStoreCreditAmount('')
     setRefundReference('')
     setRefundNote('')
     setExRefundMode(null)
@@ -1089,13 +1416,19 @@ export default function SalesReturn() {
     exTotals.diff > 0
       ? `مشتری باید ${money(exTotals.diff)} ریال بپردازد`
       : exTotals.diff < 0
-        ? `ما ${money(-exTotals.diff)} ریال بدهکاریم ⇒ ${
-            exRefundMode === 'CASH'
-              ? 'بازپرداخت نقدی (پول از کشو بیرون می‌رود)'
-              : exRefundMode === 'CARD'
-                ? 'بازپرداخت کارتی'
+        ? `ما ${money(-exTotals.diff)} ریال اختلاف داریم ⇒ ${
+            exchangeCreditOnlyResidual
+              ? 'این مانده فقط اعتبار غیرنقدیِ منشأدار است؛ خودکار به همان ریشه برمی‌گردد و پرداخت نقدی/کارتی ندارد'
+              : exRefundMode === 'S11_DEBT_OFFSET_RIGHTS'
+              ? 'ابتدا بدهی چک کسر می‌شود؛ سپس فقط ماندهٔ اعتبارِ ریشه‌دار به یک بارکد غیرنقدی تبدیل می‌شود'
+              : exRefundMode === 'S1_RESIDUAL_RIGHTS'
+              ? 'وجه واقعی اول carry می‌شود؛ اگر منشأ بارکد چندبارهٔ زنده باشد مانده به همان کد برمی‌گردد، وگرنه بارکد جانشینِ ریشه‌دار صادر می‌شود (بدون خروج پول)'
+              : exRefundMode === 'CASH'
+                ? 'سهم واقعی نقدی از کشو بازپرداخت می‌شود؛ سهم اعتبار به ریشهٔ خودش برمی‌گردد'
+                : exRefundMode === 'CARD'
+                ? 'فقط سهم واقعی پول به کارت برمی‌گردد؛ سهم اعتبار به ریشهٔ خودش برمی‌گردد'
                 : exRefundMode === 'STORE_CREDIT'
-                  ? '«بارکد اعتبار خرید بعدی» صادر می‌شود'
+                  ? 'سهم واقعی به اعتبار غیرنقدی تبدیل می‌شود؛ سهم اعتبار ریشه‌دار جداگانه برمی‌گردد'
                   : 'روش تسویه را انتخاب کنید (نقدی / کارتی / اعتبار خرید)'
           }`
         : 'مابه‌التفاوت صفر است؛ تسویه‌ای لازم نیست'
@@ -1193,26 +1526,57 @@ export default function SalesReturn() {
             {REFUND_CHOICES.find((c) => c.value === retResult.refundMethod)?.title ?? 'بدون بازپرداخت'}
             {retResult.refundAmount ? ` · ${money(retResult.refundAmount)} ریال` : ' · بدون خروج پول'}
           </span>
+          {!!retResult.refundStoreCreditAmount && <span className="kbd rounded border bg-white px-2 py-1">
+            {money(retResult.refundStoreCreditAmount)} ریال از حق پول واقعی به بارکد جدید تبدیل شد
+          </span>}
           <span className="kbd">
             {retResult.restocked
-              ? `${faDigits(retResult.restockedQty)} عدد به موجودی انبار برگشت`
-              : 'این فاکتور بدون کسر از موجودی بود، پس موجودی تغییر نکرد'}
+              ? `${faDigits(retResult.restockedQty)} عدد همان لحظه به موجودی انبار برگشت`
+              : retResult.restockPending && retResult.refundMethod === 'CARD_TO_CARD'
+                ? `${faDigits(retResult.pendingRestockQty)} عدد تا تأیید پرداخت مدیر معلق است`
+                : retResult.restockPending
+                  ? `${faDigits(retResult.pendingRestockQty)} عدد از پروندهٔ قدیمی هنوز معلق است`
+                  : 'این فاکتور بدون کسر از موجودی بود، پس موجودی تغییر نکرد'}
           </span>
           {retResult.storeCredit && (
             <span className="px-2 py-1 rounded bg-white border font-bold" title="مرجع امن اعتبار خرید صادرشده">
               {retResult.storeCredit.publicReference}
             </span>
           )}
+          {!!retResult.creditOpportunity?.restored && <span className="rounded border bg-sky-50 p-2">
+            {money(retResult.creditOpportunity.restored)} ریال سهم اعتبار غیرنقدی؛ این مبلغ وجه نقد/پرداخت بانک نیست.
+            {retResult.creditOpportunity.expiredShare > 0 &&
+              ` ${money(retResult.creditOpportunity.expiredShare)} ریال آن به‌علت انقضای فرصت اصلی احیا نشد؛ کد/وجه نقد از آن صادر نمی‌شود.`}
+            {retResult.creditOpportunity.restored > retResult.creditOpportunity.expiredShare &&
+              !retResult.creditOpportunity.pendingDelivery?.length &&
+              ' فرصت معتبر قبلی بدون ساخت کد تازه احیا شد.'}
+          </span>}
+          <CreditOpportunityHandoff key={retResult.id}
+            credits={retResult.creditOpportunity?.pendingDelivery ?? []} />
           {/* جلسه ۱۷ · بند ۱ — هیچ پولی جابه‌جا نشده؛ فقط یک درخواست ساخته شده است */}
           {retResult.cardTransfer && (
-            <span className="px-2 py-1 rounded bg-amber-100 border-2 border-amber-400 font-bold">
-              درخواست کارت‌به‌کارت شماره {faDigits(retResult.cardTransfer.id)} ثبت شد ·{' '}
-              {money(retResult.cardTransfer.amount)} ریال · در انتظار پرداخت مدیر
-            </span>
+            <>
+              <span className="px-2 py-1 rounded bg-amber-100 border-2 border-amber-400 font-bold">
+                درخواست کارت‌به‌کارت شماره {faDigits(retResult.cardTransfer.id)} ثبت شد ·{' '}
+                {money(retResult.cardTransfer.amount)} ریال · وضعیت بانک هنوز روشن نیست
+              </span>
+            </>
+          )}
+          {retResult.restockPending && retResult.goodsReceiptRequired && (
+            <button className="btn" onClick={() => setGoodsReturnId(retResult.id)}>
+              دریافت پروندهٔ قدیمی ({faDigits(retResult.pendingRestockQty)} عدد)
+            </button>
           )}
           <button className="btn btn-primary" onClick={() => void printReturn(retResult.id)} disabled={printing}>
             {printing ? 'در حال چاپ…' : 'چاپ رسید برگشت'}
           </button>
+          {retResult.storeCredit?.id && (retResult.refundMethod === 'STORE_CREDIT' || retResult.refundStoreCreditAmount > 0) && (
+            <button className="btn" disabled={printing} onClick={() => {
+              setOrdinaryCreditPrint({ creditId: retResult.storeCredit.id, returnId: retResult.id,
+                firstPrintGrant: retResult.firstPrintGrant ?? null })
+              setOrdinaryCreditPrintError(null)
+            }}>{retResult.firstPrintGrant ? 'چاپ بارکد اعتبار' : 'چاپ مجدد اعتبار (رمز مدیر)'}</button>
+          )}
           <button className="btn ms-auto" onClick={() => setRetResult(null)}>
             بستن
           </button>
@@ -1233,6 +1597,14 @@ export default function SalesReturn() {
                 : 'مابه‌التفاوت صفر'}
           </span>
           <span className="kbd">{exResult.settlementLabel}</span>
+          {exResult.restockPending && (
+            <>
+              <span className="kbd">{faDigits(exResult.pendingRestockQty)} عدد کالای برگشتی {exResult.cardTransfer ? 'تا تأیید پرداخت مدیر معلق است' : 'از پروندهٔ قدیمی هنوز معلق است'}؛ کالای جایگزین همان لحظه از انبار کسر شد.</span>
+              {exResult.goodsReceiptRequired && <button className="btn" onClick={() => setGoodsReturnId(exResult.returnId)}>
+                دریافت پروندهٔ قدیمی
+              </button>}
+            </>
+          )}
           {/**
            * جلسه ۵۰ · مرحله ۱-ب — «کالای جایگزین از کدام انبار برداشته شد».
            * فقط وقتی دیده می‌شود که واقعاً برداشتی از انبار مرکزی انجام شده
@@ -1256,22 +1628,45 @@ export default function SalesReturn() {
               {money(exResult.cardTransfer.amount)} ریال · در انتظار پرداخت مدیر
             </span>
           )}
-          {exResult.storeCredit && (
-            <span className="px-2 py-1 rounded bg-white border font-bold" title="مرجع امن اعتبار خرید صادرشده">
-              {exResult.storeCredit.publicReference}
+          {(exResult.storeCredits?.length ? exResult.storeCredits : (exResult.storeCredit ? [exResult.storeCredit] : [])).map((credit) => (
+            <span key={`exchange-credit-summary-${credit.id}`} className="inline-flex items-center gap-2 px-2 py-1 rounded bg-white border font-bold"
+              title="مرجع امن اعتبار غیرنقدی صادرشده یا بازگردانده‌شده">
+              <span>{credit.publicReference}</span>
+              <span className="kbd">
+                {money(credit.amount)} ریال
+                {credit.expiresAtJalali ? ` · اعتبار تا ${faDigits(credit.expiresAtJalali)}` : ''}
+              </span>
             </span>
-          )}
-          {exResult.storeCredit && (
-            <span className="kbd">
-              {money(exResult.storeCredit.amount)} ریال
-              {exResult.storeCredit.expiresAtJalali
-                ? ` · اعتبار تا ${faDigits(exResult.storeCredit.expiresAtJalali)}`
-                : ''}
-            </span>
+          ))}
+          {exResult.creditHandoffRequired && (exResult.storeCredits?.length || exResult.storeCredit?.id) ? (
+            <CreditOpportunityHandoff key={`chained-credit-handoff-${exResult.returnId}`} credits={
+              (exResult.storeCredits?.length ? exResult.storeCredits : [exResult.storeCredit!]).map((credit) => ({
+                creditId: credit.id, amount: credit.amount, status: credit.status,
+                returnId: exResult.returnId, firstPrintGrant: credit.firstPrintGrant ?? exResult.firstPrintGrant ?? null
+              }))
+            } />
+          ) : null}
+          {exResult.residualRights && (
+            <div className="w-full rounded border-2 border-sky-400 bg-sky-50 p-3 space-y-2">
+              <b>سهم‌های منشأدار ثبت شدند؛ اعتبار بارکدی نقدشدنی نیست.</b>
+              <p className="text-sm">انتقال به سند جایگزین: اعتبار {money(exResult.residualRights.giftCarry)} ریال و وجه واقعی {money(exResult.residualRights.cashCarry)} ریال.</p>
+              <CreditOpportunityHandoff key={`s1-rights-${exResult.returnId}`} credits={exResult.residualRights.rights.map((right) => ({
+                creditId: right.creditId, amount: right.amount, status: right.deliveryStatus,
+                returnId: exResult.returnId, firstPrintGrant: right.firstPrintGrant ?? null,
+                rightKind: right.rightKind
+              }))} />
+            </div>
           )}
           <button className="btn btn-primary" onClick={() => void printExchange(exResult.returnId)} disabled={printing}>
             {printing ? 'در حال چاپ…' : 'چاپ سند تعویض'}
           </button>
+          {!exResult.creditHandoffRequired && (exResult.storeCredits?.length ? exResult.storeCredits : (exResult.storeCredit?.id ? [exResult.storeCredit] : [])).map((credit) => (
+            <button key={`exchange-credit-print-${credit.id}`} className="btn" disabled={printing} onClick={() => {
+              setOrdinaryCreditPrint({ creditId: credit.id, returnId: exResult.returnId,
+                firstPrintGrant: credit.firstPrintGrant ?? exResult.firstPrintGrant ?? null })
+              setOrdinaryCreditPrintError(null)
+            }}>{`چاپ اعتبار غیرنقدی ${money(credit.amount)} ریال`}</button>
+          ))}
           <button className="btn ms-auto" onClick={() => setExResult(null)}>
             بستن
           </button>
@@ -1339,6 +1734,9 @@ export default function SalesReturn() {
                   if (!e.target.checked) {
                     setReps([])
                     setRepFor(null)
+                    setExDeltaRightCode('')
+                    setExDeltaCreditPreview(null)
+                    setExDeltaTenderAmount('')
                   }
                 }}
               />
@@ -1667,15 +2065,22 @@ export default function SalesReturn() {
                 {exTotals.diff < 0 && (
                   <div
                     className={`col-span-2 md:col-span-4 rounded p-2 border-2 ${
-                      exRefundMode ? 'bg-white border-emerald-400' : 'bg-rose-50 border-rose-400'
+                      exRefundMode || exchangeCreditOnlyResidual ? 'bg-white border-emerald-400' : 'bg-rose-50 border-rose-400'
                     }`}
                   >
                     <div className="flex flex-wrap items-center gap-2 mb-1">
                       <b>تسویه‌ی مابه‌التفاوت منفی — {money(-exTotals.diff)} ریال</b>
-                      {!exRefundMode && <span className="text-rose-800 font-bold">انتخاب اجباری است</span>}
+                      {!exRefundMode && !exchangeCreditOnlyResidual && <span className="text-rose-800 font-bold">اگر سهم وجه واقعی داشته باشید، سرور پیش از ثبت روش تسویهٔ آن را درخواست می‌کند؛ اعتبار ریشه‌دار خودکار و غیرنقدی ثبت می‌شود.</span>}
                     </div>
+                    {exchangeCreditOnlyResidual ? (
+                      <p className="rounded bg-emerald-50 border border-emerald-300 p-2 text-emerald-900">
+                        پیش‌نمایش منشأ نشان می‌دهد پس از مصرف وجه واقعی برای کالای جایگزین، فقط اعتبار بارکدی باقی می‌ماند.
+                        اعتبار به‌صورت غیرنقدی و با ریشه/مهلت خودش برمی‌گردد؛ از صندوق یا کارت‌خوان پولی خارج نمی‌شود.
+                      </p>
+                    ) : (
+                    <>
                     {/* جلسه ۱۷ · بند ۱ — چهار ستون، چون گزینه‌ی «کارت‌به‌کارت توسط مدیر» اضافه شد */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-2">
                       {EXCHANGE_REFUND_CHOICES.map((c) => (
                         <label
                           key={c.value}
@@ -1697,36 +2102,142 @@ export default function SalesReturn() {
                         </label>
                       ))}
                     </div>
+                    </>
+                    )}
                   </div>
                 )}
                 {exTotals.diff > 0 && (
                   <div className="col-span-2 md:col-span-4 rounded border border-emerald-300 bg-white p-2">
+                    <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-2 mb-2 rounded bg-emerald-50 p-2">
+                      <label>
+                        <div className="kbd">بارکد اعتبار خرید (اختیاری)</div>
+                        <input
+                          className="inp"
+                          dir="ltr"
+                          autoComplete="off"
+                          value={exDeltaRightCode}
+                          onChange={(e) => {
+                            setExDeltaRightCode(e.target.value)
+                            setExDeltaCreditPreview(null)
+                            setExDeltaTenderAmount('')
+                            setExCheque(false)
+                          }}
+                          placeholder="بارکد اعتبار مجاز"
+                        />
+                      </label>
+                      <button type="button" className="btn self-end" disabled={!exDeltaRightCode.trim() || exDeltaCreditPreviewBusy}
+                        onClick={() => void previewDeltaCredit()}>
+                        {exDeltaCreditPreviewBusy ? 'در حال محاسبه…' : 'بررسی و محاسبهٔ مانده'}
+                      </button>
+                      <div className="kbd md:col-span-2">
+                        سیستم مبلغ قابل‌مصرف را از مانده و محدودیت‌های همین بارکد حساب می‌کند؛ فروشنده مبلغ اعتبار را وارد یا تغییر نمی‌دهد.
+                        {hasExDeltaCreditInput && !currentDeltaCreditPreview &&
+                          <> کد یا مبلغ/اقلام تعویض تغییر کرده؛ دوباره «بررسی و محاسبهٔ مانده» را بزنید.</>}
+                      </div>
+                    </div>
+                    {currentDeltaCreditPreview?.error && (
+                      <div className="kbd mb-2 rounded border border-rose-300 bg-rose-50 p-2 font-bold text-rose-800">
+                        اعتبار قابل استفاده نیست: {currentDeltaCreditPreview.error}
+                      </div>
+                    )}
+                    {hasExDeltaCreditInput && currentDeltaCreditPreview && !currentDeltaCreditPreview.error && (
+                      <div className="kbd mb-2 rounded border border-emerald-300 bg-emerald-100 p-2 font-bold">
+                        اعتبار قابل‌مصرف: {money(currentDeltaCreditPreview.applied)} ریال · باقی‌ماندهٔ دقیق برای دریافت: {money(exDeltaTenderRemainder)} ریال
+                        {exDeltaTenderRemainder === 0 && <> · دریافت نقد/کارت لازم نیست.</>}
+                      </div>
+                    )}
+                    {!(hasExDeltaCreditInput && exDeltaTenderRemainder === 0) && (
+                      <>
                     <label className="flex items-center gap-2 cursor-pointer w-fit">
                       <input
                         type="checkbox"
                         className="w-4 h-4"
                         checked={exSplitPayment}
-                        onChange={(e) => setExSplitPayment(e.target.checked)}
+                        disabled={hasExDeltaCreditInput && exDeltaTenderRemainder === 0}
+                        onChange={(e) => {
+                          setExSplitPayment(e.target.checked)
+                          if (e.target.checked) { setExCheque(false); setExDeltaTenderAmount('') }
+                        }}
                       />
                       <span className="font-bold">دریافت ترکیبی نقد + کارت</span>
                     </label>
-                    <div className="kbd mt-1">در حالت ترکیبی، دو رسید واقعی با جمع دقیق مابه‌التفاوت ثبت می‌شود.</div>
-                    {!exSplitPayment ? (
-                      <label className="block mt-2 max-w-sm">
-                        <div className="kbd">روش دریافت مابه‌التفاوت</div>
-                        <select
-                          className="inp"
-                          value={methodId ?? ''}
-                          onChange={(e) => setMethodId(e.target.value ? Number(e.target.value) : null)}
-                        >
-                          {methods.map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ) : (
+                    <div className="kbd mt-1">در حالت ترکیبی، دو رسید واقعی با جمع دقیق {hasExDeltaCreditInput ? 'ماندهٔ' : ''} مابه‌التفاوت ثبت می‌شود.</div>
+                    <label className="flex items-center gap-2 cursor-pointer w-fit mt-2">
+                      <input type="checkbox" className="w-4 h-4" checked={exCheque}
+                        disabled={hasExDeltaCreditInput}
+                        onChange={(e) => { setExCheque(e.target.checked); if (e.target.checked) setExSplitPayment(false) }} />
+                      <span className="font-bold">دریافت مابه‌التفاوت با چک در جریان (بدهی تا وصول باز می‌ماند)</span>
+                    </label>
+                    {exCheque && (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
+                        <label><div className="kbd">شماره چک</div><input className="inp" dir="ltr" value={exChequeNo}
+                          onChange={(e) => setExChequeNo(e.target.value)} /></label>
+                        <label><div className="kbd">بانک</div><input className="inp" value={exChequeBank}
+                          onChange={(e) => setExChequeBank(e.target.value)} /></label>
+                        <label><div className="kbd">سررسید شمسی</div><input className="inp" dir="ltr" placeholder="۱۴۰۵/۰۱/۱۵"
+                          value={exChequeDueDate} onChange={(e) => setExChequeDueDate(e.target.value)} /></label>
+                        <div className="kbd md:col-span-3 rounded border border-amber-300 bg-amber-50 p-2">
+                          چک هنوز وجه وصول‌شده نیست؛ همین مبلغ به‌عنوان بدهی همین تعویض پشتوانه می‌شود. برگشت یا وصول دیرهنگام، بدهی/حق وجه دوم ایجاد نمی‌کند.
+                        </div>
+                        <div className="md:col-span-3 rounded border border-slate-300 p-2">
+                          <label className="flex items-center gap-2 font-bold">
+                            <input type="checkbox" checked={exChequeDebtOverride}
+                              onChange={(e) => setExChequeDebtOverride(e.target.checked)} />
+                            استثنای مدیر برای چک جدید با وجود بدهی چک باز همین مشتری
+                          </label>
+                          {exChequeDebtOverride && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                              <label><div className="kbd">رمز مدیر</div><input type="password" className="inp" dir="ltr"
+                                value={exChequeOverridePassword} onChange={(e) => setExChequeOverridePassword(e.target.value)} /></label>
+                              <label><div className="kbd">دلیل/شاهد (حداقل ۱۰ نویسه)</div><input className="inp"
+                                value={exChequeOverrideReason} onChange={(e) => setExChequeOverrideReason(e.target.value)} /></label>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {!exSplitPayment && !exCheque ? (
+                      <>
+                        <label className="block mt-2 max-w-sm">
+                          <div className="kbd">روش دریافت مابه‌التفاوت</div>
+                          <select
+                            className="inp"
+                            value={methodId ?? ''}
+                            disabled={hasExDeltaCreditInput && exDeltaTenderRemainder === 0}
+                            onChange={(e) => setMethodId(e.target.value ? Number(e.target.value) : null)}
+                          >
+                            {(hasExDeltaCreditInput ? [...cashMethods, ...cardMethods] : methods).map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        {hasExDeltaCreditInput && exDeltaTenderRemainder > 0 && (
+                          <label className="block mt-2 max-w-sm">
+                            <div className="kbd">مبلغی که برای مانده واقعاً دریافت می‌کنید (ریال)</div>
+                            <input
+                              className="inp"
+                              dir="ltr"
+                              inputMode="numeric"
+                              value={groupThousands(exDeltaTenderAmount)}
+                              onChange={(e) => {
+                                if (e.target.value === '') setExDeltaTenderAmount('')
+                                else if (parseGroupedInteger(e.target.value) != null)
+                                  setExDeltaTenderAmount(digitsOnly(e.target.value))
+                              }}
+                              placeholder={`خالی = ${money(exDeltaTenderRemainder)} (محاسبهٔ سیستم)`}
+                              title={`باید دقیقاً ${money(exDeltaTenderRemainder)} ریال باشد؛ خالی گذاشتن یعنی استفاده از مبلغ محاسبه‌شدهٔ سیستم.`}
+                            />
+                            <div className={`kbd mt-1 font-bold ${exDeltaTenderAmount.trim() === '' || exDeltaTenderAmountValue === exDeltaTenderRemainder ? 'text-emerald-700' : 'text-rose-700'}`}>
+                              مبلغ لازم دقیقاً {money(exDeltaTenderRemainder)} ریال است.
+                              {exDeltaTenderAmount.trim() !== '' && exDeltaTenderAmountValue !== exDeltaTenderRemainder &&
+                                <> مبلغ کمتر یا بیشتر ثبت نمی‌شود.</>}
+                            </div>
+                          </label>
+                        )}
+                      </>
+                    ) : exSplitPayment ? (
                       <>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
                           <label>
@@ -1774,9 +2285,11 @@ export default function SalesReturn() {
                             </select>
                           </label>
                         </div>
-                        <div className={`kbd mt-2 font-bold ${exSplitTotal === exTotals.diff && (exSplitCashAmount ?? 0) > 0 && (exSplitCardAmount ?? 0) > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                          جمع نقد و کارت: {money(exSplitTotal ?? 0)} ریال · مبلغ لازم: {money(exTotals.diff)} ریال
+                        <div className={`kbd mt-2 font-bold ${exSplitTotal === (hasExDeltaCreditInput ? exDeltaTenderRemainder : exTotals.diff) && (exSplitCashAmount ?? 0) > 0 && (exSplitCardAmount ?? 0) > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                          جمع نقد و کارت: {money(exSplitTotal ?? 0)} ریال · مبلغ لازم: {money(hasExDeltaCreditInput ? exDeltaTenderRemainder : exTotals.diff)} ریال
                         </div>
+                      </>
+                    ) : null}
                       </>
                     )}
                   </div>
@@ -1813,23 +2326,86 @@ export default function SalesReturn() {
                 <b>روش بازپرداخت این برگشت</b>
                 {!refundMethod && <span className="text-amber-800 font-bold">انتخاب اجباری است — تا انتخاب نکنید ثبت انجام نمی‌شود</span>}
                 <span className="kbd ms-auto">
-                  مشتری تا الان {money(lookup.paidTotal)} ریال بابت این فاکتور پرداخت کرده است؛ بازپرداخت نقدی/کارتی از این
-                  مبلغ بیشتر نمی‌شود.
+                  دریافتی ثبت‌شدهٔ فاکتور {money(lookup.paidTotal)} ریال است (ممکن است اعتبار غیرنقدی را هم شامل شود).
+                  سقف پول واقعی از پیش‌نمایش منشأ و سپس دوباره در سرور تعیین می‌شود؛ تمام دریافتی نقد نیست.
                 </span>
               </div>
-              <SmartSettlementPanel
+              {creditPreview?.exchangeChildReturn ? (
+                <>
+                  <p className="rounded border border-emerald-400 bg-emerald-50 p-2 text-emerald-900">
+                    منشأ هر قلم در زنجیره تا ریشه دنبال می‌شود: سهم اعتبار به حق/بارکد غیرنقدی همان منشأ برمی‌گردد و نقد نمی‌شود؛
+                    سهم پول واقعیِ اثبات‌شده {money(creditPreview.cashRight)} ریال است.
+                    {creditPreview.cashRight === 0 ? ' این انتخاب فقط اعتبار است و بدون بازپرداخت ثبت می‌شود.' :
+                      ' روش تسویه را برای همین مبلغ انتخاب کنید؛ کارت‌به‌کارت فقط درخواست مدیر می‌سازد و پرداخت تا تطبیق مستقل بانک اثبات‌شده نیست.'}
+                  </p>
+                  {creditPreview.cashRight > 0 && <SmartSettlementPanel
+                    guidance={guidance}
+                    selectedMethod={refundMethod}
+                    onSelectMethod={(m) => {
+                      setRefundMethod(m)
+                      if (m !== 'CARD') setCardPosOverride(null)
+                      if (m !== 'CASH') setRefundStoreCreditAmount('')
+                    }}
+                    onCardPosLocked={() => setCardPosDialog(true)}
+                  />}
+                </>
+              ) : creditPreview?.exchangeCarryRestoration ? (
+                <p className="rounded border border-emerald-400 bg-emerald-50 p-2 text-emerald-900">
+                  این عملیات فقط carry متناسب را به همان سهم والد بازمی‌گرداند؛ پول نقد، کد عمومی و OVERPAY ساخته نمی‌شود.
+                </p>
+              ) : <SmartSettlementPanel
                 guidance={guidance}
                 selectedMethod={refundMethod}
                 onSelectMethod={(m) => {
                   setRefundMethod(m)
                   if (m !== 'CARD') setCardPosOverride(null)
+                  if (m !== 'CASH') setRefundStoreCreditAmount('')
                 }}
                 onCardPosLocked={() => setCardPosDialog(true)}
-              />
+              />}
+              {creditPreviewError && <p className="rounded bg-rose-50 border border-rose-300 p-2 text-rose-800">
+                منشأ اعتبار/بدهی نامعلوم است؛ وجه نقد یا کد تازه ثبت نشود. {creditPreviewError}
+              </p>}
+              {!creditPreview && !creditPreviewError && !!selected.length &&
+                <p className="kbd">محاسبهٔ منشأ از داده‌های فاکتور در حال انجام است…</p>}
+              {creditPreview && creditPreview.previewKey === selectedKey && (
+                <p className="rounded bg-sky-50 border border-sky-300 p-2">
+                  <b>تقسیم سیستمی همین انتخاب:</b> کاهش بدهی {money(creditPreview.debtReduced)} ریال ·
+                  سهم اعتبار غیرنقدی {money(creditPreview.giftOpportunity)} ریال ·
+                  سقف سهم پول واقعی {money(creditPreview.cashRight)} ریال.
+                  {creditPreview.s1ResidualRestoration
+                    ? ` سهم برگشتی به همان حق‌ها برمی‌گردد: B ${money(creditPreview.s1ResidualRestoration.b)} ریال، N ${money(creditPreview.s1ResidualRestoration.n)} ریال؛ هیچ نقد یا کد عمومی صادر نمی‌شود.`
+                    : creditPreview.giftOpportunity > 0
+                      ? ' سهم اعتبار به کد شاهددار جدا برمی‌گردد؛ چاپ یا درخواست کارت‌به‌کارت شاهد پرداخت/تحویل نیست.'
+                      : ''}
+                  <span className="kbd block">این فقط پیش‌نمایش است؛ سرور هنگام ثبت دوباره با وضعیت روز محاسبه می‌کند.</span>
+                </p>
+              )}
+              {creditPreview?.settlementReady === false && creditPreview.previewKey === selectedKey && (
+                <div role="alert" className="rounded border-2 border-rose-400 bg-rose-50 p-3 text-rose-900">
+                  <b>برگشت فرزند تعویض فعلاً قابل تسویه یا ثبت نیست.</b> ارقام زیر فقط سهم‌بندی منشأ حسابداری‌اند؛
+                  منشأ نقدی اثبات‌کنندهٔ بازپرداخت مجاز نیست و سهم هدیه به اعتبار تازه تبدیل نمی‌شود.
+                  {creditPreview.shares?.length ? <ul className="mt-2 list-disc ps-6">
+                    {creditPreview.shares.map((share) => <li key={share.sourceEventId}>
+                      {share.sourceKind === 'SOURCE_GIFT' ? 'منشأ هدیه' :
+                        share.sourceKind === 'SOURCE_CASH' ? 'منشأ وجه نقد' :
+                          share.sourceKind === 'SOURCE_CARD' ? 'منشأ کارت' : 'منشأ چک پاس‌شده'}:
+                      {' '}{money(share.amount)} ریال از قلم/اقلام انتخاب‌شده
+                    </li>)}
+                  </ul> : null}
+                  {creditPreview.remainingAttributionBySource?.length ? <p className="mt-2 text-sm">
+                    ماندهٔ انتسابی پیش از این انتخاب:{' '}
+                    {creditPreview.remainingAttributionBySource.map((share) =>
+                      `${share.sourceKind} ${money(share.remainingAttribution)} ریال`).join(' · ')}.
+                    این مانده نه حق دریافت است و نه موجودی تسویه.
+                  </p> : null}
+                  <p className="mt-2 font-bold">تسویه، entitlement و reversal هنوز fail-closed هستند؛ دکمهٔ ثبت غیرفعال است.</p>
+                </div>
+              )}
               {refundMethod && refundMethod !== 'NONE' && (
                 <div className="flex flex-wrap gap-2 items-end">
                   <label>
-                    <div className="kbd">مبلغ بازپرداخت (خالی = کل {money(totals.amount)} ریال)</div>
+                    <div className="kbd">مبلغ پول واقعی (خالی = سهم مجازِ سیستمی؛ در خرید بدون اعتبار: سقف قبلی)</div>
                     <input
                       className="inp w-44"
                       dir="ltr"
@@ -1840,10 +2416,23 @@ export default function SalesReturn() {
                        */
                       value={groupThousands(refundAmount)}
                       onChange={(e) => setRefundAmount(digitsOnly(e.target.value))}
-                      placeholder={groupThousands(String(totals.amount))}
+                      placeholder={groupThousands(String(creditPreview?.giftOpportunity ? creditPreview.cashRight : totals.amount))}
                       inputMode="numeric"
                     />
                   </label>
+                  {refundMethod === 'CASH' && (
+                    <label>
+                      <div className="kbd">بارکد جدید از حق پول واقعی (اختیاری؛ از مبلغ نقد کم می‌شود)</div>
+                      <input
+                        className="inp w-52"
+                        dir="ltr"
+                        value={groupThousands(refundStoreCreditAmount)}
+                        onChange={(e) => setRefundStoreCreditAmount(digitsOnly(e.target.value))}
+                        placeholder="۰ = بدون تقسیم"
+                        inputMode="numeric"
+                      />
+                    </label>
+                  )}
                   {refundMethod === 'CARD' && (
                     <label>
                       <div className="kbd">شماره پیگیری / مرجع بازپرداخت</div>
@@ -1889,6 +2478,22 @@ export default function SalesReturn() {
             </div>
           )}
 
+          {((!exchangeMode && refundMethod === 'STORE_CREDIT') ||
+            (exchangeMode && exTotals.diff < 0 && exRefundMode === 'STORE_CREDIT')) && (
+            <section className="rounded border border-sky-300 bg-sky-50 p-3 space-y-2">
+              <b>اطلاعات اختیاری روی کد برگشت/تعویض</b>
+              <p className="kbd">خالی‌بودن این فیلدها ثبت یا چاپ کد را متوقف نمی‌کند. نام و تلفن، مدرک مالکیت، شمارهٔ یکتا یا اجازهٔ ارسال پیامک نیستند.</p>
+              <div className="flex flex-wrap gap-2 items-end">
+                <label>نام (اختیاری)<input className="inp block" value={printedHolderFirstName}
+                  onChange={(e) => setPrintedHolderFirstName(e.target.value)} /></label>
+                <label>نام خانوادگی (اختیاری)<input className="inp block" value={printedHolderLastName}
+                  onChange={(e) => setPrintedHolderLastName(e.target.value)} /></label>
+                <label>تلفن (اختیاری)<input className="inp block" inputMode="tel" value={printedHolderPhone}
+                  onChange={(e) => setPrintedHolderPhone(e.target.value)} /></label>
+              </div>
+            </section>
+          )}
+
           {/* ---------------- عملیات ---------------- */}
           <div className="bg-white rounded shadow p-3 flex flex-wrap gap-3 items-end">
             <button className="btn" onClick={selectAll} disabled={busy}>
@@ -1921,7 +2526,7 @@ export default function SalesReturn() {
               <button
                 className="btn btn-primary"
                 onClick={() => void doExchange(false)}
-                disabled={busy || lookupLocked || !totals.count || !reps.length || (exTotals.diff < 0 && !exRefundMode)}
+                disabled={busy || lookupLocked || !totals.count || !reps.length}
                 title="برگشت اقلام + سند تعویض + تسویه‌ی مابه‌التفاوت، همه در یک تراکنش"
               >
                 {busy ? 'در حال ثبت…' : 'ثبت تعویض کالا'}
@@ -1930,8 +2535,10 @@ export default function SalesReturn() {
               <button
                 className="btn btn-primary"
                 onClick={() => void doSubmit(false)}
-                disabled={busy || lookupLocked || !totals.count || !refundMethod}
-                title={refundMethod ? undefined : 'اول «روش بازپرداخت» را انتخاب کنید (بند ۱۱)'}
+                disabled={busy || lookupLocked || !totals.count || (!refundMethod && !(creditPreview?.exchangeChildReturn === true && creditPreview.cashRight === 0)) || creditPreview?.settlementReady === false}
+                title={creditPreview?.settlementReady === false
+                  ? 'پیش‌نمایش فقط انتساب منشأ است؛ تسویه و ثبت برگشت فرزند تعویض بسته است.'
+                  : refundMethod || (creditPreview?.exchangeChildReturn && creditPreview.cashRight === 0) ? undefined : 'اول «روش بازپرداخت» را انتخاب کنید (بند ۱۱)'}
               >
                 {busy ? 'در حال ثبت…' : 'ثبت برگشت از فروش'}
               </button>
@@ -1945,8 +2552,8 @@ export default function SalesReturn() {
             </button>
             <div className="kbd">
               {exchangeMode
-                ? 'تعویض = یک «سند تعویض» جدید با اقلام جایگزین + برگشت اقلام قدیمی. ارزش کالای برگشتی به‌صورت یک پرداختی غیرنقدی روی سند می‌نشیند، پس در «خالص واقعی دریافتی» گزارش شمرده نمی‌شود.'
-                : 'برگشت، موجودی را فوراً و به‌صورت قطعی به انبار برمی‌گرداند (حرکت انبار با دلیل SALE_RETURN ثبت می‌شود) و وضعیت فاکتور به «برگشت جزئی/کامل» تغییر می‌کند.'}
+                ? 'تعویض، کالای جایگزین را همان لحظه از انبار کم می‌کند و کالای برگشتیِ غیر C2C را همان لحظه برمی‌گرداند. اگر مابه‌التفاوت C2C باشد، فقط کالای برگشتی تا پرداخت مدیر معلق می‌ماند و همان پرداخت آن را آزاد می‌کند.'
+                : 'برگشت، سند مالی و وضعیت فاکتور را ثبت می‌کند. روش‌های غیر C2C همان لحظه موجودی را برمی‌گردانند؛ فقط کارت‌به‌کارت تا تأیید پرداخت مدیر معلق می‌ماند. رسید جداگانه فقط برای پرونده‌های قدیمیِ علامت‌خورده است.'}
             </div>
           </div>
         </>
@@ -1981,7 +2588,7 @@ export default function SalesReturn() {
             <div className="kbd self-center leading-6">
               {faDigits(history.length)} برگشت · جمع {money(history.reduce((s, r) => s + (r.total ?? 0), 0))} ریال · از این
               مبلغ {money(history.reduce((s, r) => s + (r.cashRefundAmount ?? 0), 0))} ریال نقد از کشوی صندوق خارج شده است ·
-              هر ردیف قابل ویرایش و حذف است (موجودی انبار خودکار اصلاح می‌شود)
+              ویرایش/ابطال سند پیش از هر حرکت موجودی با قفل اختصاصی ممکن است؛ پرونده‌های قدیمیِ دارای رسید کالا یا سندِ اصلاح جبرانی از این مسیر تغییر نمی‌کنند. اصلاحِ اثر موجودیِ ثبت‌شده باید تطبیقی باشد.
               <div>
                 این فهرست فقط «برگشت ساده» را نشان می‌دهد؛ تعویض‌ها در تب «تعویض کالا»ی گزارشات فروش دیده می‌شوند (بند ۱۰).
               </div>
@@ -2032,12 +2639,22 @@ export default function SalesReturn() {
                     {r.legacyAssumed && (
                       <div className="kbd text-amber-800 font-bold">فرض‌شده از داده‌ی قدیمی</div>
                     )}
+                    {r.corrected && <div className="kbd text-amber-800 font-bold">اصلاح جبرانی ثبت شده؛ این سند تاریخی است</div>}
                     {r.refundReference && <div className="kbd" dir="ltr">{r.refundReference}</div>}
                   </td>
                   <td className={r.cashRefundAmount ? 'text-rose-700 font-bold' : ''}>
                     {money(r.cashRefundAmount ?? 0)}
                   </td>
-                  <td className="text-center">{faDigits(r.restockedQty ?? 0)}</td>
+                  <td className="text-center">
+                    {faDigits(r.restockedQty ?? 0)}
+                    {r.restockPending && r.pendingRestockQty > 0 && r.goodsReceiptRequired &&
+                      r.refundMethod !== 'CARD_TO_CARD' && (
+                      <button className="text-sky-800 underline block mx-auto" onClick={() => setGoodsReturnId(r.id)}
+                        title="فقط برای پروندهٔ قدیمیِ دارای دریافت فیزیکیِ معلق">
+                        دریافت کالای پروندهٔ قدیمی ({faDigits(r.pendingRestockQty)} معلق)
+                      </button>
+                    )}
+                  </td>
                   <td className="whitespace-normal">
                     {r.items.map((i: any) => `${i.name} (${faDigits(i.qty)})`).join(' · ')}
                     {r.hasRemovedItems && <div className="text-amber-700 font-bold">شامل کالای حذف‌شده از انبار</div>}
@@ -2056,8 +2673,8 @@ export default function SalesReturn() {
                     <button
                       className="text-brand"
                       onClick={() => requestReturnCorrectionAction('EDIT', r)}
-                      disabled={rowBusy}
-                      title="اصلاح تعداد یا اقلام این برگشت (اختلاف روی موجودی انبار اعمال می‌شود)"
+                      disabled={rowBusy || r.corrected || (r.goodsReceiptRequired && r.restockedQty > 0)}
+                      title="اصلاح تعداد/اقلام فقط پیش از هر حرکت موجودی و اصلاح جبرانی مجاز است؛ رسیدِ پروندهٔ قدیمی با ویرایش پاک نمی‌شود"
                     >
                       ویرایش
                     </button>
@@ -2066,15 +2683,15 @@ export default function SalesReturn() {
                     <button
                       className="text-red-600"
                       onClick={() => requestReturnCorrectionAction('VOID', r)}
-                      disabled={rowBusy}
-                      title="ابطال این برگشت (سند با مهر «باطل» و دلیل می‌ماند) و بازگرداندن اثرش روی موجودی انبار"
+                      disabled={rowBusy || r.corrected || (r.goodsReceiptRequired && r.restockedQty > 0)}
+                      title="ابطال مستقیم فقط پیش از هر حرکت موجودی و اصلاح قبلی مجاز است؛ اثر رسیدِ پروندهٔ قدیمی با اصلاح تطبیقی برمی‌گردد"
                     >
                       ابطال
                     </button>
                     <button
                       className="text-amber-700 mr-2"
                       onClick={() => requestReturnCorrectionAction('RECONCILE', r)}
-                      disabled={rowBusy}
+                      disabled={rowBusy || r.corrected}
                       title="ثبت اثر جبرانی جدید برای پول، کارت، اعتبار و موجودی؛ سند برگشت اصلی دست‌نخورده می‌ماند"
                     >
                       اصلاح جبرانی
@@ -2093,6 +2710,42 @@ export default function SalesReturn() {
           </table>
         </div>
       )}
+
+      {goodsReturnId != null && (
+        <div className="bg-white rounded shadow p-3 space-y-2">
+          <div className="flex justify-end"><button className="btn" onClick={() => setGoodsReturnId(null)}>بستن دریافت کالا</button></div>
+          <ReturnGoodsIntake returnId={goodsReturnId} onReceived={() => void loadHistory()} />
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={ordinaryCreditPrint != null}
+        title="چاپ برگهٔ کد اعتبار برگشت/تعویض"
+        confirmLabel={ordinaryCreditPrint?.firstPrintGrant ? 'چاپ اول کد' : 'چاپ با تأیید مدیر'}
+        busy={printing}
+        message={
+          <div className="space-y-3">
+            <p>این برگهٔ کد مشتری جدا از رسید مالی برگشت/تعویض است. نام و شماره تلفن روی آن اختیاری‌اند؛ خالی بودنشان مانع چاپ نیست.</p>
+            <p className="kbd">چاپ اول فقط در پنجره و نشست صادرکننده مجاز است؛ برای چاپ مجدد یا بازیابی پس از خطا رمز مدیر لازم است. اگر نتیجهٔ چاپ نامعلوم بود، اول خروجی چاپگر را بررسی کنید. چاپ به‌معنای تحویل نیست.</p>
+            {!ordinaryCreditPrint?.firstPrintGrant &&
+              <PasswordField className="inp w-full" autoComplete="off" autoFocus
+                placeholder="رمز مدیر برای چاپ کد"
+                value={ordinaryCreditPrintPassword}
+                onChange={(e) => {
+                  setOrdinaryCreditPrintPassword(e.target.value)
+                  setOrdinaryCreditPrintError(null)
+                }} />}
+            {ordinaryCreditPrintError && <p className="text-rose-700 whitespace-pre-line">{ordinaryCreditPrintError}</p>}
+          </div>
+        }
+        onConfirm={() => void printOrdinaryCredit()}
+        onCancel={() => {
+          if (printing) return
+          setOrdinaryCreditPrint(null)
+          setOrdinaryCreditPrintPassword('')
+          setOrdinaryCreditPrintError(null)
+        }}
+      />
 
       <OverpayFlowDialogs
         flow={overpayFlow}

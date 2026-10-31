@@ -56,7 +56,7 @@ await rejects('خاموش‌کردن حضانت، Shift legacy را پنهان �
 eq('پس از رد تنظیمات، حضانت همچنان فعال است', (await custodyService.config()).enabled, true)
 eq('Shift legacy پس از تلاش برای خاموش‌سازی همچنان governed است', await custodyService.isGoverned(), true)
 await rejects('مسیر قدیمی بستن Shift در Legacy block بسته است', 'CUSTODY_LEGACY_PATH', () => shiftService.close({ shiftId: legacyShift, userId: cashier, note: 'نباید ثبت شود' }))
-await rejects('Master Override نیز Legacy block را bypass نمی‌کند', 'CUSTODY_LEGACY_OPEN_SHIFT', () => custodyService.masterOverride({ managerUserId: manager, managerPassword: '1111', countedCash: 0, reason: 'نباید برای نشست قدیمی از مسیر استثنایی استفاده شود.' }))
+await rejects('Master Override نیز Legacy block را bypass نمی‌کند', 'CUSTODY_LEGACY_OPEN_SHIFT', () => custodyService.masterOverride({ managerUserId: manager, managerPassword: 'Manager392!', operationalTotal: 0, reason: 'نباید برای نشست قدیمی از مسیر استثنایی استفاده شود.' }))
 const legacyStatus = await custodyService.status()
 eq('status صریحاً وجود Legacy block را اعلام می‌کند', legacyStatus.legacyBlock?.count, 1)
 

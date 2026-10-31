@@ -101,7 +101,9 @@ let sale2, vids2
   sale2 = await salesService.create({ userId, shiftId, lines: vids2.map((variantId, i) => ({ variantId, qty: 1, unitPrice: priceOf(i), discount: 0, tax: 0 })), payments: [] })
   eq('فاکتور ۵۰۱ قلمی ساخته شد', seed.count('SaleInvoiceItem', 'invoiceId = ?', sale2.id), 501)
   eq('موجودی قلم ۵۰۱ بعد از فروش ۹', stockOf(vids2[500]), 9)
-  const r = await safe(() => salesService.createReturn({ invoiceId: sale2.id, full: true, lines: [], refundMethod: 'NONE', userId }))
+  // Fixture قدیمیِ قبل از cutover: آزمون chunk/restock فوری تاریخی؛
+  // اسناد جدید با رسید فیزیکی مقداربه‌مقدار در fix-financial-goods-* سنجیده می‌شوند.
+  const r = await safe(() => salesService.createReturn({ invoiceId: sale2.id, full: true, lines: [], refundMethod: 'NONE', userId }, { goodsReceiptRequired: false }))
   eq('برگشت کامل بدون خطا', r?.__error ?? null, null)
   const ret = seed.one('SELECT id, total FROM "SaleReturn" WHERE invoiceId = ? ORDER BY id DESC', sale2.id)
   eq('جمع برگشت = ۵۰۷٬۷۷۷', Number(ret?.total), SUM501)
@@ -116,7 +118,7 @@ console.log('\n— ۳) returnUpdate از ۱ قلم به ۵۰۱ قلم و سپس 
   const sale = await salesService.create({ userId, shiftId, lines: vids.map((variantId, i) => ({ variantId, qty: 1, unitPrice: priceOf(i), discount: 0, tax: 0 })), payments: [] })
   const items = seed.rows('SELECT id, variantId FROM "SaleInvoiceItem" WHERE invoiceId = ? ORDER BY id', sale.id)
   const byVar = new Map(items.map((it) => [it.variantId, it.id]))
-  const r0 = await safe(() => salesService.createReturn({ invoiceId: sale.id, full: false, lines: [{ saleItemId: byVar.get(vids[0]), qty: 1 }], refundMethod: 'NONE', userId }))
+  const r0 = await safe(() => salesService.createReturn({ invoiceId: sale.id, full: false, lines: [{ saleItemId: byVar.get(vids[0]), qty: 1 }], refundMethod: 'NONE', userId }, { goodsReceiptRequired: false }))
   eq('برگشت یک‌قلمی بدون خطا', r0?.__error ?? null, null)
   const ret = seed.one('SELECT id, total FROM "SaleReturn" WHERE invoiceId = ?', sale.id)
   eq('جمع برگشت یک‌قلمی = ۱٬۰۰۰', Number(ret?.total), 1000)

@@ -323,7 +323,7 @@ export const bridgeDiagnosticsService = {
     const id = Number(ref.id)
     const kind = String(ref.kind ?? 'RETURN').toUpperCase()
 
-    let docDetail: BridgeDocDetail | null = null
+    let docDetail: BridgeDocDetail
 
     if (kind === 'RETURN' || kind === 'EXCHANGE') {
       const ret = await prisma.saleReturn.findFirst({
@@ -371,7 +371,8 @@ export const bridgeDiagnosticsService = {
       })
       if (cardReq) cardTransferStatus = cardReq.status
 
-      const method = (ret.refundMethod || (ret.kind === 'EXCHANGE' ? ret.exchangeSettlement : 'NONE') || 'NONE').toUpperCase() as any
+      const isExchange = ret.kind === 'EXCHANGE' || ret.exchangeInvoiceId != null
+      const method = (ret.refundMethod || (isExchange ? ret.exchangeSettlement : 'NONE') || 'NONE').toUpperCase() as any
       const methodLabels: Record<string, string> = {
         CASH: 'بازپرداخت نقدی',
         CARD: 'بازپرداخت کارتی (پوز)',
@@ -386,8 +387,8 @@ export const bridgeDiagnosticsService = {
       }
 
       docDetail = {
-        ref: { kind: ret.kind === 'EXCHANGE' ? 'EXCHANGE' : 'RETURN', id: ret.id },
-        docType: ret.kind === 'EXCHANGE' ? 'EXCHANGE' : 'SIMPLE_RETURN',
+        ref: { kind: isExchange ? 'EXCHANGE' : 'RETURN', id: ret.id },
+        docType: isExchange ? 'EXCHANGE' : 'SIMPLE_RETURN',
         docNo: String(ret.id),
         parent: ret.invoice
           ? {
@@ -418,6 +419,8 @@ export const bridgeDiagnosticsService = {
           method,
           methodLabel: methodLabels[method] || method,
           amount: Math.round(Number(ret.refundAmount || ret.total || 0)),
+          storeCreditAmount: Math.round(Number(ret.refundStoreCreditAmount || 0)),
+          totalSettled: Math.round(Number(ret.refundAmount || 0) + Number(ret.refundStoreCreditAmount || 0)),
           reference: ret.refundReference ?? null,
           cardTransferStatus,
           storeCreditCodeMasked: ret.storeCreditCode ? `****-${ret.storeCreditCode.slice(-4)}` : null

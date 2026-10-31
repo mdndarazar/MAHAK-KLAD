@@ -253,20 +253,26 @@ export const cashMovementService = {
     const parsedSkip = Math.round(Number(filter.skip ?? 0))
     const take = Math.min(Math.max(Number.isFinite(parsedTake) ? parsedTake : 500, 1), 5000)
     const skip = Math.max(Number.isFinite(parsedSkip) ? parsedSkip : 0, 0)
-    const [rows, groups] = await Promise.all([
+    // S10 links a physical CASH_IN mirror to a Payment. Keep it in the detailed
+    // rows, but do not add the same receipt to the standalone movement totals.
+    const [rows, groups, totalCount] = await Promise.all([
       prisma.cashMovement.findMany({
         where,
         orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }],
         skip,
         take
       }),
-      prisma.cashMovement.groupBy({ by: ['type'], where, _sum: { amount: true }, _count: { _all: true } })
+      prisma.cashMovement.groupBy({
+        by: ['type'],
+        where: { AND: [where, { NOT: { refType: 'ExchangeDebtSettlement' } }] },
+        _sum: { amount: true }, _count: { _all: true }
+      }),
+      prisma.cashMovement.count({ where })
     ])
     const sumOf = (types: string[]) =>
       (groups as any[])
         .filter((g) => types.includes(g.type))
         .reduce((s, g) => s + Math.round(Number(g._sum?.amount ?? 0)), 0)
-    const totalCount = (groups as any[]).reduce((s, g) => s + Number(g._count?._all ?? g._count ?? 0), 0)
     const shaped = rows.map((r) => this.shape(r))
     const page = { skip, take, totalCount, truncated: totalCount > skip + shaped.length }
     const warnings =

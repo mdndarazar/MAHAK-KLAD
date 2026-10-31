@@ -151,9 +151,20 @@ const mkReturn = (qty, restock, no) => {
   }
   return ret
 }
-mkReturn(3, 3, 1)
-mkReturn(2, 2, 2)
-mkReturn(1, 0, 3)
+// Recreate a legacy over-return history (6 returned against a 5-unit sale).
+// Current migrations block this state, so suspend only its insert guard while seeding,
+// then restore the exact DDL before the management services read the fixture.
+const returnScopeTrigger = sql.prepare(`SELECT sql FROM sqlite_master WHERE type='trigger'
+  AND name='sale_return_item_scope_insert'`).get()?.sql
+if (!returnScopeTrigger) throw new Error('legacy-overreturn fixture requires the sale-return quantity guard')
+sql.exec('DROP TRIGGER "sale_return_item_scope_insert"')
+try {
+  mkReturn(3, 3, 1)
+  mkReturn(2, 2, 2)
+  mkReturn(1, 0, 3)
+} finally {
+  sql.exec(returnScopeTrigger)
+}
 await costEngine.run()
 
 const prof = await profitService.profit({ fromJalali: today, toJalali: today })

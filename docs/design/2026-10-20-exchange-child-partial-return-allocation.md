@@ -1,0 +1,93 @@
+# برگشت جزئیِ قلمِ فرزند تعویض — تخصیص منشأ و دفترِ اصلاح
+
+**یادداشت تاریخی — سیاست و وضعیت settlement در این سند superseded شده‌اند.** متن زیر snapshot تحلیل پیش از تثبیت سیاست pooled است؛ عبارت‌های «settlement بسته است»، نسبت‌های per-line و پیشنهادهای آن دیگر مرجع اجرایی نیستند. مرجع فعلی الزام‌آور: `docs/design/FINAL-DESIGN-BASIS-fa.md`، بخش «قاعدهٔ عمومی برگشت اعتبار بارکدی»، و شاهد جاری: `docs/design/2026-10-20-s1-s12-implementation-evidence-fa.md`، تکمیل S4 در 2026-10-25. طبق تصمیم جاری، اعتبار عمومی در کل فاکتور/تاریخچه pooled است و برگشت child برای آن و tender واقعی در مسیر واقعی settle می‌شود؛ فقط اعتبار محدودشده و lineageهای B/N خارج از pool عمومی می‌مانند.
+
+## نتیجهٔ آزمون SQLite موقت
+
+در fixture ایزولهٔ آزمون، فروش مبدأ واقعی `۱٬۰۰۰ = ۴۰۰ هدیه + ۶۰۰ وجه` ساخته شد. یک فرزند تعویضِ آزمایشیِ دوعددی با ارزش قلم `۱٬۰۰۰`، انتقال‌های paired از ریشهٔ واقعی و ماتریس append-only منبع‌به‌قلم دریافت کرد. برگشت یک عدد از دو عدد این ماتریس را می‌دهد:
+
+| نوع منشأ | سهم قلم کامل | سهم برگشتِ ۵۰۰ ریالی |
+|---|---:|---:|
+| `SOURCE_GIFT` | ۴۰۰ | ۲۰۰ |
+| `SOURCE_CASH` | ۶۰۰ | ۳۰۰ |
+
+`planCreditReturn` واقعی، چون ردیف `EXCHANGE_CREDIT` را منبع اعتبار خرید نمی‌شمارد و ماتریس قلمی را نمی‌خواند، برای همین برگشت `cash=500` پیشنهاد می‌کند. سقف زنجیره‌ای قدیمی در `cashLikeRefundableOf` نیز ۶۰۰ وجه مبدأ را به فاکتور فرزند اضافه می‌کند؛ بنابراین سقف به‌تنهایی سهم هدیهٔ ۲۰۰ ریالی همین قلم را حفظ نمی‌کند. آزمونِ مسیر **قبل از صدور اثر** را ثابت کرد؛ مسیر نوشتنِ فعلی عمداً با گارد متوقف شد و هیچ مبلغی ثبت نشد.
+
+## کد فعلی
+
+- `src/shared/integerRialApportionment.ts`، Webster/Sainte‑Laguë صحیحِ ریالی و tie-break با شناسهٔ پایدار را مشترک می‌کند.
+- `src/shared/exchangeFundingLineReturn.ts` سهم هر منبع از برگشت یک قلم را از snapshot تعداد/ارزش و مقدار تجمعیِ پیشین محاسبه می‌کند. انواع اثبات‌شدهٔ `SOURCE_GIFT`، `SOURCE_CASH`، `SOURCE_CARD` و `SOURCE_CHEQUE` حفظ می‌شوند؛ نوع نامعلوم مجاز نیست. ماتریس منبع باید با ارزش قلم برابر باشد؛ تاریخچهٔ ناقص/متناقض، شناسهٔ تکراری یا برگشت بیش از تعداد fail-closed می‌شود. خروجی فقط **انتساب حسابداری** است.
+- `returnValueOf` برای ورودی‌های صحیح/ایمن ریالی، ضرب و گردکردن تجمعی را با `BigInt` انجام می‌دهد؛ `allocateLineNet` نیز ضرب/باقی‌مانده را BigInt نگه می‌دارد تا در نزدیکی `Number.MAX_SAFE_INTEGER` خطای IEEE‑754 snapshot قلم را جابه‌جا نکند.
+- `SalesService.returnProvenancePreview` برای فرزند با lineage و ماتریس سالم فقط انتساب حسابداریِ prospective برمی‌گرداند؛ `cashRight` و `giftOpportunity` صفر و `settlementReady=false` می‌مانند. lineage، ماتریس یا تخصیص برگشتِ فعالِ ناقص/ناسازگار fail-closed است.
+- `runReturn(..., applyRefund: true)` هنوز همهٔ برگشت‌های اجرایی از فاکتور نوع `EXCHANGE` را پیش از اثر مالی متوقف می‌کند. مسیر داخلی `createExchange(..., applyRefund: false)` از این گارد جداست. گارد موقت است؛ مسیر ثبت برگشتِ مشتری هنوز به تسویه و entitlement امن وصل نشده.
+- `ExchangeFundingReturnLineAllocation` اکنون snapshot سهم تجمعی هر `SaleReturnItem` را به‌صورت append-only ذخیره می‌کند. `recordExchangeFundingReturnLineAllocation` آن را از ردیف‌های فیزیکی و ماتریس immutable دوباره محاسبه می‌کند؛ reversal کاملِ همهٔ اقلام با replay/LIFO در `reverseExchangeFundingReturnLineAllocationsForReturn` ثبت می‌شود. این توابع در آزمون‌های SQLite پوشش دارند، اما مسیر برگشت عادیِ فرزند هنوز عمداً gate است؛ دفتر انتساب مجوز تسویه نیست.
+
+## دفتر انتساب پیاده‌سازی‌شده؛ تسویه هنوز بسته است
+
+Migration افزایشی `20271020650000_exchange_funding_return_line_allocations` ردیف‌های immutable با پیوندهای scalar و snapshotهای تعداد/ارزش/سهم می‌سازد. صفر فقط به‌عنوان delta قانونیِ یک منبع ثبت می‌شود؛ منبع نامعلوم پذیرفته نیست. triggerهای migrationهای `20271020650000`، `20271020720000`، `20271020730000` و `20271020740000` به‌ترتیب `UPDATE`/`DELETE` allocation را منع، key/reversal را با allocation اصلی تطبیق، هر allocation را به برگشت فیزیکیِ فعال و ماتریس immutable همان قلم/منبع مقید و snapshotهای تجمعی را با برگشت‌های فیزیکی و allocationهای فعال پیشین می‌سنجند. migration `20271020750000` نیز `UPDATE`/`DELETE` رویدادهای پایهٔ `ExchangeFundingEvent` را در SQLite رد می‌کند؛ اصلاح فقط با ردیف تازه و reversal صریح انجام می‌شود. trigger migration `20271020760000` هر reversal را به منبعِ بدون reversal، delta دقیقاً منفی، همان share/root/scope، نوع رخداد و الگوی key/evidence متصل می‌کند؛ کامل‌بودن جفت transfer همچنان با replay سرویس/reader کنترل می‌شود. migration `20271020770000` تغییر تعداد/ارزش/scope قلم فیزیکی و نوع parent برگشتی را پس از تخصیص ممنوع می‌کند؛ فیلدهای restock جدا می‌مانند. وقتی همهٔ source cellهای یک ردیف ثبت شدند، جمع سهم‌ها باید دقیقاً با مبلغ این برگشت، مبلغ تجمعی قبلی و مبلغ تجمعی جدید منطبق باشد. هر reversal باید به allocation موجود، همان scope و snapshotها وصل باشد و `amountDelta` دقیقاً منفی delta اصلی باشد؛ unique key از reversal دوباره جلوگیری می‌کند. row تخصیص با مبلغ منبع، تاریخچهٔ تجمعی یا قلم cross-linked در مرز SQLite رد می‌شود.
+
+- سهم پیشین فقط از برگشت‌های فیزیکیِ فعال و ledger rowهای کاملِ تطبیق‌شده بازسازی می‌شود. مقدار تجمعی باید با تعداد برگشت فعالِ `SaleReturnItem` و target قطعی helper برابر باشد؛ اختلاف در تعداد، مبلغ، set منبع، lineage یا event key fail-closed است.
+- reversal ردیف allocation را حذف/ویرایش نمی‌کند؛ برای هر allocation یک ردیف معکوس با key یکتا، ارجاع دقیق به اصل و delta منفی اضافه می‌شود. گارد DB و reader سرویس هر دو orphan/cross-link را رد می‌کنند.
+
+
+- پیوندهای scalar: `returnId`, `returnItemId`, `childInvoiceId`, `saleItemId`, `sourceEventId` (رویداد `TRANSFER_IN` همان فرزند). FK/cascade نباید تاریخچهٔ مالی را حذف کند.
+- snapshotهای immutable: `saleItemQty`, `saleItemValue`, تعداد برگشتی فعال پیش از این قلم، تعداد این برگشت، تعداد تجمعی بعد از آن، ارزش تجمعی قلم و سهم تجمعی هر منبع پیش/پس از برگشت.
+- دادهٔ تخصیص: `sourceKind`, `priorAmount`, `amountDelta`, `cumulativeAmount`, `eventKey`, زمان و نوع رخداد. `SOURCE_GIFT` همچنان `SOURCE_GIFT` می‌ماند؛ رکورد صفر/منفی یا `sourceKind` آن را به وجه تبدیل نمی‌کند.
+- کلید idempotency یکتا برای رخداد تخصیص و `reversalOfId` یکتا برای وارون‌سازی؛ replay همان کلید باید همهٔ snapshotها را عیناً تطبیق دهد یا fail-closed شود. triggerهای SQLite باید `UPDATE` و `DELETE` را رد کنند.
+- سهم قبلی فقط از allocationهای فعال (رخداد تخصیص بدون reversal معتبر) جمع می‌شود. مقدار تجمعی دفتر باید با تعداد برگشت فعالِ `SaleReturnItem` و target قطعی Webster برابر باشد. هر اختلاف در تعداد، مبلغ، set منبع، lineage یا event key، کل عملیات برگشت/تسویه را متوقف می‌کند.
+- ردیف‌های reversal، allocation اصلی را حذف/ویرایش نمی‌کنند؛ برای هر ردیف اصلی یک ردیف معکوس با کلید یکتا، ارجاع دقیق به اصل و مقدار منفی همان delta ثبت می‌شود. ردیف‌های صفر هم پوشش/وارون‌سازی صریح دارند.
+
+## چرخهٔ عمر و اصلاح
+
+| مسیر | الزام پیش از بازشدن گیت |
+|---|---|
+| `createReturn` | allocationها، ثبت کالا، تسویه، entitlement و دفتر نقد/اعتبار در **یک تراکنش**. درخواست retry باید با کلید idempotency و fingerprint اقتصادی، نتیجهٔ همان برگشت را برگرداند؛ unique allocation key به‌تنهایی دوبارثبت کل برگشت را نمی‌بندد. CAS/قفل تعداد برگشتی باید دو درخواست هم‌زمان را از سقف قلم عبور ندهد. |
+| `returnUpdate` | هیچ ردیف allocation قبلی rewrite نشود. نسخهٔ نخست باید ویرایش مستقیمِ برگشت تخصیص‌دار را رد کند؛ مسیر مدیر `returnReconcileVoid` و برگشت تازه را به‌کار برد. اگر ویرایش مستقیم بعداً لازم شد، باید allocation نسخه‌دار/وارون‌سازی کامل و settlement-adjustment یکجا داشته باشد. |
+| `returnDelete` | soft-void سند به‌تنهایی کافی نیست: در همان تراکنش، reversal هر allocation فعال append شود، سپس effects فعلی پول/اعتبار/انبار با همان reason بررسی شوند. replay نباید دوبار سهم را آزاد کند؛ ابطال allocation به‌تنهایی هدیهٔ اصلی را فعال یا entitlement نقدی ایجاد نمی‌کند. |
+| `returnReconcileVoid` | اصلاح جبرانی باید اثر تسویه/شاخهٔ B/E/درخواست بانک/رسید فیزیکی را هم تعیین تکلیف کند. اگر فقط allocation وارونه شود و بازپرداخت/کد قبلی زنده بماند، دوباره‌خرج رخ می‌دهد؛ اگر مبلغ قبلی بازیافت نشده یا کد خرج شده باشد، مغایرت/کسری باید صریح و شاهددار بماند. |
+| lineage فرزندِ فرزند | `sourceEventId` فعلی می‌تواند `TRANSFER_IN` باشد؛ زنجیره باید با `parentEventId` تا ریشه دنبال شود و هر جفت انتقال/ابطال فعال تطبیق شود. انتساب برگشت به یک رویداد انتقال، دوباره‌خرج یا transfer جدید را مجاز نمی‌کند. |
+
+## انقضا، حق وجه و entitlement — جداسازی اجباری
+
+1. تخصیص `SOURCE_GIFT` فقط می‌گوید چه مقدار از ارزش **این قلم** از ریشهٔ هدیه آمده است. سهم برگشتیِ منقضی همچنان در دفتر تاریخی هدیه می‌ماند، اما B/E فعال نمی‌سازد و هرگز به نقد تبدیل نمی‌شود.
+2. reader عادی `getCurrentExchangeFundingSources` در مسیر اثبات transfer، اعتبار هدیهٔ منقضی را transferable نمی‌داند. مسیر انتساب تاریخیِ برگشت، فقط با opt-in صریح و در کنار `allowReturnBalanceChanges`، ریشهٔ هدیهٔ منقضی را وقتی می‌پذیرد که snapshot انقضا با رکورد فعلی برابر، redemption پیش از انقضا، مصرف/رسید پرداخت فعال و جفت انتقال معتبرِ ثبت‌شده پیش از انقضا باشد؛ اعتبار void/delete‌شده یا snapshot نامعلوم همچنان رد می‌شود. این مسیر فقط lineage تاریخی و ماتریس immutable را می‌خواند و صفر بودن `cashRight`، `giftOpportunity` و entitlement را تغییر نمی‌دهد؛ رد انتقال جدید به علت انقضا نباید باعث شود برگشت کالای سالم یا ثبت سهم منقضی به وجه نقد تبدیل شود.
+3. `SOURCE_CASH` هم فقط ریشهٔ حسابداری است. حق پرداخت پول باید از Payment وصول‌شدهٔ واقعی، `kind`/کانال/`destination`، سهم قبلاً برگشته یا حمل‌شده به فرزند، درخواست کارت‌به‌کارت و شاهد بانک/صندوق محاسبه شود. `EXCHANGE_CREDIT`، مبلغ فروش، `CUSTOMER_HANDOFF` یا ماندهٔ `cashLikeRefundableOf` به‌تنهایی شاهد پول برای هر قلم نیستند.
+4. فرصت هدیه/اعتبار و حق واقعی پول دو دفتر جدا می‌مانند. مصرف/انقضا/تحویل و اصلاح B/E از مقدار `SOURCE_GIFT` قابل استنتاج نیست و باید با ریشه، scope، expiry و ردیف‌های مصرف/بازپرداخت قبلی اثبات شود.
+
+## آزمون‌های لازم پیش از بازکردن گارد
+
+- fixture SQLite واقعیِ مخلوط `۶۰۰ وجه + ۴۰۰ هدیه` و فرزند دوعددی `۱٬۰۰۰`: مقدار یک‌عددی دقیقاً `۲۰۰ هدیه + ۳۰۰ منشأ وجه`؛ assert شود planner عمومیِ قدیمی `۵۰۰ cash` می‌دید، ولی مسیر ایمن هیچ اثر تسویه‌ای نمی‌نویسد.
+- آزمون خالص فعلی: ۸٬۵۱۲ ترکیب exhaustive تعداد/ارزش/تقسیم کوچک برای chunk-invariance؛ آزمون `MAX_SAFE_INTEGER` و mismatch/missing history هم موجود است.
+- migration/triggerهای append-only؛ ردیف سهم صفر؛ replay همسان؛ event key متناقض؛ returnهای چندchunk و ترتیب‌های متفاوت؛ دو connection هم‌زمان.
+- `returnDelete` و `returnReconcileVoid`: reversal دقیق، retry، row صفر، settlement/کد/رسید فیزیکی، ابطال جفت transfer و invariant مانده پیش/پس.
+- expiry پیش/پس از برگشت و برگشت کامل: منبع تاریخی هدیه حفظ، هیچ کد فعال بعد از انقضا؛ lineage فرزندِ فرزند و root scope.
+- فقط پس از سبزشدن موارد بالا، اتصال به تسویه؛ سپس آزمون‌های مستقل entitlement، کانال/شاهد وصول، سقف cash، debt-first و عدم تبدیل هدیه. گیت تعویض اعتبارمحور در تمام این مراحل بسته می‌ماند.
+
+## Regression follow-up — durable exchange link versus corrupted `kind`
+
+A separate read/correction pass found that several legacy paths still used `SaleReturn.kind` as the sole discriminator even though the reciprocal `exchangeInvoiceId` / child `exchangeReturnId` links remained valid. The following were hardened without changing the child-return settlement gate:
+
+- `reportShape.returnedTotalOf` now excludes linked exchange returns from the simple-return fallback even when `kind` is corrupted.
+- `ReturnGoodsService.receive` preserves the exchange-specific stock note from `exchangeInvoiceId` when the return kind is stale.
+- `activeExchangeLink` validates the reciprocal parent/child identifiers and matching totals instead of requiring the mutable legacy `kind`; `reverseExchangeFundingTransfersForReturn` validates reciprocal identifiers and exact transfer pairs. Reversal replay after void remains idempotent.
+- `returnDelete` rechecks that the exchange classification/link used inside its transaction matches the preflight authorization snapshot. A valid linked exchange with a stale `kind` uses the existing atomic whole-graph void; a link inserted/swapped after preflight is rejected.
+
+Regression coverage additionally asserts a `SOURCE_GIFT` allocation with `amountDelta=0` stays an explicit append-only gift row, rejects direct `UPDATE`/`DELETE`, receives an explicit zero reversal, and survives exact replay without extra rows. Two independent worker processes race the same return-item allocation: exactly one creates the complete source set, a fresh retry reads it as replay, and the persisted set contains exactly two source rows. Subsequent physical returns in chunks of 1, 50, and 49 units advance from the persisted cumulative baseline and restore exactly 1 gift rial plus 999 cash rials for the item; each chunk reconciles to its own return value. Reversal of the oldest chunk is rejected while later chunks remain active and adds no rows; after voiding from newest to oldest (LIFO), the inverse totals are exactly -1 gift rial and -999 cash rials, including the zero-delta gift row. Expiry is separately probed without waiting: a mixed 300-gift/700-cash transfer is persisted before its captured expiry. After the clock/status move past expiry, forwarding that gift share into a grandchild exchange is rejected with no event/balance change, while two physical return chunks (40/60) are still attributed historically. The result stays 300 gift/700 cash, creates no entitlement, payout, credit, or settlement event, and reverses LIFO to -300/-700. `fix-financial-exchange-child-return-correction-guard.mjs`, `fix-financial-exchange-funding-ledger-service.mjs`, `fix-financial-exchange-funding-sales-integration.mjs`, `fix-financial-exchange-return-line-reversal-completeness.mjs`, `fix-financial-f5-entitlement.mjs`, and `fix-s197-exchange-nasiyeh-cash-refund.mjs` passed on the SQLite harness. These results do not prove Prisma/Electron production behavior or completion of S1–S12. The exchange-credit settlement gate remains closed pending the full lineage, expiry, idempotency, reversal, and invariant test set.
+
+## S190 regression status (2026-10-20)
+
+The complete regression was rerun after the final S142 assertion correction. `tests/audit` 84/84, `tests/management` 62/62, SMS 11/11, and legacy 17/17 passed. `tests/audit-fixes` was 453/454; the only nonzero test process was `fix-s130-a4-layout.mjs` (exit 77, browser unavailable in this environment). Money-field/coverage guards passed; esbuild parsed 273 files, and all three bundles completed with zero warnings. Typecheck remains blocked because Prisma Client generation failed on TLS access to `binaries.prisma.sh`; the resulting 725 cascading diagnostics are not treated as a source verdict. This is evidence for supported regression tests only—not sign-off for S1–S12, real Prisma/Electron behavior, or settlement. Keep the settlement gate closed until the business checklist is individually evidenced.
+
+The S1–S12 implementation inventory is tracked separately in `docs/design/2026-10-20-s1-s12-implementation-evidence-fa.md`. In the current S190 probe, a real 5M gift + 20M cash sale has a fully proven ordinary-sale source snapshot and an exact candidate three-line allocation, but the exchange is still rejected before writes because the preflight and transfer path do not yet handle mixed active redemptions. Do not remove that guard alone: the current transfer selector would not create the required paired mixed-source transfers. The new characterization test verifies the rejection is side-effect-free; settlement remains closed.
+
+## S190 — Read-only return-report attribution
+
+`SalesService.returnList` now projects the append-only child-exchange return allocation ledger as an explicitly non-settlement DTO:
+
+- `NOT_APPLICABLE`: not a physical return from an exchange child invoice.
+- `INCOMPLETE`: the child return is missing rows, has a broken scope/snapshot, or its source shares do not sum to each physical item and return total. No amount is guessed or exposed as cash.
+- `ATTRIBUTION_ONLY`: persisted source-kind shares reconcile per `SaleReturnItem`; `settlementReady` is the literal `false`. This is provenance of returned goods only, not a cash right, payout, or new tender.
+
+The report table, A4 print, and Excel output label the column as accounting provenance and explicitly say it is not payment or a cash right. Incomplete child-return attribution is visually flagged. The projection also excludes reversed/voided rows from the active report because the report scope filters voided returns; ordinary sale returns remain `NOT_APPLICABLE`.
+
+SQLite characterization tests manually seed physical child-return rows because `createReturn` on an exchange child remains intentionally blocked. For a 1,000-value line with 1 gift rial + 999 cash-origin rials, order 1/50/49 attributes the gift rial to the 50-unit chunk; order 1/49/50 attributes it to the 49-unit chunk. Both per-row report histories reconcile exactly, both totals remain 1 gift + 999 cash, and neither becomes a payout. A 300-gift/700-cash source transferred before expiry is still shown historically as gift/cash attribution after expiry; it does not yield a right. Missing allocation shows `INCOMPLETE`, and after append-only LIFO reversals/voids the physical rows disappear from active reporting. These are read/report and ledger proofs only—not enablement of child-return settlement or end-to-end S1–S12 acceptance.

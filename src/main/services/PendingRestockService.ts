@@ -1,6 +1,6 @@
 import { prisma } from '../db/client'
 import { toJalaliDate, faDigits } from '@shared/jalali'
-import { AuditAction, CardTransferKind, CardTransferStatus } from '@shared/enums'
+import { AuditAction, CardTransferKind, CardTransferStatus, RefundMethod } from '@shared/enums'
 import {
   ageInDays,
   EMPTY_PENDING_RESTOCK,
@@ -12,6 +12,7 @@ import {
 } from '@shared/pendingRestock'
 import { inventoryService } from './InventoryService'
 import { stockAllocationService } from './StockAllocationService'
+import { assertOrdinaryReturnLineage, assertReturnEntitlementLineage } from './ReturnEntitlementService'
 import { toNumberRial } from '@shared/money'
 
 const PENDING_RESTOCK_READ_PAGE = 2000
@@ -40,18 +41,16 @@ function chunksOf<T>(values: T[], size = PENDING_RESTOCK_IN_CHUNK): T[][] {
  * ===========================================================================
  * جلسه ۴۰ · کار ب — «کالای برگشتیِ در انتظار تأیید مدیر»: لایه‌ی main.
  *
- * دو کار، و فقط همین دو کار:
- *   ۱) `summary` — یک تابع مشترک که **هر پنج صفحه** از همان استفاده می‌کند
- *      (انبار فروشگاه، گزارشات فروش، انبارگردانی، بستن صندوق، پنل کارت‌به‌کارت).
- *      هیچ صفحه‌ای اجازه ندارد این عدد را خودش بسازد.
- *   ۲) `releaseReturnStock` — تنها نقطه‌ای در کل برنامه که کالای معلق را به
- *      موجودی قابل‌فروش برمی‌گرداند. `CardTransferService.pay` و مسیر
- *      «آزادسازی صریح مدیر» هر دو همین را صدا می‌زنند و هر دو پشت قفل
- *      `PANEL_KEYS.cardTransfers` هستند.
+ * دو کار:
+ *   ۱) `summary` — عدد واحد معلق برای انبار، گزارش، انبارگردانی، صندوق و
+ *      پنل کارت‌به‌کارت؛ اسناد دارای اصلاح جبرانی از فهرست اقدامات حذف‌اند.
+ *   ۲) `releaseReturnStock` — پروندهٔ تاریخیِ مجاز، یا درخواست کارت‌به‌کارت
+ *      همان برگشت/تعویض پس از تأیید پرداخت مدیر. برای سایر پرونده‌های جدید،
+ *      مسیر دریافتِ قدیمی فقط برای پرونده‌های از قبل علامت‌خورده باقی است؛ پرونده‌های تازه غیر C2C هم‌زمان با ثبت به‌روز می‌شوند.
  *
- * ⚠️ این سرویس هیچ مدل جدیدی ندارد و هیچ جدول موجودی موازی نمی‌سازد. منبع
- * حقیقت همان `SaleReturnItem.restockedQty` + پرچم `SaleReturn.restockPending`
- * است (دلیلش در `src/shared/pendingRestock.ts` نوشته شده).
+ * ⚠️ این سرویس جدول موجودی موازی نمی‌سازد. تعداد از `restockedQty` و
+ * `restockPending` می‌آید؛ اصلاح جبرانی درخواست را می‌بندد. پرداخت مدیر فقط
+ * همان اقلام برگشتی را آزاد می‌کند، نه کالای جایگزین یا گردش صندوق/کارت‌خوان.
  *
  * ⚠️ `releaseReturnStock` **idempotent** است: فقط اقلامی را برمی‌گرداند که
  * `restockedQty < qty`. پس دو بار زدن «پرداخت شد» (یا یک retry) هیچ‌وقت کالا
@@ -72,6 +71,7 @@ type PendingReturnRow = {
   kind: string | null
   returnedAt: Date
   returnedAtJalali: string | null
+  goodsReceiptRequired: boolean
   items: Array<{
     variantId: number
     /** در schema هر دو `Int` غیرنال‌اند (`restockedQty` با پیش‌فرض ۰). */
@@ -86,7 +86,10 @@ type PendingReturnRow = {
 /** فقط برگشت‌های معلق را می‌خواند (یک کوئری، با ایندکس `restockPending`). */
 async function pendingReturns(client: any = prisma): Promise<PendingReturnRow[]> {
   return readAll<PendingReturnRow>((page) => client.saleReturn.findMany({
-    where: { restockPending: true, voidedAt: null },
+    // ReturnCorrection is an append-only compensation, not a mutation of the
+    // original paper. A posted/corrected paper is no longer an actionable
+    // goods request even if its historical restockPending flag remains true.
+    where: { restockPending: true, voidedAt: null, corrections: { none: {} } },
     orderBy: [{ returnedAt: 'asc' }, { id: 'asc' }],
     include: {
       items: true,
@@ -106,6 +109,13 @@ export const pendingRestockService = {
     if (!returns.length) return { ...EMPTY_PENDING_RESTOCK, byVariant: {}, items: [] }
 
     const returnIds = returns.map((r: any) => r.id)
+    const managed = new Set<number>()
+    for (const ids of chunksOf(returnIds)) {
+      const claims = await client.returnEntitlement.findMany({
+        where: { returnId: { in: ids } }, select: { returnId: true }
+      })
+      for (const claim of claims) managed.add(Number(claim.returnId))
+    }
     /**
      * درخواست کارت‌به‌کارتِ مرجع. با `kind = REQUEST` فیلتر می‌شود تا ردیف‌های
      * `ADJUSTMENT` (که همان `returnId` را دارند) مبلغ را دو بار نشمارند.
@@ -143,6 +153,8 @@ export const pendingRestockService = {
 
     const items: PendingRestockItem[] = []
     const byVariant: Record<number, number> = {}
+    const physicalByVariant: Record<number, number> = {}
+    let unconfirmedQty = 0
     let totalQty = 0
     let pendingAmount = 0
     let needsAttentionQty = 0
@@ -166,6 +178,8 @@ export const pendingRestockService = {
         if (qty <= 0) continue
         const v: any = vmap.get(it.variantId)
         byVariant[it.variantId] = (byVariant[it.variantId] ?? 0) + qty
+        if (managed.has(r.id) || r.goodsReceiptRequired) unconfirmedQty += qty
+        else physicalByVariant[it.variantId] = (physicalByVariant[it.variantId] ?? 0) + qty
         items.push({
           variantId: it.variantId,
           name: v
@@ -195,6 +209,8 @@ export const pendingRestockService = {
       oldestAgeDays: items.reduce((m, i) => Math.max(m, i.ageDays), 0),
       items,
       byVariant,
+      physicalByVariant,
+      unconfirmedQty,
       needsAttentionQty
     }
   },
@@ -202,22 +218,33 @@ export const pendingRestockService = {
   /** فقط نقشه‌ی «کالا ⇒ تعداد معلق» (برای صفحه‌ی انبار و snapshot انبارگردانی). */
   async byVariant(client: any = prisma): Promise<Record<number, number>> {
     const returns = await pendingReturns(client)
+    const managed = new Set<number>()
+    for (const ids of chunksOf(returns.map((r) => r.id))) {
+      const claims = await client.returnEntitlement.findMany({
+        where: { returnId: { in: ids } }, select: { returnId: true }
+      })
+      for (const claim of claims) managed.add(Number(claim.returnId))
+    }
     const out: Record<number, number> = {}
-    for (const r of returns)
+    for (const r of returns) {
+      if (managed.has(r.id) || r.goodsReceiptRequired) continue // physical presence not yet witnessed
       for (const it of r.items) {
         const qty = Math.max(0, Math.round(it.qty ?? 0) - Math.round(it.restockedQty ?? 0))
         if (qty > 0) out[it.variantId] = (out[it.variantId] ?? 0) + qty
       }
+    }
     return out
   },
 
   /**
    * -------------------------------------------------------------------------
-   * تنها نقطه‌ی آزادسازی کالای معلق. همیشه با `tx` صدا زده می‌شود (قاعده‌ی ۶
-   * README) و صدازننده **باید قبلاً تأیید مدیر را گرفته باشد**.
+   * آزادسازی کالای معلق فقط از دو مسیر مجاز است: پروندهٔ تاریخیِ بدون دفتر حق،
+   * یا پرداخت مدیر برای درخواست کارت‌به‌کارتِ متصل به همان سند برگشت/تعویض.
+   * مسیر دوم با `managerPaymentRequestId` اعتبارسنجی می‌شود؛ دریافت فیزیکیِ
+   * عادی همچنان از ReturnGoodsService.receive انجام می‌شود.
    *
    * idempotent: اقلامی که `restockedQty >= qty` دارند نادیده گرفته می‌شوند، پس
-   * هیچ مسیری نمی‌تواند کالا را دو بار به موجودی اضافه کند.
+   * retry یا پرداخت تکراری هرگز کالا را دو بار به موجودی اضافه نمی‌کند.
    * -------------------------------------------------------------------------
    */
   async releaseReturnStock(
@@ -228,6 +255,8 @@ export const pendingRestockService = {
       /** برای متن AuditLog: «پرداخت مدیر» یا «آزادسازی صریح مدیر» */
       reason: string
       requestId?: number | null
+      /** Internal authorization: release only after this matching C2C request is paid. */
+      managerPaymentRequestId?: number | null
       at?: Date
     }
   ): Promise<{
@@ -239,11 +268,45 @@ export const pendingRestockService = {
     const returnId = Number(params.returnId ?? 0)
     if (!returnId) return { releasedQty: 0, variants: [], alreadyDone: true }
 
+    const managerPaymentRequestId = params.managerPaymentRequestId == null
+      ? null : Number(params.managerPaymentRequestId)
+    let managerPaymentOperationKind: string | null = null
+    if (managerPaymentRequestId != null) {
+      const request = await tx.cardTransferRequest.findUnique({
+        where: { id: managerPaymentRequestId },
+        select: { id: true, kind: true, status: true, returnId: true, operationKind: true, amount: true, paidAt: true }
+      })
+      managerPaymentOperationKind = request?.operationKind == null ? null : String(request.operationKind)
+      if (!request || Number(request.returnId) !== returnId || request.kind !== CardTransferKind.REQUEST ||
+          request.status !== CardTransferStatus.PENDING || request.paidAt != null ||
+          (request.operationKind != null && !['RETURN', 'EXCHANGE'].includes(String(request.operationKind))) ||
+          toNumberRial(request.amount) <= 0) {
+        throw new Error('آزادسازی موجودی فقط پس از تأیید پرداختِ درخواست کارت‌به‌کارتِ باز و متصل به همین برگشت/تعویض مجاز است.')
+      }
+    }
+
     const ret = await tx.saleReturn.findUnique({
       where: { id: returnId },
       include: { items: true, invoice: { select: { id: true, receiptNo: true, deductInventory: true } } }
     })
     if (!ret) throw new Error('سند برگشت مرجع پیدا نشد، پس کالایی به انبار برنگشت.')
+    if (managerPaymentRequestId != null) {
+      if (ret.refundMethod != null && ret.refundMethod !== RefundMethod.CARD_TO_CARD)
+        throw new Error('پرداخت نامرتبط با کارت‌به‌کارت نمی‌تواند کالای برگشتی را آزاد کند.')
+      const expectedOperationKind = ret.kind === 'EXCHANGE' || ret.exchangeInvoiceId != null ? 'EXCHANGE' : 'RETURN'
+      if (managerPaymentOperationKind != null && managerPaymentOperationKind !== expectedOperationKind)
+        throw new Error('نوع درخواست کارت‌به‌کارت با همان برگشت/تعویض سازگار نیست؛ آزادسازی موجودی رد شد.')
+    }
+    const managerPaymentRelease = managerPaymentRequestId != null
+    const managed = await tx.returnEntitlement.findUnique({ where: { returnId } })
+    if (managed) await assertReturnEntitlementLineage(tx, managed)
+    else await assertOrdinaryReturnLineage(tx, returnId, Number(ret.invoiceId))
+    if (await tx.returnCorrection.findUnique({ where: { returnId }, select: { id: true } }))
+      throw new Error('این برگشت اصلاح جبرانی ثبت‌شده دارد؛ سند اصلی تاریخی است و کالایی از این مسیر آزاد نمی‌شود.')
+    if (managed && !managerPaymentRelease)
+      throw new Error('کالای برگشتیِ کارت‌به‌کارتِ جدید فقط با تأیید پرداخت مدیرِ همان درخواست آزاد می‌شود.')
+    if (ret.goodsReceiptRequired && !managerPaymentRelease)
+      throw new Error('این پروندهٔ قدیمی نشانگر دریافت جداگانه دارد؛ برای آزادسازی از مسیر دریافت همان پرونده اقدام کنید.')
 
     /**
      * اگر این سند اصلاً معلق نیست، هیچ کاری انجام نمی‌شود. دو حالتِ ممکن:

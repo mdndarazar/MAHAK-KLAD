@@ -1,7 +1,8 @@
 /**
  * Canonical single-shift mode is still schedule-owned: its chosen worker opens
- * the drawer, an unscheduled person cannot open independently, while a manager-
- * enabled mid-day replacement may be any active registered PIN holder.
+ * the drawer without an exception, while an unscheduled person needs a PIN,
+ * explicit count and reason. Mid-day replacement uses independent two-sided
+ * PIN/count evidence as before.
  *
  * node --import ./test/harness/register.mjs tests/audit-fixes/fix-s366-single-shift-canonical-assignment.mjs
  */
@@ -22,19 +23,22 @@ const rejects = async (label, code, work) => { try { await work(); eq(label, tru
 const hm = (minute) => `${String(Math.floor(((minute % 1440) + 1440) % 1440 / 60)).padStart(2, '0')}:${String(((minute % 60) + 60) % 60).padStart(2, '0')}`
 const manager = seed.user('مدیر S366'), planned = seed.user('مسئول تک‌شیفت S366'), replacement = seed.user('جایگزین ثبت‌شده S366')
 const now = new Date(), minute = now.getHours() * 60 + now.getMinutes()
-seed.setting(SETTING_KEYS.shiftConfig, { custodyMode: 'SINGLE_SHIFT', byTime: true, reminderEnabled: true, overrunGraceMinutes: 0, templates: [{ id: 's366-single', name: 'تک‌شیفت اصلی', startTime: hm(minute - 20), endTime: hm(minute + 80), isActive: true, daysMask: 1 << now.getDay(), staffIds: [planned], reminderRepeatMin: 15, allowMidDayHandover: true }] })
+// Seed a positive single-shift policy for the transfer-specific fixture.
+seed.setting(SETTING_KEYS.shiftConfig, { custodyMode: 'SINGLE_SHIFT', singleShiftAllowMidDayHandover: true, byTime: true, reminderEnabled: true, overrunGraceMinutes: 0, templates: [{ id: 's366-single', name: 'تک‌شیفت اصلی', startTime: hm(minute - 20), endTime: hm(minute + 80), isActive: true, daysMask: 1 << now.getDay(), staffIds: [planned], reminderRepeatMin: 15, allowMidDayHandover: true }] })
 await custodyService.setPin({ userId: manager, newPassword: 'مدیر123!', currentPassword: '1111' })
 await custodyService.setConfig({ config: { enabled: true }, managerUserId: manager, managerPassword: 'مدیر123!' })
 for (const [id, temp, perm] of [[planned, 'Plan366!', 'Plan3664!'], [replacement, 'Repl366!', 'Repl3664!']]) {
   await custodyService.setPin({ userId: id, newPassword: temp, managerUserId: manager, managerPassword: 'مدیر123!', reason: 'راه‌اندازی تک‌شیفت' })
   await custodyService.setPin({ userId: id, currentPassword: temp, newPassword: perm })
 }
-await rejects('کارمند ثبت‌شده ولی بدون برنامهٔ تک‌شیفت نمی‌تواند مستقل صندوق را باز کند', 'NO_SCHEDULED_SHIFT', () => custodyService.open({ userId: replacement, password: 'Repl3664!', countedCash: 0 }))
-const opened = await custodyService.open({ userId: planned, password: 'Plan3664!', countedCash: 0 })
+await rejects('صندوقدار خارج از برنامه نمی‌تواند شمارش نقدی قدیمی را جای شمارش کشو و پوز بدهد', 'CUSTODY_UNSCHEDULED_COUNT_REQUIRED', () => custodyService.open({ userId: replacement, password: 'Repl3664!', countedCash: 0 }))
+await rejects('صندوقدار خارج از برنامه با شمارش صریح اما بدون دلیل هم نمی‌تواند افتتاح کند', 'CUSTODY_UNSCHEDULED_REASON_REQUIRED', () => custodyService.open({ userId: replacement, password: 'Repl3664!', operationalTotal: 0 }))
+const opened = await custodyService.open({ userId: planned, password: 'Plan3664!', operationalTotal: 0 })
 eq('کارمند انتخاب‌شدهٔ تک‌شیفت canonical صندوق را باز می‌کند', seed.one('SELECT templateId FROM "CustodyShiftMeta" WHERE shiftId=?', opened.shiftId)?.templateId, 's366-single')
-const handover = await custodyService.handoverStart({ password: 'Plan3664!', countedCash: 0, toUserId: replacement, idempotencyKey: 's366-midday' })
+const handover = await custodyService.handoverStart({ password: 'Plan3664!', operationalTotal: 0, blueReference: true, toUserId: replacement, idempotencyKey: 's366-midday' })
 eq('جایگزین ثبت‌شده در تک‌شیفت با اجازهٔ مدیر وارد pending می‌شود', handover.state, 'HANDOVER_PENDING')
-const accepted = await custodyService.handoverAccept({ handoverId: handover.id, password: 'Repl3664!', countedCash: 0 })
+await custodyService.handoverCountBlue({ handoverId: handover.id, password: 'Repl3664!', operationalTotal: 0 })
+const accepted = await custodyService.handoverConfirmBlue({ handoverId: handover.id, password: 'Repl3664!' })
 eq('جایگزین مستقل پس از شمارش صفر مسئول واقعی می‌شود', (await custodyService.status()).custodian?.id, replacement)
 eq('جانشین تک‌شیفت همچنان snapshot قالب مبدأ را دارد', seed.one('SELECT templateId FROM "CustodyShiftMeta" WHERE shiftId=?', accepted.shiftId)?.templateId, 's366-single')
 console.log(`\n${bad === 0 ? '✓' : '✗'} ${ok} بررسی موفق · ${bad} ناموفق`)

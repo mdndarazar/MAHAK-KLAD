@@ -48,8 +48,12 @@ has('PANEL_KEYS وارد شده', SVC, "import { PANEL_KEYS } from '@shared/pane
 has('کلید همان posCentralWithdrawToggle است (یک قفل واحد)', SVC, 'PANEL_KEYS.posCentralWithdrawToggle')
 hasnt('کلید قفل تازه‌ای ساخته نشده', PNL, 'posStockSourcePick')
 has('فقط برای فروش تکی (INTERNAL) لازم می‌شود', SVC, 'orderType === OrderType.INTERNAL')
-ok('تأیید *بیرونِ* تراکنش است (الگوی جلسه ۴۰ · SQLite تک‌نویسنده)',
-  SVC.indexOf('await assertPanelPassword(\n        PANEL_KEYS.posCentralWithdrawToggle') < SVC.indexOf('return prisma.$transaction(async (tx) => {'))
+ok('تأیید منبع غیرفروشگاهی *بیرونِ* تراکنش ساخت فروش است (SQLite تک‌نویسنده)', (() => {
+  const create = SVC.slice(SVC.indexOf('  async create(input: CreateSaleInput)'), SVC.indexOf('  async update('))
+  const gate = create.indexOf('if (posPlanHasForeignSource)\n      await assertPanelPassword(')
+  const transaction = create.indexOf('return prisma.$transaction(async (tx) => {', gate)
+  return gate >= 0 && transaction > gate
+})())
 has('گیت داخل تراکنش بدون تأیید رد می‌کند', SVC,
   'if (stockPlan && !(orderType === OrderType.WHOLESALE || (orderType === OrderType.INTERNAL && posPlanRequested)))')
 has('تعویض/بیرون‌بر/تلفنی همچنان رد می‌شوند (پیام صریح)', SVC, 'تعویض کالا و سفارش بیرون‌بر/تلفنی مثل قبل')
@@ -76,7 +80,8 @@ has('خلاصه‌ی مبدأ کسر بعد از ثبت', POS, 'STOCK_PICK_TEXT.
 
 section('پنجره — افزودنی محض، فاکتور عمده دست‌نخورده')
 has('کادر رمز پیش‌فرض خاموش است', MOD, 'passwordRequired = false')
-has('بی رمز، دکمه‌ی تأیید غیرفعال است', MOD, 'passwordRequired && !password.trim()')
+has('بی رمز فقط برای منبع غیر‌فروشگاهی دکمه‌ی تأیید غیرفعال است', MOD,
+  'passwordRequired && hasForeignSource && !password.trim()')
 has('رمز با بستن پنجره پاک می‌شود (ذخیره نمی‌شود)', MOD, "if (!open) setPassword('')")
 has('فاکتور عمده رمز نمی‌فرستد (امضای دو-پارامتری، سازگار)', INV, 'onConfirm={(plan) => stockChain?.decide(plan)}')
 hasnt('فاکتور عمده passwordRequired نمی‌دهد', INV, 'passwordRequired')

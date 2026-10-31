@@ -324,25 +324,28 @@ section('بند ۹ · تیک «برداشت خودکار» روشن/خاموش')
   await throwsWith('تیک روشن + انتخاب انبار با هم رد می‌شود', () => sell([{ variantId: v3, qty: 2 }], { stockPlan: p3.plan, autoCentralWithdraw: true }), 'معنا ندارد')
 
   /**
-   * اصلاح جلسه ۵۵ · کار ۴ — انتظار این بند به‌روز شد.
-   *
-   * تا جلسه ۵۱، فرستادن `stockPlan` از فروش تکی (`INTERNAL`) بی‌قید رد می‌شد با
-   * پیام «انتخاب انبار مبدأ فقط برای «فاکتور فروش عمده» است». جلسه ۵۲ این را
-   * عوض کرد: فروش تکی *می‌تواند* مبدأ بفرستد، ولی پشت قفل
-   * `posCentralWithdrawToggle` سمت سرور. پس بی رمز، پیام تازه «… تأیید مدیر لازم
-   * دارد» است. این تست فقط با همان رفتار جلسه ۵۲ هماهنگ شد؛ هیچ کدی عوض نشده.
+   * نشست ۳۱۵: انتخاب صرفِ انبار فروشگاه دیگر رمز نمی‌خواهد؛ فقط استفاده از
+   * انبار مرکزی/شعبه در فروش تکی پشت گیت تأیید مدیر می‌ماند.
    */
   const v4 = makeVariant(5, 'تکی')
+  stockRow(v4, 4)
   const p4 = await planFrom([{ variantId: v4, qty: 1 }], { [v4]: { primary: 'STORE' } })
-  await throwsWith('پنل فروش تکی بی تأیید مدیر برنامه نمی‌پذیرد (پیام جلسه ۵۲)', () => salesService.create({
+  const storeSale = await salesService.create({
     userId, shiftId, orderType: OrderType.INTERNAL,
     lines: [{ variantId: v4, qty: 1, unitPrice: UNIT, discount: 0, tax: 0 }],
     payments: [{ methodId: cash, amount: UNIT }], stockPlan: p4.plan
+  })
+  eq('برنامهٔ فقط فروشگاه بی‌رمز ثبت شد', allocs(storeSale.id).map((r) => r.sourceKind), ['STORE'])
+  const foreign = await planFrom([{ variantId: v4, qty: 1 }], { [v4]: { primaryName: 'انبار مرکزی' } })
+  await throwsWith('برنامهٔ انبار مرکزی در فروش تکی بی‌تأیید مدیر رد شد', () => salesService.create({
+    userId, shiftId, orderType: OrderType.INTERNAL,
+    lines: [{ variantId: v4, qty: 1, unitPrice: UNIT, discount: 0, tax: 0 }],
+    payments: [{ methodId: cash, amount: UNIT }], stockPlan: foreign.plan
   }), 'تأیید مدیر لازم دارد')
 }
 
 // ===========================================================================
-section('بند ۱۰ · برگشت از فروش با منبع‌های چندگانه ⇒ کالا به همان انبارها')
+section('بند ۱۰ · fixture برگشت تاریخی با منبع‌های چندگانه ⇒ همان آزادسازیِ قبل از cutover')
 // ===========================================================================
 {
   const items = itemsOf(multi.invoiceId)
@@ -350,7 +353,7 @@ section('بند ۱۰ · برگشت از فروش با منبع‌های چندگ
   const ret = await salesService.createReturn({
     invoiceId: multi.invoiceId, full: false, lines: [{ saleItemId: items[0].id, qty: 3 }],
     refundMethod: RefundMethod.CASH, refundAmount: UNIT * 3, userId
-  })
+  }, { goodsReceiptRequired: false })
   eq('LIFO: اول آخرین انبار پر شد', rowQty(multi.rd), before.r2 + 2)
   eq('بعد انبار قبلی', rowQty(multi.rc), before.r1 + 1)
   eq('انبار فروشگاه در این برگشت دست‌نخورد', stockOf(multi.variantId), before.store)
@@ -361,7 +364,7 @@ section('بند ۱۰ · برگشت از فروش با منبع‌های چندگ
   const ret2 = await salesService.createReturn({
     invoiceId: multi.invoiceId, full: false, lines: [{ saleItemId: items[0].id, qty: 2 }],
     refundMethod: RefundMethod.CASH, refundAmount: UNIT * 2, userId
-  })
+  }, { goodsReceiptRequired: false })
   eq('برگشت دوم، سهم فروشگاه را برگرداند', stockOf(multi.variantId), before.store + 2)
   eq('و بیشتر از سهم هر انبار برنگشت', [rowQty(multi.rc), rowQty(multi.rd)], [before.r1 + 1, before.r2 + 2])
   eq('دفتر کامل تسویه شد', allocs(multi.invoiceId).map((x) => x.qty - x.restoredQty), [0, 0, 0])
@@ -428,7 +431,8 @@ section('بند ۱۳ · فاکتور قدیمی بدون جدول جزئیات �
   eq('کسر مثل قبل از انبار فروشگاه', stockOf(v), 6)
   eq('هیچ ردیف دفتری ساخته نشد', allocs(inv.id).length, 0)
   const items = itemsOf(inv.id)
-  const ret = await salesService.createReturn({ invoiceId: inv.id, full: true, refundMethod: RefundMethod.CASH, refundAmount: UNIT * 4, userId })
+  const ret = await salesService.createReturn({ invoiceId: inv.id, full: true, refundMethod: RefundMethod.CASH, refundAmount: UNIT * 4, userId },
+    { goodsReceiptRequired: false })
   eq('برگشت مثل قبل به انبار فروشگاه', stockOf(v), 10)
   eq('و هیچ چیزی به انبارها نرفت', ret.restoredToWarehouses, 0)
   eq('انبار مرکزی یک عدد هم عوض نشد', seed.one('SELECT qty FROM "SecondaryStockItem" WHERE code = ? AND warehouseId IS NULL', codeOf(v)).qty, 20)

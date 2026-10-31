@@ -1,0 +1,362 @@
+{
+  "generatedAt": "2026-10-27T18:34:51.827Z",
+  "scenario": "D80-S08",
+  "case": "B-then-A-no-double-count",
+  "mode": "CARD_TO_CARD",
+  "fixture": {
+    "gross": 300000,
+    "lineDiscount": 10000,
+    "invoiceDiscount": 20000,
+    "net": 270000,
+    "lines": [
+      {
+        "unitPrice": 100000,
+        "qty": 1,
+        "discount": 10000,
+        "netShare": 83793
+      },
+      {
+        "unitPrice": 200000,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 186207
+      }
+    ]
+  },
+  "isolatedDatabase": "/tmp/mahak-d80-s08-k4Z8dV/isolated.db",
+  "status": "PASS",
+  "allocations": [
+    {
+      "saleItemId": 1,
+      "gross": 100000,
+      "lineDiscount": 10000,
+      "lineBase": 90000,
+      "invoiceDiscountShare": 6207,
+      "netShare": 83793
+    },
+    {
+      "saleItemId": 2,
+      "gross": 200000,
+      "lineDiscount": 0,
+      "lineBase": 200000,
+      "invoiceDiscountShare": 13793,
+      "netShare": 186207
+    }
+  ],
+  "returns": [
+    {
+      "id": 1,
+      "step": 1,
+      "expectedNet": 186207,
+      "actualNet": 186207,
+      "refundMethod": "CARD_TO_CARD",
+      "refundAmount": 186207,
+      "refundStoreCreditAmount": 0,
+      "items": [
+        {
+          "saleItemId": 2,
+          "qty": 1,
+          "unitPrice": 200000,
+          "lineTotal": 186207,
+          "restockedQty": 0
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "step": 2,
+      "expectedNet": 83793,
+      "actualNet": 83793,
+      "refundMethod": "CARD_TO_CARD",
+      "refundAmount": 83793,
+      "refundStoreCreditAmount": 0,
+      "items": [
+        {
+          "saleItemId": 1,
+          "qty": 1,
+          "unitPrice": 100000,
+          "lineTotal": 83793,
+          "restockedQty": 0
+        }
+      ]
+    }
+  ],
+  "credits": [],
+  "managerTransfers": [
+    {
+      "id": 1,
+      "status": "PAID",
+      "amount": 186207,
+      "paidAmount": 186207,
+      "method": "MANAGER_CARD_TO_CARD"
+    },
+    {
+      "id": 2,
+      "status": "PAID",
+      "amount": 83793,
+      "paidAmount": 83793,
+      "method": "MANAGER_CARD_TO_CARD"
+    }
+  ],
+  "checkpoints": [
+    {
+      "label": "initial isolated DB",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": {
+        "actual": 40,
+        "ledger": 0
+      },
+      "expectedStock": 40,
+      "counts": {
+        "invoices": 0,
+        "returns": 0,
+        "payments": 0,
+        "cashMovements": 0,
+        "credits": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "sale recorded and paid: gross, direct/invoice discount, net and stock",
+      "expected": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 270000
+      },
+      "actualService": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 270000,
+      "stock": {
+        "actual": 38,
+        "ledger": -2
+      },
+      "expectedStock": 38,
+      "counts": {
+        "invoices": 1,
+        "returns": 0,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "B-then-A-no-double-count CARD_TO_CARD step 1: manager C2C request pending, goods held",
+      "expected": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 270000
+      },
+      "actualService": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 270000,
+      "stock": {
+        "actual": 38,
+        "ledger": -2
+      },
+      "expectedStock": 38,
+      "counts": {
+        "invoices": 1,
+        "returns": 1,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "B-then-A-no-double-count CARD_TO_CARD step 1: return, settlement, stock and credit reconciled",
+      "expected": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 270000
+      },
+      "actualService": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 270000,
+      "stock": {
+        "actual": 39,
+        "ledger": -1
+      },
+      "expectedStock": 39,
+      "counts": {
+        "invoices": 1,
+        "returns": 1,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "B-then-A-no-double-count CARD_TO_CARD step 2: manager C2C request pending, goods held",
+      "expected": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 270000
+      },
+      "actualService": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 270000,
+      "stock": {
+        "actual": 39,
+        "ledger": -1
+      },
+      "expectedStock": 39,
+      "counts": {
+        "invoices": 1,
+        "returns": 2,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "B-then-A-no-double-count CARD_TO_CARD step 2: return, settlement, stock and credit reconciled",
+      "expected": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 270000
+      },
+      "actualService": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 270000,
+      "stock": {
+        "actual": 40,
+        "ledger": 0
+      },
+      "expectedStock": 40,
+      "counts": {
+        "invoices": 1,
+        "returns": 2,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 0,
+        "checks": 0
+      }
+    }
+  ],
+  "findings": [],
+  "sale": {
+    "id": 1,
+    "gross": 300000,
+    "lineDiscount": 10000,
+    "invoiceDiscount": 20000,
+    "totalDiscount": 30000,
+    "net": 270000,
+    "paid": 270000,
+    "settled": true
+  },
+  "policyAssessment": {
+    "expectedNetReturnRight": 270000,
+    "actualCustomerValue": 270000,
+    "discountReturned": 0,
+    "deviations": []
+  },
+  "operationOutcome": "COMPLETED",
+  "final": {
+    "expected": {
+      "cash": 270000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 270000
+    },
+    "actual": {
+      "cash": 270000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 270000,
+    "stock": {
+      "actual": 40,
+      "ledger": 0
+    },
+    "invoices": 1,
+    "returns": 2,
+    "payments": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

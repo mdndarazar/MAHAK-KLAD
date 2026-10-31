@@ -280,7 +280,9 @@ export default function Pos() {
    * یک‌بارمصرفش کامل سمت main و داخل همان تراکنش فاکتور انجام می‌گیرد.
    */
   const [creditCode, setCreditCode] = useState('')
+  const enteredCreditCodes = useMemo(() => creditCode.split(/[;,\r\n]+/u).map((part) => part.trim()).filter(Boolean), [creditCode])
   const [creditInfo, setCreditInfo] = useState<StoreCreditSafeRow | null>(null)
+  const [creditInfos, setCreditInfos] = useState<StoreCreditSafeRow[]>([])
   const [creditErr, setCreditErr] = useState<string | null>(null)
   const [creditBusy, setCreditBusy] = useState(false)
   const [creditPreview, setCreditPreview] = useState<CreditPreviewLike | null>(null)
@@ -550,14 +552,21 @@ export default function Pos() {
 
   /** بررسی بارکد اعتبار *بدون* مصرف کردنش (دکمه‌ی «بررسی»). */
   const lookupCredit = useCallback(async (raw: string) => {
-    const code = raw.trim()
+    const codes = raw.split(/[;,\r\n]+/u).map((part) => part.trim()).filter(Boolean)
     setCreditInfo(null)
+    setCreditInfos([])
     setCreditErr(null)
-    if (!code) return
+    if (!codes.length) return
+    if (codes.length > 5) {
+      setCreditErr('حداکثر پنج کد اعتبار را می‌توان هم‌زمان بررسی کرد.')
+      return
+    }
     setCreditBusy(true)
     try {
-      const row = await call<StoreCreditSafeRow>(CH.storeCreditLookup, { code })
-      setCreditInfo(row)
+      const rows = await Promise.all(codes.map((code) =>
+        call<StoreCreditSafeRow>(CH.storeCreditLookup, { code })))
+      setCreditInfos(rows)
+      setCreditInfo(rows[0] ?? null)
     } catch (e: any) {
       // پیام‌های فارسی تفکیک‌شده از main می‌آیند («قبلاً مصرف شده» / «منقضی» / …)
       setCreditErr(e.message)
@@ -701,7 +710,10 @@ export default function Pos() {
     () => posCreditPlan({ payable: totals.payable, preview: creditPreview, requestedInput: effectiveCreditRequested }),
     [creditPreview, effectiveCreditRequested, totals.payable]
   )
-  const creditApplied = creditPlan.applied
+  const creditApplied = creditInfos.length > 1
+    ? Math.min(totals.payable, creditInfos.reduce((sum, row) => sum + Math.max(0, Number(row.remaining) || 0), 0),
+      effectiveCreditRequested == null ? Number.MAX_SAFE_INTEGER : effectiveCreditRequested)
+    : creditPlan.applied
 
   /**
    * §۱۸ — «در UI مصرف اعتبار مشخص شود کدام اقلام سبد قابل پوشش‌اند».
@@ -735,9 +747,9 @@ export default function Pos() {
   }, [splitCashAmount, splitCardAmount])
 
   useEffect(() => {
-    const payload = creditInfo
+    const payload = creditInfo && enteredCreditCodes.length === 1
       ? posPreviewPayload({
-          code: creditCode,
+          code: enteredCreditCodes[0],
           payable: totals.payable,
           requested: effectiveCreditRequested,
           customerId,
@@ -755,7 +767,7 @@ export default function Pos() {
     return () => {
       alive = false
     }
-  }, [creditCode, creditInfo, effectiveCreditRequested, creditLines, totals.payable, customerId])
+  }, [enteredCreditCodes, creditInfo, effectiveCreditRequested, creditLines, totals.payable, customerId])
 
   /**
    * بخش ۷ — «بدهی باقی‌مانده» زنده: قابل پرداخت منهای اعتبار مصرف‌شده و منهای
@@ -977,7 +989,7 @@ export default function Pos() {
          */
         if (isSplit && (splitCashAmount == null || splitCardAmount == null || splitTotal == null))
           return setErr('مبلغ نقد یا کارت معتبر نیست؛ فقط عدد صحیحِ غیرمنفی (بدون اعشار، منفی یا حرف) وارد کنید.')
-        if (isSplit && (splitCashAmount <= 0 || splitCardAmount <= 0))
+        if (isSplit && splitCashAmount !== null && splitCardAmount !== null && (splitCashAmount <= 0 || splitCardAmount <= 0))
           return setErr('پرداخت ترکیبی باید یک سهم نقدیِ مثبت و یک سهم کارتیِ مثبت داشته باشد.')
         const paidNow = isSplit ? splitTotal! : creditMode ? Math.min(Math.max(0, Math.round(creditPaid || 0)), cashDue) : cashDue
         if (isSplit && splitTotal !== cashDue)
@@ -1031,9 +1043,10 @@ export default function Pos() {
           // مورد ۳: برداشت خودکار کمبود از انبار مرکزی (فقط وقتی تیک روشن باشد)
           autoCentralWithdraw: autoCentral,
           // بخش ۶: بارکد اعتبار خرید بعدی (اعتبارسنجی و مصرفش سمت main است)
-          storeCreditCode: creditCode.trim() || null,
-          storeCreditAmount: creditCode.trim() ? (effectiveCreditRequested == null ? null : creditApplied) : null,
-          storeCreditIdempotencyKey: creditCode.trim() ? newIdempotencyKey('pos-credit') : null,
+          storeCreditCode: enteredCreditCodes.length === 1 ? enteredCreditCodes[0] : null,
+          storeCreditCodes: enteredCreditCodes.length > 1 ? enteredCreditCodes : undefined,
+          storeCreditAmount: enteredCreditCodes.length ? (effectiveCreditRequested == null ? null : creditApplied) : null,
+          storeCreditIdempotencyKey: enteredCreditCodes.length ? newIdempotencyKey('pos-credit') : null,
           // بخش ۷: پرداختی جزئی یا هیچ پرداختی (نسیه‌ی کامل)
           splitPayment: isSplit || undefined,
           payments: isSplit
@@ -1452,7 +1465,7 @@ export default function Pos() {
               className="inp w-40 py-1 text-center tracking-widest"
               dir="ltr"
               value={creditCode}
-              placeholder="مثلاً E7M4QP"
+              placeholder="کد یا چند کد با ؛"
               onFocus={() => setCreditFocus(true)}
               onBlur={(e) => {
                 setCreditFocus(false)
@@ -1461,6 +1474,7 @@ export default function Pos() {
               onChange={(e) => {
                 setCreditCode(e.target.value.toUpperCase())
                 setCreditInfo(null)
+                setCreditInfos([])
                 setCreditErr(null)
               }}
               onKeyDown={(e) => {
@@ -1469,7 +1483,7 @@ export default function Pos() {
                   void lookupCredit(creditCode)
                 }
               }}
-              title="کد روی «سند تعویض» مشتری. اسکن یا تایپ کنید؛ مبلغش از قابل پرداخت کم می‌شود ولی در «خالص واقعی دریافتی» گزارش شمرده نمی‌شود."
+              title="یک کد یا حداکثر پنج کد را با ویرگول یا نقطه‌ویرگول جدا کنید؛ کدها به همان ترتیب و فقط تا سقف ماندهٔ فاکتور مصرف می‌شوند. مصرف B/N در دفتر ریشه‌دار ثبت می‌شود، نه به‌عنوان وجه نقد."
             />
             <button className="btn py-1" onClick={() => void lookupCredit(creditCode)} disabled={creditBusy || !creditCode.trim()}>
               {creditBusy ? '…' : 'بررسی'}
@@ -1477,9 +1491,10 @@ export default function Pos() {
           </label>
           {creditInfo && (
             <span className="kbd text-emerald-800 font-bold">
-              اعتبار معتبر: {money(creditInfo.amount)} ریال
-              {creditInfo.expiresAtJalali ? ` · تا ${faDigits(creditInfo.expiresAtJalali)}` : ''}
-              {creditInfo.customerName ? ` · ${creditInfo.customerName}` : ''} · با ثبت فاکتور مصرف می‌شود
+              {creditInfos.length > 1
+                ? `${faDigits(creditInfos.length)} کد معتبر · مجموع مانده ${money(creditInfos.reduce((sum, row) => sum + Math.max(0, Number(row.remaining) || 0), 0))} ریال`
+                : `اعتبار معتبر: ${money(creditInfo.remaining)} ریال${creditInfo.expiresAtJalali ? ` · تا ${faDigits(creditInfo.expiresAtJalali)}` : ''}`}
+              {creditInfo.customerName ? ` · ${creditInfo.customerName}` : ''} · به ترتیب ثبت فاکتور مصرف می‌شوند
             </span>
           )}
           {creditInfo && splitStoreCreditPayment && (

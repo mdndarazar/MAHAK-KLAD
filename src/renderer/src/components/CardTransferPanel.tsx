@@ -92,6 +92,10 @@ export interface CardTransferRow {
   note: string | null
 }
 
+type EntitlementView = { returnId: number; requestId: number | null;
+  cashRight: number; cashPaid: number; cashReserved: number; cashConverted: number;
+  open: number; rawExcess: number; state: string; version: number }
+
 export interface CardTransferTotalsView {
   pendingAmount: number
   pendingCount: number
@@ -196,7 +200,20 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
 
   /** درخواست باز در پنجره‌ی جزئیات (با زنجیره‌ی رویدادهای اصلاحی‌اش) */
   const [detail, setDetail] = useState<{ request: CardTransferRow; adjustments: CardTransferRow[] } | null>(null)
+  const [right, setRight] = useState<EntitlementView | null>(null)
   const [detailBusy, setDetailBusy] = useState(false)
+  const [bankAmount, setBankAmount] = useState('')
+  const [bankNote, setBankNote] = useState('')
+  const [bankAttested, setBankAttested] = useState(false)
+  const [bankPassword, setBankPassword] = useState('')
+  const [convertAmount, setConvertAmount] = useState('')
+  const [convertPassword, setConvertPassword] = useState('')
+  const conversionKey = useRef(crypto.randomUUID())
+  const [issuedCreditId, setIssuedCreditId] = useState<number | null>(null)
+  const [handoffKind, setHandoffKind] = useState<'CUSTOMER_HANDOFF' | 'COURIER_ACK'>('CUSTOMER_HANDOFF')
+  const [handoffRef, setHandoffRef] = useState('')
+  const [handoffPassword, setHandoffPassword] = useState('')
+  const [deliveryDone, setDeliveryDone] = useState(false)
   // فرم «پرداخت شد»
   const [payAmount, setPayAmount] = useState('')
   const [payTracking, setPayTracking] = useState('')
@@ -286,6 +303,15 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
     setErr(null)
     try {
       const d = await call<{ request: CardTransferRow; adjustments: CardTransferRow[] }>(CH.cardTransferGet, { id })
+      const claim = await call<EntitlementView | null>(CH.returnEntitlementView, { returnId: d.request.returnId })
+      if (detail?.request.id !== id) {
+        setIssuedCreditId(null); setDeliveryDone(false); conversionKey.current = crypto.randomUUID()
+        setBankNote(''); setBankAttested(false); setBankPassword(''); setConvertPassword('')
+        setHandoffRef(''); setHandoffPassword('')
+      }
+      setRight(claim)
+      setBankAmount(String(d.request.paidAmount ?? ''))
+      setConvertAmount(String(claim?.open ?? ''))
       setDetail(d)
       setPayAmount(String(d.request.amount ?? ''))
       setPayTracking('')
@@ -311,7 +337,7 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
     setDetailBusy(true)
     try {
       const amount = payAmount.trim() === '' ? null : Number(payAmount.trim())
-      const res = await call<{ releasedQty?: number }>(CH.cardTransferPay, {
+      const res = await call<{ releasedQty?: number; bankEvidenceState?: string; stockStillPending?: boolean }>(CH.cardTransferPay, {
         id: detail.request.id,
         paidAmount: amount,
         trackingNo: payTracking.trim() || null,
@@ -319,13 +345,13 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
         /** رمز مدیر ⇒ گیت سمت سرور (نه فقط قفل رندرر) */
         managerPassword: payPassword.trim() || undefined
       })
-      flash(
-        `پرداخت کارت‌به‌کارت درخواست ${faDigits(detail.request.id)} ثبت شد. ` +
-          'این مبلغ در «جریان‌های مالی خارج از فروش» می‌نشیند و در سرجمع فروش نمی‌آید.' +
-          (res?.releasedQty
-            ? `\n${faDigits(res.releasedQty)} عدد کالای برگشتیِ معلق، همین حالا به موجودی قابل‌فروش اضافه شد.`
-            : '\nاین درخواست کالای معلقی نداشت، پس موجودی انبار تغییر نکرد.')
-      )
+      flash(res.bankEvidenceState === 'UNKNOWN_BANK'
+        ? `تأیید پرداخت مدیر برای درخواست ${faDigits(detail.request.id)} ثبت شد؛ نتیجهٔ بانک همچنان جداگانه تطبیق می‌شود. ` +
+          'این پرداخت روی صندوق و کارت‌خوان اثر ندارد.' +
+          (res?.releasedQty ? `\n${faDigits(res.releasedQty)} قلم کالای برگشتیِ همین سند به موجودی برگشت.` : '')
+        : `پرداخت کارت‌به‌کارتِ پروندهٔ قدیمی ${faDigits(detail.request.id)} ثبت شد. ` +
+          'برای پرونده‌های قدیمی شاهد بانک به‌صورت خودکار ایجاد نمی‌شود.' +
+          (res?.releasedQty ? `\n${faDigits(res.releasedQty)} قلم کالای برگشتیِ همین سند به موجودی برگشت.` : ''))
       setPayPassword('')
       await openDetail(detail.request.id)
       await load()
@@ -357,7 +383,9 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
           (res?.releasedQty
             ? `\n${faDigits(res.releasedQty)} عدد کالای معلق با تأیید صریح شما و بدون پرداخت، به موجودی قابل‌فروش برگشت.`
             : res?.stillPending
-              ? '\nکالای برگشتی همچنان معلق است و به موجودی قابل‌فروش اضافه نشد؛ برای بستن پرونده، سند برگشت را در پنل «برگشت از فروش» ویرایش یا حذف کنید.'
+              ? right
+                ? '\nکالای برگشتی تا تأیید پرداخت مدیرِ همین درخواست در موجودی فروش‌پذیر نمی‌نشیند. لغو درخواست کالا را آزاد نمی‌کند و نتیجهٔ بانک همچنان نیازمند تطبیق مستقل است.'
+                : '\nکالای برگشتی همچنان معلق است؛ در پروندهٔ قدیمی با مسیر رسیدگی مدیر، سند برگشت و وضعیت کالا را بررسی کنید.'
               : '\nاین درخواست کالای معلقی نداشت.')
       )
       setCancelOpen(false)
@@ -398,6 +426,61 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
     } finally {
       setDetailBusy(false)
     }
+  }
+
+  const reviewBank = async () => {
+    if (!detail || !right) return
+    setDetailBusy(true); setErr(null)
+    try {
+      const result = await call<{ canceled?: boolean; cashPaid?: number; open?: number }>(CH.returnBankReview, {
+        requestId: detail.request.id, confirmedAmount: Number(bankAmount),
+        reviewNote: bankNote.trim(), attestedBankAccountReview: bankAttested,
+        managerPassword: bankPassword
+      })
+      if (result?.canceled) return
+      flash(`سند بانک بایگانی و به‌دست مدیر بازبینی شد؛ پرداخت مستند ${money(result.cashPaid ?? 0)} و حق باز ${money(result.open ?? 0)} ریال است.`)
+      setBankPassword(''); await openDetail(detail.request.id); await load()
+    } catch (e: any) { setErr(e.message) }
+    finally { setDetailBusy(false) }
+  }
+
+  const convertRight = async () => {
+    if (!detail || !right) return
+    setDetailBusy(true); setErr(null)
+    try {
+      const result = await call<{ creditId: number; deliveryStatus: string; replayed: boolean }>(CH.returnCashConvert, {
+        returnId: right.returnId, expectedVersion: right.version,
+        amount: Number(convertAmount), idempotencyKey: conversionKey.current,
+        managerPassword: convertPassword
+      })
+      setIssuedCreditId(result.creditId); setDeliveryDone(result.deliveryStatus === 'DELIVERED')
+      flash(`حق نقدی به اعتبار #${faDigits(result.creditId)} تبدیل شد؛ تا تحویل شاهددار خرج‌پذیر نیست. چاپ به‌تنهایی تحویل نیست.`)
+      conversionKey.current = crypto.randomUUID(); setConvertPassword('')
+      await openDetail(detail.request.id)
+    } catch (e: any) { setErr(e.message) }
+    finally { setDetailBusy(false) }
+  }
+
+  const printSuccessor = async () => {
+    if (!issuedCreditId) return
+    setDetailBusy(true); setErr(null)
+    try {
+      await call(CH.returnCreditPrint, { creditId: issuedCreditId, managerPassword: handoffPassword })
+      flash(`چاپ سند اعتبار #${faDigits(issuedCreditId)} انجام شد؛ هنوز تحویل/فعال‌سازی ثبت نشده است.`)
+    } catch (e: any) { setErr(e.message) }
+    finally { setDetailBusy(false) }
+  }
+
+  const deliverSuccessor = async () => {
+    if (!issuedCreditId) return
+    setDetailBusy(true); setErr(null)
+    try {
+      await call(CH.returnCreditDeliver, { creditId: issuedCreditId,
+        witnessKind: handoffKind, witnessRef: handoffRef.trim(), managerPassword: handoffPassword })
+      setDeliveryDone(true); setHandoffPassword('')
+      flash(`تحویل شاهددار اعتبار #${faDigits(issuedCreditId)} ثبت و کد فعال شد؛ چاپِ قبلی به‌تنهایی این کار را نمی‌کرد.`)
+    } catch (e: any) { setErr(e.message) }
+    finally { setDetailBusy(false) }
   }
 
   /**
@@ -497,7 +580,7 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
             <div className="kbd">{faDigits(totals.pendingCount)} درخواست</div>
           </div>
           <div className="bg-emerald-50 border-2 border-emerald-400 rounded p-3">
-            <div className="kbd">پرداخت‌شده توسط مدیر</div>
+            <div className="kbd">اعلام پرداخت مدیر (نه تأیید مستقل بانک)</div>
             <div className="font-bold text-lg tabular-nums">{money(totals.paidAmount)}</div>
             <div className="kbd">{faDigits(totals.paidCount)} درخواست</div>
           </div>
@@ -507,7 +590,7 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
             <div className="kbd">{faDigits(totals.adjustmentCount)} رویداد</div>
           </div>
           <div className="bg-sky-50 border-2 border-sky-400 rounded p-3">
-            <div className="kbd">خروج وجه واقعی (پرداخت + اصلاح)</div>
+            <div className="kbd">خالص ثبت مدیریتی؛ برای پروندهٔ جدید تا بازبینی بانک قطعی نیست</div>
             <div className="font-bold text-lg tabular-nums">{money(totals.netOutOfSalesFlow)}</div>
             <div className="kbd">خارج از سرجمع فروش</div>
           </div>
@@ -532,8 +615,7 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
           {pending.needsAttentionQty > 0 && (
             <div className="mt-1 font-bold text-rose-800">
               ⚠️ {faDigits(pending.needsAttentionQty)} عدد از این کالاها درخواستشان رد/لغو شده ولی هنوز معلق‌اند و تکلیفشان
-              روشن نیست: یا با «رد/لغو» و تیکِ آزادسازی به موجودی برشان گردانید، یا سند برگشت را در پنل «برگشت از فروش»
-              ویرایش/حذف کنید.
+              روشن نیست. در C2C فقط تأیید پرداخت مدیرِ همین درخواست موجودی را آزاد می‌کند؛ لغو درخواست کالا را آزاد نمی‌کند و نتیجهٔ بانک هم جداگانه نامعلوم می‌ماند.
             </div>
           )}
         </div>
@@ -626,7 +708,7 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
           <>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               <div className="rounded border p-2">
-                <div className="kbd">کارت‌به‌کارت پرداخت‌شده توسط مدیر</div>
+                <div className="kbd">اعلام پرداخت مدیر؛ سند بانک را جدا ببینید</div>
                 <div className="font-bold tabular-nums">{money(outOfSales.totals.paidAmount)}</div>
               </div>
               <div className="rounded border p-2">
@@ -634,7 +716,7 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
                 <div className="font-bold tabular-nums">{money(outOfSales.totals.adjustmentAmount)}</div>
               </div>
               <div className="rounded border-2 border-sky-400 p-2 bg-sky-50">
-                <div className="kbd">جمع جریان خارج از فروش</div>
+                <div className="kbd">جمع ثبت مدیریتی (بخش نامعلوم بانک ممکن است)</div>
                 <div className="font-bold tabular-nums">{money(outOfSales.totals.netOutOfSalesFlow)}</div>
               </div>
             </div>
@@ -673,7 +755,7 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
                   pendingOf(req)
                     ? `${faDigits(pendingOf(req))} عدد — ${PENDING_RESTOCK_EXPLAINER}`
                     : req.stockReleasedQty
-                      ? `آزاد شده: ${faDigits(req.stockReleasedQty)} عدد به موجودی قابل‌فروش برگشت`
+                      ? `${faDigits(req.stockReleasedQty)} عدد به موجودی برگشت؛ شاهد دریافت پروندهٔ جدید یا آزادسازی تاریخی را در سابقه بررسی کنید`
                       : 'کالای معلقی ندارد'
                 }
                 strong={pendingOf(req) > 0}
@@ -691,9 +773,67 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
               {req.note ? <Row label="توضیح" value={req.note} /> : null}
             </div>
 
+            {right && <div className="rounded border-2 border-indigo-400 bg-indigo-50 p-3 space-y-2">
+              <h3 className="font-bold text-indigo-950">دفتر مستقل حق مشتری · {right.state === 'UNKNOWN_BANK' ? 'نتیجهٔ بانک نامعلوم' : right.state}</h3>
+              <p className="text-sm">اعلام مدیر و شمارهٔ پیگیری شاهد خروج پول از بانک نیستند. حقِ رزروشده تا بررسی مستقلِ فایل صورت‌حساب قفل می‌ماند.</p>
+              <div className="flex flex-wrap gap-3 text-sm">
+                <span>حق نقدی: <b>{money(right.cashRight)}</b></span>
+                <span>پرداخت مستند بانک: <b>{money(right.cashPaid)}</b></span>
+                <span>رزرو نامعلوم: <b>{money(right.cashReserved)}</b></span>
+                <span>تبدیل‌شده: <b>{money(right.cashConverted)}</b></span>
+                <span>ماندهٔ باز: <b>{money(right.open)}</b></span>
+                {right.rawExcess > 0 && <strong className="text-rose-800">اضافه‌تخصیص تاریخی: {money(right.rawExcess)}</strong>}
+              </div>
+              {right.state === 'UNKNOWN_BANK' && req.paidAmount != null && <div className="rounded border border-indigo-300 p-2 space-y-2">
+                <b>تطبیق انسانی با صورت‌حساب بانک</b>
+                <p className="text-sm">فایل فقط از انتخابگر بومی سیستم خوانده و در دیتابیسِ قابل پشتیبان‌گیری بایگانی می‌شود. PIN/شمارهٔ پیگیری به‌تنهایی کافی نیست. اگر بانک در دسترس نیست، پرونده را نامعلوم نگه دارید.</p>
+                <label className="block">مبلغ دقیق مشاهده‌شده در صورت‌حساب (ریال)
+                  <input className="inp block w-44" inputMode="numeric" value={bankAmount}
+                    onChange={(e) => setBankAmount(e.target.value.replace(/[^0-9]/g, ''))} />
+                </label>
+                <label className="block">شرح تطبیق حساب، تاریخ و مبلغ (حداقل ۱۰ نویسه)
+                  <input className="inp block w-full" value={bankNote} onChange={(e) => setBankNote(e.target.value)} />
+                </label>
+                <label className="flex gap-2 items-center"><input type="checkbox" checked={bankAttested} onChange={(e) => setBankAttested(e.target.checked)} /> خودم حساب، تاریخ و مبلغ سند را با درخواست تطبیق دادم</label>
+                <label className="block">رمز مدیر
+                  <PasswordField className="inp block" value={bankPassword} onChange={(e: any) => setBankPassword(e.target.value)} />
+                </label>
+                <button className="btn btn-primary" disabled={detailBusy || !bankAttested || !bankAmount || bankNote.trim().length < 10 || !bankPassword}
+                  onClick={() => void reviewBank()}>انتخاب PDF/CSV و ثبت بازبینی بانک</button>
+              </div>}
+              {right.state === 'OPEN' && right.open > 0 && req.paidAmount != null && <div className="rounded border border-indigo-300 p-2 space-y-2">
+                <b>تبدیل آگاهانهٔ ماندهٔ حق نقدی به اعتبار چندبارمصرف بی‌انقضا</b>
+                <p className="text-sm">فقط مبلغ بازِ تأییدشده، نه درخواست رزروشده، قابل تبدیل است. کد تازه تا تحویل شاهددار پیش‌نویس می‌ماند؛ کد حق نقدکردن عادی ندارد.</p>
+                <label className="block">مبلغ تبدیل (ریال)
+                  <input className="inp block w-44" inputMode="numeric" value={convertAmount}
+                    onChange={(e) => { setConvertAmount(e.target.value.replace(/[^0-9]/g, '')); conversionKey.current = crypto.randomUUID() }} />
+                </label>
+                <label className="block">رمز مدیر
+                  <PasswordField className="inp block" value={convertPassword} onChange={(e: any) => setConvertPassword(e.target.value)} />
+                </label>
+                <button className="btn btn-primary" disabled={detailBusy || !convertPassword || !convertAmount} onClick={() => void convertRight()}>تبدیل با ماندهٔ شاهددار</button>
+              </div>}
+              {issuedCreditId && <div className="rounded border border-amber-400 bg-amber-50 p-2 space-y-2">
+                <b>اعتبار جانشین #{faDigits(issuedCreditId)} · {deliveryDone ? 'تحویل‌شده' : 'در انتظار تحویل'}</b>
+                <p className="text-sm">چاپ به‌تنهایی کد را خرج‌پذیر نمی‌کند. اگر چاپ شکست، کد قدیمی/جدید خودکار فعال نمی‌شود و همان پرونده را پیگیری کنید.</p>
+                <label className="block">رمز مدیر برای چاپ/تأیید تحویل
+                  <PasswordField className="inp block" value={handoffPassword} onChange={(e: any) => setHandoffPassword(e.target.value)} />
+                </label>
+                {!deliveryDone && <>
+                  <button className="btn" disabled={detailBusy || !handoffPassword} onClick={() => void printSuccessor()}>چاپ سند کد (بدون فعال‌سازی)</button>
+                  <select className="inp block" value={handoffKind} onChange={(e) => setHandoffKind(e.target.value as 'CUSTOMER_HANDOFF' | 'COURIER_ACK')}>
+                    <option value="CUSTOMER_HANDOFF">تحویل حضوری به مشتری</option><option value="COURIER_ACK">تأیید تحویل پیک</option>
+                  </select>
+                  <input className="inp block w-full" value={handoffRef} onChange={(e) => setHandoffRef(e.target.value)} placeholder="شرح شاهد تحویل واقعی؛ نام یا شمارهٔ تلفن به‌تنهایی کافی نیست" />
+                  <button className="btn btn-primary" disabled={detailBusy || !handoffPassword || handoffRef.trim().length < 8}
+                    onClick={() => void deliverSuccessor()}>تأیید تحویل شاهددار و فعال‌سازی</button>
+                </>}
+              </div>}
+            </div>}
+
             {req.status === CardTransferStatus.PAID || req.paidAmount != null ? (
-              <div className="rounded border-2 border-emerald-400 bg-emerald-50 p-3">
-                <div className="font-bold mb-1">پرداخت ثبت‌شده</div>
+              <div className={`rounded border-2 p-3 ${right ? 'border-amber-400 bg-amber-50' : 'border-emerald-400 bg-emerald-50'}`}>
+                <div className="font-bold mb-1">{right ? 'اعلام مدیر (شاهد بانک نیست)' : 'پرداخت ثبت‌شدهٔ پروندهٔ قدیمی'}</div>
                 <Row label="مبلغ پرداخت‌شده" value={money(req.paidAmount ?? 0)} strong />
                 <Row
                   label="زمان تأیید"
@@ -712,7 +852,7 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
             {/* ---- دکمه‌ی «پرداخت شد» (فقط روی درخواست در انتظار پرداخت) ---- */}
             {canPay && (
               <div className="rounded border-2 border-amber-400 bg-amber-50 p-3 space-y-2">
-                <div className="font-bold">ثبت «پرداخت شد»</div>
+                <div className="font-bold">{right ? 'ثبت اعلام پرداخت مدیر (هنوز سند بانک نیست)' : 'ثبت «پرداخت شد» (پروندهٔ قدیمی)'}</div>
                 <div className="flex flex-wrap gap-2 items-end">
                   <label>
                     <div className="mb-1">مبلغ پرداخت‌شده (ریال)</div>
@@ -747,23 +887,20 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
                 </div>
                 {pendingOf(req) > 0 && (
                   <div className="rounded border-2 border-sky-400 bg-sky-50 p-2 leading-7">
-                    <b>
-                      با زدن «پرداخت شد»، {faDigits(pendingOf(req))} عدد کالای برگشتیِ این سند در همان لحظه به موجودی
-                      قابل‌فروش اضافه می‌شود.
-                    </b>{' '}
-                    {PENDING_RESTOCK_EXPLAINER}
+                    {right
+                      ? <b>{faDigits(pendingOf(req))} عدد برگشتی معلق است؛ با تأیید پرداخت مدیر همین اقلام به موجودی برمی‌گردند. نتیجهٔ بانک جداگانه بررسی می‌شود.</b>
+                      : <><b>برای پروندهٔ قدیمی: با ثبت پرداخت، {faDigits(pendingOf(req))} عدد یکجا به موجودی می‌رود.</b> {PENDING_RESTOCK_EXPLAINER}</>}
                   </div>
                 )}
                 <div className="kbd leading-6">
                   با زدن این دکمه، مبلغ پرداخت‌شده، زمان تأیید، وضعیت، فاکتور و عملیات مرجع، روش پرداخت، شیفت و شماره
-                  پیگیری (اگر وارد شده باشد) ثبت می‌شوند. بعد از آن، این رکورد <b>دیگر قابل ویرایش یا حذف نیست</b>؛ هر
-                  اصلاحی باید به‌صورت یک «رویداد اصلاحی» جدید ثبت شود تا سابقه از بین نرود.
-                  <br />
-                  ⚠️ چون این دکمه <b>موجودی انبار را هم عوض می‌کند</b>، تأیید مدیر این بار در خودِ سرور بررسی می‌شود؛ باز
-                  بودن قفل این صفحه به‌تنهایی کافی نیست.
+                  پیگیری (اگر وارد شده باشد) ثبت می‌شوند. بعد از آن، این رکورد <b>دیگر قابل ویرایش یا حذف نیست</b>.
+                  {right
+                    ? ' با تأیید پرداخت، اقلام برگشتی همین سند به موجودی برمی‌گردند؛ این ثبت به‌تنهایی جای تطبیق مستقل بانک را نمی‌گیرد.'
+                    : ' در پروندهٔ قدیمی، اصلاح با رویداد مستقل انجام می‌شود؛ ثبت پرداخت کالای معلق همین سند را آزاد می‌کند.'}
                 </div>
                 <button className="btn btn-primary" onClick={() => void pay()} disabled={detailBusy}>
-                  {detailBusy ? 'در حال ثبت…' : 'پرداخت شد'}
+                  {detailBusy ? 'در حال ثبت…' : right ? 'تأیید پرداخت مدیر (تطبیق بانک جداگانه)' : 'پرداخت شد'}
                 </button>
               </div>
             )}
@@ -779,19 +916,12 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
                     </div>
                     <input className="inp" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />
                   </label>
-                  <label className="flex items-start gap-2 leading-7">
-                    <input
-                      type="checkbox"
-                      className="mt-2"
-                      checked={cancelRelease}
-                      onChange={(e) => setCancelRelease(e.target.checked)}
-                    />
-                    <span>
-                      <b>کالا را بدون پرداخت به موجودی قابل‌فروش برگردان.</b> فقط وقتی این را بزنید که مطمئنید مشتری پولی
-                      طلب ندارد (مثلاً برگشت اشتباه ثبت شده). اگر خاموش بماند، کالا معلق می‌ماند تا فروشنده خودِ سند برگشت
-                      را در پنل «برگشت از فروش» ویرایش یا حذف کند.
-                    </span>
-                  </label>
+                  {right ? <div className="rounded border border-rose-300 p-2">
+                    لغو درخواست خودش کالا را به موجودی برنمی‌گرداند؛ اقلام همان سند تا تأیید پرداختِ معتبر در انتظار می‌مانند و مورد لغوشده نیازمند پیگیری مدیر است.
+                  </div> : <label className="flex items-start gap-2 leading-7">
+                    <input type="checkbox" className="mt-2" checked={cancelRelease} onChange={(e) => setCancelRelease(e.target.checked)} />
+                    <span><b>رویهٔ قدیمی: کالا را بدون پرداخت به موجودی برگردان.</b> فقط برای پروندهٔ بدون دفتر حق جدید.</span>
+                  </label>}
                   <label className="block max-w-[320px]">
                     <div className="mb-1">رمز مدیر یا رمز دوم همین پنل</div>
                     <PasswordField
@@ -802,8 +932,7 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
                   </label>
                   <div className="kbd leading-6">
                     رکورد <b>حذف یا بازنویسی نمی‌شود</b>: فقط وضعیتش «رد/لغو‌شده» می‌شود و دلیل شما در سابقه و AuditLog
-                    می‌نشیند. درخواستِ پرداخت‌شده هیچ‌وقت لغو نمی‌شود (برای برگشت مبلغ از «رویداد اصلاحی» با مبلغ منفی
-                    استفاده کنید).
+                    می‌نشیند. در پروندهٔ جدید حتی پس از لغو، نتیجهٔ بانک نامعلوم می‌ماند؛ رویداد اصلاحی بدون شاهد بانک مجاز نیست.
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -862,7 +991,7 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
               )}
 
               {/* ممیزی A115-01 (AUDIT-D47) — فقط روی درخواست پرداخت‌شده؛ main هم مستقل رد می‌کند. */}
-              {canAdjustCardTransfer(req) &&
+              {canAdjustCardTransfer(req) && !right &&
                 (adjustOpen ? (
                   <div className="rounded border-2 border-slate-300 p-3 space-y-2 bg-slate-50">
                     <div className="font-bold">ثبت رویداد اصلاحی جدید</div>

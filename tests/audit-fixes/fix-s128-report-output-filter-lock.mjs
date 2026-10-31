@@ -37,7 +37,8 @@ check('بارگذاری موفق کلید اجرا را ثبت می‌کند', /
 check('خروجی وقتی فیلتر اجرا نشده تغییر کرده قفل می‌شود', /outputDirty[\s\S]{0,180}disabled=\{busy \|\| outputDirty\}/.test(page))
 check('هشدار فارسیِ اجرای دوباره‌ی گزارش وجود دارد', /فیلتر گزارش تغییر کرده[\s\S]{0,140}تهیه گزارش/.test(page))
 check('بازه‌ی عنوان از snapshot اجرا می‌آید', /const rangeText = `از \$\{appliedFilters\.fromJalali\} تا \$\{appliedFilters\.toJalali\}`/.test(page))
-check('تغییر مبنای تاریخ چک گزارش را تازه می‌کند', /\}, \[tab, creditOpen, includeSettled, channelsKey, chequeDateMode\]\)/.test(page))
+check('تغییر مبنای تاریخ چک و نمایش تعویض گزارش را تازه می‌کند',
+  /\}, \[tab, creditOpen, includeSettled, includeExchanges, channelsKey, chequeDateMode\]\)/.test(page))
 
 console.log(`\n${bad ? '✗' : '✓'} ${ok} بررسی موفق · ${bad} ناموفق`)
 if (bad) process.exit(1)

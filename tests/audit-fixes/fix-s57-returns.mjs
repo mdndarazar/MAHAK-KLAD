@@ -118,6 +118,10 @@ console.log('\n— C1/ه — ویرایش برگشت هم از snapshot حساب
     managerPassword: DEFAULT_MANAGER_PASSWORD
   })
   eq('مبلغ سند بعد از ویرایش به ۲ عدد', retTotal(r.id), 1_800_000)
+  eq('ویرایش اتمیک برگشت را در پایان فعال نگه می‌دارد', seed.one('SELECT voidedAt FROM "SaleReturn" WHERE id=?', r.id).voidedAt, null)
+  eq('ویرایش اتمیک دقیقاً دو واحد فعال باقی می‌گذارد', Number(seed.one(`SELECT COALESCE(SUM(ri.qty),0) AS q
+    FROM "SaleReturnItem" ri JOIN "SaleReturn" sr ON sr.id=ri.returnId
+    WHERE sr.id=? AND sr.voidedAt IS NULL`, r.id).q), 2)
 }
 
 console.log('\n— C5 — دو ردیف با یک saleItemId نباید سقف برگشت را دور بزنند')
@@ -143,6 +147,10 @@ console.log('\n— C5 — دو ردیف با یک saleItemId نباید سقف �
     }),
     'قابل برگشت'
   )
+  eq('رد ویرایش نامعتبر void موقت را rollback می‌کند', seed.one('SELECT voidedAt FROM "SaleReturn" WHERE id=?', r2.id).voidedAt, null)
+  eq('رد ویرایش نامعتبر مقدار برگشت فعال قبلی را حفظ می‌کند', Number(seed.one(`SELECT COALESCE(SUM(ri.qty),0) AS q
+    FROM "SaleReturnItem" ri JOIN "SaleReturn" sr ON sr.id=ri.returnId
+    WHERE sr.id=? AND sr.voidedAt IS NULL`, r2.id).q), 1)
 }
 
 console.log('\n— C7 — برگشت روی فاکتور لغوشده یا پیش‌نویس کاملاً ممنوع (بند ۴-۲۰)')

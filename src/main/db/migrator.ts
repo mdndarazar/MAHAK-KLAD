@@ -150,6 +150,22 @@ export function splitStatements(sql: string): string[] {
       continue
     }
     if (c === ';') {
+      // SQLite CREATE TRIGGER has inner statements terminated by semicolons.
+      // Keep the entire trigger body through its final END; otherwise a new
+      // migration can be marked failed halfway through an evidence guard.
+      if (/^\s*CREATE\s+(?:TEMP(?:ORARY)?\s+)?TRIGGER\b/i.test(cur)) {
+        // CASE expressions also end with END; only the trigger's unmatched
+        // BEGIN/END closes the statement. Strip quoted text before counting so
+        // prose in an error message cannot affect trigger nesting.
+        const keywords = cur.replace(/'(?:''|[^'])*'|"(?:""|[^"])*"|`(?:``|[^`])*`/g, ' ')
+        const caseCount = (keywords.match(/\bCASE\b/gi) ?? []).length
+        const endCount = (keywords.match(/\bEND\b/gi) ?? []).length
+        if (endCount <= caseCount || !/\bEND\s*$/i.test(keywords)) {
+          cur += c
+          i++
+          continue
+        }
+      }
       if (cur.trim()) out.push(cur.trim())
       cur = ''
       i++

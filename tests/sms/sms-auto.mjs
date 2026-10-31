@@ -60,7 +60,8 @@ const atNow = { enabled: true, hour: now.getHours(), minute: now.getMinutes() }
 
 async function issueEligible(phone = '09121230001') {
   const c = await svc.issueStoreCredit(db, { amount: 2_000_000, holderPhone: phone, source: 'MANUAL', userId })
-  sql.prepare('UPDATE "StoreCredit" SET issuedAt = ? WHERE id = ?').run(Date.now() - 40 * DAY, c.id)
+  sql.prepare('UPDATE "StoreCredit" SET issuedAt = ?, reminderConsentAt = ?, reminderConsentPhone = ?, reminderConsentEvidence = ? WHERE id = ?')
+    .run(Date.now() - 40 * DAY, Date.now() - DAY, phone, 'رضایت مستندِ مخاطب در fixture زمان‌بند', c.id)
   return c
 }
 

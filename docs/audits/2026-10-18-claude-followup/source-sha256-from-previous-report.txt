@@ -1,0 +1,3 @@
+9e9dbc16f5b28b1dba96e83cf392b4b35c5f3b9387d257121443f495cfb56277  src/main/services/SalesService.ts
+1a8ba7d96cba5944df68410f4857ce6093e98964e4e970dc00d82c6bdfd43da5  src/main/services/ShiftService.ts
+092a03f4abf9082f2563ef1334d81e99cbfe042752dba3e8db211bb12bb20c9b  src/main/services/CustodyService.ts

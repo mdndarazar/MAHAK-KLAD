@@ -187,3 +187,14 @@ export function parseGroupedInteger(raw: unknown): number | null {
   const n = Number(s)
   return Number.isSafeInteger(n) ? n : null
 }
+
+/** A physical rial count must be explicit: blank is NOT zero. Accept Persian/
+ * Arabic digits and properly grouped thousands, but never strip an invalid
+ * sign, decimal, letter or malformed separator into a different amount. This
+ * is deliberately stricter than parseGroupedInteger (whose blank means zero). */
+export function parseRequiredRialAmount(raw: unknown): number | null {
+  const s = toLatinDigits(String(raw ?? '')).trim()
+  if (!/^\d+$/.test(s) && !/^\d{1,3}(?:[,\u060C\u066C\s]\d{3})+$/.test(s)) return null
+  const amount = Number(s.replace(/[,\u060C\u066C\s]/g, ''))
+  return Number.isSafeInteger(amount) ? amount : null
+}

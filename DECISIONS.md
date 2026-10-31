@@ -1605,3 +1605,49 @@ S142-6 — سؤال: گیت نبودن رمز مدیر روی issueManual/bulkIs
 - تریاج: معتبر — فعال‌سازی فقط در finalize (IN_FLIGHT→SENT توسط processOutbox) بود؛ مسیر echo ردیف را مستقیم SENT می‌کرد و وضعیت لینک دست‌نخورده PAUSED می‌ماند و reconcile هم ACTIVE-only است.
 - انتخاب من: داخل همان تراکنش echo، اگر همین outbox تازه SENT شده و می‌خواست لینک را فعال کند (همان `canActivateAfterOutbox`)، فعال‌سازی با چک «رویداد معلق ندارد» انجام شود؛ ترتیب (اول outbox بعد لینک) طوری است که finalize بعدی در count=0 رد شود و دوباره‌کاری نشود.
 - چرا لاگ جدا؟ تا مدیر در لاگ ببیند «نتیجه‌ی گم‌شده با ژورنال تأیید شد و اتصال فعال شد» (ECHO_ACTIVATE_LINK).
+
+## نشست ۱۹۰ — برگشت جزئیِ فرزند تعویض و رگرسیون نگهبان‌ها
+
+### S190-D1 — منشأ برگشت فرزند: reuse مسیر اثبات موجود
+- مبنا: `docs/design/FINAL-DESIGN-BASIS-fa.md` و `docs/design/2026-10-20-exchange-child-partial-return-allocation.md`؛ تخصیص ledger انتساب است، نه مجوز تسویه.
+- تصمیم: مسیر جدیدِ حدسی برای lineage ساخته نشود. ابتدا از `provenSourceRootEvent` در `ExchangeFundingLedgerService.ts` استفاده و transferهای `TRANSFER_IN.parentEventId` تا ریشه و جفت‌های فعال تطبیق داده شوند؛ دامنهٔ reader همچنان ordinary-sale root است.
+- قیدهای مالی: `CUSTOMER_HANDOFF` فقط تحویل اعتبار را ثابت می‌کند، نه منشأ یا وصول بانکی؛ سهم نامعلوم به نقد یا حق بازپرداخت تبدیل نمی‌شود؛ مقادیر ریال صحیح‌اند. هدیه‌اولِ مصوب برای قلم ۱۵M با ۲M هدیه و ۱۳٫۹۸M وجه: ۲M هدیه + ۱۳M وجه منتقل شود و ۹۸۰K حق وجه بماند.
+- تصمیم گیت: lineage/expiry/idempotency/reversal/invariants و دوازده سناریوی مبنا باید مستقل و واقعی پوشش داده شوند؛ سبز بودن تست‌های موجود مجوز بازکردن گیت تسویهٔ اعتبارمحور نیست.
+
+### S190-D2 — دادهٔ برگشت قدیمیِ ناسازگار در تست‌های گزارش مدیریت
+- تصمیم: آزمون‌های `mgmt-category-multi-return-cap.mjs` و `mgmt-s221-multi-return-cap.mjs` باید تاریخچهٔ بیش‌برگشتِ legacy را همچنان آزمایش کنند، اما فقط در fixture ایزولهٔ SQLite، trigger درج سقف برگشت را موقتاً کنار بگذارند و DDL دقیق آن را پیش از اجرای گزارش/سود برگردانند.
+- دلیل: migrationهای جاری عمداً ساختن چنین دادهٔ تازه‌ای را منع می‌کنند؛ این fixture شبیه‌سازی تاریخچهٔ قدیمی است، نه بای‌پس مجاز در محصول.
+
+### S190-D3 — حفاظت از پرداخت فروش مبدأ پس از تعویضِ باطل‌شده
+- تصمیم: ابطال گراف تعویض، lineage تاریخی پرداخت مبدأ را پاک نمی‌کند؛ بنابراین پرداخت متصل به آن گراف همچنان از حذف جداگانه محافظت می‌شود. اجازهٔ حذف عادی با فروش مستقلِ بدون lineage آزموده می‌شود.
+- دلیل: نگه‌داشتن رویدادهای انتقال/ابطال و منشأ قابل‌ردیابی بر «موفق بودن» assertion قدیمی مقدم است؛ reversal نباید به حذف شاهد مبدأ تبدیل شود.
+
+### S190-D4 — purge با triggerهای وابسته
+- تصمیم اجرایی: هنگام بازسازی جدول‌های فروش/برگشت، DDL triggerهای وابسته در همان تراکنش موقتاً برداشته و عیناً بازگردانده می‌شوند؛ تست purge علاوه بر snapshot تاریخچه، برابری DDL triggerهای پیش/پس را می‌سنجد.
+- دلیل: SQLite هنگام حذف/بازسازی جدول referenced، trigger باقی‌مانده را اجرا می‌کرد و به `no such table` می‌رسید؛ خاموش‌کردن دائمی گاردها پذیرفته نیست.
+
+### S190-D5 — تریاژ S4 و گیت تعویض مختلط
+- شاهد جدید: فروش SQLite واقعیِ ۵M اعتبار هدیه + ۲۰M وجه در سه قلم، از `getCurrentSaleFundingSources` هر دو ریشه را بی‌ابهام می‌گیرد و candidate matrix دقیق ۲/۸، ۲/۸ و ۱/۴ میلیون است؛ با این حال `createExchange` فعلی به‌علت redemption gate رد می‌شود.
+- تصمیم: شرط `activeRedemptions` یا فیلتر منبع‌های انتقال فعلی را جداگانه حذف/شل نکنیم. در مسیر فعلی `runReturn(applyRefund:false)` پیش از محاسبهٔ کامل delta گیت می‌کند و postflight فقط منبع‌های واقعیِ هم‌کلاس را transfer می‌کند؛ برداشتن guard تنها می‌تواند سند فرزندِ دارای EXCHANGE_CREDIT ولی فاقد جفت انتقال mixed بسازد.
+- گام مجاز بعدی: preflight اتمیکِ `createExchange` باید پیش از برگشت/هر اثر، delta، source proof، line matrix، جفت transfer و settlement/rights plan را یکجا تثبیت کند؛ zero-delta mixed transfer می‌تواند جدا از هر refund/entitlement بررسی شود، اما هیچ مسیر diff یا payout تا تکمیل دفتر حق و آزمون‌های مربوط باز نشود.
+- ثبت شواهد ۱۲ سناریو: `docs/design/2026-10-20-s1-s12-implementation-evidence-fa.md`. وضعیت همهٔ سناریوها هنوز PARTIAL/NOT ACCEPTED است.
+
+### S190-D6 — carry محدود mixed-source فقط در تعویض صفر-اختلاف
+- تصمیم اجرایی محدود: فقط `createExchange` با diff=0، بازگشت کامل اقلام فاکتور مبدأ، snapshot تازه و بدون unresolved/debt/overpay، تمام سهم‌های مثبت و قابل‌انتقال که جمعشان دقیقاً با مبلغ برگشت و تعویض برابر است، و تطبیق یک‌به‌یک redemptionهای فعال با SOURCE_GIFT مجاز است. transferها جفتی و ماتریس قلمی در همان transaction ثبت می‌شوند.
+- `runReturn` فقط در مسیر داخلی createExchange گیت شواهد را تا preflight همان transaction عقب می‌اندازد؛ در تعویض، redemption هدیهٔ مبدأ USED می‌ماند تا ارزشش دوباره spendable نشود. اثبات از reader موجود و `provenSourceRootEvent` reuse می‌شود؛ lineage جدید یا ادعای کانال ساخته نمی‌شود.
+- حد گیت: delta مختلط، snapshot کهنه/ناقص، مبدأ/lineage نامعتبر، redemption نامنطبق، debt/overpay، برگشت ناقص/قدیمی، و settlement/entitlement برگشت فرزند همچنان fail-closed/بسته‌اند. این زیرمسیر S2/S4 را نمی‌پذیرد؛ همهٔ ۱۲ سناریو هنوز NOT ACCEPTED هستند.
+
+### S190-D7 — ابطال pair مختلط پیش از مصرف downstream و شاهد کالا
+- شاهد integration تعویض واقعی S4 را void می‌کند، هر دو pair انتقال را معکوس و منابع مبدأ را دقیقاً بازیابی می‌کند؛ redemption هدیه USED می‌ماند چون فروش اصلی پس از ابطال دوباره برقرار است.
+- طبق `goodsReceiptRequired`، کالای برگشتی source هنوز دریافت فیزیکی نشده؛ ابطال سند برگشت نیز حق افزایش stock ندارد. فقط replacement sale معکوس می‌شود و موجودی جایگزین یک‌بار برمی‌گردد. Void cash movement نمی‌سازد.
+- محدودهٔ اثبات محدود به pair استفاده‌نشده است؛ downstream redemption/consumption/payout و idempotent retry کل exchange هنوز پوشش تجاری کامل ندارد.
+
+### S190-D8 — idempotency caller-held برای createExchange
+- تصمیم: کل درخواست تعویض با کلید caller-held و fingerprint اقتصادی bind می‌شود؛ snapshot پاسخ در همان transaction با SaleReturn ثبت می‌شود تا retry همان intent فقط replay باشد و reuse کلید برای payload دیگر رد شود. IPC کلید را اجباری می‌کند؛ sessionStorage فقط opaque key+digest نگه می‌دارد و تا موفقیت پاک نمی‌شود.
+- رمزهای مدیر در fingerprint یا storage قرار نمی‌گیرند؛ actor و policy دریافت کالا در fingerprint سرور لحاظ می‌شوند. IPC روی replay مجوز first-print تازه صادر نمی‌کند.
+- گیت آزمون: same-key/no-duplicate، mismatch-key/no-effect، replay پس از void/no-resurrection و client reload/key rotation پوشش دارند. PrismaLite Promise.all در یک process شاهد رقابت نداد؛ بنابراین workerهای مستقل process/SQLite ساخته شد. same-key/same-payload و same-key/mismatch با دو connection مستقل در سه اجرای متوالی PASS شدند. این آزمون فقط رقابت چندپردازه‌ای در harness را ثابت می‌کند، نه production Prisma DB.
+
+### S190-D9 — گزارش انتساب برگشت child فقط‌خواندنی است
+- `returnList` از `ExchangeFundingReturnLineAllocation` برای هر برگشت فیزیکی child، source-kind attribution را فقط با تطبیق return/item/invoice scope، qty/value، جمع منبع و snapshot report می‌کند. وضعیت `INCOMPLETE` برای تاریخچهٔ مفقود/ناسازگار برمی‌گردد؛ مبالغ unknown به نقد تبدیل یا صفر پنداشته نمی‌شوند.
+- status `ATTRIBUTION_ONLY` همیشه با `settlementReady:false` است و UI/A4/Excel برچسب «فقط انتساب؛ نه پرداخت یا حق وجه» نشان می‌دهند. این ستون نه tender تازه است نه payout/entitlement.
+- تست‌های chunk-order 1/50/49 در برابر 1/49/50 و پس از expiry، source totals exact را نگه می‌دارند؛ ترتیب می‌تواند سهم گردکردن یک‌ریالی را بین eventهای فیزیکی جابه‌جا کند. برگشت child همچنان در `createReturn` بسته است و این تصمیم مجوز بازکردن settlement نیست.

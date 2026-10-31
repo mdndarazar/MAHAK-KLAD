@@ -10,7 +10,7 @@
  * `qty` را در محاسبه‌ی عدد به کار می‌برد در زمان اجرا می‌ترکد؛ و جا انداختنِ یک
  * فیلد پول یعنی همان سرریزی که کل این کار برای رفعش انجام می‌شود.
  *
- * پس هر ۲۶۴ فیلد `Int` اسکیما دقیقاً یک بار در یکی از سه گروه زیر می‌آید و
+ * پس هر فیلد عددی اسکیما دقیقاً یک بار در گروه مبلغ، شناسه، شمارنده یا دنبالهٔ BigInt می‌آید و
  * `tools/check-money-fields.mjs` تضمین می‌کند هیچ فیلدی از قلم نیفتاده و هیچ
  * فیلدی هم دو بار نیامده. اگر فردا کسی فیلد `Int` جدیدی به اسکیما اضافه کند،
  * آن بررسی قرمز می‌شود و مجبور است تصمیم بگیرد این فیلد پول هست یا نه.
@@ -145,7 +145,81 @@ export const MONEY_FIELDS = [
   'SaleItemCost.replacementCost',
   'SaleItemCost.revenue',
   'CostConsumption.unitCost',
-  'MgmtTarget.amount'
+  'MgmtTarget.amount',
+
+  // طبقه‌بندی صریح مدل‌های افزوده‌شده: اسناد Woo، حضانت و دفتر حق/دریافت.
+  // SaleReturn
+  'SaleReturn.creditRestored',
+  // ReturnCorrection
+  'ReturnCorrection.cashRecovered', 'ReturnCorrection.cardRecovered', 'ReturnCorrection.cashPaidOut',
+  'ReturnCorrection.cardPaidOut', 'ReturnCorrection.unrecoveredAmount',
+  'ReturnCorrection.creditAffectedAmount',
+  // ReturnCorrectionEffect
+  'ReturnCorrectionEffect.amount',
+  // CustodyCount
+  'CustodyCount.countedCash', 'CustodyCount.expectedCash', 'CustodyCount.differenceCash',
+  // CustodyDisposition
+  'CustodyDisposition.amount',
+  // CustodyHandover
+  'CustodyHandover.expectedAtStart', 'CustodyHandover.countedAtStart', 'CustodyHandover.differenceCash',
+  // CustodyBlueSnapshot
+  'CustodyBlueSnapshot.humanAmount', 'CustodyBlueSnapshot.arithmeticAmount',
+  'CustodyBlueSnapshot.referenceAmount', 'CustodyBlueSnapshot.knownSubtotal',
+  'CustodyBlueSnapshot.destinationUnknownReceived', 'CustodyBlueSnapshot.ambiguousLegacyCredit',
+  'CustodyBlueSnapshot.rawDifference', 'CustodyBlueSnapshot.inheritedDifference',
+  'CustodyBlueSnapshot.freshDifference',
+  // CustodyBlueResolution
+  'CustodyBlueResolution.ambiguousAmount', 'CustodyBlueResolution.destinationAmbiguousAmount',
+  'CustodyBlueResolution.effectiveReferenceAmount', 'CustodyBlueResolution.resolvedRawDifference',
+  'CustodyBlueResolution.resolvedFreshDifference',
+  // CustodyEvidenceRecovery
+  'CustodyEvidenceRecovery.countedAmount',
+  // CustodyResolution
+  'CustodyResolution.nightExpectedCash', 'CustodyResolution.expectedCard',
+  'CustodyResolution.provisionalDifference',
+  // CustodyAggregateBoundary
+  'CustodyAggregateBoundary.priorAcceptedObservedTotal',
+  'CustodyAggregateBoundary.priorTheoreticalTotal', 'CustodyAggregateBoundary.physicalMovement',
+  'CustodyAggregateBoundary.operationalExpectedTotal',
+  'CustodyAggregateBoundary.theoreticalExpectedTotal',
+  'CustodyAggregateBoundary.observedOperationalTotal', 'CustodyAggregateBoundary.newDifference',
+  'CustodyAggregateBoundary.totalTheoreticalDifference', 'CustodyAggregateBoundary.sourceMovementOffset',
+  // CustodyDiscrepancyCase
+  'CustodyDiscrepancyCase.operationalExpectedTotal', 'CustodyDiscrepancyCase.theoreticalExpectedTotal',
+  'CustodyDiscrepancyCase.observedOperationalTotal', 'CustodyDiscrepancyCase.differenceAmount',
+  'CustodyDiscrepancyCase.totalTheoreticalDifference',
+  // LegacyShiftRecovery
+  'LegacyShiftRecovery.countedCash', 'LegacyShiftRecovery.expectedTotalSnapshot',
+  'LegacyShiftRecovery.provisionalDifference',
+  // LegacyShiftRecoveryItem
+  'LegacyShiftRecoveryItem.expectedCashSnapshot', 'LegacyShiftRecoveryItem.openingFloatSnapshot',
+  'LegacyShiftRecoveryItem.cashInSnapshot', 'LegacyShiftRecoveryItem.cashOutSnapshot',
+  // LegacyRecoveryOpeningLink
+  'LegacyRecoveryOpeningLink.recoveryCountedCash', 'LegacyRecoveryOpeningLink.openingCountedCash',
+  'LegacyRecoveryOpeningLink.gapCash',
+  // ReturnEntitlement
+  'ReturnEntitlement.cashRight', 'ReturnEntitlement.giftOpportunity', 'ReturnEntitlement.debtReduced',
+  'ReturnEntitlement.cashPaid', 'ReturnEntitlement.cashReserved', 'ReturnEntitlement.cashConverted',
+  // ReturnEntitlementEvent
+  'ReturnEntitlementEvent.amount',
+  // CreditReplacement
+  'CreditReplacement.transferredAmount',
+  // CreditReturnAllocation
+  'CreditReturnAllocation.originNominal', 'CreditReturnAllocation.amount',
+  'CreditReturnAllocation.supplementUnspent',
+  // BankStatementEvidence
+  'BankStatementEvidence.confirmedAmount',
+  // ExchangeFundingEvent and immutable source/return line ledgers (Rial).
+  'ExchangeFundingEvent.amount',
+  'ExchangeFundingLineAllocation.saleItemValue', 'ExchangeFundingLineAllocation.amount',
+  'ExchangeFundingReturnLineAllocation.saleItemValue',
+  'ExchangeFundingReturnLineAllocation.sourceItemAmount',
+  'ExchangeFundingReturnLineAllocation.priorReturnValue',
+  'ExchangeFundingReturnLineAllocation.returnValue',
+  'ExchangeFundingReturnLineAllocation.cumulativeReturnValue',
+  'ExchangeFundingReturnLineAllocation.priorAmount',
+  'ExchangeFundingReturnLineAllocation.amountDelta',
+  'ExchangeFundingReturnLineAllocation.cumulativeAmount'
 ]
 
 /**
@@ -240,7 +314,148 @@ export const ID_FIELDS = [
   /* فاز ۴ — کمپین و دفتر «لغو ۱۱»: کلیدها و ارجاع‌ها (هیچ‌کدام مبلغ نیستند) */
   'SmsOutbox.campaignId',
   'SmsOptOut.id', 'SmsOptOut.createdByUserId',
-  'SmsCampaign.id', 'SmsCampaign.templateId', 'SmsCampaign.createdByUserId', 'SmsCampaign.canceledByUserId'
+  'SmsCampaign.id', 'SmsCampaign.templateId', 'SmsCampaign.createdByUserId', 'SmsCampaign.canceledByUserId',
+
+  // طبقه‌بندی صریح مدل‌های افزوده‌شده: اسناد Woo، حضانت و دفتر حق/دریافت.
+  // WooProductLink
+  'WooProductLink.id', 'WooProductLink.variantId', 'WooProductLink.wooProductId',
+  'WooProductLink.wooVariationId', 'WooProductLink.lastPushedMovementId', 'WooProductLink.pausedBy',
+  'WooProductLink.resumedBy',
+  // WooSyncOutbox
+  'WooSyncOutbox.id', 'WooSyncOutbox.linkId', 'WooSyncOutbox.variantId', 'WooSyncOutbox.movementId',
+  // WooInboundEvent
+  'WooInboundEvent.id', 'WooInboundEvent.linkId', 'WooInboundEvent.variantId',
+  'WooInboundEvent.movementId',
+  // WooApproval
+  'WooApproval.id', 'WooApproval.linkId', 'WooApproval.variantId', 'WooApproval.sourceId',
+  'WooApproval.resolvedBy',
+  // WooSyncLog
+  'WooSyncLog.id', 'WooSyncLog.linkId', 'WooSyncLog.variantId',
+  // ReturnCorrection
+  'ReturnCorrection.id', 'ReturnCorrection.returnId', 'ReturnCorrection.originalUserId',
+  'ReturnCorrection.originalShiftId', 'ReturnCorrection.correctingUserId',
+  'ReturnCorrection.correctingShiftId', 'ReturnCorrection.approvingManagerId',
+  // ReturnCorrectionEffect
+  'ReturnCorrectionEffect.id', 'ReturnCorrectionEffect.correctionId', 'ReturnCorrectionEffect.variantId',
+  'ReturnCorrectionEffect.cashMovementId', 'ReturnCorrectionEffect.referenceId',
+  'ReturnCorrectionEffect.shiftId', 'ReturnCorrectionEffect.userId',
+  // StoreCreditRedemption
+  'StoreCreditRedemption.compensatedReturnId',
+  // StaffProfile
+  'StaffProfile.userId',
+  // CustodyCredential
+  'CustodyCredential.userId', 'CustodyCredential.setByUserId',
+  // ShiftPlan
+  'ShiftPlan.id',
+  // ShiftPlanStaff
+  'ShiftPlanStaff.planId', 'ShiftPlanStaff.userId',
+  // CustodySaleEvidence
+  'CustodySaleEvidence.id', 'CustodySaleEvidence.invoiceId', 'CustodySaleEvidence.custodyShiftId',
+  'CustodySaleEvidence.custodianUserId', 'CustodySaleEvidence.operatorUserId',
+  // CustodyState
+  'CustodyState.activeShiftId', 'CustodyState.pendingHandoverId',
+  // CustodyShiftMeta
+  'CustodyShiftMeta.shiftId', 'CustodyShiftMeta.custodianUserId', 'CustodyShiftMeta.openCountId',
+  'CustodyShiftMeta.planId', 'CustodyShiftMeta.cashSessionId',
+  // CustodyCount
+  'CustodyCount.id', 'CustodyCount.shiftId', 'CustodyCount.countedByUserId', 'CustodyCount.handoverId',
+  // CustodyEvent
+  'CustodyEvent.id', 'CustodyEvent.shiftId', 'CustodyEvent.handoverId', 'CustodyEvent.resolutionId',
+  'CustodyEvent.legacyRecoveryId', 'CustodyEvent.actorUserId', 'CustodyEvent.managerUserId',
+  // CustodyDisposition
+  'CustodyDisposition.id', 'CustodyDisposition.cashSessionId', 'CustodyDisposition.shiftId',
+  'CustodyDisposition.recipientUserId', 'CustodyDisposition.claimedByUserId',
+  'CustodyDisposition.confirmedByUserId',
+  // CustodyHandover
+  'CustodyHandover.id', 'CustodyHandover.fromShiftId', 'CustodyHandover.fromUserId',
+  'CustodyHandover.selectedRecipientUserId', 'CustodyHandover.finalCustodianUserId',
+  'CustodyHandover.acceptedByUserId', 'CustodyHandover.managerApproverUserId',
+  'CustodyHandover.outCountId', 'CustodyHandover.toShiftId',
+  // CustodyBlueSnapshot
+  'CustodyBlueSnapshot.id', 'CustodyBlueSnapshot.handoverId', 'CustodyBlueSnapshot.shiftId',
+  'CustodyBlueSnapshot.actorUserId', 'CustodyBlueSnapshot.priorSnapshotId',
+  // CustodyBlueResolution
+  'CustodyBlueResolution.id', 'CustodyBlueResolution.snapshotId', 'CustodyBlueResolution.managerUserId',
+  // CustodyBlueNote
+  'CustodyBlueNote.id', 'CustodyBlueNote.snapshotId', 'CustodyBlueNote.managerUserId',
+  // CustodyEvidenceQuarantine
+  'CustodyEvidenceQuarantine.id', 'CustodyEvidenceQuarantine.shiftId',
+  'CustodyEvidenceQuarantine.handoverId', 'CustodyEvidenceQuarantine.snapshotId',
+  // CustodyEvidenceRecovery
+  'CustodyEvidenceRecovery.id', 'CustodyEvidenceRecovery.quarantineId',
+  'CustodyEvidenceRecovery.shiftId', 'CustodyEvidenceRecovery.managerUserId',
+  'CustodyEvidenceRecovery.recoverySnapshotId',
+  // CustodyResolution
+  'CustodyResolution.id', 'CustodyResolution.shiftId', 'CustodyResolution.nightEvidenceCountId',
+  'CustodyResolution.morningWitnessCountId', 'CustodyResolution.attributedToUserId',
+  'CustodyResolution.decisionByUserId', 'CustodyResolution.cashSessionId',
+  // CustodyAggregateBoundary
+  'CustodyAggregateBoundary.id', 'CustodyAggregateBoundary.fromShiftId',
+  'CustodyAggregateBoundary.toShiftId', 'CustodyAggregateBoundary.handoverId',
+  'CustodyAggregateBoundary.previousBoundaryId', 'CustodyAggregateBoundary.countedByUserId',
+  // CustodyDiscrepancyCase
+  'CustodyDiscrepancyCase.id', 'CustodyDiscrepancyCase.boundaryId', 'CustodyDiscrepancyCase.fromShiftId',
+  'CustodyDiscrepancyCase.toShiftId', 'CustodyDiscrepancyCase.closedByUserId',
+  // CustodyDiscrepancyReview
+  'CustodyDiscrepancyReview.id', 'CustodyDiscrepancyReview.caseId',
+  'CustodyDiscrepancyReview.managerUserId',
+  // LegacyShiftRecovery
+  'LegacyShiftRecovery.id', 'LegacyShiftRecovery.witnessUserId',
+  // LegacyShiftRecoveryItem
+  'LegacyShiftRecoveryItem.id', 'LegacyShiftRecoveryItem.recoveryId', 'LegacyShiftRecoveryItem.shiftId',
+  'LegacyShiftRecoveryItem.legacyUserId',
+  // LegacyShiftRecoveryReview
+  'LegacyShiftRecoveryReview.id', 'LegacyShiftRecoveryReview.recoveryId',
+  'LegacyShiftRecoveryReview.itemId', 'LegacyShiftRecoveryReview.actorUserId',
+  // LegacyRecoveryOpeningLink
+  'LegacyRecoveryOpeningLink.id', 'LegacyRecoveryOpeningLink.recoveryId',
+  'LegacyRecoveryOpeningLink.openingShiftId', 'LegacyRecoveryOpeningLink.openingCountId',
+  'LegacyRecoveryOpeningLink.openerUserId',
+  // ReceiptCodeReservation
+  'ReceiptCodeReservation.invoiceId',
+  // ReturnEntitlement
+  'ReturnEntitlement.id', 'ReturnEntitlement.returnId', 'ReturnEntitlement.invoiceId',
+  'ReturnEntitlement.requestId',
+  // ReturnEntitlementEvent
+  'ReturnEntitlementEvent.id', 'ReturnEntitlementEvent.entitlementId',
+  'ReturnEntitlementEvent.requestId', 'ReturnEntitlementEvent.creditId',
+  'ReturnEntitlementEvent.actorUserId',
+  // CreditDelivery
+  'CreditDelivery.id', 'CreditDelivery.creditId', 'CreditDelivery.originCreditId',
+  'CreditDelivery.deliveredByUserId',
+  // CreditReplacement
+  'CreditReplacement.id', 'CreditReplacement.originalCreditId', 'CreditReplacement.successorCreditId',
+  'CreditReplacement.approvingManagerId', 'CreditReplacement.actorUserId',
+  // CreditReturnAllocation
+  'CreditReturnAllocation.id', 'CreditReturnAllocation.returnId', 'CreditReturnAllocation.invoiceId',
+  'CreditReturnAllocation.redemptionId', 'CreditReturnAllocation.parentCreditId',
+  'CreditReturnAllocation.rootCreditId', 'CreditReturnAllocation.successorCreditId',
+  // ReturnGoodsReceipt
+  'ReturnGoodsReceipt.id', 'ReturnGoodsReceipt.returnId', 'ReturnGoodsReceipt.returnItemId',
+  'ReturnGoodsReceipt.variantId', 'ReturnGoodsReceipt.actorUserId',
+  // ReturnGoodsReceiptSource (scalar historical references)
+  'ReturnGoodsReceiptSource.id', 'ReturnGoodsReceiptSource.receiptId',
+  'ReturnGoodsReceiptSource.returnItemId', 'ReturnGoodsReceiptSource.variantId',
+  'ReturnGoodsReceiptSource.allocationId', 'ReturnGoodsReceiptSource.warehouseId',
+  'ReturnGoodsReceiptSource.secondaryStockItemId',
+  // BankStatementEvidence
+  'BankStatementEvidence.id', 'BankStatementEvidence.requestId',
+  'BankStatementEvidence.reviewedByUserId',
+  // ExchangeFundingEvent: scalar historical links (not ORM foreign keys).
+  'ExchangeFundingEvent.id', 'ExchangeFundingEvent.sourceInvoiceId', 'ExchangeFundingEvent.childInvoiceId',
+  'ExchangeFundingEvent.returnId', 'ExchangeFundingEvent.sourcePaymentId',
+  'ExchangeFundingEvent.sourceRedemptionId', 'ExchangeFundingEvent.sourceCreditId',
+  'ExchangeFundingEvent.parentEventId', 'ExchangeFundingEvent.debtId', 'ExchangeFundingEvent.actorUserId',
+  'ExchangeFundingEvent.reversesEventId',
+  // Immutable exchange line allocation scope.
+  'ExchangeFundingLineAllocation.id', 'ExchangeFundingLineAllocation.sourceInvoiceId',
+  'ExchangeFundingLineAllocation.childInvoiceId', 'ExchangeFundingLineAllocation.returnId',
+  'ExchangeFundingLineAllocation.sourceEventId', 'ExchangeFundingLineAllocation.saleItemId',
+  'ExchangeFundingReturnLineAllocation.id', 'ExchangeFundingReturnLineAllocation.returnId',
+  'ExchangeFundingReturnLineAllocation.returnItemId', 'ExchangeFundingReturnLineAllocation.sourceInvoiceId',
+  'ExchangeFundingReturnLineAllocation.childInvoiceId', 'ExchangeFundingReturnLineAllocation.saleItemId',
+  'ExchangeFundingReturnLineAllocation.sourceEventId',
+  'ExchangeFundingReturnLineAllocation.reversesAllocationId'
 ]
 
 /**
@@ -292,7 +507,76 @@ export const COUNT_FIELDS = [
      (پولِ واقعی در جدول‌های فروش/اعتبار است، نه اینجا). */
   'SmsCampaign.audienceCount', 'SmsCampaign.queuedCount', 'SmsCampaign.skippedCount',
   'SmsCampaign.optOutSkipped', 'SmsCampaign.invalidCount', 'SmsCampaign.duplicateCount',
-  'SmsCampaign.segments', 'SmsCampaign.costEstimate'
+  'SmsCampaign.segments', 'SmsCampaign.costEstimate',
+
+  // طبقه‌بندی صریح مدل‌های افزوده‌شده: اسناد Woo، حضانت و دفتر حق/دریافت.
+  // WooProductLink
+  'WooProductLink.lastWooQty', 'WooProductLink.lastMahakQty',
+  // WooSyncOutbox
+  'WooSyncOutbox.expectedWooQty', 'WooSyncOutbox.targetQty', 'WooSyncOutbox.attemptCount',
+  // WooInboundEvent
+  'WooInboundEvent.oldQty', 'WooInboundEvent.newQty', 'WooInboundEvent.delta',
+  // ReturnCorrectionEffect
+  'ReturnCorrectionEffect.qty',
+  // StaffProfile
+  'StaffProfile.version',
+  // CustodyCredential
+  'CustodyCredential.version',
+  // ShiftPlan
+  'ShiftPlan.startMinute', 'ShiftPlan.durationMinutes', 'ShiftPlan.daysMask', 'ShiftPlan.sortOrder',
+  'ShiftPlan.reminderRepeatMin', 'ShiftPlan.version',
+  // CustodyState
+  'CustodyState.epoch', 'CustodyState.financialRevision',
+  // CustodyShiftMeta
+  'CustodyShiftMeta.dayCutoverSnapshot', 'CustodyShiftMeta.openEpoch',
+  // CustodyCount
+  'CustodyCount.epochAtCount',
+  // CustodyEvent
+  'CustodyEvent.epochBefore', 'CustodyEvent.epochAfter',
+  // CustodyHandover
+  'CustodyHandover.fenceEpochAtStart', 'CustodyHandover.protocolVersion',
+  'CustodyHandover.deadlinePolicyMinutes', 'CustodyHandover.version',
+  // CustodyBlueSnapshot
+  'CustodyBlueSnapshot.financialRevision', 'CustodyBlueSnapshot.epochAtCount',
+  // CustodyEvidenceQuarantine
+  'CustodyEvidenceQuarantine.detectedEpoch',
+  // CustodyEvidenceRecovery
+  'CustodyEvidenceRecovery.seenEpoch', 'CustodyEvidenceRecovery.epochAfter',
+  // CustodyDiscrepancyCase
+  'CustodyDiscrepancyCase.version',
+  // LegacyShiftRecovery
+  'LegacyShiftRecovery.epochBefore', 'LegacyShiftRecovery.epochAfter',
+  // LegacyShiftRecoveryItem
+  'LegacyShiftRecoveryItem.invoiceCountSnapshot',
+  // ReturnEntitlement
+  'ReturnEntitlement.version',
+  // ReturnEntitlementEvent
+  'ReturnEntitlementEvent.beforeVersion',
+  // CreditDelivery
+  'CreditDelivery.version',
+  // ReturnGoodsReceipt
+  'ReturnGoodsReceipt.qty',
+  // ReturnGoodsReceiptSource
+  'ReturnGoodsReceiptSource.qty',
+  // ExchangeFunding line snapshots contain quantities, not rial amounts.
+  'ExchangeFundingLineAllocation.saleItemQty',
+  'ExchangeFundingReturnLineAllocation.saleItemQty',
+  'ExchangeFundingReturnLineAllocation.returnedQtyBefore',
+  'ExchangeFundingReturnLineAllocation.returningQty',
+  'ExchangeFundingReturnLineAllocation.returnedQtyAfter',
+  'ExchangeFundingReturnLineAllocation.allocationVersion'
+]
+
+/**
+ * شمارنده‌های دنبالهٔ Woo که به BigInt نیاز دارند، اما مبلغ ریالی نیستند.
+ * این استثنا صریح است: آن‌ها را به MONEY_FIELDS تبدیل نکنید و نوعِ منبع Woo
+ * را هم صرفاً برای سبز کردن گیت به Int تقلیل ندهید.
+ */
+export const WIDE_COUNT_FIELDS = [
+  // WooProductLink
+  'WooProductLink.pauseSeqFloor', 'WooProductLink.relinkSeqFloor',
+  // WooInboundEvent
+  'WooInboundEvent.seq'
 ]
 
 /** استخراج همه‌ی فیلدهای `Int` از فایل اسکیما. */

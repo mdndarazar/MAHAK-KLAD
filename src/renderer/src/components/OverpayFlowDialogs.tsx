@@ -4,7 +4,6 @@ import ConfirmDialog from './ConfirmDialog'
 import { call, CH } from '../lib/api'
 import { isPrintCancelledError, isUnknownPrintMessage } from '../lib/printErrors'
 import { faDigits, money } from '@shared/jalali'
-import { creditPrintOpRequest } from '@shared/creditUi'
 import {
   overpayFlowNext,
   overpayFlowPassword,
@@ -37,26 +36,28 @@ export type OverpayCreditPrintProblem = { kind: 'unknown' | 'failed' | 'warning'
 let overpayCreditPrintInFlight = false
 
 /**
- * چاپ کد اعتبار از همان کانال چاپ اسناد اعتبار؛ خطا/هشدار ⇒ پیام فارسی (سند صادرشده دست نمی‌خورد).
- *
- * نشست ۳۱۶ · خواسته‌ی مالک — «چاپ دوباره» پاروله می‌گیرد: `opts.reprint: true`
- * یعنی این چاپ *نخستِ لحظه‌ی صدور* نیست و سرور قبل از چاپ با
- * `assertPanelPasswordStrict(creditManagement, …)` تأیید می‌کند (رمز مدیر یا
- * رمز دوم/سومِ همین ماژول). چاپِ نخستِ خودکار بعد از صدور مثل قبل بدون رمز
- * انجام می‌شود (مشتری برگه‌اش را همان‌جا می‌گیرد).
+ * چاپ کد اضافه‌دریافت از IPC کنترل‌شده: چاپ اول با مجوز همین صدور؛ هر چاپ
+ * بعدی (از جمله نتیجهٔ نامعلوم) با رمز تازهٔ ماژول اعتبار. خطا سند صادرشده
+ * را باطل نمی‌کند. هیچ شناسه/کد دلخواه از renderer مجوز چاپ اول نمی‌سازد.
  */
 export async function printOverpayCredit(
-  credit: { id?: number | null } | null | undefined,
+  credit: Pick<OverpayCreditLike, 'id' | 'invoiceId' | 'firstPrintGrant'> | null | undefined,
   opts?: { reprint?: boolean; password?: string | null }
 ): Promise<OverpayCreditPrintProblem> {
-  const req = creditPrintOpRequest('print', { id: credit?.id ?? 0, copies: 1 })
-  if (!req) return { kind: 'failed', msg: 'شناسه‌ی اعتبار برای چاپ در دسترس نیست؛ از «مدیریت اعتبار خرید» چاپ کنید.' }
+  const id = credit?.id, invoiceId = credit?.invoiceId
+  if (typeof id !== 'number' || !Number.isSafeInteger(id) || id <= 0 ||
+      typeof invoiceId !== 'number' || !Number.isSafeInteger(invoiceId) || invoiceId <= 0)
+    return { kind: 'failed', msg: 'شناسه‌ی اعتبار/فاکتور برای چاپ در دسترس نیست؛ مدیر از «مدیریت اعتبار خرید» پیگیری کند.' }
+  if (opts?.reprint !== true && !credit?.firstPrintGrant)
+    return { kind: 'failed', msg: 'مجوز چاپ اول این صدور در دسترس نیست؛ چاپ بعدی فقط با تأیید مدیر از پروندهٔ اعتبار انجام شود.' }
   if (overpayCreditPrintInFlight)
     return { kind: 'failed', msg: 'چاپ کد اعتبار در حال انجام است؛ تا پایان دیالوگ چاپ صبر کنید.' }
   overpayCreditPrintInFlight = true
   try {
-    const res = (await call(CH[req.channel as keyof typeof CH], {
-      ...req.payload,
+    const res = (await call(CH.overpayCreditPrint, {
+      creditId: id,
+      invoiceId,
+      firstPrintGrant: opts?.reprint === true ? undefined : credit?.firstPrintGrant,
       reprint: opts?.reprint === true ? true : undefined,
       password: opts?.password ?? undefined
     })) as { warnings?: string[] } | null | undefined
@@ -64,7 +65,8 @@ export async function printOverpayCredit(
     if (warnings.length) return { kind: 'warning', msg: warnings.join('\n') }
     return null
   } catch (e: any) {
-    if (isPrintCancelledError(e)) return null
+    if (isPrintCancelledError(e))
+      return { kind: 'failed', msg: 'چاپ لغو شد؛ اعتبار صادرشده سر جایش است. برای چاپ بعدی از مدیر تأیید بگیرید.' }
     if (isUnknownPrintMessage(e))
       return { kind: 'unknown', msg: `کد اعتبار صادر شد، اما معلوم نیست چاپ شده باشد: ${e.message} قبل از چاپ دوباره خروجی چاپگر را ببینید.` }
     return { kind: 'failed', msg: `کد اعتبار صادر شده ولی چاپ نشد: ${e.message} · از «چاپ دوباره‌ی کد» استفاده کنید.` }

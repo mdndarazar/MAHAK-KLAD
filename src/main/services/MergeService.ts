@@ -1012,6 +1012,7 @@ export async function mergeBackup(input: {
               note: strOrNull(r.note),
               refundMethod: strOrNull(r.refundMethod),
               refundAmount: rial(r.refundAmount),
+              refundStoreCreditAmount: rial(r.refundStoreCreditAmount),
               debtReduction: rial(r.debtReduction),
               voidedAt: dateOrNull(r.voidedAt),
               voidedByUserId: r.voidedByUserId != null ? userMap.get(num(r.voidedByUserId)) ?? null : null,

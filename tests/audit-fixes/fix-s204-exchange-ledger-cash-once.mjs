@@ -57,7 +57,7 @@ const inv = await salesService.create({
   lines: [{ variantId: variant(1_000_000), qty: 1, unitPrice: 1_000_000, discount: 0, tax: 0 }],
   payments: [{ methodId: cash, amount: 1_000_000, destination: 'CASH' }]
 })
-await salesService.createExchange({
+const exchange = await salesService.createExchange({
   invoiceId: inv.id,
   lines: [{ saleItemId: itemsOf(inv.id)[0].id, qty: 1 }],
   replacements: [{ variantId: variant(1_400_000), qty: 1 }],
@@ -66,6 +66,10 @@ await salesService.createExchange({
   shiftId
 })
 
+const pending = await salesLedger.ledger({ fromJalali: today, toJalali: today })
+eq('تعویض نقدی برگشت کالا را همان لحظه وارد انبار کرد', pending.totals.stockIn, 1)
+eq('موجودی برگشتی بدون رسید جداگانه کامل شد', exchange.restockedQty, 1)
+eq('تعویض جدید رسید فیزیکی جداگانه نساخت', seed.one('SELECT COUNT(*) n FROM "ReturnGoodsReceipt" WHERE returnId=?', exchange.returnId).n, 0)
 const led = await salesLedger.ledger({ fromJalali: today, toJalali: today })
 const saleRows = led.rows.filter((r) => r.eventType === 'SALE')
 const expRows = led.rows.filter((r) => r.eventType === 'EXCHANGE_REPLACEMENT')

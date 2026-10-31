@@ -1,0 +1,890 @@
+{
+  "generatedAt": "2026-10-27T18:33:34.307Z",
+  "scenario": "D80-S06",
+  "case": "last-to-first",
+  "mode": "STORE_CREDIT",
+  "fixture": {
+    "gross": 1450132,
+    "lineDiscount": 0,
+    "invoiceDiscount": 12345,
+    "net": 1437787,
+    "lines": [
+      {
+        "unitPrice": 100001,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 99150
+      },
+      {
+        "unitPrice": 110003,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 109067
+      },
+      {
+        "unitPrice": 120007,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 118985
+      },
+      {
+        "unitPrice": 130009,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 128902
+      },
+      {
+        "unitPrice": 140011,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 138819
+      },
+      {
+        "unitPrice": 150013,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 148736
+      },
+      {
+        "unitPrice": 160017,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 158655
+      },
+      {
+        "unitPrice": 170021,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 168574
+      },
+      {
+        "unitPrice": 180023,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 178490
+      },
+      {
+        "unitPrice": 190027,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 188409
+      }
+    ]
+  },
+  "isolatedDatabase": "/tmp/mahak-d80-s06-5HEGOu/isolated.db",
+  "status": "PASS",
+  "allocations": [
+    {
+      "saleItemId": 1,
+      "gross": 100001,
+      "lineDiscount": 0,
+      "lineBase": 100001,
+      "invoiceDiscountShare": 851,
+      "netShare": 99150
+    },
+    {
+      "saleItemId": 2,
+      "gross": 110003,
+      "lineDiscount": 0,
+      "lineBase": 110003,
+      "invoiceDiscountShare": 936,
+      "netShare": 109067
+    },
+    {
+      "saleItemId": 3,
+      "gross": 120007,
+      "lineDiscount": 0,
+      "lineBase": 120007,
+      "invoiceDiscountShare": 1022,
+      "netShare": 118985
+    },
+    {
+      "saleItemId": 4,
+      "gross": 130009,
+      "lineDiscount": 0,
+      "lineBase": 130009,
+      "invoiceDiscountShare": 1107,
+      "netShare": 128902
+    },
+    {
+      "saleItemId": 5,
+      "gross": 140011,
+      "lineDiscount": 0,
+      "lineBase": 140011,
+      "invoiceDiscountShare": 1192,
+      "netShare": 138819
+    },
+    {
+      "saleItemId": 6,
+      "gross": 150013,
+      "lineDiscount": 0,
+      "lineBase": 150013,
+      "invoiceDiscountShare": 1277,
+      "netShare": 148736
+    },
+    {
+      "saleItemId": 7,
+      "gross": 160017,
+      "lineDiscount": 0,
+      "lineBase": 160017,
+      "invoiceDiscountShare": 1362,
+      "netShare": 158655
+    },
+    {
+      "saleItemId": 8,
+      "gross": 170021,
+      "lineDiscount": 0,
+      "lineBase": 170021,
+      "invoiceDiscountShare": 1447,
+      "netShare": 168574
+    },
+    {
+      "saleItemId": 9,
+      "gross": 180023,
+      "lineDiscount": 0,
+      "lineBase": 180023,
+      "invoiceDiscountShare": 1533,
+      "netShare": 178490
+    },
+    {
+      "saleItemId": 10,
+      "gross": 190027,
+      "lineDiscount": 0,
+      "lineBase": 190027,
+      "invoiceDiscountShare": 1618,
+      "netShare": 188409
+    }
+  ],
+  "returns": [
+    {
+      "id": 1,
+      "step": 1,
+      "expectedNet": 188409,
+      "actualNet": 188409,
+      "refundMethod": "STORE_CREDIT",
+      "refundAmount": 188409,
+      "refundStoreCreditAmount": 0,
+      "items": [
+        {
+          "saleItemId": 10,
+          "qty": 1,
+          "unitPrice": 190027,
+          "lineTotal": 188409,
+          "restockedQty": 1
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "step": 2,
+      "expectedNet": 178490,
+      "actualNet": 178490,
+      "refundMethod": "STORE_CREDIT",
+      "refundAmount": 178490,
+      "refundStoreCreditAmount": 0,
+      "items": [
+        {
+          "saleItemId": 9,
+          "qty": 1,
+          "unitPrice": 180023,
+          "lineTotal": 178490,
+          "restockedQty": 1
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "step": 3,
+      "expectedNet": 168574,
+      "actualNet": 168574,
+      "refundMethod": "STORE_CREDIT",
+      "refundAmount": 168574,
+      "refundStoreCreditAmount": 0,
+      "items": [
+        {
+          "saleItemId": 8,
+          "qty": 1,
+          "unitPrice": 170021,
+          "lineTotal": 168574,
+          "restockedQty": 1
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "step": 4,
+      "expectedNet": 158655,
+      "actualNet": 158655,
+      "refundMethod": "STORE_CREDIT",
+      "refundAmount": 158655,
+      "refundStoreCreditAmount": 0,
+      "items": [
+        {
+          "saleItemId": 7,
+          "qty": 1,
+          "unitPrice": 160017,
+          "lineTotal": 158655,
+          "restockedQty": 1
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "step": 5,
+      "expectedNet": 148736,
+      "actualNet": 148736,
+      "refundMethod": "STORE_CREDIT",
+      "refundAmount": 148736,
+      "refundStoreCreditAmount": 0,
+      "items": [
+        {
+          "saleItemId": 6,
+          "qty": 1,
+          "unitPrice": 150013,
+          "lineTotal": 148736,
+          "restockedQty": 1
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "step": 6,
+      "expectedNet": 138819,
+      "actualNet": 138819,
+      "refundMethod": "STORE_CREDIT",
+      "refundAmount": 138819,
+      "refundStoreCreditAmount": 0,
+      "items": [
+        {
+          "saleItemId": 5,
+          "qty": 1,
+          "unitPrice": 140011,
+          "lineTotal": 138819,
+          "restockedQty": 1
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "step": 7,
+      "expectedNet": 128902,
+      "actualNet": 128902,
+      "refundMethod": "STORE_CREDIT",
+      "refundAmount": 128902,
+      "refundStoreCreditAmount": 0,
+      "items": [
+        {
+          "saleItemId": 4,
+          "qty": 1,
+          "unitPrice": 130009,
+          "lineTotal": 128902,
+          "restockedQty": 1
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "step": 8,
+      "expectedNet": 118985,
+      "actualNet": 118985,
+      "refundMethod": "STORE_CREDIT",
+      "refundAmount": 118985,
+      "refundStoreCreditAmount": 0,
+      "items": [
+        {
+          "saleItemId": 3,
+          "qty": 1,
+          "unitPrice": 120007,
+          "lineTotal": 118985,
+          "restockedQty": 1
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "step": 9,
+      "expectedNet": 109067,
+      "actualNet": 109067,
+      "refundMethod": "STORE_CREDIT",
+      "refundAmount": 109067,
+      "refundStoreCreditAmount": 0,
+      "items": [
+        {
+          "saleItemId": 2,
+          "qty": 1,
+          "unitPrice": 110003,
+          "lineTotal": 109067,
+          "restockedQty": 1
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "step": 10,
+      "expectedNet": 99150,
+      "actualNet": 99150,
+      "refundMethod": "STORE_CREDIT",
+      "refundAmount": 99150,
+      "refundStoreCreditAmount": 0,
+      "items": [
+        {
+          "saleItemId": 1,
+          "qty": 1,
+          "unitPrice": 100001,
+          "lineTotal": 99150,
+          "restockedQty": 1
+        }
+      ]
+    }
+  ],
+  "credits": [
+    {
+      "id": 1,
+      "amount": 188409,
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "returnId": 1
+    },
+    {
+      "id": 2,
+      "amount": 178490,
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "returnId": 2
+    },
+    {
+      "id": 3,
+      "amount": 168574,
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "returnId": 3
+    },
+    {
+      "id": 4,
+      "amount": 158655,
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "returnId": 4
+    },
+    {
+      "id": 5,
+      "amount": 148736,
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "returnId": 5
+    },
+    {
+      "id": 6,
+      "amount": 138819,
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "returnId": 6
+    },
+    {
+      "id": 7,
+      "amount": 128902,
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "returnId": 7
+    },
+    {
+      "id": 8,
+      "amount": 118985,
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "returnId": 8
+    },
+    {
+      "id": 9,
+      "amount": 109067,
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "returnId": 9
+    },
+    {
+      "id": 10,
+      "amount": 99150,
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "returnId": 10
+    }
+  ],
+  "managerTransfers": [],
+  "checkpoints": [
+    {
+      "label": "initial isolated DB",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": {
+        "actual": 200,
+        "ledger": 0
+      },
+      "expectedStock": 200,
+      "counts": {
+        "invoices": 0,
+        "returns": 0,
+        "payments": 0,
+        "cashMovements": 0,
+        "credits": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "sale recorded and paid: gross, direct/invoice discount, net and stock",
+      "expected": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 1437787
+      },
+      "actualService": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 1437787,
+      "stock": {
+        "actual": 190,
+        "ledger": -10
+      },
+      "expectedStock": 190,
+      "counts": {
+        "invoices": 1,
+        "returns": 0,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "last-to-first STORE_CREDIT step 1: return, settlement, stock and credit reconciled",
+      "expected": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 1437787
+      },
+      "actualService": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 1437787,
+      "stock": {
+        "actual": 191,
+        "ledger": -9
+      },
+      "expectedStock": 191,
+      "counts": {
+        "invoices": 1,
+        "returns": 1,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 1,
+        "checks": 0
+      }
+    },
+    {
+      "label": "last-to-first STORE_CREDIT step 2: return, settlement, stock and credit reconciled",
+      "expected": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 1437787
+      },
+      "actualService": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 1437787,
+      "stock": {
+        "actual": 192,
+        "ledger": -8
+      },
+      "expectedStock": 192,
+      "counts": {
+        "invoices": 1,
+        "returns": 2,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 2,
+        "checks": 0
+      }
+    },
+    {
+      "label": "last-to-first STORE_CREDIT step 3: return, settlement, stock and credit reconciled",
+      "expected": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 1437787
+      },
+      "actualService": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 1437787,
+      "stock": {
+        "actual": 193,
+        "ledger": -7
+      },
+      "expectedStock": 193,
+      "counts": {
+        "invoices": 1,
+        "returns": 3,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 3,
+        "checks": 0
+      }
+    },
+    {
+      "label": "last-to-first STORE_CREDIT step 4: return, settlement, stock and credit reconciled",
+      "expected": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 1437787
+      },
+      "actualService": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 1437787,
+      "stock": {
+        "actual": 194,
+        "ledger": -6
+      },
+      "expectedStock": 194,
+      "counts": {
+        "invoices": 1,
+        "returns": 4,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 4,
+        "checks": 0
+      }
+    },
+    {
+      "label": "last-to-first STORE_CREDIT step 5: return, settlement, stock and credit reconciled",
+      "expected": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 1437787
+      },
+      "actualService": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 1437787,
+      "stock": {
+        "actual": 195,
+        "ledger": -5
+      },
+      "expectedStock": 195,
+      "counts": {
+        "invoices": 1,
+        "returns": 5,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 5,
+        "checks": 0
+      }
+    },
+    {
+      "label": "last-to-first STORE_CREDIT step 6: return, settlement, stock and credit reconciled",
+      "expected": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 1437787
+      },
+      "actualService": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 1437787,
+      "stock": {
+        "actual": 196,
+        "ledger": -4
+      },
+      "expectedStock": 196,
+      "counts": {
+        "invoices": 1,
+        "returns": 6,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 6,
+        "checks": 0
+      }
+    },
+    {
+      "label": "last-to-first STORE_CREDIT step 7: return, settlement, stock and credit reconciled",
+      "expected": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 1437787
+      },
+      "actualService": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 1437787,
+      "stock": {
+        "actual": 197,
+        "ledger": -3
+      },
+      "expectedStock": 197,
+      "counts": {
+        "invoices": 1,
+        "returns": 7,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 7,
+        "checks": 0
+      }
+    },
+    {
+      "label": "last-to-first STORE_CREDIT step 8: return, settlement, stock and credit reconciled",
+      "expected": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 1437787
+      },
+      "actualService": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 1437787,
+      "stock": {
+        "actual": 198,
+        "ledger": -2
+      },
+      "expectedStock": 198,
+      "counts": {
+        "invoices": 1,
+        "returns": 8,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 8,
+        "checks": 0
+      }
+    },
+    {
+      "label": "last-to-first STORE_CREDIT step 9: return, settlement, stock and credit reconciled",
+      "expected": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 1437787
+      },
+      "actualService": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 1437787,
+      "stock": {
+        "actual": 199,
+        "ledger": -1
+      },
+      "expectedStock": 199,
+      "counts": {
+        "invoices": 1,
+        "returns": 9,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 9,
+        "checks": 0
+      }
+    },
+    {
+      "label": "last-to-first STORE_CREDIT step 10: return, settlement, stock and credit reconciled",
+      "expected": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 1437787
+      },
+      "actualService": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 1437787,
+      "stock": {
+        "actual": 200,
+        "ledger": 0
+      },
+      "expectedStock": 200,
+      "counts": {
+        "invoices": 1,
+        "returns": 10,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 10,
+        "checks": 0
+      }
+    }
+  ],
+  "findings": [],
+  "sale": {
+    "id": 1,
+    "gross": 1450132,
+    "lineDiscount": 0,
+    "invoiceDiscount": 12345,
+    "totalDiscount": 12345,
+    "net": 1437787,
+    "paid": 1437787,
+    "settled": true
+  },
+  "policyAssessment": {
+    "expectedNetReturnRight": 1437787,
+    "actualCustomerValue": 1437787,
+    "discountReturned": 0,
+    "deviations": []
+  },
+  "operationOutcome": "COMPLETED",
+  "final": {
+    "expected": {
+      "cash": 1437787,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 1437787
+    },
+    "actual": {
+      "cash": 1437787,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 1437787,
+    "stock": {
+      "actual": 200,
+      "ledger": 0
+    },
+    "invoices": 1,
+    "returns": 10,
+    "payments": 1,
+    "credits": 10,
+    "checks": 0
+  }
+}

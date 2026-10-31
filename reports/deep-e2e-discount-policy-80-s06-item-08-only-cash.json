@@ -1,0 +1,333 @@
+{
+  "generatedAt": "2026-10-27T18:32:44.978Z",
+  "scenario": "D80-S06",
+  "case": "item-08-only",
+  "mode": "CASH",
+  "fixture": {
+    "gross": 1450132,
+    "lineDiscount": 0,
+    "invoiceDiscount": 12345,
+    "net": 1437787,
+    "lines": [
+      {
+        "unitPrice": 100001,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 99150
+      },
+      {
+        "unitPrice": 110003,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 109067
+      },
+      {
+        "unitPrice": 120007,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 118985
+      },
+      {
+        "unitPrice": 130009,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 128902
+      },
+      {
+        "unitPrice": 140011,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 138819
+      },
+      {
+        "unitPrice": 150013,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 148736
+      },
+      {
+        "unitPrice": 160017,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 158655
+      },
+      {
+        "unitPrice": 170021,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 168574
+      },
+      {
+        "unitPrice": 180023,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 178490
+      },
+      {
+        "unitPrice": 190027,
+        "qty": 1,
+        "discount": 0,
+        "netShare": 188409
+      }
+    ]
+  },
+  "isolatedDatabase": "/tmp/mahak-d80-s06-1ISsaf/isolated.db",
+  "status": "PASS",
+  "allocations": [
+    {
+      "saleItemId": 1,
+      "gross": 100001,
+      "lineDiscount": 0,
+      "lineBase": 100001,
+      "invoiceDiscountShare": 851,
+      "netShare": 99150
+    },
+    {
+      "saleItemId": 2,
+      "gross": 110003,
+      "lineDiscount": 0,
+      "lineBase": 110003,
+      "invoiceDiscountShare": 936,
+      "netShare": 109067
+    },
+    {
+      "saleItemId": 3,
+      "gross": 120007,
+      "lineDiscount": 0,
+      "lineBase": 120007,
+      "invoiceDiscountShare": 1022,
+      "netShare": 118985
+    },
+    {
+      "saleItemId": 4,
+      "gross": 130009,
+      "lineDiscount": 0,
+      "lineBase": 130009,
+      "invoiceDiscountShare": 1107,
+      "netShare": 128902
+    },
+    {
+      "saleItemId": 5,
+      "gross": 140011,
+      "lineDiscount": 0,
+      "lineBase": 140011,
+      "invoiceDiscountShare": 1192,
+      "netShare": 138819
+    },
+    {
+      "saleItemId": 6,
+      "gross": 150013,
+      "lineDiscount": 0,
+      "lineBase": 150013,
+      "invoiceDiscountShare": 1277,
+      "netShare": 148736
+    },
+    {
+      "saleItemId": 7,
+      "gross": 160017,
+      "lineDiscount": 0,
+      "lineBase": 160017,
+      "invoiceDiscountShare": 1362,
+      "netShare": 158655
+    },
+    {
+      "saleItemId": 8,
+      "gross": 170021,
+      "lineDiscount": 0,
+      "lineBase": 170021,
+      "invoiceDiscountShare": 1447,
+      "netShare": 168574
+    },
+    {
+      "saleItemId": 9,
+      "gross": 180023,
+      "lineDiscount": 0,
+      "lineBase": 180023,
+      "invoiceDiscountShare": 1533,
+      "netShare": 178490
+    },
+    {
+      "saleItemId": 10,
+      "gross": 190027,
+      "lineDiscount": 0,
+      "lineBase": 190027,
+      "invoiceDiscountShare": 1618,
+      "netShare": 188409
+    }
+  ],
+  "returns": [
+    {
+      "id": 1,
+      "step": 1,
+      "expectedNet": 168574,
+      "actualNet": 168574,
+      "refundMethod": "CASH",
+      "refundAmount": 168574,
+      "refundStoreCreditAmount": 0,
+      "items": [
+        {
+          "saleItemId": 8,
+          "qty": 1,
+          "unitPrice": 170021,
+          "lineTotal": 168574,
+          "restockedQty": 1
+        }
+      ]
+    }
+  ],
+  "credits": [],
+  "managerTransfers": [],
+  "checkpoints": [
+    {
+      "label": "initial isolated DB",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": {
+        "actual": 200,
+        "ledger": 0
+      },
+      "expectedStock": 200,
+      "counts": {
+        "invoices": 0,
+        "returns": 0,
+        "payments": 0,
+        "cashMovements": 0,
+        "credits": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "sale recorded and paid: gross, direct/invoice discount, net and stock",
+      "expected": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 1437787
+      },
+      "actualService": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 1437787,
+      "stock": {
+        "actual": 190,
+        "ledger": -10
+      },
+      "expectedStock": 190,
+      "counts": {
+        "invoices": 1,
+        "returns": 0,
+        "payments": 1,
+        "cashMovements": 0,
+        "credits": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "item-08-only CASH step 1: return, settlement, stock and credit reconciled",
+      "expected": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 168574,
+        "refundCard": 0,
+        "blue": 1269213
+      },
+      "actualService": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 168574,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 1437787,
+        "card": 0,
+        "refundCash": 168574,
+        "refundCard": 0
+      },
+      "blue": 1269213,
+      "stock": {
+        "actual": 191,
+        "ledger": -9
+      },
+      "expectedStock": 191,
+      "counts": {
+        "invoices": 1,
+        "returns": 1,
+        "payments": 1,
+        "cashMovements": 1,
+        "credits": 0,
+        "checks": 0
+      }
+    }
+  ],
+  "findings": [],
+  "sale": {
+    "id": 1,
+    "gross": 1450132,
+    "lineDiscount": 0,
+    "invoiceDiscount": 12345,
+    "totalDiscount": 12345,
+    "net": 1437787,
+    "paid": 1437787,
+    "settled": true
+  },
+  "policyAssessment": {
+    "expectedNetReturnRight": 168574,
+    "actualCustomerValue": 168574,
+    "discountReturned": 0,
+    "deviations": []
+  },
+  "operationOutcome": "COMPLETED",
+  "final": {
+    "expected": {
+      "cash": 1437787,
+      "card": 0,
+      "refundCash": 168574,
+      "refundCard": 0,
+      "blue": 1269213
+    },
+    "actual": {
+      "cash": 1437787,
+      "card": 0,
+      "refundCash": 168574,
+      "refundCard": 0
+    },
+    "blue": 1269213,
+    "stock": {
+      "actual": 191,
+      "ledger": -9
+    },
+    "invoices": 1,
+    "returns": 1,
+    "payments": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

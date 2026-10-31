@@ -53,6 +53,7 @@ const {
 } = await import('@shared/enums')
 const { receiptBucketOf, calculateReconciliationBridge } = await import('@shared/accounting')
 const { toJalaliDate } = await import('@shared/jalali')
+const { DEFAULT_MANAGER_PASSWORD: PW } = await import('@shared/receipt')
 
 const db = harnessClient()
 const seed = makeSeeder(db)
@@ -218,7 +219,7 @@ section('بند ۲ · چک ۱۰٫۰۰۰٫۰۰۰ ریالی پاس‌شده به 
 
   await throwsWith(
     'پاس‌کردن چک با مقصد «کارت» رد شد (بند ۴-۱۲)',
-    () => salesService.setChequeStatus({ id: cheque.payment.id, status: ChequeStatus.CLEARED, destination: PaymentDestination.CARD, userId }),
+    () => salesService.setChequeStatus({ id: cheque.payment.id, status: ChequeStatus.CLEARED, destination: PaymentDestination.CARD, userId, managerPassword: PW }),
     PAYMENT_DESTINATION_LABELS.MANAGER
   )
   const row = paymentsOf(inv.id)[0]
@@ -239,7 +240,7 @@ section('بند ۳ · همان چک پاس‌شده به «نقد» ⇒ رد (ن
   const cheque = await addCheque(inv.id)
   await throwsWith(
     'پاس‌کردن چک با مقصد «نقد» رد شد (بند ۴-۱۲)',
-    () => salesService.setChequeStatus({ id: cheque.payment.id, status: ChequeStatus.CLEARED, destination: PaymentDestination.CASH, userId }),
+    () => salesService.setChequeStatus({ id: cheque.payment.id, status: ChequeStatus.CLEARED, destination: PaymentDestination.CASH, userId, managerPassword: PW }),
     PAYMENT_DESTINATION_LABELS.MANAGER
   )
   const v = await viewOf(shiftId)
@@ -260,7 +261,8 @@ section('بند ۴ · همان چک پاس‌شده به «حساب مدیر»')
     id: cheque.payment.id,
     status: ChequeStatus.CLEARED,
     destination: PaymentDestination.MANAGER,
-    userId
+    userId,
+    managerPassword: PW
   })
 
   eq('بدهی مشتری کم شد (مشتری واقعاً پرداخته)', res.paidTotal, CHEQUE_AMOUNT)
@@ -354,12 +356,12 @@ section('بند ۶ · اعتبارسنجی: مقصد اجباری و سازگا�
 
   await throwsWith(
     '«پاس شد» بدون مقصد رد می‌شود',
-    () => salesService.setChequeStatus({ id: cheque.payment.id, status: ChequeStatus.CLEARED, userId }),
+    () => salesService.setChequeStatus({ id: cheque.payment.id, status: ChequeStatus.CLEARED, userId, managerPassword: PW }),
     'مقصد پول را انتخاب کنید'
   )
   await throwsWith(
     'مقصد خالی («») هم رد می‌شود (پیش‌فرض ساخته نمی‌شود)',
-    () => salesService.setChequeStatus({ id: cheque.payment.id, status: ChequeStatus.CLEARED, destination: '', userId }),
+    () => salesService.setChequeStatus({ id: cheque.payment.id, status: ChequeStatus.CLEARED, destination: '', userId, managerPassword: PW }),
     'مقصد پول را انتخاب کنید'
   )
   await throwsWith(
@@ -369,8 +371,9 @@ section('بند ۶ · اعتبارسنجی: مقصد اجباری و سازگا�
         id: cheque.payment.id,
         status: ChequeStatus.CLEARED,
         destination: 'POCKET',
-        userId
-      }),
+        userId,
+    managerPassword: PW
+  }),
     'مقصد پول را انتخاب کنید'
   )
   eq('چک پس از رد شدن، هنوز در جریان است', paymentsOf(inv.id)[0].chequeStatus, ChequeStatus.PENDING)
@@ -438,11 +441,12 @@ section('بند ۷ · برگشت از «پاس شد» مقصد را پاک می�
     id: cheque.payment.id,
     status: ChequeStatus.CLEARED,
     destination: PaymentDestination.MANAGER,
-    userId
+    userId,
+    managerPassword: PW
   })
   eq('اول مقصد حساب مدیر ثبت شد', paymentsOf(inv.id)[0].destination, PaymentDestination.MANAGER)
 
-  const back = await salesService.setChequeStatus({ id: cheque.payment.id, status: ChequeStatus.PENDING, userId })
+  const back = await salesService.setChequeStatus({ id: cheque.payment.id, status: ChequeStatus.PENDING, userId, managerPassword: PW })
   eq('برگشت به «در جریان» مقصد را پاک کرد', paymentsOf(inv.id)[0].destination, null)
   eq('و تاریخ پاس شدن هم پاک شد', paymentsOf(inv.id)[0].clearedAt, null)
   eq('خروجی سرویس هم مقصد null می‌دهد', back.destination, null)
@@ -452,21 +456,22 @@ section('بند ۷ · برگشت از «پاس شد» مقصد را پاک می�
 
   await throwsWith(
     'بار بعد که پاس شود، مقصد دوباره پرسیده می‌شود',
-    () => salesService.setChequeStatus({ id: cheque.payment.id, status: ChequeStatus.CLEARED, userId }),
+    () => salesService.setChequeStatus({ id: cheque.payment.id, status: ChequeStatus.CLEARED, userId, managerPassword: PW }),
     'مقصد پول را انتخاب کنید'
   )
   await salesService.setChequeStatus({
     id: cheque.payment.id,
     status: ChequeStatus.CLEARED,
     destination: PaymentDestination.MANAGER,
-    userId
+    userId,
+    managerPassword: PW
   })
   const v2 = await viewOf(shiftId)
   eq('پاس دوباره فقط یک‌بار شمرده شد', v2.expected.managerAccountReceived, CHEQUE_AMOUNT)
   eq('نقد و کارتخوان دست‌نخورده', v2.expected.expectedCash + v2.c.cardExpected, 0)
 
   // «برگشت خورد» هم مقصد را پاک می‌کند
-  await salesService.setChequeStatus({ id: cheque.payment.id, status: ChequeStatus.BOUNCED, userId })
+  await salesService.setChequeStatus({ id: cheque.payment.id, status: ChequeStatus.BOUNCED, userId, managerPassword: PW })
   eq('برگشت‌خوردن چک مقصد را پاک کرد', paymentsOf(inv.id)[0].destination, null)
   const v3 = await viewOf(shiftId)
   eq('چکِ برگشت‌خورده در ردیف حساب مدیر نمی‌ماند', v3.expected.managerAccountReceived, 0)
@@ -488,7 +493,7 @@ section('بند ۸ · حذف پرداختی')
   const before = await viewOf(shiftId)
   eq('قبل از حذف، ردیف حساب مدیر پر است', before.expected.managerAccountReceived, 6_000_000)
 
-  const del = await salesService.deletePayment({ id: p.payment.id, userId, reason: 'ثبت اشتباه پرداخت' })
+  const del = await salesService.deletePayment({ id: p.payment.id, userId, reason: 'ثبت اشتباه پرداخت', managerPassword: PW })
   eq('ردیف پرداختی برای حسابرسی ماند و باطل شد', paymentsOf(inv.id).length, 1)
   eq('مهر ابطال روی ردیف ماند', seed.one('SELECT voidedAt FROM "Payment" WHERE id = ?', p.payment.id)?.voidedAt != null, true)
   eq('بدهی مشتری برگشت', del.remaining, INVOICE_TOTAL)
@@ -602,7 +607,8 @@ section('بند ۱۰ · بستن صندوقِ واقعی: ستون‌ها و sna
     id: cheque.payment.id,
     status: ChequeStatus.CLEARED,
     destination: PaymentDestination.MANAGER,
-    userId
+    userId,
+    managerPassword: PW
   })
   await salesService.addPayment({
     invoiceId: inv.id,

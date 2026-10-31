@@ -1818,3 +1818,73 @@ baseline: 162/162، 17/17، 144 OK، BUNDLE 1802085/33857/2072233، audit 84/84.
 وضعیت خوشه‌ها: مثل ۱۰-۱۵۱ به‌علاوه‌ی ۱۴۳-intOf ✅، ۱۱۱ ✅، ۱۰۰ تصمیم، ۸۹-دوم کهنه؛ Backup-gate باز.
 محدودیت‌های قطعی: Prisma Client واقعی، typecheck واقعی، رندر واقعی Electron/React، migration داده‌ی تاریخی، race چندپردازه‌ای، crash/قطع برق، timezone غیر Asia/Tehran، حجم ۵۰٬۰۰۰+ اجرا نشدند.
 فایل‌های تغییرکرده: src/shared/creditUi.ts، src/main/services/FraudService.ts، src/main/ipc/index.ts، test/harness/prismaLite.mjs؛ تست‌های تازه: tests/audit-fixes/fix-s179-credit-form-strict-integer.mjs، fix-s179-fraud-actor-duplicate-cheque.mjs؛ TESTLOG-s179*.txt؛ patchها؛ PROGRESS.md، DECISIONS.md، TESTLOG.md، AUDIT-PROGRESS.md؛ HANDOFF-PROMPT-next.txt (قبلی: HANDOFF-PROMPT-next-session178.txt).
+
+## نشست ۱۹۰ — رگرسیون پس از purge/lineage/test-fixture اصلاحات
+
+**محیط:** `npm install --ignore-scripts` موفق (۵۵۷ بسته؛ npm گزارش ۳۲ آسیب‌پذیری: ۱۰ متوسط، ۲۱ بالا، ۱ بحرانی). نصب عادی در اسکریپت Electron به خطای TLS خورد. `npx prisma generate` هم به `binaries.prisma.sh` با خطای TLS نرسید؛ بنابراین Prisma Client تولیدشده موجود نیست.
+
+**رگرسیون کامل:** `bash tools/run-regression.sh /home/user/MAHAK-KLAD /tmp/mahak-regression-followup.txt 4` اجرا شد؛ حدود ۱۲٫۵ دقیقه. نتیجهٔ همان اجرای کامل (پیش از اصلاح assertion S142):
+
+| بخش | نتیجه |
+|---|---:|
+| typecheck | مسدود: ۷۲۵ خطای cascading از `@prisma/client` فاقد `PrismaClient`/`Prisma`؛ نتیجهٔ معتبر برای قضاوت type errorهای تغییرات نیست |
+| guardهای money fields / coverage | PASS؛ ۶۶۲/۶۶۲ فیلد و پوشش همهٔ پوشه‌ها |
+| audit-fixes | ۴۵۳/۴۵۴؛ تنها `fix-s130-a4-layout.mjs` با exit 77، مرورگر لازم در محیط حاضر نیست |
+| audit | ۸۳/۸۴؛ assertion قدیمی S142 دربارهٔ حذف پرداخت مبدأ پس از void تعویض نادرست بود؛ پس از اصلاح تست، اجرای متمرکز S142 برابر ۳۹/۰ |
+| management | ۶۲/۶۲ |
+| SMS | ۱۱/۱۱ |
+| legacy | ۱۷/۱۷ |
+| esbuild syntax | ۲۷۳ OK / ۰ FAIL |
+| bundle | main 3,781,272؛ preload 50,367؛ renderer 3,453,359 بایت؛ صفر warning |
+
+**تست‌های پس از اجرای کامل:** `mgmt-category-multi-return-cap.mjs` ۵/۰، `mgmt-s221-multi-return-cap.mjs` ۹/۰؛ هر دو fixture trigger را فقط حین ساخت تاریخچهٔ قدیمی کنار می‌گذارند و DDL را قبل از خواندن سرویس برمی‌گردانند. `audit-s142-credit-method-gate.mjs` پس از اصلاح lineage انتظار، ۳۹/۰. S177 purge: ۲۷/۰؛ S105 propagation: ۸/۰؛ S340 characterization: PASS. `check-money-fields`, `check-test-coverage`, `git diff --check` و syntax سه تست تغییرکرده نیز PASS.
+
+**تفسیر/محدودیت:** اجرای کامل بعد از آخرین اصلاح S142 هنوز تکرار نشده است؛ ازاین‌رو نباید آن را «رگرسیون کامل سبز» اعلام کرد. S130 exit 77 نیازمند مرورگر واقعی/پشتیبانی‌شده است، نه به‌عنوان PASS گزارش شود. Typecheck تا تولید موفق Prisma Client باز است. هیچ‌یک از نتایج harness یا bundle به‌تنهایی تکمیل lineage/expiry/idempotency/reversal/invariants یا ۱۲ سناریوی تجاری را ثابت نمی‌کند؛ گیت تسویهٔ تعویض اعتبارمحور بسته می‌ماند.
+
+### به‌روزرسانی نهایی S190 — رگرسیون کامل پس از آخرین اصلاح
+
+اجرای کامل پس از اصلاح assertion در S142: `bash tools/run-regression.sh /home/user/MAHAK-KLAD /tmp/mahak-regression-final-s190.txt 4`، ۲۰۲۶-۱۰-۲۰ ساعت ۱۹:۲۷:۴۷ تا ۱۹:۴۰:۱۲ UTC.
+
+- audit-fixes: ۴۵۳/۴۵۴؛ تنها `fix-s130-a4-layout.mjs` با exit 77 چون مرورگر لازم موجود نیست.
+- audit: ۸۴/۸۴؛ management: ۶۲/۶۲؛ SMS: ۱۱/۱۱؛ legacy: ۱۷/۱۷.
+- money-field guard و coverage guard: PASS. esbuild: ۲۷۳ OK/۰ FAIL؛ bundle main/preload/renderer به‌ترتیب 3,781,272 / 50,367 / 3,453,359 بایت، صفر warning.
+- typecheck همچنان ۷۲۵ خطای آبشاری دارد چون Prisma Client (`PrismaClient`/`Prisma`) تولید نشده است؛ علت محیطیِ قابل‌مشاهده: `npx prisma generate` به‌علت TLS به `binaries.prisma.sh` نرسید. این را نه PASS و نه اشکال قطعی سورس گزارش نمی‌کنیم.
+- نتیجهٔ runner غیرصفر است فقط به‌دلیل typecheck مسدود و تست PDF با exit 77؛ تمام تست‌های اجراییِ پشتیبانی‌شده سبزند. با این حال این نتیجه همچنان تکمیل تجاری S1–S12 یا مجوز بازکردن گیت تسویه نیست.
+
+## ادامهٔ S190 — ماتریس S1–S12 و probe منبع مختلط S4
+
+- ساخته شد: `docs/design/2026-10-20-s1-s12-implementation-evidence-fa.md`. هر ۱۲ سناریو به‌صورت PARTIAL/NOT ACCEPTED یا NO ACCEPTANCE EVIDENCE ثبت شده؛ تست‌های جزء از اثبات سناریوی end-to-end جدا شده‌اند.
+- تست pure S4 در `fix-financial-exchange-funding-gift-first-allocation.mjs`: ۵M هدیه + ۲۰M وجه، سه قلم ۱۰M/۱۰M/۵M ⇒ ماتریس (۲/۸، ۲/۸، ۱/۴ میلیون)؛ یک واحد برگشت از قلم ۵M ⇒ ۲۰۰K هدیه + ۸۰۰K وجه؛ chunk بعدی دقیقاً تکمیل می‌کند. PASS.
+- Probe فلو واقعی ابتدا با انتظار پذیرش `createExchange` اجرا شد و به BusinessErrorِ redemption gate رسید. بررسی کد نشان داد `getCurrentSaleFundingSources` هر دو root فروش را اثبات می‌کند، اما `runReturn(applyRefund:false)` هر active redemption را blanket blocker می‌گیرد؛ بعدتر هم transfer plan فعلی صرفاً sourceهای real-money هم‌کلاس را منتقل می‌کند. حذف تنها شرط redemption می‌توانست child بدون pair transfer بسازد، پس production gate دست‌نخورده ماند.
+- probe به characterization صادقانه تبدیل شد: `fix-financial-exchange-s4-three-line-integration.mjs` فروش واقعی mixed را می‌سازد، reader و candidate matrix را بررسی می‌کند، رد فعلی را انتظار دارد و صفر بودن تغییرات return/credit/payment/redemption/ledger/cash/stock را assert می‌کند. PASS؛ این، قبولی S2/S4 نیست.
+- ده تست متمرکز هم اجرا شدند و همگی PASS شدند: `fix-financial-credit-funded-exchange-scenario.mjs`, `fix-financial-exchange-funding-gift-first-allocation.mjs`, `fix-financial-exchange-funding-ledger-service.mjs`, `fix-financial-exchange-funding-sales-integration.mjs`, `fix-financial-exchange-child-return-correction-guard.mjs`, `fix-financial-exchange-expired-gift-lineage-attribution.mjs`, `fix-financial-exchange-return-line-reversal-completeness.mjs`, `fix-financial-f5-entitlement.mjs`, `fix-financial-credit-return-provenance.mjs`, `fix-s197-exchange-nasiyeh-cash-refund.mjs`؛ سپس هر دو تست S4 جداگانه دوباره PASS شدند.
+- پس از افزودن تست، `check-test-coverage` (audit-fixes=459)، `check-money-fields` (۶۶۲/۶۶۲)، `git diff --check` و syntax هر دو تست S4 PASS شدند.
+- نتیجهٔ گام: سناریوی واقعی mixed equal-value exchange هم فعلاً بسته است، حتی وقتی source rootهای sale اثبات می‌شوند. گام بعد production باید preflight اتمیک `createExchange` را طوری طراحی کند که delta، snapshot منشأ، ماتریس قلمی و برنامهٔ settlement پیش از `runReturn` مشخص باشند؛ گیت برداشته نشود و diffهای بدون lifecycle هیچ اثر نگذارند.
+- رگرسیون کامل ۱۹:۲۷–۱۹:۴۰ UTC قبل از افزودن این دو تست S4 اجرا شده بود. در این مرحله production code تغییری نکرد؛ هر دو تست جدید جداگانه و `check-test-coverage` (۴۵۹ فایل) اجرا شدند، اما full regression پس از افزودنشان دوباره اجرا نشده است.
+
+## S190 — اجرای محدود carry mixed-source صفر-اختلاف
+
+- ابتدا نسخهٔ fail-first تست پذیرش اجرا شد: `fix-financial-exchange-s4-three-line-integration.mjs` با BusinessErrorِ active redemption رد شد (انتظار پیش از تغییر کد تأیید شد).
+- پس از پیاده‌سازی narrow preflight و حفظ USED redemption، همان تست PASS شد: تعویض واقعی 25M=25M، 2 TRANSFER_OUT و 2 TRANSFER_IN دقیقاً جفت، ماتریس child شش سهم (cash 8/8/4M؛ gift 2/2/1M)، source totals 20M/5M؛ no new StoreCredit. برگشت جزئی فرزند فقط attribution preview دارد؛ createReturn رد شد و return/cash/credit/entitlement/event/stock-movement شمارش‌ها تغییر نکرد.
+- رگرسیون هدفمند، هر کدام فرمان node harness: `fix-financial-exchange-funding-gift-first-allocation.mjs` PASS؛ `fix-financial-exchange-funding-ledger-service.mjs` PASS؛ `fix-financial-exchange-funding-snapshot.mjs` PASS؛ `fix-financial-exchange-funding-line-return.mjs` PASS (8,512 exhaustive cases)؛ `fix-financial-exchange-funding-sales-integration.mjs` PASS؛ `fix-financial-exchange-child-return-correction-guard.mjs` PASS؛ `fix-financial-exchange-expired-gift-lineage-attribution.mjs` PASS؛ `fix-financial-exchange-return-line-reversal-completeness.mjs` PASS؛ `fix-financial-credit-funded-exchange-scenario.mjs` PASS (mixed delta و tender/lineage آلوده همچنان fail-closed).
+- پس از افزودن guardِ snapshot stale/unresolved، ابتدا characterization سناریوی CUSTOM یک بار فقط به‌علت تفاوت متن خطای gate در assertion شکست خورد (رفتار همچنان reject/rollback بود)؛ متن به خانوادهٔ پیام fail-closed همسان شد. سپس `fix-financial-exchange-s4-three-line-integration.mjs`, `fix-financial-exchange-funding-sales-integration.mjs` و `fix-financial-credit-funded-exchange-scenario.mjs` دوباره و جداگانه PASS شدند.
+- `npm run typecheck`: اجرا نشد (exit 127، `tsc: not found`). `npm run check:syntax`: SKIPPED چون esbuild نصب نیست؛ exit 0 ابزار به‌معنای PASS syntax نیست. `git diff --check` خروجی خطا نداشت.
+- مرحلهٔ تکمیلی S4/S12، تست-first reversal: ابتدا assertion stock فرض کرد کالای source پیش‌تر دریافت فیزیکی شده و شکست خورد (void صحیح stock source را تغییر نداده بود). بررسی `goodsReceiptRequired` نشان داد برگشت هنوز pending است؛ انتظار تست اصلاح شد تا عدم ساخت شاهد دریافت را بسنجد.
+- پس از اصلاح assertion، integration واقعی PASS شد: void تعویض مختلطِ استفاده‌نشده هر دو pair را append-only معکوس کرد؛ funding مبدأ به 20M cash + 5M gift برگشت، gift همچنان USED ماند، replacement stock یک‌بار بازگشت، source stock بدون goods receipt دست‌نخورده ماند و cash movement جدید ساخته نشد.
+- این مرحله فقط carry mixed-source با diff=0، برگشت کامل source invoice، snapshot دقیق و reversal پیش از هر مصرف downstream را پوشش می‌دهد. Delta مختلط، lineage/snapshot ناقص، entitlement/settlement فرزند، reversal بعد از downstream effect و پذیرش S1–S12 همچنان بسته/NOT ACCEPTED. Full regression این تغییرها را پوشش نداده است.
+
+تست‌های جداگانه پس از توسعهٔ reversal: `fix-financial-exchange-s4-three-line-integration.mjs` PASS؛ `fix-financial-exchange-funding-sales-integration.mjs` PASS؛ `fix-financial-exchange-child-return-correction-guard.mjs` PASS؛ `fix-financial-exchange-funding-ledger-service.mjs` PASS.
+## S2 — idempotency کامل درخواست تعویض (مرحلهٔ محدود)
+
+- Fail-first: به تست S4 همان `idempotencyKey` اضافه شد؛ قبل از پیاده‌سازی، retry دوباره به `runReturn` رسید و با qty قابل‌برگشت صفر رد شد. این شکست، نبود replay در createExchange را ثابت کرد.
+- پیاده‌سازی: `ExchangeSaleInput` کلید caller-held می‌گیرد؛ fingerprint SHA-256 سرور payload اقتصادی، actor و goodsReceipt policy را می‌بندد و رمزها را ذخیره/هش نمی‌کند. SaleReturn همان key/fingerprint و snapshot response را در همان transaction نگه می‌دارد. پیش‌خواندن و بازخوانی داخل transaction replay می‌کنند؛ mismatch key/payload رد می‌شود؛ conflict/SQLite contention با backoff محدود retry و re-read می‌شود. IPC کلید را اجباری کرده و روی replay مجوز first-print تازه نمی‌سازد.
+- Renderer پیش از IPC کلید و digest را در namespace مستقل sessionStorage ذخیره و read-back می‌کند؛ payload تغییرکرده key تازه می‌گیرد، شکست IPC identity را نگه می‌دارد، موفقیت فقط همان key را پاک می‌کند. sessionStorage payload، رمز مدیر یا credential اعتباری ندارد.
+- تست‌ها: `fix-financial-exchange-s4-three-line-integration.mjs` PASS (same-key replay بدون duplicate، mismatch رد بی‌اثر، پس از void هم replay احیای exchange نمی‌کند)؛ `fix-financial-ordinary-credit-print.mjs` PASS (IPC کلید مفقود رد، replay بدون effect و بدون grant چاپ دوم)؛ `fix-financial-return-idempotency-client.mjs` PASS (return قدیمی همچنان سالم + namespace/پایداری exchange)؛ `audit-s141-return-ipc-actor-verify.mjs` ۱۲/۰؛ `audit-s172-stale-observations-verify.mjs` ۱۴/۰؛ `fix-s369-return-exchange-panel-ipc-gate.mjs` ۸/۰؛ `fix-financial-exchange-funding-sales-integration.mjs` PASS؛ `fix-financial-credit-funded-exchange-scenario.mjs` PASS.
+- probe `Promise.all` در یک process به‌علت shared transaction/snapshot PrismaLite رفتار غیرنماینده داشت و به‌عنوان قبولی/شکست محصول طبقه‌بندی نشد. سپس `tests/audit-fixes/helpers/exchange-idempotency-worker.mjs` و race مستقل چندپردازه‌ای افزوده شد. هر race دو process/connection را با barrier آزاد می‌کند: همان key/payload ⇒ هر دو موفق با returnId/exchangeInvoiceId یکسان و replay flags `[false,true]`؛ همان key/payload متفاوت ⇒ یک موفق و یک mismatch ردشده، با یک SaleReturn/child/return line و فقط یک inventory deduction. تست `fix-financial-exchange-funding-sales-integration.mjs` سه بار متوالی PASS شد.
+- در گام تطبیق گزارش، `fix-financial-exchange-s4-three-line-integration.mjs` به flow واقعی `exchangeList` و `exchangeGet` وصل شد. PASS: return/exchange هرکدام 25M، diff=0، مبلغ سه قلم هر طرف 25M، totals بازه با همان ردیف، cash/card دریافتی در سند فرزند صفر چون tender آن EXCHANGE_CREDIT است، و خواندن گزارش بدون CashMovement.
+- پس از این گام، `fix-financial-exchange-funding-line-return.mjs` PASS (۸٬۵۱۲ ترکیب + cumulative/chunk invariant و MAX_SAFE_INTEGER)، `audit-s117-exchange-get-sale-list.mjs` PASS (۱۴/۰)، `fix-financial-exchange-child-return-correction-guard.mjs` PASS، و `fix-financial-exchange-funding-sales-integration.mjs` PASS (race مستقل process).
+- گام S190 گزارش provenance برگشت child، fail-first: دو برگشت فیزیکی child با allocation persisted در `returnList` هیچ فیلد share نداشتند؛ assertion به‌درستی شکست. سپس DTO/read-only report projection و ستون جدول/A4/Excel اضافه شد.
+- گزارش missing rows را `INCOMPLETE` نشان می‌دهد؛ complete rows را `ATTRIBUTION_ONLY` با `settlementReady:false` و سهم‌های مجزا برای gift/cash/card/cheque. formatter نامعتبر/settlementReady=true را هم نامکمل نشان می‌دهد. ordinary sale returns `NOT_APPLICABLE` می‌مانند؛ برگشت void‌شده پس از reversal از فهرست فعال حذف می‌شود.
+- `fix-financial-exchange-funding-ledger-service.mjs` اکنون ترتیب‌های 1/50/49 و 1/49/50 را هم در allocation ledger و هم در ReturnList می‌سنجد: سهم 1 ریال gift بین برگشت 49 یا 50 واحد جابه‌جا می‌شود، اما جمع هر ترتیب دقیقاً 1 gift + 999 cash است. chunkهای پس از انقضا نیز گزارش تاریخی 300 gift + 700 cash می‌دهند؛ refund صفر و هیچ entitlement/payout نیست.
+- `fix-financial-exchange-funding-sales-integration.mjs` PASS؛ attribution دو chunk 500 را per-item نشان می‌دهد، انتساب ناقص را صفر/وجه حدس نمی‌زند و اثرهای پولی/اعتبار/ledger گزارش را تغییر نمی‌دهد. `fix-financial-exchange-funding-ledger-service.mjs`، `fix-financial-exchange-return-line-reversal-completeness.mjs`، `fix-financial-exchange-funding-line-return.mjs` (۸٬۵۱۲ حالت)، `audit-s117-exchange-get-sale-list.mjs` (۱۴/۰)، correction guard و `fix-s329-return-exchange-report-credit-redaction.mjs` (۲۲/۰) نیز PASS.
+- `check-test-coverage.mjs` PASS (audit=84، audit-fixes=459)؛ `check-money-fields.mjs` PASS (662/662)؛ `git diff --check` PASS. Esbuild syntax برای SalesService، shared types، SalesReports و helper جدید PASS. `npm run typecheck` exit 127 (`tsc: not found`). Full regression اجرا نشده؛ concurrency production Prisma DB و پذیرش ۱۲ سناریو هنوز اثبات نشده است. child-return rows این گام SQLite-seeded هستند چون `createReturn` child همچنان fail-closed است.

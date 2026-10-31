@@ -83,8 +83,11 @@ const twoItems = async (paid) => {
   const inv = await salesService.create({ userId, shiftId, lines: [line(a, 600), line(b, 400)], payments: paid > 0 ? [{ methodId: cash, amount: paid, destination: 'CASH' }] : [] })
   return { inv, a, b, items: itemsOf(inv.id) }
 }
+// This suite exercises pre-cutover void arithmetic; the new independent
+// physical receipt contract has its own all-methods/correction regression.
 const ret = (invoiceId, saleItemId, refundMethod = RefundMethod.NONE, refundAmount = undefined) =>
-  salesService.createReturn({ invoiceId, full: false, lines: [{ saleItemId, qty: 1 }], refundMethod, refundAmount, userId })
+  salesService.createReturn({ invoiceId, full: false, lines: [{ saleItemId, qty: 1 }], refundMethod, refundAmount, userId },
+    { goodsReceiptRequired: false })
 const retId = (r) => r?.id ?? r?.returnId
 const report = async () => {
   const filter = { fromJalali: today, toJalali: today }

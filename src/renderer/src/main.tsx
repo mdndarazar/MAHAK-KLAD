@@ -13,6 +13,8 @@ import ManagementReports from './pages/ManagementReports'
 import SmsPanel from './pages/SmsPanel'
 import WooSync from './pages/WooSync'
 import CashClose from './pages/CashClose'
+import CashClosingLanding from './pages/CashClosingLanding'
+import CashCloseHistory from './pages/CashCloseHistory'
 import Consolidation from './pages/Consolidation'
 import SalesReturn from './pages/SalesReturn'
 import Settings from './pages/Settings'
@@ -58,7 +60,9 @@ function ChargesGate({ kind, scope }: { kind: 'tax' | 'service'; scope: 'pos' | 
 const router = createHashRouter([
   {
     path: '/',
-    element: <Shell />,
+    // Only operational routes mount the writer-capable session provider and
+    // Shell (CustodyChip, shift/expected-cash status, settings bootstrap).
+    element: <ManagerSessionProvider><Shell /></ManagerSessionProvider>,
     children: [
       { index: true, element: <Dashboard /> },
       {
@@ -157,7 +161,7 @@ const router = createHashRouter([
         )
       },
       {
-        path: 'cash-close',
+        path: 'cash-close/operate',
         element: (
           <ManagerGate panel={PANEL_KEYS.cashClose} title="بستن صندوق" reason="بستن صندوق پایان شیفت را ثبت می‌کند و دریافتی‌های شیفت را نشان می‌دهد، پس با رمز باز می‌شود.">
             <CashClose />
@@ -257,7 +261,11 @@ const router = createHashRouter([
         )
       }
     ]
-  }
+  },
+  // Route selection happens BEFORE Shell/provider is mounted. F10 and every
+  // existing /cash-close link land here, never on the operational page first.
+  { path: '/cash-close', element: <CashClosingLanding /> },
+  { path: '/cash-close/history', element: <CashCloseHistory /> }
 ])
 
 /**
@@ -277,9 +285,9 @@ enableTableLayoutFab()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {/* «نشست مدیر» باید بالاتر از روتر باشد تا با جابه‌جایی بین پنل‌ها از بین نرود */}
-    <ManagerSessionProvider>
-      <RouterProvider router={router} />
-    </ManagerSessionProvider>
+    {/* The manager/custody operational tree exists only inside the Shell route.
+        Main owns the actual login across route unmount/remount; the history
+        branch authenticates independently without settings migration. */}
+    <RouterProvider router={router} />
   </React.StrictMode>
 )
