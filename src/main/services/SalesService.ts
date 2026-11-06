@@ -8455,6 +8455,39 @@ export const salesService = {
         } })
       }
 
+      // D+C کم‌ریسک: برای تعویضِ مثبت (B) که فاکتورِ مبدأ خودش فرزندِ تعویض است،
+      // یک ردیفِ صفرِ invoice-wide (ALL pooled) ثبت می‌کنیم تا زنجیرهٔ بعدی (C+D)
+      // بتواند pool را بازسازی کند. مبلغ صفر است پس هیچ اثرِ مالی ندارد؛ فقط
+      // lineage را حفظ می‌کند. این دقیقاً پیشنهادِ «ردیف صفر» مشاورِ مستقل است.
+      if (diff > 0 && Number(source.sourceInvoiceId) > 0 && String(source.orderType) === 'EXCHANGE') {
+        try {
+          const provenanceBucket = eligibleSourceCreditFunding.find((bucket) => Number(bucket.sourceRedemptionId) > 0) ??
+            sourceCreditBuckets.find((bucket) => Number(bucket.sourceRedemptionId) > 0)
+          if (provenanceBucket && Number(provenanceBucket.sourceRedemptionId) > 0 && Number(provenanceBucket.credit?.id) > 0) {
+            const provenanceEventKey = `exchange-return-credit:v${RETURN_CREDIT_POLICY_VERSION}:r${back.id}:d${provenanceBucket.sourceRedemptionId}:iNO_SHARE`
+            const existingProvenance = await (tx as any).creditReturnAllocation.findUnique({ where: { eventKey: provenanceEventKey } }).catch(() => null)
+            if (!existingProvenance) {
+              await tx.creditReturnAllocation.create({ data: {
+                eventKey: provenanceEventKey,
+                invoiceId: Number(source.id),
+                returnId: Number(back.id),
+                redemptionId: Number(provenanceBucket.sourceRedemptionId),
+                sourceCreditId: Number(provenanceBucket.credit.id),
+                amount: 0,
+                creditRestored: false,
+                settlementAdjusted: false,
+                restrictScope: String(provenanceBucket.credit.restrictScope ?? 'ALL'),
+                saleItemId: null,
+                policyVersion: RETURN_CREDIT_POLICY_VERSION,
+                createdAt: now
+              } })
+            }
+          }
+        } catch {
+          // ردیفِ صفر فقط lineage است؛ اگر به هر دلیل ثبت نشد، تعویض نباید بشکند.
+        }
+      }
+
       finalRefundValue = sourceCreditRestoredAmount + realMoneySurplusBeforeDebt
       const noTransferRefundValue = Number(
         transferPreview.discountTransfer?.options.find((option) => option.option === 'NO')?.refundValue ?? finalRefundValue
