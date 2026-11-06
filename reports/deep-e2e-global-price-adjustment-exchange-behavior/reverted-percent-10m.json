@@ -1,0 +1,63 @@
+{
+  "case": "reverted-percent-10m",
+  "phase": "reverted",
+  "promo": "percent",
+  "targetBase": 10000000,
+  "targetType": "equal-retail",
+  "isolatedDatabase": "/tmp/mahak-global-exchange-reverted-percent-10m-6dFRkB/isolated.db",
+  "status": "PASS",
+  "priceAdjustment": {
+    "batchId": 1,
+    "scope": "ALL",
+    "kind": "DISCOUNT",
+    "mode": "PERCENT",
+    "value": 10,
+    "sourceBase": 10000000,
+    "sourceAfterDiscount": 9000000,
+    "targetBase": 10000000,
+    "targetAfterDiscount": 9000000,
+    "reverted": {
+      "restoredCount": 2,
+      "targetRestoredPrice": 10000000
+    }
+  },
+  "sale": {
+    "grossBeforeDiscount": 10000000,
+    "paid": 9000000,
+    "sourceUnitPrice": 9000000,
+    "sourceLineDiscount": 0
+  },
+  "exchange": {
+    "sourceReturnNet": 9000000,
+    "replacementPriceAtExchange": 10000000,
+    "replacementBase": 10000000,
+    "diff": 1000000,
+    "direction": "collect-from-customer",
+    "cashReceived": 1000000,
+    "cashRefunded": 0,
+    "refundMethod": "NONE",
+    "exchangeSettlement": "CASH"
+  },
+  "reconciliation": {
+    "cashIn": 10000000,
+    "cashOut": 0,
+    "blue": 10000000,
+    "stock": [
+      {
+        "name": "source",
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "replacement",
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "previewDiff": 1000000
+  },
+  "policyProbe": {
+    "yesNoChoiceAvailableInCurrentExchangeApi": false,
+    "meaning": "No yes/no discount-transfer decision is implemented or passed to createExchange. Exchange uses the source invoice line net and current replacement ProductVariant.salePrice."
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "case": 7,
+  "status": "BLOCKED",
+  "isolatedDatabase": "/tmp/mahak-exch-credit-case7-biGIb3/isolated.db",
+  "amounts": {
+    "sourceSale": 1000000,
+    "cashActuallyPaid": 700000,
+    "remainingDebt": 300000,
+    "replacement": 500000,
+    "negativeDifference": 500000,
+    "expectedDebtReduction": 300000,
+    "expectedStoreCredit": 200000,
+    "expectedCashRefund": 0
+  },
+  "actual": {
+    "error": "سهم وجه واقعیِ قابل‌تسویه ۱٬۰۰۰٬۰۰۰ ریال است، اما در زنجیره فقط ۷۰۰٬۰۰۰ ریال وجه وصول‌شده و قابل‌ردیابی وجود دارد. اعتبار، چکِ وصول‌نشده یا بدهی به‌جای پول واقعی بازپرداخت نمی‌شود.",
+    "mutationFree": true,
+    "sourceInvoiceId": 1,
+    "reportTotals": {
+      "count": 1,
+      "goodsTotal": 1000000,
+      "taxTotal": 0,
+      "serviceTotal": 0,
+      "discountTotal": 0,
+      "deliveryTotal": 0,
+      "grandTotal": 1000000,
+      "cashTotal": 700000,
+      "cardTotal": 0,
+      "creditTotal": 0,
+      "otherTotal": 0,
+      "receivedTotal": 700000,
+      "returnedTotal": 0,
+      "exchangeCreditTotal": 0,
+      "storeCreditUsedTotal": 0,
+      "storeCreditIssuedTotal": 0,
+      "exchangeCount": 0,
+      "exchangeDiffTotal": 0,
+      "overpayTotal": 0,
+      "creditRemainingTotal": 300000,
+      "priorSettlementTotal": 0,
+      "netReceivedTotal": 700000,
+      "exchangeReturnedTotal": 0,
+      "refundCashTotal": 0,
+      "refundCardTotal": 0,
+      "refundDebtOnlyTotal": 0,
+      "storeCreditRefundTotal": 0,
+      "legacyRefundCount": 0,
+      "managerAccountTotal": 0,
+      "destinationUnknownTotal": 0
+    },
+    "before": {
+      "invoices": [
+        {
+          "id": 1,
+          "grandTotal": 1000000,
+          "paidTotal": 700000,
+          "status": "SETTLED",
+          "settledAt": null
+        }
+      ],
+      "returns": 0,
+      "payments": 1,
+      "cashMovements": 0,
+      "credits": 0,
+      "stock": [
+        {
+          "id": 1,
+          "onHand": 99,
+          "ledger": -1
+        },
+        {
+          "id": 2,
+          "onHand": 100,
+          "ledger": 0
+        }
+      ],
+      "blue": 700000
+    },
+    "after": {
+      "invoices": [
+        {
+          "id": 1,
+          "grandTotal": 1000000,
+          "paidTotal": 700000,
+          "status": "SETTLED",
+          "settledAt": null
+        }
+      ],
+      "returns": 0,
+      "payments": 1,
+      "cashMovements": 0,
+      "credits": 0,
+      "stock": [
+        {
+          "id": 1,
+          "onHand": 99,
+          "ledger": -1
+        },
+        {
+          "id": 2,
+          "onHand": 100,
+          "ledger": 0
+        }
+      ],
+      "blue": 700000
+    }
+  },
+  "policyAssessment": "The parent scenario expects debt to be reduced by 300,000 first and only the remaining 200,000 to become non-cash store credit. The service rejected the exchange instead; the recorded business error says 1,000,000 real-money backing was required although only 700,000 cash was received."
+}

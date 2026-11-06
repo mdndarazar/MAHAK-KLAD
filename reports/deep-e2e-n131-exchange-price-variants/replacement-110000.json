@@ -1,0 +1,72 @@
+{
+  "scenario": "N131 source 100000 with invoice discount 10000 -> undiscounted replacement 110000",
+  "isolatedDatabase": "/tmp/mahak-n131-exchange-110000-MpIzuA/isolated.db",
+  "status": "PASS",
+  "sale": {
+    "gross": 100000,
+    "invoiceDiscount": 10000,
+    "net": 90000,
+    "cashPaid": 90000
+  },
+  "exchange": {
+    "replacementGross": 110000,
+    "replacementDiscount": 0,
+    "sourceReturnValue": 90000,
+    "previewDiff": 20000,
+    "committedDiff": 20000,
+    "cashReceived": 20000,
+    "cashRefunded": 0,
+    "refundMethod": "NONE"
+  },
+  "ledgers": {
+    "rawCash": 110000,
+    "rawCard": 0,
+    "cashRefund": 0,
+    "blue": 110000,
+    "reportTotals": {
+      "count": 2,
+      "goodsTotal": 210000,
+      "taxTotal": 0,
+      "serviceTotal": 0,
+      "discountTotal": 10000,
+      "deliveryTotal": 0,
+      "grandTotal": 200000,
+      "cashTotal": 110000,
+      "cardTotal": 0,
+      "creditTotal": 0,
+      "otherTotal": 0,
+      "receivedTotal": 110000,
+      "returnedTotal": 0,
+      "exchangeCreditTotal": 90000,
+      "storeCreditUsedTotal": 0,
+      "storeCreditIssuedTotal": 0,
+      "exchangeCount": 1,
+      "exchangeDiffTotal": 20000,
+      "overpayTotal": 0,
+      "creditRemainingTotal": 0,
+      "priorSettlementTotal": 0,
+      "netReceivedTotal": 110000,
+      "exchangeReturnedTotal": 90000,
+      "refundCashTotal": 0,
+      "refundCardTotal": 0,
+      "refundDebtOnlyTotal": 0,
+      "storeCreditRefundTotal": 0,
+      "legacyRefundCount": 0,
+      "managerAccountTotal": 0,
+      "destinationUnknownTotal": 0
+    },
+    "stock": [
+      {
+        "name": "source",
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "replacement",
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "cheques": 0
+  }
+}

@@ -1,0 +1,380 @@
+{
+  "generatedAt": "2026-10-28T18:34:57.226Z",
+  "id": 176,
+  "scenario": "N176",
+  "isolatedDatabase": "/tmp/mahak-next20-176-CxJNCH/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 100000,
+      "cash": 100000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 100000,
+          "lineTotal": 100000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "C2C-exchange-source",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "C2C-exchange-replacement",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "exchange",
+      "label": "C2C-negative-exchange-pending-payout",
+      "sourceInvoiceId": 1,
+      "returnId": 1,
+      "exchangeInvoiceId": 2,
+      "returnTotal": 100000,
+      "exchangeTotal": 80000,
+      "diff": -20000,
+      "cashReceived": 0,
+      "cardReceived": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "barcodeCreditApplied": 0,
+      "newStoreCreditAmount": 0,
+      "cardToCard": 20000,
+      "preview": {
+        "ok": true,
+        "returnTotal": 100000,
+        "exchangeTotal": 80000,
+        "nominalDiff": -20000,
+        "effectiveDiff": -20000,
+        "exchangeCreditApplied": 80000,
+        "realMoneySurplus": 20000,
+        "sourceCreditRestoration": 0
+      }
+    },
+    {
+      "label": "exchange C2C-negative-exchange-pending-payout",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "C2C-exchange-source",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "C2C-exchange-replacement",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 80000,
+          "paid": 80000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "exchange C2C payout pending; returned stock remains deferred",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "C2C-exchange-source",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "C2C-exchange-replacement",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 80000,
+          "paid": 80000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "exchange C2C payout paid; deferred source unit restocked",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "C2C-exchange-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "C2C-exchange-replacement",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 80000,
+          "paid": 80000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N176 reconciliation",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "C2C-exchange-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "C2C-exchange-replacement",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 80000,
+          "paid": 80000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "assertions": [
+    {
+      "key": "C2C-exchange-pending-paid-and-restock-finalized",
+      "pass": true,
+      "pending": "PENDING",
+      "paid": "PAID",
+      "restockPendingBefore": 1,
+      "restockedQty": 1
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 100000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 100000
+    },
+    "actual": {
+      "cash": 100000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 100000,
+    "stock": [
+      {
+        "name": "C2C-exchange-source",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "C2C-exchange-replacement",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 2,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

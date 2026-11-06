@@ -10,8 +10,8 @@ export interface RefundChoiceDef {
 export const ALL_REFUND_CHOICES: RefundChoiceDef[] = [
   {
     value: 'NONE',
-    title: 'بدون بازپرداخت (کاهش بدهی)',
-    hint: 'هیچ نقدی خارج نمی‌شود؛ بدهی مشتری کسر و کالا به انبار بازمی‌گردد.'
+    title: 'بدون بازپرداخت (با دلیل)',
+    hint: 'اگر مشتری بازپرداخت نمی‌خواهد، دلیل ثبت می‌شود؛ در صورت وجود حق مثبت، انصراف بدون دلیل پذیرفته نیست.'
   },
   {
     value: 'CARD_TO_CARD',

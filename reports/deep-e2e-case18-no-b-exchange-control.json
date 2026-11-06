@@ -1,0 +1,268 @@
+{
+  "generatedAt": "2026-10-30T19:45:03.816Z",
+  "isolatedDatabase": "/tmp/mahak-e100-018-control-u6YScX/isolated.db",
+  "scenario": "E100-018 no-B-exchange control; all credits scope ALL; A returned first; directly exchange C+D without B exchange.",
+  "sale": {
+    "invoiceId": 1,
+    "total": 1000000,
+    "creditApplied": 600000,
+    "cash": 200000,
+    "card": 200000,
+    "credits": [
+      {
+        "id": 1,
+        "code": "CRZJYNG6",
+        "amount": 100000,
+        "scope": "ALL"
+      },
+      {
+        "id": 2,
+        "code": "CRGJ67VN",
+        "amount": 100000,
+        "scope": "ALL"
+      },
+      {
+        "id": 3,
+        "code": "CRYZZAAT",
+        "amount": 100000,
+        "scope": "ALL"
+      },
+      {
+        "id": 4,
+        "code": "CR3PXQQ7",
+        "amount": 100000,
+        "scope": "ALL"
+      },
+      {
+        "id": 5,
+        "code": "CRBH6ZYJ",
+        "amount": 100000,
+        "scope": "ALL"
+      },
+      {
+        "id": 6,
+        "code": "CRBRCFHF",
+        "amount": 100000,
+        "scope": "ALL"
+      }
+    ]
+  },
+  "aReturn": {
+    "id": 1,
+    "total": 200000,
+    "sourceCreditRestoredAmount": 200000,
+    "allocationRows": [
+      {
+        "id": 1,
+        "sourceCreditId": 4,
+        "redemptionId": 1,
+        "amount": 100000
+      },
+      {
+        "id": 2,
+        "sourceCreditId": 5,
+        "redemptionId": 2,
+        "amount": 100000
+      },
+      {
+        "id": 3,
+        "sourceCreditId": 6,
+        "redemptionId": 3,
+        "amount": 0
+      },
+      {
+        "id": 4,
+        "sourceCreditId": 2,
+        "redemptionId": 4,
+        "amount": 0
+      },
+      {
+        "id": 5,
+        "sourceCreditId": 3,
+        "redemptionId": 5,
+        "amount": 0
+      },
+      {
+        "id": 6,
+        "sourceCreditId": 1,
+        "redemptionId": 6,
+        "amount": 0
+      }
+    ],
+    "after": {
+      "blue": 400000,
+      "stocks": [
+        {
+          "name": "A-200k",
+          "stock": 10
+        },
+        {
+          "name": "B-200k",
+          "stock": 9
+        },
+        {
+          "name": "C-300k",
+          "stock": 9
+        },
+        {
+          "name": "D-300k",
+          "stock": 9
+        },
+        {
+          "name": "C1-290k",
+          "stock": 10
+        },
+        {
+          "name": "D1-290k",
+          "stock": 10
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "status": "USED",
+          "amount": 100000,
+          "usedAmount": 100000
+        },
+        {
+          "id": 2,
+          "status": "USED",
+          "amount": 100000,
+          "usedAmount": 100000
+        },
+        {
+          "id": 3,
+          "status": "USED",
+          "amount": 100000,
+          "usedAmount": 100000
+        },
+        {
+          "id": 4,
+          "status": "USED",
+          "amount": 100000,
+          "usedAmount": 100000
+        },
+        {
+          "id": 5,
+          "status": "USED",
+          "amount": 100000,
+          "usedAmount": 100000
+        },
+        {
+          "id": 6,
+          "status": "USED",
+          "amount": 100000,
+          "usedAmount": 100000
+        }
+      ],
+      "returns": [
+        {
+          "id": 1,
+          "kind": "RETURN",
+          "total": 200000,
+          "method": "NONE",
+          "diff": 0
+        }
+      ]
+    }
+  },
+  "directCDExchange": {
+    "accepted": true,
+    "returnId": 2,
+    "exchangeInvoiceId": 2,
+    "diff": -20000,
+    "sourceCreditRestoredAmount": 20000,
+    "issued": [
+      {
+        "id": 9,
+        "code": "CRQU47FR",
+        "amount": 20000,
+        "expiresAt": 1795984199999,
+        "status": "ACTIVE"
+      }
+    ],
+    "after": {
+      "blue": 400000,
+      "stocks": [
+        {
+          "name": "A-200k",
+          "stock": 10
+        },
+        {
+          "name": "B-200k",
+          "stock": 9
+        },
+        {
+          "name": "C-300k",
+          "stock": 10
+        },
+        {
+          "name": "D-300k",
+          "stock": 10
+        },
+        {
+          "name": "C1-290k",
+          "stock": 9
+        },
+        {
+          "name": "D1-290k",
+          "stock": 9
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "status": "USED",
+          "amount": 100000,
+          "usedAmount": 100000
+        },
+        {
+          "id": 2,
+          "status": "USED",
+          "amount": 100000,
+          "usedAmount": 100000
+        },
+        {
+          "id": 3,
+          "status": "USED",
+          "amount": 100000,
+          "usedAmount": 100000
+        },
+        {
+          "id": 4,
+          "status": "USED",
+          "amount": 100000,
+          "usedAmount": 100000
+        },
+        {
+          "id": 5,
+          "status": "USED",
+          "amount": 100000,
+          "usedAmount": 100000
+        },
+        {
+          "id": 6,
+          "status": "USED",
+          "amount": 100000,
+          "usedAmount": 100000
+        }
+      ],
+      "returns": [
+        {
+          "id": 1,
+          "kind": "RETURN",
+          "total": 200000,
+          "method": "NONE",
+          "diff": 0
+        },
+        {
+          "id": 2,
+          "kind": "EXCHANGE",
+          "total": 600000,
+          "method": "STORE_CREDIT",
+          "diff": -20000
+        }
+      ]
+    }
+  }
+}

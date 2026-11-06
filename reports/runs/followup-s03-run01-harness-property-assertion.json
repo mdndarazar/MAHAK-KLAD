@@ -1,0 +1,2891 @@
+{
+  "generatedAt": "2026-10-26T14:19:42.819Z",
+  "independentScenario": 3,
+  "status": "FAIL",
+  "isolatedDatabase": "/tmp/mahak-followup-s04-N1daK8/isolated.db",
+  "userPolicy": {
+    "storeCreditIsNonPhysical": true,
+    "blue": "cash received + POS received - cash refunds - POS refunds",
+    "creditTenderCount": 4,
+    "settlementModesTested": [
+      "CASH",
+      "CARD",
+      "CARD_TO_CARD",
+      "STORE_CREDIT"
+    ],
+    "positiveExchangeCreditBarcode": true
+  },
+  "physicalExpected": {
+    "cash": 2000000,
+    "card": 2000000,
+    "refundCash": 100000,
+    "refundCard": 100000
+  },
+  "physicalIndependent": {
+    "cash": 2000000,
+    "card": 2000000,
+    "refundCash": 100000,
+    "refundCard": 100000
+  },
+  "blueActual": 3800000,
+  "branches": [
+    {
+      "mode": "CASH",
+      "status": "PASS",
+      "saleAmount": 1000000,
+      "barcodeTender": 100000,
+      "cashTender": 450000,
+      "cardTender": 450000,
+      "exchangeReturned": 1000000,
+      "replacement": 800000,
+      "difference": -200000,
+      "events": [
+        {
+          "label": "CASH: four barcode fixtures issued",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "reported": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "independent": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blue": 0,
+          "blueExpected": 0,
+          "stock": [
+            {
+              "variant": "CASH-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CASH-replacement-800k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "CASH-code-1",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-2",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-3",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-4",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "CASH: sale 450k cash + 450k POS + 4×25k credit",
+          "expected": {
+            "cash": 450000,
+            "card": 450000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "reported": {
+            "cash": 450000,
+            "card": 450000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "independent": {
+            "cash": 450000,
+            "card": 450000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blue": 900000,
+          "blueExpected": 900000,
+          "stock": [
+            {
+              "variant": "CASH-source-1m",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CASH-replacement-800k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "CASH-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "CASH: exchange diff settlement",
+          "expected": {
+            "cash": 450000,
+            "card": 450000,
+            "refundCash": 100000,
+            "refundCard": 0
+          },
+          "reported": {
+            "cash": 450000,
+            "card": 450000,
+            "refundCash": 100000,
+            "refundCard": 0
+          },
+          "independent": {
+            "cash": 450000,
+            "card": 450000,
+            "refundCash": 100000,
+            "refundCard": 0
+          },
+          "blue": 800000,
+          "blueExpected": 800000,
+          "stock": [
+            {
+              "variant": "CASH-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CASH-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "label": "CASH-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            }
+          ]
+        }
+      ],
+      "saleId": 1,
+      "returnId": 1,
+      "exchangeInvoiceId": 2,
+      "exchange": {
+        "diff": -200000,
+        "realMoneyRefundAmount": 100000,
+        "sourceCreditRestoredAmount": 100000,
+        "cashRefunded": 100000,
+        "cardRefunded": 0,
+        "newStoreCreditAmount": 0,
+        "exchangeCreditRefundAmount": 0
+      },
+      "returnDocument": {
+        "refundMethod": "CASH",
+        "refundAmount": 100000,
+        "refundStoreCreditAmount": 0,
+        "exchangeSettlement": "CASH_REFUND",
+        "restockPending": false
+      },
+      "generatedCredits": [
+        {
+          "id": 5,
+          "amount": 25000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999,
+          "source": "MANUAL"
+        },
+        {
+          "id": 6,
+          "amount": 25000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999,
+          "source": "MANUAL"
+        },
+        {
+          "id": 7,
+          "amount": 25000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999,
+          "source": "MANUAL"
+        },
+        {
+          "id": 8,
+          "amount": 25000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999,
+          "source": "MANUAL"
+        }
+      ]
+    },
+    {
+      "mode": "CARD",
+      "status": "PASS",
+      "saleAmount": 1000000,
+      "barcodeTender": 100000,
+      "cashTender": 450000,
+      "cardTender": 450000,
+      "exchangeReturned": 1000000,
+      "replacement": 800000,
+      "difference": -200000,
+      "events": [
+        {
+          "label": "CARD: four barcode fixtures issued",
+          "expected": {
+            "cash": 450000,
+            "card": 450000,
+            "refundCash": 100000,
+            "refundCard": 0
+          },
+          "reported": {
+            "cash": 450000,
+            "card": 450000,
+            "refundCash": 100000,
+            "refundCard": 0
+          },
+          "independent": {
+            "cash": 450000,
+            "card": 450000,
+            "refundCash": 100000,
+            "refundCard": 0
+          },
+          "blue": 800000,
+          "blueExpected": 800000,
+          "stock": [
+            {
+              "variant": "CASH-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CASH-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CARD-replacement-800k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "CASH-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "CARD: sale 450k cash + 450k POS + 4×25k credit",
+          "expected": {
+            "cash": 900000,
+            "card": 900000,
+            "refundCash": 100000,
+            "refundCard": 0
+          },
+          "reported": {
+            "cash": 900000,
+            "card": 900000,
+            "refundCash": 100000,
+            "refundCard": 0
+          },
+          "independent": {
+            "cash": 900000,
+            "card": 900000,
+            "refundCash": 100000,
+            "refundCard": 0
+          },
+          "blue": 1700000,
+          "blueExpected": 1700000,
+          "stock": [
+            {
+              "variant": "CASH-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CASH-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD-source-1m",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD-replacement-800k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "CASH-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "CARD: exchange diff settlement",
+          "expected": {
+            "cash": 900000,
+            "card": 900000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "reported": {
+            "cash": 900000,
+            "card": 900000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 900000,
+            "card": 900000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "blue": 1600000,
+          "blueExpected": 1600000,
+          "stock": [
+            {
+              "variant": "CASH-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CASH-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CARD-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "label": "CASH-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            }
+          ]
+        }
+      ],
+      "saleId": 3,
+      "returnId": 2,
+      "exchangeInvoiceId": 4,
+      "exchange": {
+        "diff": -200000,
+        "realMoneyRefundAmount": 100000,
+        "sourceCreditRestoredAmount": 100000,
+        "cashRefunded": 0,
+        "cardRefunded": 100000,
+        "newStoreCreditAmount": 0,
+        "exchangeCreditRefundAmount": 0
+      },
+      "returnDocument": {
+        "refundMethod": "CARD",
+        "refundAmount": 100000,
+        "refundStoreCreditAmount": 0,
+        "exchangeSettlement": "CARD_REFUND",
+        "restockPending": false
+      },
+      "generatedCredits": [
+        {
+          "id": 13,
+          "amount": 25000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999,
+          "source": "MANUAL"
+        },
+        {
+          "id": 14,
+          "amount": 25000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999,
+          "source": "MANUAL"
+        },
+        {
+          "id": 15,
+          "amount": 25000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999,
+          "source": "MANUAL"
+        },
+        {
+          "id": 16,
+          "amount": 25000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999,
+          "source": "MANUAL"
+        }
+      ]
+    },
+    {
+      "mode": "CARD_TO_CARD",
+      "status": "FAIL",
+      "saleAmount": 1000000,
+      "barcodeTender": 100000,
+      "cashTender": 450000,
+      "cardTender": 450000,
+      "exchangeReturned": 1000000,
+      "replacement": 800000,
+      "difference": -200000,
+      "events": [
+        {
+          "label": "CARD_TO_CARD: four barcode fixtures issued",
+          "expected": {
+            "cash": 900000,
+            "card": 900000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "reported": {
+            "cash": 900000,
+            "card": 900000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 900000,
+            "card": 900000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "blue": 1600000,
+          "blueExpected": 1600000,
+          "stock": [
+            {
+              "variant": "CASH-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CASH-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CARD-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD_TO_CARD-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CARD_TO_CARD-replacement-800k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "CASH-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "CARD_TO_CARD: sale 450k cash + 450k POS + 4×25k credit",
+          "expected": {
+            "cash": 1350000,
+            "card": 1350000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "reported": {
+            "cash": 1350000,
+            "card": 1350000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 1350000,
+            "card": 1350000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "blue": 2500000,
+          "blueExpected": 2500000,
+          "stock": [
+            {
+              "variant": "CASH-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CASH-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CARD-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD_TO_CARD-source-1m",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD_TO_CARD-replacement-800k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "CASH-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "CARD_TO_CARD: post-error rollback",
+          "expected": {
+            "cash": 1350000,
+            "card": 1350000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "reported": {
+            "cash": 1350000,
+            "card": 1350000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 1350000,
+            "card": 1350000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "blue": 2500000,
+          "blueExpected": 2500000,
+          "stock": [
+            {
+              "variant": "CASH-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CASH-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CARD-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD_TO_CARD-source-1m",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD_TO_CARD-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "label": "CASH-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            }
+          ]
+        }
+      ],
+      "saleId": 5,
+      "returnId": 3,
+      "exchangeInvoiceId": 6,
+      "failure": {
+        "message": "Expected values to be strictly equal:\n\n0 !== 100000\n",
+        "stack": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n0 !== 100000\n\n    at downBranch (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-followup-scenario04-multi-barcode-settlement-matrix.mjs:79:35)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-followup-scenario04-multi-barcode-settlement-matrix.mjs:107:65"
+      },
+      "rollbackVerified": true
+    },
+    {
+      "mode": "STORE_CREDIT",
+      "status": "PASS",
+      "saleAmount": 1000000,
+      "barcodeTender": 100000,
+      "cashTender": 450000,
+      "cardTender": 450000,
+      "exchangeReturned": 1000000,
+      "replacement": 800000,
+      "difference": -200000,
+      "events": [
+        {
+          "label": "STORE_CREDIT: four barcode fixtures issued",
+          "expected": {
+            "cash": 1350000,
+            "card": 1350000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "reported": {
+            "cash": 1350000,
+            "card": 1350000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 1350000,
+            "card": 1350000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "blue": 2500000,
+          "blueExpected": 2500000,
+          "stock": [
+            {
+              "variant": "CASH-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CASH-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CARD-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD_TO_CARD-source-1m",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD_TO_CARD-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "STORE_CREDIT-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "STORE_CREDIT-replacement-800k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "CASH-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-1",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-2",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-3",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-4",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "STORE_CREDIT: sale 450k cash + 450k POS + 4×25k credit",
+          "expected": {
+            "cash": 1800000,
+            "card": 1800000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "reported": {
+            "cash": 1800000,
+            "card": 1800000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 1800000,
+            "card": 1800000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "blue": 3400000,
+          "blueExpected": 3400000,
+          "stock": [
+            {
+              "variant": "CASH-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CASH-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CARD-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD_TO_CARD-source-1m",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD_TO_CARD-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "STORE_CREDIT-source-1m",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "STORE_CREDIT-replacement-800k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "CASH-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "STORE_CREDIT: exchange diff settlement",
+          "expected": {
+            "cash": 1800000,
+            "card": 1800000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "reported": {
+            "cash": 1800000,
+            "card": 1800000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 1800000,
+            "card": 1800000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "blue": 3400000,
+          "blueExpected": 3400000,
+          "stock": [
+            {
+              "variant": "CASH-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CASH-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CARD-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD_TO_CARD-source-1m",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD_TO_CARD-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "STORE_CREDIT-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "STORE_CREDIT-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "label": "CASH-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            }
+          ]
+        }
+      ],
+      "saleId": 7,
+      "returnId": 4,
+      "exchangeInvoiceId": 8,
+      "exchange": {
+        "diff": -200000,
+        "realMoneyRefundAmount": 100000,
+        "sourceCreditRestoredAmount": 100000,
+        "cashRefunded": 0,
+        "cardRefunded": 0,
+        "newStoreCreditAmount": 100000,
+        "exchangeCreditRefundAmount": 0
+      },
+      "returnDocument": {
+        "refundMethod": "STORE_CREDIT",
+        "refundAmount": 100000,
+        "refundStoreCreditAmount": 0,
+        "exchangeSettlement": "CREDIT",
+        "restockPending": false
+      },
+      "generatedCredits": [
+        {
+          "id": 29,
+          "amount": 25000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999,
+          "source": "MANUAL"
+        },
+        {
+          "id": 30,
+          "amount": 25000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999,
+          "source": "MANUAL"
+        },
+        {
+          "id": 31,
+          "amount": 25000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999,
+          "source": "MANUAL"
+        },
+        {
+          "id": 32,
+          "amount": 25000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999,
+          "source": "MANUAL"
+        },
+        {
+          "id": 33,
+          "amount": 100000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null,
+          "source": "EXCHANGE"
+        }
+      ]
+    },
+    {
+      "mode": "EXCHANGE_CREDIT_TENDER",
+      "status": "PASS",
+      "saleAmount": 800000,
+      "cashTender": 200000,
+      "cardTender": 200000,
+      "barcodeTender": 400000,
+      "difference": 200000,
+      "exchangeCreditTender": 200000,
+      "events": [
+        {
+          "label": "positive branch: 5 codes issued",
+          "expected": {
+            "cash": 1800000,
+            "card": 1800000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "reported": {
+            "cash": 1800000,
+            "card": 1800000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 1800000,
+            "card": 1800000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "blue": 3400000,
+          "blueExpected": 3400000,
+          "stock": [
+            {
+              "variant": "CASH-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CASH-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CARD-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD_TO_CARD-source-1m",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD_TO_CARD-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "STORE_CREDIT-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "STORE_CREDIT-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "positive-source-800k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "positive-replacement-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "CASH-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "positive-sale-code-1",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "positive-sale-code-2",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "positive-sale-code-3",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "positive-sale-code-4",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "positive-exchange-difference-code",
+              "amount": 200000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "positive branch: sale 200k cash + 200k POS + 4×100k credit",
+          "expected": {
+            "cash": 2000000,
+            "card": 2000000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "reported": {
+            "cash": 2000000,
+            "card": 2000000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 2000000,
+            "card": 2000000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "blue": 3800000,
+          "blueExpected": 3800000,
+          "stock": [
+            {
+              "variant": "CASH-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CASH-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CARD-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD_TO_CARD-source-1m",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD_TO_CARD-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "STORE_CREDIT-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "STORE_CREDIT-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "positive-source-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "positive-replacement-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "CASH-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "positive-sale-code-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "positive-sale-code-2",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "positive-sale-code-3",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "positive-sale-code-4",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "positive-exchange-difference-code",
+              "amount": 200000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "positive difference settled by a distinct barcode credit",
+          "expected": {
+            "cash": 2000000,
+            "card": 2000000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "reported": {
+            "cash": 2000000,
+            "card": 2000000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 2000000,
+            "card": 2000000,
+            "refundCash": 100000,
+            "refundCard": 100000
+          },
+          "blue": 3800000,
+          "blueExpected": 3800000,
+          "stock": [
+            {
+              "variant": "CASH-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CASH-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "CARD-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD_TO_CARD-source-1m",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "CARD_TO_CARD-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "STORE_CREDIT-source-1m",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "STORE_CREDIT-replacement-800k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "positive-source-800k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "positive-replacement-1m",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "label": "CASH-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CASH-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "CARD_TO_CARD-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "STORE_CREDIT-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "positive-sale-code-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "positive-sale-code-2",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "positive-sale-code-3",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "positive-sale-code-4",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "positive-exchange-difference-code",
+              "amount": 200000,
+              "usedAmount": 200000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999,
+              "source": "MANUAL"
+            }
+          ]
+        }
+      ],
+      "saleId": 9,
+      "returnId": 5,
+      "exchangeInvoiceId": 10,
+      "exchange": {
+        "diff": 200000,
+        "barcodeCreditApplied": 200000,
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "differenceCredit": {
+          "amount": 200000,
+          "usedAmount": 200000,
+          "usedCount": 1,
+          "status": "USED"
+        }
+      }
+    }
+  ],
+  "allInvoiceIds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ]
+}

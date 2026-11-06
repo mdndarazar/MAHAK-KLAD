@@ -1,0 +1,24 @@
+# Batch 01 — E100 scenarios 001–004 × five return methods
+
+Executions: 20
+
+- PASS · e100-001-cash · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-001-cash.md
+- PASS · e100-001-card · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-001-card.md
+- PASS · e100-001-card-to-card · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-001-card-to-card.md
+- PASS · e100-001-store-credit · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-001-store-credit.md
+- PASS · e100-001-none · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-001-none.md
+- PASS · e100-002-cash · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-002-cash.md
+- PASS · e100-002-card · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-002-card.md
+- PASS · e100-002-card-to-card · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-002-card-to-card.md
+- PASS · e100-002-store-credit · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-002-store-credit.md
+- PASS · e100-002-none · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-002-none.md
+- PASS · e100-003-cash · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-003-cash.md
+- PASS · e100-003-card · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-003-card.md
+- PASS · e100-003-card-to-card · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-003-card-to-card.md
+- PASS · e100-003-store-credit · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-003-store-credit.md
+- PASS · e100-003-none · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-003-none.md
+- PASS · e100-004-cash · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-004-cash.md
+- PASS · e100-004-card · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-004-card.md
+- PASS · e100-004-card-to-card · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-004-card-to-card.md
+- PASS · e100-004-store-credit · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-004-store-credit.md
+- PASS · e100-004-none · exit=0 · 100-chain suite: 1/1; PASS=1; FAIL=0; BLOCKED=0; findings=0; expectedBlocks=1; report=/tmp/reports/discount-transfer-650-b01-e100-004-none.md

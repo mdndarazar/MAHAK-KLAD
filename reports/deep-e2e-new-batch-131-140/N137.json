@@ -1,0 +1,365 @@
+{
+  "generatedAt": "2026-10-28T17:56:00.115Z",
+  "id": 137,
+  "scenario": "N137",
+  "isolatedDatabase": "/tmp/mahak-next10-137-39sLN8/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "sale",
+      "invoiceId": 1,
+      "gross": 300000,
+      "lineDiscount": 0,
+      "invoiceDiscount": 30000,
+      "net": 270000,
+      "tender": "CASH",
+      "creditCode": null,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 100000,
+          "discount": 0,
+          "lineTotal": 100000
+        },
+        {
+          "id": 2,
+          "variantId": 2,
+          "qty": 1,
+          "unitPrice": 100000,
+          "discount": 0,
+          "lineTotal": 100000
+        },
+        {
+          "id": 3,
+          "variantId": 3,
+          "qty": 1,
+          "unitPrice": 100000,
+          "discount": 0,
+          "lineTotal": 100000
+        }
+      ]
+    },
+    {
+      "label": "sale invoice 1: gross=300000; discounts=30000; net=270000",
+      "expected": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 270000
+      },
+      "actual": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 270000,
+      "stock": [
+        {
+          "id": 1,
+          "name": "source-A",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "id": 2,
+          "name": "source-B",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "id": 3,
+          "name": "source-C",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "id": 4,
+          "name": "replacement-X",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "id": 5,
+          "name": "replacement-Y",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 270000,
+          "paid": 270000,
+          "discount": 30000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 0,
+      "creditStates": [],
+      "checkPayments": 0
+    },
+    {
+      "operation": "exchange zero two-item exchange with positive/negative SKU mix",
+      "returnId": 1,
+      "exchangeInvoiceId": 2,
+      "nominalDiff": 0,
+      "effectiveDiff": 0,
+      "preview": {
+        "ok": true,
+        "returnTotal": 180000,
+        "exchangeTotal": 180000,
+        "nominalDiff": 0,
+        "effectiveDiff": 0,
+        "exchangeCreditApplied": 180000,
+        "realMoneySurplus": 0,
+        "sourceCreditRestoration": 0
+      }
+    },
+    {
+      "label": "after two-item exchange with positive/negative SKU mix; diff=0",
+      "expected": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 270000
+      },
+      "actual": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 270000,
+      "stock": [
+        {
+          "id": 1,
+          "name": "source-A",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "id": 2,
+          "name": "source-B",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "id": 3,
+          "name": "source-C",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "id": 4,
+          "name": "replacement-X",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "id": 5,
+          "name": "replacement-Y",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 270000,
+          "paid": 270000,
+          "discount": 30000,
+          "status": "PARTIALLY_RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 180000,
+          "paid": 180000,
+          "discount": 20000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returnCount": 1,
+      "creditStates": [],
+      "checkPayments": 0
+    },
+    {
+      "label": "final N137 reconciliation",
+      "expected": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 270000
+      },
+      "actual": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 270000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 270000,
+      "stock": [
+        {
+          "id": 1,
+          "name": "source-A",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "id": 2,
+          "name": "source-B",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "id": 3,
+          "name": "source-C",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "id": 4,
+          "name": "replacement-X",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "id": 5,
+          "name": "replacement-Y",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 270000,
+          "paid": 270000,
+          "discount": 30000,
+          "status": "PARTIALLY_RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 180000,
+          "paid": 180000,
+          "discount": 20000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returnCount": 1,
+      "creditStates": [],
+      "checkPayments": 0
+    }
+  ],
+  "findings": [],
+  "assertions": [
+    {
+      "key": "two-item-discount-shares-conserve-net",
+      "pass": true,
+      "returnTotal": 180000,
+      "exchangeTotal": 180000,
+      "diff": 0
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 270000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 270000
+    },
+    "actual": {
+      "cash": 270000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 270000,
+    "stock": [
+      {
+        "name": "source-A",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "source-B",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "source-C",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      },
+      {
+        "name": "replacement-X",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      },
+      {
+        "name": "replacement-Y",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 2,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

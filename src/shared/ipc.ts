@@ -81,6 +81,8 @@ export const IPC = {
    * تعویض کالا (بخش ۶) و «بارکد اعتبار خرید بعدی».
    * ---------------------------------------------------------------------
    */
+  /** محاسبهٔ read-only پشتوانهٔ واقعی مابه‌التفاوت تعویض */
+  saleExchangePreview: 'sale:exchange:preview',
   /** ثبت یک تعویض: برگشت اقلام + فروش اقلام جایگزین در یک تراکنش */
   saleExchangeCreate: 'sale:exchange:create',
   /** فهرست تعویض‌های یک بازه با جزئیات کامل (تب «تعویض کالا» گزارشات) */
@@ -135,6 +137,8 @@ export const IPC = {
   creditList: 'credit:list',
   /** جزئیات یک اعتبار + دفتر مصرف + Timeline کامل رویدادها */
   creditDetail: 'credit:detail',
+  /** بازیابی اعتبارهای مستقیمِ متصل به بارکد فاکتور/شماره رسید؛ فقط برای مدیر */
+  creditInvoiceLookup: 'credit:invoice:lookup',
   /**
    * افشای صریحِ یک کد اعتبار از یک source گزارش؛ فقط برای نشست فعالِ مدیر.
    * هیچ فهرست/گزارش معمولی نباید این مقدار را در DTO خودش حمل کند.
@@ -142,6 +146,10 @@ export const IPC = {
   creditManagerCodeReveal: 'credit:manager:code:reveal',
   /** صدور تکیِ اعتبار توسط مدیریت (source = MANUAL) */
   creditIssue: 'credit:issue',
+  /** Confirm actual handoff of a return/exchange barcode; activates its DRAFT credit. */
+  creditDeliveryConfirm: 'credit:delivery:confirm',
+  /** First print of a pending return/exchange credit; never activates it. */
+  creditDeliveryPrint: 'credit:delivery:print',
   /** تولید گروهی (۱ تا هزاران) با Batch Insert و سنجش ظرفیت کد */
   creditBulkIssue: 'credit:bulk:issue',
   /** فهرست دسته‌های تولید گروهی (مبنای چاپ دسته‌ای) */
@@ -519,6 +527,7 @@ export const IPC = {
   /** سیاست تخفیف پنل فروش (بند ۳) — خواندن و نوشتن */
   discountPolicyGet: 'discountPolicy:get',
   discountPolicySave: 'discountPolicy:save',
+  discountTransferPolicySave: 'discountTransferPolicy:save',
 
   // سطل آشغال کالاها (حذف نرم + بازگردانی + حذف همیشگی)
   productTrash: 'product:trash',

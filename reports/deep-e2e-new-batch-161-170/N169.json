@@ -1,0 +1,213 @@
+{
+  "generatedAt": "2026-10-28T18:26:30.096Z",
+  "id": 169,
+  "scenario": "N169",
+  "isolatedDatabase": "/tmp/mahak-followup-169-khZker/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 80000,
+      "cash": 80000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 80000,
+          "lineTotal": 80000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 80000
+      },
+      "actual": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 80000,
+      "stock": [
+        {
+          "name": "refund-over-request-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 80000,
+          "paid": 80000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "refund-above-return-value-rejected",
+      "officialItemValue": 80000,
+      "requested": 100000,
+      "error": "بازپرداخت یا اعتبارِ درخواستی ۱۰۰٬۰۰۰ ریال برای فاکتور ۱ ممکن نیست: ارزش رسمی اقلام انتخاب‌شده برای برگشت فقط ۸۰٬۰۰۰ ریال است.\nمبلغی تا همین ارزش وارد کنید؛ سقف پول دریافتی و تسویه‌ی بدهی جداگانه و طبق وضعیت فاکتور اعمال می‌شود.",
+      "mutationFree": true
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 80000,
+      "method": "CASH",
+      "refundAmount": 80000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 80000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 80000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 80000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "refund-over-request-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 80000,
+          "paid": 80000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N169 reconciliation",
+      "expected": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 80000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 80000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 80000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "refund-over-request-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 80000,
+          "paid": 80000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "assertions": [
+    {
+      "key": "over-cap-refund-rejected-then-official-amount-succeeds",
+      "pass": true,
+      "rejectedRequest": 100000,
+      "acceptedRefund": 80000
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 80000,
+      "card": 0,
+      "refundCash": 80000,
+      "refundCard": 0,
+      "blue": 0
+    },
+    "actual": {
+      "cash": 80000,
+      "card": 0,
+      "refundCash": 80000,
+      "refundCard": 0
+    },
+    "blue": 0,
+    "stock": [
+      {
+        "name": "refund-over-request-item",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      }
+    ],
+    "invoices": 1,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

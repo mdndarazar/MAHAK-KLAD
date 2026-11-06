@@ -1,0 +1,28 @@
+# Batch 03
+
+Executions: 20
+
+- PASS · E100 009 × CASH · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 009 × CARD · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 009 × CARD_TO_CARD · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 009 × STORE_CREDIT · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 009 × NONE · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 010 × CASH · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 010 × CARD · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 010 × CARD_TO_CARD · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 010 × STORE_CREDIT · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 010 × NONE · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 011 × CASH · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 011 × CARD · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 011 × CARD_TO_CARD · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 011 × STORE_CREDIT · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 011 × NONE · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 012 × CASH · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 012 × CARD · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- FAIL · E100 012 × CARD_TO_CARD · exit=1 · 
+- PASS · E100 012 × STORE_CREDIT · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 012 × NONE · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+
+Test-oracle review for E100 012 × CARD_TO_CARD:
+- Original runner marked FAIL because it required a C2C request even when real-money refund entitlement was 0. Read-only DB inspection showed return settled with 0 cash/POS refund, $200,000 returned to source-credit successors, stock restored, no transfer request.
+- A disposable /tmp copy of the test helper was adjusted only to expect no transfer request at zero entitlement; the exact full scenario then completed PASS, including its downstream exchange chain. No repository source or test file was modified.

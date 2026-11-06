@@ -1,0 +1,209 @@
+{
+  "generatedAt": "2026-10-28T18:10:19.064Z",
+  "id": 144,
+  "scenario": "N144",
+  "isolatedDatabase": "/tmp/mahak-followup-144-AIMMG1/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "settled-sale",
+      "invoiceId": 1,
+      "total": 60000,
+      "cash": 60000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 60000,
+          "lineTotal": 60000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 60000
+      },
+      "actual": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 60000,
+      "stock": [
+        {
+          "name": "single-return-only-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 60000,
+          "paid": 60000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "credits": [],
+      "checks": 0
+    },
+    {
+      "operation": "return",
+      "returnId": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "returnTotal": 60000,
+      "method": "CASH",
+      "refundAmount": 60000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 60000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 60000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 60000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "single-return-only-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 60000,
+          "paid": 60000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "credits": [],
+      "checks": 0
+    },
+    {
+      "operation": "duplicate-full-return-rejected",
+      "error": "تعداد برگشتی «N144-1-single-return-only-item سایز NF-1» (۱) از تعداد قابل برگشت (۰) بیشتر است.\nبرگشت بیشتر از باقی‌ماندهٔ قابل‌برگشت در هیچ حالتی مجاز نیست (حتی با تایید مدیر). اگر تعداد فاکتور اصلی اشتباه ثبت شده، اول خودِ فاکتور را اصلاح کنید.",
+      "mutationFree": true
+    },
+    {
+      "label": "final N144 reconciliation",
+      "expected": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 60000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 60000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 60000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "single-return-only-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 60000,
+          "paid": 60000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "credits": [],
+      "checks": 0
+    }
+  ],
+  "assertions": [
+    {
+      "key": "full-return-is-one-time-and-duplicate-is-mutation-free",
+      "pass": true
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 60000,
+      "card": 0,
+      "refundCash": 60000,
+      "refundCard": 0,
+      "blue": 0
+    },
+    "actual": {
+      "cash": 60000,
+      "card": 0,
+      "refundCash": 60000,
+      "refundCard": 0
+    },
+    "blue": 0,
+    "stock": [
+      {
+        "name": "single-return-only-item",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      }
+    ],
+    "invoices": 1,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

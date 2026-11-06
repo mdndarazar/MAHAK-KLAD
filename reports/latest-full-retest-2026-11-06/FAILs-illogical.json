@@ -1,0 +1,34 @@
+[
+  {
+    "suite": "500×5 — deep-e2e-discount-policy-round2-20",
+    "case": 3,
+    "title": "فاکتور نیمه‌تسویه؛ برابری preview و ثبت تعویض با بدهی باز",
+    "file": "tests/audit-fixes/deep-e2e-discount-policy-round2-20.mjs",
+    "commit": "2d8244e",
+    "runOn": "SQLite موقت ایزوله — آخرین نسخه با ردیف صفر D+C",
+    "status": "FAIL — غیرمنطقی (preview vs committed نابرابر)",
+    "expected": "preview و committed settlement باید روی همان فاکتورِ با بدهیِ باز برابر بمانند — 100,000 ریال",
+    "actual": "committed = 1,050,000 ریال (اختلاف 950,000)",
+    "detail": "AssertionError: preview and committed settlement must agree for unchanged source state + 1050000 - 100000 at deep-e2e-discount-policy-round2-20.mjs:195:10",
+    "logicCheck": "این FAIL توقفِ با دلیل نیست — بدهیِ باز منطقاً باید در preview و commit یکسان دیده شود. برگشتِ دوباره یا عدمِ انتخابِ تسویه نیست؛ محاسبهٔ بدهی/تسویه اشتباه است.",
+    "isExpectedBlock": false,
+    "needsReview": true,
+    "logExcerpt": "PASS 01/20 — اعتبار بارکدی ... PASS 02/20 — ... FAIL 03/20 — فاکتور نیمه‌تسویه؛ برابری preview ... + 1050000 - 100000"
+  },
+  {
+    "suite": "1000×5 — deep-e2e-e100-051-combined-ab-exchange",
+    "case": "combined A+B in single document",
+    "title": "تعویضِ تجمیعی A+B در یک سند — مابه‌التفاوت منفی",
+    "file": "tests/audit-fixes/deep-e2e-e100-051-combined-ab-exchange.mjs",
+    "commit": "2d8244e",
+    "runOn": "SQLite موقت ایزوله — آخرین نسخه با ردیف صفر D+C",
+    "status": "FAIL — غیرمنطقی (diff گم شده)",
+    "expected": "-20,000 ریال (مابه‌التفاوت منفیِ تجمیعی)",
+    "actual": "0 ریال",
+    "detail": "AssertionError: Expected values to be strictly equal: 0 !== -20000 at deep-e2e-e100-051-combined-ab-exchange.mjs:174:12",
+    "logicCheck": "این‌جا سیستم باید -20,000 را به‌عنوانِ diff ثبت کند، ولی 0 ثبت کرده. توقفِ با دلیل نیست — نه برگشتِ دوباره است، نه عدمِ انتخابِ تسویه. محاسبهٔ diff یا provenance گم شده.",
+    "isExpectedBlock": false,
+    "needsReview": true,
+    "logExcerpt": "0 !== -20000 at E100-051:174:12"
+  }
+]

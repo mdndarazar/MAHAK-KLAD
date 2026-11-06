@@ -45,6 +45,8 @@ export interface DebtReturnInput {
   total?: number | null
   refundMethod?: string | null
   refundAmount?: number | null
+  /** Internal EXCHANGE_CREDIT reversed by a child return; not a customer payout. */
+  exchangeCreditReversed?: number | null
   /** درخواست کارت‌به‌کارت همین برگشت لغو شده؟ (پولی به مشتری نرسید و نمی‌رسد) */
   refundCanceled?: boolean | null
   /** نشست ۶۰ — فقط تعویض: بخشی از مابه‌التفاوت منفی که از بدهی فاکتور اصلی کم شد */
@@ -105,7 +107,10 @@ export function debtAdjustmentsOf(returns: DebtReturnInput[] = []): DebtAdjustme
       continue
     }
     returnedValue += Math.max(0, r0(r.total))
-    refundFromReceived += refundFromReceivedOf(r)
+    // A returned replacement item can cancel synthetic EXCHANGE_CREDIT on its
+    // child invoice without paying the customer. Keep that cancellation in the
+    // invoice-wide settlement equation, separate from a cash/barcode payout.
+    refundFromReceived += refundFromReceivedOf(r) + Math.max(0, r0(r.exchangeCreditReversed))
   }
   return { returnedValue, refundFromReceived }
 }

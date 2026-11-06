@@ -1,0 +1,315 @@
+{
+  "generatedAt": "2026-10-28T18:09:30.401Z",
+  "id": 143,
+  "scenario": "N143",
+  "isolatedDatabase": "/tmp/mahak-followup-143-jvq4Rh/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "settled-sale",
+      "invoiceId": 1,
+      "total": 100000,
+      "cash": 100000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 100000,
+          "lineTotal": 100000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "cash-source-for-credit-return",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "later-credit-redemption-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "credits": [],
+      "checks": 0
+    },
+    {
+      "operation": "return",
+      "returnId": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "returnTotal": 100000,
+      "method": "STORE_CREDIT",
+      "refundAmount": 100000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "cash-source-for-credit-return",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "later-credit-redemption-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "credits": [],
+      "checks": 0
+    },
+    {
+      "operation": "settled-sale",
+      "invoiceId": 2,
+      "total": 120000,
+      "cash": 20000,
+      "card": 0,
+      "creditApplied": 100000,
+      "items": [
+        {
+          "id": 2,
+          "variantId": 2,
+          "qty": 1,
+          "unitPrice": 120000,
+          "lineTotal": 120000
+        }
+      ]
+    },
+    {
+      "label": "sale 2",
+      "expected": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 120000
+      },
+      "actual": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 120000,
+      "stock": [
+        {
+          "name": "cash-source-for-credit-return",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "later-credit-redemption-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 120000,
+          "paid": 120000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "credits": [],
+      "checks": 0
+    },
+    {
+      "label": "final N143 reconciliation",
+      "expected": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 120000
+      },
+      "actual": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 120000,
+      "stock": [
+        {
+          "name": "cash-source-for-credit-return",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "later-credit-redemption-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 120000,
+          "paid": 120000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "credits": [],
+      "checks": 0
+    }
+  ],
+  "assertions": [
+    {
+      "key": "selected-return-credit-issued-and-redeemed",
+      "pass": true,
+      "returnedCredit": 100000,
+      "laterApplied": 100000,
+      "cashIn": 120000,
+      "refundsCash": 0
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 120000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 120000
+    },
+    "actual": {
+      "cash": 120000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 120000,
+    "stock": [
+      {
+        "name": "cash-source-for-credit-return",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "later-credit-redemption-item",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 2,
+    "returns": 1,
+    "credits": 1,
+    "checks": 0
+  }
+}

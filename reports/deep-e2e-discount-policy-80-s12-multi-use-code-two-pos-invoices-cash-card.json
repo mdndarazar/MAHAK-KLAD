@@ -1,0 +1,469 @@
+{
+  "generatedAt": "2026-10-27T19:00:31.246Z",
+  "campaign": "Discount Policy 80",
+  "scenario": "D80-S12",
+  "case": "multi-use-code-two-pos-invoices",
+  "returnMode": "CARD",
+  "fixture": {
+    "discountLabel": "fixed invoice discount 12,500 each invoice",
+    "discountKind": "FIXED_RIAL",
+    "lines": [
+      {
+        "unitPrice": 200000,
+        "qty": 1,
+        "discount": 0
+      }
+    ],
+    "invoiceDiscount": 12500
+  },
+  "saleTenders": [
+    "POS",
+    "POS"
+  ],
+  "isolatedDatabase": "/tmp/mahak-d80-s12-pRl1db/isolated.db",
+  "status": "PASS",
+  "creditIssue": [
+    {
+      "id": 1,
+      "code": "CRZXDB49",
+      "amount": 100000,
+      "multiUse": true,
+      "carryRemainder": true,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL"
+    }
+  ],
+  "sales": [
+    {
+      "id": 1,
+      "invoiceIndex": 1,
+      "gross": 200000,
+      "lineDiscount": 0,
+      "invoiceDiscount": 12500,
+      "totalDiscount": 12500,
+      "net": 187500,
+      "paid": 187500,
+      "storeCreditRequested": 25000,
+      "storeCreditApplied": 25000,
+      "cashTender": 0,
+      "posTender": 162500,
+      "tender": "POS",
+      "settled": true,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "gross": 200000,
+          "lineDiscount": 0,
+          "netShare": 187500
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "invoiceIndex": 2,
+      "gross": 200000,
+      "lineDiscount": 0,
+      "invoiceDiscount": 12500,
+      "totalDiscount": 12500,
+      "net": 187500,
+      "paid": 187500,
+      "storeCreditRequested": 20000,
+      "storeCreditApplied": 20000,
+      "cashTender": 0,
+      "posTender": 167500,
+      "tender": "POS",
+      "settled": true,
+      "items": [
+        {
+          "id": 2,
+          "variantId": 2,
+          "qty": 1,
+          "gross": 200000,
+          "lineDiscount": 0,
+          "netShare": 187500
+        }
+      ]
+    }
+  ],
+  "redemptions": [
+    {
+      "id": 1,
+      "creditId": 1,
+      "invoiceId": 1,
+      "amount": 25000,
+      "reversedAt": null
+    },
+    {
+      "id": 2,
+      "creditId": 1,
+      "invoiceId": 2,
+      "amount": 20000,
+      "reversedAt": null
+    }
+  ],
+  "returns": [
+    {
+      "id": 1,
+      "invoiceId": 2,
+      "expectedNet": 187500,
+      "actualNet": 187500,
+      "expectedSourceCreditReturn": 20000,
+      "expectedMoneyBackedRight": 167500,
+      "refundMethod": "CARD",
+      "refundAmount": 167500,
+      "refundStoreCreditAmount": 0,
+      "sourceCreditReturned": 20000,
+      "sourceCreditRestoredAmount": 20000,
+      "sourceCreditSuccessors": [],
+      "creditReturnAllocations": [
+        {
+          "id": 1,
+          "redemptionId": 2,
+          "sourceCreditId": 1,
+          "amount": 20000,
+          "creditRestored": true
+        }
+      ],
+      "createdCredits": [],
+      "noMethodCreditExpected": null,
+      "overpayCreditAmount": 0,
+      "customerValue": 187500,
+      "items": [
+        {
+          "saleItemId": 2,
+          "qty": 1,
+          "unitPrice": 200000,
+          "lineTotal": 187500,
+          "restockedQty": 1
+        }
+      ]
+    }
+  ],
+  "sourceCreditSuccessors": [],
+  "managerTransfers": [],
+  "checkpoints": [
+    {
+      "label": "fresh isolated DB",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stocks": [],
+      "credits": [],
+      "counts": {
+        "invoices": 0,
+        "returns": 0,
+        "payments": 0,
+        "credits": 0,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "all test-only ALL barcodes issued",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stocks": [],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRZXDB49",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        }
+      ],
+      "counts": {
+        "invoices": 0,
+        "returns": 0,
+        "payments": 0,
+        "credits": 1,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "invoice 1 sold, barcode redemption + cash/POS reconciled",
+      "expected": {
+        "cash": 0,
+        "card": 162500,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 162500
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 162500,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 162500,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 162500,
+      "stocks": [
+        {
+          "variantId": 1,
+          "label": "inv1-item1",
+          "expected": 19,
+          "actual": 19,
+          "ledger": -1
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRZXDB49",
+          "amount": 100000,
+          "usedAmount": 25000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        }
+      ],
+      "counts": {
+        "invoices": 1,
+        "returns": 0,
+        "payments": 2,
+        "credits": 1,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "invoice 2 sold, barcode redemption + cash/POS reconciled",
+      "expected": {
+        "cash": 0,
+        "card": 330000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 330000
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 330000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 330000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 330000,
+      "stocks": [
+        {
+          "variantId": 1,
+          "label": "inv1-item1",
+          "expected": 19,
+          "actual": 19,
+          "ledger": -1
+        },
+        {
+          "variantId": 2,
+          "label": "inv2-item1",
+          "expected": 19,
+          "actual": 19,
+          "ledger": -1
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRZXDB49",
+          "amount": 100000,
+          "usedAmount": 45000,
+          "usedCount": 2,
+          "status": "PARTIALLY_USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        }
+      ],
+      "counts": {
+        "invoices": 2,
+        "returns": 0,
+        "payments": 4,
+        "credits": 1,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "official return CARD, expected net 187500, source credits and stock reconciled",
+      "expected": {
+        "cash": 0,
+        "card": 330000,
+        "refundCash": 0,
+        "refundCard": 167500,
+        "blue": 162500
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 330000,
+        "refundCash": 0,
+        "refundCard": 167500
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 330000,
+        "refundCash": 0,
+        "refundCard": 167500
+      },
+      "blue": 162500,
+      "stocks": [
+        {
+          "variantId": 1,
+          "label": "inv1-item1",
+          "expected": 19,
+          "actual": 19,
+          "ledger": -1
+        },
+        {
+          "variantId": 2,
+          "label": "inv2-item1",
+          "expected": 20,
+          "actual": 20,
+          "ledger": 0
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRZXDB49",
+          "amount": 100000,
+          "usedAmount": 25000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        }
+      ],
+      "counts": {
+        "invoices": 2,
+        "returns": 1,
+        "payments": 4,
+        "credits": 1,
+        "deliveries": 0,
+        "checks": 0
+      }
+    }
+  ],
+  "findings": [],
+  "finalCreditState": [
+    {
+      "id": 1,
+      "code": "CRZXDB49",
+      "amount": 100000,
+      "usedAmount": 25000,
+      "usedCount": 1,
+      "status": "PARTIALLY_USED",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL",
+      "delivery": null
+    }
+  ],
+  "operationOutcome": "COMPLETED",
+  "final": {
+    "expected": {
+      "cash": 0,
+      "card": 330000,
+      "refundCash": 0,
+      "refundCard": 167500,
+      "blue": 162500
+    },
+    "actual": {
+      "cash": 0,
+      "card": 330000,
+      "refundCash": 0,
+      "refundCard": 167500
+    },
+    "blue": 162500,
+    "stocks": [
+      {
+        "variantId": 1,
+        "label": "inv1-item1",
+        "expected": 19,
+        "actual": 19,
+        "ledger": -1
+      },
+      {
+        "variantId": 2,
+        "label": "inv2-item1",
+        "expected": 20,
+        "actual": 20,
+        "ledger": 0
+      }
+    ],
+    "invoiceCount": 2,
+    "returnCount": 1,
+    "paymentCount": 4,
+    "creditCount": 1,
+    "deliveryCount": 0,
+    "checkCount": 0
+  }
+}

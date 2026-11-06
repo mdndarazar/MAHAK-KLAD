@@ -16,7 +16,7 @@ import { attachVerifiedCustodySaleOperator, salesService } from '../services/Sal
 import { salesLedger } from '../services/SalesLedger'
 import { reportLimitsService } from '../services/reportLimits'
 import { periodLockService } from '../services/PeriodLockService'
-import { storeCreditService } from '../services/StoreCreditService'
+import { confirmStoreCreditDelivery, storeCreditService } from '../services/StoreCreditService'
 import { purchaseService } from '../services/PurchaseService'
 import { partyService } from '../services/PartyService'
 import { secondaryStockService } from '../services/SecondaryStockService'
@@ -676,6 +676,10 @@ export function registerIpcHandlers(): void {
     return salesService.chequeList(p ?? {})
   })
   // ---- تعویض کالا و بارکد اعتبار خرید بعدی (بخش ۶) ----
+  handle(IPC.saleExchangePreview, async (p) => {
+    await assertPanelUnlocked(PANEL_KEYS.salesReturn, 'پیش‌نمایش پشتوانهٔ مابه‌التفاوت تعویض')
+    return salesService.previewExchangeFunding(p ?? {})
+  })
   handle(IPC.saleExchangeCreate, async (p) => {
     await assertPanelUnlocked(PANEL_KEYS.salesReturn, 'ثبت تعویض کالا')
     return salesService.createExchange(await withSessionActor(p ?? {}, 'ثبت تعویض کالا'))
@@ -695,7 +699,7 @@ export function registerIpcHandlers(): void {
    */
   handle(IPC.printExchange, async (p) => {
     await assertExchangePrintRead('چاپ سند تعویض کالا')
-    return printService.printExchange(p ?? {})
+    return printService.printExchange(await withOptionalSessionActor(p ?? {}))
   })
   // ---- افزوده‌های جلسه ۱۴ ----
   handle(IPC.printReturn, (p) => printService.printReturn(p ?? {}))
@@ -821,6 +825,44 @@ export function registerIpcHandlers(): void {
   handle(IPC.creditDetail, async (p) => {
     await assertCreditRead('دیدن جزئیات یک اعتبار خرید')
     return storeCreditService.detail(p ?? {})
+  })
+  handle(IPC.creditInvoiceLookup, async (p) => {
+    assertManagerSession('بازیابی اعتبارهای مرتبط با فاکتور')
+    await assertCreditRead('بازیابی اعتبارهای مرتبط با فاکتور')
+    return storeCreditService.linkedCreditsForInvoice({ code: p?.code })
+  })
+  const assertCreditDeliveryPanel = async (action: string) => {
+    try {
+      await assertPanelUnlocked(PANEL_KEYS.salesReturn, action)
+      return
+    } catch (returnPanelError) {
+      try {
+        await assertPanelUnlocked(PANEL_KEYS.creditManagement, action)
+        return
+      } catch {
+        throw returnPanelError
+      }
+    }
+  }
+  handle(IPC.creditDeliveryPrint, async (p) => {
+    await assertCreditDeliveryPanel('چاپ نخست گواهی اعتبار برگشت/تعویض')
+    const id = Number(p?.id ?? 0)
+    if (!Number.isSafeInteger(id) || id <= 0) throw new BusinessError('اعتبار برای چاپ مشخص نشده است.')
+    const credit = await prisma.storeCredit.findUnique({
+      where: { id }, select: { id: true, status: true, returnId: true, exchangeInvoiceId: true, printCount: true, expiresAt: true }
+    })
+    const delivery = await (prisma as any).storeCreditDelivery.findUnique({ where: { creditId: id }, select: { status: true } })
+    if (!credit || (credit.returnId == null && credit.exchangeInvoiceId == null) ||
+      !['ACTIVE', 'DRAFT'].includes(String(credit.status)) || String(delivery?.status) !== 'PENDING')
+      throw new BusinessError('فقط اعتبار زنده‌ی برگشت/تعویض با سابقه‌ی چاپِ در انتظار ثبت قابل چاپ نخست است.')
+    if (Number(credit.printCount ?? 0) > 0)
+      throw new BusinessError('این گواهی قبلاً چاپ شده است؛ چاپ دوباره باید با تایید مدیر از مدیریت اعتبار انجام شود.')
+    return printService.printCredit(await withOptionalSessionActor({ id, copies: 1 }))
+  })
+  handle(IPC.creditDeliveryConfirm, async (p) => {
+    await assertCreditDeliveryPanel('ثبت تحویل واقعی بارکد برگشت/تعویض به مشتری')
+    const actor = await withOptionalSessionActor({ id: Number(p?.id) })
+    return confirmStoreCreditDelivery({ id: actor.id, userId: actor.userId })
   })
   /**
    * افشای کد قابل‌مصرف عمداً از list/detail/report جداست. سرویس خودش فقط
@@ -1521,6 +1563,9 @@ export function registerIpcHandlers(): void {
   // ---- بند ۳: سیاست تخفیف پنل فروش ----
   handle(IPC.discountPolicyGet, () => settingsService.discountPolicy())
   handle(IPC.discountPolicySave, async (p) => settingsService.saveDiscountPolicy(await withOptionalSessionActor(p ?? {})))
+  handle(IPC.discountTransferPolicySave, async (p) =>
+    settingsService.saveDiscountTransferPolicy(await withOptionalSessionActor(p ?? {}))
+  )
 
   // مورد ۸ — انتقال از انبار مرکزی به انبار فروشگاه
   handle(IPC.secondaryStockToStore, async (p) => secondaryStockService.toStore(await withOptionalSessionActor(p ?? {})))

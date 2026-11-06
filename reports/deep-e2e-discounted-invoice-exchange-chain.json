@@ -1,0 +1,86 @@
+{
+  "generatedAt": "2026-10-28T12:59:04.156Z",
+  "isolatedDatabase": "/tmp/mahak-discounted-invoice-exchange-chain-9kbDzn/isolated.db",
+  "verdict": "PASS",
+  "checks": {
+    "firstInvoiceHas2mDiscountAnd18mNet": true,
+    "discountedItemsEachReturnAt9m": true,
+    "lowerExchangeRefundsOnly500k": true,
+    "higherExchangeCollectsOnly500k": true,
+    "rootAllItemsReturnedAtNet18m": true,
+    "childReturnsUseReplacementPrices": true,
+    "netCashRefundAfterExchangeTenderEqualsOriginalNetPayment": true,
+    "noStoreCreditBarcodeInCashSettlementChain": true,
+    "rootNoDebtOrUnsettledPayment": true
+  },
+  "assumptions": {
+    "originalInvoice": "Two items at 10,000,000 each; invoice-wide discount 2,000,000; net invoice and cash paid 18,000,000.",
+    "settlement": "CASH for both exchange differences below the original item net price; actual source lineages only."
+  },
+  "originalSale": {
+    "invoiceId": 1,
+    "grossGoods": 20000000,
+    "invoiceDiscount": 2000000,
+    "netInvoice": 18000000,
+    "cashPaid": 18000000,
+    "settled": true
+  },
+  "exchangeChain": [
+    {
+      "returned": "A",
+      "sourceGrossLine": 10000000,
+      "allocatedDiscount": 1000000,
+      "sourceNetReturn": 9000000,
+      "replacement": "A1",
+      "replacementPrice": 8500000,
+      "diff": -500000,
+      "cashRefunded": 500000
+    },
+    {
+      "returned": "B",
+      "sourceGrossLine": 10000000,
+      "allocatedDiscount": 1000000,
+      "sourceNetReturn": 9000000,
+      "replacement": "B1",
+      "replacementPrice": 9500000,
+      "diff": 500000,
+      "cashReceived": 500000
+    }
+  ],
+  "childReturns": [
+    {
+      "label": "A1",
+      "exchangeInvoiceId": 2,
+      "childItemId": 3,
+      "childInvoiceTotal": 8500000,
+      "returnId": 3,
+      "returnTotal": 8500000,
+      "refundMethod": "CASH",
+      "cashRefunded": 8500000
+    },
+    {
+      "label": "B1",
+      "exchangeInvoiceId": 3,
+      "childItemId": 4,
+      "childInvoiceTotal": 9500000,
+      "returnId": 4,
+      "returnTotal": 9500000,
+      "refundMethod": "CASH",
+      "cashRefunded": 9500000
+    }
+  ],
+  "final": {
+    "originalNetValueReturned": 18000000,
+    "replacementValueReturned": 18000000,
+    "cashRefundedIncludingChildReturns": 18500000,
+    "additionalCashCollectedOnExchange": 500000,
+    "netCashRefundAfterCollections": 18000000,
+    "storeCreditBarcodeCount": 0
+  },
+  "safety": {
+    "liveDatabase": false,
+    "productionCodeChanged": false,
+    "checksOrDebt": false,
+    "realMoneyMoved": false
+  }
+}

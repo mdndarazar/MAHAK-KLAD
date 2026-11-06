@@ -1,0 +1,220 @@
+{
+  "generatedAt": "2026-10-28T17:29:17.849Z",
+  "scenarioId": 18,
+  "scenario": "بازگشت سهم به کد زندهٔ نیمه‌مصرف",
+  "mode": "CASH",
+  "matrixRole": "one of five return-settlement variants; baseline is recorded in deep-e2e-retest-30-summary",
+  "isolatedDatabase": "/tmp/mahak-retest30-18-cash-cpvBbQ/isolated.db",
+  "sourceShape": {
+    "itemCount": 2,
+    "unitPrice": 100000,
+    "saleTender": "CASH",
+    "lineDiscount": 10000,
+    "invoiceDiscount": 0,
+    "gross": 200000,
+    "netInvoice": 190000,
+    "returnedCount": 2,
+    "returnedNet": 190000
+  },
+  "status": "PASS",
+  "expectedFinancial": {
+    "cash": 190000,
+    "card": 0,
+    "refundCash": 190000,
+    "refundCard": 0
+  },
+  "checkpoints": [
+    {
+      "label": "isolated empty shift",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "variantId": 1,
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "variantId": 2,
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [],
+      "counts": {
+        "returns": 0,
+        "credits": 0,
+        "transfers": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "sale settled; gross=200000; discount=10000; net=190000",
+      "expected": {
+        "cash": 190000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 190000
+      },
+      "reported": {
+        "cash": 190000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 190000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 190000,
+      "stock": [
+        {
+          "variantId": 1,
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "variantId": 2,
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "grossPaid": 190000,
+          "paid": 190000,
+          "discount": 10000,
+          "settled": true
+        }
+      ],
+      "counts": {
+        "returns": 0,
+        "credits": 0,
+        "transfers": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "return completed via CASH; return net=190000",
+      "expected": {
+        "cash": 190000,
+        "card": 0,
+        "refundCash": 190000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cash": 190000,
+        "card": 0,
+        "refundCash": 190000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 190000,
+        "card": 0,
+        "refundCash": 190000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "variantId": 1,
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "variantId": 2,
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "grossPaid": 190000,
+          "paid": 190000,
+          "discount": 10000,
+          "settled": true
+        }
+      ],
+      "counts": {
+        "returns": 1,
+        "credits": 0,
+        "transfers": 0,
+        "checks": 0
+      }
+    }
+  ],
+  "return": {
+    "id": 1,
+    "total": 190000,
+    "refundMethod": "CASH",
+    "refundAmount": 190000,
+    "refundStoreCreditAmount": 0,
+    "exchangeSettlement": null,
+    "exchangeInvoiceId": null,
+    "credits": []
+  },
+  "managerTransfer": null,
+  "findings": [],
+  "final": {
+    "expected": {
+      "cash": 190000,
+      "card": 0,
+      "refundCash": 190000,
+      "refundCard": 0,
+      "blue": 0
+    },
+    "actual": {
+      "cash": 190000,
+      "card": 0,
+      "refundCash": 190000,
+      "refundCard": 0
+    },
+    "blue": 0,
+    "stock": [
+      {
+        "id": 1,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "id": 2,
+        "actual": 10,
+        "ledger": 0
+      }
+    ],
+    "returns": 1,
+    "credits": 0,
+    "transfers": 0,
+    "checkPayments": 0
+  }
+}

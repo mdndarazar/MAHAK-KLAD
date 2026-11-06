@@ -50,6 +50,11 @@ import {
   type DiscountPolicy
 } from '@shared/priceAdjust'
 import {
+  DEFAULT_DISCOUNT_TRANSFER_SETTINGS,
+  parseDiscountTransferSettings,
+  type DiscountTransferSettings
+} from '@shared/discountTransfer'
+import {
   CHARGE_KINDS,
   CHARGE_SCOPES,
   chargeSettingKey,
@@ -120,6 +125,8 @@ export interface SettingsBundle {
    * بنشیند.
    */
   discount: DiscountPolicy
+  /** Transfer-specific manager guard; default is preventExtraRefund=true. */
+  discountTransfer: DiscountTransferSettings
   credit: CreditSettings
   /**
    * جلسه ۱۹ · بند ۹ — «تاریخ و ساعت رسمی» (افست دستی ساعت کشور).
@@ -505,6 +512,31 @@ export const settingsService = {
     return clean
   },
 
+  async discountTransferPolicy(): Promise<DiscountTransferSettings> {
+    return parseDiscountTransferSettings(await readKey(SETTING_KEYS.discountTransferPolicy))
+  },
+
+  async saveDiscountTransferPolicy(
+    input: { preventExtraRefund?: unknown; userId?: number | null; managerPassword?: string | null } = {}
+  ): Promise<DiscountTransferSettings> {
+    const before = await this.discountTransferPolicy()
+    const next = parseDiscountTransferSettings({ preventExtraRefund: input.preventExtraRefund })
+    if (before.preventExtraRefund !== next.preventExtraRefund)
+      await assertManagerPassword(input?.managerPassword ?? null, 'تغییر چک‌باکس جلوگیری از بازپرداخت اضافه در تعویض')
+    await writeKey(SETTING_KEYS.discountTransferPolicy, next)
+    await audit(prisma, {
+      action: 'SETTINGS_UPDATE',
+      entity: 'Setting',
+      userId: input?.userId ?? null,
+      before: JSON.stringify(before),
+      after: JSON.stringify(next),
+      note: next.preventExtraRefund
+        ? 'سیاست انتقال تخفیف: جلوگیری از بازپرداخت بیشتر از گزینهٔ بدون انتقال روشن شد'
+        : 'سیاست انتقال تخفیف: مدیر جلوگیری از بازپرداخت بیشتر از گزینهٔ بدون انتقال را خاموش کرد'
+    })
+    return next
+  },
+
   /**
    * ساخت کلید اسکوپ‌دار از داده‌ی قدیمی، فقط یک بار (اگر کلید جدید وجود نداشت).
    * هیچ‌وقت خطا پرتاب نمی‌کند: اگر مهاجرت نشد، مقدار پیش‌فرض برمی‌گردد.
@@ -595,7 +627,7 @@ export const settingsService = {
 
   /** همه‌ی تنظیمات با یک رفت‌و‌برگشت (صفحه‌ی تنظیمات و پنل‌های فروش). */
   async bundle(): Promise<SettingsBundle> {
-    const [receipt, sale, shift, label, charges, security, discount, time, credit] = await Promise.all([
+    const [receipt, sale, shift, label, charges, security, discount, discountTransfer, time, credit] = await Promise.all([
       this.receiptTemplate(),
       this.saleDefaults(),
       this.shiftConfig(),
@@ -603,10 +635,11 @@ export const settingsService = {
       this.charges(),
       this.securityConfig(),
       this.discountPolicy(),
+      this.discountTransferPolicy(),
       this.officialTime(),
       this.creditSettings()
     ])
-    return { receipt, sale, shift, label, charges, security, discount, time, credit }
+    return { receipt, sale, shift, label, charges, security, discount, discountTransfer, time, credit }
   },
 
   /**
@@ -923,6 +956,7 @@ export const settingsService = {
       charges: nextCharges,
       security: nextSecurity ?? before.security,
       discount: nextDiscount ?? before.discount,
+      discountTransfer: before.discountTransfer,
       credit: before.credit,
       time: nextTime ?? before.time
     }

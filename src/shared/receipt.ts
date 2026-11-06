@@ -75,6 +75,8 @@ export const SETTING_KEYS = {
    * افزایش/کاهش قیمت» قابل تغییر است (که خودش قفل رمز دارد).
    */
   discountPolicy: 'sale.discountPolicy',
+  /** Manager policy for the historical-discount exchange window. */
+  discountTransferPolicy: 'sale.discountTransferPolicy',
   /**
    * ====================== جلسه ۱۴ ======================
    * سیاست حسابداری صندوق و اعتبار خرید. شکل مقدار:
@@ -212,7 +214,7 @@ export interface AccountingPolicy {
 
 export const DEFAULT_ACCOUNTING_POLICY: AccountingPolicy = {
   cashDifferenceThreshold: 100_000,
-  storeCreditLimit: 20_000_000,
+  storeCreditLimit: 0,
   requireManagerForPriceOverride: true,
   lockClosedPeriods: true,
   abnormalDiscountPercent: 30

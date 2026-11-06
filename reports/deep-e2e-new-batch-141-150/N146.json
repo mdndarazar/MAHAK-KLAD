@@ -1,0 +1,262 @@
+{
+  "generatedAt": "2026-10-28T18:09:35.442Z",
+  "id": 146,
+  "scenario": "N146",
+  "isolatedDatabase": "/tmp/mahak-followup-146-0gSuEI/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "settled-sale",
+      "invoiceId": 1,
+      "total": 200000,
+      "cash": 200000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 2,
+          "unitPrice": 100000,
+          "lineTotal": 200000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 200000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 200000
+      },
+      "actual": {
+        "cash": 200000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 200000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 200000,
+      "stock": [
+        {
+          "name": "two-original-units",
+          "expected": 8,
+          "actual": 8,
+          "ledger": -2
+        },
+        {
+          "name": "one-bundle-replacement",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 200000,
+          "paid": 200000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "credits": [],
+      "checks": 0
+    },
+    {
+      "operation": "exchange",
+      "label": "two-units-to-one-bundle",
+      "sourceInvoiceId": 1,
+      "returnId": 1,
+      "exchangeInvoiceId": 2,
+      "sourceValue": 200000,
+      "replacementValue": 200000,
+      "diff": 0,
+      "cashReceived": 0,
+      "cashRefunded": 0,
+      "cardReceived": 0,
+      "cardRefunded": 0,
+      "preview": {
+        "ok": true,
+        "returnTotal": 200000,
+        "exchangeTotal": 200000,
+        "nominalDiff": 0,
+        "effectiveDiff": 0,
+        "exchangeCreditApplied": 200000,
+        "realMoneySurplus": 0,
+        "sourceCreditRestoration": 0
+      }
+    },
+    {
+      "label": "exchange two-units-to-one-bundle",
+      "expected": {
+        "cash": 200000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 200000
+      },
+      "actual": {
+        "cash": 200000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 200000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 200000,
+      "stock": [
+        {
+          "name": "two-original-units",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "one-bundle-replacement",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 200000,
+          "paid": 200000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 200000,
+          "paid": 200000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returns": 1,
+      "credits": [],
+      "checks": 0
+    },
+    {
+      "label": "final N146 reconciliation",
+      "expected": {
+        "cash": 200000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 200000
+      },
+      "actual": {
+        "cash": 200000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 200000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 200000,
+      "stock": [
+        {
+          "name": "two-original-units",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "one-bundle-replacement",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 200000,
+          "paid": 200000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 200000,
+          "paid": 200000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returns": 1,
+      "credits": [],
+      "checks": 0
+    }
+  ],
+  "assertions": [
+    {
+      "key": "quantity-conserving-two-for-one-equal-value-exchange",
+      "pass": true,
+      "returnedQty": 2,
+      "replacementQty": 1,
+      "returnedValue": 200000,
+      "replacementValue": 200000,
+      "diff": 0
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 200000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 200000
+    },
+    "actual": {
+      "cash": 200000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 200000,
+    "stock": [
+      {
+        "name": "two-original-units",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "one-bundle-replacement",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 2,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

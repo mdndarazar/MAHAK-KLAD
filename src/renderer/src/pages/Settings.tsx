@@ -89,6 +89,7 @@ import { LOCKED_PANELS } from '@shared/panels'
 import { STAFF_ROLES, STAFF_ROLE_LABELS } from '@shared/enums'
 import { broadcastPanelLocksChanged } from '../hooks/usePanelLocks'
 import { broadcastSettingsChanged } from '../hooks/useSettings'
+import { DEFAULT_DISCOUNT_TRANSFER_SETTINGS, type DiscountTransferSettings } from '@shared/discountTransfer'
 import {
   DEFAULT_DISCOUNT_POLICY,
   DISCOUNT_POLICY_LABELS,
@@ -304,6 +305,9 @@ export default function Settings() {
    */
   const [discount, setDiscount] = useState<DiscountPolicy>(DEFAULT_DISCOUNT_POLICY)
   const [discountBusy, setDiscountBusy] = useState(false)
+  const [discountTransfer, setDiscountTransfer] = useState<DiscountTransferSettings>(DEFAULT_DISCOUNT_TRANSFER_SETTINGS)
+  const [discountTransferBusy, setDiscountTransferBusy] = useState(false)
+  const [discountTransferPw, setDiscountTransferPw] = useState('')
   /** نشست ۱۵۴ (S151-b) — رمز مدیر یا رمز دوم پنل تنظیمات؛ سرور می‌سنجد، بعد از هر تلاش پاک می‌شود */
   const [discountPw, setDiscountPw] = useState('')
   /**
@@ -521,6 +525,7 @@ export default function Settings() {
         security: SecurityConfig
         /** بند ۳ — سیاست تخفیف (`SettingsBundle.discount`) */
         discount: DiscountPolicy
+        discountTransfer: DiscountTransferSettings
         /** جلسه ۱۹ · بند ۹ — افست دستی ساعت رسمی */
         time: OfficialTimeConfig
       }>(CH.settingsBundle)
@@ -537,6 +542,7 @@ export default function Settings() {
       setSecurity(parseSecurityConfig(b.security))
       // مقدار خراب یا نبودِ کلید ⇒ پیش‌فرض FREE (رفتار نسخه‌های قبل)، بدون کرش
       setDiscount(parseDiscountPolicy(b.discount))
+      setDiscountTransfer(b.discountTransfer ?? { ...DEFAULT_DISCOUNT_TRANSFER_SETTINGS })
       // بند ۹ — افست ساعت رسمی (نبودِ کلید ⇒ صفر = رفتار مو‌به‌موی قبل)
       const t = parseOfficialTimeConfig(b.time)
       setTime(t)
@@ -1287,6 +1293,27 @@ export default function Settings() {
     } finally {
       setDiscountBusy(false)
       setDiscountPw('') // بند ۴-۴۰ — رمز هر عملیات حساس دوباره پرسیده شود
+    }
+  }
+
+  const saveDiscountTransfer = async () => {
+    setDiscountTransferBusy(true)
+    setErr(null)
+    try {
+      const saved = await call<DiscountTransferSettings>(CH.discountTransferPolicySave, {
+        preventExtraRefund: discountTransfer.preventExtraRefund,
+        managerPassword: discountTransferPw
+      })
+      setDiscountTransfer(saved)
+      flash(saved.preventExtraRefund
+        ? 'جلوگیری از بازپرداخت بیشتر ناشی از انتقال تخفیف روشن شد.'
+        : 'مدیر، جلوگیری از بازپرداخت بیشتر ناشی از انتقال تخفیف را خاموش کرد.')
+    } catch (e: any) {
+      setErr(e.message)
+      await load()
+    } finally {
+      setDiscountTransferBusy(false)
+      setDiscountTransferPw('')
     }
   }
 
@@ -3617,6 +3644,46 @@ export default function Settings() {
                 </div>
               </section>
 
+              <section className="space-y-2 rounded border-2 border-amber-300 bg-amber-50 p-3">
+                <h2 className="font-bold">انتقال تخفیف تاریخی هنگام تعویض</h2>
+                <label className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4"
+                    checked={discountTransfer.preventExtraRefund}
+                    onChange={(event) => setDiscountTransfer((current) => ({
+                      ...current,
+                      preventExtraRefund: event.target.checked
+                    }))}
+                    disabled={discountTransferBusy}
+                  />
+                  <span>
+                    <b>جلوگیری از بازپرداخت بیشتر از گزینهٔ «خیر»</b>
+                    <div className="kbd leading-6">
+                      پیش‌فرض روشن است. با روشن بودن، گزینهٔ «بله» فقط وقتی غیرفعال می‌شود که ارزش نهاییِ واقعاً برگشتی
+                      به مشتری—وجه و اعتبار، از جمله اعتبارِ بازگشتی به منبع قبلی—از «خیر» بیشتر باشد. نوع هر مبلغ جداگانه
+                      نمایش داده می‌شود. خاموش‌کردن این محافظ، سقف مبلغ قابل‌انتقال و جلوگیری از انتقال دوباره را خاموش نمی‌کند.
+                    </div>
+                  </span>
+                </label>
+                <div className="flex flex-wrap items-end gap-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="kbd">رمز مدیر برای تغییر این قاعده</span>
+                    <PasswordField value={discountTransferPw} onChange={(event) => setDiscountTransferPw(event.target.value)} />
+                  </label>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => void saveDiscountTransfer()}
+                    disabled={discountTransferBusy || !discountTransferPw.trim()}
+                  >
+                    {discountTransferBusy ? 'در حال ذخیره…' : 'ذخیرهٔ قاعدهٔ بازپرداخت'}
+                  </button>
+                  <button className="btn" onClick={() => void load()} disabled={discountTransferBusy}>
+                    بازخوانی از دیتابیس
+                  </button>
+                </div>
+              </section>
+
               {/* ---------- راه دوم و مستقل: ماژول تغییر گروهی قیمت ---------- */}
               <section className="space-y-2">
                 <h2 className="font-bold border-b pb-1">تخفیف روی خودِ قیمت کالاها</h2>
@@ -4291,7 +4358,7 @@ export default function Settings() {
                     }}
                   />
                 </Field>
-                <Field label="سقف صدور اعتبار خرید بدون رمز مدیر (ریال) — ۰ = بدون سقف">
+                <Field label="آستانهٔ گیت مدیر برای اولین برگشت/تعویض زنجیره (ریال) — ۰ = خاموش">
                   <input
                     dir="ltr"
                     className="inp text-center tabular-nums"

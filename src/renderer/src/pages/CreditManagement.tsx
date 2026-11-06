@@ -9,6 +9,7 @@ import JalaliDateInput from '../components/JalaliDateInput'
 import type { Party } from '../components/PartyPicker'
 import { IssueForm, OpForm, SettingsForm } from '../components/CreditForms'
 import CreditDetailView from '../components/CreditDetailView'
+import ReturnCreditHandoffActions from '../components/returns/ReturnCreditHandoffActions'
 import { exportTable } from '../lib/exportCsv'
 import { PANEL_KEYS } from '@shared/panels'
 import { usePanelLock } from '../hooks/usePanelLocks'
@@ -147,6 +148,9 @@ export default function CreditManagement() {
   const [listPage, setListPage] = useState<SaleReportPage | null>(null)
   const [settings, setSettings] = useState<CreditSettings>(emptySettings)
   const [search, setSearch] = useState('')
+  const [invoiceLookupCode, setInvoiceLookupCode] = useState('')
+  const [invoiceLookup, setInvoiceLookup] = useState<any | null>(null)
+  const [invoiceLookupBusy, setInvoiceLookupBusy] = useState(false)
   const [source, setSource] = useState('')
   const [status, setStatus] = useState('')
   const [from, setFrom] = useState('')
@@ -407,6 +411,41 @@ export default function CreditManagement() {
     }
   }
 
+  const lookupInvoiceCredits = async () => {
+    if (!isManager) return setErr('بازیابی اعتبارهای مرتبط با فاکتور فقط برای مدیر مجاز است.')
+    const code = invoiceLookupCode.trim()
+    if (!code) return setErr('بارکد فاکتور را اسکن کنید یا شمارهٔ رسید را وارد کنید.')
+    setInvoiceLookupBusy(true)
+    setInvoiceLookup(null)
+    setErr(null)
+    setMsg(null)
+    try {
+      const result = await call<any>(CH.creditInvoiceLookup, { code })
+      setInvoiceLookup(result)
+      if (!result?.credits?.length)
+        setMsg('فاکتور پیدا شد، اما اعتبارِ صادرشده‌ای به آن وصل نیست؛ هیچ اعتبار تازه‌ای ساخته نشد.')
+    } catch (e: any) {
+      setErr(e.message)
+    } finally {
+      setInvoiceLookupBusy(false)
+    }
+  }
+
+  const printLinkedCredit = async (creditId: number) => {
+    if (!isManager) return setErr('چاپ بارکد اعتبار فقط برای مدیر مجاز است.')
+    // Deliberately print the already-linked StoreCredit row. No issue/create
+    // endpoint is called from this recovery flow.
+    await printOne(creditId)
+    if (invoiceLookupCode.trim()) {
+      try {
+        setInvoiceLookup(await call<any>(CH.creditInvoiceLookup, { code: invoiceLookupCode.trim() }))
+      } catch {
+        // Printing already reported its own result; a refresh failure must not
+        // turn a successful print into an apparent failed print.
+      }
+    }
+  }
+
   const printBatch = async (target: CreditPrintTarget) => {
     if (!isManager) return setErr('چاپ کد اعتبار فقط با نشست فعال مدیر مجاز است.')
     if (printingRef.current) return
@@ -491,6 +530,10 @@ export default function CreditManagement() {
 
   const cards = dashboardCards(dashboard)
   const reminderView = useMemo(() => reminderFilter(reminders.rows, onlyEligible), [reminders.rows, onlyEligible])
+  const pendingHandoffCredits = useMemo(
+    () => rows.filter((credit) => credit.status === 'DRAFT' && (credit.returnId != null || credit.exchangeInvoiceId != null)),
+    [rows]
+  )
 
   return (
     <Gate>
@@ -555,6 +598,75 @@ export default function CreditManagement() {
             {busy ? 'در حال خواندن…' : 'به‌روزرسانی'}
           </button>
         </div>
+
+        <section className="bg-indigo-50 border border-indigo-300 rounded p-3 space-y-2">
+          <div>
+            <b>بازیابی و چاپِ همان اعتبارِ وصل‌شده به فاکتور</b>
+            <div className="kbd mt-1">
+              بارکد فاکتورِ تعویض را اسکن کنید؛ شمارهٔ رسید را هم می‌توانید وارد کنید. این بخش فقط اعتبارِ ثبت‌شده را پیدا می‌کند و اعتبار تازه نمی‌سازد.
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 items-end">
+            <label className="flex-1 min-w-[260px]">
+              <div className="kbd">بارکد فاکتور یا شمارهٔ رسید</div>
+              <input
+                className="inp w-full"
+                dir="ltr"
+                autoComplete="off"
+                value={invoiceLookupCode}
+                disabled={!isManager || invoiceLookupBusy}
+                placeholder={isManager ? 'اسکن کنید یا شمارهٔ رسید را وارد کنید' : 'فقط مدیر می‌تواند بازیابی کند'}
+                onChange={(event) => {
+                  setInvoiceLookupCode(event.target.value)
+                  setInvoiceLookup(null)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    void lookupInvoiceCredits()
+                  }
+                }}
+              />
+            </label>
+            <button className="btn btn-primary" onClick={() => void lookupInvoiceCredits()} disabled={!isManager || invoiceLookupBusy || !invoiceLookupCode.trim()}>
+              {invoiceLookupBusy ? 'در حال پیدا کردن…' : 'پیدا کردن اعتبارهای فاکتور'}
+            </button>
+            <button className="btn" onClick={() => { setInvoiceLookupCode(''); setInvoiceLookup(null) }} disabled={invoiceLookupBusy}>
+              پاک کردن
+            </button>
+          </div>
+          {invoiceLookup?.invoice && (
+            <div className="rounded border bg-white p-2 space-y-2">
+              <div className="font-bold">
+                فاکتور {faDigits(invoiceLookup.invoice.receiptNo)} · {invoiceLookup.invoice.orderType} · {faDigits(invoiceLookup.invoice.issuedAtJalali)}
+                {invoiceLookup.invoice.voided ? ' · باطل‌شده' : ''}
+              </div>
+              {invoiceLookup.credits.length > 0 && (
+                <div className="space-y-2">
+                  {invoiceLookup.credits.map((credit: StoreCreditSafeRow) => (
+                    <div key={credit.id} className="flex flex-wrap items-center gap-2 rounded border border-indigo-100 bg-indigo-50 p-2">
+                      <b>{credit.publicReference ?? `اعتبار #${credit.id}`}</b>
+                      <span>{money(credit.amount)} ریال</span>
+                      <span>باقی‌مانده: {money(credit.remaining)} ریال</span>
+                      <span>{credit.statusLabel}</span>
+                      <span>{credit.sourceLabel}</span>
+                      {credit.expiresAtJalali ? <span>انقضا: {faDigits(credit.expiresAtJalali)}</span> : null}
+                      <span className="kbd">چاپ‌شده: {faDigits(credit.printCount)} بار</span>
+                      <button
+                        className="btn btn-primary ms-auto"
+                        onClick={() => void printLinkedCredit(credit.id)}
+                        disabled={!isManager || printing || credit.archived}
+                        title="همان بارکدِ ذخیره‌شده چاپ می‌شود؛ اعتبار تازه‌ای صادر نمی‌شود"
+                      >
+                        {printing ? 'در حال چاپ…' : 'چاپ دوبارهٔ همین بارکد'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </section>
 
         {msg && <div className="bg-emerald-50 border border-emerald-300 rounded p-2 whitespace-pre-line">{msg}</div>}
         {err && <div className="bg-rose-50 border border-rose-300 rounded p-2 whitespace-pre-line">{err}</div>}
@@ -623,7 +735,9 @@ export default function CreditManagement() {
 
         {/* ---------------- فهرست اعتبارها (§۱۶) ---------------- */}
         {view === 'list' && (
-          <div className="tbl-card overflow-auto">
+          <div className="space-y-2">
+            <ReturnCreditHandoffActions credits={pendingHandoffCredits} />
+            <div className="tbl-card overflow-auto">
             <div className="p-2 flex gap-2 border-b items-center flex-wrap">
               <button className="btn" onClick={() => void doExport('list', rows)}>
                 خروجی اکسل
@@ -704,6 +818,7 @@ export default function CreditManagement() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
 

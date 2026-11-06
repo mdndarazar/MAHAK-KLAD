@@ -107,7 +107,7 @@ console.log('\n۱) برگشت بدون بازپرداخت، بدون تأیید 
   }
 }
 
-console.log('\n۲) با تأیید، اضافه‌دریافت ۴۰۰k ثبت می‌شود (بدون اعتبار)')
+console.log('\n۲) با تأیید و روش NONE، اعتبارِ پشتوانه‌دار ۴۰۰k خودکار صادر می‌شود')
 {
   const sale = await saleTwo('فروش ب ۹۰۰k از ۱M')
   if (sale) {
@@ -118,7 +118,9 @@ console.log('\n۲) با تأیید، اضافه‌دریافت ۴۰۰k ثبت م
     }))
     eq('overpayAmount برگشت', Number(ret?.overpayAmount ?? 0), 400_000)
     eq('invoiceOverpaid', Number(ret?.invoiceOverpaid ?? 0), 400_000)
-    truthy('کد اعتبار صادر نشد', !ret?.overpayCredit)
+    eq('اعتبار خودکار فقط به‌اندازهٔ اضافه‌دریافت واقعی صادر شد', Number(ret?.overpayCredit?.amount ?? 0), 400_000)
+    eq('اعتبار خودکار بدون انقضاست', ret?.overpayCredit?.expiresAtJalali ?? null, null)
+    eq('اعتبار به سند برگشت لینک شد', Number(seed.one('SELECT COUNT(*) c FROM "StoreCredit" WHERE returnId=?', ret?.id)?.c ?? 0), 1)
   }
 }
 
@@ -130,25 +132,31 @@ console.log('\n۳) با تأیید + overpayAsCredit ⇒ کد OVERPAY')
       invoiceId: sale.id, full: false,
       lines: [{ saleItemId: itemsOf(sale.id)[0].id, qty: 1 }],
       refundMethod: RefundMethod.NONE, confirmOverpay: true, overpayAsCredit: true,
-      userId, shiftId, managerPassword: PW
+      userId, shiftId, overpayManagerPassword: PW
     }))
     truthy('اعتبار با مرجع امن صادر شد', !!ret?.overpayCredit?.id && /^اعتبار #\d+$/.test(String(ret?.overpayCredit?.publicReference ?? '')) && !Object.hasOwn(ret?.overpayCredit ?? {}, 'code'))
     eq('مبلغ اعتبار', Number(ret?.overpayCredit?.amount ?? 0), 400_000)
   }
 }
 
-console.log('\n۴) بازپرداخت نقدی: سقف = پول − کالای مانده (۴۰۰k نه ۵۰۰k)')
+console.log('\n۴) بازپرداخت نقدی: درخواست ۵۰۰k برای ارزش رسمی ۴۰۰k رد؛ مبلغ مجاز پذیرفته می‌شود')
 {
   const sale = await saleTwo('فروش د ۹۰۰k از ۱M')
   if (sale) {
-    const ret = await safe('برگشت نقد (سقف ۴۰۰k)', () => salesService.createReturn({
+    await throwsWith('درخواست نقد ۵۰۰k بالاتر از ارزش رسمی ۴۰۰k', () => salesService.createReturn({
       invoiceId: sale.id, full: false,
       lines: [{ saleItemId: itemsOf(sale.id)[0].id, qty: 1 }],
       refundMethod: RefundMethod.CASH, refundAmount: 500_000, userId, shiftId
+    }), 'ارزش رسمی اقلام انتخاب‌شده')
+    eq('درخواست بالاتر از ارزش رسمی هیچ برگشتی ثبت نکرد', seed.count('SaleReturn', 'invoiceId = ?', sale.id), 0)
+    const ret = await safe('برگشت نقد مجاز ۴۰۰k', () => salesService.createReturn({
+      invoiceId: sale.id, full: false,
+      lines: [{ saleItemId: itemsOf(sale.id)[0].id, qty: 1 }],
+      refundMethod: RefundMethod.CASH, refundAmount: 400_000, userId, shiftId
     }))
     eq('بدون اضافه‌دریافت تازه', Number(ret?.overpayAmount ?? 0), 0)
     const row = seed.one('SELECT refundAmount, refundMethod FROM "SaleReturn" WHERE id = ?', ret?.id)
-    eq('خروج نقد سقف ۴۰۰k (نه ۵۰۰k ارزش کالا)', Number(row?.refundAmount ?? 0), 400_000)
+    eq('بازپرداخت نقد برابر ارزش رسمی', Number(row?.refundAmount ?? 0), 400_000)
     eq('روش نقد ماند', String(row?.refundMethod ?? ''), RefundMethod.CASH)
   }
 }
@@ -171,13 +179,29 @@ console.log('\n۴ب) درخواست بالاتر از ارزش خودِ کالا
 
   const lower = await saleTwo('فروش د۳ برای مبلغ پایین‌تر')
   if (lower) {
-    const ret = await safe('بازپرداخت پایین‌ترِ ۲۰۰k با تسویهٔ موجود', () => salesService.createReturn({
+    const returnInput = {
       invoiceId: lower.id, full: false,
       lines: [{ saleItemId: itemsOf(lower.id)[0].id, qty: 1 }],
-      refundMethod: RefundMethod.CASH, refundAmount: 200_000, confirmOverpay: true, userId, shiftId
+      refundMethod: RefundMethod.CASH, refundDecision: 'METHOD',
+      refundAmount: 200_000, confirmOverpay: true, userId, shiftId
+    }
+    await throwsWith(
+      'بازپرداخت پایین‌تر بدون علت رد می‌شود',
+      () => salesService.createReturn(returnInput),
+      'علت کاهش مبلغ'
+    )
+    eq('رد بدون علت هیچ برگشتی ثبت نکرد', seed.count('SaleReturn', 'invoiceId = ?', lower.id), 0)
+    const reason = 'مشتری خواست بخشی از مبلغ فعلاً نزد فروشگاه بماند'
+    const ret = await safe('بازپرداخت پایین‌ترِ ۲۰۰k با علت ثبت‌شده', () => salesService.createReturn({
+      ...returnInput, refundNote: reason
     }))
-    const row = seed.one('SELECT refundAmount FROM "SaleReturn" WHERE id = ?', ret?.id)
-    eq('مبلغ پایین‌تر بی‌تغییر ثبت شد', Number(row?.refundAmount ?? 0), 200_000)
+    const row = seed.one('SELECT refundAmount, refundNote FROM "SaleReturn" WHERE id = ?', ret?.id)
+    eq('مبلغ پایین‌تر ثبت شد', Number(row?.refundAmount ?? 0), 200_000)
+    eq('علت روی سابقهٔ برگشت ذخیره شد', row?.refundNote, reason)
+    const report = await salesService.returnList({ fromJalali: today, toJalali: today })
+    const reportRows = Array.isArray(report) ? report : report.rows
+    const managerRow = reportRows.find((r) => r.id === ret?.id)
+    eq('علت برای گزارش مدیر در DTO برگشت قابل خواندن است', managerRow?.refundNote, reason)
   }
 }
 

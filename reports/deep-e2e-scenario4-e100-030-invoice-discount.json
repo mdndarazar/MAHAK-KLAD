@@ -1,0 +1,420 @@
+{
+  "generatedAt": "2026-10-27T14:55:33.642Z",
+  "isolatedDatabase": "/tmp/mahak-e100-030-discount-hbAjDP/isolated.db",
+  "verdict": "C+D_ACCEPTED",
+  "checks": {
+    "invoiceNet900kAfter100kDiscount": true,
+    "sixALLBarcodesApplied300kAndCash600k": true,
+    "proportionalNetLines180180270270": true,
+    "ActualReturnItemLinesMatchDiscountedValues": true,
+    "AReturnUsesDiscounted180kAndCreditSource": true,
+    "BExchangeUses180kNetAndCollects40k": true,
+    "BExchangeHasNoCreditSurplusAllocation": true,
+    "CDNetReturnWouldBe540kAndReplacement580k": true,
+    "CDOutcomeIsCorrectlyClassified": true,
+    "CDOutcomeMatchesMutationState": true,
+    "CDLedgerSeparates540kReturnValueFrom40kCash": true,
+    "CDReturnInvoiceAndInventoryPersist": true,
+    "noChecksOrDebt": true
+  },
+  "originalCaseReference": {
+    "blockedIndex": 30,
+    "case": "E100-030",
+    "theFourthBlockedScenario": true,
+    "originalNoDiscountRun": "Root 1,000,000; 300,000 ALL credit + 700,000 cash; A return then B->B1 positive exchange; C+D return=600,000 versus replacements=580,000 (diff=-20,000), so the negative/refund branch hit the prior-return source-allocation gate."
+  },
+  "discountFixture": {
+    "grossGoods": 1000000,
+    "invoiceDiscount": 100000,
+    "netInvoice": 900000,
+    "creditTender": 300000,
+    "cashTender": 600000,
+    "barcodeCount": 6,
+    "eachRedeemed": 50000,
+    "scope": "ALL"
+  },
+  "discountedLineValues": [
+    {
+      "saleItemId": 1,
+      "variantId": 1,
+      "grossLine": 200000,
+      "allocatedDiscount": 20000,
+      "netExpected": 180000
+    },
+    {
+      "saleItemId": 2,
+      "variantId": 2,
+      "grossLine": 200000,
+      "allocatedDiscount": 20000,
+      "netExpected": 180000
+    },
+    {
+      "saleItemId": 3,
+      "variantId": 3,
+      "grossLine": 300000,
+      "allocatedDiscount": 30000,
+      "netExpected": 270000
+    },
+    {
+      "saleItemId": 4,
+      "variantId": 4,
+      "grossLine": 300000,
+      "allocatedDiscount": 30000,
+      "netExpected": 270000
+    }
+  ],
+  "acceptedOperations": {
+    "rootInvoice": 1,
+    "rootSettled": true,
+    "returnA": {
+      "id": 1,
+      "total": 180000,
+      "sourceCreditRestored": 180000,
+      "cashRefund": 0,
+      "returnLines": [
+        {
+          "saleItemId": 1,
+          "lineTotal": 180000
+        }
+      ],
+      "allocations": [
+        {
+          "redemptionId": 1,
+          "sourceCreditId": 3,
+          "amount": 50000,
+          "creditRestored": true,
+          "saleItemId": null
+        },
+        {
+          "redemptionId": 2,
+          "sourceCreditId": 1,
+          "amount": 50000,
+          "creditRestored": true,
+          "saleItemId": null
+        },
+        {
+          "redemptionId": 3,
+          "sourceCreditId": 4,
+          "amount": 50000,
+          "creditRestored": true,
+          "saleItemId": null
+        },
+        {
+          "redemptionId": 4,
+          "sourceCreditId": 2,
+          "amount": 30000,
+          "creditRestored": true,
+          "saleItemId": null
+        }
+      ]
+    },
+    "exchangeB": {
+      "returnId": 2,
+      "exchangeInvoiceId": 2,
+      "returnTotal": 180000,
+      "replacementTotal": 220000,
+      "diff": 40000,
+      "cashReceived": 40000,
+      "returnLines": [
+        {
+          "saleItemId": 2,
+          "lineTotal": 180000
+        }
+      ],
+      "returnRecord": {
+        "id": 2,
+        "kind": "EXCHANGE",
+        "settlement": "CASH"
+      },
+      "creditAllocations": []
+    },
+    "exchangeCD": {
+      "returnId": 3,
+      "exchangeInvoiceId": 3,
+      "returnTotal": 540000,
+      "replacementTotal": 580000,
+      "diff": 40000,
+      "cashReceived": 40000,
+      "returnRecord": {
+        "id": 3,
+        "total": 540000,
+        "kind": "EXCHANGE",
+        "exchangeDiff": 40000,
+        "settlement": "CASH",
+        "refundAmount": 0
+      },
+      "invoice": {
+        "id": 3,
+        "grandTotal": 580000,
+        "paidTotal": 580000,
+        "status": "SETTLED"
+      },
+      "payments": [
+        {
+          "id": 10,
+          "methodId": 3,
+          "amount": 540000,
+          "kind": "CASH",
+          "destination": null,
+          "storeCreditId": null,
+          "note": "ارزش کالای برگشتی فاکتور ۱ (پول نقد نیست)"
+        },
+        {
+          "id": 11,
+          "methodId": 1,
+          "amount": 40000,
+          "kind": "CASH",
+          "destination": "CASH",
+          "storeCreditId": null,
+          "note": "مابه‌التفاوت تعویض کالا پس از اعتبار (دریافت از مشتری)"
+        }
+      ],
+      "returnLines": [
+        {
+          "saleItemId": 3,
+          "lineTotal": 270000
+        },
+        {
+          "saleItemId": 4,
+          "lineTotal": 270000
+        }
+      ],
+      "inventoryAfter": [
+        [
+          1,
+          10
+        ],
+        [
+          2,
+          10
+        ],
+        [
+          3,
+          10
+        ],
+        [
+          4,
+          10
+        ],
+        [
+          5,
+          9
+        ],
+        [
+          6,
+          9
+        ],
+        [
+          7,
+          9
+        ]
+      ]
+    }
+  },
+  "attemptedOperation": {
+    "attempt": "exchange C+D together",
+    "accepted": true,
+    "discountedReturnValue": 540000,
+    "replacementValue": 580000,
+    "expectedDifference": 40000,
+    "error": null,
+    "mutationFree": false
+  },
+  "observedLedger": {
+    "preAttempt": {
+      "invoiceCount": 2,
+      "returnCount": 2,
+      "paymentCount": 9,
+      "allocationCount": 4,
+      "cashMovementCount": 0,
+      "stocks": [
+        [
+          1,
+          10
+        ],
+        [
+          2,
+          10
+        ],
+        [
+          3,
+          9
+        ],
+        [
+          4,
+          9
+        ],
+        [
+          5,
+          9
+        ],
+        [
+          6,
+          10
+        ],
+        [
+          7,
+          10
+        ]
+      ],
+      "credits": [
+        [
+          1,
+          0,
+          "ACTIVE"
+        ],
+        [
+          2,
+          20000,
+          "PARTIALLY_USED"
+        ],
+        [
+          3,
+          0,
+          "ACTIVE"
+        ],
+        [
+          4,
+          0,
+          "ACTIVE"
+        ],
+        [
+          5,
+          50000,
+          "PARTIALLY_USED"
+        ],
+        [
+          6,
+          50000,
+          "PARTIALLY_USED"
+        ]
+      ]
+    },
+    "postAttempt": {
+      "invoiceCount": 3,
+      "returnCount": 3,
+      "paymentCount": 11,
+      "allocationCount": 4,
+      "cashMovementCount": 0,
+      "stocks": [
+        [
+          1,
+          10
+        ],
+        [
+          2,
+          10
+        ],
+        [
+          3,
+          10
+        ],
+        [
+          4,
+          10
+        ],
+        [
+          5,
+          9
+        ],
+        [
+          6,
+          9
+        ],
+        [
+          7,
+          9
+        ]
+      ],
+      "credits": [
+        [
+          1,
+          0,
+          "ACTIVE"
+        ],
+        [
+          2,
+          20000,
+          "PARTIALLY_USED"
+        ],
+        [
+          3,
+          0,
+          "ACTIVE"
+        ],
+        [
+          4,
+          0,
+          "ACTIVE"
+        ],
+        [
+          5,
+          50000,
+          "PARTIALLY_USED"
+        ],
+        [
+          6,
+          50000,
+          "PARTIALLY_USED"
+        ]
+      ]
+    },
+    "sourceCredits": [
+      {
+        "id": 1,
+        "amount": 100000,
+        "usedAmount": 0,
+        "status": "ACTIVE",
+        "scope": "ALL",
+        "expiresAtJalali": "1405/09/05"
+      },
+      {
+        "id": 2,
+        "amount": 100000,
+        "usedAmount": 20000,
+        "status": "PARTIALLY_USED",
+        "scope": "ALL",
+        "expiresAtJalali": "1405/09/05"
+      },
+      {
+        "id": 3,
+        "amount": 100000,
+        "usedAmount": 0,
+        "status": "ACTIVE",
+        "scope": "ALL",
+        "expiresAtJalali": "1405/09/05"
+      },
+      {
+        "id": 4,
+        "amount": 100000,
+        "usedAmount": 0,
+        "status": "ACTIVE",
+        "scope": "ALL",
+        "expiresAtJalali": "1405/09/05"
+      },
+      {
+        "id": 5,
+        "amount": 100000,
+        "usedAmount": 50000,
+        "status": "PARTIALLY_USED",
+        "scope": "ALL",
+        "expiresAtJalali": "1405/09/05"
+      },
+      {
+        "id": 6,
+        "amount": 100000,
+        "usedAmount": 50000,
+        "status": "PARTIALLY_USED",
+        "scope": "ALL",
+        "expiresAtJalali": "1405/09/05"
+      }
+    ]
+  },
+  "conclusion": "With the 100,000 invoice discount, A/B/C/D net to 180,000/180,000/270,000/270,000. B->B1 correctly collects +40,000; C+D is also +40,000 and was accepted. Its ledger records 540,000 as returned-value tender (explicitly not cash) plus 40,000 actual cash; the replacement invoice is settled for 580,000. The no-discount C+D difference was -20,000, which took the negative/refund path and hit the source-allocation guard. The discount reduced the return value enough to flip the difference positive, so the positive/collection path ran instead; this is not a fix for the missing-allocation condition.",
+  "safety": {
+    "liveDatabase": false,
+    "productionCodeChanged": false,
+    "checksOrDebt": false,
+    "realMoneyMoved": false
+  }
+}

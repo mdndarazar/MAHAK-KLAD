@@ -1,0 +1,57 @@
+{
+  "case": "UI-HIGH",
+  "isolatedDatabase": "/tmp/mahak-invoice-discount-return-exchange-ui-high-AedWBx/isolated.db",
+  "status": "PASS",
+  "fixture": {
+    "gross": 30000000,
+    "invoiceDiscount": 3000000,
+    "netPaid": 27000000,
+    "lines": [
+      {
+        "gross": 10000000,
+        "allocatedDiscount": 1000000,
+        "netReturn": 9000000
+      },
+      {
+        "gross": 20000000,
+        "allocatedDiscount": 2000000,
+        "net": 18000000
+      }
+    ]
+  },
+  "operation": {
+    "kind": "exchange",
+    "uiCurrentMode": "current SalesReturn payload; no automatic replacement invoice discount",
+    "replacementGross": 12000000,
+    "replacementDiscount": 0,
+    "replacementNet": 12000000,
+    "sourceReturnValue": 9000000,
+    "diff": 3000000,
+    "cashReceived": 3000000,
+    "cashRefunded": 0,
+    "settlement": "CASH",
+    "previewDiff": 3000000
+  },
+  "reconciliation": {
+    "cashIn": 30000000,
+    "cashOut": 0,
+    "blue": 30000000,
+    "stock": [
+      {
+        "name": "returned source",
+        "actual": 20,
+        "ledger": 0
+      },
+      {
+        "name": "kept line",
+        "actual": 19,
+        "ledger": -1
+      },
+      {
+        "name": "replacement",
+        "actual": 19,
+        "ledger": -1
+      }
+    ]
+  }
+}

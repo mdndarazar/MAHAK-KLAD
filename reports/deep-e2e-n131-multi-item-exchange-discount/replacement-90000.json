@@ -1,0 +1,100 @@
+{
+  "scenario": "two-line discounted source; exchange A for 90000; replacement receives no explicit discount",
+  "isolatedDatabase": "/tmp/mahak-n131-multi-90000-1yiJWi/isolated.db",
+  "status": "PASS",
+  "sourceSale": {
+    "items": [
+      {
+        "name": "A",
+        "gross": 100000,
+        "discountShare": 10000,
+        "net": 90000
+      },
+      {
+        "name": "B",
+        "gross": 200000,
+        "discountShare": 20000,
+        "net": 180000
+      }
+    ],
+    "invoiceGross": 300000,
+    "invoiceDiscount": 30000,
+    "netPaid": 270000
+  },
+  "exchangedLine": {
+    "sourceGross": 100000,
+    "sourceDiscountShare": 10000,
+    "sourceNetValue": 90000,
+    "replacementGross": 90000,
+    "replacementExplicitDiscount": 0,
+    "actualExchangeDiff": 0,
+    "policyExpectedDiff": -10000,
+    "policyDelta": 10000,
+    "cashReceived": 0,
+    "cashRefunded": 0,
+    "childPayments": [
+      {
+        "amount": 90000,
+        "kind": "CASH",
+        "methodKind": "EXCHANGE_CREDIT",
+        "key": "EXCHANGE_CREDIT"
+      }
+    ]
+  },
+  "reconciliation": {
+    "rawCash": 270000,
+    "rawCard": 0,
+    "cashRefund": 0,
+    "blue": 270000,
+    "reportTotals": {
+      "count": 2,
+      "goodsTotal": 390000,
+      "taxTotal": 0,
+      "serviceTotal": 0,
+      "discountTotal": 30000,
+      "deliveryTotal": 0,
+      "grandTotal": 360000,
+      "cashTotal": 270000,
+      "cardTotal": 0,
+      "creditTotal": 0,
+      "otherTotal": 0,
+      "receivedTotal": 270000,
+      "returnedTotal": 0,
+      "exchangeCreditTotal": 90000,
+      "storeCreditUsedTotal": 0,
+      "storeCreditIssuedTotal": 0,
+      "exchangeCount": 1,
+      "exchangeDiffTotal": 0,
+      "overpayTotal": 0,
+      "creditRemainingTotal": 0,
+      "priorSettlementTotal": 0,
+      "netReceivedTotal": 270000,
+      "exchangeReturnedTotal": 90000,
+      "refundCashTotal": 0,
+      "refundCardTotal": 0,
+      "refundDebtOnlyTotal": 0,
+      "storeCreditRefundTotal": 0,
+      "legacyRefundCount": 0,
+      "managerAccountTotal": 0,
+      "destinationUnknownTotal": 0
+    },
+    "stock": [
+      {
+        "name": "source A returned",
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "source B retained",
+        "actual": 9,
+        "ledger": -1
+      },
+      {
+        "name": "replacement C",
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "cheques": 0
+  }
+}

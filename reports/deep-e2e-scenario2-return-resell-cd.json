@@ -1,0 +1,596 @@
+{
+  "generatedAt": "2026-10-27T12:57:35.674Z",
+  "isolatedDatabase": "/tmp/mahak-e100-018-resell-cd-AWbCWE/isolated.db",
+  "title": "After E100-018 direct C+D exchange problem, use full C+D return to store credit, then resell C1+D1 for 580,000 using actual issued codes.",
+  "rootSale": {
+    "invoiceId": 1,
+    "total": 1000000,
+    "creditApplied": 600000,
+    "cash": 200000,
+    "card": 200000,
+    "originalCredits": [
+      {
+        "id": 1,
+        "code": "CR9GKZG3",
+        "amount": 100000,
+        "scope": "ALL"
+      },
+      {
+        "id": 2,
+        "code": "CR9LY4V9",
+        "amount": 100000,
+        "scope": "ALL"
+      },
+      {
+        "id": 3,
+        "code": "CRGNP7CJ",
+        "amount": 100000,
+        "scope": "ALL"
+      },
+      {
+        "id": 4,
+        "code": "CRBNQJXJ",
+        "amount": 100000,
+        "scope": "ALL"
+      },
+      {
+        "id": 5,
+        "code": "CRP24FEM",
+        "amount": 100000,
+        "scope": "ALL"
+      },
+      {
+        "id": 6,
+        "code": "CRAPDKBY",
+        "amount": 100000,
+        "scope": "ALL"
+      }
+    ]
+  },
+  "aReturn": {
+    "id": 1,
+    "total": 200000,
+    "sourceCreditRestoredAmount": 200000,
+    "allocations": [
+      {
+        "id": 1,
+        "sourceCreditId": 1,
+        "redemptionId": 1,
+        "amount": 100000
+      },
+      {
+        "id": 2,
+        "sourceCreditId": 2,
+        "redemptionId": 2,
+        "amount": 100000
+      }
+    ]
+  },
+  "bExchange": {
+    "returnId": 2,
+    "exchangeInvoiceId": 2,
+    "diff": 20000,
+    "cardReceived": 20000,
+    "cashReceived": 0,
+    "allocationRows": 0
+  },
+  "cdReturn": {
+    "precededByRejectedDirectExchange": {
+      "error": "برگشت قبلی #2 تخصیص منشأ اعتبار ندارد؛ هیچ تعویضی ثبت نشد تا منبع مالی با حدس جابه‌جا نشود.",
+      "mutationFree": true
+    },
+    "id": 3,
+    "total": 600000,
+    "sourceCreditRestoredAmount": 400000,
+    "refundMethod": "STORE_CREDIT",
+    "issuedCodes": [
+      {
+        "id": 9,
+        "code": "EBFMJM",
+        "amount": 200000,
+        "usedAmount": 0,
+        "usedCount": 0,
+        "status": "ACTIVE",
+        "expiresAt": null,
+        "expiresAtJalali": null,
+        "source": "EXCHANGE",
+        "restrictScope": "ALL",
+        "restrictCategoryIdsJson": null,
+        "returnId": 3
+      },
+      {
+        "id": 10,
+        "code": "CRYNEX2X",
+        "amount": 100000,
+        "usedAmount": 0,
+        "usedCount": 0,
+        "status": "ACTIVE",
+        "expiresAt": 1795724999999,
+        "expiresAtJalali": "1405/09/05",
+        "source": "MANUAL",
+        "restrictScope": "ALL",
+        "restrictCategoryIdsJson": null,
+        "returnId": 3
+      },
+      {
+        "id": 11,
+        "code": "CRPUARVU",
+        "amount": 100000,
+        "usedAmount": 0,
+        "usedCount": 0,
+        "status": "ACTIVE",
+        "expiresAt": 1795724999999,
+        "expiresAtJalali": "1405/09/05",
+        "source": "MANUAL",
+        "restrictScope": "ALL",
+        "restrictCategoryIdsJson": null,
+        "returnId": 3
+      },
+      {
+        "id": 12,
+        "code": "CRTG22RV",
+        "amount": 100000,
+        "usedAmount": 0,
+        "usedCount": 0,
+        "status": "ACTIVE",
+        "expiresAt": 1795724999999,
+        "expiresAtJalali": "1405/09/05",
+        "source": "MANUAL",
+        "restrictScope": "ALL",
+        "restrictCategoryIdsJson": null,
+        "returnId": 3
+      },
+      {
+        "id": 13,
+        "code": "CRR3GKN9",
+        "amount": 100000,
+        "usedAmount": 0,
+        "usedCount": 0,
+        "status": "ACTIVE",
+        "expiresAt": 1795724999999,
+        "expiresAtJalali": "1405/09/05",
+        "source": "MANUAL",
+        "restrictScope": "ALL",
+        "restrictCategoryIdsJson": null,
+        "returnId": 3
+      }
+    ],
+    "after": {
+      "blue": 420000,
+      "stocks": [
+        {
+          "label": "A-200k",
+          "stock": 10
+        },
+        {
+          "label": "B-200k",
+          "stock": 10
+        },
+        {
+          "label": "C-300k",
+          "stock": 10
+        },
+        {
+          "label": "D-300k",
+          "stock": 10
+        },
+        {
+          "label": "B1-220k",
+          "stock": 9
+        },
+        {
+          "label": "C1-290k",
+          "stock": 10
+        },
+        {
+          "label": "D1-290k",
+          "stock": 10
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CR9GKZG3",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "ALL"
+        },
+        {
+          "id": 2,
+          "code": "CR9LY4V9",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "ALL"
+        },
+        {
+          "id": 3,
+          "code": "CRGNP7CJ",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "ALL"
+        },
+        {
+          "id": 4,
+          "code": "CRBNQJXJ",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "ALL"
+        },
+        {
+          "id": 5,
+          "code": "CRP24FEM",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "ALL"
+        },
+        {
+          "id": 6,
+          "code": "CRAPDKBY",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "ALL"
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 1000000,
+          "paid": 1000000,
+          "status": "RETURNED",
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 220000,
+          "paid": 220000,
+          "status": "SETTLED",
+          "parent": 1
+        }
+      ],
+      "returns": [
+        {
+          "id": 1,
+          "invoiceId": 1,
+          "kind": "RETURN",
+          "total": 200000,
+          "method": "NONE",
+          "refundAmount": 0,
+          "diff": 0,
+          "exchangeInvoiceId": null
+        },
+        {
+          "id": 2,
+          "invoiceId": 1,
+          "kind": "EXCHANGE",
+          "total": 200000,
+          "method": "NONE",
+          "refundAmount": 0,
+          "diff": 20000,
+          "exchangeInvoiceId": 2
+        },
+        {
+          "id": 3,
+          "invoiceId": 1,
+          "kind": "RETURN",
+          "total": 600000,
+          "method": "STORE_CREDIT",
+          "refundAmount": 200000,
+          "diff": 0,
+          "exchangeInvoiceId": null
+        }
+      ]
+    }
+  },
+  "posResale": {
+    "invoiceId": 3,
+    "total": 580000,
+    "creditApplied": 580000,
+    "paidTotal": 580000,
+    "cashReceived": 0,
+    "redemptions": [
+      {
+        "creditId": 11,
+        "amount": 100000,
+        "remainderAfter": 0
+      },
+      {
+        "creditId": 13,
+        "amount": 100000,
+        "remainderAfter": 0
+      },
+      {
+        "creditId": 12,
+        "amount": 100000,
+        "remainderAfter": 0
+      },
+      {
+        "creditId": 10,
+        "amount": 100000,
+        "remainderAfter": 0
+      },
+      {
+        "creditId": 9,
+        "amount": 180000,
+        "remainderAfter": 20000
+      }
+    ],
+    "sourceSuccessorsAfter": [
+      {
+        "id": 10,
+        "code": "CRYNEX2X",
+        "amount": 100000,
+        "usedAmount": 100000,
+        "status": "USED",
+        "expiresAt": 1795724999999
+      },
+      {
+        "id": 11,
+        "code": "CRPUARVU",
+        "amount": 100000,
+        "usedAmount": 100000,
+        "status": "USED",
+        "expiresAt": 1795724999999
+      },
+      {
+        "id": 12,
+        "code": "CRTG22RV",
+        "amount": 100000,
+        "usedAmount": 100000,
+        "status": "USED",
+        "expiresAt": 1795724999999
+      },
+      {
+        "id": 13,
+        "code": "CRR3GKN9",
+        "amount": 100000,
+        "usedAmount": 100000,
+        "status": "USED",
+        "expiresAt": 1795724999999
+      }
+    ],
+    "moneyBackedCodeAfter": {
+      "id": 9,
+      "code": "EBFMJM",
+      "amount": 200000,
+      "usedAmount": 180000,
+      "status": "PARTIALLY_USED",
+      "expiresAt": null
+    },
+    "after": {
+      "blue": 420000,
+      "stocks": [
+        {
+          "label": "A-200k",
+          "stock": 10
+        },
+        {
+          "label": "B-200k",
+          "stock": 10
+        },
+        {
+          "label": "C-300k",
+          "stock": 10
+        },
+        {
+          "label": "D-300k",
+          "stock": 10
+        },
+        {
+          "label": "B1-220k",
+          "stock": 9
+        },
+        {
+          "label": "C1-290k",
+          "stock": 9
+        },
+        {
+          "label": "D1-290k",
+          "stock": 9
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CR9GKZG3",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "ALL"
+        },
+        {
+          "id": 2,
+          "code": "CR9LY4V9",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "ALL"
+        },
+        {
+          "id": 3,
+          "code": "CRGNP7CJ",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "ALL"
+        },
+        {
+          "id": 4,
+          "code": "CRBNQJXJ",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "ALL"
+        },
+        {
+          "id": 5,
+          "code": "CRP24FEM",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "ALL"
+        },
+        {
+          "id": 6,
+          "code": "CRAPDKBY",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "ALL"
+        },
+        {
+          "id": 9,
+          "code": "EBFMJM",
+          "amount": 200000,
+          "usedAmount": 180000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED",
+          "expiresAt": null,
+          "scope": "ALL"
+        },
+        {
+          "id": 10,
+          "code": "CRYNEX2X",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "ALL"
+        },
+        {
+          "id": 11,
+          "code": "CRPUARVU",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "ALL"
+        },
+        {
+          "id": 12,
+          "code": "CRTG22RV",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "ALL"
+        },
+        {
+          "id": 13,
+          "code": "CRR3GKN9",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "ALL"
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 1000000,
+          "paid": 1000000,
+          "status": "RETURNED",
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 220000,
+          "paid": 220000,
+          "status": "SETTLED",
+          "parent": 1
+        },
+        {
+          "id": 3,
+          "total": 580000,
+          "paid": 580000,
+          "status": "SETTLED",
+          "parent": null
+        }
+      ],
+      "returns": [
+        {
+          "id": 1,
+          "invoiceId": 1,
+          "kind": "RETURN",
+          "total": 200000,
+          "method": "NONE",
+          "refundAmount": 0,
+          "diff": 0,
+          "exchangeInvoiceId": null
+        },
+        {
+          "id": 2,
+          "invoiceId": 1,
+          "kind": "EXCHANGE",
+          "total": 200000,
+          "method": "NONE",
+          "refundAmount": 0,
+          "diff": 20000,
+          "exchangeInvoiceId": 2
+        },
+        {
+          "id": 3,
+          "invoiceId": 1,
+          "kind": "RETURN",
+          "total": 600000,
+          "method": "STORE_CREDIT",
+          "refundAmount": 200000,
+          "diff": 0,
+          "exchangeInvoiceId": null
+        }
+      ]
+    }
+  },
+  "checks": {
+    "directCDRejected": true,
+    "directExchangeMutationFree": true,
+    "returnTotal": true,
+    "returnedCreditTotal": true,
+    "sourceSuccessorTotal": true,
+    "moneyBackedCodeTotal": true,
+    "sourceCodeCountPreserved": true,
+    "resaleTotal": true,
+    "resaleCreditApplied": true,
+    "resalePaidTotal": true,
+    "noCashTender": true,
+    "sourceSuccessorsFullyConsumed": true,
+    "moneyBackedRemainder": true,
+    "moneyRemainderIsNonExpiring": true,
+    "blueUnchangedAfterResale": true
+  },
+  "verdict": "PASS"
+}

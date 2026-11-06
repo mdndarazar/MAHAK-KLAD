@@ -1,0 +1,253 @@
+{
+  "generatedAt": "2026-10-28T18:12:37.097Z",
+  "id": 149,
+  "scenario": "N149",
+  "isolatedDatabase": "/tmp/mahak-followup-149-Qr0sfk/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "settled-sale",
+      "invoiceId": 1,
+      "total": 100000,
+      "cash": 0,
+      "card": 100000,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 100000,
+          "lineTotal": 100000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "card-to-card-return-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "credits": [],
+      "checks": 0
+    },
+    {
+      "operation": "card-to-card-refund-request-pending",
+      "returnId": 1,
+      "requestId": 1,
+      "status": "PENDING",
+      "amount": 100000,
+      "blueBeforePayout": 100000,
+      "restockPending": 1,
+      "returnedQty": 1,
+      "restockedQty": 0
+    },
+    {
+      "label": "C2C request recorded but not yet a physical POS/cash reversal",
+      "expected": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "card-to-card-return-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "credits": [],
+      "checks": 0
+    },
+    {
+      "label": "C2C paid; deferred return restock and settlement ledgers reconcile",
+      "expected": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "card-to-card-return-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "credits": [],
+      "checks": 0
+    },
+    {
+      "label": "final N149 reconciliation",
+      "expected": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "card-to-card-return-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "credits": [],
+      "checks": 0
+    }
+  ],
+  "assertions": [
+    {
+      "key": "C2C-pending-to-paid-finalizes-deferred-restock",
+      "pass": true,
+      "pendingAmount": 100000,
+      "paidAmount": 100000,
+      "restockPendingBeforePayment": 1,
+      "restockedQtyAfterPayment": 1,
+      "trackingNo": "NF-149-PAID"
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 0,
+      "card": 100000,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 100000
+    },
+    "actual": {
+      "cash": 0,
+      "card": 100000,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 100000,
+    "stock": [
+      {
+        "name": "card-to-card-return-item",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      }
+    ],
+    "invoices": 1,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

@@ -1,0 +1,1192 @@
+{
+  "generatedAt": "2026-10-30T19:45:57.300Z",
+  "independentScenario": 4,
+  "status": "PASS",
+  "isolatedDatabase": "/tmp/mahak-followup-s05-umlPp3/isolated.db",
+  "fundingVariations": [
+    "no barcode",
+    "one barcode",
+    "four barcodes"
+  ],
+  "settlementVariations": [
+    "CASH",
+    "CARD",
+    "CARD_TO_CARD",
+    "STORE_CREDIT"
+  ],
+  "positiveDifferenceBarcodeTest": true,
+  "physicalExpected": {
+    "cash": 1400000,
+    "card": 1400000,
+    "refundCash": 200000,
+    "refundCard": 100000
+  },
+  "physicalRaw": {
+    "cash": 1400000,
+    "card": 1400000,
+    "refundCash": 200000,
+    "refundCard": 100000
+  },
+  "blueActual": 2500000,
+  "blueExpected": 2500000,
+  "branches": [
+    {
+      "name": "ZERO-CODE",
+      "status": "PASS",
+      "codeCount": 0,
+      "creditTotal": 0,
+      "cashTender": 500000,
+      "cardTender": 500000,
+      "firstMode": "CASH",
+      "secondMode": "CARD",
+      "events": [
+        {
+          "label": "ZERO-CODE: issued 0 sale barcodes",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "actual": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "independent": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blue": 0,
+          "expectedBlue": 0,
+          "stocks": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-C-700k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": []
+        },
+        {
+          "label": "ZERO-CODE: source sale",
+          "expected": {
+            "cash": 500000,
+            "card": 500000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "actual": {
+            "cash": 500000,
+            "card": 500000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "independent": {
+            "cash": 500000,
+            "card": 500000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blue": 1000000,
+          "expectedBlue": 1000000,
+          "stocks": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-C-700k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": []
+        },
+        {
+          "label": "ZERO-CODE: first exchange CASH",
+          "expected": {
+            "cash": 500000,
+            "card": 500000,
+            "refundCash": 200000,
+            "refundCard": 0
+          },
+          "actual": {
+            "cash": 500000,
+            "card": 500000,
+            "refundCash": 200000,
+            "refundCard": 0
+          },
+          "independent": {
+            "cash": 500000,
+            "card": 500000,
+            "refundCash": 200000,
+            "refundCard": 0
+          },
+          "blue": 800000,
+          "expectedBlue": 800000,
+          "stocks": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-B-800k",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-C-700k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": []
+        },
+        {
+          "label": "ZERO-CODE: second operation from invoice 2 using CARD",
+          "expected": {
+            "cash": 500000,
+            "card": 500000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "actual": {
+            "cash": 500000,
+            "card": 500000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 500000,
+            "card": 500000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "blue": 700000,
+          "expectedBlue": 700000,
+          "stocks": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-C-700k",
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": []
+        }
+      ],
+      "saleId": 1,
+      "exchange1": {
+        "returnId": 1,
+        "invoiceId": 2,
+        "diff": -200000,
+        "realMoneyRefundAmount": 200000,
+        "sourceCreditRestoredAmount": 0,
+        "cashRefunded": 200000,
+        "cardRefunded": 0,
+        "newStoreCreditAmount": 0
+      },
+      "invoice2": {
+        "id": 2,
+        "sourceInvoiceId": 1,
+        "grandTotal": 800000,
+        "paidTotal": 800000
+      },
+      "exchange1Credits": [],
+      "exchange2": {
+        "returnId": 2,
+        "invoiceId": 3,
+        "diff": -100000,
+        "sourceInvoiceId": 2,
+        "cashRefunded": 0,
+        "cardRefunded": 100000,
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "barcodeCreditApplied": 0,
+        "sourceCreditRestoredAmount": 0,
+        "newStoreCreditAmount": 0
+      }
+    },
+    {
+      "name": "ONE-CODE",
+      "status": "PASS",
+      "codeCount": 1,
+      "creditTotal": 100000,
+      "cashTender": 450000,
+      "cardTender": 450000,
+      "firstMode": "CARD_TO_CARD",
+      "secondMode": "STORE_CREDIT",
+      "events": [
+        {
+          "label": "ONE-CODE: issued 1 sale barcodes",
+          "expected": {
+            "cash": 500000,
+            "card": 500000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "actual": {
+            "cash": 500000,
+            "card": 500000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 500000,
+            "card": 500000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "blue": 700000,
+          "expectedBlue": 700000,
+          "stocks": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-C-700k",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-C-700k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-barcode-1",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "ONE-CODE: source sale",
+          "expected": {
+            "cash": 950000,
+            "card": 950000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "actual": {
+            "cash": 950000,
+            "card": 950000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 950000,
+            "card": 950000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "blue": 1600000,
+          "expectedBlue": 1600000,
+          "stocks": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-C-700k",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-C-700k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-barcode-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "ONE-CODE: first exchange C2C request pending",
+          "expected": {
+            "cash": 950000,
+            "card": 950000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "actual": {
+            "cash": 950000,
+            "card": 950000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 950000,
+            "card": 950000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "blue": 1600000,
+          "expectedBlue": 1600000,
+          "stocks": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-C-700k",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-B-800k",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-C-700k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-barcode-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "ONE-CODE: first exchange CARD_TO_CARD",
+          "expected": {
+            "cash": 950000,
+            "card": 950000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "actual": {
+            "cash": 950000,
+            "card": 950000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 950000,
+            "card": 950000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "blue": 1600000,
+          "expectedBlue": 1600000,
+          "stocks": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-C-700k",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-B-800k",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-C-700k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-barcode-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "ONE-CODE: second operation from invoice 2 using STORE_CREDIT",
+          "expected": {
+            "cash": 950000,
+            "card": 950000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "actual": {
+            "cash": 950000,
+            "card": 950000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 950000,
+            "card": 950000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "blue": 1600000,
+          "expectedBlue": 1600000,
+          "stocks": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-C-700k",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-C-700k",
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-barcode-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        }
+      ],
+      "saleId": 4,
+      "exchange1": {
+        "returnId": 3,
+        "invoiceId": 5,
+        "diff": -200000,
+        "realMoneyRefundAmount": 100000,
+        "sourceCreditRestoredAmount": 100000,
+        "cashRefunded": 0,
+        "cardRefunded": 0,
+        "newStoreCreditAmount": 0
+      },
+      "invoice2": {
+        "id": 5,
+        "sourceInvoiceId": 4,
+        "grandTotal": 800000,
+        "paidTotal": 800000
+      },
+      "exchange1Credits": [
+        {
+          "id": 2,
+          "code": "CRZ6ZT7A",
+          "amount": 100000,
+          "source": "MANUAL",
+          "status": "ACTIVE",
+          "expiresAt": 1795984199999
+        }
+      ],
+      "cardTransferBefore": {
+        "id": 1,
+        "status": "PENDING",
+        "amount": 100000
+      },
+      "cardTransferAfter": {
+        "status": "PAID",
+        "paidAmount": 100000,
+        "paidMethod": "MANAGER_CARD_TO_CARD"
+      },
+      "exchange2": {
+        "returnId": 4,
+        "invoiceId": 6,
+        "diff": -100000,
+        "sourceInvoiceId": 5,
+        "cashRefunded": 0,
+        "cardRefunded": 0,
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "barcodeCreditApplied": 0,
+        "sourceCreditRestoredAmount": 0,
+        "newStoreCreditAmount": 100000
+      }
+    },
+    {
+      "name": "FOUR-CODES",
+      "status": "PASS",
+      "codeCount": 4,
+      "creditTotal": 100000,
+      "cashTender": 450000,
+      "cardTender": 450000,
+      "firstMode": "STORE_CREDIT",
+      "secondMode": null,
+      "events": [
+        {
+          "label": "FOUR-CODES: issued 4 sale barcodes",
+          "expected": {
+            "cash": 950000,
+            "card": 950000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "actual": {
+            "cash": 950000,
+            "card": 950000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 950000,
+            "card": 950000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "blue": 1600000,
+          "expectedBlue": 1600000,
+          "stocks": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-C-700k",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-C-700k",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODES-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C-900k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-barcode-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-barcode-1",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-barcode-2",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-barcode-3",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-barcode-4",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "FOUR-CODES: source sale",
+          "expected": {
+            "cash": 1400000,
+            "card": 1400000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "actual": {
+            "cash": 1400000,
+            "card": 1400000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 1400000,
+            "card": 1400000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "blue": 2500000,
+          "expectedBlue": 2500000,
+          "stocks": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-C-700k",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-C-700k",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODES-root-A-1m",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODES-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C-900k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-barcode-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-barcode-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-barcode-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-barcode-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-barcode-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "FOUR-CODES: first exchange STORE_CREDIT",
+          "expected": {
+            "cash": 1400000,
+            "card": 1400000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "actual": {
+            "cash": 1400000,
+            "card": 1400000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 1400000,
+            "card": 1400000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "blue": 2500000,
+          "expectedBlue": 2500000,
+          "stocks": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-C-700k",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-C-700k",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODES-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-B-800k",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODES-C-900k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-barcode-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-barcode-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-barcode-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-barcode-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-barcode-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "FOUR-CODES: second operation from invoice 2 using barcode credit positive difference",
+          "expected": {
+            "cash": 1400000,
+            "card": 1400000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "actual": {
+            "cash": 1400000,
+            "card": 1400000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "independent": {
+            "cash": 1400000,
+            "card": 1400000,
+            "refundCash": 200000,
+            "refundCard": 100000
+          },
+          "blue": 2500000,
+          "expectedBlue": 2500000,
+          "stocks": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-C-700k",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-C-700k",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODES-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C-900k",
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-barcode-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-barcode-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-barcode-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-barcode-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-barcode-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        }
+      ],
+      "saleId": 7,
+      "exchange1": {
+        "returnId": 5,
+        "invoiceId": 8,
+        "diff": -200000,
+        "realMoneyRefundAmount": 100000,
+        "sourceCreditRestoredAmount": 100000,
+        "cashRefunded": 0,
+        "cardRefunded": 0,
+        "newStoreCreditAmount": 100000
+      },
+      "invoice2": {
+        "id": 8,
+        "sourceInvoiceId": 7,
+        "grandTotal": 800000,
+        "paidTotal": 800000
+      },
+      "exchange1Credits": [
+        {
+          "id": 8,
+          "code": "CRRERUYE",
+          "amount": 25000,
+          "source": "MANUAL",
+          "status": "ACTIVE",
+          "expiresAt": 1795984199999
+        },
+        {
+          "id": 9,
+          "code": "CRTZ9AXR",
+          "amount": 25000,
+          "source": "MANUAL",
+          "status": "ACTIVE",
+          "expiresAt": 1795984199999
+        },
+        {
+          "id": 10,
+          "code": "CRYXXVH7",
+          "amount": 25000,
+          "source": "MANUAL",
+          "status": "ACTIVE",
+          "expiresAt": 1795984199999
+        },
+        {
+          "id": 11,
+          "code": "CR9XXD4K",
+          "amount": 25000,
+          "source": "MANUAL",
+          "status": "ACTIVE",
+          "expiresAt": 1795984199999
+        },
+        {
+          "id": 12,
+          "code": "EM7RVF",
+          "amount": 100000,
+          "source": "EXCHANGE",
+          "status": "ACTIVE",
+          "expiresAt": null
+        }
+      ],
+      "exchangeDifferenceCredit": {
+        "amount": 100000,
+        "usedAmount": 100000,
+        "usedCount": 1,
+        "status": "USED",
+        "expiresAt": null
+      },
+      "exchange2": {
+        "returnId": 6,
+        "invoiceId": 9,
+        "diff": 100000,
+        "sourceInvoiceId": 8,
+        "cashRefunded": 0,
+        "cardRefunded": 0,
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "barcodeCreditApplied": 100000,
+        "sourceCreditRestoredAmount": 0,
+        "newStoreCreditAmount": 0
+      }
+    }
+  ]
+}

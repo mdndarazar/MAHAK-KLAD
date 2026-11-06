@@ -1,0 +1,116 @@
+{
+  "generatedAt": "2026-10-27T15:42:58+00:00",
+  "repeatRun": {
+    "runnerProcesses": 17,
+    "processesExitZero": 17,
+    "legacyRunnerScenarioChecks": "11/11 PASS",
+    "newSixScenarioRunner": "6/6 PASS"
+  },
+  "scope": "30 primary independent financial/inventory/credit flows, plus explicitly reported supplemental executions",
+  "environment": "fresh isolated temporary SQLite harness per runner",
+  "primaryScenarioCount": 30,
+  "primaryScenariosPassing": 30,
+  "primaryScenariosFailing": 0,
+  "unexpectedBlocks": 0,
+  "policyGaps": 0,
+  "excludedFlows": {
+    "legacyActualScenario11": "included among 10 additions because the old runner named 10 contains 11 independent flows",
+    "followupScenario01c": "executed PASS as settlement branch of follow-up 01; not counted as a separate scenario",
+    "followupScenario11MultiuseMatrix": "executed separately; all 9 branches PASS, 0 policy gaps, 0 unexpected blocks; not added to the primary count"
+  },
+  "coreSuites": [
+    {
+      "group": "previous-20",
+      "count": 20,
+      "definition": "legacy runner scenarios 01-10 plus follow-up flows 01-10",
+      "result": "20/20 PASS; matrix runners tagged EVALUATED_WITH_FINDINGS had all branch checks PASS and zero policy gaps/unexpected blocks",
+      "evidence": [
+        "reports/deep-e2e-10-financial-flows.json",
+        "reports/deep-e2e-followup-10-scenario01.json",
+        "reports/deep-e2e-followup-scenario02.json",
+        "reports/deep-e2e-followup-scenario03-second-invoice-exchange.json",
+        "reports/deep-e2e-followup-scenario04-multi-barcode-settlement-matrix.json",
+        "reports/deep-e2e-followup-scenario05-credit-count-second-chain.json",
+        "reports/deep-e2e-followup-scenario06-return-second-invoice-payment-matrix.json",
+        "reports/deep-e2e-followup-scenario07-partial-return-then-exchange-matrix.json",
+        "reports/deep-e2e-followup-scenario08-partial-credit-source-restoration.json",
+        "reports/deep-e2e-followup-scenario09-fully-consumed-credit-successor-chain.json",
+        "reports/deep-e2e-followup-scenario10-positive-exchange-split-settlement-and-child-return.json"
+      ]
+    },
+    {
+      "group": "10-additions-to-primary-matrix",
+      "count": 10,
+      "definition": "legacy runner actual scenario 11, follow-up scenarios 12-14, and six new independent flows",
+      "result": "10/10 PASS",
+      "evidence": [
+        "reports/deep-e2e-10-financial-flows.json",
+        "reports/deep-e2e-additional-06-policy-flows.json",
+        "tests/audit-fixes/deep-e2e-followup-scenario12-y-a-simple-return-multi-share.mjs",
+        "tests/audit-fixes/deep-e2e-followup-scenario13-no-method-auto-credit-and-independent-limit-gates.mjs",
+        "tests/audit-fixes/deep-e2e-followup-scenario14-exchange-child-partial-redemption-usedcount.mjs"
+      ]
+    }
+  ],
+  "complexMultiItemChain": {
+    "result": "PASS",
+    "steps": [
+      "Sale A/B/C/D = 1,000,000; cash 600,000 + POS 400,000; stock for each falls 10 to 9; blue 1,000,000.",
+      "Return A for 100,000 cash; A returns to stock 10; blue 900,000.",
+      "Exchange B 200,000 to B1 180,000; 20,000 store credit; B restored, B1 decremented; blue 900,000.",
+      "Exchange C+D 700,000 to C1+D1 740,000; 40,000 cash collected; original C/D restored and replacement SKUs decremented; blue 940,000.",
+      "Re-exchange B1 180,000 from its own child invoice into B2 160,000; second separate 20,000 credit; B1 restored and B2 decremented; blue 940,000."
+    ],
+    "finalPhysicalReconciliation": "cash received 640,000 + POS received 400,000 - cash refund 100,000 = blue 940,000",
+    "finalStock": {
+      "A": 10,
+      "B": 10,
+      "C": 10,
+      "D": 10,
+      "B1": 10,
+      "C1": 9,
+      "D1": 9,
+      "B2": 9
+    },
+    "evidence": "reports/deep-e2e-additional-06-policy-flows.json"
+  },
+  "policyChecks": {
+    "noMethod": "Unconfirmed overpayment gate blocked without mutation; after confirmation and the dedicated credit authorization, no cash/POS payout occurred, exactly 250,000 backed non-expiring credit was created, and a delivery record remained PENDING.",
+    "livePartiallyUsedCredit": "Returned share restored to the same ID/code; no successor created.",
+    "fullyUsedCredit": "Original ID/code stayed USED; a distinct successor was created and the raw expiry timestamp matched.",
+    "multipleUsedSources": "Two USED source shares produced exactly two distinct successors; no consolidation.",
+    "duplicateReturn": "Blocked without changing cash movements, stock, or return-document count; official original document retained.",
+    "managerGates": "Overpayment and credit-issuance authorizations tested independently; an unrelated manager password did not satisfy the credit gate."
+  },
+  "harnessDevelopmentNotes": [
+    "The first development run of the six-case runner exposed an incorrect expected return-document count (3 expected vs 4 actual valid documents); assertion was corrected, then the full chain passed.",
+    "The first no-method call omitted confirmOverpay and was correctly blocked without mutation; the final test now records this expected gate and then tests the authorized path.",
+    "An expiry fixture compared ISO text to the equivalent millisecond timestamp; fixture was corrected to a raw millisecond value, and exact source/successor expiry equality passed."
+  ],
+  "rejectionAssessment": {
+    "unjustifiedRejections": 0,
+    "expectedRejections": [
+      "No-method full return without the required overpayment confirmation.",
+      "Credit-limit/issuance operation using the wrong manager authorization channel.",
+      "Duplicate return of a fully returned item."
+    ],
+    "allExpectedRejectionsMutationFree": true
+  },
+  "constraints": {
+    "checks": false,
+    "creditSalesOrCustomerDebt": false,
+    "debtReceiptsOrSettlements": false,
+    "liveDatabaseOrStage": false,
+    "productionFilesChangedInThisTurn": false,
+    "realCardTransferOrPhysicalPrinting": false
+  },
+  "newTestRunner": "tests/audit-fixes/deep-e2e-additional-06-policy-flows.mjs",
+  "report": "reports/deep-e2e-retest-30-summary.md",
+  "rerunAgainstCurrentWorkingTree": {
+    "date": "2026-10-27",
+    "primaryScenarioCount": 30,
+    "runnerProcesses": 17,
+    "runnerProcessesExitZero": 17,
+    "sourceSnapshot": "Working tree after 2026-10-27 service edits; isolated SQLite only."
+  }
+}

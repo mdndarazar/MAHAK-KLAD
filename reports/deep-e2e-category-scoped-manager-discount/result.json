@@ -1,0 +1,18 @@
+{
+  "case": "one-category-percent-discount",
+  "isolatedDatabase": "/tmp/mahak-category-scoped-discount-iFy1T0/isolated.db",
+  "status": "PASS",
+  "scope": {
+    "selectedCategory": 1,
+    "selectedCategoryName": "Selected category",
+    "includesDescendants": true,
+    "previewCount": 2,
+    "changedCount": 2,
+    "appliedPrices": {
+      "selectedCategoryItem": 9000000,
+      "childCategoryItem": 9000000,
+      "outsideCategoryItem": 10000000
+    },
+    "batchTitle": "10٪ تخفیف روی قیمت فروش · دسته‌ی «Selected category» و زیردسته‌هایش"
+  }
+}

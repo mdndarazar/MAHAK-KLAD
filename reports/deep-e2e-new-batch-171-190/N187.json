@@ -1,0 +1,174 @@
+{
+  "generatedAt": "2026-10-28T18:33:49.552Z",
+  "id": 187,
+  "scenario": "N187",
+  "isolatedDatabase": "/tmp/mahak-next20-187-z8ZMHE/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 65000,
+      "cash": 65000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 65000,
+          "lineTotal": 65000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 65000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 65000
+      },
+      "actual": {
+        "cash": 65000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 65000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 65000,
+      "stock": [
+        {
+          "name": "sale-key-original",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "sale-key-altered",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 65000,
+          "paid": 65000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "sale-idempotency-payload-mismatch-rejected",
+      "originalInvoiceId": 1,
+      "error": "کلید تکرار ثبت فروش قبلاً برای درخواست متفاوتی استفاده شده است؛ فاکتور دیگری ساخته نشد.",
+      "mutationFree": true
+    },
+    {
+      "label": "final N187 reconciliation",
+      "expected": {
+        "cash": 65000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 65000
+      },
+      "actual": {
+        "cash": 65000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 65000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 65000,
+      "stock": [
+        {
+          "name": "sale-key-original",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "sale-key-altered",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 65000,
+          "paid": 65000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "assertions": [
+    {
+      "key": "same-sale-idempotency-key-cannot-be-reused-for-different-SKU",
+      "pass": true,
+      "invoiceCount": 1
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 65000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 65000
+    },
+    "actual": {
+      "cash": 65000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 65000,
+    "stock": [
+      {
+        "name": "sale-key-original",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      },
+      {
+        "name": "sale-key-altered",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      }
+    ],
+    "invoices": 1,
+    "returns": 0,
+    "credits": 0,
+    "checks": 0
+  }
+}

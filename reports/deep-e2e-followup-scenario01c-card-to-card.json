@@ -1,0 +1,167 @@
+{
+  "generatedAt": "2026-10-30T19:45:45.314Z",
+  "scenario": "1C (settlement variant, not an independent scenario)",
+  "status": "PASS",
+  "isolatedDatabase": "/tmp/mahak-followup-c2c-EAYS4p/isolated.db",
+  "amounts": {
+    "sale": 1000000,
+    "cash": 600000,
+    "credit": 400000,
+    "returnedLine": 500000,
+    "sourceCreditRestored": 400000,
+    "c2cRequested": 100000,
+    "c2cPaid": 100000,
+    "blueAfterSale": 600000,
+    "blueAfterReturn": 600000
+  },
+  "transfer": {
+    "id": 1,
+    "status": "PAID",
+    "amount": 100000,
+    "paidAmount": 100000,
+    "paidMethod": "MANAGER_CARD_TO_CARD",
+    "trackingNo": "TEST-C2C-S01C"
+  },
+  "checks": [
+    {
+      "label": "baseline",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actual": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "expectedBlue": 0,
+      "stocks": [
+        {
+          "id": 1,
+          "stock": 10,
+          "movement": 0
+        },
+        {
+          "id": 2,
+          "stock": 10,
+          "movement": 0
+        }
+      ]
+    },
+    {
+      "label": "sale: 600k cash + 400k barcode",
+      "expected": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actual": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 600000,
+      "expectedBlue": 600000,
+      "stocks": [
+        {
+          "id": 1,
+          "stock": 9,
+          "movement": -1
+        },
+        {
+          "id": 2,
+          "stock": 9,
+          "movement": -1
+        }
+      ]
+    },
+    {
+      "label": "return accepted; C2C request pending",
+      "expected": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actual": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 600000,
+      "expectedBlue": 600000,
+      "stocks": [
+        {
+          "id": 1,
+          "stock": 9,
+          "movement": -1
+        },
+        {
+          "id": 2,
+          "stock": 9,
+          "movement": -1
+        }
+      ]
+    },
+    {
+      "label": "manager confirms 100k transfer; stock released",
+      "expected": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actual": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 600000,
+      "expectedBlue": 600000,
+      "stocks": [
+        {
+          "id": 1,
+          "stock": 10,
+          "movement": 0
+        },
+        {
+          "id": 2,
+          "stock": 9,
+          "movement": -1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "mode": "SINGLE",
+  "scenario": "discounted invoice -> STORE_CREDIT return -> barcode-funded new sale -> STORE_CREDIT return of that sale",
+  "isolatedDatabase": "/tmp/mahak-discount-credit-chain-single-2qwhSS/isolated.db",
+  "status": "PASS",
+  "fixture": {
+    "originalCount": 1,
+    "itemGross": 10000000,
+    "invoiceDiscount": 1000000,
+    "replacementPrice": 9000000
+  },
+  "originalSale": {
+    "gross": 10000000,
+    "discount": 1000000,
+    "net": 9000000,
+    "paid": 9000000,
+    "lines": 1
+  },
+  "firstReturn": {
+    "grossReturnedLine": 10000000,
+    "allocatedInvoiceDiscountShare": 1000000,
+    "netReturn": 9000000,
+    "method": "STORE_CREDIT",
+    "barcodeCount": 1,
+    "barcodeAmount": 9000000,
+    "barcodeAmounts": [
+      9000000
+    ],
+    "source": [
+      "EXCHANGE"
+    ],
+    "activeBarcodeAmount": 9000000
+  },
+  "redemption": {
+    "secondSaleGross": 9000000,
+    "storeCreditApplied": 9000000,
+    "paidTotal": 9000000,
+    "barcodeAmount": 9000000,
+    "barcodeAfter": {
+      "amount": 9000000,
+      "usedAmount": 9000000,
+      "usedCount": 1,
+      "status": "USED"
+    }
+  },
+  "secondReturn": {
+    "returnedItemPrice": 9000000,
+    "returnTotal": 9000000,
+    "method": "NONE",
+    "refundAmount": 0,
+    "refundStoreCreditAmount": 0,
+    "newBarcodeCount": 1,
+    "newBarcodeAmount": 9000000,
+    "newBarcodeAmounts": [
+      9000000
+    ],
+    "source": [
+      "EXCHANGE"
+    ],
+    "activeCreditBalanceAfterReturn": 9000000
+  },
+  "reconciliation": {
+    "originalCashReceived": 9000000,
+    "cashRefunded": 0,
+    "blue": 9000000,
+    "reportTotals": {
+      "count": 2,
+      "goodsTotal": 19000000,
+      "taxTotal": 0,
+      "serviceTotal": 0,
+      "discountTotal": 1000000,
+      "deliveryTotal": 0,
+      "grandTotal": 18000000,
+      "cashTotal": 9000000,
+      "cardTotal": 0,
+      "creditTotal": 0,
+      "otherTotal": 0,
+      "receivedTotal": 9000000,
+      "returnedTotal": 18000000,
+      "exchangeCreditTotal": 0,
+      "storeCreditUsedTotal": 0,
+      "storeCreditIssuedTotal": 18000000,
+      "exchangeCount": 0,
+      "exchangeDiffTotal": 0,
+      "overpayTotal": 0,
+      "creditRemainingTotal": 0,
+      "priorSettlementTotal": 0,
+      "netReceivedTotal": -9000000,
+      "exchangeReturnedTotal": 0,
+      "refundCashTotal": 0,
+      "refundCardTotal": 0,
+      "refundDebtOnlyTotal": 9000000,
+      "storeCreditRefundTotal": 9000000,
+      "legacyRefundCount": 0,
+      "managerAccountTotal": 0,
+      "destinationUnknownTotal": 0
+    },
+    "stock": [
+      {
+        "name": "original-1",
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "second-sale-good",
+        "actual": 10,
+        "ledger": 0
+      }
+    ],
+    "cheques": 0
+  }
+}

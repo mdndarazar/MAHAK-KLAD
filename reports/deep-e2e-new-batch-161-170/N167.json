@@ -1,0 +1,212 @@
+{
+  "generatedAt": "2026-10-28T18:26:26.913Z",
+  "id": 167,
+  "scenario": "N167",
+  "isolatedDatabase": "/tmp/mahak-followup-167-0nigQ1/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 80000,
+      "cash": 80000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 2,
+          "unitPrice": 40000,
+          "lineTotal": 80000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 80000
+      },
+      "actual": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 80000,
+      "stock": [
+        {
+          "name": "fractional-return-quantity-item",
+          "expected": 8,
+          "actual": 8,
+          "ledger": -2
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 80000,
+          "paid": 80000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "fractional-quantity-return-rejected",
+      "attemptedQty": 1.5,
+      "error": "تعداد برگشتی باید عدد صحیح بزرگ‌تر از صفر باشد؛ اعشار، منفی، NaN، بی‌نهایت یا عدد خارج از سقف امن پذیرفته نیست.",
+      "mutationFree": true
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 40000,
+      "method": "CASH",
+      "refundAmount": 40000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 40000,
+        "refundCard": 0,
+        "blue": 40000
+      },
+      "actual": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 40000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 40000,
+        "refundCard": 0
+      },
+      "blue": 40000,
+      "stock": [
+        {
+          "name": "fractional-return-quantity-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 80000,
+          "paid": 80000,
+          "status": "PARTIALLY_RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N167 reconciliation",
+      "expected": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 40000,
+        "refundCard": 0,
+        "blue": 40000
+      },
+      "actual": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 40000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 40000,
+        "refundCard": 0
+      },
+      "blue": 40000,
+      "stock": [
+        {
+          "name": "fractional-return-quantity-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 80000,
+          "paid": 80000,
+          "status": "PARTIALLY_RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "assertions": [
+    {
+      "key": "fractional-return-rejected-then-integer-unit-return-succeeds",
+      "pass": true,
+      "rejectedQty": 1.5,
+      "acceptedQty": 1
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 80000,
+      "card": 0,
+      "refundCash": 40000,
+      "refundCard": 0,
+      "blue": 40000
+    },
+    "actual": {
+      "cash": 80000,
+      "card": 0,
+      "refundCash": 40000,
+      "refundCard": 0
+    },
+    "blue": 40000,
+    "stock": [
+      {
+        "name": "fractional-return-quantity-item",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 1,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

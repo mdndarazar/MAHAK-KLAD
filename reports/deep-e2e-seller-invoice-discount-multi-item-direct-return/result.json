@@ -1,0 +1,94 @@
+{
+  "scenario": "4 lines x 10m; invoice-level discount 10m; direct cash return of one line",
+  "isolatedDatabase": "/tmp/mahak-seller-discount-multi-direct-return-xsnUqO/isolated.db",
+  "status": "PASS",
+  "sale": {
+    "gross": 40000000,
+    "invoiceDiscount": 10000000,
+    "net": 30000000,
+    "paid": 30000000,
+    "lineCount": 4,
+    "lineGrossPrices": [
+      10000000,
+      10000000,
+      10000000,
+      10000000
+    ]
+  },
+  "return": {
+    "returnedVariantId": 1,
+    "grossLinePrice": 10000000,
+    "allocatedInvoiceDiscountShare": 2500000,
+    "storedReturnTotal": 7500000,
+    "refundMethod": "CASH",
+    "actualCashRefund": 7500000,
+    "storeCredit": 0
+  },
+  "reconciliation": {
+    "cashRefundMovement": 7500000,
+    "rawPayments": [
+      {
+        "amount": 30000000,
+        "kind": "CASH",
+        "methodKind": "CASH",
+        "key": "SELLER-DISCOUNT-MULTI-RETURN-CASH"
+      }
+    ],
+    "blue": 22500000,
+    "reportTotals": {
+      "count": 1,
+      "goodsTotal": 40000000,
+      "taxTotal": 0,
+      "serviceTotal": 0,
+      "discountTotal": 10000000,
+      "deliveryTotal": 0,
+      "grandTotal": 30000000,
+      "cashTotal": 30000000,
+      "cardTotal": 0,
+      "creditTotal": 0,
+      "otherTotal": 0,
+      "receivedTotal": 30000000,
+      "returnedTotal": 7500000,
+      "exchangeCreditTotal": 0,
+      "storeCreditUsedTotal": 0,
+      "storeCreditIssuedTotal": 0,
+      "exchangeCount": 0,
+      "exchangeDiffTotal": 0,
+      "overpayTotal": 0,
+      "creditRemainingTotal": 0,
+      "priorSettlementTotal": 0,
+      "netReceivedTotal": 30000000,
+      "exchangeReturnedTotal": 0,
+      "refundCashTotal": 7500000,
+      "refundCardTotal": 0,
+      "refundDebtOnlyTotal": 0,
+      "storeCreditRefundTotal": 0,
+      "legacyRefundCount": 0,
+      "managerAccountTotal": 0,
+      "destinationUnknownTotal": 0
+    },
+    "stock": [
+      {
+        "name": "A returned",
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "B kept",
+        "actual": 9,
+        "ledger": -1
+      },
+      {
+        "name": "C kept",
+        "actual": 9,
+        "ledger": -1
+      },
+      {
+        "name": "D kept",
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "cheques": 0
+  }
+}

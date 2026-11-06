@@ -1,0 +1,416 @@
+{
+  "generatedAt": "2026-10-28T13:14:09.998726+00:00",
+  "selectedScope": "E100 1–10 only, repeated with five expanded payment/credit/scope variants; no E100 11–20 executed.",
+  "safety": {
+    "isolatedSqlite": true,
+    "liveOrStagingDbUsed": false,
+    "checksOrDebtUsed": false,
+    "productionCodeChanged": false,
+    "realMoneyMoved": false
+  },
+  "e100Expanded": {
+    "runs": {
+      "baseline-retest": {
+        "pass": 10,
+        "fail": 0,
+        "blocked": 0,
+        "findings": 0,
+        "expectedSafeRejects": 10,
+        "barcodes": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          6
+        ],
+        "purchaseTenders": [
+          "CASH",
+          "CARD",
+          "SPLIT"
+        ],
+        "returnMethods": [
+          "CASH",
+          "CARD_TO_CARD",
+          "STORE_CREDIT",
+          "NONE"
+        ],
+        "scope": null
+      },
+      "A": {
+        "pass": 10,
+        "fail": 0,
+        "blocked": 0,
+        "findings": 0,
+        "expectedSafeRejects": 10,
+        "barcodes": [
+          1
+        ],
+        "purchaseTenders": [
+          "CASH"
+        ],
+        "returnMethods": [
+          "CASH"
+        ],
+        "scope": "ALL"
+      },
+      "B": {
+        "pass": 10,
+        "fail": 0,
+        "blocked": 0,
+        "findings": 0,
+        "expectedSafeRejects": 2,
+        "barcodes": [
+          3
+        ],
+        "purchaseTenders": [
+          "CARD"
+        ],
+        "returnMethods": [
+          "CARD_TO_CARD"
+        ],
+        "scope": "VARIANTS_BCD"
+      },
+      "C": {
+        "pass": 10,
+        "fail": 0,
+        "blocked": 0,
+        "findings": 0,
+        "expectedSafeRejects": 10,
+        "barcodes": [
+          4
+        ],
+        "purchaseTenders": [
+          "SPLIT"
+        ],
+        "returnMethods": [
+          "STORE_CREDIT"
+        ],
+        "scope": "VARIANTS_ALL"
+      },
+      "D": {
+        "pass": 10,
+        "fail": 0,
+        "blocked": 0,
+        "findings": 0,
+        "expectedSafeRejects": 10,
+        "barcodes": [
+          4
+        ],
+        "purchaseTenders": [
+          "CARD"
+        ],
+        "returnMethods": [
+          "NONE"
+        ],
+        "scope": "ALL"
+      },
+      "E": {
+        "pass": 10,
+        "fail": 0,
+        "blocked": 0,
+        "findings": 0,
+        "expectedSafeRejects": 2,
+        "barcodes": [
+          3
+        ],
+        "purchaseTenders": [
+          "CASH"
+        ],
+        "returnMethods": [
+          "CARD"
+        ],
+        "scope": "ALL"
+      }
+    },
+    "pass": 60,
+    "fail": 0,
+    "blocked": 0,
+    "findings": 0,
+    "eachOfFirst10PassesAllSixRuns": true,
+    "perScenario": [
+      {
+        "scenario": 1,
+        "statusByRun": {
+          "baseline-retest": "PASS",
+          "A": "PASS",
+          "B": "PASS",
+          "C": "PASS",
+          "D": "PASS",
+          "E": "PASS"
+        },
+        "allPassed": true
+      },
+      {
+        "scenario": 2,
+        "statusByRun": {
+          "baseline-retest": "PASS",
+          "A": "PASS",
+          "B": "PASS",
+          "C": "PASS",
+          "D": "PASS",
+          "E": "PASS"
+        },
+        "allPassed": true
+      },
+      {
+        "scenario": 3,
+        "statusByRun": {
+          "baseline-retest": "PASS",
+          "A": "PASS",
+          "B": "PASS",
+          "C": "PASS",
+          "D": "PASS",
+          "E": "PASS"
+        },
+        "allPassed": true
+      },
+      {
+        "scenario": 4,
+        "statusByRun": {
+          "baseline-retest": "PASS",
+          "A": "PASS",
+          "B": "PASS",
+          "C": "PASS",
+          "D": "PASS",
+          "E": "PASS"
+        },
+        "allPassed": true
+      },
+      {
+        "scenario": 5,
+        "statusByRun": {
+          "baseline-retest": "PASS",
+          "A": "PASS",
+          "B": "PASS",
+          "C": "PASS",
+          "D": "PASS",
+          "E": "PASS"
+        },
+        "allPassed": true
+      },
+      {
+        "scenario": 6,
+        "statusByRun": {
+          "baseline-retest": "PASS",
+          "A": "PASS",
+          "B": "PASS",
+          "C": "PASS",
+          "D": "PASS",
+          "E": "PASS"
+        },
+        "allPassed": true
+      },
+      {
+        "scenario": 7,
+        "statusByRun": {
+          "baseline-retest": "PASS",
+          "A": "PASS",
+          "B": "PASS",
+          "C": "PASS",
+          "D": "PASS",
+          "E": "PASS"
+        },
+        "allPassed": true
+      },
+      {
+        "scenario": 8,
+        "statusByRun": {
+          "baseline-retest": "PASS",
+          "A": "PASS",
+          "B": "PASS",
+          "C": "PASS",
+          "D": "PASS",
+          "E": "PASS"
+        },
+        "allPassed": true
+      },
+      {
+        "scenario": 9,
+        "statusByRun": {
+          "baseline-retest": "PASS",
+          "A": "PASS",
+          "B": "PASS",
+          "C": "PASS",
+          "D": "PASS",
+          "E": "PASS"
+        },
+        "allPassed": true
+      },
+      {
+        "scenario": 10,
+        "statusByRun": {
+          "baseline-retest": "PASS",
+          "A": "PASS",
+          "B": "PASS",
+          "C": "PASS",
+          "D": "PASS",
+          "E": "PASS"
+        },
+        "allPassed": true
+      }
+    ]
+  },
+  "discountPolicyS01S10": {
+    "runs": 295,
+    "pass": 295,
+    "fail": 0,
+    "families": {
+      "S01": {
+        "runs": 6,
+        "pass": 6,
+        "other": []
+      },
+      "S02": {
+        "runs": 18,
+        "pass": 18,
+        "other": []
+      },
+      "S03": {
+        "runs": 25,
+        "pass": 25,
+        "other": []
+      },
+      "S04": {
+        "runs": 50,
+        "pass": 50,
+        "other": []
+      },
+      "S05": {
+        "runs": 55,
+        "pass": 55,
+        "other": []
+      },
+      "S06": {
+        "runs": 65,
+        "pass": 65,
+        "other": []
+      },
+      "S07": {
+        "runs": 15,
+        "pass": 15,
+        "other": []
+      },
+      "S08": {
+        "runs": 25,
+        "pass": 25,
+        "other": []
+      },
+      "S09": {
+        "runs": 25,
+        "pass": 25,
+        "other": []
+      },
+      "S10": {
+        "runs": 11,
+        "pass": 11,
+        "other": []
+      }
+    }
+  },
+  "supplementary": {
+    "multiBarcodeSettlement": {
+      "script": "deep-e2e-followup-scenario04-multi-barcode-settlement-matrix.mjs",
+      "status": "PASS",
+      "branches": 5,
+      "pass": 5,
+      "names": [
+        "CASH",
+        "CARD",
+        "CARD_TO_CARD",
+        "STORE_CREDIT",
+        "EXCHANGE_CREDIT_TENDER"
+      ]
+    },
+    "positiveDeltaTenderAndChildReturn": {
+      "script": "deep-e2e-followup-scenario10-positive-exchange-split-settlement-and-child-return.mjs",
+      "wrapperStatus": "EVALUATED_WITH_FINDINGS",
+      "branches": 5,
+      "pass": 5,
+      "policyGaps": 0,
+      "reproducedBugs": 0,
+      "unexpectedBlocks": 0,
+      "tenders": [
+        "SPLIT",
+        "CREDIT",
+        "CREDIT-SPLIT",
+        "CARD",
+        "CASH"
+      ]
+    },
+    "discountedExchangeChain": {
+      "script": "deep-e2e-discounted-invoice-exchange-chain.mjs",
+      "verdict": "PASS",
+      "checks": 9,
+      "passedChecks": 9
+    },
+    "discountedMixedCreditChain": {
+      "script": "deep-e2e-discounted-invoice-credit-mixed-exchange-chain.mjs",
+      "verdict": "LEGACY_ORACLE_MISMATCH",
+      "policyReconciliationChecks": 8,
+      "passedPolicyReconciliationChecks": 8,
+      "legacyOracleMismatches": [
+        "firstSurplusIsSourceCreditNotCash",
+        "secondReplacementReturnBlockedWithTraceabilityError",
+        "rejectedB1ReturnCreatedNoDocument",
+        "only500kOfCreditReturnRecordedAtRoot",
+        "reconstructionOverstatesCashRemovalBy1_5m",
+        "reconstructionLeaves7_5mInsteadOf9mCash"
+      ],
+      "fullReturnedB1ReuseProbe": {
+        "accepted": false,
+        "mutationFree": true,
+        "error": "تعداد برگشتی «DEC-MIX-4-replacement-B1-9.5m سایز DEC-MIX-4» (۱) از تعداد قابل برگشت (۰) بیشتر است.\nبرگشت بیشتر از باقی‌ماندهٔ قابل‌برگشت در هیچ حالتی مجاز نیست (حتی با تایید مدیر). اگر تعداد فاکتور اصلی اشتباه ثبت شده، اول خودِ فاکتور را اصلاح کنید."
+      },
+      "money": {
+        "cash": 16500000,
+        "card": 0,
+        "refundCash": 16500000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "final": {
+        "originalGoodsReturnTotal": 18000000,
+        "replacementReturnTotal": 18000000,
+        "cashRefunded": 16500000,
+        "additionalCashReceived": 500000,
+        "netCashRefunded": 16000000,
+        "activeSuccessorCredit": 2000000
+      },
+      "stock": [
+        {
+          "variant": "original-A-10m",
+          "opening": 10,
+          "actual": 10,
+          "ledgerDelta": 0,
+          "ledgerMatches": true,
+          "restoredToOpening": true
+        },
+        {
+          "variant": "original-B-10m",
+          "opening": 10,
+          "actual": 10,
+          "ledgerDelta": 0,
+          "ledgerMatches": true,
+          "restoredToOpening": true
+        },
+        {
+          "variant": "replacement-A1-8.5m",
+          "opening": 10,
+          "actual": 10,
+          "ledgerDelta": 0,
+          "ledgerMatches": true,
+          "restoredToOpening": true
+        },
+        {
+          "variant": "replacement-B1-9.5m",
+          "opening": 10,
+          "actual": 10,
+          "ledgerDelta": 0,
+          "ledgerMatches": true,
+          "restoredToOpening": true
+        }
+      ]
+    }
+  }
+}

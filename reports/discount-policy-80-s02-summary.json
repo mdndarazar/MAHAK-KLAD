@@ -1,0 +1,796 @@
+{
+  "plan": "طرح ۱۳ موردی",
+  "campaign": "Discount Policy 80",
+  "scenario": "D80-S02",
+  "status": "PASS",
+  "completedBranches": 18,
+  "totalBranches": 18,
+  "matrix": {
+    "saleTenders": [
+      "CASH",
+      "POS",
+      "SPLIT"
+    ],
+    "returnModes": [
+      "CASH",
+      "CARD",
+      "CARD_TO_CARD",
+      "STORE_CREDIT",
+      "NONE",
+      "MANAGER_FULL_PRICE"
+    ]
+  },
+  "fixture": {
+    "goodsGross": 100000,
+    "lineDiscount": 10000,
+    "invoiceDiscount": 0,
+    "saleNet": 90000,
+    "itemCount": 1
+  },
+  "discountPolicyExpected": {
+    "returnValue": 90000,
+    "discountRefunded": 0,
+    "creditOrC2CValueMaximum": 90000
+  },
+  "branches": [
+    {
+      "tender": "CASH",
+      "mode": "CARD_TO_CARD",
+      "status": "PASS",
+      "operationOutcome": "completed",
+      "returnTotal": 90000,
+      "refundMethod": "CARD_TO_CARD",
+      "refundAmount": 90000,
+      "refundStoreCreditAmount": 0,
+      "customerValue": 90000,
+      "creditsIssued": 0,
+      "credits": [],
+      "managerTransfer": {
+        "id": 1,
+        "status": "PAID",
+        "amount": 90000,
+        "paidAmount": 90000,
+        "method": "MANAGER_CARD_TO_CARD",
+        "trackingNo": "D80-S02-CARD_TO_CARD"
+      },
+      "expected": {
+        "cash": 90000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 90000
+      },
+      "actual": {
+        "cash": 90000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 90000,
+      "stock": {
+        "actual": 10,
+        "ledger": 0
+      },
+      "findings": [],
+      "trace": "deep-e2e-discount-policy-80-s02-card-to-card.json"
+    },
+    {
+      "tender": "CASH",
+      "mode": "CARD",
+      "status": "PASS",
+      "operationOutcome": "completed",
+      "returnTotal": 90000,
+      "refundMethod": "CARD",
+      "refundAmount": 90000,
+      "refundStoreCreditAmount": 0,
+      "customerValue": 90000,
+      "creditsIssued": 0,
+      "credits": [],
+      "managerTransfer": {},
+      "expected": {
+        "cash": 90000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 90000,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 90000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 90000
+      },
+      "blue": 0,
+      "stock": {
+        "actual": 10,
+        "ledger": 0
+      },
+      "findings": [],
+      "trace": "deep-e2e-discount-policy-80-s02-card.json"
+    },
+    {
+      "tender": "CASH",
+      "mode": "CASH",
+      "status": "PASS",
+      "operationOutcome": "completed",
+      "returnTotal": 90000,
+      "refundMethod": "CASH",
+      "refundAmount": 90000,
+      "refundStoreCreditAmount": 0,
+      "customerValue": 90000,
+      "creditsIssued": 0,
+      "credits": [],
+      "managerTransfer": {},
+      "expected": {
+        "cash": 90000,
+        "card": 0,
+        "refundCash": 90000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 90000,
+        "card": 0,
+        "refundCash": 90000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": {
+        "actual": 10,
+        "ledger": 0
+      },
+      "findings": [],
+      "trace": "deep-e2e-discount-policy-80-s02-cash.json"
+    },
+    {
+      "tender": "CASH",
+      "mode": "MANAGER_FULL_PRICE",
+      "status": "PASS",
+      "operationOutcome": "BLOCKED_AS_EXPECTED_TO_PROTECT_DISCOUNT_SHARE",
+      "returnTotal": null,
+      "refundMethod": null,
+      "refundAmount": null,
+      "refundStoreCreditAmount": null,
+      "customerValue": 0,
+      "creditsIssued": 0,
+      "credits": [],
+      "managerTransfer": {},
+      "expected": {
+        "cash": 90000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 90000
+      },
+      "actual": {
+        "cash": 90000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 90000,
+      "stock": {
+        "actual": 9,
+        "ledger": -1
+      },
+      "findings": [],
+      "trace": "deep-e2e-discount-policy-80-s02-manager-full-price.json"
+    },
+    {
+      "tender": "CASH",
+      "mode": "NONE",
+      "status": "PASS",
+      "operationOutcome": "completed",
+      "returnTotal": 90000,
+      "refundMethod": "NONE",
+      "refundAmount": 0,
+      "refundStoreCreditAmount": 0,
+      "customerValue": 90000,
+      "creditsIssued": 90000,
+      "credits": [
+        {
+          "id": 1,
+          "code": "ERD7PQ",
+          "amount": 90000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null,
+          "returnId": 1,
+          "delivery": {
+            "id": 1,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793125113480,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        }
+      ],
+      "managerTransfer": {},
+      "expected": {
+        "cash": 90000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 90000
+      },
+      "actual": {
+        "cash": 90000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 90000,
+      "stock": {
+        "actual": 10,
+        "ledger": 0
+      },
+      "findings": [],
+      "trace": "deep-e2e-discount-policy-80-s02-none.json"
+    },
+    {
+      "tender": "POS",
+      "mode": "CARD_TO_CARD",
+      "status": "PASS",
+      "operationOutcome": "completed",
+      "returnTotal": 90000,
+      "refundMethod": "CARD_TO_CARD",
+      "refundAmount": 90000,
+      "refundStoreCreditAmount": 0,
+      "customerValue": 90000,
+      "creditsIssued": 0,
+      "credits": [],
+      "managerTransfer": {
+        "id": 1,
+        "status": "PAID",
+        "amount": 90000,
+        "paidAmount": 90000,
+        "method": "MANAGER_CARD_TO_CARD",
+        "trackingNo": "D80-S02-CARD_TO_CARD"
+      },
+      "expected": {
+        "cash": 0,
+        "card": 90000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 90000
+      },
+      "actual": {
+        "cash": 0,
+        "card": 90000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 90000,
+      "stock": {
+        "actual": 10,
+        "ledger": 0
+      },
+      "findings": [],
+      "trace": "deep-e2e-discount-policy-80-s02-pos-card-to-card.json"
+    },
+    {
+      "tender": "POS",
+      "mode": "CARD",
+      "status": "PASS",
+      "operationOutcome": "completed",
+      "returnTotal": 90000,
+      "refundMethod": "CARD",
+      "refundAmount": 90000,
+      "refundStoreCreditAmount": 0,
+      "customerValue": 90000,
+      "creditsIssued": 0,
+      "credits": [],
+      "managerTransfer": {},
+      "expected": {
+        "cash": 0,
+        "card": 90000,
+        "refundCash": 0,
+        "refundCard": 90000,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 0,
+        "card": 90000,
+        "refundCash": 0,
+        "refundCard": 90000
+      },
+      "blue": 0,
+      "stock": {
+        "actual": 10,
+        "ledger": 0
+      },
+      "findings": [],
+      "trace": "deep-e2e-discount-policy-80-s02-pos-card.json"
+    },
+    {
+      "tender": "POS",
+      "mode": "CASH",
+      "status": "PASS",
+      "operationOutcome": "completed",
+      "returnTotal": 90000,
+      "refundMethod": "CASH",
+      "refundAmount": 90000,
+      "refundStoreCreditAmount": 0,
+      "customerValue": 90000,
+      "creditsIssued": 0,
+      "credits": [],
+      "managerTransfer": {},
+      "expected": {
+        "cash": 0,
+        "card": 90000,
+        "refundCash": 90000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 0,
+        "card": 90000,
+        "refundCash": 90000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": {
+        "actual": 10,
+        "ledger": 0
+      },
+      "findings": [],
+      "trace": "deep-e2e-discount-policy-80-s02-pos-cash.json"
+    },
+    {
+      "tender": "POS",
+      "mode": "MANAGER_FULL_PRICE",
+      "status": "PASS",
+      "operationOutcome": "BLOCKED_AS_EXPECTED_TO_PROTECT_DISCOUNT_SHARE",
+      "returnTotal": null,
+      "refundMethod": null,
+      "refundAmount": null,
+      "refundStoreCreditAmount": null,
+      "customerValue": 0,
+      "creditsIssued": 0,
+      "credits": [],
+      "managerTransfer": {},
+      "expected": {
+        "cash": 0,
+        "card": 90000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 90000
+      },
+      "actual": {
+        "cash": 0,
+        "card": 90000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 90000,
+      "stock": {
+        "actual": 9,
+        "ledger": -1
+      },
+      "findings": [],
+      "trace": "deep-e2e-discount-policy-80-s02-pos-manager-full-price.json"
+    },
+    {
+      "tender": "POS",
+      "mode": "NONE",
+      "status": "PASS",
+      "operationOutcome": "completed",
+      "returnTotal": 90000,
+      "refundMethod": "NONE",
+      "refundAmount": 0,
+      "refundStoreCreditAmount": 0,
+      "customerValue": 90000,
+      "creditsIssued": 90000,
+      "credits": [
+        {
+          "id": 1,
+          "code": "E4G883",
+          "amount": 90000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null,
+          "returnId": 1,
+          "delivery": {
+            "id": 1,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793125125563,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        }
+      ],
+      "managerTransfer": {},
+      "expected": {
+        "cash": 0,
+        "card": 90000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 90000
+      },
+      "actual": {
+        "cash": 0,
+        "card": 90000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 90000,
+      "stock": {
+        "actual": 10,
+        "ledger": 0
+      },
+      "findings": [],
+      "trace": "deep-e2e-discount-policy-80-s02-pos-none.json"
+    },
+    {
+      "tender": "POS",
+      "mode": "STORE_CREDIT",
+      "status": "PASS",
+      "operationOutcome": "completed",
+      "returnTotal": 90000,
+      "refundMethod": "STORE_CREDIT",
+      "refundAmount": 90000,
+      "refundStoreCreditAmount": 0,
+      "customerValue": 90000,
+      "creditsIssued": 90000,
+      "credits": [
+        {
+          "id": 1,
+          "code": "E23P27",
+          "amount": 90000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null,
+          "returnId": 1,
+          "delivery": {
+            "id": 1,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793125123558,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        }
+      ],
+      "managerTransfer": {},
+      "expected": {
+        "cash": 0,
+        "card": 90000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 90000
+      },
+      "actual": {
+        "cash": 0,
+        "card": 90000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 90000,
+      "stock": {
+        "actual": 10,
+        "ledger": 0
+      },
+      "findings": [],
+      "trace": "deep-e2e-discount-policy-80-s02-pos-store-credit.json"
+    },
+    {
+      "tender": "SPLIT",
+      "mode": "CARD_TO_CARD",
+      "status": "PASS",
+      "operationOutcome": "completed",
+      "returnTotal": 90000,
+      "refundMethod": "CARD_TO_CARD",
+      "refundAmount": 90000,
+      "refundStoreCreditAmount": 0,
+      "customerValue": 90000,
+      "creditsIssued": 0,
+      "credits": [],
+      "managerTransfer": {
+        "id": 1,
+        "status": "PAID",
+        "amount": 90000,
+        "paidAmount": 90000,
+        "method": "MANAGER_CARD_TO_CARD",
+        "trackingNo": "D80-S02-CARD_TO_CARD"
+      },
+      "expected": {
+        "cash": 45000,
+        "card": 45000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 90000
+      },
+      "actual": {
+        "cash": 45000,
+        "card": 45000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 90000,
+      "stock": {
+        "actual": 10,
+        "ledger": 0
+      },
+      "findings": [],
+      "trace": "deep-e2e-discount-policy-80-s02-split-card-to-card.json"
+    },
+    {
+      "tender": "SPLIT",
+      "mode": "CARD",
+      "status": "PASS",
+      "operationOutcome": "completed",
+      "returnTotal": 90000,
+      "refundMethod": "CARD",
+      "refundAmount": 90000,
+      "refundStoreCreditAmount": 0,
+      "customerValue": 90000,
+      "creditsIssued": 0,
+      "credits": [],
+      "managerTransfer": {},
+      "expected": {
+        "cash": 45000,
+        "card": 45000,
+        "refundCash": 0,
+        "refundCard": 90000,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 45000,
+        "card": 45000,
+        "refundCash": 0,
+        "refundCard": 90000
+      },
+      "blue": 0,
+      "stock": {
+        "actual": 10,
+        "ledger": 0
+      },
+      "findings": [],
+      "trace": "deep-e2e-discount-policy-80-s02-split-card.json"
+    },
+    {
+      "tender": "SPLIT",
+      "mode": "CASH",
+      "status": "PASS",
+      "operationOutcome": "completed",
+      "returnTotal": 90000,
+      "refundMethod": "CASH",
+      "refundAmount": 90000,
+      "refundStoreCreditAmount": 0,
+      "customerValue": 90000,
+      "creditsIssued": 0,
+      "credits": [],
+      "managerTransfer": {},
+      "expected": {
+        "cash": 45000,
+        "card": 45000,
+        "refundCash": 90000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 45000,
+        "card": 45000,
+        "refundCash": 90000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": {
+        "actual": 10,
+        "ledger": 0
+      },
+      "findings": [],
+      "trace": "deep-e2e-discount-policy-80-s02-split-cash.json"
+    },
+    {
+      "tender": "SPLIT",
+      "mode": "MANAGER_FULL_PRICE",
+      "status": "PASS",
+      "operationOutcome": "BLOCKED_AS_EXPECTED_TO_PROTECT_DISCOUNT_SHARE",
+      "returnTotal": null,
+      "refundMethod": null,
+      "refundAmount": null,
+      "refundStoreCreditAmount": null,
+      "customerValue": 0,
+      "creditsIssued": 0,
+      "credits": [],
+      "managerTransfer": {},
+      "expected": {
+        "cash": 45000,
+        "card": 45000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 90000
+      },
+      "actual": {
+        "cash": 45000,
+        "card": 45000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 90000,
+      "stock": {
+        "actual": 9,
+        "ledger": -1
+      },
+      "findings": [],
+      "trace": "deep-e2e-discount-policy-80-s02-split-manager-full-price.json"
+    },
+    {
+      "tender": "SPLIT",
+      "mode": "NONE",
+      "status": "PASS",
+      "operationOutcome": "completed",
+      "returnTotal": 90000,
+      "refundMethod": "NONE",
+      "refundAmount": 0,
+      "refundStoreCreditAmount": 0,
+      "customerValue": 90000,
+      "creditsIssued": 90000,
+      "credits": [
+        {
+          "id": 1,
+          "code": "ELTUDC",
+          "amount": 90000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null,
+          "returnId": 1,
+          "delivery": {
+            "id": 1,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793125137482,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        }
+      ],
+      "managerTransfer": {},
+      "expected": {
+        "cash": 45000,
+        "card": 45000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 90000
+      },
+      "actual": {
+        "cash": 45000,
+        "card": 45000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 90000,
+      "stock": {
+        "actual": 10,
+        "ledger": 0
+      },
+      "findings": [],
+      "trace": "deep-e2e-discount-policy-80-s02-split-none.json"
+    },
+    {
+      "tender": "SPLIT",
+      "mode": "STORE_CREDIT",
+      "status": "PASS",
+      "operationOutcome": "completed",
+      "returnTotal": 90000,
+      "refundMethod": "STORE_CREDIT",
+      "refundAmount": 90000,
+      "refundStoreCreditAmount": 0,
+      "customerValue": 90000,
+      "creditsIssued": 90000,
+      "credits": [
+        {
+          "id": 1,
+          "code": "EXTW3B",
+          "amount": 90000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null,
+          "returnId": 1,
+          "delivery": {
+            "id": 1,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793125135486,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        }
+      ],
+      "managerTransfer": {},
+      "expected": {
+        "cash": 45000,
+        "card": 45000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 90000
+      },
+      "actual": {
+        "cash": 45000,
+        "card": 45000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 90000,
+      "stock": {
+        "actual": 10,
+        "ledger": 0
+      },
+      "findings": [],
+      "trace": "deep-e2e-discount-policy-80-s02-split-store-credit.json"
+    },
+    {
+      "tender": "CASH",
+      "mode": "STORE_CREDIT",
+      "status": "PASS",
+      "operationOutcome": "completed",
+      "returnTotal": 90000,
+      "refundMethod": "STORE_CREDIT",
+      "refundAmount": 90000,
+      "refundStoreCreditAmount": 0,
+      "customerValue": 90000,
+      "creditsIssued": 90000,
+      "credits": [
+        {
+          "id": 1,
+          "code": "ENPCBC",
+          "amount": 90000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null,
+          "returnId": 1,
+          "delivery": {
+            "id": 1,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793125111488,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        }
+      ],
+      "managerTransfer": {},
+      "expected": {
+        "cash": 90000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 90000
+      },
+      "actual": {
+        "cash": 90000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 90000,
+      "stock": {
+        "actual": 10,
+        "ledger": 0
+      },
+      "findings": [],
+      "trace": "deep-e2e-discount-policy-80-s02-store-credit.json"
+    }
+  ],
+  "safety": {
+    "isolatedDatabasePerBranch": true,
+    "productionCodeChanged": false,
+    "liveDatabaseChanged": false,
+    "checksOrDebt": false
+  }
+}

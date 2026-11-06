@@ -1,0 +1,262 @@
+{
+  "generatedAt": "2026-10-28T18:26:20.206Z",
+  "id": 163,
+  "scenario": "N163",
+  "isolatedDatabase": "/tmp/mahak-followup-163-CeQEK7/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 120000,
+      "cash": 0,
+      "card": 120000,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 120000,
+          "lineTotal": 120000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 0,
+        "card": 120000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 120000
+      },
+      "actual": {
+        "cash": 0,
+        "card": 120000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 120000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 120000,
+      "stock": [
+        {
+          "name": "card-funded-exchange-source",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "card-refund-exchange-target",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 120000,
+          "paid": 120000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "exchange",
+      "label": "negative-difference-refunded-to-card",
+      "sourceInvoiceId": 1,
+      "returnId": 1,
+      "exchangeInvoiceId": 2,
+      "returnTotal": 120000,
+      "exchangeTotal": 100000,
+      "diff": -20000,
+      "cashReceived": 0,
+      "cardReceived": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 20000,
+      "exchangeCreditApplied": 100000,
+      "newStoreCreditAmount": 0,
+      "preview": {
+        "ok": true,
+        "returnTotal": 120000,
+        "exchangeTotal": 100000,
+        "nominalDiff": -20000,
+        "effectiveDiff": -20000,
+        "exchangeCreditApplied": 100000,
+        "realMoneySurplus": 20000,
+        "sourceCreditRestoration": 0
+      }
+    },
+    {
+      "label": "exchange negative-difference-refunded-to-card",
+      "expected": {
+        "cash": 0,
+        "card": 120000,
+        "refundCash": 0,
+        "refundCard": 20000,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 0,
+        "card": 120000,
+        "refundCash": 0,
+        "refundCard": 20000
+      },
+      "raw": {
+        "cash": 0,
+        "card": 120000,
+        "refundCash": 0,
+        "refundCard": 20000
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "card-funded-exchange-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "card-refund-exchange-target",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 120000,
+          "paid": 120000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 100000,
+          "paid": 100000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N163 reconciliation",
+      "expected": {
+        "cash": 0,
+        "card": 120000,
+        "refundCash": 0,
+        "refundCard": 20000,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 0,
+        "card": 120000,
+        "refundCash": 0,
+        "refundCard": 20000
+      },
+      "raw": {
+        "cash": 0,
+        "card": 120000,
+        "refundCash": 0,
+        "refundCard": 20000
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "card-funded-exchange-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "card-refund-exchange-target",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 120000,
+          "paid": 120000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 100000,
+          "paid": 100000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "assertions": [
+    {
+      "key": "negative-exchange-difference-card-refund-classified-as-POS",
+      "pass": true,
+      "diff": -20000,
+      "cardRefund": 20000,
+      "cashRefund": 0
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 0,
+      "card": 120000,
+      "refundCash": 0,
+      "refundCard": 20000,
+      "blue": 100000
+    },
+    "actual": {
+      "cash": 0,
+      "card": 120000,
+      "refundCash": 0,
+      "refundCard": 20000
+    },
+    "blue": 100000,
+    "stock": [
+      {
+        "name": "card-funded-exchange-source",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "card-refund-exchange-target",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 2,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

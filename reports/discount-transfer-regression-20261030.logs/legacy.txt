@@ -1,0 +1,17 @@
+FAIL test/acceptance-db-session35.mjs (exit 1)
+FAIL test/acceptance-db-session36.mjs (exit 1)
+FAIL test/acceptance-db-session40.mjs (exit 1)
+FAIL test/acceptance-db-session47.mjs (exit 1)
+PASS test/acceptance-db-session48.mjs
+FAIL test/acceptance-db-session54.mjs (exit 1)
+FAIL test/acceptance-session14.mjs (exit 1)
+FAIL test/acceptance-session21.mjs (exit 1)
+FAIL test/acceptance-session25.mjs (exit 1)
+PASS test/acceptance-src-session46.mjs
+PASS test/fix-s56-harness.mjs
+FAIL test/fix-s56-reports.mjs (exit 1)
+FAIL test/stock-source-display-session53.mjs (exit 1)
+PASS test/stock-source-logic-session47.mjs
+PASS test/stock-source-note-session50.mjs
+PASS test/stock-source-pick-session51.mjs
+FAIL test/stock-source-pos-session52.mjs (exit 1)

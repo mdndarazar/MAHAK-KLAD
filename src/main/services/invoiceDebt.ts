@@ -37,7 +37,7 @@ export async function debtAdjustmentsByInvoice(client: Client, ids: number[], as
     const rets = await (client as any).saleReturn.findMany({
       // نشست ۶۴ · بند ۴-۲۲ — برگشت باطل‌شده بدهی را کم نمی‌کند
       where: { invoiceId: { in: chunk }, voidedAt: null, ...(asOf ? { returnedAt: { lte: asOf } } : {}) },
-      select: { id: true, invoiceId: true, kind: true, total: true, refundMethod: true, refundAmount: true, exchangeDiff: true, debtReduction: true }
+      select: { id: true, invoiceId: true, kind: true, total: true, refundMethod: true, refundAmount: true, exchangeDiff: true, debtReduction: true, exchangeCreditReversed: true }
     })
     if (!rets.length) continue
     /**
@@ -82,6 +82,28 @@ export async function debtAdjustmentsByInvoice(client: Client, ids: number[], as
       byInv.set(r.invoiceId, list)
     }
     for (const [id, list] of byInv) out.set(id, debtAdjustmentsOf(list))
+    // Returned barcode value is a non-cash source reversal, but it still reduces
+    // the amount of invoice tender that remains applied to goods. Keep it in the
+    // same cumulative debt equation without treating it as drawer/POS money.
+    const activeReturnIds = activeRets.map((row: any) => Number(row.id))
+    if (activeReturnIds.length) {
+      const returnedCredits = await (client as any).creditReturnAllocation.findMany({
+        where: {
+          returnId: { in: activeReturnIds }, settlementAdjusted: true,
+          ...(asOf ? { createdAt: { lte: asOf } } : {})
+        },
+        select: { returnId: true, amount: true }
+      })
+      const invoiceByReturnId = new Map<number, number>(activeRets.map((row: any) =>
+        [Number(row.id), Number(row.invoiceId)]))
+      for (const row of returnedCredits as any[]) {
+        const invoiceId = invoiceByReturnId.get(Number(row.returnId))
+        if (invoiceId == null) continue
+        const current = out.get(invoiceId) ?? { returnedValue: 0, refundFromReceived: 0 }
+        current.refundFromReceived += Math.max(0, toNumberRial(row.amount))
+        out.set(invoiceId, current)
+      }
+    }
 
     /**
      * نشست ۱۹۹ — برگشت کالای جایگزین روی سند تعویض (روش NONE / بدون نقد)
@@ -106,14 +128,20 @@ export async function debtAdjustmentsByInvoice(client: Client, ids: number[], as
         voidedAt: null,
         ...(asOf ? { returnedAt: { lte: asOf } } : {})
       },
-      select: { invoiceId: true, kind: true, total: true, refundMethod: true, refundAmount: true }
+      select: { invoiceId: true, kind: true, total: true, refundMethod: true, refundAmount: true, exchangeCreditReversed: true }
     })
     for (const r of childRets) {
-      if (refundFromReceivedOf(r) > 0) continue
       const srcId = sourceOf.get(r.invoiceId)
       if (srcId == null || !Number.isFinite(srcId)) continue
       const prev = out.get(srcId) ?? { returnedValue: 0, refundFromReceived: 0 }
-      prev.returnedValue += Math.max(0, toNumberRial(r.total))
+      if (r.exchangeCreditReversed != null) {
+        // New rows explicitly state the invoice-level amount that returns to
+        // the parent debt. Cash/barcode settlements remain on the child and do
+        // not also reduce the parent; legacy NULL rows retain old behavior.
+        prev.returnedValue += Math.max(0, toNumberRial(r.exchangeCreditReversed))
+      } else if (refundFromReceivedOf(r) === 0) {
+        prev.returnedValue += Math.max(0, toNumberRial(r.total))
+      }
       out.set(srcId, prev)
     }
   }

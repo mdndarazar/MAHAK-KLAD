@@ -1,0 +1,290 @@
+{
+  "generatedAt": "2026-10-30T19:45:47.777Z",
+  "scenario": 2,
+  "status": "PASS",
+  "isolatedDatabase": "/tmp/mahak-followup-s02-3DZBpx/isolated.db",
+  "amounts": {
+    "invoice": 1000000,
+    "cashPaid": 600000,
+    "creditPaid": 400000,
+    "returnedItem": 500000,
+    "sourceCreditRestored": 400000,
+    "cashRefund": 100000,
+    "physicalBlueAfterSale": 600000,
+    "physicalBlueAfterReturn": 500000
+  },
+  "invoice": {
+    "grandTotal": 1000000,
+    "paidTotal": 1000000,
+    "status": "PARTIALLY_RETURNED",
+    "payments": [
+      {
+        "key": "F02-CASH",
+        "kind": "CASH",
+        "amount": 600000,
+        "overpayAmount": 0
+      },
+      {
+        "key": "STORE_CREDIT",
+        "kind": "STORE_CREDIT",
+        "amount": 100000,
+        "overpayAmount": 0
+      },
+      {
+        "key": "STORE_CREDIT",
+        "kind": "STORE_CREDIT",
+        "amount": 100000,
+        "overpayAmount": 0
+      },
+      {
+        "key": "STORE_CREDIT",
+        "kind": "STORE_CREDIT",
+        "amount": 100000,
+        "overpayAmount": 0
+      },
+      {
+        "key": "STORE_CREDIT",
+        "kind": "STORE_CREDIT",
+        "amount": 100000,
+        "overpayAmount": 0
+      }
+    ]
+  },
+  "return": {
+    "id": 1,
+    "total": 500000,
+    "refundMethod": "CASH",
+    "refundAmount": 100000,
+    "refundStoreCreditAmount": 0,
+    "voided": false
+  },
+  "successors": [
+    {
+      "id": 5,
+      "amount": 100000,
+      "status": "ACTIVE",
+      "expiresAt": 1795984199999
+    },
+    {
+      "id": 6,
+      "amount": 100000,
+      "status": "ACTIVE",
+      "expiresAt": 1795984199999
+    },
+    {
+      "id": 7,
+      "amount": 100000,
+      "status": "ACTIVE",
+      "expiresAt": 1795984199999
+    },
+    {
+      "id": 8,
+      "amount": 100000,
+      "status": "ACTIVE",
+      "expiresAt": 1795984199999
+    }
+  ],
+  "cashMovements": [
+    {
+      "type": "RETURN_REFUND",
+      "amount": 100000
+    }
+  ],
+  "events": [
+    {
+      "label": "baseline",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actual": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "expectedBlue": 0,
+      "stock": [
+        {
+          "variantId": 1,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "variantId": 2,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE"
+        },
+        {
+          "id": 2,
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE"
+        },
+        {
+          "id": 3,
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE"
+        },
+        {
+          "id": 4,
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE"
+        }
+      ]
+    },
+    {
+      "label": "sale: 600k cash + 4×100k credit",
+      "expected": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actual": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 600000,
+      "expectedBlue": 600000,
+      "stock": [
+        {
+          "variantId": 1,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "variantId": 2,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED"
+        },
+        {
+          "id": 2,
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED"
+        },
+        {
+          "id": 3,
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED"
+        },
+        {
+          "id": 4,
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED"
+        }
+      ]
+    },
+    {
+      "label": "return: restore 400k source credit + refund 100k cash",
+      "expected": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0
+      },
+      "actual": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0
+      },
+      "blue": 500000,
+      "expectedBlue": 500000,
+      "stock": [
+        {
+          "variantId": 1,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "variantId": 2,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED"
+        },
+        {
+          "id": 2,
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED"
+        },
+        {
+          "id": 3,
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED"
+        },
+        {
+          "id": 4,
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED"
+        }
+      ]
+    }
+  ]
+}

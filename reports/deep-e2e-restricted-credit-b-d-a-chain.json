@@ -1,0 +1,2521 @@
+{
+  "generatedAt": "2026-10-30T19:47:02.011Z",
+  "isolatedDatabase": "/tmp/mahak-restricted-b-d-a-chain-FzpIrI/isolated.db",
+  "title": "B→B1 first, D→D1 second, A→A1 third; exact item-category credit restrictions; each replacement is 20,000 cheaper except specified B 60,000 branch.",
+  "policy": {
+    "BValid20": "20,000 successor with exact B source expiry; old B code remains USED.",
+    "BExpired20": "Expired 50,000 B share stays closed and is printed with its original expiry; remaining 150,000 money funds the replacement, so the customer pays the effective 30,000 gap.",
+    "BExpired60": "The expired B share stays closed; only the 10,000 real-money-backed excess becomes a separate non-expiring credit.",
+    "DValid20": "20,000 D-source successor with exact D source expiry; old D code remains USED.",
+    "ACashBacked20": "20,000 backed by actual cash becomes a fresh non-expiring store credit; no restricted credit is restored."
+  },
+  "totals": {
+    "cases": 3,
+    "pass": 3,
+    "blocked": 0,
+    "mismatches": 0,
+    "harnessErrors": 0
+  },
+  "cases": [
+    {
+      "label": "B-valid-diff20",
+      "bExpired": false,
+      "bDifference": 20000,
+      "shiftId": 1,
+      "verdict": "PASS",
+      "stages": [
+        {
+          "stage": "B",
+          "verdict": "PASS",
+          "note": "B source: exact B-only restricted credit",
+          "sourceSaleItemId": 2,
+          "replacement": "B1-180000",
+          "priceDifference": 20000,
+          "exchange": {
+            "returnId": 1,
+            "exchangeInvoiceId": 2,
+            "diff": -20000,
+            "sourceCreditRestoredAmount": 20000,
+            "sourceCreditClosedExpiredAmount": 0,
+            "sourceCreditSuccessors": [
+              {
+                "id": 5,
+                "amount": 20000,
+                "expiresAt": null
+              }
+            ],
+            "cashRefunded": 0,
+            "cardRefunded": 0,
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "returnDocument": {
+              "id": 1,
+              "kind": "EXCHANGE",
+              "total": 200000,
+              "refundMethod": "STORE_CREDIT",
+              "refundAmount": 0,
+              "refundStoreCreditAmount": 0,
+              "diff": -20000,
+              "settlement": "CREDIT",
+              "exchangeInvoiceId": 2
+            },
+            "allocations": [
+              {
+                "id": 1,
+                "sourceCreditId": 1,
+                "amount": 30000
+              },
+              {
+                "id": 2,
+                "sourceCreditId": 1,
+                "amount": 20000
+              }
+            ],
+            "issuedCredits": [
+              {
+                "id": 5,
+                "code": "CR9D7FC3",
+                "amount": 20000,
+                "expiresAt": 1795984199999,
+                "expiresAtJalali": "1405/09/08",
+                "status": "ACTIVE",
+                "source": "MANUAL",
+                "restrictScope": "CATEGORY",
+                "restrictCategoryIdsJson": "[2]"
+              }
+            ],
+            "oldSource": {
+              "id": 1,
+              "code": "CRG96QD3",
+              "status": "USED",
+              "usedAmount": 50000,
+              "expiresAt": 1795984199999
+            }
+          },
+          "preview": {
+            "nominalDifference": -20000,
+            "effectiveDifference": -20000
+          },
+          "check": {
+            "expectedEffectiveDifference": -20000,
+            "actualDifference": -20000,
+            "expectedCredit": 20000,
+            "actualCredit": 20000,
+            "expectedExpiry": 1795984199999,
+            "expiryMatches": true,
+            "oldSourceStillUsed": true,
+            "noUnbackedRefund": true,
+            "positiveCashCorrect": true,
+            "expectedBlue": 800000,
+            "actualBlue": 800000,
+            "expiredShareClosed": true,
+            "expiredSharePrinted": true
+          },
+          "before": {
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 9
+              },
+              {
+                "label": "B-200k",
+                "stock": 9
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-180000",
+                "stock": 10
+              },
+              {
+                "label": "D1-280k",
+                "stock": 10
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 1,
+                "code": "CRG96QD3",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 2,
+                "code": "CRLUJ84F",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 3,
+                "code": "CRM2RQKW",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 4,
+                "code": "CR7EPHT7",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [],
+            "blue": 800000
+          },
+          "after": {
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 9
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-180000",
+                "stock": 9
+              },
+              {
+                "label": "D1-280k",
+                "stock": 10
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 1,
+                "code": "CRG96QD3",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 2,
+                "code": "CRLUJ84F",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 3,
+                "code": "CRM2RQKW",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 4,
+                "code": "CR7EPHT7",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 1,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": -20000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 2
+              }
+            ],
+            "blue": 800000
+          }
+        },
+        {
+          "stage": "D",
+          "verdict": "PASS",
+          "note": "D source: exact D-only restricted credit",
+          "sourceSaleItemId": 4,
+          "replacement": "D1-280k",
+          "priceDifference": 20000,
+          "exchange": {
+            "returnId": 2,
+            "exchangeInvoiceId": 3,
+            "diff": -20000,
+            "sourceCreditRestoredAmount": 20000,
+            "sourceCreditClosedExpiredAmount": 0,
+            "sourceCreditSuccessors": [
+              {
+                "id": 6,
+                "amount": 20000,
+                "expiresAt": null
+              }
+            ],
+            "cashRefunded": 0,
+            "cardRefunded": 0,
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "returnDocument": {
+              "id": 2,
+              "kind": "EXCHANGE",
+              "total": 300000,
+              "refundMethod": "STORE_CREDIT",
+              "refundAmount": 0,
+              "refundStoreCreditAmount": 0,
+              "diff": -20000,
+              "settlement": "CREDIT",
+              "exchangeInvoiceId": 3
+            },
+            "allocations": [
+              {
+                "id": 3,
+                "sourceCreditId": 2,
+                "amount": 30000
+              },
+              {
+                "id": 4,
+                "sourceCreditId": 2,
+                "amount": 20000
+              }
+            ],
+            "issuedCredits": [
+              {
+                "id": 6,
+                "code": "CRZE2VD7",
+                "amount": 20000,
+                "expiresAt": 1795984199999,
+                "expiresAtJalali": "1405/09/08",
+                "status": "ACTIVE",
+                "source": "MANUAL",
+                "restrictScope": "CATEGORY",
+                "restrictCategoryIdsJson": "[4]"
+              }
+            ],
+            "oldSource": {
+              "id": 2,
+              "code": "CRLUJ84F",
+              "status": "USED",
+              "usedAmount": 50000,
+              "expiresAt": 1795984199999
+            }
+          },
+          "preview": {
+            "nominalDifference": -20000,
+            "effectiveDifference": -20000
+          },
+          "check": {
+            "expectedEffectiveDifference": -20000,
+            "actualDifference": -20000,
+            "expectedCredit": 20000,
+            "actualCredit": 20000,
+            "expectedExpiry": 1795984199999,
+            "expiryMatches": true,
+            "oldSourceStillUsed": true,
+            "noUnbackedRefund": true,
+            "positiveCashCorrect": true,
+            "expectedBlue": 800000,
+            "actualBlue": 800000,
+            "expiredShareClosed": true,
+            "expiredSharePrinted": true
+          },
+          "before": {
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 9
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-180000",
+                "stock": 9
+              },
+              {
+                "label": "D1-280k",
+                "stock": 10
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 1,
+                "code": "CRG96QD3",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 2,
+                "code": "CRLUJ84F",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 3,
+                "code": "CRM2RQKW",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 4,
+                "code": "CR7EPHT7",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 1,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": -20000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 2
+              }
+            ],
+            "blue": 800000
+          },
+          "after": {
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 9
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 10
+              },
+              {
+                "label": "B1-180000",
+                "stock": 9
+              },
+              {
+                "label": "D1-280k",
+                "stock": 9
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 1,
+                "code": "CRG96QD3",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 2,
+                "code": "CRLUJ84F",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 3,
+                "code": "CRM2RQKW",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 4,
+                "code": "CR7EPHT7",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 1,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": -20000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 2
+              },
+              {
+                "id": 2,
+                "kind": "EXCHANGE",
+                "total": 300000,
+                "diff": -20000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 3
+              }
+            ],
+            "blue": 800000
+          }
+        },
+        {
+          "stage": "A",
+          "verdict": "PASS",
+          "note": "A source: cash-backed; fresh non-expiring credit",
+          "sourceSaleItemId": 1,
+          "replacement": "A1-180k",
+          "priceDifference": 20000,
+          "exchange": {
+            "returnId": 3,
+            "exchangeInvoiceId": 4,
+            "diff": -20000,
+            "sourceCreditRestoredAmount": 0,
+            "sourceCreditClosedExpiredAmount": 0,
+            "sourceCreditSuccessors": [],
+            "cashRefunded": 0,
+            "cardRefunded": 0,
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "returnDocument": {
+              "id": 3,
+              "kind": "EXCHANGE",
+              "total": 200000,
+              "refundMethod": "STORE_CREDIT",
+              "refundAmount": 20000,
+              "refundStoreCreditAmount": 0,
+              "diff": -20000,
+              "settlement": "CREDIT",
+              "exchangeInvoiceId": 4
+            },
+            "allocations": [],
+            "issuedCredits": [
+              {
+                "id": 7,
+                "code": "EZYJ97",
+                "amount": 20000,
+                "expiresAt": null,
+                "expiresAtJalali": null,
+                "status": "ACTIVE",
+                "source": "EXCHANGE",
+                "restrictScope": "ALL",
+                "restrictCategoryIdsJson": null
+              }
+            ],
+            "oldSource": null
+          },
+          "preview": {
+            "nominalDifference": -20000,
+            "effectiveDifference": -20000
+          },
+          "check": {
+            "expectedEffectiveDifference": -20000,
+            "actualDifference": -20000,
+            "expectedCredit": 20000,
+            "actualCredit": 20000,
+            "expectedExpiry": null,
+            "expiryMatches": true,
+            "oldSourceStillUsed": true,
+            "noUnbackedRefund": true,
+            "positiveCashCorrect": true,
+            "expectedBlue": 800000,
+            "actualBlue": 800000,
+            "expiredShareClosed": true,
+            "expiredSharePrinted": true
+          },
+          "before": {
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 9
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 10
+              },
+              {
+                "label": "B1-180000",
+                "stock": 9
+              },
+              {
+                "label": "D1-280k",
+                "stock": 9
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 1,
+                "code": "CRG96QD3",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 2,
+                "code": "CRLUJ84F",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 3,
+                "code": "CRM2RQKW",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 4,
+                "code": "CR7EPHT7",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 1,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": -20000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 2
+              },
+              {
+                "id": 2,
+                "kind": "EXCHANGE",
+                "total": 300000,
+                "diff": -20000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 3
+              }
+            ],
+            "blue": 800000
+          },
+          "after": {
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 10
+              },
+              {
+                "label": "B1-180000",
+                "stock": 9
+              },
+              {
+                "label": "D1-280k",
+                "stock": 9
+              },
+              {
+                "label": "A1-180k",
+                "stock": 9
+              }
+            ],
+            "credits": [
+              {
+                "id": 1,
+                "code": "CRG96QD3",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 2,
+                "code": "CRLUJ84F",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 3,
+                "code": "CRM2RQKW",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 4,
+                "code": "CR7EPHT7",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 1,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": -20000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 2
+              },
+              {
+                "id": 2,
+                "kind": "EXCHANGE",
+                "total": 300000,
+                "diff": -20000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 3
+              },
+              {
+                "id": 3,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": -20000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 4
+              }
+            ],
+            "blue": 800000
+          }
+        }
+      ],
+      "expected": {
+        "B": 20000,
+        "D": 20000,
+        "A": 20000
+      },
+      "root": {
+        "invoiceId": 1,
+        "total": 1000000,
+        "creditApplied": 200000,
+        "cashPaid": 800000,
+        "restrictedSources": {
+          "B": {
+            "id": 1,
+            "code": "CRG96QD3",
+            "category": 2,
+            "amount": 50000
+          },
+          "D": {
+            "id": 2,
+            "code": "CRLUJ84F",
+            "category": 4,
+            "amount": 50000
+          },
+          "C": [
+            {
+              "id": 3,
+              "code": "CRM2RQKW",
+              "category": 3,
+              "amount": 50000
+            },
+            {
+              "id": 4,
+              "code": "CR7EPHT7",
+              "category": 3,
+              "amount": 50000
+            }
+          ]
+        }
+      },
+      "initial": {
+        "stocks": [
+          {
+            "label": "A-200k",
+            "stock": 9
+          },
+          {
+            "label": "B-200k",
+            "stock": 9
+          },
+          {
+            "label": "C-300k",
+            "stock": 9
+          },
+          {
+            "label": "D-300k",
+            "stock": 9
+          },
+          {
+            "label": "B1-180000",
+            "stock": 10
+          },
+          {
+            "label": "D1-280k",
+            "stock": 10
+          },
+          {
+            "label": "A1-180k",
+            "stock": 10
+          }
+        ],
+        "credits": [
+          {
+            "id": 1,
+            "code": "CRG96QD3",
+            "amount": 50000,
+            "usedAmount": 50000,
+            "status": "USED",
+            "expiresAt": 1795984199999
+          },
+          {
+            "id": 2,
+            "code": "CRLUJ84F",
+            "amount": 50000,
+            "usedAmount": 50000,
+            "status": "USED",
+            "expiresAt": 1795984199999
+          },
+          {
+            "id": 3,
+            "code": "CRM2RQKW",
+            "amount": 50000,
+            "usedAmount": 50000,
+            "status": "USED",
+            "expiresAt": 1795984199999
+          },
+          {
+            "id": 4,
+            "code": "CR7EPHT7",
+            "amount": 50000,
+            "usedAmount": 50000,
+            "status": "USED",
+            "expiresAt": 1795984199999
+          }
+        ],
+        "returns": [],
+        "blue": 800000
+      }
+    },
+    {
+      "label": "B-expired-diff20",
+      "bExpired": true,
+      "bDifference": 20000,
+      "shiftId": 2,
+      "verdict": "PASS",
+      "stages": [
+        {
+          "stage": "B",
+          "verdict": "PASS",
+          "note": "B source: exact B-only restricted credit",
+          "sourceSaleItemId": 9,
+          "replacement": "B1-180000",
+          "priceDifference": 20000,
+          "exchange": {
+            "returnId": 4,
+            "exchangeInvoiceId": 6,
+            "diff": 30000,
+            "sourceCreditRestoredAmount": 0,
+            "sourceCreditClosedExpiredAmount": 50000,
+            "sourceCreditSuccessors": [],
+            "cashRefunded": 0,
+            "cardRefunded": 0,
+            "cashReceived": 30000,
+            "cardReceived": 0,
+            "returnDocument": {
+              "id": 4,
+              "kind": "EXCHANGE",
+              "total": 200000,
+              "refundMethod": "NONE",
+              "refundAmount": 0,
+              "refundStoreCreditAmount": 0,
+              "diff": 30000,
+              "settlement": "CASH",
+              "exchangeInvoiceId": 6
+            },
+            "allocations": [
+              {
+                "id": 5,
+                "sourceCreditId": 8,
+                "amount": 50000
+              }
+            ],
+            "issuedCredits": [],
+            "oldSource": {
+              "id": 8,
+              "code": "CRUPBGGQ",
+              "status": "USED",
+              "usedAmount": 50000,
+              "expiresAt": 1793303221403
+            }
+          },
+          "preview": {
+            "nominalDifference": -20000,
+            "effectiveDifference": 30000
+          },
+          "check": {
+            "expectedEffectiveDifference": 30000,
+            "actualDifference": 30000,
+            "expectedCredit": 0,
+            "actualCredit": 0,
+            "expectedExpiry": null,
+            "expiryMatches": true,
+            "oldSourceStillUsed": true,
+            "noUnbackedRefund": true,
+            "positiveCashCorrect": true,
+            "expectedBlue": 830000,
+            "actualBlue": 830000,
+            "expiredShareClosed": true,
+            "expiredSharePrinted": true
+          },
+          "before": {
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 9
+              },
+              {
+                "label": "B-200k",
+                "stock": 9
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-180000",
+                "stock": 10
+              },
+              {
+                "label": "D1-280k",
+                "stock": 10
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 8,
+                "code": "CRUPBGGQ",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1793303221403
+              },
+              {
+                "id": 9,
+                "code": "CREPCUJW",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 10,
+                "code": "CRKTEHYC",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 11,
+                "code": "CRAA7GLX",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [],
+            "blue": 800000
+          },
+          "after": {
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 9
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-180000",
+                "stock": 9
+              },
+              {
+                "label": "D1-280k",
+                "stock": 10
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 8,
+                "code": "CRUPBGGQ",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1793303221403
+              },
+              {
+                "id": 9,
+                "code": "CREPCUJW",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 10,
+                "code": "CRKTEHYC",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 11,
+                "code": "CRAA7GLX",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 4,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": 30000,
+                "settlement": "CASH",
+                "exchangeInvoiceId": 6
+              }
+            ],
+            "blue": 830000
+          }
+        },
+        {
+          "stage": "D",
+          "verdict": "PASS",
+          "note": "D source: exact D-only restricted credit",
+          "sourceSaleItemId": 11,
+          "replacement": "D1-280k",
+          "priceDifference": 20000,
+          "exchange": {
+            "returnId": 5,
+            "exchangeInvoiceId": 7,
+            "diff": -20000,
+            "sourceCreditRestoredAmount": 20000,
+            "sourceCreditClosedExpiredAmount": 0,
+            "sourceCreditSuccessors": [
+              {
+                "id": 12,
+                "amount": 20000,
+                "expiresAt": null
+              }
+            ],
+            "cashRefunded": 0,
+            "cardRefunded": 0,
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "returnDocument": {
+              "id": 5,
+              "kind": "EXCHANGE",
+              "total": 300000,
+              "refundMethod": "STORE_CREDIT",
+              "refundAmount": 0,
+              "refundStoreCreditAmount": 0,
+              "diff": -20000,
+              "settlement": "CREDIT",
+              "exchangeInvoiceId": 7
+            },
+            "allocations": [
+              {
+                "id": 6,
+                "sourceCreditId": 9,
+                "amount": 30000
+              },
+              {
+                "id": 7,
+                "sourceCreditId": 9,
+                "amount": 20000
+              }
+            ],
+            "issuedCredits": [
+              {
+                "id": 12,
+                "code": "CRF2TJQA",
+                "amount": 20000,
+                "expiresAt": 1795984199999,
+                "expiresAtJalali": "1405/09/08",
+                "status": "ACTIVE",
+                "source": "MANUAL",
+                "restrictScope": "CATEGORY",
+                "restrictCategoryIdsJson": "[8]"
+              }
+            ],
+            "oldSource": {
+              "id": 9,
+              "code": "CREPCUJW",
+              "status": "USED",
+              "usedAmount": 50000,
+              "expiresAt": 1795984199999
+            }
+          },
+          "preview": {
+            "nominalDifference": -20000,
+            "effectiveDifference": -20000
+          },
+          "check": {
+            "expectedEffectiveDifference": -20000,
+            "actualDifference": -20000,
+            "expectedCredit": 20000,
+            "actualCredit": 20000,
+            "expectedExpiry": 1795984199999,
+            "expiryMatches": true,
+            "oldSourceStillUsed": true,
+            "noUnbackedRefund": true,
+            "positiveCashCorrect": true,
+            "expectedBlue": 830000,
+            "actualBlue": 830000,
+            "expiredShareClosed": true,
+            "expiredSharePrinted": true
+          },
+          "before": {
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 9
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-180000",
+                "stock": 9
+              },
+              {
+                "label": "D1-280k",
+                "stock": 10
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 8,
+                "code": "CRUPBGGQ",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1793303221403
+              },
+              {
+                "id": 9,
+                "code": "CREPCUJW",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 10,
+                "code": "CRKTEHYC",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 11,
+                "code": "CRAA7GLX",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 4,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": 30000,
+                "settlement": "CASH",
+                "exchangeInvoiceId": 6
+              }
+            ],
+            "blue": 830000
+          },
+          "after": {
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 9
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 10
+              },
+              {
+                "label": "B1-180000",
+                "stock": 9
+              },
+              {
+                "label": "D1-280k",
+                "stock": 9
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 8,
+                "code": "CRUPBGGQ",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1793303221403
+              },
+              {
+                "id": 9,
+                "code": "CREPCUJW",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 10,
+                "code": "CRKTEHYC",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 11,
+                "code": "CRAA7GLX",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 4,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": 30000,
+                "settlement": "CASH",
+                "exchangeInvoiceId": 6
+              },
+              {
+                "id": 5,
+                "kind": "EXCHANGE",
+                "total": 300000,
+                "diff": -20000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 7
+              }
+            ],
+            "blue": 830000
+          }
+        },
+        {
+          "stage": "A",
+          "verdict": "PASS",
+          "note": "A source: cash-backed; fresh non-expiring credit",
+          "sourceSaleItemId": 8,
+          "replacement": "A1-180k",
+          "priceDifference": 20000,
+          "exchange": {
+            "returnId": 6,
+            "exchangeInvoiceId": 8,
+            "diff": -20000,
+            "sourceCreditRestoredAmount": 0,
+            "sourceCreditClosedExpiredAmount": 0,
+            "sourceCreditSuccessors": [],
+            "cashRefunded": 0,
+            "cardRefunded": 0,
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "returnDocument": {
+              "id": 6,
+              "kind": "EXCHANGE",
+              "total": 200000,
+              "refundMethod": "STORE_CREDIT",
+              "refundAmount": 20000,
+              "refundStoreCreditAmount": 0,
+              "diff": -20000,
+              "settlement": "CREDIT",
+              "exchangeInvoiceId": 8
+            },
+            "allocations": [],
+            "issuedCredits": [
+              {
+                "id": 13,
+                "code": "EWAKUK",
+                "amount": 20000,
+                "expiresAt": null,
+                "expiresAtJalali": null,
+                "status": "ACTIVE",
+                "source": "EXCHANGE",
+                "restrictScope": "ALL",
+                "restrictCategoryIdsJson": null
+              }
+            ],
+            "oldSource": null
+          },
+          "preview": {
+            "nominalDifference": -20000,
+            "effectiveDifference": -20000
+          },
+          "check": {
+            "expectedEffectiveDifference": -20000,
+            "actualDifference": -20000,
+            "expectedCredit": 20000,
+            "actualCredit": 20000,
+            "expectedExpiry": null,
+            "expiryMatches": true,
+            "oldSourceStillUsed": true,
+            "noUnbackedRefund": true,
+            "positiveCashCorrect": true,
+            "expectedBlue": 830000,
+            "actualBlue": 830000,
+            "expiredShareClosed": true,
+            "expiredSharePrinted": true
+          },
+          "before": {
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 9
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 10
+              },
+              {
+                "label": "B1-180000",
+                "stock": 9
+              },
+              {
+                "label": "D1-280k",
+                "stock": 9
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 8,
+                "code": "CRUPBGGQ",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1793303221403
+              },
+              {
+                "id": 9,
+                "code": "CREPCUJW",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 10,
+                "code": "CRKTEHYC",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 11,
+                "code": "CRAA7GLX",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 4,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": 30000,
+                "settlement": "CASH",
+                "exchangeInvoiceId": 6
+              },
+              {
+                "id": 5,
+                "kind": "EXCHANGE",
+                "total": 300000,
+                "diff": -20000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 7
+              }
+            ],
+            "blue": 830000
+          },
+          "after": {
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 10
+              },
+              {
+                "label": "B1-180000",
+                "stock": 9
+              },
+              {
+                "label": "D1-280k",
+                "stock": 9
+              },
+              {
+                "label": "A1-180k",
+                "stock": 9
+              }
+            ],
+            "credits": [
+              {
+                "id": 8,
+                "code": "CRUPBGGQ",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1793303221403
+              },
+              {
+                "id": 9,
+                "code": "CREPCUJW",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 10,
+                "code": "CRKTEHYC",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 11,
+                "code": "CRAA7GLX",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 4,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": 30000,
+                "settlement": "CASH",
+                "exchangeInvoiceId": 6
+              },
+              {
+                "id": 5,
+                "kind": "EXCHANGE",
+                "total": 300000,
+                "diff": -20000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 7
+              },
+              {
+                "id": 6,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": -20000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 8
+              }
+            ],
+            "blue": 830000
+          }
+        }
+      ],
+      "expected": {
+        "B": 0,
+        "D": 20000,
+        "A": 20000
+      },
+      "root": {
+        "invoiceId": 5,
+        "total": 1000000,
+        "creditApplied": 200000,
+        "cashPaid": 800000,
+        "restrictedSources": {
+          "B": {
+            "id": 8,
+            "code": "CRUPBGGQ",
+            "category": 6,
+            "amount": 50000
+          },
+          "D": {
+            "id": 9,
+            "code": "CREPCUJW",
+            "category": 8,
+            "amount": 50000
+          },
+          "C": [
+            {
+              "id": 10,
+              "code": "CRKTEHYC",
+              "category": 7,
+              "amount": 50000
+            },
+            {
+              "id": 11,
+              "code": "CRAA7GLX",
+              "category": 7,
+              "amount": 50000
+            }
+          ]
+        }
+      },
+      "initial": {
+        "stocks": [
+          {
+            "label": "A-200k",
+            "stock": 9
+          },
+          {
+            "label": "B-200k",
+            "stock": 9
+          },
+          {
+            "label": "C-300k",
+            "stock": 9
+          },
+          {
+            "label": "D-300k",
+            "stock": 9
+          },
+          {
+            "label": "B1-180000",
+            "stock": 10
+          },
+          {
+            "label": "D1-280k",
+            "stock": 10
+          },
+          {
+            "label": "A1-180k",
+            "stock": 10
+          }
+        ],
+        "credits": [
+          {
+            "id": 8,
+            "code": "CRUPBGGQ",
+            "amount": 50000,
+            "usedAmount": 50000,
+            "status": "USED",
+            "expiresAt": 1795984199999
+          },
+          {
+            "id": 9,
+            "code": "CREPCUJW",
+            "amount": 50000,
+            "usedAmount": 50000,
+            "status": "USED",
+            "expiresAt": 1795984199999
+          },
+          {
+            "id": 10,
+            "code": "CRKTEHYC",
+            "amount": 50000,
+            "usedAmount": 50000,
+            "status": "USED",
+            "expiresAt": 1795984199999
+          },
+          {
+            "id": 11,
+            "code": "CRAA7GLX",
+            "amount": 50000,
+            "usedAmount": 50000,
+            "status": "USED",
+            "expiresAt": 1795984199999
+          }
+        ],
+        "returns": [],
+        "blue": 800000
+      },
+      "bExpiryFixture": {
+        "expiresAt": 1793303221403,
+        "note": "Temporary harness DB only; simulate an already-expired source after the original sale."
+      }
+    },
+    {
+      "label": "B-expired-diff60",
+      "bExpired": true,
+      "bDifference": 60000,
+      "shiftId": 3,
+      "verdict": "PASS",
+      "stages": [
+        {
+          "stage": "B",
+          "verdict": "PASS",
+          "note": "B source: exact B-only restricted credit",
+          "sourceSaleItemId": 16,
+          "replacement": "B1-140000",
+          "priceDifference": 60000,
+          "exchange": {
+            "returnId": 7,
+            "exchangeInvoiceId": 10,
+            "diff": -10000,
+            "sourceCreditRestoredAmount": 0,
+            "sourceCreditClosedExpiredAmount": 50000,
+            "sourceCreditSuccessors": [],
+            "cashRefunded": 0,
+            "cardRefunded": 0,
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "returnDocument": {
+              "id": 7,
+              "kind": "EXCHANGE",
+              "total": 200000,
+              "refundMethod": "STORE_CREDIT",
+              "refundAmount": 10000,
+              "refundStoreCreditAmount": 0,
+              "diff": -10000,
+              "settlement": "CREDIT",
+              "exchangeInvoiceId": 10
+            },
+            "allocations": [
+              {
+                "id": 8,
+                "sourceCreditId": 14,
+                "amount": 50000
+              }
+            ],
+            "issuedCredits": [
+              {
+                "id": 18,
+                "code": "EMUVPZ",
+                "amount": 10000,
+                "expiresAt": null,
+                "expiresAtJalali": null,
+                "status": "ACTIVE",
+                "source": "EXCHANGE",
+                "restrictScope": "ALL",
+                "restrictCategoryIdsJson": null
+              }
+            ],
+            "oldSource": {
+              "id": 14,
+              "code": "CRZBV776",
+              "status": "USED",
+              "usedAmount": 50000,
+              "expiresAt": 1793303221872
+            }
+          },
+          "preview": {
+            "nominalDifference": -60000,
+            "effectiveDifference": -10000
+          },
+          "check": {
+            "expectedEffectiveDifference": -10000,
+            "actualDifference": -10000,
+            "expectedCredit": 10000,
+            "actualCredit": 10000,
+            "expectedExpiry": null,
+            "expiryMatches": true,
+            "oldSourceStillUsed": true,
+            "noUnbackedRefund": true,
+            "positiveCashCorrect": true,
+            "expectedBlue": 800000,
+            "actualBlue": 800000,
+            "expiredShareClosed": true,
+            "expiredSharePrinted": true
+          },
+          "before": {
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 9
+              },
+              {
+                "label": "B-200k",
+                "stock": 9
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-140000",
+                "stock": 10
+              },
+              {
+                "label": "D1-280k",
+                "stock": 10
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 14,
+                "code": "CRZBV776",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1793303221872
+              },
+              {
+                "id": 15,
+                "code": "CR77HW3X",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 16,
+                "code": "CRCLHDHR",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 17,
+                "code": "CRBUWVY6",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [],
+            "blue": 800000
+          },
+          "after": {
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 9
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-140000",
+                "stock": 9
+              },
+              {
+                "label": "D1-280k",
+                "stock": 10
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 14,
+                "code": "CRZBV776",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1793303221872
+              },
+              {
+                "id": 15,
+                "code": "CR77HW3X",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 16,
+                "code": "CRCLHDHR",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 17,
+                "code": "CRBUWVY6",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 7,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": -10000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 10
+              }
+            ],
+            "blue": 800000
+          }
+        },
+        {
+          "stage": "D",
+          "verdict": "PASS",
+          "note": "D source: exact D-only restricted credit",
+          "sourceSaleItemId": 18,
+          "replacement": "D1-280k",
+          "priceDifference": 20000,
+          "exchange": {
+            "returnId": 8,
+            "exchangeInvoiceId": 11,
+            "diff": -20000,
+            "sourceCreditRestoredAmount": 20000,
+            "sourceCreditClosedExpiredAmount": 0,
+            "sourceCreditSuccessors": [
+              {
+                "id": 19,
+                "amount": 20000,
+                "expiresAt": null
+              }
+            ],
+            "cashRefunded": 0,
+            "cardRefunded": 0,
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "returnDocument": {
+              "id": 8,
+              "kind": "EXCHANGE",
+              "total": 300000,
+              "refundMethod": "STORE_CREDIT",
+              "refundAmount": 0,
+              "refundStoreCreditAmount": 0,
+              "diff": -20000,
+              "settlement": "CREDIT",
+              "exchangeInvoiceId": 11
+            },
+            "allocations": [
+              {
+                "id": 9,
+                "sourceCreditId": 15,
+                "amount": 30000
+              },
+              {
+                "id": 10,
+                "sourceCreditId": 15,
+                "amount": 20000
+              }
+            ],
+            "issuedCredits": [
+              {
+                "id": 19,
+                "code": "CRTMW92H",
+                "amount": 20000,
+                "expiresAt": 1795984199999,
+                "expiresAtJalali": "1405/09/08",
+                "status": "ACTIVE",
+                "source": "MANUAL",
+                "restrictScope": "CATEGORY",
+                "restrictCategoryIdsJson": "[12]"
+              }
+            ],
+            "oldSource": {
+              "id": 15,
+              "code": "CR77HW3X",
+              "status": "USED",
+              "usedAmount": 50000,
+              "expiresAt": 1795984199999
+            }
+          },
+          "preview": {
+            "nominalDifference": -20000,
+            "effectiveDifference": -20000
+          },
+          "check": {
+            "expectedEffectiveDifference": -20000,
+            "actualDifference": -20000,
+            "expectedCredit": 20000,
+            "actualCredit": 20000,
+            "expectedExpiry": 1795984199999,
+            "expiryMatches": true,
+            "oldSourceStillUsed": true,
+            "noUnbackedRefund": true,
+            "positiveCashCorrect": true,
+            "expectedBlue": 800000,
+            "actualBlue": 800000,
+            "expiredShareClosed": true,
+            "expiredSharePrinted": true
+          },
+          "before": {
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 9
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-140000",
+                "stock": 9
+              },
+              {
+                "label": "D1-280k",
+                "stock": 10
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 14,
+                "code": "CRZBV776",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1793303221872
+              },
+              {
+                "id": 15,
+                "code": "CR77HW3X",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 16,
+                "code": "CRCLHDHR",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 17,
+                "code": "CRBUWVY6",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 7,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": -10000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 10
+              }
+            ],
+            "blue": 800000
+          },
+          "after": {
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 9
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 10
+              },
+              {
+                "label": "B1-140000",
+                "stock": 9
+              },
+              {
+                "label": "D1-280k",
+                "stock": 9
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 14,
+                "code": "CRZBV776",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1793303221872
+              },
+              {
+                "id": 15,
+                "code": "CR77HW3X",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 16,
+                "code": "CRCLHDHR",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 17,
+                "code": "CRBUWVY6",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 7,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": -10000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 10
+              },
+              {
+                "id": 8,
+                "kind": "EXCHANGE",
+                "total": 300000,
+                "diff": -20000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 11
+              }
+            ],
+            "blue": 800000
+          }
+        },
+        {
+          "stage": "A",
+          "verdict": "PASS",
+          "note": "A source: cash-backed; fresh non-expiring credit",
+          "sourceSaleItemId": 15,
+          "replacement": "A1-180k",
+          "priceDifference": 20000,
+          "exchange": {
+            "returnId": 9,
+            "exchangeInvoiceId": 12,
+            "diff": -20000,
+            "sourceCreditRestoredAmount": 0,
+            "sourceCreditClosedExpiredAmount": 0,
+            "sourceCreditSuccessors": [],
+            "cashRefunded": 0,
+            "cardRefunded": 0,
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "returnDocument": {
+              "id": 9,
+              "kind": "EXCHANGE",
+              "total": 200000,
+              "refundMethod": "STORE_CREDIT",
+              "refundAmount": 20000,
+              "refundStoreCreditAmount": 0,
+              "diff": -20000,
+              "settlement": "CREDIT",
+              "exchangeInvoiceId": 12
+            },
+            "allocations": [],
+            "issuedCredits": [
+              {
+                "id": 20,
+                "code": "EGTLVD",
+                "amount": 20000,
+                "expiresAt": null,
+                "expiresAtJalali": null,
+                "status": "ACTIVE",
+                "source": "EXCHANGE",
+                "restrictScope": "ALL",
+                "restrictCategoryIdsJson": null
+              }
+            ],
+            "oldSource": null
+          },
+          "preview": {
+            "nominalDifference": -20000,
+            "effectiveDifference": -20000
+          },
+          "check": {
+            "expectedEffectiveDifference": -20000,
+            "actualDifference": -20000,
+            "expectedCredit": 20000,
+            "actualCredit": 20000,
+            "expectedExpiry": null,
+            "expiryMatches": true,
+            "oldSourceStillUsed": true,
+            "noUnbackedRefund": true,
+            "positiveCashCorrect": true,
+            "expectedBlue": 800000,
+            "actualBlue": 800000,
+            "expiredShareClosed": true,
+            "expiredSharePrinted": true
+          },
+          "before": {
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 9
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 10
+              },
+              {
+                "label": "B1-140000",
+                "stock": 9
+              },
+              {
+                "label": "D1-280k",
+                "stock": 9
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 14,
+                "code": "CRZBV776",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1793303221872
+              },
+              {
+                "id": 15,
+                "code": "CR77HW3X",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 16,
+                "code": "CRCLHDHR",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 17,
+                "code": "CRBUWVY6",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 7,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": -10000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 10
+              },
+              {
+                "id": 8,
+                "kind": "EXCHANGE",
+                "total": 300000,
+                "diff": -20000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 11
+              }
+            ],
+            "blue": 800000
+          },
+          "after": {
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 10
+              },
+              {
+                "label": "B1-140000",
+                "stock": 9
+              },
+              {
+                "label": "D1-280k",
+                "stock": 9
+              },
+              {
+                "label": "A1-180k",
+                "stock": 9
+              }
+            ],
+            "credits": [
+              {
+                "id": 14,
+                "code": "CRZBV776",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1793303221872
+              },
+              {
+                "id": 15,
+                "code": "CR77HW3X",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 16,
+                "code": "CRCLHDHR",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 17,
+                "code": "CRBUWVY6",
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 7,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": -10000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 10
+              },
+              {
+                "id": 8,
+                "kind": "EXCHANGE",
+                "total": 300000,
+                "diff": -20000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 11
+              },
+              {
+                "id": 9,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": -20000,
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 12
+              }
+            ],
+            "blue": 800000
+          }
+        }
+      ],
+      "expected": {
+        "B": 10000,
+        "D": 20000,
+        "A": 20000
+      },
+      "root": {
+        "invoiceId": 9,
+        "total": 1000000,
+        "creditApplied": 200000,
+        "cashPaid": 800000,
+        "restrictedSources": {
+          "B": {
+            "id": 14,
+            "code": "CRZBV776",
+            "category": 10,
+            "amount": 50000
+          },
+          "D": {
+            "id": 15,
+            "code": "CR77HW3X",
+            "category": 12,
+            "amount": 50000
+          },
+          "C": [
+            {
+              "id": 16,
+              "code": "CRCLHDHR",
+              "category": 11,
+              "amount": 50000
+            },
+            {
+              "id": 17,
+              "code": "CRBUWVY6",
+              "category": 11,
+              "amount": 50000
+            }
+          ]
+        }
+      },
+      "initial": {
+        "stocks": [
+          {
+            "label": "A-200k",
+            "stock": 9
+          },
+          {
+            "label": "B-200k",
+            "stock": 9
+          },
+          {
+            "label": "C-300k",
+            "stock": 9
+          },
+          {
+            "label": "D-300k",
+            "stock": 9
+          },
+          {
+            "label": "B1-140000",
+            "stock": 10
+          },
+          {
+            "label": "D1-280k",
+            "stock": 10
+          },
+          {
+            "label": "A1-180k",
+            "stock": 10
+          }
+        ],
+        "credits": [
+          {
+            "id": 14,
+            "code": "CRZBV776",
+            "amount": 50000,
+            "usedAmount": 50000,
+            "status": "USED",
+            "expiresAt": 1795984199999
+          },
+          {
+            "id": 15,
+            "code": "CR77HW3X",
+            "amount": 50000,
+            "usedAmount": 50000,
+            "status": "USED",
+            "expiresAt": 1795984199999
+          },
+          {
+            "id": 16,
+            "code": "CRCLHDHR",
+            "amount": 50000,
+            "usedAmount": 50000,
+            "status": "USED",
+            "expiresAt": 1795984199999
+          },
+          {
+            "id": 17,
+            "code": "CRBUWVY6",
+            "amount": 50000,
+            "usedAmount": 50000,
+            "status": "USED",
+            "expiresAt": 1795984199999
+          }
+        ],
+        "returns": [],
+        "blue": 800000
+      },
+      "bExpiryFixture": {
+        "expiresAt": 1793303221872,
+        "note": "Temporary harness DB only; simulate an already-expired source after the original sale."
+      }
+    }
+  ]
+}

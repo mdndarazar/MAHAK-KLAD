@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../db/client'
+import { isPastTehranExpiryDate, tehranEndOfDayAfter } from '@shared/tehranTime'
 
 /**
  * ---------------------------------------------------------------------------
@@ -50,7 +51,7 @@ export function normalizeReturnCode(input: string): string {
 /** پایان اعتبار کد بر اساس تاریخ صدور و تعداد روز تنظیم‌شده. */
 export function returnCodeExpiry(issuedAt: Date, days: number): Date {
   const d = Math.min(Math.max(Math.round(days) || 7, 1), 365)
-  return new Date(issuedAt.getTime() + d * DAY_MS)
+  return tehranEndOfDayAfter(issuedAt, d)
 }
 
 /**
@@ -60,19 +61,20 @@ export function returnCodeExpiry(issuedAt: Date, days: number): Date {
  */
 export async function generateReturnCode(
   client: Prisma.TransactionClient | typeof prisma,
-  opts: { length?: number; days?: number; issuedAt?: Date } = {}
+  opts: { length?: number; days?: number; issuedAt?: Date; expiresAtExact?: Date | null } = {}
 ): Promise<{ code: string; expiresAt: Date }> {
   const issuedAt = opts.issuedAt ?? new Date()
-  const expiresAt = returnCodeExpiry(issuedAt, opts.days ?? 7)
+  const expiresAt = opts.expiresAtExact ?? returnCodeExpiry(issuedAt, opts.days ?? 7)
   let length = opts.length ?? 6
 
   for (let attempt = 0; attempt < MAX_TRIES; attempt++) {
     if (attempt > 0 && attempt % 10 === 0 && length < MAX_LENGTH) length++
     const code = randomReturnCode(length)
-    const clash = await client.saleInvoice.findFirst({
-      where: { returnCode: code, returnCodeExpiresAt: { gt: issuedAt } },
-      select: { id: true }
+    const collisions = await client.saleInvoice.findMany({
+      where: { returnCode: code },
+      select: { returnCodeExpiresAt: true }
     })
+    const clash = collisions.some((row) => row.returnCodeExpiresAt != null && !isPastTehranExpiryDate(row.returnCodeExpiresAt, issuedAt))
     if (!clash) return { code, expiresAt }
   }
 

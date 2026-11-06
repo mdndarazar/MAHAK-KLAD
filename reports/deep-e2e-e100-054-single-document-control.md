@@ -1,0 +1,20 @@
+# E100-054 کنترل بدون زنجیره: تعویض B+C+D در یک سند
+
+**وضعیت:** PASS. **DB:** SQLite موقت ایزوله.
+
+بعد از همان برگشت A، B و C و D در یک درخواست واحد از فاکتور ریشه تعویض شدند؛ سند تعویض مثبت B که در اجرای اصلی بین برگشت A و C+D آمده بود حذف شد. این کنترل اثر «تجمیع گام‌های B+C+D» را می‌سنجد؛ برگشت A همچنان یک سند رسمی قبلی است.
+
+## محاسبهٔ net
+ریشه: gross=۱٬۰۰۰٬۰۰۰، تخفیف=۰، net=۱٬۰۰۰٬۰۰۰؛ خطوط net={"A":200000,"B":200000,"C":300000,"D":300000}.
+تسویهٔ ریشه: اعتبار ۶۰۰٬۰۰۰ + نقد ۲۰۰٬۰۰۰ + POS ۲۰۰٬۰۰۰.
+
+## نتایج عملیات
+یک exchange برای B+C+D: بازگشتی=۸۰۰٬۰۰۰، جایگزین=۸۰۰٬۰۰۰، اختلاف=۰؛ پذیرفته شد.
+
+**ماندهٔ واقعی:** cash=۲۰۰٬۰۰۰، POS=۲۰۰٬۰۰۰، refund cash=۰، refund POS=۰، blue=۴۰۰٬۰۰۰.
+**فاکتورها:** [{"id":1,"sourceInvoiceId":null,"grandTotal":1000000,"paidTotal":1000000,"settled":true,"items":[{"variantId":1,"qty":1,"unitPrice":200000,"discount":0,"lineTotal":200000},{"variantId":2,"qty":1,"unitPrice":200000,"discount":0,"lineTotal":200000},{"variantId":3,"qty":1,"unitPrice":300000,"discount":0,"lineTotal":300000},{"variantId":4,"qty":1,"unitPrice":300000,"discount":0,"lineTotal":300000}]},{"id":2,"sourceInvoiceId":null,"grandTotal":600000,"paidTotal":600000,"settled":true,"items":[{"variantId":9,"qty":1,"unitPrice":100000,"discount":0,"lineTotal":100000},{"variantId":10,"qty":1,"unitPrice":100000,"discount":0,"lineTotal":100000},{"variantId":11,"qty":1,"unitPrice":100000,"discount":0,"lineTotal":100000},{"variantId":12,"qty":1,"unitPrice":100000,"discount":0,"lineTotal":100000},{"variantId":13,"qty":1,"unitPrice":100000,"discount":0,"lineTotal":100000},{"variantId":14,"qty":1,"unitPrice":100000,"discount":0,"lineTotal":100000}]},{"id":3,"sourceInvoiceId":1,"grandTotal":800000,"paidTotal":800000,"settled":true,"items":[{"variantId":5,"qty":1,"unitPrice":220000,"discount":0,"lineTotal":220000},{"variantId":6,"qty":1,"unitPrice":290000,"discount":0,"lineTotal":290000},{"variantId":7,"qty":1,"unitPrice":290000,"discount":0,"lineTotal":290000}]}]
+**برگشت‌ها:** [{"id":1,"invoiceId":1,"kind":"RETURN","total":200000,"refundMethod":"NONE","refundAmount":0,"refundStoreCreditAmount":0,"exchangeInvoiceId":null,"exchangeTotal":0,"exchangeDiff":0,"exchangeSettlement":null},{"id":2,"invoiceId":1,"kind":"EXCHANGE","total":800000,"refundMethod":"NONE","refundAmount":0,"refundStoreCreditAmount":0,"exchangeInvoiceId":3,"exchangeTotal":800000,"exchangeDiff":0,"exchangeSettlement":"NONE"}]
+**Allocationها:** [{"id":1,"returnId":1,"redemptionId":1,"sourceCreditId":4,"amount":100000,"saleItemId":null,"creditRestored":true,"settlementAdjusted":true},{"id":2,"returnId":1,"redemptionId":2,"sourceCreditId":6,"amount":100000,"saleItemId":null,"creditRestored":true,"settlementAdjusted":true},{"id":3,"returnId":1,"redemptionId":3,"sourceCreditId":2,"amount":0,"saleItemId":null,"creditRestored":false,"settlementAdjusted":true},{"id":4,"returnId":1,"redemptionId":4,"sourceCreditId":3,"amount":0,"saleItemId":null,"creditRestored":false,"settlementAdjusted":true},{"id":5,"returnId":1,"redemptionId":5,"sourceCreditId":5,"amount":0,"saleItemId":null,"creditRestored":false,"settlementAdjusted":true},{"id":6,"returnId":1,"redemptionId":6,"sourceCreditId":1,"amount":0,"saleItemId":null,"creditRestored":false,"settlementAdjusted":true},{"id":7,"returnId":2,"redemptionId":3,"sourceCreditId":2,"amount":100000,"saleItemId":null,"creditRestored":false,"settlementAdjusted":false},{"id":8,"returnId":2,"redemptionId":4,"sourceCreditId":3,"amount":100000,"saleItemId":null,"creditRestored":false,"settlementAdjusted":false},{"id":9,"returnId":2,"redemptionId":5,"sourceCreditId":5,"amount":100000,"saleItemId":null,"creditRestored":false,"settlementAdjusted":false},{"id":10,"returnId":2,"redemptionId":6,"sourceCreditId":1,"amount":100000,"saleItemId":null,"creditRestored":false,"settlementAdjusted":false}]
+
+هر checkpoint در JSON، انتظار/واقعی cash و POS، refund، blue، stock/ledger، فاکتورها، اعتبارها و allocationها را نگه می‌دارد.
+فقط DB تست ایزوله و گزارش تغییر کرد؛ production code، DB واقعی و policy تغییر نکردند.

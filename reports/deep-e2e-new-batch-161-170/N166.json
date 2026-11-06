@@ -1,0 +1,326 @@
+{
+  "generatedAt": "2026-10-28T18:26:25.253Z",
+  "id": 166,
+  "scenario": "N166",
+  "isolatedDatabase": "/tmp/mahak-followup-166-81L6ex/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 200000,
+      "cash": 200000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 50000,
+          "lineTotal": 50000
+        },
+        {
+          "id": 2,
+          "variantId": 2,
+          "qty": 1,
+          "unitPrice": 60000,
+          "lineTotal": 60000
+        },
+        {
+          "id": 3,
+          "variantId": 3,
+          "qty": 1,
+          "unitPrice": 90000,
+          "lineTotal": 90000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 200000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 200000
+      },
+      "actual": {
+        "cash": 200000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 200000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 200000,
+      "stock": [
+        {
+          "name": "three-item-source-A",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "three-item-source-B",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "three-item-source-C",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "one-item-replacement",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 200000,
+          "paid": 200000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "exchange",
+      "label": "three-source-lines-to-one-equal-value-replacement",
+      "sourceInvoiceId": 1,
+      "returnId": 1,
+      "exchangeInvoiceId": 2,
+      "returnTotal": 200000,
+      "exchangeTotal": 200000,
+      "diff": 0,
+      "cashReceived": 0,
+      "cardReceived": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "exchangeCreditApplied": 200000,
+      "newStoreCreditAmount": 0,
+      "preview": {
+        "ok": true,
+        "returnTotal": 200000,
+        "exchangeTotal": 200000,
+        "nominalDiff": 0,
+        "effectiveDiff": 0,
+        "exchangeCreditApplied": 200000,
+        "realMoneySurplus": 0,
+        "sourceCreditRestoration": 0
+      }
+    },
+    {
+      "label": "exchange three-source-lines-to-one-equal-value-replacement",
+      "expected": {
+        "cash": 200000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 200000
+      },
+      "actual": {
+        "cash": 200000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 200000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 200000,
+      "stock": [
+        {
+          "name": "three-item-source-A",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "three-item-source-B",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "three-item-source-C",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "one-item-replacement",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 200000,
+          "paid": 200000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 200000,
+          "paid": 200000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N166 reconciliation",
+      "expected": {
+        "cash": 200000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 200000
+      },
+      "actual": {
+        "cash": 200000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 200000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 200000,
+      "stock": [
+        {
+          "name": "three-item-source-A",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "three-item-source-B",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "three-item-source-C",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "one-item-replacement",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 200000,
+          "paid": 200000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 200000,
+          "paid": 200000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "assertions": [
+    {
+      "key": "three-to-one-multi-line-equal-value-exchange",
+      "pass": true,
+      "sourceLines": 3,
+      "sourceValue": 200000,
+      "replacementLines": 1,
+      "replacementValue": 200000,
+      "diff": 0
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 200000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 200000
+    },
+    "actual": {
+      "cash": 200000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 200000,
+    "stock": [
+      {
+        "name": "three-item-source-A",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "three-item-source-B",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "three-item-source-C",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "one-item-replacement",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 2,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

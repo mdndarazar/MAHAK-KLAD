@@ -102,6 +102,12 @@ console.log('\n— ۲) ورودی «مبلغ بازپرداخت» سه‌رقم�
     digitsOnly(groupThousands('59800012')),
     digitsOnly('۱٬۲۳4 abc')
   ], ['59800012', '1234'])
+  check('روش خالی در برگشت ساده، مسیر خودکارِ اعتبار و رمز مستقل سقف را می‌سازد', [
+    /refundMethod: refundMethod \?\? 'NONE'/.test(salesReturn),
+    /autoCredit: !refundMethod \|\| refundMethod === 'NONE'/.test(salesReturn),
+    /overpayManagerPassword: req\.managerPassword/.test(salesReturn),
+    /storeCreditManagerPassword: creditLimitPw/.test(salesReturn)
+  ], [true, true, true, true])
 }
 
 console.log('\n— ۳) رسید برگشت بدون کد/بارکد اعتبار + لینک اعتبار به سند برگشت')

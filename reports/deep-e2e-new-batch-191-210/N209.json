@@ -1,0 +1,321 @@
+{
+  "generatedAt": "2026-10-28T18:42:18.181Z",
+  "id": 209,
+  "scenario": "N209",
+  "isolatedDatabase": "/tmp/mahak-next20-209-uUUUwp/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "settled-sale",
+      "invoiceId": 1,
+      "total": 40000,
+      "cash": 40000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 40000,
+          "lineTotal": 40000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 40000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 40000
+      },
+      "actual": {
+        "cash": 40000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 40000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 40000,
+      "stock": [
+        {
+          "name": "spent-return-voucher-source",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "spent-return-voucher-purchase",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 40000,
+          "paid": 40000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 40000,
+      "method": "STORE_CREDIT",
+      "refundAmount": 40000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 40000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 40000
+      },
+      "actual": {
+        "cash": 40000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 40000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 40000,
+      "stock": [
+        {
+          "name": "spent-return-voucher-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "spent-return-voucher-purchase",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 40000,
+          "paid": 40000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "settled-sale",
+      "invoiceId": 2,
+      "total": 40000,
+      "cash": 0,
+      "card": 0,
+      "creditApplied": 40000,
+      "items": [
+        {
+          "id": 2,
+          "variantId": 2,
+          "qty": 1,
+          "unitPrice": 40000,
+          "lineTotal": 40000
+        }
+      ]
+    },
+    {
+      "label": "sale 2",
+      "expected": {
+        "cash": 40000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 40000
+      },
+      "actual": {
+        "cash": 40000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 40000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 40000,
+      "stock": [
+        {
+          "name": "spent-return-voucher-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "spent-return-voucher-purchase",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 40000,
+          "paid": 40000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 40000,
+          "paid": 40000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N209 reconciliation",
+      "expected": {
+        "cash": 40000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 40000
+      },
+      "actual": {
+        "cash": 40000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 40000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 40000,
+      "stock": [
+        {
+          "name": "spent-return-voucher-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "spent-return-voucher-purchase",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 40000,
+          "paid": 40000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 40000,
+          "paid": 40000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 1,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "modes": [
+    {
+      "key": "return created a 40k voucher",
+      "amount": 40000
+    },
+    {
+      "key": "voucher spent on fully settled later sale",
+      "applied": 40000
+    },
+    {
+      "key": "void is rejected after voucher spend; all ledgers stay unchanged",
+      "mutationFree": true,
+      "error": "ابطال سند برگشت ۱ ممکن نیست: اعتبار خرید #1 که از همین برگشت صادر شده، ۴۰٬۰۰۰ ریال مصرف شده است (مصرف اعتبار قابل برگرداندن نیست).\nابطال سند، اعتبار خرج‌شده را بی‌پشتوانه می‌گذاشت. موضوع برای رسیدگی مدیر ثبت شد."
+    }
+  ],
+  "modeCount": 3,
+  "final": {
+    "expected": {
+      "cash": 40000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 40000
+    },
+    "actual": {
+      "cash": 40000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 40000,
+    "stock": [
+      {
+        "name": "spent-return-voucher-source",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "spent-return-voucher-purchase",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 2,
+    "returns": 1,
+    "credits": 1,
+    "checks": 0
+  }
+}

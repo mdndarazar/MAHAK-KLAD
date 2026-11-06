@@ -1,0 +1,688 @@
+{
+  "generatedAt": "2026-10-27T19:03:07.416Z",
+  "campaign": "Discount Policy 80",
+  "scenario": "D80-S17",
+  "case": "zero-balance-exact-tender",
+  "returnMode": "CASH",
+  "fixture": {
+    "discountLabel": "fixed invoice discount 10,000",
+    "discountKind": "FIXED_RIAL",
+    "lines": [
+      {
+        "unitPrice": 160000,
+        "qty": 1,
+        "discount": 0
+      }
+    ],
+    "invoiceDiscount": 10000
+  },
+  "saleTenders": [
+    "CASH"
+  ],
+  "isolatedDatabase": "/tmp/mahak-d80-s17-WKgnU0/isolated.db",
+  "status": "PASS",
+  "creditIssue": [
+    {
+      "id": 1,
+      "code": "CRB8EJP2",
+      "amount": 30000,
+      "multiUse": false,
+      "carryRemainder": true,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL"
+    },
+    {
+      "id": 2,
+      "code": "CRZ4P3TK",
+      "amount": 50000,
+      "multiUse": false,
+      "carryRemainder": true,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL"
+    },
+    {
+      "id": 3,
+      "code": "CRK4VNFT",
+      "amount": 70000,
+      "multiUse": false,
+      "carryRemainder": true,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL"
+    }
+  ],
+  "sales": [
+    {
+      "id": 1,
+      "invoiceIndex": 1,
+      "gross": 160000,
+      "lineDiscount": 0,
+      "invoiceDiscount": 10000,
+      "totalDiscount": 10000,
+      "net": 150000,
+      "paid": 150000,
+      "storeCreditRequested": 150000,
+      "storeCreditApplied": 150000,
+      "cashTender": 0,
+      "posTender": 0,
+      "tender": "CASH",
+      "settled": true,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "gross": 160000,
+          "lineDiscount": 0,
+          "netShare": 150000
+        }
+      ]
+    }
+  ],
+  "redemptions": [
+    {
+      "id": 1,
+      "creditId": 1,
+      "invoiceId": 1,
+      "amount": 30000,
+      "reversedAt": null
+    },
+    {
+      "id": 2,
+      "creditId": 3,
+      "invoiceId": 1,
+      "amount": 70000,
+      "reversedAt": null
+    },
+    {
+      "id": 3,
+      "creditId": 2,
+      "invoiceId": 1,
+      "amount": 50000,
+      "reversedAt": null
+    }
+  ],
+  "returns": [
+    {
+      "id": 1,
+      "invoiceId": 1,
+      "expectedNet": 150000,
+      "actualNet": 150000,
+      "expectedSourceCreditReturn": 150000,
+      "expectedMoneyBackedRight": 0,
+      "refundMethod": "NONE",
+      "refundAmount": 0,
+      "refundStoreCreditAmount": 0,
+      "sourceCreditReturned": 150000,
+      "sourceCreditRestoredAmount": 150000,
+      "sourceCreditSuccessors": [
+        {
+          "id": 4,
+          "amount": 30000,
+          "status": "ACTIVE",
+          "expiresAt": null
+        },
+        {
+          "id": 5,
+          "amount": 70000,
+          "status": "ACTIVE",
+          "expiresAt": null
+        },
+        {
+          "id": 6,
+          "amount": 50000,
+          "status": "ACTIVE",
+          "expiresAt": null
+        }
+      ],
+      "creditReturnAllocations": [
+        {
+          "id": 1,
+          "redemptionId": 1,
+          "sourceCreditId": 1,
+          "amount": 30000,
+          "creditRestored": true
+        },
+        {
+          "id": 2,
+          "redemptionId": 2,
+          "sourceCreditId": 3,
+          "amount": 70000,
+          "creditRestored": true
+        },
+        {
+          "id": 3,
+          "redemptionId": 3,
+          "sourceCreditId": 2,
+          "amount": 50000,
+          "creditRestored": true
+        }
+      ],
+      "createdCredits": [
+        {
+          "id": 4,
+          "code": "CR9GKHZF",
+          "amount": 30000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "source": "MANUAL",
+          "returnId": 1,
+          "delivery": {
+            "id": 1,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793127787765,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        },
+        {
+          "id": 5,
+          "code": "CR6KUEA6",
+          "amount": 70000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "source": "MANUAL",
+          "returnId": 1,
+          "delivery": {
+            "id": 2,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793127787765,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        },
+        {
+          "id": 6,
+          "code": "CR77RRKG",
+          "amount": 50000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "source": "MANUAL",
+          "returnId": 1,
+          "delivery": {
+            "id": 3,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793127787765,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        }
+      ],
+      "noMethodCreditExpected": null,
+      "overpayCreditAmount": 0,
+      "customerValue": 150000,
+      "items": [
+        {
+          "saleItemId": 1,
+          "qty": 1,
+          "unitPrice": 160000,
+          "lineTotal": 150000,
+          "restockedQty": 1
+        }
+      ]
+    }
+  ],
+  "sourceCreditSuccessors": [
+    {
+      "id": 4,
+      "amount": 30000,
+      "status": "ACTIVE",
+      "expiresAt": null
+    },
+    {
+      "id": 5,
+      "amount": 70000,
+      "status": "ACTIVE",
+      "expiresAt": null
+    },
+    {
+      "id": 6,
+      "amount": 50000,
+      "status": "ACTIVE",
+      "expiresAt": null
+    }
+  ],
+  "managerTransfers": [],
+  "checkpoints": [
+    {
+      "label": "fresh isolated DB",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stocks": [],
+      "credits": [],
+      "counts": {
+        "invoices": 0,
+        "returns": 0,
+        "payments": 0,
+        "credits": 0,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "all test-only ALL barcodes issued",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stocks": [],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRB8EJP2",
+          "amount": 30000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 2,
+          "code": "CRZ4P3TK",
+          "amount": 50000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 3,
+          "code": "CRK4VNFT",
+          "amount": 70000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        }
+      ],
+      "counts": {
+        "invoices": 0,
+        "returns": 0,
+        "payments": 0,
+        "credits": 3,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "invoice 1 sold, barcode redemption + cash/POS reconciled",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stocks": [
+        {
+          "variantId": 1,
+          "label": "inv1-item1",
+          "expected": 19,
+          "actual": 19,
+          "ledger": -1
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRB8EJP2",
+          "amount": 30000,
+          "usedAmount": 30000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 2,
+          "code": "CRZ4P3TK",
+          "amount": 50000,
+          "usedAmount": 50000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 3,
+          "code": "CRK4VNFT",
+          "amount": 70000,
+          "usedAmount": 70000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        }
+      ],
+      "counts": {
+        "invoices": 1,
+        "returns": 0,
+        "payments": 3,
+        "credits": 3,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "official return CASH, expected net 150000, source credits and stock reconciled",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stocks": [
+        {
+          "variantId": 1,
+          "label": "inv1-item1",
+          "expected": 20,
+          "actual": 20,
+          "ledger": 0
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRB8EJP2",
+          "amount": 30000,
+          "usedAmount": 30000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 2,
+          "code": "CRZ4P3TK",
+          "amount": 50000,
+          "usedAmount": 50000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 3,
+          "code": "CRK4VNFT",
+          "amount": 70000,
+          "usedAmount": 70000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 4,
+          "code": "CR9GKHZF",
+          "amount": 30000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": 1,
+          "exchangeInvoiceId": null,
+          "delivery": {
+            "id": 1,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793127787765,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        },
+        {
+          "id": 5,
+          "code": "CR6KUEA6",
+          "amount": 70000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": 1,
+          "exchangeInvoiceId": null,
+          "delivery": {
+            "id": 2,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793127787765,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        },
+        {
+          "id": 6,
+          "code": "CR77RRKG",
+          "amount": 50000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": 1,
+          "exchangeInvoiceId": null,
+          "delivery": {
+            "id": 3,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793127787765,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        }
+      ],
+      "counts": {
+        "invoices": 1,
+        "returns": 1,
+        "payments": 3,
+        "credits": 6,
+        "deliveries": 3,
+        "checks": 0
+      }
+    }
+  ],
+  "findings": [],
+  "finalCreditState": [
+    {
+      "id": 1,
+      "code": "CRB8EJP2",
+      "amount": 30000,
+      "usedAmount": 30000,
+      "usedCount": 1,
+      "status": "USED",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL",
+      "delivery": null
+    },
+    {
+      "id": 2,
+      "code": "CRZ4P3TK",
+      "amount": 50000,
+      "usedAmount": 50000,
+      "usedCount": 1,
+      "status": "USED",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL",
+      "delivery": null
+    },
+    {
+      "id": 3,
+      "code": "CRK4VNFT",
+      "amount": 70000,
+      "usedAmount": 70000,
+      "usedCount": 1,
+      "status": "USED",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL",
+      "delivery": null
+    }
+  ],
+  "operationOutcome": "COMPLETED",
+  "final": {
+    "expected": {
+      "cash": 0,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 0
+    },
+    "actual": {
+      "cash": 0,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 0,
+    "stocks": [
+      {
+        "variantId": 1,
+        "label": "inv1-item1",
+        "expected": 20,
+        "actual": 20,
+        "ledger": 0
+      }
+    ],
+    "invoiceCount": 1,
+    "returnCount": 1,
+    "paymentCount": 3,
+    "creditCount": 6,
+    "deliveryCount": 3,
+    "checkCount": 0
+  }
+}

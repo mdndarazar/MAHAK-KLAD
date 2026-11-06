@@ -1,0 +1,662 @@
+batch 02: PASS E100 005 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 02: PASS E100 005 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 02: PASS E100 005 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 02: PASS E100 005 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 02: PASS E100 005 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 02: PASS E100 006 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 02: PASS E100 006 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 02: PASS E100 006 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 02: PASS E100 006 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 02: PASS E100 006 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 02: PASS E100 007 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 02: PASS E100 007 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 02: PASS E100 007 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 02: PASS E100 007 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 02: PASS E100 007 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 02: PASS E100 008 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 02: PASS E100 008 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 02: PASS E100 008 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 02: PASS E100 008 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 02: PASS E100 008 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 03: PASS E100 009 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 03: PASS E100 009 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 03: PASS E100 009 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 03: PASS E100 009 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 03: PASS E100 009 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 03: PASS E100 010 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 03: PASS E100 010 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 03: PASS E100 010 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 03: PASS E100 010 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 03: PASS E100 010 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 03: PASS E100 011 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 03: PASS E100 011 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 03: PASS E100 011 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 03: PASS E100 011 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 03: PASS E100 011 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 03: PASS E100 012 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 03: PASS E100 012 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 03: FAIL E100 012 CARD_TO_CARD 
+batch 03: PASS E100 012 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 03: PASS E100 012 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+
+reclassified after isolated oracle-check: E100 012 CARD_TO_CARD PASS (zero refund => no transfer request); see batch-03/e100-012-card-to-card-oracle-check.json
+
+batch 04: PASS E100 013 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 04: PASS E100 013 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 04: PASS E100 013 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 04: PASS E100 013 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 04: PASS E100 013 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 04: PASS E100 014 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 04: PASS E100 014 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 04: PASS E100 014 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 04: PASS E100 014 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 04: PASS E100 014 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 04: PASS E100 015 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 04: PASS E100 015 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 04: PASS E100 015 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 04: PASS E100 015 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 04: PASS E100 015 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 04: PASS E100 016 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=2
+batch 04: PASS E100 016 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=2
+batch 04: PASS E100 016 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=2
+batch 04: PASS E100 016 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=2
+batch 04: PASS E100 016 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=2
+
+batch 05: PASS E100 017 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 05: PASS E100 017 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 05: PASS E100 017 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 05: PASS E100 017 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 05: PASS E100 017 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 05: PASS E100 018 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 05: PASS E100 018 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 05: PASS E100 018 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 05: PASS E100 018 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 05: PASS E100 018 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 05: PASS E100 019 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 05: PASS E100 019 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 05: PASS E100 019 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 05: PASS E100 019 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 05: PASS E100 019 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 05: PASS E100 020 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 05: PASS E100 020 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 05: PASS E100 020 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 05: PASS E100 020 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 05: PASS E100 020 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+
+batch 06: PASS E100 021 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 06: PASS E100 021 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 06: PASS E100 021 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 06: PASS E100 021 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 06: PASS E100 021 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 06: PASS E100 022 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 06: PASS E100 022 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 06: PASS E100 022 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 06: PASS E100 022 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 06: PASS E100 022 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 06: PASS E100 023 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 06: PASS E100 023 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 06: PASS E100 023 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 06: PASS E100 023 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 06: PASS E100 023 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 06: PASS E100 024 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 06: PASS E100 024 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 06: PASS E100 024 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 06: PASS E100 024 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 06: PASS E100 024 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+
+batch 07: PASS E100 025 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 07: PASS E100 025 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 07: PASS E100 025 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 07: PASS E100 025 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 07: PASS E100 025 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 07: PASS E100 026 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 07: PASS E100 026 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 07: PASS E100 026 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 07: PASS E100 026 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 07: PASS E100 026 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 07: PASS E100 027 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 07: PASS E100 027 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 07: PASS E100 027 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 07: PASS E100 027 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 07: PASS E100 027 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 07: PASS E100 028 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 07: PASS E100 028 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 07: PASS E100 028 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 07: PASS E100 028 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 07: PASS E100 028 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+
+batch 08: PASS E100 029 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 08: PASS E100 029 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 08: PASS E100 029 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 08: PASS E100 029 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 08: PASS E100 029 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 08: PASS E100 030 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 08: PASS E100 030 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 08: PASS E100 030 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 08: PASS E100 030 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 08: PASS E100 030 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 08: PASS E100 031 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 08: PASS E100 031 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 08: PASS E100 031 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 08: PASS E100 031 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 08: PASS E100 031 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 08: PASS E100 032 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 08: PASS E100 032 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 08: PASS E100 032 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 08: PASS E100 032 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 08: PASS E100 032 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+
+batch 09: PASS E100 033 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 09: PASS E100 033 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 09: PASS E100 033 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 09: PASS E100 033 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 09: PASS E100 033 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 09: PASS E100 034 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 09: PASS E100 034 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 09: PASS E100 034 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 09: PASS E100 034 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 09: PASS E100 034 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 09: PASS E100 035 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 09: PASS E100 035 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 09: PASS E100 035 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 09: PASS E100 035 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 09: PASS E100 035 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 09: PASS E100 036 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=2
+batch 09: PASS E100 036 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=2
+batch 09: PASS E100 036 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=2
+batch 09: PASS E100 036 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=2
+batch 09: PASS E100 036 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=2
+
+batch 10: PASS E100 037 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 10: PASS E100 037 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 10: PASS E100 037 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 10: PASS E100 037 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 10: PASS E100 037 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 10: PASS E100 038 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 10: PASS E100 038 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 10: PASS E100 038 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 10: PASS E100 038 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 10: PASS E100 038 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 10: PASS E100 039 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 10: PASS E100 039 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 10: PASS E100 039 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 10: PASS E100 039 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 10: PASS E100 039 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 10: PASS E100 040 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 10: PASS E100 040 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 10: PASS E100 040 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 10: PASS E100 040 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 10: PASS E100 040 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+
+batch 11: PASS E100 041 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 11: PASS E100 041 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 11: PASS E100 041 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 11: PASS E100 041 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 11: PASS E100 041 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 11: PASS E100 042 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 11: PASS E100 042 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 11: PASS E100 042 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 11: PASS E100 042 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 11: PASS E100 042 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 11: PASS E100 043 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 11: PASS E100 043 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 11: PASS E100 043 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 11: PASS E100 043 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 11: PASS E100 043 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 11: PASS E100 044 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 11: PASS E100 044 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 11: PASS E100 044 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 11: PASS E100 044 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 11: PASS E100 044 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+
+batch 12: PASS E100 045 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 12: PASS E100 045 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 12: PASS E100 045 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 12: PASS E100 045 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 12: PASS E100 045 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 12: PASS E100 046 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 12: PASS E100 046 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 12: PASS E100 046 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 12: PASS E100 046 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 12: PASS E100 046 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 12: PASS E100 047 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 12: PASS E100 047 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 12: PASS E100 047 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 12: PASS E100 047 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 12: PASS E100 047 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 12: PASS E100 048 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 12: PASS E100 048 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 12: PASS E100 048 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 12: PASS E100 048 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 12: PASS E100 048 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+
+batch 13: PASS E100 049 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 13: PASS E100 049 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 13: PASS E100 049 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 13: PASS E100 049 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 13: PASS E100 049 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 13: PASS E100 050 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 13: PASS E100 050 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 13: PASS E100 050 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 13: PASS E100 050 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 13: PASS E100 050 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 13: PASS E100 051 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 13: PASS E100 051 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 13: PASS E100 051 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 13: PASS E100 051 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 13: PASS E100 051 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 13: PASS E100 052 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 13: PASS E100 052 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 13: PASS E100 052 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 13: PASS E100 052 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 13: PASS E100 052 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+
+batch 14: PASS E100 053 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 14: PASS E100 053 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 14: PASS E100 053 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 14: PASS E100 053 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 14: PASS E100 053 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 14: PASS E100 054 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 14: PASS E100 054 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 14: PASS E100 054 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 14: PASS E100 054 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 14: PASS E100 054 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 14: PASS E100 055 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 14: PASS E100 055 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 14: PASS E100 055 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 14: PASS E100 055 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 14: PASS E100 055 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 14: PASS E100 056 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 14: PASS E100 056 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 14: PASS E100 056 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 14: PASS E100 056 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 14: PASS E100 056 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+
+batch 15: PASS E100 057 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 15: PASS E100 057 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 15: PASS E100 057 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 15: PASS E100 057 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 15: PASS E100 057 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 15: PASS E100 058 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 15: PASS E100 058 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 15: PASS E100 058 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 15: PASS E100 058 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 15: PASS E100 058 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 15: PASS E100 059 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 15: PASS E100 059 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 15: PASS E100 059 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 15: PASS E100 059 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 15: PASS E100 059 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 15: PASS E100 060 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 15: PASS E100 060 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 15: PASS E100 060 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 15: PASS E100 060 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 15: PASS E100 060 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+
+batch 16: PASS E100 061 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 16: PASS E100 061 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 16: PASS E100 061 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 16: PASS E100 061 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 16: PASS E100 061 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 16: PASS E100 062 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 16: PASS E100 062 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 16: PASS E100 062 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 16: PASS E100 062 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 16: PASS E100 062 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 16: PASS E100 063 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 16: PASS E100 063 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 16: PASS E100 063 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 16: PASS E100 063 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 16: PASS E100 063 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 16: PASS E100 064 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 16: PASS E100 064 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 16: PASS E100 064 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 16: PASS E100 064 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 16: PASS E100 064 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+
+batch 17: PASS E100 065 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 17: PASS E100 065 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 17: PASS E100 065 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 17: PASS E100 065 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 17: PASS E100 065 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 17: PASS E100 066 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=2
+batch 17: PASS E100 066 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=2
+batch 17: PASS E100 066 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=2
+batch 17: PASS E100 066 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=2
+batch 17: PASS E100 066 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=2
+batch 17: PASS E100 067 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 17: PASS E100 067 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 17: PASS E100 067 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 17: PASS E100 067 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 17: PASS E100 067 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 17: PASS E100 068 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 17: PASS E100 068 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 17: PASS E100 068 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 17: PASS E100 068 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 17: PASS E100 068 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+
+batch 18: PASS E100 069 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 18: PASS E100 069 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 18: PASS E100 069 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 18: PASS E100 069 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 18: PASS E100 069 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 18: PASS E100 070 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 18: PASS E100 070 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 18: PASS E100 070 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 18: PASS E100 070 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 18: PASS E100 070 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 18: PASS E100 071 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 18: PASS E100 071 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 18: PASS E100 071 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 18: PASS E100 071 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 18: PASS E100 071 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 18: PASS E100 072 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 18: PASS E100 072 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 18: PASS E100 072 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 18: PASS E100 072 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 18: PASS E100 072 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+
+batch 19: PASS E100 073 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 19: PASS E100 073 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 19: PASS E100 073 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 19: PASS E100 073 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 19: PASS E100 073 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 19: PASS E100 074 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 19: PASS E100 074 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 19: PASS E100 074 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 19: PASS E100 074 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 19: PASS E100 074 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 19: PASS E100 075 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 19: PASS E100 075 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 19: PASS E100 075 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 19: PASS E100 075 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 19: PASS E100 075 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 19: PASS E100 076 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 19: PASS E100 076 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 19: PASS E100 076 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 19: PASS E100 076 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 19: PASS E100 076 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+
+batch 20: PASS E100 077 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 20: PASS E100 077 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 20: PASS E100 077 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 20: PASS E100 077 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 20: PASS E100 077 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 20: PASS E100 078 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 20: PASS E100 078 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 20: PASS E100 078 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 20: PASS E100 078 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 20: PASS E100 078 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 20: PASS E100 079 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 20: PASS E100 079 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 20: PASS E100 079 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 20: PASS E100 079 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 20: PASS E100 079 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 20: PASS E100 080 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 20: PASS E100 080 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 20: PASS E100 080 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 20: PASS E100 080 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 20: PASS E100 080 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+
+batch 21: PASS E100 081 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 21: PASS E100 081 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 21: PASS E100 081 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 21: PASS E100 081 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 21: PASS E100 081 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 21: PASS E100 082 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 21: PASS E100 082 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 21: PASS E100 082 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 21: PASS E100 082 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 21: PASS E100 082 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 21: PASS E100 083 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 21: PASS E100 083 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 21: PASS E100 083 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 21: PASS E100 083 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 21: PASS E100 083 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 21: PASS E100 084 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 21: PASS E100 084 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 21: PASS E100 084 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 21: PASS E100 084 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 21: PASS E100 084 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+
+batch 22: PASS E100 085 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 22: PASS E100 085 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 22: PASS E100 085 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 22: PASS E100 085 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 22: PASS E100 085 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 22: PASS E100 086 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 22: PASS E100 086 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 22: PASS E100 086 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 22: PASS E100 086 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 22: PASS E100 086 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 22: PASS E100 087 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 22: PASS E100 087 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 22: PASS E100 087 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 22: PASS E100 087 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 22: PASS E100 087 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 22: PASS E100 088 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 22: PASS E100 088 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 22: PASS E100 088 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 22: PASS E100 088 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 22: PASS E100 088 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+
+batch 23: PASS E100 089 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 23: PASS E100 089 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 23: PASS E100 089 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 23: PASS E100 089 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 23: PASS E100 089 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 23: PASS E100 090 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 23: PASS E100 090 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 23: PASS E100 090 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 23: PASS E100 090 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 23: PASS E100 090 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+batch 23: PASS E100 091 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 23: PASS E100 091 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 23: PASS E100 091 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 23: PASS E100 091 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 23: PASS E100 091 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 23: PASS E100 092 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 23: PASS E100 092 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 23: PASS E100 092 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 23: PASS E100 092 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 23: PASS E100 092 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+
+batch 24: PASS E100 093 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 24: PASS E100 093 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 24: PASS E100 093 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 24: PASS E100 093 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 24: PASS E100 093 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 24: PASS E100 094 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 24: PASS E100 094 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 24: PASS E100 094 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 24: PASS E100 094 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 24: PASS E100 094 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 24: PASS E100 095 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 24: PASS E100 095 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 24: PASS E100 095 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 24: PASS E100 095 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 24: PASS E100 095 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 24: PASS E100 096 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 24: PASS E100 096 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 24: PASS E100 096 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 24: PASS E100 096 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 24: PASS E100 096 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+
+batch 25: PASS E100 097 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 25: PASS E100 097 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 25: PASS E100 097 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 25: PASS E100 097 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 25: PASS E100 097 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 25: PASS E100 098 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 25: PASS E100 098 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 25: PASS E100 098 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 25: PASS E100 098 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 25: PASS E100 098 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 25: PASS E100 099 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 25: PASS E100 099 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 25: PASS E100 099 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 25: PASS E100 099 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 25: PASS E100 099 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 25: PASS E100 100 CASH PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 25: PASS E100 100 CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 25: PASS E100 100 CARD_TO_CARD PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 25: PASS E100 100 STORE_CREDIT PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+batch 25: PASS E100 100 NONE PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+
+batch 26: PASS R30 001 CASH status=PASS mode=CASH
+batch 26: PASS R30 001 CARD status=PASS mode=CARD
+batch 26: PASS R30 001 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 26: PASS R30 001 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 26: PASS R30 001 NONE status=PASS mode=NONE
+batch 26: PASS R30 002 CASH status=PASS mode=CASH
+batch 26: PASS R30 002 CARD status=PASS mode=CARD
+batch 26: PASS R30 002 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 26: PASS R30 002 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 26: PASS R30 002 NONE status=PASS mode=NONE
+batch 26: PASS R30 003 CASH status=PASS mode=CASH
+batch 26: PASS R30 003 CARD status=PASS mode=CARD
+batch 26: PASS R30 003 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 26: PASS R30 003 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 26: PASS R30 003 NONE status=PASS mode=NONE
+batch 26: PASS R30 004 CASH status=PASS mode=CASH
+batch 26: PASS R30 004 CARD status=PASS mode=CARD
+batch 26: PASS R30 004 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 26: PASS R30 004 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 26: PASS R30 004 NONE status=PASS mode=NONE
+
+batch 27: PASS R30 005 CASH status=PASS mode=CASH
+batch 27: PASS R30 005 CARD status=PASS mode=CARD
+batch 27: PASS R30 005 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 27: PASS R30 005 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 27: PASS R30 005 NONE status=PASS mode=NONE
+batch 27: PASS R30 006 CASH status=PASS mode=CASH
+batch 27: PASS R30 006 CARD status=PASS mode=CARD
+batch 27: PASS R30 006 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 27: PASS R30 006 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 27: PASS R30 006 NONE status=PASS mode=NONE
+batch 27: PASS R30 007 CASH status=PASS mode=CASH
+batch 27: PASS R30 007 CARD status=PASS mode=CARD
+batch 27: PASS R30 007 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 27: PASS R30 007 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 27: PASS R30 007 NONE status=PASS mode=NONE
+batch 27: PASS R30 008 CASH status=PASS mode=CASH
+batch 27: PASS R30 008 CARD status=PASS mode=CARD
+batch 27: PASS R30 008 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 27: PASS R30 008 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 27: PASS R30 008 NONE status=PASS mode=NONE
+
+batch 28: PASS R30 009 CASH status=PASS mode=CASH
+batch 28: PASS R30 009 CARD status=PASS mode=CARD
+batch 28: PASS R30 009 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 28: PASS R30 009 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 28: PASS R30 009 NONE status=PASS mode=NONE
+batch 28: PASS R30 010 CASH status=PASS mode=CASH
+batch 28: PASS R30 010 CARD status=PASS mode=CARD
+batch 28: PASS R30 010 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 28: PASS R30 010 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 28: PASS R30 010 NONE status=PASS mode=NONE
+batch 28: PASS R30 011 CASH status=PASS mode=CASH
+batch 28: PASS R30 011 CARD status=PASS mode=CARD
+batch 28: PASS R30 011 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 28: PASS R30 011 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 28: PASS R30 011 NONE status=PASS mode=NONE
+batch 28: PASS R30 012 CASH status=PASS mode=CASH
+batch 28: PASS R30 012 CARD status=PASS mode=CARD
+batch 28: PASS R30 012 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 28: PASS R30 012 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 28: PASS R30 012 NONE status=PASS mode=NONE
+
+batch 29: PASS R30 013 CASH status=PASS mode=CASH
+batch 29: PASS R30 013 CARD status=PASS mode=CARD
+batch 29: PASS R30 013 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 29: PASS R30 013 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 29: PASS R30 013 NONE status=PASS mode=NONE
+batch 29: PASS R30 014 CASH status=PASS mode=CASH
+batch 29: PASS R30 014 CARD status=PASS mode=CARD
+batch 29: PASS R30 014 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 29: PASS R30 014 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 29: PASS R30 014 NONE status=PASS mode=NONE
+batch 29: PASS R30 015 CASH status=PASS mode=CASH
+batch 29: PASS R30 015 CARD status=PASS mode=CARD
+batch 29: PASS R30 015 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 29: PASS R30 015 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 29: PASS R30 015 NONE status=PASS mode=NONE
+batch 29: PASS R30 016 CASH status=PASS mode=CASH
+batch 29: PASS R30 016 CARD status=PASS mode=CARD
+batch 29: PASS R30 016 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 29: PASS R30 016 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 29: PASS R30 016 NONE status=PASS mode=NONE
+
+batch 30: PASS R30 017 CASH status=PASS mode=CASH
+batch 30: PASS R30 017 CARD status=PASS mode=CARD
+batch 30: PASS R30 017 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 30: PASS R30 017 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 30: PASS R30 017 NONE status=PASS mode=NONE
+batch 30: PASS R30 018 CASH status=PASS mode=CASH
+batch 30: PASS R30 018 CARD status=PASS mode=CARD
+batch 30: PASS R30 018 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 30: PASS R30 018 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 30: PASS R30 018 NONE status=PASS mode=NONE
+batch 30: PASS R30 019 CASH status=PASS mode=CASH
+batch 30: PASS R30 019 CARD status=PASS mode=CARD
+batch 30: PASS R30 019 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 30: PASS R30 019 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 30: PASS R30 019 NONE status=PASS mode=NONE
+batch 30: PASS R30 020 CASH status=PASS mode=CASH
+batch 30: PASS R30 020 CARD status=PASS mode=CARD
+batch 30: PASS R30 020 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 30: PASS R30 020 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 30: PASS R30 020 NONE status=PASS mode=NONE
+
+batch 31: PASS R30 021 CASH status=PASS mode=CASH
+batch 31: PASS R30 021 CARD status=PASS mode=CARD
+batch 31: PASS R30 021 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 31: PASS R30 021 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 31: PASS R30 021 NONE status=PASS mode=NONE
+batch 31: PASS R30 022 CASH status=PASS mode=CASH
+batch 31: PASS R30 022 CARD status=PASS mode=CARD
+batch 31: PASS R30 022 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 31: PASS R30 022 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 31: PASS R30 022 NONE status=PASS mode=NONE
+batch 31: PASS R30 023 CASH status=PASS mode=CASH
+batch 31: PASS R30 023 CARD status=PASS mode=CARD
+batch 31: PASS R30 023 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 31: PASS R30 023 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 31: PASS R30 023 NONE status=PASS mode=NONE
+batch 31: PASS R30 024 CASH status=PASS mode=CASH
+batch 31: PASS R30 024 CARD status=PASS mode=CARD
+batch 31: PASS R30 024 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 31: PASS R30 024 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 31: PASS R30 024 NONE status=PASS mode=NONE
+
+batch 32: PASS R30 025 CASH status=PASS mode=CASH
+batch 32: PASS R30 025 CARD status=PASS mode=CARD
+batch 32: PASS R30 025 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 32: PASS R30 025 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 32: PASS R30 025 NONE status=PASS mode=NONE
+batch 32: PASS R30 026 CASH status=PASS mode=CASH
+batch 32: PASS R30 026 CARD status=PASS mode=CARD
+batch 32: PASS R30 026 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 32: PASS R30 026 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 32: PASS R30 026 NONE status=PASS mode=NONE
+batch 32: PASS R30 027 CASH status=PASS mode=CASH
+batch 32: PASS R30 027 CARD status=PASS mode=CARD
+batch 32: PASS R30 027 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 32: PASS R30 027 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 32: PASS R30 027 NONE status=PASS mode=NONE
+batch 32: PASS R30 028 CASH status=PASS mode=CASH
+batch 32: PASS R30 028 CARD status=PASS mode=CARD
+batch 32: PASS R30 028 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 32: PASS R30 028 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 32: PASS R30 028 NONE status=PASS mode=NONE
+
+batch 33: PASS R30 029 CASH status=PASS mode=CASH
+batch 33: PASS R30 029 CARD status=PASS mode=CARD
+batch 33: PASS R30 029 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 33: PASS R30 029 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 33: PASS R30 029 NONE status=PASS mode=NONE
+batch 33: PASS R30 030 CASH status=PASS mode=CASH
+batch 33: PASS R30 030 CARD status=PASS mode=CARD
+batch 33: PASS R30 030 CARD_TO_CARD status=PASS mode=CARD_TO_CARD
+batch 33: PASS R30 030 STORE_CREDIT status=PASS mode=STORE_CREDIT
+batch 33: PASS R30 030 NONE status=PASS mode=NONE
