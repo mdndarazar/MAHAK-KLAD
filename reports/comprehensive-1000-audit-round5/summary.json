@@ -1,0 +1,63 @@
+{
+  "generatedAt": "2026-11-06T19:01:43.732Z",
+  "isolatedDatabase": "/tmp/mahak-comprehensive-round5-1000-AnYNVw/isolated.db",
+  "requestedScenarios": 1000,
+  "executedScenarios": 1000,
+  "passed": 795,
+  "failed": 205,
+  "logicalRejections": 362,
+  "totalOps": 2325,
+  "noCodeChange": true,
+  "blueDefinition": "cash+card-refunds; cheque PENDING excluded; stock via StockMovement; ALL pooled saleItemId=null",
+  "paramsCoverage": {
+    "panels": [
+      "retail-1",
+      "retail-5",
+      "retail-30",
+      "retail-15",
+      "wholesale-200",
+      "wholesale-500",
+      "wholesale-50"
+    ],
+    "paymentCombos": [
+      "CASH",
+      "CARD",
+      "CASH+CARD",
+      "NASIYE",
+      "CHEQUE",
+      "NASIYE+CHEQUE",
+      "CASH+NASIYE",
+      "CARD+CHEQUE",
+      "CASH+CARD+NASIYE",
+      "CASH+CARD+CHEQUE",
+      "NASIYE+CHEQUE+CASH",
+      "NASIYE+CHEQUE+CARD",
+      "NASIYE+CHEQUE+CASH+CARD",
+      "BARCODE"
+    ],
+    "barcodeTypes": [
+      "NONE",
+      "ALL",
+      "VARIANTS_SINGLE",
+      "VARIANTS_MULTI",
+      "CATEGORY_SINGLE",
+      "MIXED_ALL+CAT"
+    ],
+    "discountPolicies": [
+      "NO",
+      "YES",
+      "YES_ZERO"
+    ],
+    "expiryStates": [
+      "expired",
+      "edge",
+      "valid"
+    ],
+    "chainDepths": [
+      1,
+      2,
+      3,
+      4
+    ]
+  }
+}
