@@ -1,0 +1,113 @@
+{
+  "generatedAt": "2026-10-26T12:07:20.885Z",
+  "isolatedDatabase": "/tmp/mahak-deep-e2e-10-Zf05d2/isolated-test.db",
+  "blueDefinition": "cashReceived + posReceived - cashRefunded - posRefunded; store credit and debt are excluded",
+  "blueSource": "CustodyAggregateService.physicalMovementForCustodyShift uses salesService.reportRows; each checkpoint independently sums physical Payment kinds and active return documents/CashMovement rows.",
+  "totalScenarios": 10,
+  "completed": 0,
+  "failed": 10,
+  "blocked": 0,
+  "results": [
+    {
+      "name": "01 exact cash sale and inventory",
+      "status": "FAIL",
+      "checkpoints": 0,
+      "failure": {
+        "message": "no such column: status",
+        "stack": "Error: no such column: status\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at rawPhysicalSums (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:72:28)\n    at checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:100:35)\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:152:5)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:169:1"
+      },
+      "events": []
+    },
+    {
+      "name": "02 split cash and POS, partial cash return",
+      "status": "FAIL",
+      "checkpoints": 0,
+      "failure": {
+        "message": "no such column: status",
+        "stack": "Error: no such column: status\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at rawPhysicalSums (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:72:28)\n    at checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:100:35)\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:152:5)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:178:1"
+      },
+      "events": []
+    },
+    {
+      "name": "03 POS sale and POS return",
+      "status": "FAIL",
+      "checkpoints": 0,
+      "failure": {
+        "message": "no such column: status",
+        "stack": "Error: no such column: status\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at rawPhysicalSums (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:72:28)\n    at checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:100:35)\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:152:5)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:190:1"
+      },
+      "events": []
+    },
+    {
+      "name": "04 exchange down with store-credit difference",
+      "status": "FAIL",
+      "checkpoints": 0,
+      "failure": {
+        "message": "no such column: status",
+        "stack": "Error: no such column: status\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at rawPhysicalSums (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:72:28)\n    at checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:100:35)\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:152:5)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:202:1"
+      },
+      "events": []
+    },
+    {
+      "name": "05 exchange up with cash difference",
+      "status": "FAIL",
+      "checkpoints": 0,
+      "failure": {
+        "message": "no such column: status",
+        "stack": "Error: no such column: status\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at rawPhysicalSums (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:72:28)\n    at checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:100:35)\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:152:5)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:218:1"
+      },
+      "events": []
+    },
+    {
+      "name": "06 exchange down with card refund",
+      "status": "FAIL",
+      "checkpoints": 0,
+      "failure": {
+        "message": "no such column: status",
+        "stack": "Error: no such column: status\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at rawPhysicalSums (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:72:28)\n    at checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:100:35)\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:152:5)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:232:1"
+      },
+      "events": []
+    },
+    {
+      "name": "07 store-credit-only sale and partial remainder",
+      "status": "FAIL",
+      "checkpoints": 0,
+      "failure": {
+        "message": "no such column: status",
+        "stack": "Error: no such column: status\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at rawPhysicalSums (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:72:28)\n    at checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:100:35)\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:152:5)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:247:1"
+      },
+      "events": []
+    },
+    {
+      "name": "08 return followed by exchange chain",
+      "status": "FAIL",
+      "checkpoints": 0,
+      "failure": {
+        "message": "no such column: status",
+        "stack": "Error: no such column: status\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at rawPhysicalSums (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:72:28)\n    at checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:100:35)\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:152:5)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:262:1"
+      },
+      "events": []
+    },
+    {
+      "name": "09 four-barcode sale then multi-source return",
+      "status": "FAIL",
+      "checkpoints": 0,
+      "failure": {
+        "message": "no such column: status",
+        "stack": "Error: no such column: status\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at rawPhysicalSums (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:72:28)\n    at checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:100:35)\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:152:5)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:278:1"
+      },
+      "events": []
+    },
+    {
+      "name": "10 mixed-tender sale, return, and exchange",
+      "status": "FAIL",
+      "checkpoints": 0,
+      "failure": {
+        "message": "no such column: status",
+        "stack": "Error: no such column: status\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at rawPhysicalSums (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:72:28)\n    at checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:100:35)\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:152:5)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:300:1"
+      },
+      "events": []
+    }
+  ],
+  "events": []
+}

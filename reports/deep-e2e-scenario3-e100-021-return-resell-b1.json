@@ -1,0 +1,633 @@
+{
+  "title": "E100-021: workaround check after restricted-credit B exchange rejection",
+  "isolatedDatabase": "/tmp/mahak-e100-021-return-resell-XNAae4/isolated.db",
+  "scope": "VARIANTS_BCD",
+  "originalSale": {
+    "invoiceId": 1,
+    "total": 1000000,
+    "sourceCreditApplied": 50000,
+    "cashPaid": 950000,
+    "barcodeValueEach": 50000,
+    "initialCreditCount": 2,
+    "secondRedemptionInvoiceId": 2,
+    "secondRedemptionTotal": 50000
+  },
+  "priorAReturn": {
+    "id": 1,
+    "total": 200000,
+    "refundMethod": "STORE_CREDIT",
+    "sourceCreditRestoredAmount": 0,
+    "snapshot": {
+      "invoices": [
+        {
+          "id": 1,
+          "total": 1000000,
+          "paid": 1000000,
+          "status": "PARTIALLY_RETURNED"
+        },
+        {
+          "id": 2,
+          "total": 50000,
+          "paid": 50000,
+          "status": "SETTLED"
+        }
+      ],
+      "returns": [
+        {
+          "id": 1,
+          "invoiceId": 1,
+          "total": 200000,
+          "method": "STORE_CREDIT",
+          "refund": 200000,
+          "diff": 0,
+          "exchangeInvoiceId": null
+        }
+      ],
+      "stocks": [
+        {
+          "label": "A-200k",
+          "stock": 10
+        },
+        {
+          "label": "B-200k",
+          "stock": 9
+        },
+        {
+          "label": "C-300k",
+          "stock": 9
+        },
+        {
+          "label": "D-300k",
+          "stock": 9
+        },
+        {
+          "label": "B1-180k",
+          "stock": 10
+        },
+        {
+          "label": "C1-290k",
+          "stock": 10
+        },
+        {
+          "label": "D1-290k",
+          "stock": 10
+        },
+        {
+          "label": "aux1-25k",
+          "stock": 9
+        },
+        {
+          "label": "aux2-25k",
+          "stock": 9
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "amount": 50000,
+          "used": 50000,
+          "usedCount": 2,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "VARIANTS",
+          "variants": "[2,3,4,5,6,7,8,9]",
+          "returnId": null
+        },
+        {
+          "id": 2,
+          "amount": 50000,
+          "used": 50000,
+          "usedCount": 2,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "VARIANTS",
+          "variants": "[2,3,4,5,6,7,8,9]",
+          "returnId": null
+        },
+        {
+          "id": 3,
+          "amount": 200000,
+          "used": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null,
+          "scope": "ALL",
+          "variants": null,
+          "returnId": 1
+        }
+      ],
+      "payments": [
+        {
+          "amount": 950000,
+          "kind": "CASH"
+        },
+        {
+          "amount": 25000,
+          "kind": "STORE_CREDIT"
+        },
+        {
+          "amount": 25000,
+          "kind": "STORE_CREDIT"
+        },
+        {
+          "amount": 25000,
+          "kind": "STORE_CREDIT"
+        },
+        {
+          "amount": 25000,
+          "kind": "STORE_CREDIT"
+        }
+      ],
+      "cashMovements": 0
+    }
+  },
+  "rejectedDirectExchange": {
+    "message": "برگشت قبلی #1 تخصیص منشأ اعتبار ندارد؛ هیچ تعویضی ثبت نشد تا منبع مالی با حدس جابه‌جا نشود.",
+    "mutationFree": true
+  },
+  "fallbackBReturn": {
+    "id": 2,
+    "total": 200000,
+    "sourceCreditRestoredAmount": 50000,
+    "issuedCredits": [
+      {
+        "id": 4,
+        "code": "E76JNF",
+        "amount": 150000,
+        "usedAmount": 0,
+        "status": "ACTIVE",
+        "expiresAt": null,
+        "expiresAtJalali": null,
+        "source": "EXCHANGE",
+        "scope": "ALL",
+        "variants": null,
+        "returnId": 2
+      },
+      {
+        "id": 5,
+        "code": "CR3WBDJC",
+        "amount": 25000,
+        "usedAmount": 0,
+        "status": "ACTIVE",
+        "expiresAt": 1795724999999,
+        "expiresAtJalali": "1405/09/05",
+        "source": "MANUAL",
+        "scope": "VARIANTS",
+        "variants": "[2,3,4,5,6,7,8,9]",
+        "returnId": 2
+      },
+      {
+        "id": 6,
+        "code": "CR38XRBA",
+        "amount": 25000,
+        "usedAmount": 0,
+        "status": "ACTIVE",
+        "expiresAt": 1795724999999,
+        "expiresAtJalali": "1405/09/05",
+        "source": "MANUAL",
+        "scope": "VARIANTS",
+        "variants": "[2,3,4,5,6,7,8,9]",
+        "returnId": 2
+      }
+    ],
+    "originalCodesAfterReturn": [
+      {
+        "id": 1,
+        "amount": 50000,
+        "usedAmount": 50000,
+        "usedCount": 2,
+        "status": "USED",
+        "expiresAt": 1795724999999
+      },
+      {
+        "id": 2,
+        "amount": 50000,
+        "usedAmount": 50000,
+        "usedCount": 2,
+        "status": "USED",
+        "expiresAt": 1795724999999
+      }
+    ],
+    "snapshot": {
+      "invoices": [
+        {
+          "id": 1,
+          "total": 1000000,
+          "paid": 1000000,
+          "status": "PARTIALLY_RETURNED"
+        },
+        {
+          "id": 2,
+          "total": 50000,
+          "paid": 50000,
+          "status": "SETTLED"
+        }
+      ],
+      "returns": [
+        {
+          "id": 1,
+          "invoiceId": 1,
+          "total": 200000,
+          "method": "STORE_CREDIT",
+          "refund": 200000,
+          "diff": 0,
+          "exchangeInvoiceId": null
+        },
+        {
+          "id": 2,
+          "invoiceId": 1,
+          "total": 200000,
+          "method": "STORE_CREDIT",
+          "refund": 150000,
+          "diff": 0,
+          "exchangeInvoiceId": null
+        }
+      ],
+      "stocks": [
+        {
+          "label": "A-200k",
+          "stock": 10
+        },
+        {
+          "label": "B-200k",
+          "stock": 10
+        },
+        {
+          "label": "C-300k",
+          "stock": 9
+        },
+        {
+          "label": "D-300k",
+          "stock": 9
+        },
+        {
+          "label": "B1-180k",
+          "stock": 10
+        },
+        {
+          "label": "C1-290k",
+          "stock": 10
+        },
+        {
+          "label": "D1-290k",
+          "stock": 10
+        },
+        {
+          "label": "aux1-25k",
+          "stock": 9
+        },
+        {
+          "label": "aux2-25k",
+          "stock": 9
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "amount": 50000,
+          "used": 50000,
+          "usedCount": 2,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "VARIANTS",
+          "variants": "[2,3,4,5,6,7,8,9]",
+          "returnId": null
+        },
+        {
+          "id": 2,
+          "amount": 50000,
+          "used": 50000,
+          "usedCount": 2,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "VARIANTS",
+          "variants": "[2,3,4,5,6,7,8,9]",
+          "returnId": null
+        },
+        {
+          "id": 3,
+          "amount": 200000,
+          "used": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null,
+          "scope": "ALL",
+          "variants": null,
+          "returnId": 1
+        },
+        {
+          "id": 4,
+          "amount": 150000,
+          "used": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null,
+          "scope": "ALL",
+          "variants": null,
+          "returnId": 2
+        },
+        {
+          "id": 5,
+          "amount": 25000,
+          "used": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "scope": "VARIANTS",
+          "variants": "[2,3,4,5,6,7,8,9]",
+          "returnId": 2
+        },
+        {
+          "id": 6,
+          "amount": 25000,
+          "used": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "scope": "VARIANTS",
+          "variants": "[2,3,4,5,6,7,8,9]",
+          "returnId": 2
+        }
+      ],
+      "payments": [
+        {
+          "amount": 950000,
+          "kind": "CASH"
+        },
+        {
+          "amount": 25000,
+          "kind": "STORE_CREDIT"
+        },
+        {
+          "amount": 25000,
+          "kind": "STORE_CREDIT"
+        },
+        {
+          "amount": 25000,
+          "kind": "STORE_CREDIT"
+        },
+        {
+          "amount": 25000,
+          "kind": "STORE_CREDIT"
+        }
+      ],
+      "cashMovements": 0
+    }
+  },
+  "posResale": {
+    "invoiceId": 3,
+    "total": 180000,
+    "storeCreditApplied": 180000,
+    "paidTotal": 180000,
+    "cashDue": 0,
+    "preflight": [
+      {
+        "id": 6,
+        "amount": 25000,
+        "source": "MANUAL",
+        "requestedAmount": 25000,
+        "balanceBefore": 180000,
+        "applicable": 25000,
+        "ok": true,
+        "error": null
+      },
+      {
+        "id": 5,
+        "amount": 25000,
+        "source": "MANUAL",
+        "requestedAmount": 25000,
+        "balanceBefore": 155000,
+        "applicable": 25000,
+        "ok": true,
+        "error": null
+      },
+      {
+        "id": 4,
+        "amount": 150000,
+        "source": "EXCHANGE",
+        "requestedAmount": 130000,
+        "balanceBefore": 130000,
+        "applicable": 130000,
+        "ok": true,
+        "error": null
+      }
+    ],
+    "physicalTenderDelta": 0,
+    "redemptions": [
+      {
+        "creditId": 6,
+        "amount": 25000,
+        "remainderAfter": 0
+      },
+      {
+        "creditId": 5,
+        "amount": 25000,
+        "remainderAfter": 0
+      },
+      {
+        "creditId": 4,
+        "amount": 130000,
+        "remainderAfter": 20000
+      }
+    ],
+    "snapshot": {
+      "invoices": [
+        {
+          "id": 1,
+          "total": 1000000,
+          "paid": 1000000,
+          "status": "PARTIALLY_RETURNED"
+        },
+        {
+          "id": 2,
+          "total": 50000,
+          "paid": 50000,
+          "status": "SETTLED"
+        },
+        {
+          "id": 3,
+          "total": 180000,
+          "paid": 180000,
+          "status": "SETTLED"
+        }
+      ],
+      "returns": [
+        {
+          "id": 1,
+          "invoiceId": 1,
+          "total": 200000,
+          "method": "STORE_CREDIT",
+          "refund": 200000,
+          "diff": 0,
+          "exchangeInvoiceId": null
+        },
+        {
+          "id": 2,
+          "invoiceId": 1,
+          "total": 200000,
+          "method": "STORE_CREDIT",
+          "refund": 150000,
+          "diff": 0,
+          "exchangeInvoiceId": null
+        }
+      ],
+      "stocks": [
+        {
+          "label": "A-200k",
+          "stock": 10
+        },
+        {
+          "label": "B-200k",
+          "stock": 10
+        },
+        {
+          "label": "C-300k",
+          "stock": 9
+        },
+        {
+          "label": "D-300k",
+          "stock": 9
+        },
+        {
+          "label": "B1-180k",
+          "stock": 9
+        },
+        {
+          "label": "C1-290k",
+          "stock": 10
+        },
+        {
+          "label": "D1-290k",
+          "stock": 10
+        },
+        {
+          "label": "aux1-25k",
+          "stock": 9
+        },
+        {
+          "label": "aux2-25k",
+          "stock": 9
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "amount": 50000,
+          "used": 50000,
+          "usedCount": 2,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "VARIANTS",
+          "variants": "[2,3,4,5,6,7,8,9]",
+          "returnId": null
+        },
+        {
+          "id": 2,
+          "amount": 50000,
+          "used": 50000,
+          "usedCount": 2,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "VARIANTS",
+          "variants": "[2,3,4,5,6,7,8,9]",
+          "returnId": null
+        },
+        {
+          "id": 3,
+          "amount": 200000,
+          "used": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null,
+          "scope": "ALL",
+          "variants": null,
+          "returnId": 1
+        },
+        {
+          "id": 4,
+          "amount": 150000,
+          "used": 130000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED",
+          "expiresAt": null,
+          "scope": "ALL",
+          "variants": null,
+          "returnId": 2
+        },
+        {
+          "id": 5,
+          "amount": 25000,
+          "used": 25000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "VARIANTS",
+          "variants": "[2,3,4,5,6,7,8,9]",
+          "returnId": 2
+        },
+        {
+          "id": 6,
+          "amount": 25000,
+          "used": 25000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "scope": "VARIANTS",
+          "variants": "[2,3,4,5,6,7,8,9]",
+          "returnId": 2
+        }
+      ],
+      "payments": [
+        {
+          "amount": 950000,
+          "kind": "CASH"
+        },
+        {
+          "amount": 25000,
+          "kind": "STORE_CREDIT"
+        },
+        {
+          "amount": 25000,
+          "kind": "STORE_CREDIT"
+        },
+        {
+          "amount": 25000,
+          "kind": "STORE_CREDIT"
+        },
+        {
+          "amount": 25000,
+          "kind": "STORE_CREDIT"
+        },
+        {
+          "amount": 25000,
+          "kind": "STORE_CREDIT"
+        },
+        {
+          "amount": 25000,
+          "kind": "STORE_CREDIT"
+        },
+        {
+          "amount": 130000,
+          "kind": "STORE_CREDIT"
+        }
+      ],
+      "cashMovements": 0
+    }
+  },
+  "checks": {
+    "directExchangeBlockedForExpectedGate": true,
+    "rejectedDirectExchangeMutationFree": true,
+    "fullBReturnIssued200k": true,
+    "posResaleB1PaidByPreviewedCodes": true,
+    "physicalTenderMatchesUncoveredBalance": true,
+    "sourceCodesRemainUsed": true,
+    "stockBalancedForBAndB1": true
+  },
+  "verdict": "PASS",
+  "safety": {
+    "liveDatabase": false,
+    "productionCodeChanged": false,
+    "checksOrDebt": false,
+    "creditCodesManuallyMerged": false
+  }
+}

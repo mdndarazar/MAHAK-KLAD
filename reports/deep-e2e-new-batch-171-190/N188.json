@@ -1,0 +1,212 @@
+{
+  "generatedAt": "2026-10-28T18:33:51.179Z",
+  "id": 188,
+  "scenario": "N188",
+  "isolatedDatabase": "/tmp/mahak-next20-188-eSohY9/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 72000,
+      "cash": 72000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 72000,
+          "lineTotal": 72000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 72000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 72000
+      },
+      "actual": {
+        "cash": 72000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 72000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 72000,
+      "stock": [
+        {
+          "name": "return-above-cap-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 72000,
+          "paid": 72000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "refund-request-over-selected-item-cap-rejected",
+      "cap": 72000,
+      "request": 75000,
+      "error": "بازپرداخت یا اعتبارِ درخواستی ۷۵٬۰۰۰ ریال برای فاکتور ۱ ممکن نیست: ارزش رسمی اقلام انتخاب‌شده برای برگشت فقط ۷۲٬۰۰۰ ریال است.\nمبلغی تا همین ارزش وارد کنید؛ سقف پول دریافتی و تسویه‌ی بدهی جداگانه و طبق وضعیت فاکتور اعمال می‌شود.",
+      "mutationFree": true
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 72000,
+      "method": "CASH",
+      "refundAmount": 72000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 72000,
+        "card": 0,
+        "refundCash": 72000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 72000,
+        "card": 0,
+        "refundCash": 72000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 72000,
+        "card": 0,
+        "refundCash": 72000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "return-above-cap-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 72000,
+          "paid": 72000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N188 reconciliation",
+      "expected": {
+        "cash": 72000,
+        "card": 0,
+        "refundCash": 72000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 72000,
+        "card": 0,
+        "refundCash": 72000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 72000,
+        "card": 0,
+        "refundCash": 72000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "return-above-cap-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 72000,
+          "paid": 72000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "assertions": [
+    {
+      "key": "above-cap-refund-rejected-then-exact-cap-accepted",
+      "pass": true,
+      "correctRefund": 72000
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 72000,
+      "card": 0,
+      "refundCash": 72000,
+      "refundCard": 0,
+      "blue": 0
+    },
+    "actual": {
+      "cash": 72000,
+      "card": 0,
+      "refundCash": 72000,
+      "refundCard": 0
+    },
+    "blue": 0,
+    "stock": [
+      {
+        "name": "return-above-cap-item",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      }
+    ],
+    "invoices": 1,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

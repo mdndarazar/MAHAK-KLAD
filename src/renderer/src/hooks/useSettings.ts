@@ -20,6 +20,7 @@ import {
 import { parseCategoryCharge, type CategoryChargeConfig } from '@shared/charges'
 import { DEFAULT_DISCOUNT_POLICY, parseDiscountPolicy, type DiscountPolicy } from '@shared/priceAdjust'
 import { DEFAULT_CREDIT_SETTINGS, parseCreditSettings, type CreditSettings } from '@shared/credit'
+import { DEFAULT_DISCOUNT_TRANSFER_SETTINGS, parseDiscountTransferSettings, type DiscountTransferSettings } from '@shared/discountTransfer'
 
 export interface ScopedCharges {
   tax: CategoryChargeConfig
@@ -52,6 +53,7 @@ export interface SettingsBundle {
    * اثر می‌گذارد. پیش‌فرض `FREE` است تا رفتار نسخه‌های قبل عوض نشود.
    */
   discount: DiscountPolicy
+  discountTransfer: DiscountTransferSettings
   credit: CreditSettings
   time: OfficialTimeConfig
 }
@@ -87,6 +89,7 @@ const FALLBACK: SettingsBundle = {
   label: DEFAULT_LABEL_TEMPLATE,
   security: DEFAULT_SECURITY_CONFIG,
   discount: DEFAULT_DISCOUNT_POLICY,
+  discountTransfer: DEFAULT_DISCOUNT_TRANSFER_SETTINGS,
   credit: DEFAULT_CREDIT_SETTINGS,
   time: { offsetHours: 0 },
   charges: {
@@ -127,6 +130,7 @@ export function useSettings() {
           },
           security: parseSecurityConfig(s.security),
           discount: parseDiscountPolicy(s.discount),
+          discountTransfer: parseDiscountTransferSettings(s.discountTransfer),
           credit: parseCreditSettings(s.credit),
           time: parseOfficialTimeConfig(s.time)
         })

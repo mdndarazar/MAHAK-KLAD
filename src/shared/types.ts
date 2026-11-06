@@ -36,6 +36,14 @@ export interface CartLine {
 
 import type { StockAllocationPlan } from './stockSource'
 
+export interface StoreCreditTenderInput {
+  code: string
+  /** Requested share for this barcode; null means as much as the server can safely apply. */
+  requestedAmount?: number | null
+  /** Per-barcode retry key; normally derived from the invoice request key and canonical code. */
+  idempotencyKey?: string | null
+}
+
 export interface CreateSaleInput {
   customerId?: number | null
   /**
@@ -143,6 +151,10 @@ export interface CreateSaleInput {
    * شمرده نمی‌شود. همان لحظه «مصرف‌شده» علامت می‌خورد (یک‌بار‌مصرف).
    */
   storeCreditCode?: string | null
+  /** Multi-barcode POS tender. Daily POS supports at most eight; other sale channels stay single-code. */
+  storeCredits?: StoreCreditTenderInput[] | null
+  /** One logical checkout key; retries return the same invoice and cannot consume credit twice. */
+  saleRequestIdempotencyKey?: string | null
   /**
    * جلسه ۲۱ · §۱۷ — **پرداخت ترکیبی**: چه مقدار از این اعتبار روی همین فاکتور
    * خرج شود (خالی = حداکثر ممکن، یعنی رفتار مو‌به‌موی قبل). بقیه‌ی فاکتور با
@@ -557,14 +569,11 @@ export interface ReturnSaleInput {
    * است. بدون این پرچم، آن قلم برگشت نمی‌خورد و پیام هشدار داده می‌شود.
    */
   allowRemoved?: boolean
-  /**
-   * ------------------------ جلسه ۱۴ (بند ۱۱ سند مرجع) ------------------------
-   * روش بازپرداخت این برگشت. **اجباری برای هر برگشت جدید**: تا وقتی سیستم نداند
-   * پول از کشو بیرون رفت یا فقط طلب مشتری کم شد، «کسری واقعی» از «کسری کاذب»
-   * قابل تفکیک نیست. تهی فرستادن ⇒ خطای فارسی، نه یک فرض ضمنی.
-   */
+  /** روش بازپرداخت این برگشت؛ مقدار تهی در callerهای قدیمی برای سازگاری حفظ می‌شود. */
   refundMethod?: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | 'NONE' | null
-  /** مبلغ بازپرداخت‌شده؛ خالی = کل مبلغ برگشت (برای CASH/CARD/STORE_CREDIT) */
+  /** قرارداد جدید UI: null/UNSELECTED یعنی هنوز تصمیمی ثبت نشده؛ DECLINED فقط با دلیل اجباری است. */
+  refundDecision?: 'UNSELECTED' | 'METHOD' | 'DECLINED'
+  /** مبلغ بازپرداخت؛ خالی = مبلغ امنی که سرور با توجه به وضعیت فاکتور محاسبه می‌کند */
   refundAmount?: number | null
   /**
    * بند ۴-۱۱ — مدیر می‌تواند با رمز و دلیل، مبلغ کاملِ بدون کسر تخفیف را
@@ -592,6 +601,8 @@ export interface ReturnSaleInput {
   confirmOverpay?: boolean
   /** صدور کد اعتبار OVERPAY از همان اضافه‌دریافتِ ساخته‌شده با این برگشت */
   overpayAsCredit?: boolean
+  /** رمز اختصاصیِ گیت سقف صدور اعتبار از اضافه‌دریافت؛ از رمز قفل/برگشت جداست. */
+  overpayManagerPassword?: string | null
   /** نشست ۳۱۹ — تأیید و رمز مدیر برای بازپرداخت با کارت‌خوان (کارت) */
   cardPosOverride?: CardPosOverrideInput | null
 }
@@ -652,6 +663,7 @@ export interface ReturnLookup {
   /** روزهای باقی‌مانده از اعتبار یک‌هفته‌ای کد */
   daysLeft: number
   expired: boolean
+  customerId: number | null
   customerName: string
   shiftName: string | null
   status: string
@@ -2000,6 +2012,16 @@ export interface ExchangeSaleInput {
    */
   splitPayment?: boolean
   payments?: { methodId: number; amount: number; destination?: string | null }[]
+  /** کد اعتبار موجود برای پوشش مابه‌التفاوت مثبت (اعتبار غیرنقدی است). */
+  exchangeCreditCode?: string | null
+  /** Key used only for idempotent redemption of an exchange barcode. */
+  idempotencyKey?: string | null
+  /** Stable idempotency key for the entire financial exchange request/graph. */
+  requestIdempotencyKey?: string | null
+  /** Historical discount transfer choice; amount is always derived and enforced by main. */
+  discountTransferOption?: 'NO' | 'YES' | 'YES_ZERO' | null
+  /** Preview guard for the server-calculated historical transfer. */
+  expectedDiscountTransferAmount?: number | null
   /**
    * مقصد پول مابه‌التفاوت مثبت. برای نقد/کارت از `kind` روش قابل استنتاج است؛
    * روش CUSTOM بدون این فیلد رد می‌شود (همان قاعده‌ی `addPayment`).
@@ -2011,6 +2033,8 @@ export interface ExchangeSaleInput {
   invoiceTax?: number
   /** حق سرویس سند تعویض */
   serviceCharge?: number
+  /** پیش‌نمایش read-only تأییدشده؛ اختلاف با محاسبهٔ تراکنش باعث rollback کامل می‌شود. */
+  expectedSettlementDiff?: number | null
   /** اعتبار بارکدِ صادرشده به روز (خالی = همان مهلت کد فاکتور فروش تکی) */
   creditDays?: number | null
   /** برداشت خودکار کمبود موجودی کالای جایگزین از انبار مرکزی */
@@ -2023,12 +2047,9 @@ export interface ExchangeSaleInput {
    */
   full?: boolean
   /**
-   * ------------------------ جلسه ۱۴ (بند ۱۲ سند مرجع) ------------------------
-   * وقتی مابه‌التفاوت **منفی** است (ما بدهکاریم) مشتری باید *انتخاب* کند:
-   *   CASH         = بازپرداخت نقدی واقعی (پول از کشو بیرون می‌رود، CashMovement)
-   *   CARD         = بازپرداخت کارتی
-   *   STORE_CREDIT = صدور بارکد اعتبار خرید بعدی (رفتار قدیمی)
-   * بدون این فیلد **خطا** داده می‌شود؛ صدور خودکار اعتبار دیگر پیش‌فرض ضمنی نیست.
+   * مابه‌التفاوت منفی: در UI جدید انتخاب روش اجباری است اگر سهم وجه مثبت باشد.
+   * callerهای قدیمیِ بدون marker برای سازگاری، رفتار قبلی سرویس را حفظ می‌کنند.
+   * اعتبار منشأدار جداگانه طبق lineage به منبع/جانشین خودش بازمی‌گردد.
    *
    * ------------------------ جلسه ۴۶ (رفعِ بدهیِ تایپ) ------------------------
    *   CARD_TO_CARD = بازپرداخت کارت‌به‌کارت **توسط مدیر** (جلسه ۱۷ · بند ۱)؛ یک
@@ -2043,11 +2064,20 @@ export interface ExchangeSaleInput {
    * روی این یونیون `switch` جامع ندارد) ⇒ هیچ مسیر دیگری تنگ‌تر نمی‌شود.
    */
   refundMode?: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | null
+  /** UI decision marker: an explicit UNSELECTED request never auto-issues a credit barcode. */
+  exchangeSettlementDecision?: 'UNSELECTED' | 'METHOD'
   /**
-   * تایید مدیر برای «قیمت دستیِ کالای جایگزین» (بند ۱۸).
-   * بدون این رمز، قیمت کالای جایگزین همیشه از `variant.salePrice` خوانده می‌شود.
+   * مبلغ وجه نقدیِ واقعی برای مابه‌التفاوت منفی، فقط وقتی refundMode = CASH است.
+   * خالی یعنی کل سهم وجه واقعی نقدی؛ مقدار کمتر از سقف، مانده را به اعتبار عادی تبدیل می‌کند.
+   */
+  refundAmount?: number | null
+  /**
+   * تایید مدیر برای «قیمت دستیِ کالای جایگزین» (بند ۱۸) یا قفل دوره؛
+   * این مجوز به‌تنهایی سقف صدور اعتبار را باز نمی‌کند.
    */
   managerPassword?: string | null
+  /** رمز اختصاصی گیت سقف صدور/بازگردانی اعتبار در تعویض؛ مستقل از قیمت و قفل دوره. */
+  storeCreditManagerPassword?: string | null
   /** جلسه ۱۵ (بند ۱۷) — دلیل اجباری وقتی سند در دوره‌ی بسته‌شده ثبت می‌شود */
   overrideReason?: string | null
   /** نشست ۳۱۹ — تأیید و رمز مدیر برای بازپرداخت با کارت‌خوان (کارت) */
@@ -2309,13 +2339,44 @@ export interface ExchangeSaleResult {
   returnTotal: number
   /** مبلغ کالاهای جایگزین (جمع کل سند تعویض) */
   exchangeTotal: number
-  /** مابه‌التفاوت: مثبت = مشتری می‌پردازد · منفی = ما بدهکاریم */
+  /** Historical discount transfer committed by this exchange; zero for legacy/no-transfer requests. */
+  discountTransferOption?: 'NO' | 'YES' | 'YES_ZERO' | null
+  discountTransferAmount?: number
+  /** Total customer value returned after real-money/credit/debt-provenance settlement. */
+  finalRefundValue?: number
+  /** اختلاف تسویهٔ واقعی پس از کنارگذاشتن اعتبار مبدأی خارج از محدوده: مثبت = مشتری می‌پردازد. */
   diff: number
+  /** اختلاف خام قیمت کالاهای جایگزین و برگشتی، پیش از تفکیک اعتبار محدود از پول واقعی. */
+  nominalDiff?: number
+  /** مبلغی که از بارکد اعتبار موجود روی مابه‌التفاوت مثبت مصرف شد. */
+  barcodeCreditApplied?: number
+  /** باقی‌مانده‌ی اختلاف که واقعاً باید نقد/کارت دریافت شود. */
+  cashDue?: number
   /** CASH | CREDIT | NONE */
   settlement: string
   settlementLabel: string
-  /** اعتبار صادرشده (فقط وقتی ما بدهکار شدیم)؛ کد فقط از reveal مدیر. */
+  /** اعتبار منتخبِ تسویه (فقط شناسه/مرجع امن؛ کد کامل از مسیر چاپ مجاز). */
   storeCredit: StoreCreditSafeRow | null
+  /** اعتبارهای برگشت/تعویضِ پیش‌نویس که باید جداگانه به مشتری تحویل شوند. */
+  handoffCredits?: StoreCreditSafeRow[]
+  /** جانشین‌های غیرنقدیِ سهم بارکدهای مبدأ که در همین تعویض برگشته‌اند. */
+  sourceCreditSuccessors?: StoreCreditSafeRow[]
+  /** مبلغی که واقعاً به منبع بارکدی برگشت؛ غیرنقدی و خارج از عدد آبی. */
+  sourceCreditRestoredAmount?: number
+  /** سهم بارکد منقضی که بسته شد؛ نه احیا می‌شود و نه به پول تبدیل. */
+  sourceCreditClosedExpiredAmount?: number
+  /** سهم وجه واقعیِ قابل‌تسویه پس از جایگزینی. */
+  realMoneyRefundAmount?: number
+  /** مبلغ واقعاً به‌صورت بارکد تازه از سهم وجه واقعی صادر شد؛ در بازپرداخت نقدی جزئی، مانده است. */
+  newStoreCreditAmount?: number
+  /** مبلغ بازپرداخت نقدی که واقعاً از کشو خارج شد؛ برای CARD صفر است. */
+  cashRefunded?: number
+  /** مبلغ بازپرداخت به کارت مشتری؛ از صندوق نقدی خارج نمی‌شود. */
+  cardRefunded?: number
+  /** جمع بازپرداخت نقد/کارت؛ کارت‌به‌کارتِ در انتظار در آن نیست. */
+  payoutAmount?: number
+  /** روش واقعی تسویه‌ی سهم وجه منفی، یا NONE برای تبدیلِ خودکارِ سهم پشتوانه‌دار به اعتبار. */
+  refundMode?: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | 'NONE' | null
   /** تعدادی که به موجودی فروشگاه برگشت */
   restockedQty: number
   /** هشدارهای موجودی کالای جایگزین */
@@ -2363,6 +2424,10 @@ export interface ExchangeReportRow {
   settlementLabel: string
   /** مابه‌التفاوتی که واقعاً نقد دریافت شد (فقط مقصد CASH). */
   cashReceived: number
+  /** مابه‌التفاوت نقدی که واقعاً از صندوق به مشتری برگشت؛ صفر برای کارت/اعتبار/کارت‌به‌کارت. */
+  cashRefunded: number
+  /** مابه‌التفاوتی که واقعاً به کارت مشتری برگشت؛ خارج از صندوق نقدی. */
+  cardRefunded: number
   /** مابه‌التفاوتی که واقعاً با کارت دریافت شد (فقط مقصد CARD). */
   cardReceived: number
   /** شناسهٔ امن اعتبارِ صادرشده روی همین تعویض؛ کد قابل‌مصرف در گزارش نیست. */
@@ -2447,6 +2512,8 @@ export interface ExchangeReportResult {
     diffTotal: number
     cashReceivedTotal: number
     cardReceivedTotal: number
+    cashRefundTotal: number
+    cardRefundTotal: number
     creditIssuedTotal: number
     creditUsedTotal: number
   }

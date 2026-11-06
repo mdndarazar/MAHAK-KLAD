@@ -1,0 +1,380 @@
+{
+  "generatedAt": "2026-10-28T17:56:05.230Z",
+  "id": 140,
+  "scenario": "N140",
+  "isolatedDatabase": "/tmp/mahak-next10-140-spDvlg/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "issue-credit",
+      "id": 1,
+      "code": "CRPVJ8UD",
+      "amount": 20000,
+      "multiUse": false,
+      "label": "credit-1",
+      "status": "ACTIVE",
+      "scope": "ALL",
+      "expiresAt": 1795811399999
+    },
+    {
+      "operation": "sale",
+      "invoiceId": 2,
+      "gross": 100000,
+      "lineDiscount": 0,
+      "invoiceDiscount": 0,
+      "net": 100000,
+      "tender": "CASH",
+      "creditCode": null,
+      "items": [
+        {
+          "id": 2,
+          "variantId": 2,
+          "qty": 1,
+          "unitPrice": 100000,
+          "discount": 0,
+          "lineTotal": 100000
+        }
+      ]
+    },
+    {
+      "label": "sale invoice 2: gross=100000; discounts=0; net=100000",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "id": 1,
+          "name": "credit-redemption-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "id": 2,
+          "name": "exchange-source",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "id": 3,
+          "name": "exchange-target",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 20000,
+          "paid": 20000,
+          "discount": 0,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 100000,
+          "paid": 100000,
+          "discount": 0,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 0,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CRPVJ8UD",
+          "amount": 20000,
+          "usedAmount": 20000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795811399999,
+          "scope": "ALL"
+        }
+      ],
+      "checkPayments": 0
+    },
+    {
+      "operation": "exchange rejected attempt burned barcode as positive-difference tender",
+      "expectedSettlementDiff": 20000,
+      "error": "این اعتبار (CRPVJ8UD) کامل مصرف شده است — آخرین مصرف روی فاکتور شماره ۱ در تاریخ ۱۴۰۵/۰۸/۰۶."
+    },
+    {
+      "operation": "burned-code-positive-diff-rejected",
+      "rejection": "این اعتبار (CRPVJ8UD) کامل مصرف شده است — آخرین مصرف روی فاکتور شماره ۱ در تاریخ ۱۴۰۵/۰۸/۰۶.",
+      "mutationFree": true,
+      "barcodeStatus": "USED"
+    },
+    {
+      "operation": "exchange positive cash retry after burned barcode rejection",
+      "returnId": 1,
+      "exchangeInvoiceId": 3,
+      "nominalDiff": 20000,
+      "effectiveDiff": 20000,
+      "cashIn": 20000,
+      "cardIn": 0,
+      "creditIn": 100000,
+      "preview": {
+        "ok": true,
+        "returnTotal": 100000,
+        "exchangeTotal": 120000,
+        "nominalDiff": 20000,
+        "effectiveDiff": 20000,
+        "exchangeCreditApplied": 100000,
+        "realMoneySurplus": 0,
+        "sourceCreditRestoration": 0
+      }
+    },
+    {
+      "label": "after cash retry after burned barcode rejection; diff=20000",
+      "expected": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 120000
+      },
+      "actual": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 120000,
+      "stock": [
+        {
+          "id": 1,
+          "name": "credit-redemption-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "id": 2,
+          "name": "exchange-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "id": 3,
+          "name": "exchange-target",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 20000,
+          "paid": 20000,
+          "discount": 0,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 100000,
+          "paid": 100000,
+          "discount": 0,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 3,
+          "total": 120000,
+          "paid": 120000,
+          "discount": 0,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 2
+        }
+      ],
+      "returnCount": 1,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CRPVJ8UD",
+          "amount": 20000,
+          "usedAmount": 20000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795811399999,
+          "scope": "ALL"
+        }
+      ],
+      "checkPayments": 0
+    },
+    {
+      "label": "final N140 reconciliation",
+      "expected": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 120000
+      },
+      "actual": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 120000,
+      "stock": [
+        {
+          "id": 1,
+          "name": "credit-redemption-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "id": 2,
+          "name": "exchange-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "id": 3,
+          "name": "exchange-target",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 20000,
+          "paid": 20000,
+          "discount": 0,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 100000,
+          "paid": 100000,
+          "discount": 0,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 3,
+          "total": 120000,
+          "paid": 120000,
+          "discount": 0,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 2
+        }
+      ],
+      "returnCount": 1,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CRPVJ8UD",
+          "amount": 20000,
+          "usedAmount": 20000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795811399999,
+          "scope": "ALL"
+        }
+      ],
+      "checkPayments": 0
+    }
+  ],
+  "findings": [],
+  "assertions": [
+    {
+      "key": "burned-barcode-rejected-then-cash-succeeds",
+      "pass": true,
+      "rejectedCodeStatus": "USED",
+      "mutationFree": true,
+      "cashDifference": 20000
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 120000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 120000
+    },
+    "actual": {
+      "cash": 120000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 120000,
+    "stock": [
+      {
+        "name": "credit-redemption-item",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      },
+      {
+        "name": "exchange-source",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "exchange-target",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 3,
+    "returns": 1,
+    "credits": 1,
+    "checks": 0
+  }
+}

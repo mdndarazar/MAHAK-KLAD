@@ -1,0 +1,210 @@
+{
+  "generatedAt": "2026-10-28T18:33:46.002Z",
+  "id": 185,
+  "scenario": "N185",
+  "isolatedDatabase": "/tmp/mahak-next20-185-sPy8TQ/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 45000,
+      "cash": 0,
+      "card": 45000,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 45000,
+          "lineTotal": 45000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 0,
+        "card": 45000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 45000
+      },
+      "actual": {
+        "cash": 0,
+        "card": 45000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 45000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 45000,
+      "stock": [
+        {
+          "name": "POS-manager-gate-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 45000,
+          "paid": 45000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "POS-refund-with-invalid-manager-auth-rejected",
+      "error": "رمز مدیر درست نیست.\n۲ تلاش دیگر باقی مانده است؛ بعد از آن ورود رمز برای ۱۰ دقیقه قفل می‌شود.",
+      "mutationFree": true
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 45000,
+      "method": "CARD",
+      "refundAmount": 45000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 0,
+        "card": 45000,
+        "refundCash": 0,
+        "refundCard": 45000,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 0,
+        "card": 45000,
+        "refundCash": 0,
+        "refundCard": 45000
+      },
+      "raw": {
+        "cash": 0,
+        "card": 45000,
+        "refundCash": 0,
+        "refundCard": 45000
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "POS-manager-gate-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 45000,
+          "paid": 45000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N185 reconciliation",
+      "expected": {
+        "cash": 0,
+        "card": 45000,
+        "refundCash": 0,
+        "refundCard": 45000,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 0,
+        "card": 45000,
+        "refundCash": 0,
+        "refundCard": 45000
+      },
+      "raw": {
+        "cash": 0,
+        "card": 45000,
+        "refundCash": 0,
+        "refundCard": 45000
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "POS-manager-gate-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 45000,
+          "paid": 45000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "assertions": [
+    {
+      "key": "POS-refund-password-gate-enforced-and-authorized-retry-succeeds",
+      "pass": true,
+      "refund": 45000
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 0,
+      "card": 45000,
+      "refundCash": 0,
+      "refundCard": 45000,
+      "blue": 0
+    },
+    "actual": {
+      "cash": 0,
+      "card": 45000,
+      "refundCash": 0,
+      "refundCard": 45000
+    },
+    "blue": 0,
+    "stock": [
+      {
+        "name": "POS-manager-gate-item",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      }
+    ],
+    "invoices": 1,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

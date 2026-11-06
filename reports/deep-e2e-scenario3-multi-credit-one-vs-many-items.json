@@ -1,0 +1,356 @@
+{
+  "generatedAt": "2026-10-30T19:47:25.127Z",
+  "isolatedDatabase": "/tmp/mahak-e100-021-multibarcode-W3WVe0/isolated.db",
+  "title": "POS multi-barcode FEFO allocation for one-item and multi-item 180,000 invoices",
+  "barcodes": [
+    {
+      "amount": 25000,
+      "expires": "Tomorrow in Tehran calendar",
+      "scope": "ALL"
+    },
+    {
+      "amount": 25000,
+      "expires": "Two days from issue in Tehran calendar",
+      "scope": "ALL"
+    },
+    {
+      "amount": 150000,
+      "expires": null,
+      "scope": "ALL"
+    }
+  ],
+  "expectedPlan": [
+    25000,
+    25000,
+    130000
+  ],
+  "expectedRemainder": {
+    "amount": 20000,
+    "barcode": "150k non-expiring credit"
+  },
+  "cases": [
+    {
+      "id": "one-item",
+      "label": "یک قلم ۱۸۰٬۰۰۰تومانی",
+      "total": 180000,
+      "items": [
+        {
+          "name": "one-item-item-1",
+          "price": 180000,
+          "variantId": 1
+        }
+      ],
+      "issuedCredits": [
+        {
+          "id": 1,
+          "code": "CR4XZTDD",
+          "amount": 25000,
+          "days": 1,
+          "purpose": "source-expiry-tomorrow",
+          "expiresAt": 1793478599999,
+          "expiresAtJalali": "1405/08/09",
+          "source": "MANUAL",
+          "scope": "ALL"
+        },
+        {
+          "id": 2,
+          "code": "CRCYWHF8",
+          "amount": 25000,
+          "days": 2,
+          "purpose": "source-expiry-in-two-days",
+          "expiresAt": 1793564999999,
+          "expiresAtJalali": "1405/08/10",
+          "source": "MANUAL",
+          "scope": "ALL"
+        },
+        {
+          "id": 3,
+          "code": "CRQ8HK4N",
+          "amount": 150000,
+          "days": 0,
+          "purpose": "money-backed-no-expiry",
+          "expiresAt": null,
+          "expiresAtJalali": null,
+          "source": "MANUAL",
+          "scope": "ALL"
+        }
+      ],
+      "previewAndPlan": [
+        {
+          "id": 1,
+          "amount": 25000,
+          "expiresAtJalali": "1405/08/09",
+          "plannedAmount": 25000,
+          "requestedAmount": null
+        },
+        {
+          "id": 2,
+          "amount": 25000,
+          "expiresAtJalali": "1405/08/10",
+          "plannedAmount": 25000,
+          "requestedAmount": null
+        },
+        {
+          "id": 3,
+          "amount": 150000,
+          "expiresAtJalali": null,
+          "plannedAmount": 130000,
+          "requestedAmount": null
+        }
+      ],
+      "invoice": {
+        "id": 1,
+        "total": 180000,
+        "storeCreditApplied": 180000,
+        "paidTotal": 180000,
+        "settled": true,
+        "status": "SETTLED"
+      },
+      "redemptions": [
+        {
+          "creditId": 1,
+          "amount": 25000,
+          "remainderAfter": 0
+        },
+        {
+          "creditId": 2,
+          "amount": 25000,
+          "remainderAfter": 0
+        },
+        {
+          "creditId": 3,
+          "amount": 130000,
+          "remainderAfter": 20000
+        }
+      ],
+      "creditsAfter": [
+        {
+          "id": 1,
+          "code": "CR4XZTDD",
+          "amount": 25000,
+          "usedAmount": 25000,
+          "remaining": 0,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1793478599999,
+          "expiresAtJalali": "1405/08/09",
+          "source": "MANUAL",
+          "scope": "ALL"
+        },
+        {
+          "id": 2,
+          "code": "CRCYWHF8",
+          "amount": 25000,
+          "usedAmount": 25000,
+          "remaining": 0,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1793564999999,
+          "expiresAtJalali": "1405/08/10",
+          "source": "MANUAL",
+          "scope": "ALL"
+        },
+        {
+          "id": 3,
+          "code": "CRQ8HK4N",
+          "amount": 150000,
+          "usedAmount": 130000,
+          "remaining": 20000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED",
+          "expiresAt": null,
+          "expiresAtJalali": null,
+          "source": "MANUAL",
+          "scope": "ALL"
+        }
+      ],
+      "stockBefore": [
+        10
+      ],
+      "stockAfter": [
+        9
+      ],
+      "checks": {
+        "totalExactly180k": true,
+        "threeRealCodesApplied": true,
+        "paidAndSettled": true,
+        "actualRedemptionAmountsMatchPlan": true,
+        "remaining20kOnNoExpiryCode": true,
+        "firstTwoCodesFullyUsed": true,
+        "noCashOrCardTender": true,
+        "stockReducedForEverySoldItem": true,
+        "invoiceCountIncreasedByOne": true
+      },
+      "verdict": "PASS"
+    },
+    {
+      "id": "multiple-items",
+      "label": "دو قلم ۱۰۰٬۰۰۰ + ۸۰٬۰۰۰تومان",
+      "total": 180000,
+      "items": [
+        {
+          "name": "multiple-items-item-1",
+          "price": 100000,
+          "variantId": 2
+        },
+        {
+          "name": "multiple-items-item-2",
+          "price": 80000,
+          "variantId": 3
+        }
+      ],
+      "issuedCredits": [
+        {
+          "id": 4,
+          "code": "CREA4ZPR",
+          "amount": 25000,
+          "days": 1,
+          "purpose": "source-expiry-tomorrow",
+          "expiresAt": 1793478599999,
+          "expiresAtJalali": "1405/08/09",
+          "source": "MANUAL",
+          "scope": "ALL"
+        },
+        {
+          "id": 5,
+          "code": "CRJC6GLP",
+          "amount": 25000,
+          "days": 2,
+          "purpose": "source-expiry-in-two-days",
+          "expiresAt": 1793564999999,
+          "expiresAtJalali": "1405/08/10",
+          "source": "MANUAL",
+          "scope": "ALL"
+        },
+        {
+          "id": 6,
+          "code": "CR23PHU3",
+          "amount": 150000,
+          "days": 0,
+          "purpose": "money-backed-no-expiry",
+          "expiresAt": null,
+          "expiresAtJalali": null,
+          "source": "MANUAL",
+          "scope": "ALL"
+        }
+      ],
+      "previewAndPlan": [
+        {
+          "id": 4,
+          "amount": 25000,
+          "expiresAtJalali": "1405/08/09",
+          "plannedAmount": 25000,
+          "requestedAmount": null
+        },
+        {
+          "id": 5,
+          "amount": 25000,
+          "expiresAtJalali": "1405/08/10",
+          "plannedAmount": 25000,
+          "requestedAmount": null
+        },
+        {
+          "id": 6,
+          "amount": 150000,
+          "expiresAtJalali": null,
+          "plannedAmount": 130000,
+          "requestedAmount": null
+        }
+      ],
+      "invoice": {
+        "id": 2,
+        "total": 180000,
+        "storeCreditApplied": 180000,
+        "paidTotal": 180000,
+        "settled": true,
+        "status": "SETTLED"
+      },
+      "redemptions": [
+        {
+          "creditId": 4,
+          "amount": 25000,
+          "remainderAfter": 0
+        },
+        {
+          "creditId": 5,
+          "amount": 25000,
+          "remainderAfter": 0
+        },
+        {
+          "creditId": 6,
+          "amount": 130000,
+          "remainderAfter": 20000
+        }
+      ],
+      "creditsAfter": [
+        {
+          "id": 4,
+          "code": "CREA4ZPR",
+          "amount": 25000,
+          "usedAmount": 25000,
+          "remaining": 0,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1793478599999,
+          "expiresAtJalali": "1405/08/09",
+          "source": "MANUAL",
+          "scope": "ALL"
+        },
+        {
+          "id": 5,
+          "code": "CRJC6GLP",
+          "amount": 25000,
+          "usedAmount": 25000,
+          "remaining": 0,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1793564999999,
+          "expiresAtJalali": "1405/08/10",
+          "source": "MANUAL",
+          "scope": "ALL"
+        },
+        {
+          "id": 6,
+          "code": "CR23PHU3",
+          "amount": 150000,
+          "usedAmount": 130000,
+          "remaining": 20000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED",
+          "expiresAt": null,
+          "expiresAtJalali": null,
+          "source": "MANUAL",
+          "scope": "ALL"
+        }
+      ],
+      "stockBefore": [
+        10,
+        10
+      ],
+      "stockAfter": [
+        9,
+        9
+      ],
+      "checks": {
+        "totalExactly180k": true,
+        "threeRealCodesApplied": true,
+        "paidAndSettled": true,
+        "actualRedemptionAmountsMatchPlan": true,
+        "remaining20kOnNoExpiryCode": true,
+        "firstTwoCodesFullyUsed": true,
+        "noCashOrCardTender": true,
+        "stockReducedForEverySoldItem": true,
+        "invoiceCountIncreasedByOne": true
+      },
+      "verdict": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "safety": {
+    "isolatedSQLiteOnly": true,
+    "productionCodeChanged": false,
+    "physicalTender": 0,
+    "unpaidInvoices": 0,
+    "checksOrDebt": false
+  }
+}

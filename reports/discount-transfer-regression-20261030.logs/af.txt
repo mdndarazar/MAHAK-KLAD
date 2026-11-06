@@ -1,0 +1,453 @@
+PASS tests/audit-fixes/_lib-bridge-golden-s318.mjs
+PASS tests/audit-fixes/_regen-bridge-golden-s318.mjs
+PASS tests/audit-fixes/_run-all-s215.mjs
+PASS tests/audit-fixes/deep-e2e-10-financial-flows.mjs
+PASS tests/audit-fixes/deep-e2e-100-credit-exchange-chains.mjs
+PASS tests/audit-fixes/deep-e2e-additional-06-policy-flows.mjs
+PASS tests/audit-fixes/deep-e2e-b-first-a-second-operation.mjs
+PASS tests/audit-fixes/deep-e2e-case18-no-b-exchange-control.mjs
+PASS tests/audit-fixes/deep-e2e-category-scoped-manager-discount.mjs
+PASS tests/audit-fixes/deep-e2e-discount-policy-80-scenario-01-single-item-return.mjs
+PASS tests/audit-fixes/deep-e2e-discount-policy-80-scenario-02-single-line-discount-return.mjs
+FAIL tests/audit-fixes/deep-e2e-discount-policy-80-scenario-03-10-matrix.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-discount-policy-80-scenario-11-20-credit-matrix.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-discount-return-store-credit-chain.mjs (exit 1)
+PASS tests/audit-fixes/deep-e2e-discount-transfer-ledger.mjs
+FAIL tests/audit-fixes/deep-e2e-discounted-cheaper-exchange-refund.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-discounted-invoice-credit-mixed-exchange-chain.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-discounted-invoice-exchange-chain.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-e100-051-combined-ab-exchange.mjs (exit 1)
+PASS tests/audit-fixes/deep-e2e-e100-054-single-and-discount-controls.mjs
+PASS tests/audit-fixes/deep-e2e-e100-066-single-and-discount-controls.mjs
+PASS tests/audit-fixes/deep-e2e-e100-070-single-and-discount-controls.mjs
+PASS tests/audit-fixes/deep-e2e-e100-071-single-and-discount-controls.mjs
+PASS tests/audit-fixes/deep-e2e-e100-081-single-and-discount-controls.mjs
+PASS tests/audit-fixes/deep-e2e-e100-090-single-and-discount-controls.mjs
+PASS tests/audit-fixes/deep-e2e-exchange-positive-delta-restricted-tender-matrix.mjs
+FAIL tests/audit-fixes/deep-e2e-exchange-reject-return-resell-b1.mjs (exit 1)
+PASS tests/audit-fixes/deep-e2e-followup-10-scenarios.mjs
+PASS tests/audit-fixes/deep-e2e-followup-scenario01c-card-to-card.mjs
+PASS tests/audit-fixes/deep-e2e-followup-scenario02-return-mixed-funding.mjs
+PASS tests/audit-fixes/deep-e2e-followup-scenario03-second-invoice-exchange.mjs
+PASS tests/audit-fixes/deep-e2e-followup-scenario04-multi-barcode-settlement-matrix.mjs
+PASS tests/audit-fixes/deep-e2e-followup-scenario05-credit-count-second-chain.mjs
+PASS tests/audit-fixes/deep-e2e-followup-scenario06-return-second-invoice-payment-matrix.mjs
+PASS tests/audit-fixes/deep-e2e-followup-scenario07-partial-return-then-exchange-matrix.mjs
+PASS tests/audit-fixes/deep-e2e-followup-scenario08-partial-credit-source-restoration.mjs
+PASS tests/audit-fixes/deep-e2e-followup-scenario09-fully-consumed-credit-successor-chain.mjs
+PASS tests/audit-fixes/deep-e2e-followup-scenario10-positive-exchange-split-settlement-and-child-return.mjs
+PASS tests/audit-fixes/deep-e2e-followup-scenario11-same-multiuse-credit-return-method-matrix.mjs
+PASS tests/audit-fixes/deep-e2e-followup-scenario12-y-a-simple-return-multi-share.mjs
+PASS tests/audit-fixes/deep-e2e-followup-scenario13-no-method-auto-credit-and-independent-limit-gates.mjs
+PASS tests/audit-fixes/deep-e2e-followup-scenario14-exchange-child-partial-redemption-usedcount.mjs
+FAIL tests/audit-fixes/deep-e2e-global-price-adjustment-exchange-behavior.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-invoice-discount-partial-return-and-exchange.mjs (exit 1)
+PASS tests/audit-fixes/deep-e2e-invoice-discount-return-20m-18m.mjs
+FAIL tests/audit-fixes/deep-e2e-invoice-vs-item-discount-exchange.mjs (exit 1)
+PASS tests/audit-fixes/deep-e2e-n131-direct-return-probe.mjs
+FAIL tests/audit-fixes/deep-e2e-n131-exchange-price-variants.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-n131-multi-item-exchange-discount.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-n131-product-scope-discount-exchange.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-next10-discount-exchange-credit.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-next10-followup-141-150.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-next10-followup-151-160.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-next10-followup-161-170.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-next20-followup-171-190.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-next20-followup-191-210.mjs (exit 1)
+PASS tests/audit-fixes/deep-e2e-p-factorial-active-credit.mjs
+FAIL tests/audit-fixes/deep-e2e-prior-a-b-c-d-exchange-order.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-prior-a-c-d-exchange-order.mjs (exit 1)
+PASS tests/audit-fixes/deep-e2e-prior-a-c-d-return-order.mjs
+PASS tests/audit-fixes/deep-e2e-prior-a-return-b-operation.mjs
+PASS tests/audit-fixes/deep-e2e-refund-decision-state-machine.mjs
+PASS tests/audit-fixes/deep-e2e-restricted-credit-b-d-a-chain.mjs
+PASS tests/audit-fixes/deep-e2e-restricted-credit-b-expiry.mjs
+PASS tests/audit-fixes/deep-e2e-restricted-credit-history-ambiguous.mjs
+PASS tests/audit-fixes/deep-e2e-restricted-return-exchange-money-only.mjs
+FAIL tests/audit-fixes/deep-e2e-retest-30-settlement-variants.mjs (exit 1)
+PASS tests/audit-fixes/deep-e2e-scenario2-exchange-provenance-matrix.mjs
+FAIL tests/audit-fixes/deep-e2e-scenario2-return-resell-cd.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-scenario3-e100-021-return-resell-b1.mjs (exit 1)
+PASS tests/audit-fixes/deep-e2e-scenario3-multi-credit-one-vs-many-items.mjs
+FAIL tests/audit-fixes/deep-e2e-scenario3-prior-2m-credit-exchange-1598-to-1500.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-scenario4-e100-030-invoice-discount.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-scenario4-e100-030-no-discount.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-scenario4-e100-030-one-visit-consolidated.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-scenario5-e100-034-invoice-discount.mjs (exit 1)
+FAIL tests/audit-fixes/deep-e2e-seller-invoice-discount-exchange-policy.mjs (exit 1)
+PASS tests/audit-fixes/deep-e2e-seller-invoice-discount-multi-item-direct-return.mjs
+FAIL tests/audit-fixes/deep-e2e-seller-invoice-discount-multi-item-higher-price-exchange.mjs (exit 1)
+PASS tests/audit-fixes/deep-e2e-seller-invoice-discount-multi-item-return-barcode.mjs
+PASS tests/audit-fixes/fix-cash-return-correction-blue.mjs
+PASS tests/audit-fixes/fix-chained-credit-first-residual.mjs
+PASS tests/audit-fixes/fix-cred-med-03-credit-settings-strict-gate.mjs
+PASS tests/audit-fixes/fix-credit-invoice-recovery-lookup.mjs
+FAIL tests/audit-fixes/fix-credit-recovery-reprint-no-double-use.mjs (exit 1)
+FAIL tests/audit-fixes/fix-credit-return-exchange-void-after-print.mjs (exit 1)
+FAIL tests/audit-fixes/fix-erroneous-return-credit-manager-lookup.mjs (exit 1)
+FAIL tests/audit-fixes/fix-exchange-child-restricted-credit-pooling.mjs (exit 1)
+PASS tests/audit-fixes/fix-exchange-credit-restriction-scope.mjs
+PASS tests/audit-fixes/fix-exchange-credit-tender-reversal-and-cheque-first-only.mjs
+FAIL tests/audit-fixes/fix-exchange-credit-tender-reversal-and-cheque-unreached-cases.mjs (exit 1)
+FAIL tests/audit-fixes/fix-exchange-credit-tender-reversal-and-cheque.mjs (exit 1)
+PASS tests/audit-fixes/fix-exchange-delta-credit-invoice-pool.mjs
+PASS tests/audit-fixes/fix-exchange-partial-cash-refund.mjs
+FAIL tests/audit-fixes/fix-financial-exchange-chain-20-22-27-15.mjs (exit 1)
+FAIL tests/audit-fixes/fix-financial-global-credit-return-integration.mjs (exit 1)
+PASS tests/audit-fixes/fix-financial-global-credit-return-policy.mjs
+PASS tests/audit-fixes/fix-financial-scenario4-multiuse-return-exchange-stock.mjs
+PASS tests/audit-fixes/fix-pos-multi-credit-plan.mjs
+FAIL tests/audit-fixes/fix-pos-multi-credit-sale-e2e.mjs (exit 1)
+PASS tests/audit-fixes/fix-pur-002-purchase-total-integers.mjs
+PASS tests/audit-fixes/fix-re-audit-high-auth-lockout-races.mjs
+PASS tests/audit-fixes/fix-re-audit-high-backup-gates.mjs
+PASS tests/audit-fixes/fix-return-exchange-credit-handoff.mjs
+PASS tests/audit-fixes/fix-s100-credit-list-pagination.mjs
+PASS tests/audit-fixes/fix-s101-credit-list-next-page.mjs
+PASS tests/audit-fixes/fix-s102-staff-report-scale.mjs
+PASS tests/audit-fixes/fix-s103-staff-transactions-pagination.mjs
+PASS tests/audit-fixes/fix-s104-fraud-review-scale.mjs
+PASS tests/audit-fixes/fix-s104-jalali-range-scale.mjs
+PASS tests/audit-fixes/fix-s104-report-scale-followups.mjs
+PASS tests/audit-fixes/fix-s105-report-limits-filter-propagation.mjs
+FAIL tests/audit-fixes/fix-s106-report-pagination-followups.mjs (exit 1)
+PASS tests/audit-fixes/fix-s107-credit-batch-count.mjs
+PASS tests/audit-fixes/fix-s108-bridge-drilldown-pagination.mjs
+PASS tests/audit-fixes/fix-s109-purge-preview-pagination.mjs
+PASS tests/audit-fixes/fix-s110-fraud-flags-adapter.mjs
+PASS tests/audit-fixes/fix-s111-fraud-source-pagination-contract.mjs
+FAIL tests/audit-fixes/fix-s112-cash-effect-drawer-only.mjs (exit 1)
+PASS tests/audit-fixes/fix-s113-cheque-destination-policy.mjs
+PASS tests/audit-fixes/fix-s114-card-transfer-totals-full-range.mjs
+PASS tests/audit-fixes/fix-s114-cash-movement-totals-full-range.mjs
+PASS tests/audit-fixes/fix-s114-cashbox-history-pagination.mjs
+PASS tests/audit-fixes/fix-s115-card-transfer-event-date.mjs
+PASS tests/audit-fixes/fix-s115-customer-directory-full-range.mjs
+PASS tests/audit-fixes/fix-s115-purchase-list-full-range.mjs
+PASS tests/audit-fixes/fix-s115-stock-movements-full-ledger.mjs
+PASS tests/audit-fixes/fix-s117-credit-list-full-range.mjs
+PASS tests/audit-fixes/fix-s117-exchange-get-busy-day.mjs
+PASS tests/audit-fixes/fix-s117-sale-list-full-range.mjs
+FAIL tests/audit-fixes/fix-s117-staff-card-transfer-canceled.mjs (exit 1)
+PASS tests/audit-fixes/fix-s117-stock-discrepancy-full.mjs
+PASS tests/audit-fixes/fix-s118-price-adjust-full-scope.mjs
+PASS tests/audit-fixes/fix-s118-purge-selected-invoices.mjs
+PASS tests/audit-fixes/fix-s118-secondary-stock-history-pagination.mjs
+PASS tests/audit-fixes/fix-s119-credit-detail-batch-pagination.mjs
+PASS tests/audit-fixes/fix-s119-stockcount-pagination.mjs
+PASS tests/audit-fixes/fix-s120-price-schedule-full-range.mjs
+PASS tests/audit-fixes/fix-s120-stockcount-in-chunking.mjs
+PASS tests/audit-fixes/fix-s121-report-export-page-warning.mjs
+PASS tests/audit-fixes/fix-s122-report-excludes-invalid-invoices.mjs
+PASS tests/audit-fixes/fix-s123-stock-allocation-print-chunking.mjs
+FAIL tests/audit-fixes/fix-s124-financial-variant-in-chunking.mjs (exit 1)
+FAIL tests/audit-fixes/fix-s125-sales-product-variant-chunking.mjs (exit 1)
+PASS tests/audit-fixes/fix-s126-credit-remaining-full-range.mjs
+PASS tests/audit-fixes/fix-s126-variant-purge-retention-ledger.mjs
+PASS tests/audit-fixes/fix-s127-maintenance-purge-guard.mjs
+PASS tests/audit-fixes/fix-s128-maintenance-archive-gate.mjs
+FAIL tests/audit-fixes/fix-s128-report-output-filter-lock.mjs (exit 1)
+PASS tests/audit-fixes/fix-s129-export-write-safety.mjs
+PASS tests/audit-fixes/fix-s129-print-large-cancel-destroy.mjs
+FAIL tests/audit-fixes/fix-s130-a4-layout.mjs (exit 1)
+PASS tests/audit-fixes/fix-s130-xlsx-print-layout.mjs
+PASS tests/audit-fixes/fix-s131-csv-formula-print-timeout.mjs
+PASS tests/audit-fixes/fix-s132-export-extension.mjs
+PASS tests/audit-fixes/fix-s133-report-export-full-range.mjs
+PASS tests/audit-fixes/fix-s135-maintenance-shifts-purge.mjs
+PASS tests/audit-fixes/fix-s136-payment-period-lock.mjs
+PASS tests/audit-fixes/fix-s137-multi-day-session-warning.mjs
+PASS tests/audit-fixes/fix-s138-financial-input-validation.mjs
+PASS tests/audit-fixes/fix-s139-cash-session-input-and-handover.mjs
+PASS tests/audit-fixes/fix-s140-session-actor-guard.mjs
+PASS tests/audit-fixes/fix-s141-return-exchange-integer-validation.mjs
+PASS tests/audit-fixes/fix-s142-payment-mutation-integer-validation.mjs
+PASS tests/audit-fixes/fix-s143-card-transfer-integer-validation.mjs
+PASS tests/audit-fixes/fix-s143-credit-issue-integer-validation.mjs
+PASS tests/audit-fixes/fix-s143-manual-credit-manager-gate.mjs
+PASS tests/audit-fixes/fix-s143-stock-count-integer-validation.mjs
+PASS tests/audit-fixes/fix-s144-card-transfer-adjust-gate.mjs
+PASS tests/audit-fixes/fix-s144-inventory-product-integer-validation.mjs
+FAIL tests/audit-fixes/fix-s145-product-stock-gate.mjs (exit 1)
+FAIL tests/audit-fixes/fix-s147-secondary-stock-integer-validation.mjs (exit 1)
+FAIL tests/audit-fixes/fix-s147b-secondary-to-store-gate.mjs (exit 1)
+FAIL tests/audit-fixes/fix-s150-price-adjust-rule-gate.mjs (exit 1)
+FAIL tests/audit-fixes/fix-s150b-party-credit-integer-validation.mjs (exit 1)
+PASS tests/audit-fixes/fix-s151-credit-customer-session-actor.mjs
+PASS tests/audit-fixes/fix-s151b-sale-price-override-discount-range.mjs
+PASS tests/audit-fixes/fix-s151c-gates.mjs
+PASS tests/audit-fixes/fix-s151c2-charges.mjs
+FAIL tests/audit-fixes/fix-s162-c-integrated-chain.mjs (exit 1)
+PASS tests/audit-fixes/fix-s163-c-integrated-ext.mjs
+PASS tests/audit-fixes/fix-s165-edit-qty-price-reference.mjs
+PASS tests/audit-fixes/fix-s165-staff-save-gate.mjs
+PASS tests/audit-fixes/fix-s166-print-toggle-gate.mjs
+FAIL tests/audit-fixes/fix-s166-stocktake-dismiss-gate.mjs (exit 1)
+PASS tests/audit-fixes/fix-s167-invoice-price-pw-box.mjs
+PASS tests/audit-fixes/fix-s167-prior-overpay-label.mjs
+PASS tests/audit-fixes/fix-s167-y11-line-discount-scale.mjs
+FAIL tests/audit-fixes/fix-s168-pos-stale-sale-toggles.mjs (exit 1)
+PASS tests/audit-fixes/fix-s168-purchase-integer-lines.mjs
+FAIL tests/audit-fixes/fix-s168-settings-stale-pos-toggles.mjs (exit 1)
+PASS tests/audit-fixes/fix-s169-inventory-apply-audit-tx.mjs
+FAIL tests/audit-fixes/fix-s169-variant-code-keep.mjs (exit 1)
+PASS tests/audit-fixes/fix-s170-bridge-unbacked-credit.mjs
+PASS tests/audit-fixes/fix-s170b-overpay-remainder-hint.mjs
+FAIL tests/audit-fixes/fix-s171-cancelled-status-statements.mjs (exit 1)
+PASS tests/audit-fixes/fix-s171-s121-bridge-exitcode.mjs
+PASS tests/audit-fixes/fix-s172-bridge-drill-in-chunk.mjs
+PASS tests/audit-fixes/fix-s173-credit-print-voided-banner.mjs
+FAIL tests/audit-fixes/fix-s173-ledger-prior-credit-count.mjs (exit 1)
+FAIL tests/audit-fixes/fix-s173-payment-drill-in-chunk.mjs (exit 1)
+PASS tests/audit-fixes/fix-s174-credit-scope-in-chunk.mjs
+PASS tests/audit-fixes/fix-s174-debt-c2c-in-chunk.mjs
+PASS tests/audit-fixes/fix-s174-stale-response-panels.mjs
+PASS tests/audit-fixes/fix-s175-consolidate-in-chunk.mjs
+PASS tests/audit-fixes/fix-s175-credit-list-in-chunk.mjs
+PASS tests/audit-fixes/fix-s175-purge-in-chunk.mjs
+PASS tests/audit-fixes/fix-s175-voided-credit-notin.mjs
+PASS tests/audit-fixes/fix-s176-price-adjust-in-chunk.mjs
+PASS tests/audit-fixes/fix-s176-schedule-end-failure.mjs
+PASS tests/audit-fixes/fix-s177-product-remove-in-chunk.mjs
+PASS tests/audit-fixes/fix-s178-purge-keeps-ledger-consolidation.mjs
+PASS tests/audit-fixes/fix-s178-return-rate-zero-peers.mjs
+PASS tests/audit-fixes/fix-s178-variant-purge-preview-blockers.mjs
+PASS tests/audit-fixes/fix-s179-credit-form-strict-integer.mjs
+FAIL tests/audit-fixes/fix-s179-fraud-actor-duplicate-cheque.mjs (exit 1)
+PASS tests/audit-fixes/fix-s181-backup-apply-gate.mjs
+PASS tests/audit-fixes/fix-s181-bigint-end-to-end.mjs
+PASS tests/audit-fixes/fix-s181-bigint-json-audit.mjs
+FAIL tests/audit-fixes/fix-s181-bigint-migration.mjs (exit 1)
+FAIL tests/audit-fixes/fix-s181-merge-maintenance-bigint.mjs (exit 1)
+PASS tests/audit-fixes/fix-s181-money-helpers.mjs
+FAIL tests/audit-fixes/fix-s182-critical-three.mjs (exit 1)
+FAIL tests/audit-fixes/fix-s182-high-priority.mjs (exit 1)
+PASS tests/audit-fixes/fix-s183-credit-remainder-and-passwords.mjs
+PASS tests/audit-fixes/fix-s184-review-high.mjs
+PASS tests/audit-fixes/fix-s185-review-critical.mjs
+FAIL tests/audit-fixes/fix-s186-review-high2.mjs (exit 1)
+PASS tests/audit-fixes/fix-s187-return-credit-in-report.mjs
+PASS tests/audit-fixes/fix-s187-settings-second-third-password.mjs
+FAIL tests/audit-fixes/fix-s188-review-186.mjs (exit 1)
+PASS tests/audit-fixes/fix-s189-cash-shift-atomic.mjs
+PASS tests/audit-fixes/fix-s189-claude-review.mjs
+PASS tests/audit-fixes/fix-s189-remaining-bugs.mjs
+PASS tests/audit-fixes/fix-s189-return-overpay-flow.mjs
+PASS tests/audit-fixes/fix-s189-shift-payments-by-shift.mjs
+PASS tests/audit-fixes/fix-s190-audit14.mjs
+PASS tests/audit-fixes/fix-s191-audit-report.mjs
+PASS tests/audit-fixes/fix-s192-idle-lock.mjs
+PASS tests/audit-fixes/fix-s192-receipt-gaps.mjs
+PASS tests/audit-fixes/fix-s193-prior-credit-stories.mjs
+PASS tests/audit-fixes/fix-s194-item-return-columns.mjs
+PASS tests/audit-fixes/fix-s194-prior-cheque-shift.mjs
+PASS tests/audit-fixes/fix-s195-report-live-name.mjs
+PASS tests/audit-fixes/fix-s196-debt-payment-receipt.mjs
+FAIL tests/audit-fixes/fix-s197-exchange-nasiyeh-cash-refund.mjs (exit 1)
+PASS tests/audit-fixes/fix-s198-debt-cheque-reminder.mjs
+FAIL tests/audit-fixes/fix-s199-exchange-return-parent-debt.mjs (exit 1)
+PASS tests/audit-fixes/fix-s200-cheque-status-password.mjs
+PASS tests/audit-fixes/fix-s201-return-update-password-outside-tx.mjs
+PASS tests/audit-fixes/fix-s202-cleared-cheque-delete-password.mjs
+PASS tests/audit-fixes/fix-s203-prior-settlement-not-double-counted.mjs
+PASS tests/audit-fixes/fix-s204-exchange-ledger-cash-once.mjs
+FAIL tests/audit-fixes/fix-s205-voided-payment-hides-overpay.mjs (exit 1)
+PASS tests/audit-fixes/fix-s206-backup-forget-gate.mjs
+PASS tests/audit-fixes/fix-s207-credit-last-payment-received.mjs
+PASS tests/audit-fixes/fix-s208-full-refund-list-price.mjs
+PASS tests/audit-fixes/fix-s209-print-not-return-fallback.mjs
+PASS tests/audit-fixes/fix-s210-invoice-item-name-from-db.mjs
+PASS tests/audit-fixes/fix-s211-payment-edit-theft.mjs
+PASS tests/audit-fixes/fix-s212-canceled-pay-and-credit-replay.mjs
+PASS tests/audit-fixes/fix-s213-backdated-cash-shift.mjs
+PASS tests/audit-fixes/fix-s213-med-adjust-and-order-type.mjs
+PASS tests/audit-fixes/fix-s214-auditor-pocs.mjs
+PASS tests/audit-fixes/fix-s214-default-password.mjs
+PASS tests/audit-fixes/fix-s214-invoice-edit-payment-bypass.mjs
+PASS tests/audit-fixes/fix-s214-return-update-cheque-policy.mjs
+PASS tests/audit-fixes/fix-s215-full-matrix.mjs
+PASS tests/audit-fixes/fix-s215-sale-readiness-e2e.mjs
+PASS tests/audit-fixes/fix-s222-print-diagnose-page-size.mjs
+PASS tests/audit-fixes/fix-s222-print-phase1-receipt-size.mjs
+PASS tests/audit-fixes/fix-s222-print-phase2-label-rows.mjs
+PASS tests/audit-fixes/fix-s222-print-phase3-printer-resolver.mjs
+FAIL tests/audit-fixes/fix-s222-print-phase4-testpage.mjs (exit 1)
+FAIL tests/audit-fixes/fix-s222-print-phase5-raw.mjs (exit 1)
+FAIL tests/audit-fixes/fix-s222-print-phase6-remaining-prints.mjs (exit 1)
+PASS tests/audit-fixes/fix-s225-print-mediums.mjs
+FAIL tests/audit-fixes/fix-s226-shell-modal-hotkeys.mjs (exit 1)
+PASS tests/audit-fixes/fix-s300-woo-stock-sync.mjs
+PASS tests/audit-fixes/fix-s304-migrator-locking.mjs
+PASS tests/audit-fixes/fix-s305-settings-printer-user-edit.mjs
+FAIL tests/audit-fixes/fix-s306-print-sample-invoice.mjs (exit 1)
+PASS tests/audit-fixes/fix-s307-session-required-code.mjs
+PASS tests/audit-fixes/fix-s308-pos-recover-inline.mjs
+PASS tests/audit-fixes/fix-s309-shift-status-channel.mjs
+PASS tests/audit-fixes/fix-s310-shift-overtime-gates.mjs
+FAIL tests/audit-fixes/fix-s311-shift-overtime-continuity.mjs (exit 1)
+PASS tests/audit-fixes/fix-s312-overtime-settings-ui.mjs
+PASS tests/audit-fixes/fix-s313-pos-stock-source-modal-dead-buttons.mjs
+PASS tests/audit-fixes/fix-s314-table-resize-jump-and-reset-fab.mjs
+PASS tests/audit-fixes/fix-s315-pos-plan-password-precision-and-labeled-reset-fab.mjs
+FAIL tests/audit-fixes/fix-s316-return-credit-ux.mjs (exit 1)
+PASS tests/audit-fixes/fix-s317-credit-print-settings.mjs
+PASS tests/audit-fixes/fix-s318-0-bridge-baseline.mjs
+PASS tests/audit-fixes/fix-s318-1-bridge-diag-annotate.mjs
+PASS tests/audit-fixes/fix-s318-2-bridge-diag-service.mjs
+PASS tests/audit-fixes/fix-s318-3-bridge-diag-renderer.mjs
+PASS tests/audit-fixes/fix-s318-4-bridge-diag-notes.mjs
+PASS tests/audit-fixes/fix-s319-1-settlement-profile.mjs
+PASS tests/audit-fixes/fix-s319-2-guidance-matrix.mjs
+PASS tests/audit-fixes/fix-s319-3-card-pos-lock.mjs
+PASS tests/audit-fixes/fix-s319-4-bridge-suspects.mjs
+PASS tests/audit-fixes/fix-s320-cash-explainer.mjs
+PASS tests/audit-fixes/fix-s321-0-tile-invariants.mjs
+PASS tests/audit-fixes/fix-s321-cash-control-accessibility.mjs
+PASS tests/audit-fixes/fix-s322-financial-inspector-sources.mjs
+PASS tests/audit-fixes/fix-s323-financial-inspector-renderer.mjs
+PASS tests/audit-fixes/fix-s324-accounting-blocks-accordion.mjs
+PASS tests/audit-fixes/fix-s325-credit-report-redaction.mjs
+PASS tests/audit-fixes/fix-s326-manager-credit-code-reveal.mjs
+PASS tests/audit-fixes/fix-s327-manager-credit-reveal-ui.mjs
+PASS tests/audit-fixes/fix-s328-report-credit-list-redaction.mjs
+PASS tests/audit-fixes/fix-s329-return-exchange-report-credit-redaction.mjs
+PASS tests/audit-fixes/fix-s330-credit-list-detail-redaction.mjs
+PASS tests/audit-fixes/fix-s331-credit-standard-command-redaction.mjs
+FAIL tests/audit-fixes/fix-s332-sales-credit-response-redaction.mjs (exit 1)
+PASS tests/audit-fixes/fix-s333-credit-lifecycle.mjs
+PASS tests/audit-fixes/fix-s334-credit-settlement-column.mjs
+PASS tests/audit-fixes/fix-s335-credit-method-direct-lock.mjs
+PASS tests/audit-fixes/fix-s336-pos-print-toggle-position.mjs
+FAIL tests/audit-fixes/fix-s337-split-credit-feature-flag.mjs (exit 1)
+PASS tests/audit-fixes/fix-s338-credit-lifecycle-e2e.mjs
+PASS tests/audit-fixes/fix-s339-credit-expiry-settings-characterization.mjs
+PASS tests/audit-fixes/fix-s340-returns-tabs-characterization.mjs
+PASS tests/audit-fixes/fix-s341-split-cash-card-backend-characterization.mjs
+PASS tests/audit-fixes/fix-s342-lockoff-canopen-characterization.mjs
+PASS tests/audit-fixes/fix-s342-pos-split-safe-input.mjs
+PASS tests/audit-fixes/fix-s343-credit-settlement-readonly.mjs
+PASS tests/audit-fixes/fix-s344-credit-audit-redaction.mjs
+PASS tests/audit-fixes/fix-s344-credit-settlement-lineage.mjs
+PASS tests/audit-fixes/fix-s345-exchange-positive-cash-card-split.mjs
+FAIL tests/audit-fixes/fix-s346-custody-foundation.mjs (exit 1)
+PASS tests/audit-fixes/fix-s347-manager-session-main-first.mjs
+PASS tests/audit-fixes/fix-s348-staff-personnel-sensitive.mjs
+PASS tests/audit-fixes/fix-s349-personnel-ipc-manager-boundary.mjs
+PASS tests/audit-fixes/fix-s350-staff-personnel-atomic.mjs
+PASS tests/audit-fixes/fix-s351-return-correction-ledger-ipc-gate.mjs
+PASS tests/audit-fixes/fix-s352-sensitive-report-ipc-gates.mjs
+PASS tests/audit-fixes/fix-s353-item-revision-snapshots.mjs
+PASS tests/audit-fixes/fix-s354-return-correction-default-lock-ipc.mjs
+PASS tests/audit-fixes/fix-s355-staff-form-edit-visibility.mjs
+PASS tests/audit-fixes/fix-s356-staff-progressive-profile.mjs
+PASS tests/audit-fixes/fix-s357-shift-template-identity.mjs
+PASS tests/audit-fixes/fix-s358-custody-input-redaction.mjs
+FAIL tests/audit-fixes/fix-s359-legacy-shift-plan-review.mjs (exit 1)
+PASS tests/audit-fixes/fix-s360-canonical-shift-schedule-custody.mjs
+PASS tests/audit-fixes/fix-s361-canonical-shift-schedule-validation.mjs
+PASS tests/audit-fixes/fix-s362-legacy-plan-review-only.mjs
+FAIL tests/audit-fixes/fix-s363-pending-handover-recount.mjs (exit 1)
+FAIL tests/audit-fixes/fix-s364-shift-change-boundary-handover.mjs (exit 1)
+PASS tests/audit-fixes/fix-s365-custody-cash-writer-gates.mjs
+FAIL tests/audit-fixes/fix-s366-single-shift-canonical-assignment.mjs (exit 1)
+FAIL tests/audit-fixes/fix-s367-terminated-staff-custody-guard.mjs (exit 1)
+PASS tests/audit-fixes/fix-s368-return-correction-ui-lock-gate.mjs
+PASS tests/audit-fixes/fix-s369-return-exchange-panel-ipc-gate.mjs
+PASS tests/audit-fixes/fix-s370-sale-get-credit-redaction.mjs
+PASS tests/audit-fixes/fix-s371-sales-reports-exchange-correction-lock.mjs
+PASS tests/audit-fixes/fix-s372-exchange-print-panel-gate.mjs
+PASS tests/audit-fixes/fix-s373-credit-mark-printed-manager-gate.mjs
+PASS tests/audit-fixes/fix-s374-custody-legacy-fail-closed.mjs
+FAIL tests/audit-fixes/fix-s375-handover-discrepancy-accountability.mjs (exit 1)
+PASS tests/audit-fixes/fix-s376-unattended-scheduled-recovery.mjs
+FAIL tests/audit-fixes/fix-s377-emergency-cover-accountability.mjs (exit 1)
+FAIL tests/audit-fixes/fix-s378-master-override-accountability.mjs (exit 1)
+PASS tests/audit-fixes/fix-s379-active-custodian-archive-recovery.mjs
+PASS tests/audit-fixes/fix-s380-custody-scheduling-workflows.mjs
+FAIL tests/audit-fixes/fix-s381-custody-no-implicit-owner-and-expected-gate.mjs (exit 1)
+FAIL tests/audit-fixes/fix-s382-custody-segment-schedule-snapshot.mjs (exit 1)
+FAIL tests/audit-fixes/fix-s383-custody-boundary-snapshot.mjs (exit 1)
+PASS tests/audit-fixes/fix-s384-custody-sale-operator-evidence.mjs
+PASS tests/audit-fixes/fix-s385-custody-sale-operator-report.mjs
+PASS tests/audit-fixes/fix-s386-custody-terminal-evidence-report.mjs
+PASS tests/audit-fixes/fix-s387-custody-report-bounds.mjs
+PASS tests/audit-fixes/fix-s388-custody-report-pagination.mjs
+PASS tests/audit-fixes/fix-s389-custody-audit-export.mjs
+PASS tests/audit-fixes/fix-s390-custody-report-jalali-range.mjs
+PASS tests/audit-fixes/fix-s391-custody-main-audit-export-ipc.mjs
+PASS tests/audit-fixes/fix-s392-legacy-shift-recovery.mjs
+PASS tests/audit-fixes/fix-s393-custody-aggregate-boundary.mjs
+PASS tests/audit-fixes/fix-s394-custody-aggregate-normal-handover.mjs
+PASS tests/audit-fixes/fix-s395-custody-aggregate-final-and-emergency.mjs
+PASS tests/audit-fixes/fix-s396-custody-aggregate-final-rollback.mjs
+PASS tests/audit-fixes/fix-s397-custody-aggregate-live-midday-bootstrap.mjs
+PASS tests/audit-fixes/fix-s57-returns.mjs
+FAIL tests/audit-fixes/fix-s58-remaining.mjs (exit 1)
+FAIL tests/audit-fixes/fix-s59-bridge-exchange.mjs (exit 1)
+FAIL tests/audit-fixes/fix-s60-exchange-debt.mjs (exit 1)
+FAIL tests/audit-fixes/fix-s61-overpay-credit.mjs (exit 1)
+PASS tests/audit-fixes/fix-s62-overpay-flow.mjs
+PASS tests/audit-fixes/fix-s63-edit-overpay-lock.mjs
+PASS tests/audit-fixes/fix-s64-return-void.mjs
+FAIL tests/audit-fixes/fix-s65-exchange-void.mjs (exit 1)
+PASS tests/audit-fixes/fix-s66-payment-void.mjs
+PASS tests/audit-fixes/fix-s67-payment-actor.mjs
+PASS tests/audit-fixes/fix-s68-payment-provenance.mjs
+PASS tests/audit-fixes/fix-s69-cash-close-atomic.mjs
+PASS tests/audit-fixes/fix-s69-cheque-history.mjs
+PASS tests/audit-fixes/fix-s69-consolidation-retry.mjs
+PASS tests/audit-fixes/fix-s69-day-boundary.mjs
+PASS tests/audit-fixes/fix-s70-event-scope.mjs
+FAIL tests/audit-fixes/fix-s71-event-owner.mjs (exit 1)
+FAIL tests/audit-fixes/fix-s72-shift-number.mjs (exit 1)
+PASS tests/audit-fixes/fix-s73-full-refund.mjs
+PASS tests/audit-fixes/fix-s74-cluster-a.mjs
+PASS tests/audit-fixes/fix-s75-shift-atomic.mjs
+PASS tests/audit-fixes/fix-s76-card-transfer-day-boundary.mjs
+PASS tests/audit-fixes/fix-s77-cash-close-repeat.mjs
+PASS tests/audit-fixes/fix-s78-open-session-gate.mjs
+FAIL tests/audit-fixes/fix-s79-cash-close-race.mjs (exit 1)
+PASS tests/audit-fixes/fix-s80-open-session-idempotency.mjs
+PASS tests/audit-fixes/fix-s81-cash-close-two-connections.mjs
+PASS tests/audit-fixes/fix-s82-open-session-two-connections.mjs
+PASS tests/audit-fixes/fix-s84-devtools-lock.mjs
+PASS tests/audit-fixes/fix-s84-fraud-audit-column.mjs
+PASS tests/audit-fixes/fix-s84-xlsx-dash.mjs
+PASS tests/audit-fixes/fix-s85-security-gates.mjs
+PASS tests/audit-fixes/fix-s86-exchange-return-output.mjs
+PASS tests/audit-fixes/fix-s87-report-export-columns.mjs
+PASS tests/audit-fixes/fix-s88-staff-report-integrity.mjs
+PASS tests/audit-fixes/fix-s89-return-rate.mjs
+PASS tests/audit-fixes/fix-s90-printer-cleanup.mjs
+PASS tests/audit-fixes/fix-s91-report-filter-propagation.mjs
+PASS tests/audit-fixes/fix-s92-cash-filter-merge.mjs
+PASS tests/audit-fixes/fix-s93-dedicated-extra-report-print.mjs
+PASS tests/audit-fixes/fix-s94-dedicated-extra-report-export.mjs
+PASS tests/audit-fixes/fix-s95-tsx-parser-template-literal.mjs
+PASS tests/audit-fixes/fix-s96-cheque-filter-propagation.mjs
+PASS tests/audit-fixes/fix-s97-credit-filter-propagation.mjs
+PASS tests/audit-fixes/fix-s98-credit-filter-scale.mjs
+PASS tests/audit-fixes/fix-s99-report-pagination.mjs
+PASS tests/audit-fixes/fix-sale-med-01-zero-discount-ceiling.mjs
+PASS tests/audit-fixes/fix-set001-settings-bundle-atomic.mjs
+PASS tests/audit-fixes/fix-set002-panel-lock-lockout.mjs
+FAIL tests/audit-fixes/fix-y12-sale-shift.mjs (exit 1)
+FAIL tests/audit-fixes/fix-y13-settings-side-channels.mjs (exit 1)
+FAIL tests/audit-fixes/fix-y14-y16-exchange-pricing.mjs (exit 1)
+PASS tests/audit-fixes/fix-y15-cash-destination.mjs
+PASS tests/audit-fixes/fix-y18-unknown-destination-outside-expected.mjs
+PASS tests/audit-fixes/fix-y19-prior-manager-bridge.mjs
+PASS tests/audit-fixes/fix-y23-settled-current.mjs
+PASS tests/audit-fixes/fix-y7-credit-delete-void.mjs
+PASS tests/audit-fixes/fix-y9-shift-open-staff-save-actor.mjs
+PASS tests/audit-fixes/fix-zip-audit-high-01-manager-password-paths.mjs
+PASS tests/audit-fixes/fix-zip-audit-high-02-shift-cash-ownership.mjs
+PASS tests/audit-fixes/fix-zip-audit-high-03-sales-report-main-gate.mjs
+PASS tests/audit-fixes/fix-zip-audit-high-04-payment-idempotency-seq.mjs
+PASS tests/audit-fixes/fix-zip-audit-high-05-credit-code-report-redaction.mjs
+PASS tests/audit-fixes/fix-zip-audit-high-06-backup-path-confinement.mjs
+PASS tests/audit-fixes/fix-zip-audit-high-07-backup-sqlite-validation.mjs
+FAIL tests/audit-fixes/fix-zip-audit-high-08-merge-financial-ledgers.mjs (exit 1)
+PASS tests/audit-fixes/fix-zip-audit-medium-01-merge-fail-closed.mjs
+PASS tests/audit-fixes/fix-zip-audit-medium-02-shift-current-actor.mjs
+PASS tests/audit-fixes/fix-zip-audit-medium-03-backup-replace-mark-after-copy.mjs

@@ -1,0 +1,16 @@
+MAHAK-KLAD — وضعیت بستهٔ CMD
+
+محتوا از worktree محلی فعلی روی شاخه arena/8a852de1-mahak-klad تهیه شده است؛ تغییرات ذخیره‌نشده، فایل‌های تازه، تست‌ها، migrationها و گزارش‌های موجود حفظ شده‌اند. .git، node_modules و خروجی build محلی عمداً داخل ZIP نیستند.
+
+بررسی‌های انجام‌شده در این نوبت:
+- npm run check:syntax — موفق، 238 فایل OK و 0 خطا
+- npm run build:check — موفق (Electron Vite build)
+- deep-e2e-exchange-positive-delta-restricted-tender-matrix.mjs — موفق، 5/5
+- fix-exchange-credit-restriction-scope.mjs — موفق
+- git diff --check — بدون خطا
+
+محدودیت مهم:
+- فایل نصب‌کنندهٔ Windows با پسوند EXE در این بسته نیست.
+- ساخت dist:win در محیط بسته‌بندی کامل نشد؛ prisma generate برای دریافت موتور Prisma به binaries.prisma.sh نیاز داشت، ولی اتصال این محیط به آن میزبان برقرار نشد.
+- بنابراین نصب EXE در Windows را نمی‌توانم تأییدشده اعلام کنم. برای اجرای CMD روی Windows، فایل INSTALL-WINDOWS-CMD.txt راهنماست و نصب اولیه به Node.js و اینترنت برای npm/Prisma نیاز دارد.
+- مجموعهٔ ادعاشدهٔ 130 سناریو در همین نوبت به‌طور کامل دوباره اجرا نشده؛ این بسته نتیجهٔ 5/5 آزمون ماتریس اخیر را همراه دارد، نه تأیید تازهٔ 130/130.

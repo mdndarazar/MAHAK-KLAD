@@ -1,0 +1,24 @@
+# Batch 22
+
+Executions: 20
+
+- PASS · E100 085 × CASH · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 085 × CARD · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 085 × CARD_TO_CARD · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 085 × STORE_CREDIT · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 085 × NONE · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 086 × CASH · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 086 × CARD · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 086 × CARD_TO_CARD · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 086 × STORE_CREDIT · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 086 × NONE · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=1
+- PASS · E100 087 × CASH · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+- PASS · E100 087 × CARD · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+- PASS · E100 087 × CARD_TO_CARD · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+- PASS · E100 087 × STORE_CREDIT · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+- PASS · E100 087 × NONE · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+- PASS · E100 088 × CASH · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+- PASS · E100 088 × CARD · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+- PASS · E100 088 × CARD_TO_CARD · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+- PASS · E100 088 × STORE_CREDIT · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0
+- PASS · E100 088 × NONE · exit=0 · PASS=1 FAIL=0 BLOCKED=0 findings=0 expectedBlocks=0

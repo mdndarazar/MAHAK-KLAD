@@ -1,0 +1,67 @@
+{
+  "case": 8,
+  "status": "PASS",
+  "isolatedDatabase": "/tmp/mahak-exch-credit-case8-WlYfPk/isolated.db",
+  "amounts": {
+    "grossSale": 4000000,
+    "cashPaid": 1000000,
+    "cardPaid": 1500000,
+    "pendingCheque": 1500000,
+    "returnedItemValue": 2000000,
+    "cashRefund": 500000
+  },
+  "actual": {
+    "returnId": 1,
+    "refund": 500000,
+    "pendingChequeStatus": "PENDING",
+    "rawCash": 1000000,
+    "rawCard": 1500000,
+    "cashRefund": 500000,
+    "blue": 2000000,
+    "reportTotals": {
+      "count": 1,
+      "goodsTotal": 4000000,
+      "taxTotal": 0,
+      "serviceTotal": 0,
+      "discountTotal": 0,
+      "deliveryTotal": 0,
+      "grandTotal": 4000000,
+      "cashTotal": 1000000,
+      "cardTotal": 1500000,
+      "creditTotal": 0,
+      "otherTotal": 0,
+      "receivedTotal": 2500000,
+      "returnedTotal": 2000000,
+      "exchangeCreditTotal": 0,
+      "storeCreditUsedTotal": 0,
+      "storeCreditIssuedTotal": 0,
+      "exchangeCount": 0,
+      "exchangeDiffTotal": 0,
+      "overpayTotal": 0,
+      "creditRemainingTotal": 0,
+      "priorSettlementTotal": 0,
+      "netReceivedTotal": 2500000,
+      "exchangeReturnedTotal": 0,
+      "refundCashTotal": 500000,
+      "refundCardTotal": 0,
+      "refundDebtOnlyTotal": 0,
+      "storeCreditRefundTotal": 0,
+      "legacyRefundCount": 0,
+      "managerAccountTotal": 0,
+      "destinationUnknownTotal": 0
+    },
+    "stock": [
+      {
+        "name": "returned cash-paid item",
+        "actual": 100,
+        "ledger": 0
+      },
+      {
+        "name": "kept item with pending cheque",
+        "actual": 99,
+        "ledger": -1
+      }
+    ]
+  },
+  "policyAssessment": "The returned item was 2,000,000; the still-pending cheque share (1,500,000) was not treated as money received, so only the 500,000 actually cash-backed remainder was refunded. The cheque remains pending."
+}

@@ -1,0 +1,11 @@
+# سناریوی ۱C — شاخهٔ کارت‌به‌کارت (سناریوی مستقل جدید نیست)
+
+**نتیجه: PASS.** سامانه روش CARD_TO_CARD را پذیرفت و درخواست ۱۰۰٬۰۰۰ ریالی ساخت؛ مدیر با رمز تست آن را پرداخت‌شده ثبت کرد.
+
+- فروش ۱٬۰۰۰٬۰۰۰ = ۶۰۰٬۰۰۰ نقد + ۴۰۰٬۰۰۰ در چهار بارکد ۱۰۰٬۰۰۰.
+- برگشت کالای ۵۰۰٬۰۰۰: اعتبار منبع ۴۰۰٬۰۰۰ برگشت؛ درخواست C2C برای ۱۰۰٬۰۰۰ ساخته شد؛ قبل از پرداخت مدیر موجودی در انتظار ماند.
+- پس از تأیید مدیر: درخواست PAID و ۱۰۰٬۰۰۰ پرداخت شد؛ موجودی کالای برگشتی آزاد شد.
+- مرجع آبی قبل و بعد 600000 ماند؛ C2C نه CASH است نه POS، بنابراین در فرمول آبیِ نقد/POS وارد نشد. هیچ CashMovement نقدی ساخته نشد.
+- تطبیق مستقل خام اسناد و گزارش سرویس: [{"label":"baseline","expected":{"cash":0,"card":0,"refundCash":0,"refundCard":0},"actual":{"cash":0,"card":0,"refundCash":0,"refundCard":0},"raw":{"cash":0,"card":0,"refundCash":0,"refundCard":0},"blue":0,"expectedBlue":0,"stocks":[{"id":1,"stock":10,"movement":0},{"id":2,"stock":10,"movement":0}]},{"label":"sale: 600k cash + 400k barcode","expected":{"cash":600000,"card":0,"refundCash":0,"refundCard":0},"actual":{"cash":600000,"card":0,"refundCash":0,"refundCard":0},"raw":{"cash":600000,"card":0,"refundCash":0,"refundCard":0},"blue":600000,"expectedBlue":600000,"stocks":[{"id":1,"stock":9,"movement":-1},{"id":2,"stock":9,"movement":-1}]},{"label":"return accepted; C2C request pending","expected":{"cash":600000,"card":0,"refundCash":0,"refundCard":0},"actual":{"cash":600000,"card":0,"refundCash":0,"refundCard":0},"raw":{"cash":600000,"card":0,"refundCash":0,"refundCard":0},"blue":600000,"expectedBlue":600000,"stocks":[{"id":1,"stock":9,"movement":-1},{"id":2,"stock":9,"movement":-1}]},{"label":"manager confirms 100k transfer; stock released","expected":{"cash":600000,"card":0,"refundCash":0,"refundCard":0},"actual":{"cash":600000,"card":0,"refundCash":0,"refundCard":0},"raw":{"cash":600000,"card":0,"refundCash":0,"refundCard":0},"blue":600000,"expectedBlue":600000,"stocks":[{"id":1,"stock":10,"movement":0},{"id":2,"stock":9,"movement":-1}]}]
+
+این آزمون نشان می‌دهد مسیر CARD_TO_CARD پذیرفته می‌شود؛ به‌تنهایی صحت همهٔ موارد پنل/چاپ واقعی یا انقضای اعتبار را ثابت نمی‌کند. دیتابیس SQLite موقت بود.

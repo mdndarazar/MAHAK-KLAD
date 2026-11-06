@@ -1,0 +1,863 @@
+{
+  "generatedAt": "2026-10-26T12:23:36.616Z",
+  "isolatedDatabase": "/tmp/mahak-followup-e2e-9lSLIV/isolated.db",
+  "scenarioNumber": 1,
+  "priorFailureMemory": "Four fully credit-funded 1,000,000 sale; partial return followed by exchange rejected: physical settlement expected 500,000 but traceable physical source 0.",
+  "scenario": "Four 100,000 barcode credits + 600,000 cash fund two 500,000 goods; return first line without physical refund; exchange remaining 500,000 item to 450,000.",
+  "conclusion": "FAIL: sale/return accounting checkpoints passed; exchange rejected. A credit-funded source share must not be treated as cash. Confirm whether a mixed-funding return/exchange is intended under the store policy; no policy assumption or source-code edit made.",
+  "status": "FAIL",
+  "exchangeFailure": {
+    "message": "سهم وجه واقعیِ قابل‌تسویه ۵۰۰٬۰۰۰ ریال است، اما در زنجیره فقط ۱۰۰٬۰۰۰ ریال وجه وصول‌شده و قابل‌ردیابی وجود دارد. اعتبار، چکِ وصول‌نشده یا بدهی به‌جای پول واقعی بازپرداخت نمی‌شود.",
+    "stack": "BusinessError: سهم وجه واقعیِ قابل‌تسویه ۵۰۰٬۰۰۰ ریال است، اما در زنجیره فقط ۱۰۰٬۰۰۰ ریال وجه وصول‌شده و قابل‌ردیابی وجود دارد. اعتبار، چکِ وصول‌نشده یا بدهی به‌جای پول واقعی بازپرداخت نمی‌شود.\n    at planExchangeReturnFunding (file:///home/user/MAHAK-KLAD/src/main/services/SalesService.ts:1762:11)\n    at exchangeReturnFundingBuckets (file:///home/user/MAHAK-KLAD/src/main/services/SalesService.ts:1812:10)\n    at async file:///home/user/MAHAK-KLAD/src/main/services/SalesService.ts:7378:35\n    at async client.$transaction (file:///home/user/MAHAK-KLAD/test/harness/prismaLite.mjs:921:22)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-followup-10-scenarios.mjs:154:14"
+  },
+  "beforeFailedExchange": {
+    "returnRows": 1,
+    "invoices": 1,
+    "paymentRows": 5
+  },
+  "after": {
+    "returnRows": 1,
+    "invoices": 1,
+    "paymentRows": 5
+  },
+  "events": [
+    {
+      "label": "BASELINE",
+      "expectedPhysical": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualPhysical": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "rawIndependent": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blueActual": 0,
+      "blueExpected": 0,
+      "blueRaw": 0,
+      "stocks": [],
+      "credits": [],
+      "invoices": [],
+      "returns": []
+    },
+    {
+      "label": "credit issue 1/4",
+      "expectedPhysical": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualPhysical": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "rawIndependent": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blueActual": 0,
+      "blueExpected": 0,
+      "blueRaw": 0,
+      "stocks": [
+        {
+          "variant": "01-original-500k",
+          "baseline": 10,
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "01-remaining-500k",
+          "baseline": 10,
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "01-replacement-450k",
+          "baseline": 10,
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [
+        {
+          "label": "new-code-1",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [],
+      "returns": []
+    },
+    {
+      "label": "credit issue 2/4",
+      "expectedPhysical": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualPhysical": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "rawIndependent": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blueActual": 0,
+      "blueExpected": 0,
+      "blueRaw": 0,
+      "stocks": [
+        {
+          "variant": "01-original-500k",
+          "baseline": 10,
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "01-remaining-500k",
+          "baseline": 10,
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "01-replacement-450k",
+          "baseline": 10,
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [
+        {
+          "label": "new-code-1",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "new-code-2",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [],
+      "returns": []
+    },
+    {
+      "label": "credit issue 3/4",
+      "expectedPhysical": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualPhysical": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "rawIndependent": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blueActual": 0,
+      "blueExpected": 0,
+      "blueRaw": 0,
+      "stocks": [
+        {
+          "variant": "01-original-500k",
+          "baseline": 10,
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "01-remaining-500k",
+          "baseline": 10,
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "01-replacement-450k",
+          "baseline": 10,
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [
+        {
+          "label": "new-code-1",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "new-code-2",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "new-code-3",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [],
+      "returns": []
+    },
+    {
+      "label": "credit issue 4/4",
+      "expectedPhysical": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualPhysical": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "rawIndependent": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blueActual": 0,
+      "blueExpected": 0,
+      "blueRaw": 0,
+      "stocks": [
+        {
+          "variant": "01-original-500k",
+          "baseline": 10,
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "01-remaining-500k",
+          "baseline": 10,
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "01-replacement-450k",
+          "baseline": 10,
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [
+        {
+          "label": "new-code-1",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "new-code-2",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "new-code-3",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "new-code-4",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [],
+      "returns": []
+    },
+    {
+      "label": "sale: 600k cash + four 100k barcodes",
+      "expectedPhysical": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualPhysical": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "rawIndependent": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blueActual": 600000,
+      "blueExpected": 600000,
+      "blueRaw": 600000,
+      "stocks": [
+        {
+          "variant": "01-original-500k",
+          "baseline": 10,
+          "expected": 9,
+          "actual": 9,
+          "ledgerDelta": -1
+        },
+        {
+          "variant": "01-remaining-500k",
+          "baseline": 10,
+          "expected": 9,
+          "actual": 9,
+          "ledgerDelta": -1
+        },
+        {
+          "variant": "01-replacement-450k",
+          "baseline": 10,
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [
+        {
+          "label": "new-code-1",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "new-code-2",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "new-code-3",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "new-code-4",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "receiptNo": 1,
+          "status": "SETTLED",
+          "type": "INTERNAL",
+          "grandTotal": 1000000,
+          "paidTotal": 1000000,
+          "payments": [
+            {
+              "method": "F10-CASH",
+              "kind": "CASH",
+              "amount": 600000
+            },
+            {
+              "method": "STORE_CREDIT",
+              "kind": "STORE_CREDIT",
+              "amount": 400000
+            }
+          ]
+        }
+      ],
+      "returns": [],
+      "invoice": {
+        "id": 1,
+        "total": 1000000,
+        "cash": 600000,
+        "storeCredit": 400000
+      }
+    },
+    {
+      "label": "unconfirmed 100k overpayment return rejected; no document or stock effect",
+      "expectedPhysical": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualPhysical": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "rawIndependent": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blueActual": 600000,
+      "blueExpected": 600000,
+      "blueRaw": 600000,
+      "stocks": [
+        {
+          "variant": "01-original-500k",
+          "baseline": 10,
+          "expected": 9,
+          "actual": 9,
+          "ledgerDelta": -1
+        },
+        {
+          "variant": "01-remaining-500k",
+          "baseline": 10,
+          "expected": 9,
+          "actual": 9,
+          "ledgerDelta": -1
+        },
+        {
+          "variant": "01-replacement-450k",
+          "baseline": 10,
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [
+        {
+          "label": "new-code-1",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "new-code-2",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "new-code-3",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "new-code-4",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "receiptNo": 1,
+          "status": "SETTLED",
+          "type": "INTERNAL",
+          "grandTotal": 1000000,
+          "paidTotal": 1000000,
+          "payments": [
+            {
+              "method": "F10-CASH",
+              "kind": "CASH",
+              "amount": 600000
+            },
+            {
+              "method": "STORE_CREDIT",
+              "kind": "STORE_CREDIT",
+              "amount": 400000
+            }
+          ]
+        }
+      ],
+      "returns": []
+    },
+    {
+      "label": "confirmed return; excess explicitly issued as credit, no physical payout",
+      "expectedPhysical": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualPhysical": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "rawIndependent": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blueActual": 600000,
+      "blueExpected": 600000,
+      "blueRaw": 600000,
+      "stocks": [
+        {
+          "variant": "01-original-500k",
+          "baseline": 10,
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "01-remaining-500k",
+          "baseline": 10,
+          "expected": 9,
+          "actual": 9,
+          "ledgerDelta": -1
+        },
+        {
+          "variant": "01-replacement-450k",
+          "baseline": 10,
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [
+        {
+          "label": "new-code-1",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "new-code-2",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "new-code-3",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "new-code-4",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "return-credit-1",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "return-credit-2",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "return-credit-3",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "return-credit-4",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "receiptNo": 1,
+          "status": "PARTIALLY_RETURNED",
+          "type": "INTERNAL",
+          "grandTotal": 1000000,
+          "paidTotal": 1000000,
+          "payments": [
+            {
+              "method": "F10-CASH",
+              "kind": "CASH",
+              "amount": 600000
+            },
+            {
+              "method": "STORE_CREDIT",
+              "kind": "STORE_CREDIT",
+              "amount": 400000
+            }
+          ]
+        }
+      ],
+      "returns": [
+        {
+          "id": 1,
+          "invoiceId": 1,
+          "kind": "RETURN",
+          "total": 500000,
+          "refundMethod": "NONE",
+          "refundAmount": 0,
+          "refundStoreCreditAmount": 0,
+          "exchangeInvoiceId": null,
+          "exchangeTotal": 0,
+          "exchangeDiff": 0,
+          "exchangeSettlement": null,
+          "voided": false
+        }
+      ],
+      "returnResult": {
+        "id": 1,
+        "value": 500000,
+        "refundMethod": "NONE",
+        "refundAmount": 0,
+        "returnCreditAmount": 400000,
+        "sourceCreditRestoredAmount": 400000,
+        "overpayCreditAmount": 0,
+        "successorCount": 4
+      }
+    },
+    {
+      "label": "post rejected exchange: rollback and unchanged balances",
+      "expectedPhysical": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualPhysical": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "rawIndependent": {
+        "cash": 600000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blueActual": 600000,
+      "blueExpected": 600000,
+      "blueRaw": 600000,
+      "stocks": [
+        {
+          "variant": "01-original-500k",
+          "baseline": 10,
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "01-remaining-500k",
+          "baseline": 10,
+          "expected": 9,
+          "actual": 9,
+          "ledgerDelta": -1
+        },
+        {
+          "variant": "01-replacement-450k",
+          "baseline": 10,
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [
+        {
+          "label": "new-code-1",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "new-code-2",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "new-code-3",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "new-code-4",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "return-credit-1",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "return-credit-2",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "return-credit-3",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "return-credit-4",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "receiptNo": 1,
+          "status": "PARTIALLY_RETURNED",
+          "type": "INTERNAL",
+          "grandTotal": 1000000,
+          "paidTotal": 1000000,
+          "payments": [
+            {
+              "method": "F10-CASH",
+              "kind": "CASH",
+              "amount": 600000
+            },
+            {
+              "method": "STORE_CREDIT",
+              "kind": "STORE_CREDIT",
+              "amount": 400000
+            }
+          ]
+        }
+      ],
+      "returns": [
+        {
+          "id": 1,
+          "invoiceId": 1,
+          "kind": "RETURN",
+          "total": 500000,
+          "refundMethod": "NONE",
+          "refundAmount": 0,
+          "refundStoreCreditAmount": 0,
+          "exchangeInvoiceId": null,
+          "exchangeTotal": 0,
+          "exchangeDiff": 0,
+          "exchangeSettlement": null,
+          "voided": false
+        }
+      ]
+    }
+  ]
+}

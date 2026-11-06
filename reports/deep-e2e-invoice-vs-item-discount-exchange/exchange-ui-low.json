@@ -1,0 +1,20 @@
+{
+  "case": "EXCHANGE-UI-LOW",
+  "isolatedDatabase": "/tmp/mahak-invoice-item-discount-exchange-ui-low-tH59Bp/isolated.db",
+  "status": "PASS",
+  "observation": {
+    "exchangeApiMode": "current SalesReturn-style payload; no replacement invoiceDiscount",
+    "sourceSaleGross": 10000000,
+    "sourceInvoiceDiscount": 1000000,
+    "sourcePaidAndReturnValue": 9000000,
+    "replacementGross": 9000000,
+    "replacementInvoiceDiscount": 0,
+    "replacementNet": 9000000,
+    "diff": 0,
+    "direction": "zero",
+    "cashReceived": 0,
+    "cashRefunded": 0,
+    "currentExchangeUiHasManagerAutoDiscount": false,
+    "transferYesNoImplemented": false
+  }
+}

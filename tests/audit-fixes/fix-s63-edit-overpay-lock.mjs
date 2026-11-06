@@ -240,10 +240,14 @@ const xInv = await safe('فاکتور پرداخت‌شده‌ی ۶۰۰+۴۰۰',
   return salesService.create({ userId, shiftId, lines: [line(v1, 600), line(v2, 400)], payments: [{ methodId: cash, amount: 1000, destination: 'CASH' }] })
 })
 const xItems = seed.rows('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId = ? ORDER BY id', xInv.id)
+const xGateBefore = { returns: seed.count('SaleReturn'), credits: seed.count('StoreCredit'), payments: seed.count('Payment') }
 await throwsWith('اعتبار ۴۰۰ بالای سقف ۱۰۰ بدون رمز ⇒ درخواست رمز مدیر', () => salesService.createExchange({
-  invoiceId: xInv.id, lines: [{ saleItemId: xItems[0].id, qty: 1 }], replacements: [{ variantId: variant(200), qty: 1 }], refundMode: 'STORE_CREDIT', userId, shiftId }), 'رمز مدیر')
-const x = await probe('تعویض با اعتبار بالای سقف و رمز درست', () => salesService.createExchange({
-  invoiceId: xInv.id, lines: [{ saleItemId: xItems[0].id, qty: 1 }], replacements: [{ variantId: variant(200), qty: 1 }], refundMode: 'STORE_CREDIT', userId, shiftId, managerPassword: PW }))
+  invoiceId: xInv.id, lines: [{ saleItemId: xItems[0].id, qty: 1 }], replacements: [{ variantId: variant(200), qty: 1 }], refundMode: 'STORE_CREDIT', userId, shiftId }), 'تایید مدیر لازم دارد')
+await throwsWith('رمز قیمت/دوره به‌تنهایی از گیت سقف اعتبار عبور نمی‌کند', () => salesService.createExchange({
+  invoiceId: xInv.id, lines: [{ saleItemId: xItems[0].id, qty: 1 }], replacements: [{ variantId: variant(200), qty: 1 }], refundMode: 'STORE_CREDIT', userId, shiftId, managerPassword: PW }), 'تایید مدیر لازم دارد')
+eq('رد هر دو مجوز نادرست هیچ سند/اعتبار/پرداختی نساخت', JSON.stringify({ returns: seed.count('SaleReturn'), credits: seed.count('StoreCredit'), payments: seed.count('Payment') }), JSON.stringify(xGateBefore))
+const x = await probe('تعویض با اعتبار بالای سقف و رمز مستقل سقف', () => salesService.createExchange({
+  invoiceId: xInv.id, lines: [{ saleItemId: xItems[0].id, qty: 1 }], replacements: [{ variantId: variant(200), qty: 1 }], refundMode: 'STORE_CREDIT', userId, shiftId, storeCreditManagerPassword: PW }))
 truthy('تعویض ثبت شد', !x.err, String(x.err?.message))
 truthy('نتیجه تعویض فقط اعتبار امن دارد',
   !Object.hasOwn(x.res?.storeCredit ?? {}, 'code') && x.res?.storeCredit?.publicReference === `اعتبار #${x.res?.storeCredit?.id}`)

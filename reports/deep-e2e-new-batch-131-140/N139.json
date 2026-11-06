@@ -1,0 +1,415 @@
+{
+  "generatedAt": "2026-10-28T18:00:08.540Z",
+  "id": 139,
+  "scenario": "N139",
+  "isolatedDatabase": "/tmp/mahak-next10-139-rgPFbS/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "issue-credit",
+      "id": 1,
+      "code": "CRXG4ZDC",
+      "amount": 100000,
+      "multiUse": true,
+      "label": "credit-1",
+      "status": "ACTIVE",
+      "scope": "ALL",
+      "expiresAt": 1795811399999
+    },
+    {
+      "operation": "sale-partial-multiuse-credit-redemption",
+      "invoiceId": 1,
+      "itemQty": 2,
+      "unitPrice": 100000,
+      "gross": 200000,
+      "barcodeValue": 100000,
+      "barcodeApplied": 50000,
+      "cash": 150000,
+      "requestedFromBarcode": 50000
+    },
+    {
+      "label": "two-unit sale uses part of the multi-use barcode; cash/POS/blue and stock reconcile",
+      "expected": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 150000
+      },
+      "actual": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 150000,
+      "stock": [
+        {
+          "id": 1,
+          "name": "two-qty-credit-funded-item",
+          "expected": 8,
+          "actual": 8,
+          "ledger": -2
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 200000,
+          "paid": 200000,
+          "discount": 0,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 0,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CRXG4ZDC",
+          "amount": 100000,
+          "usedAmount": 50000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED",
+          "expiresAt": 1795811399999,
+          "scope": "ALL"
+        }
+      ],
+      "checkPayments": 0
+    },
+    {
+      "operation": "partial-return-restoration",
+      "returnId": 1,
+      "returnedQty": 1,
+      "itemValue": 100000,
+      "refundMethod": "CASH",
+      "cashRefund": 50000,
+      "returnedCreditShare": 50000,
+      "restoredToSource": 50000,
+      "successors": 0
+    },
+    {
+      "label": "return one unit at the officially accepted 50k cash share; restore source credit",
+      "expected": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 50000,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 50000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 50000,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "id": 1,
+          "name": "two-qty-credit-funded-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 200000,
+          "paid": 200000,
+          "discount": 0,
+          "status": "PARTIALLY_RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 1,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CRXG4ZDC",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795811399999,
+          "scope": "ALL"
+        }
+      ],
+      "checkPayments": 0
+    },
+    {
+      "operation": "sale",
+      "invoiceId": 2,
+      "gross": 100000,
+      "lineDiscount": 0,
+      "invoiceDiscount": 0,
+      "net": 100000,
+      "tender": "CASH",
+      "creditCode": "CRXG4ZDC",
+      "items": [
+        {
+          "id": 2,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 100000,
+          "discount": 0,
+          "lineTotal": 100000
+        }
+      ]
+    },
+    {
+      "label": "sale invoice 2: gross=100000; discounts=0; net=100000",
+      "expected": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 50000,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 50000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 50000,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "id": 1,
+          "name": "two-qty-credit-funded-item",
+          "expected": 8,
+          "actual": 8,
+          "ledger": -2
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 200000,
+          "paid": 200000,
+          "discount": 0,
+          "status": "PARTIALLY_RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 100000,
+          "paid": 100000,
+          "discount": 0,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 1,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CRXG4ZDC",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795811399999,
+          "scope": "ALL"
+        }
+      ],
+      "checkPayments": 0
+    },
+    {
+      "label": "reuse restored same code on another unit",
+      "expected": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 50000,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 50000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 50000,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "id": 1,
+          "name": "two-qty-credit-funded-item",
+          "expected": 8,
+          "actual": 8,
+          "ledger": -2
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 200000,
+          "paid": 200000,
+          "discount": 0,
+          "status": "PARTIALLY_RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 100000,
+          "paid": 100000,
+          "discount": 0,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 1,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CRXG4ZDC",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795811399999,
+          "scope": "ALL"
+        }
+      ],
+      "checkPayments": 0
+    },
+    {
+      "label": "final N139 reconciliation",
+      "expected": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 50000,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 50000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 50000,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "id": 1,
+          "name": "two-qty-credit-funded-item",
+          "expected": 8,
+          "actual": 8,
+          "ledger": -2
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 200000,
+          "paid": 200000,
+          "discount": 0,
+          "status": "PARTIALLY_RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 100000,
+          "paid": 100000,
+          "discount": 0,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 1,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CRXG4ZDC",
+          "amount": 100000,
+          "usedAmount": 100000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795811399999,
+          "scope": "ALL"
+        }
+      ],
+      "checkPayments": 0
+    }
+  ],
+  "findings": [],
+  "assertions": [
+    {
+      "key": "same-live-multiuse-code-restored-and-reused-no-successor",
+      "pass": true,
+      "code": "CRXG4ZDC",
+      "beforeUsed": 50000,
+      "afterReturnUsed": 0,
+      "successorCount": 0,
+      "laterApplied": 100000
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 150000,
+      "card": 0,
+      "refundCash": 50000,
+      "refundCard": 0,
+      "blue": 100000
+    },
+    "actual": {
+      "cash": 150000,
+      "card": 0,
+      "refundCash": 50000,
+      "refundCard": 0
+    },
+    "blue": 100000,
+    "stock": [
+      {
+        "name": "two-qty-credit-funded-item",
+        "expected": 8,
+        "actual": 8,
+        "ledger": -2
+      }
+    ],
+    "invoices": 2,
+    "returns": 1,
+    "credits": 1,
+    "checks": 0
+  }
+}

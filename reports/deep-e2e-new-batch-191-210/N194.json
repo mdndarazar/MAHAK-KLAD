@@ -1,0 +1,575 @@
+{
+  "generatedAt": "2026-10-28T18:41:46.831Z",
+  "id": 194,
+  "scenario": "N194",
+  "isolatedDatabase": "/tmp/mahak-next20-194-PQXIgl/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "settled-sale",
+      "invoiceId": 1,
+      "total": 50000,
+      "cash": 50000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 50000,
+          "lineTotal": 50000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 50000
+      },
+      "actual": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 50000,
+      "stock": [
+        {
+          "name": "return-cash",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 50000,
+          "paid": 50000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 50000,
+      "method": "CASH",
+      "refundAmount": 50000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 50000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 50000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 50000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "return-cash",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 50000,
+          "paid": 50000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "settled-sale",
+      "invoiceId": 2,
+      "total": 60000,
+      "cash": 0,
+      "card": 60000,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 2,
+          "variantId": 2,
+          "qty": 1,
+          "unitPrice": 60000,
+          "lineTotal": 60000
+        }
+      ]
+    },
+    {
+      "label": "sale 2",
+      "expected": {
+        "cash": 50000,
+        "card": 60000,
+        "refundCash": 50000,
+        "refundCard": 0,
+        "blue": 60000
+      },
+      "actual": {
+        "cash": 50000,
+        "card": 60000,
+        "refundCash": 50000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 50000,
+        "card": 60000,
+        "refundCash": 50000,
+        "refundCard": 0
+      },
+      "blue": 60000,
+      "stock": [
+        {
+          "name": "return-cash",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "return-card",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 50000,
+          "paid": 50000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 60000,
+          "paid": 60000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "return",
+      "id": 2,
+      "invoiceId": 2,
+      "itemId": 2,
+      "qty": 1,
+      "total": 60000,
+      "method": "CARD",
+      "refundAmount": 60000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 2",
+      "expected": {
+        "cash": 50000,
+        "card": 60000,
+        "refundCash": 50000,
+        "refundCard": 60000,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 50000,
+        "card": 60000,
+        "refundCash": 50000,
+        "refundCard": 60000
+      },
+      "raw": {
+        "cash": 50000,
+        "card": 60000,
+        "refundCash": 50000,
+        "refundCard": 60000
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "return-cash",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "return-card",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 50000,
+          "paid": 50000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 60000,
+          "paid": 60000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 2,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "settled-sale",
+      "invoiceId": 3,
+      "total": 70000,
+      "cash": 35000,
+      "card": 35000,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 3,
+          "variantId": 3,
+          "qty": 1,
+          "unitPrice": 70000,
+          "lineTotal": 70000
+        }
+      ]
+    },
+    {
+      "label": "sale 3",
+      "expected": {
+        "cash": 85000,
+        "card": 95000,
+        "refundCash": 50000,
+        "refundCard": 60000,
+        "blue": 70000
+      },
+      "actual": {
+        "cash": 85000,
+        "card": 95000,
+        "refundCash": 50000,
+        "refundCard": 60000
+      },
+      "raw": {
+        "cash": 85000,
+        "card": 95000,
+        "refundCash": 50000,
+        "refundCard": 60000
+      },
+      "blue": 70000,
+      "stock": [
+        {
+          "name": "return-cash",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "return-card",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "return-split",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 50000,
+          "paid": 50000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 60000,
+          "paid": 60000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 3,
+          "total": 70000,
+          "paid": 70000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 2,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "return",
+      "id": 3,
+      "invoiceId": 3,
+      "itemId": 3,
+      "qty": 1,
+      "total": 70000,
+      "method": "CASH",
+      "refundAmount": 70000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 3",
+      "expected": {
+        "cash": 85000,
+        "card": 95000,
+        "refundCash": 120000,
+        "refundCard": 60000,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 85000,
+        "card": 95000,
+        "refundCash": 120000,
+        "refundCard": 60000
+      },
+      "raw": {
+        "cash": 85000,
+        "card": 95000,
+        "refundCash": 120000,
+        "refundCard": 60000
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "return-cash",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "return-card",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "return-split",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 50000,
+          "paid": 50000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 60000,
+          "paid": 60000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 3,
+          "total": 70000,
+          "paid": 70000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 3,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N194 reconciliation",
+      "expected": {
+        "cash": 85000,
+        "card": 95000,
+        "refundCash": 120000,
+        "refundCard": 60000,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 85000,
+        "card": 95000,
+        "refundCash": 120000,
+        "refundCard": 60000
+      },
+      "raw": {
+        "cash": 85000,
+        "card": 95000,
+        "refundCash": 120000,
+        "refundCard": 60000
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "return-cash",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "return-card",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "return-split",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 50000,
+          "paid": 50000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 60000,
+          "paid": 60000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 3,
+          "total": 70000,
+          "paid": 70000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 3,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "modes": [
+    {
+      "key": "CASH funded sale returned in selected physical method",
+      "tender": "CASH",
+      "returnMethod": "CASH",
+      "amount": 50000
+    },
+    {
+      "key": "CARD funded sale returned in selected physical method",
+      "tender": "CARD",
+      "returnMethod": "CARD",
+      "amount": 60000
+    },
+    {
+      "key": "SPLIT funded sale returned in selected physical method",
+      "tender": "SPLIT",
+      "returnMethod": "CASH",
+      "amount": 70000
+    }
+  ],
+  "modeCount": 3,
+  "final": {
+    "expected": {
+      "cash": 85000,
+      "card": 95000,
+      "refundCash": 120000,
+      "refundCard": 60000,
+      "blue": 0
+    },
+    "actual": {
+      "cash": 85000,
+      "card": 95000,
+      "refundCash": 120000,
+      "refundCard": 60000
+    },
+    "blue": 0,
+    "stock": [
+      {
+        "name": "return-cash",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "return-card",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "return-split",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      }
+    ],
+    "invoices": 3,
+    "returns": 3,
+    "credits": 0,
+    "checks": 0
+  }
+}

@@ -550,11 +550,27 @@ export interface ExchangeReceiptData {
   settlementLabel: string
   /** مابه‌التفاوتی که نقد/کارت دریافت شد */
   cashReceived: number
+  /** مابه‌التفاوتی که واقعاً نقد از صندوق به مشتری برگشت */
+  cashRefunded?: number
+  /** مابه‌التفاوتی که با کارت به مشتری برگشت؛ خارج از صندوق نقدی */
+  cardRefunded?: number
   storeCreditCode?: string | null
   storeCreditAmount?: number
   storeCreditStatusLabel?: string | null
   storeCreditExpiresJalali?: string | null
   storeCreditBarcodeDataUrl?: string | null
+  /** همه‌ی اعتبارهای این تعویض: جانشینِ منشأدار و بارکدِ سهم وجه واقعی جدا چاپ می‌شوند. */
+  storeCredits?: Array<{
+    code: string
+    amount: number
+    expiresJalali?: string | null
+    statusLabel?: string | null
+    deliveryPending?: boolean
+    label?: string | null
+    barcodeDataUrl?: string | null
+  }>
+  /** Internal main-process IDs for print audit; never rendered into the receipt. */
+  storeCreditIds?: number[]
   note?: string
   footer?: string
 }
@@ -617,35 +633,53 @@ export function exchangeReceiptHtml(d: ExchangeReceiptData, template?: Partial<R
     `<div class="row${bold ? ' big' : ''}"><span>${escapeHtml(label)}</span><span>${money(value)}</span></div>`
 
   sums.push(sumRow('مابه‌التفاوت', Math.abs(d.diff), true))
+  const hasCashRefund = (d.cashRefunded ?? 0) > 0
+  const hasCardRefund = (d.cardRefunded ?? 0) > 0
+  const hasPayout = hasCashRefund || hasCardRefund
+  const settlementSummary = d.diff > 0
+    ? 'دریافت از مشتری'
+    : d.diff < 0
+      ? hasPayout && d.storeCreditAmount
+        ? `${hasCardRefund ? 'بازپرداخت کارتی' : 'بازپرداخت نقدی'} + صدور بارکد اعتبار برای مانده`
+        : hasCardRefund
+          ? 'بازپرداخت کارتی'
+          : hasCashRefund
+            ? 'بازپرداخت نقدی'
+            : d.storeCreditAmount
+              ? 'صدور بارکد اعتبار'
+              : d.settlementLabel
+      : 'مابه‌التفاوت صفر'
   sums.push(
-    `<div class="row"><span>نحوه‌ی تسویه</span><span>${escapeHtml(
-      d.diff > 0 ? 'دریافت از مشتری' : d.diff < 0 ? 'صدور بارکد اعتبار' : 'مابه‌التفاوت صفر'
-    )}</span></div>`
+    `<div class="row"><span>نحوه‌ی تسویه</span><span>${escapeHtml(settlementSummary)}</span></div>`
   )
   if (d.cashReceived > 0) sums.push(sumRow('دریافت نقد/کارت', d.cashReceived))
+  if (hasCashRefund) sums.push(sumRow('بازپرداخت نقدی از صندوق', d.cashRefunded ?? 0))
+  if (hasCardRefund) sums.push(sumRow('بازپرداخت به کارت مشتری', d.cardRefunded ?? 0))
   sums.push(`<div class="c kbd">${escapeHtml(d.settlementLabel)}</div>`)
 
-  const creditBlock =
-    d.storeCreditCode && (d.storeCreditAmount ?? 0) > 0
-      ? `<div class="line"></div>
-         <div class="c sec">بارکد اعتبار خرید بعدی</div>
-         <div class="c code"><b>${escapeHtml(d.storeCreditCode)}</b></div>
-         ${
-           d.storeCreditBarcodeDataUrl
-             ? `<div class="c"><img class="bc" src="${d.storeCreditBarcodeDataUrl}" alt="${escapeHtml(
-                 d.storeCreditCode
-               )}" /></div>`
-             : ''
-         }
-         <div class="row"><span>مبلغ اعتبار</span><span>${money(d.storeCreditAmount ?? 0)}</span></div>
-         ${
-           d.storeCreditExpiresJalali
-             ? `<div class="c kbd">اعتبار تا ${faDigits(d.storeCreditExpiresJalali)}</div>`
-             : ''
-         }
-         ${d.storeCreditStatusLabel ? `<div class="c kbd">${escapeHtml(d.storeCreditStatusLabel)}</div>` : ''}
-         <div class="c kbd">این بارکد یک‌بارمصرف است؛ در خرید بعدی آن را به فروشنده نشان دهید.</div>`
-      : ''
+  const creditRows = d.storeCredits?.length
+    ? d.storeCredits
+    : d.storeCreditCode && (d.storeCreditAmount ?? 0) > 0
+      ? [{
+          code: d.storeCreditCode,
+          amount: d.storeCreditAmount ?? 0,
+          expiresJalali: d.storeCreditExpiresJalali,
+          statusLabel: d.storeCreditStatusLabel,
+          barcodeDataUrl: d.storeCreditBarcodeDataUrl
+        }]
+      : []
+  const creditBlock = creditRows.map((credit) =>
+    `<div class="line"></div>
+     <div class="c sec">${escapeHtml(credit.label ?? 'بارکد اعتبار خرید بعدی')}</div>
+     <div class="c code"><b>${escapeHtml(credit.code)}</b></div>
+     ${credit.barcodeDataUrl
+       ? `<div class="c"><img class="bc" src="${credit.barcodeDataUrl}" alt="${escapeHtml(credit.code)}" /></div>`
+       : ''}
+     <div class="row"><span>مبلغ اعتبار</span><span>${money(credit.amount)}</span></div>
+     ${credit.expiresJalali ? `<div class="c kbd">اعتبار تا ${faDigits(credit.expiresJalali)}</div>` : ''}
+     ${credit.statusLabel ? `<div class="c kbd">${escapeHtml(credit.statusLabel)}</div>` : ''}
+     <div class="c kbd">این اعتبار از لحظه‌ی صدور قابل استفاده است؛ چاپ و تحویل فقط سابقه‌ی تحویل به مشتری را ثبت می‌کنند.</div>`
+  ).join('')
 
   const codeBlock =
     t.showReturnCode && d.exchangeReturnCode
@@ -740,6 +774,8 @@ export interface ReturnReceiptData {
    * اعتبار مانده». سند اعتبارِ خودمشتری (با کد/بارکد) از کانال خودش چاپ می‌شود.
    */
   storeCredits?: { label: string; amount: number; expiresJalali?: string | null; status?: string | null }[]
+  /** Closed expired source-credit shares: amount and original expiry only, never the barcode. */
+  closedExpiredSourceCredits?: { amount: number; expiresJalali?: string | null }[]
   note?: string
   footer?: string
 }
@@ -839,6 +875,19 @@ export function returnReceiptHtml(d: ReturnReceiptData, template?: Partial<Recei
         '<div class="c kbd">کد/بارکد اعتبار روی این رسید چاپ نمی‌شود؛ سند اعتبار جداگانه صادر و چاپ می‌گردد.</div>'
       : ''
 
+  const closedExpiredSourceCreditBlock = (d.closedExpiredSourceCredits ?? [])
+    .filter((share) => (share.amount ?? 0) > 0)
+    .map((share) =>
+      '<div class="msg">' +
+      `<b>سهم اعتبار منقضی و بسته‌شده: ${money(share.amount)}</b>` +
+      (share.expiresJalali
+        ? `<div class="kbd">تاریخ انقضای منبع: ${faDigits(share.expiresJalali)}</div>`
+        : '') +
+      '<div class="kbd">این سهم فقط برای سابقه ثبت شده است؛ اعتبار احیا یا تمدید نشده و قابل مصرف نیست.</div>' +
+      '</div>'
+    )
+    .join('')
+
   const footers: string[] = []
   if (d.note) footers.push(`<div class="c kbd">${escapeHtml(d.note)}</div>`)
   for (const line of [t.footerLine1, t.footerLine2, t.footerLine3]) {
@@ -869,6 +918,7 @@ export function returnReceiptHtml(d: ReturnReceiptData, template?: Partial<Recei
       '<div class="line"></div>' +
       sums.join('') +
       creditBlock +
+      closedExpiredSourceCreditBlock +
       '<div class="line"></div>' +
       footers.join(''),
     spec
@@ -944,6 +994,8 @@ export interface CreditDocData {
   remaining: number
   sourceLabel: string
   statusLabel: string
+  /** Return/exchange credits carry an explicit notice while handoff is pending. */
+  deliveryPending?: boolean
   issuedJalali: string
   issuedTime: string
   expiresJalali: string | null
@@ -1078,6 +1130,7 @@ function creditDocBody(d: CreditDocData, t: ReceiptTemplate): string {
   rows.push(row('تاریخ صدور', `${faDigits(d.issuedJalali)} ${faDigits(d.issuedTime)}`))
   rows.push(row('تاریخ انقضا', d.expiresJalali ? faDigits(d.expiresJalali) : 'بدون انقضا'))
   rows.push(row('وضعیت', escapeHtml(d.statusLabel)))
+  parts.push('<div class="reprint">اعتبار از لحظه‌ی صدور قابل استفاده است؛ چاپ و تحویل فقط سابقه‌ی تحویل به مشتری را ثبت می‌کنند.</div>')
   rows.push(row('دفعات مجاز', `${escapeHtml(d.usesLabel)} · استفاده‌شده ${faDigits(d.usedCount)}`))
   if (d.showRemaining) rows.push(row('باقی‌مانده', `${money(d.remaining)} ریال`))
   if (d.restrictLabel) rows.push(row('محدودیت استفاده', escapeHtml(d.restrictLabel)))

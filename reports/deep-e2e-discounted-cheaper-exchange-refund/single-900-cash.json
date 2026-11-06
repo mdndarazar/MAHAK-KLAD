@@ -1,0 +1,112 @@
+{
+  "caseName": "SINGLE-900-CASH",
+  "single": true,
+  "refundMode": "CASH",
+  "targetToman": 900000,
+  "isolatedDatabase": "/tmp/mahak-cheaper-exchange-single-900-cash-fzNG3h/isolated.db",
+  "status": "PASS",
+  "sale": {
+    "lineCount": 1,
+    "gross": 10000000,
+    "invoiceDiscount": 2000000,
+    "net": 8000000,
+    "paid": 8000000,
+    "sourceLineGross": 10000000
+  },
+  "exchange": {
+    "sourceDiscountShare": 2000000,
+    "sourceNetReturn": 8000000,
+    "replacementGross": 9000000,
+    "diff": 1000000,
+    "previewDiff": 1000000,
+    "refundMode": null,
+    "exchangeSettlement": "CASH",
+    "refundMethod": "NONE",
+    "refundAmount": 0,
+    "refundStoreCreditAmount": 0,
+    "cashReceived": 1000000,
+    "cashRefunded": 0,
+    "cardRefunded": 0,
+    "newStoreCreditAmount": 0
+  },
+  "refundChannel": {
+    "requested": "CASH",
+    "transferRequest": null,
+    "transferAfterManagerPayment": null,
+    "credits": [],
+    "creditTotal": 0
+  },
+  "reconciliation": {
+    "payments": [
+      {
+        "amount": 8000000,
+        "kind": "CASH",
+        "destination": "CASH",
+        "methodKind": "CASH",
+        "key": "CHEAPER-SINGLE-900-CASH-CASH"
+      },
+      {
+        "amount": 8000000,
+        "kind": "CASH",
+        "destination": null,
+        "methodKind": "EXCHANGE_CREDIT",
+        "key": "EXCHANGE_CREDIT"
+      },
+      {
+        "amount": 1000000,
+        "kind": "CASH",
+        "destination": "CASH",
+        "methodKind": "CASH",
+        "key": "CHEAPER-SINGLE-900-CASH-CASH"
+      }
+    ],
+    "cashIn": 9000000,
+    "cashOut": 0,
+    "blue": 9000000,
+    "reportTotals": {
+      "count": 2,
+      "goodsTotal": 19000000,
+      "taxTotal": 0,
+      "serviceTotal": 0,
+      "discountTotal": 2000000,
+      "deliveryTotal": 0,
+      "grandTotal": 17000000,
+      "cashTotal": 9000000,
+      "cardTotal": 0,
+      "creditTotal": 0,
+      "otherTotal": 0,
+      "receivedTotal": 9000000,
+      "returnedTotal": 0,
+      "exchangeCreditTotal": 8000000,
+      "storeCreditUsedTotal": 0,
+      "storeCreditIssuedTotal": 0,
+      "exchangeCount": 1,
+      "exchangeDiffTotal": 1000000,
+      "overpayTotal": 0,
+      "creditRemainingTotal": 0,
+      "priorSettlementTotal": 0,
+      "netReceivedTotal": 9000000,
+      "exchangeReturnedTotal": 8000000,
+      "refundCashTotal": 0,
+      "refundCardTotal": 0,
+      "refundDebtOnlyTotal": 0,
+      "storeCreditRefundTotal": 0,
+      "legacyRefundCount": 0,
+      "managerAccountTotal": 0,
+      "destinationUnknownTotal": 0
+    },
+    "stock": [
+      {
+        "name": "source-1",
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "replacement",
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "cheques": 0
+  }
+}

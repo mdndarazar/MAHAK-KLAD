@@ -1,0 +1,46 @@
+{
+  "case": "DIRECT-RETURN",
+  "isolatedDatabase": "/tmp/mahak-invoice-discount-return-exchange-direct-return-AgpBOq/isolated.db",
+  "status": "PASS",
+  "fixture": {
+    "gross": 30000000,
+    "invoiceDiscount": 3000000,
+    "netPaid": 27000000,
+    "lines": [
+      {
+        "gross": 10000000,
+        "allocatedDiscount": 1000000,
+        "netReturn": 9000000
+      },
+      {
+        "gross": 20000000,
+        "allocatedDiscount": 2000000,
+        "net": 18000000
+      }
+    ]
+  },
+  "operation": {
+    "kind": "direct partial return",
+    "returnedLineGross": 10000000,
+    "allocatedInvoiceDiscount": 1000000,
+    "returnValue": 9000000,
+    "cashRefund": 9000000
+  },
+  "reconciliation": {
+    "cashIn": 27000000,
+    "cashOut": 9000000,
+    "blue": 18000000,
+    "stock": [
+      {
+        "name": "returned source",
+        "actual": 20,
+        "ledger": 0
+      },
+      {
+        "name": "kept line",
+        "actual": 19,
+        "ledger": -1
+      }
+    ]
+  }
+}

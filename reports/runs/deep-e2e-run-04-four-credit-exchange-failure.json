@@ -1,0 +1,4921 @@
+{
+  "generatedAt": "2026-10-26T12:09:34.300Z",
+  "isolatedDatabase": "/tmp/mahak-deep-e2e-10-MSt49e/isolated-test.db",
+  "blueDefinition": "cashReceived + posReceived - cashRefunded - posRefunded; store credit and debt are excluded",
+  "blueSource": "CustodyAggregateService.physicalMovementForCustodyShift uses salesService.reportRows; each checkpoint independently sums physical Payment kinds and active return documents/CashMovement rows.",
+  "totalScenarios": 10,
+  "completed": 9,
+  "failed": 1,
+  "blocked": 0,
+  "results": [
+    {
+      "name": "01 exact cash sale and inventory",
+      "status": "PASS",
+      "checkpoints": 2,
+      "detail": "Invoice 1,000,000; 1,000,000 cash; two variants decrement by one.",
+      "events": [
+        {
+          "at": "2026-10-26T12:09:33.064Z",
+          "scenario": "01 exact cash sale and inventory",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 0
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:33.176Z",
+          "scenario": "01 exact cash sale and inventory",
+          "operation": "cash sale",
+          "note": "two item invoice, exact cash settlement",
+          "expected": {
+            "cash": 1000000,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 1000000
+          },
+          "reported": {
+            "cashReceived": 1000000,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 1000000,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 1000000,
+          "blueIndependent": 1000000,
+          "stock": [
+            {
+              "variant": "01-A",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "01-B",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [],
+          "invoices": [
+            {
+              "id": 1,
+              "receiptNo": 1,
+              "status": "SETTLED",
+              "type": "INTERNAL",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "paymentDocuments": 1000000,
+              "activeCreditRedemptions": 0
+            }
+          ],
+          "documents": {
+            "paymentRows": 1,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 split cash and POS, partial cash return",
+      "status": "PASS",
+      "checkpoints": 3,
+      "detail": "1,000,000 invoice paid 600,000 cash + 400,000 POS; 600,000 cash refund; returned stock restored.",
+      "events": [
+        {
+          "at": "2026-10-26T12:09:33.183Z",
+          "scenario": "02 split cash and POS, partial cash return",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 2
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:33.212Z",
+          "scenario": "02 split cash and POS, partial cash return",
+          "operation": "split tender sale",
+          "note": "",
+          "expected": {
+            "cash": 600000,
+            "card": 400000,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 1000000
+          },
+          "reported": {
+            "cashReceived": 600000,
+            "cardReceived": 400000,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 600000,
+            "cardReceived": 400000,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 1000000,
+          "blueIndependent": 1000000,
+          "stock": [
+            {
+              "variant": "02-A",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "02-B",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [],
+          "invoices": [
+            {
+              "id": 2,
+              "receiptNo": 2,
+              "status": "SETTLED",
+              "type": "INTERNAL",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "paymentDocuments": 1000000,
+              "activeCreditRedemptions": 0
+            }
+          ],
+          "documents": {
+            "paymentRows": 2,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 4
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:33.235Z",
+          "scenario": "02 split cash and POS, partial cash return",
+          "operation": "partial cash return",
+          "note": "return #1",
+          "expected": {
+            "cash": 600000,
+            "card": 400000,
+            "refundCash": 600000,
+            "refundCard": 0,
+            "blue": 400000
+          },
+          "reported": {
+            "cashReceived": 600000,
+            "cardReceived": 400000,
+            "cashRefunded": 600000,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 600000,
+            "cardReceived": 400000,
+            "cashRefunded": 600000,
+            "cardRefunded": 0
+          },
+          "blueActual": 400000,
+          "blueIndependent": 400000,
+          "stock": [
+            {
+              "variant": "02-A",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "02-B",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [],
+          "invoices": [
+            {
+              "id": 2,
+              "receiptNo": 2,
+              "status": "PARTIALLY_RETURNED",
+              "type": "INTERNAL",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "paymentDocuments": 1000000,
+              "activeCreditRedemptions": 0
+            }
+          ],
+          "documents": {
+            "paymentRows": 2,
+            "returnRows": 1,
+            "cashMovements": 1,
+            "stockMovements": 5
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 POS sale and POS return",
+      "status": "PASS",
+      "checkpoints": 3,
+      "detail": "850,000 POS receipt reversed by 850,000 POS refund; blue returns to zero.",
+      "events": [
+        {
+          "at": "2026-10-26T12:09:33.242Z",
+          "scenario": "03 POS sale and POS return",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 5
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:33.260Z",
+          "scenario": "03 POS sale and POS return",
+          "operation": "POS sale",
+          "note": "",
+          "expected": {
+            "cash": 0,
+            "card": 850000,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 850000
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 850000,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 850000,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 850000,
+          "blueIndependent": 850000,
+          "stock": [
+            {
+              "variant": "03-A",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [],
+          "invoices": [
+            {
+              "id": 3,
+              "receiptNo": 3,
+              "status": "SETTLED",
+              "type": "INTERNAL",
+              "grandTotal": 850000,
+              "paidTotal": 850000,
+              "paymentDocuments": 850000,
+              "activeCreditRedemptions": 0
+            }
+          ],
+          "documents": {
+            "paymentRows": 1,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 6
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:33.325Z",
+          "scenario": "03 POS sale and POS return",
+          "operation": "POS refund",
+          "note": "return #2",
+          "expected": {
+            "cash": 0,
+            "card": 850000,
+            "refundCash": 0,
+            "refundCard": 850000,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 850000,
+            "cashRefunded": 0,
+            "cardRefunded": 850000
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 850000,
+            "cashRefunded": 0,
+            "cardRefunded": 850000
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [
+            {
+              "variant": "03-A",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [],
+          "invoices": [
+            {
+              "id": 3,
+              "receiptNo": 3,
+              "status": "RETURNED",
+              "type": "INTERNAL",
+              "grandTotal": 850000,
+              "paidTotal": 850000,
+              "paymentDocuments": 850000,
+              "activeCreditRedemptions": 0
+            }
+          ],
+          "documents": {
+            "paymentRows": 1,
+            "returnRows": 1,
+            "cashMovements": 0,
+            "stockMovements": 7
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 exchange down with store-credit difference",
+      "status": "PASS",
+      "checkpoints": 3,
+      "detail": "1,000,000 cash sale exchanged for 800,000 replacement; 200,000 retained as noncash credit; blue stays 1,000,000.",
+      "events": [
+        {
+          "at": "2026-10-26T12:09:33.331Z",
+          "scenario": "04 exchange down with store-credit difference",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 7
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:33.352Z",
+          "scenario": "04 exchange down with store-credit difference",
+          "operation": "source sale",
+          "note": "",
+          "expected": {
+            "cash": 1000000,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 1000000
+          },
+          "reported": {
+            "cashReceived": 1000000,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 1000000,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 1000000,
+          "blueIndependent": 1000000,
+          "stock": [
+            {
+              "variant": "04-original",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "04-replacement",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [],
+          "invoices": [
+            {
+              "id": 4,
+              "receiptNo": 4,
+              "status": "SETTLED",
+              "type": "INTERNAL",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "paymentDocuments": 1000000,
+              "activeCreditRedemptions": 0
+            }
+          ],
+          "documents": {
+            "paymentRows": 1,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 8
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:33.382Z",
+          "scenario": "04 exchange down with store-credit difference",
+          "operation": "exchange down; noncash successor",
+          "note": "exchange return #3, diff -200,000, no physical refund",
+          "expected": {
+            "cash": 1000000,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 1000000
+          },
+          "reported": {
+            "cashReceived": 1000000,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 1000000,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 1000000,
+          "blueIndependent": 1000000,
+          "stock": [
+            {
+              "variant": "04-original",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "04-replacement",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "label": "exchange-successor",
+              "amount": 200000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": null
+            }
+          ],
+          "invoices": [
+            {
+              "id": 4,
+              "receiptNo": 4,
+              "status": "RETURNED",
+              "type": "INTERNAL",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "paymentDocuments": 1000000,
+              "activeCreditRedemptions": 0
+            },
+            {
+              "id": 5,
+              "receiptNo": 5,
+              "status": "SETTLED",
+              "type": "EXCHANGE",
+              "grandTotal": 800000,
+              "paidTotal": 800000,
+              "paymentDocuments": 800000,
+              "activeCreditRedemptions": 0
+            }
+          ],
+          "documents": {
+            "paymentRows": 2,
+            "returnRows": 1,
+            "cashMovements": 0,
+            "stockMovements": 10
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 exchange up with cash difference",
+      "status": "PASS",
+      "checkpoints": 3,
+      "detail": "500,000 source + 200,000 additional cash funds 700,000 replacement; blue becomes 700,000.",
+      "events": [
+        {
+          "at": "2026-10-26T12:09:33.388Z",
+          "scenario": "05 exchange up with cash difference",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 10
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:33.411Z",
+          "scenario": "05 exchange up with cash difference",
+          "operation": "source sale",
+          "note": "",
+          "expected": {
+            "cash": 500000,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 500000
+          },
+          "reported": {
+            "cashReceived": 500000,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 500000,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 500000,
+          "blueIndependent": 500000,
+          "stock": [
+            {
+              "variant": "05-original",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "05-replacement",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [],
+          "invoices": [
+            {
+              "id": 6,
+              "receiptNo": 6,
+              "status": "SETTLED",
+              "type": "INTERNAL",
+              "grandTotal": 500000,
+              "paidTotal": 500000,
+              "paymentDocuments": 500000,
+              "activeCreditRedemptions": 0
+            }
+          ],
+          "documents": {
+            "paymentRows": 1,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 11
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:33.430Z",
+          "scenario": "05 exchange up with cash difference",
+          "operation": "exchange up; cash difference collected",
+          "note": "",
+          "expected": {
+            "cash": 700000,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 700000
+          },
+          "reported": {
+            "cashReceived": 700000,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 700000,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 700000,
+          "blueIndependent": 700000,
+          "stock": [
+            {
+              "variant": "05-original",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "05-replacement",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [],
+          "invoices": [
+            {
+              "id": 6,
+              "receiptNo": 6,
+              "status": "RETURNED",
+              "type": "INTERNAL",
+              "grandTotal": 500000,
+              "paidTotal": 500000,
+              "paymentDocuments": 500000,
+              "activeCreditRedemptions": 0
+            },
+            {
+              "id": 7,
+              "receiptNo": 7,
+              "status": "SETTLED",
+              "type": "EXCHANGE",
+              "grandTotal": 700000,
+              "paidTotal": 700000,
+              "paymentDocuments": 700000,
+              "activeCreditRedemptions": 0
+            }
+          ],
+          "documents": {
+            "paymentRows": 3,
+            "returnRows": 1,
+            "cashMovements": 0,
+            "stockMovements": 13
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 exchange down with card refund",
+      "status": "PASS",
+      "checkpoints": 3,
+      "detail": "600,000 POS source exchanged for 500,000 replacement; 100,000 card refund; blue net 500,000.",
+      "events": [
+        {
+          "at": "2026-10-26T12:09:33.435Z",
+          "scenario": "06 exchange down with card refund",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 13
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:33.454Z",
+          "scenario": "06 exchange down with card refund",
+          "operation": "source POS sale",
+          "note": "",
+          "expected": {
+            "cash": 0,
+            "card": 600000,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 600000
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 600000,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 600000,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 600000,
+          "blueIndependent": 600000,
+          "stock": [
+            {
+              "variant": "06-original",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "06-replacement",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [],
+          "invoices": [
+            {
+              "id": 8,
+              "receiptNo": 8,
+              "status": "SETTLED",
+              "type": "INTERNAL",
+              "grandTotal": 600000,
+              "paidTotal": 600000,
+              "paymentDocuments": 600000,
+              "activeCreditRedemptions": 0
+            }
+          ],
+          "documents": {
+            "paymentRows": 1,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 14
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:33.555Z",
+          "scenario": "06 exchange down with card refund",
+          "operation": "exchange down; POS difference refunded",
+          "note": "",
+          "expected": {
+            "cash": 0,
+            "card": 600000,
+            "refundCash": 0,
+            "refundCard": 100000,
+            "blue": 500000
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 600000,
+            "cashRefunded": 0,
+            "cardRefunded": 100000
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 600000,
+            "cashRefunded": 0,
+            "cardRefunded": 100000
+          },
+          "blueActual": 500000,
+          "blueIndependent": 500000,
+          "stock": [
+            {
+              "variant": "06-original",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "06-replacement",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [],
+          "invoices": [
+            {
+              "id": 8,
+              "receiptNo": 8,
+              "status": "RETURNED",
+              "type": "INTERNAL",
+              "grandTotal": 600000,
+              "paidTotal": 600000,
+              "paymentDocuments": 600000,
+              "activeCreditRedemptions": 0
+            },
+            {
+              "id": 9,
+              "receiptNo": 9,
+              "status": "SETTLED",
+              "type": "EXCHANGE",
+              "grandTotal": 500000,
+              "paidTotal": 500000,
+              "paymentDocuments": 500000,
+              "activeCreditRedemptions": 0
+            }
+          ],
+          "documents": {
+            "paymentRows": 2,
+            "returnRows": 1,
+            "cashMovements": 0,
+            "stockMovements": 16
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 store-credit-only sale and partial remainder",
+      "status": "PASS",
+      "checkpoints": 3,
+      "detail": "600,000 fully settled by credit; 400,000 remains on original barcode; blue remains zero.",
+      "events": [
+        {
+          "at": "2026-10-26T12:09:33.566Z",
+          "scenario": "07 store-credit-only sale and partial remainder",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 16
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:33.658Z",
+          "scenario": "07 store-credit-only sale and partial remainder",
+          "operation": "manual credit fixture baseline",
+          "note": "credit issued in isolated harness before sale; 1,000,000 available, physical blue zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [
+            {
+              "variant": "07-item",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "credit-1",
+              "amount": 1000000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            }
+          ],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 16
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:33.677Z",
+          "scenario": "07 store-credit-only sale and partial remainder",
+          "operation": "credit-only sale",
+          "note": "",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [
+            {
+              "variant": "07-item",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "label": "credit-1",
+              "amount": 1000000,
+              "usedAmount": 600000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795638599999
+            }
+          ],
+          "invoices": [
+            {
+              "id": 10,
+              "receiptNo": 10,
+              "status": "SETTLED",
+              "type": "INTERNAL",
+              "grandTotal": 600000,
+              "paidTotal": 600000,
+              "paymentDocuments": 600000,
+              "activeCreditRedemptions": 1
+            }
+          ],
+          "documents": {
+            "paymentRows": 1,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 17
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 return followed by exchange chain",
+      "status": "PASS",
+      "checkpoints": 4,
+      "detail": "1,000,000 two-unit sale; 500,000 cash return; remaining 500,000 unit exchanged for 450,000 and 50,000 noncash difference.",
+      "events": [
+        {
+          "at": "2026-10-26T12:09:33.683Z",
+          "scenario": "08 return followed by exchange chain",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 17
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:33.702Z",
+          "scenario": "08 return followed by exchange chain",
+          "operation": "two-unit source sale",
+          "note": "",
+          "expected": {
+            "cash": 1000000,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 1000000
+          },
+          "reported": {
+            "cashReceived": 1000000,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 1000000,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 1000000,
+          "blueIndependent": 1000000,
+          "stock": [
+            {
+              "variant": "08-source",
+              "baseline": 20,
+              "expected": 18,
+              "actual": 18,
+              "ledgerDelta": -2
+            },
+            {
+              "variant": "08-replacement",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [],
+          "invoices": [
+            {
+              "id": 11,
+              "receiptNo": 11,
+              "status": "SETTLED",
+              "type": "INTERNAL",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "paymentDocuments": 1000000,
+              "activeCreditRedemptions": 0
+            }
+          ],
+          "documents": {
+            "paymentRows": 1,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 18
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:33.716Z",
+          "scenario": "08 return followed by exchange chain",
+          "operation": "return first unit",
+          "note": "return #6",
+          "expected": {
+            "cash": 1000000,
+            "card": 0,
+            "refundCash": 500000,
+            "refundCard": 0,
+            "blue": 500000
+          },
+          "reported": {
+            "cashReceived": 1000000,
+            "cardReceived": 0,
+            "cashRefunded": 500000,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 1000000,
+            "cardReceived": 0,
+            "cashRefunded": 500000,
+            "cardRefunded": 0
+          },
+          "blueActual": 500000,
+          "blueIndependent": 500000,
+          "stock": [
+            {
+              "variant": "08-source",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "08-replacement",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [],
+          "invoices": [
+            {
+              "id": 11,
+              "receiptNo": 11,
+              "status": "PARTIALLY_RETURNED",
+              "type": "INTERNAL",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "paymentDocuments": 1000000,
+              "activeCreditRedemptions": 0
+            }
+          ],
+          "documents": {
+            "paymentRows": 1,
+            "returnRows": 1,
+            "cashMovements": 1,
+            "stockMovements": 19
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:33.742Z",
+          "scenario": "08 return followed by exchange chain",
+          "operation": "exchange remaining unit down",
+          "note": "exchange return #7",
+          "expected": {
+            "cash": 1000000,
+            "card": 0,
+            "refundCash": 500000,
+            "refundCard": 0,
+            "blue": 500000
+          },
+          "reported": {
+            "cashReceived": 1000000,
+            "cardReceived": 0,
+            "cashRefunded": 500000,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 1000000,
+            "cardReceived": 0,
+            "cashRefunded": 500000,
+            "cardRefunded": 0
+          },
+          "blueActual": 500000,
+          "blueIndependent": 500000,
+          "stock": [
+            {
+              "variant": "08-source",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "08-replacement",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "label": "exchange-successor",
+              "amount": 50000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": null
+            }
+          ],
+          "invoices": [
+            {
+              "id": 11,
+              "receiptNo": 11,
+              "status": "RETURNED",
+              "type": "INTERNAL",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "paymentDocuments": 1000000,
+              "activeCreditRedemptions": 0
+            },
+            {
+              "id": 12,
+              "receiptNo": 12,
+              "status": "SETTLED",
+              "type": "EXCHANGE",
+              "grandTotal": 450000,
+              "paidTotal": 450000,
+              "paymentDocuments": 450000,
+              "activeCreditRedemptions": 0
+            }
+          ],
+          "documents": {
+            "paymentRows": 2,
+            "returnRows": 2,
+            "cashMovements": 1,
+            "stockMovements": 21
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 four-barcode sale then multi-source return",
+      "status": "FAIL",
+      "checkpoints": 9,
+      "failure": {
+        "message": "سهم وجه واقعیِ قابل‌تسویه ۵۰۰٬۰۰۰ ریال است، اما در زنجیره فقط ۰ ریال وجه وصول‌شده و قابل‌ردیابی وجود دارد. اعتبار، چکِ وصول‌نشده یا بدهی به‌جای پول واقعی بازپرداخت نمی‌شود.",
+        "stack": "BusinessError: سهم وجه واقعیِ قابل‌تسویه ۵۰۰٬۰۰۰ ریال است، اما در زنجیره فقط ۰ ریال وجه وصول‌شده و قابل‌ردیابی وجود دارد. اعتبار، چکِ وصول‌نشده یا بدهی به‌جای پول واقعی بازپرداخت نمی‌شود.\n    at planExchangeReturnFunding (file:///home/user/MAHAK-KLAD/src/main/services/SalesService.ts:1762:11)\n    at exchangeReturnFundingBuckets (file:///home/user/MAHAK-KLAD/src/main/services/SalesService.ts:1812:10)\n    at async file:///home/user/MAHAK-KLAD/src/main/services/SalesService.ts:7378:35\n    at async client.$transaction (file:///home/user/MAHAK-KLAD/test/harness/prismaLite.mjs:921:22)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:313:14\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:153:20)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:283:1"
+      },
+      "events": [
+        {
+          "at": "2026-10-26T12:09:33.748Z",
+          "scenario": "09 four-barcode sale then multi-source return",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 21
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:33.841Z",
+          "scenario": "09 four-barcode sale then multi-source return",
+          "operation": "issue barcode fixture 1/4",
+          "note": "credit 1 of 4 issued; physical blue remains zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [
+            {
+              "variant": "09-A",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "09-B",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "credit-2",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            }
+          ],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 21
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:33.928Z",
+          "scenario": "09 four-barcode sale then multi-source return",
+          "operation": "issue barcode fixture 2/4",
+          "note": "credit 2 of 4 issued; physical blue remains zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [
+            {
+              "variant": "09-A",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "09-B",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "credit-2",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-3",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            }
+          ],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 21
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:34.015Z",
+          "scenario": "09 four-barcode sale then multi-source return",
+          "operation": "issue barcode fixture 3/4",
+          "note": "credit 3 of 4 issued; physical blue remains zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [
+            {
+              "variant": "09-A",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "09-B",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "credit-2",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-3",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-4",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            }
+          ],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 21
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:34.103Z",
+          "scenario": "09 four-barcode sale then multi-source return",
+          "operation": "issue barcode fixture 4/4",
+          "note": "credit 4 of 4 issued; physical blue remains zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [
+            {
+              "variant": "09-A",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "09-B",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "credit-2",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-3",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-4",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-5",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            }
+          ],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 21
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:34.110Z",
+          "scenario": "09 four-barcode sale then multi-source return",
+          "operation": "four barcode fixture baseline",
+          "note": "four independent 250,000 balances, none consumed",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [
+            {
+              "variant": "09-A",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "09-B",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "credit-2",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-3",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-4",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-5",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            }
+          ],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 21
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:34.137Z",
+          "scenario": "09 four-barcode sale then multi-source return",
+          "operation": "four barcode sale",
+          "note": "",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [
+            {
+              "variant": "09-A",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "09-B",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "label": "credit-2",
+              "amount": 250000,
+              "usedAmount": 250000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-3",
+              "amount": 250000,
+              "usedAmount": 250000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-4",
+              "amount": 250000,
+              "usedAmount": 250000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-5",
+              "amount": 250000,
+              "usedAmount": 250000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999
+            }
+          ],
+          "invoices": [
+            {
+              "id": 13,
+              "receiptNo": 13,
+              "status": "SETTLED",
+              "type": "INTERNAL",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "paymentDocuments": 1000000,
+              "activeCreditRedemptions": 4
+            }
+          ],
+          "documents": {
+            "paymentRows": 4,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 23
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:34.163Z",
+          "scenario": "09 four-barcode sale then multi-source return",
+          "operation": "return one of two pooled-funded items",
+          "note": "return #8; no per-item credit lineage presumed",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [
+            {
+              "variant": "09-A",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "09-B",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "label": "credit-2",
+              "amount": 250000,
+              "usedAmount": 250000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-3",
+              "amount": 250000,
+              "usedAmount": 250000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-4",
+              "amount": 250000,
+              "usedAmount": 250000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-5",
+              "amount": 250000,
+              "usedAmount": 250000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999
+            }
+          ],
+          "invoices": [
+            {
+              "id": 13,
+              "receiptNo": 13,
+              "status": "PARTIALLY_RETURNED",
+              "type": "INTERNAL",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "paymentDocuments": 1000000,
+              "activeCreditRedemptions": 2
+            }
+          ],
+          "documents": {
+            "paymentRows": 4,
+            "returnRows": 1,
+            "cashMovements": 0,
+            "stockMovements": 24
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:34.174Z",
+          "scenario": "09 four-barcode sale then multi-source return",
+          "operation": "inspect return successor barcodes",
+          "note": "each returned source credit successor is independently tracked by amount/status; no source-to-line allocation assumed",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [
+            {
+              "variant": "09-A",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "09-B",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "label": "credit-2",
+              "amount": 250000,
+              "usedAmount": 250000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-3",
+              "amount": 250000,
+              "usedAmount": 250000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-4",
+              "amount": 250000,
+              "usedAmount": 250000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-5",
+              "amount": 250000,
+              "usedAmount": 250000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "return-successor",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "return-successor",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            }
+          ],
+          "invoices": [
+            {
+              "id": 13,
+              "receiptNo": 13,
+              "status": "PARTIALLY_RETURNED",
+              "type": "INTERNAL",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "paymentDocuments": 1000000,
+              "activeCreditRedemptions": 2
+            }
+          ],
+          "documents": {
+            "paymentRows": 4,
+            "returnRows": 1,
+            "cashMovements": 0,
+            "stockMovements": 24
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 mixed-tender sale, return, and exchange",
+      "status": "PASS",
+      "checkpoints": 5,
+      "detail": "1,000,000 split 400,000 cash + 600,000 POS; exchange down to 700,000; 700,000 cash refund; subsequent 500,000 POS sale. Blue = 200,000 net.",
+      "events": [
+        {
+          "at": "2026-10-26T12:09:34.196Z",
+          "scenario": "10 mixed-tender sale, return, and exchange",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 24
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:34.221Z",
+          "scenario": "10 mixed-tender sale, return, and exchange",
+          "operation": "mixed tender sale",
+          "note": "",
+          "expected": {
+            "cash": 400000,
+            "card": 600000,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 1000000
+          },
+          "reported": {
+            "cashReceived": 400000,
+            "cardReceived": 600000,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 400000,
+            "cardReceived": 600000,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 1000000,
+          "blueIndependent": 1000000,
+          "stock": [
+            {
+              "variant": "10-source",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "10-exchange",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "10-next",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [],
+          "invoices": [
+            {
+              "id": 14,
+              "receiptNo": 14,
+              "status": "SETTLED",
+              "type": "INTERNAL",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "paymentDocuments": 1000000,
+              "activeCreditRedemptions": 0
+            }
+          ],
+          "documents": {
+            "paymentRows": 2,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 25
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:34.247Z",
+          "scenario": "10 mixed-tender sale, return, and exchange",
+          "operation": "mixed tender exchange down",
+          "note": "",
+          "expected": {
+            "cash": 400000,
+            "card": 600000,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 1000000
+          },
+          "reported": {
+            "cashReceived": 400000,
+            "cardReceived": 600000,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 400000,
+            "cardReceived": 600000,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 1000000,
+          "blueIndependent": 1000000,
+          "stock": [
+            {
+              "variant": "10-source",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "10-exchange",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "10-next",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "exchange-successor",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": null
+            }
+          ],
+          "invoices": [
+            {
+              "id": 14,
+              "receiptNo": 14,
+              "status": "RETURNED",
+              "type": "INTERNAL",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "paymentDocuments": 1000000,
+              "activeCreditRedemptions": 0
+            },
+            {
+              "id": 15,
+              "receiptNo": 15,
+              "status": "SETTLED",
+              "type": "EXCHANGE",
+              "grandTotal": 700000,
+              "paidTotal": 700000,
+              "paymentDocuments": 700000,
+              "activeCreditRedemptions": 0
+            }
+          ],
+          "documents": {
+            "paymentRows": 3,
+            "returnRows": 1,
+            "cashMovements": 0,
+            "stockMovements": 27
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:34.276Z",
+          "scenario": "10 mixed-tender sale, return, and exchange",
+          "operation": "return exchange replacement for cash",
+          "note": "return #10",
+          "expected": {
+            "cash": 400000,
+            "card": 600000,
+            "refundCash": 700000,
+            "refundCard": 0,
+            "blue": 300000
+          },
+          "reported": {
+            "cashReceived": 400000,
+            "cardReceived": 600000,
+            "cashRefunded": 700000,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 400000,
+            "cardReceived": 600000,
+            "cashRefunded": 700000,
+            "cardRefunded": 0
+          },
+          "blueActual": 300000,
+          "blueIndependent": 300000,
+          "stock": [
+            {
+              "variant": "10-source",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "10-exchange",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "10-next",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "exchange-successor",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": null
+            }
+          ],
+          "invoices": [
+            {
+              "id": 14,
+              "receiptNo": 14,
+              "status": "RETURNED",
+              "type": "INTERNAL",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "paymentDocuments": 1000000,
+              "activeCreditRedemptions": 0
+            },
+            {
+              "id": 15,
+              "receiptNo": 15,
+              "status": "RETURNED",
+              "type": "EXCHANGE",
+              "grandTotal": 700000,
+              "paidTotal": 700000,
+              "paymentDocuments": 700000,
+              "activeCreditRedemptions": 0
+            }
+          ],
+          "documents": {
+            "paymentRows": 3,
+            "returnRows": 2,
+            "cashMovements": 1,
+            "stockMovements": 28
+          }
+        },
+        {
+          "at": "2026-10-26T12:09:34.300Z",
+          "scenario": "10 mixed-tender sale, return, and exchange",
+          "operation": "final POS sale after return",
+          "note": "",
+          "expected": {
+            "cash": 400000,
+            "card": 1100000,
+            "refundCash": 700000,
+            "refundCard": 0,
+            "blue": 800000
+          },
+          "reported": {
+            "cashReceived": 400000,
+            "cardReceived": 1100000,
+            "cashRefunded": 700000,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 400000,
+            "cardReceived": 1100000,
+            "cashRefunded": 700000,
+            "cardRefunded": 0
+          },
+          "blueActual": 800000,
+          "blueIndependent": 800000,
+          "stock": [
+            {
+              "variant": "10-source",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "10-exchange",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "10-next",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "10-final-sale",
+              "baseline": 20,
+              "expected": 19,
+              "actual": 19,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "label": "exchange-successor",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": null
+            }
+          ],
+          "invoices": [
+            {
+              "id": 14,
+              "receiptNo": 14,
+              "status": "RETURNED",
+              "type": "INTERNAL",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "paymentDocuments": 1000000,
+              "activeCreditRedemptions": 0
+            },
+            {
+              "id": 15,
+              "receiptNo": 15,
+              "status": "RETURNED",
+              "type": "EXCHANGE",
+              "grandTotal": 700000,
+              "paidTotal": 700000,
+              "paymentDocuments": 700000,
+              "activeCreditRedemptions": 0
+            },
+            {
+              "id": 16,
+              "receiptNo": 16,
+              "status": "SETTLED",
+              "type": "INTERNAL",
+              "grandTotal": 500000,
+              "paidTotal": 500000,
+              "paymentDocuments": 500000,
+              "activeCreditRedemptions": 0
+            }
+          ],
+          "documents": {
+            "paymentRows": 4,
+            "returnRows": 2,
+            "cashMovements": 1,
+            "stockMovements": 29
+          }
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "at": "2026-10-26T12:09:33.064Z",
+      "scenario": "01 exact cash sale and inventory",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 0
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.176Z",
+      "scenario": "01 exact cash sale and inventory",
+      "operation": "cash sale",
+      "note": "two item invoice, exact cash settlement",
+      "expected": {
+        "cash": 1000000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 1000000
+      },
+      "reported": {
+        "cashReceived": 1000000,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 1000000,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 1000000,
+      "blueIndependent": 1000000,
+      "stock": [
+        {
+          "variant": "01-A",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        },
+        {
+          "variant": "01-B",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        }
+      ],
+      "credits": [],
+      "invoices": [
+        {
+          "id": 1,
+          "receiptNo": 1,
+          "status": "SETTLED",
+          "type": "INTERNAL",
+          "grandTotal": 1000000,
+          "paidTotal": 1000000,
+          "paymentDocuments": 1000000,
+          "activeCreditRedemptions": 0
+        }
+      ],
+      "documents": {
+        "paymentRows": 1,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 2
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.183Z",
+      "scenario": "02 split cash and POS, partial cash return",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 2
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.212Z",
+      "scenario": "02 split cash and POS, partial cash return",
+      "operation": "split tender sale",
+      "note": "",
+      "expected": {
+        "cash": 600000,
+        "card": 400000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 1000000
+      },
+      "reported": {
+        "cashReceived": 600000,
+        "cardReceived": 400000,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 600000,
+        "cardReceived": 400000,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 1000000,
+      "blueIndependent": 1000000,
+      "stock": [
+        {
+          "variant": "02-A",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        },
+        {
+          "variant": "02-B",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        }
+      ],
+      "credits": [],
+      "invoices": [
+        {
+          "id": 2,
+          "receiptNo": 2,
+          "status": "SETTLED",
+          "type": "INTERNAL",
+          "grandTotal": 1000000,
+          "paidTotal": 1000000,
+          "paymentDocuments": 1000000,
+          "activeCreditRedemptions": 0
+        }
+      ],
+      "documents": {
+        "paymentRows": 2,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 4
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.235Z",
+      "scenario": "02 split cash and POS, partial cash return",
+      "operation": "partial cash return",
+      "note": "return #1",
+      "expected": {
+        "cash": 600000,
+        "card": 400000,
+        "refundCash": 600000,
+        "refundCard": 0,
+        "blue": 400000
+      },
+      "reported": {
+        "cashReceived": 600000,
+        "cardReceived": 400000,
+        "cashRefunded": 600000,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 600000,
+        "cardReceived": 400000,
+        "cashRefunded": 600000,
+        "cardRefunded": 0
+      },
+      "blueActual": 400000,
+      "blueIndependent": 400000,
+      "stock": [
+        {
+          "variant": "02-A",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "02-B",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        }
+      ],
+      "credits": [],
+      "invoices": [
+        {
+          "id": 2,
+          "receiptNo": 2,
+          "status": "PARTIALLY_RETURNED",
+          "type": "INTERNAL",
+          "grandTotal": 1000000,
+          "paidTotal": 1000000,
+          "paymentDocuments": 1000000,
+          "activeCreditRedemptions": 0
+        }
+      ],
+      "documents": {
+        "paymentRows": 2,
+        "returnRows": 1,
+        "cashMovements": 1,
+        "stockMovements": 5
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.242Z",
+      "scenario": "03 POS sale and POS return",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 5
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.260Z",
+      "scenario": "03 POS sale and POS return",
+      "operation": "POS sale",
+      "note": "",
+      "expected": {
+        "cash": 0,
+        "card": 850000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 850000
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 850000,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 850000,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 850000,
+      "blueIndependent": 850000,
+      "stock": [
+        {
+          "variant": "03-A",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        }
+      ],
+      "credits": [],
+      "invoices": [
+        {
+          "id": 3,
+          "receiptNo": 3,
+          "status": "SETTLED",
+          "type": "INTERNAL",
+          "grandTotal": 850000,
+          "paidTotal": 850000,
+          "paymentDocuments": 850000,
+          "activeCreditRedemptions": 0
+        }
+      ],
+      "documents": {
+        "paymentRows": 1,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 6
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.325Z",
+      "scenario": "03 POS sale and POS return",
+      "operation": "POS refund",
+      "note": "return #2",
+      "expected": {
+        "cash": 0,
+        "card": 850000,
+        "refundCash": 0,
+        "refundCard": 850000,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 850000,
+        "cashRefunded": 0,
+        "cardRefunded": 850000
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 850000,
+        "cashRefunded": 0,
+        "cardRefunded": 850000
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [
+        {
+          "variant": "03-A",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [],
+      "invoices": [
+        {
+          "id": 3,
+          "receiptNo": 3,
+          "status": "RETURNED",
+          "type": "INTERNAL",
+          "grandTotal": 850000,
+          "paidTotal": 850000,
+          "paymentDocuments": 850000,
+          "activeCreditRedemptions": 0
+        }
+      ],
+      "documents": {
+        "paymentRows": 1,
+        "returnRows": 1,
+        "cashMovements": 0,
+        "stockMovements": 7
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.331Z",
+      "scenario": "04 exchange down with store-credit difference",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 7
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.352Z",
+      "scenario": "04 exchange down with store-credit difference",
+      "operation": "source sale",
+      "note": "",
+      "expected": {
+        "cash": 1000000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 1000000
+      },
+      "reported": {
+        "cashReceived": 1000000,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 1000000,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 1000000,
+      "blueIndependent": 1000000,
+      "stock": [
+        {
+          "variant": "04-original",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        },
+        {
+          "variant": "04-replacement",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [],
+      "invoices": [
+        {
+          "id": 4,
+          "receiptNo": 4,
+          "status": "SETTLED",
+          "type": "INTERNAL",
+          "grandTotal": 1000000,
+          "paidTotal": 1000000,
+          "paymentDocuments": 1000000,
+          "activeCreditRedemptions": 0
+        }
+      ],
+      "documents": {
+        "paymentRows": 1,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 8
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.382Z",
+      "scenario": "04 exchange down with store-credit difference",
+      "operation": "exchange down; noncash successor",
+      "note": "exchange return #3, diff -200,000, no physical refund",
+      "expected": {
+        "cash": 1000000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 1000000
+      },
+      "reported": {
+        "cashReceived": 1000000,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 1000000,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 1000000,
+      "blueIndependent": 1000000,
+      "stock": [
+        {
+          "variant": "04-original",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "04-replacement",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        }
+      ],
+      "credits": [
+        {
+          "label": "exchange-successor",
+          "amount": 200000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null
+        }
+      ],
+      "invoices": [
+        {
+          "id": 4,
+          "receiptNo": 4,
+          "status": "RETURNED",
+          "type": "INTERNAL",
+          "grandTotal": 1000000,
+          "paidTotal": 1000000,
+          "paymentDocuments": 1000000,
+          "activeCreditRedemptions": 0
+        },
+        {
+          "id": 5,
+          "receiptNo": 5,
+          "status": "SETTLED",
+          "type": "EXCHANGE",
+          "grandTotal": 800000,
+          "paidTotal": 800000,
+          "paymentDocuments": 800000,
+          "activeCreditRedemptions": 0
+        }
+      ],
+      "documents": {
+        "paymentRows": 2,
+        "returnRows": 1,
+        "cashMovements": 0,
+        "stockMovements": 10
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.388Z",
+      "scenario": "05 exchange up with cash difference",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 10
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.411Z",
+      "scenario": "05 exchange up with cash difference",
+      "operation": "source sale",
+      "note": "",
+      "expected": {
+        "cash": 500000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 500000
+      },
+      "reported": {
+        "cashReceived": 500000,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 500000,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 500000,
+      "blueIndependent": 500000,
+      "stock": [
+        {
+          "variant": "05-original",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        },
+        {
+          "variant": "05-replacement",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [],
+      "invoices": [
+        {
+          "id": 6,
+          "receiptNo": 6,
+          "status": "SETTLED",
+          "type": "INTERNAL",
+          "grandTotal": 500000,
+          "paidTotal": 500000,
+          "paymentDocuments": 500000,
+          "activeCreditRedemptions": 0
+        }
+      ],
+      "documents": {
+        "paymentRows": 1,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 11
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.430Z",
+      "scenario": "05 exchange up with cash difference",
+      "operation": "exchange up; cash difference collected",
+      "note": "",
+      "expected": {
+        "cash": 700000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 700000
+      },
+      "reported": {
+        "cashReceived": 700000,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 700000,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 700000,
+      "blueIndependent": 700000,
+      "stock": [
+        {
+          "variant": "05-original",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "05-replacement",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        }
+      ],
+      "credits": [],
+      "invoices": [
+        {
+          "id": 6,
+          "receiptNo": 6,
+          "status": "RETURNED",
+          "type": "INTERNAL",
+          "grandTotal": 500000,
+          "paidTotal": 500000,
+          "paymentDocuments": 500000,
+          "activeCreditRedemptions": 0
+        },
+        {
+          "id": 7,
+          "receiptNo": 7,
+          "status": "SETTLED",
+          "type": "EXCHANGE",
+          "grandTotal": 700000,
+          "paidTotal": 700000,
+          "paymentDocuments": 700000,
+          "activeCreditRedemptions": 0
+        }
+      ],
+      "documents": {
+        "paymentRows": 3,
+        "returnRows": 1,
+        "cashMovements": 0,
+        "stockMovements": 13
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.435Z",
+      "scenario": "06 exchange down with card refund",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 13
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.454Z",
+      "scenario": "06 exchange down with card refund",
+      "operation": "source POS sale",
+      "note": "",
+      "expected": {
+        "cash": 0,
+        "card": 600000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 600000
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 600000,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 600000,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 600000,
+      "blueIndependent": 600000,
+      "stock": [
+        {
+          "variant": "06-original",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        },
+        {
+          "variant": "06-replacement",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [],
+      "invoices": [
+        {
+          "id": 8,
+          "receiptNo": 8,
+          "status": "SETTLED",
+          "type": "INTERNAL",
+          "grandTotal": 600000,
+          "paidTotal": 600000,
+          "paymentDocuments": 600000,
+          "activeCreditRedemptions": 0
+        }
+      ],
+      "documents": {
+        "paymentRows": 1,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 14
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.555Z",
+      "scenario": "06 exchange down with card refund",
+      "operation": "exchange down; POS difference refunded",
+      "note": "",
+      "expected": {
+        "cash": 0,
+        "card": 600000,
+        "refundCash": 0,
+        "refundCard": 100000,
+        "blue": 500000
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 600000,
+        "cashRefunded": 0,
+        "cardRefunded": 100000
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 600000,
+        "cashRefunded": 0,
+        "cardRefunded": 100000
+      },
+      "blueActual": 500000,
+      "blueIndependent": 500000,
+      "stock": [
+        {
+          "variant": "06-original",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "06-replacement",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        }
+      ],
+      "credits": [],
+      "invoices": [
+        {
+          "id": 8,
+          "receiptNo": 8,
+          "status": "RETURNED",
+          "type": "INTERNAL",
+          "grandTotal": 600000,
+          "paidTotal": 600000,
+          "paymentDocuments": 600000,
+          "activeCreditRedemptions": 0
+        },
+        {
+          "id": 9,
+          "receiptNo": 9,
+          "status": "SETTLED",
+          "type": "EXCHANGE",
+          "grandTotal": 500000,
+          "paidTotal": 500000,
+          "paymentDocuments": 500000,
+          "activeCreditRedemptions": 0
+        }
+      ],
+      "documents": {
+        "paymentRows": 2,
+        "returnRows": 1,
+        "cashMovements": 0,
+        "stockMovements": 16
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.566Z",
+      "scenario": "07 store-credit-only sale and partial remainder",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 16
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.658Z",
+      "scenario": "07 store-credit-only sale and partial remainder",
+      "operation": "manual credit fixture baseline",
+      "note": "credit issued in isolated harness before sale; 1,000,000 available, physical blue zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [
+        {
+          "variant": "07-item",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [
+        {
+          "label": "credit-1",
+          "amount": 1000000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 16
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.677Z",
+      "scenario": "07 store-credit-only sale and partial remainder",
+      "operation": "credit-only sale",
+      "note": "",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [
+        {
+          "variant": "07-item",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        }
+      ],
+      "credits": [
+        {
+          "label": "credit-1",
+          "amount": 1000000,
+          "usedAmount": 600000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [
+        {
+          "id": 10,
+          "receiptNo": 10,
+          "status": "SETTLED",
+          "type": "INTERNAL",
+          "grandTotal": 600000,
+          "paidTotal": 600000,
+          "paymentDocuments": 600000,
+          "activeCreditRedemptions": 1
+        }
+      ],
+      "documents": {
+        "paymentRows": 1,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 17
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.683Z",
+      "scenario": "08 return followed by exchange chain",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 17
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.702Z",
+      "scenario": "08 return followed by exchange chain",
+      "operation": "two-unit source sale",
+      "note": "",
+      "expected": {
+        "cash": 1000000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 1000000
+      },
+      "reported": {
+        "cashReceived": 1000000,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 1000000,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 1000000,
+      "blueIndependent": 1000000,
+      "stock": [
+        {
+          "variant": "08-source",
+          "baseline": 20,
+          "expected": 18,
+          "actual": 18,
+          "ledgerDelta": -2
+        },
+        {
+          "variant": "08-replacement",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [],
+      "invoices": [
+        {
+          "id": 11,
+          "receiptNo": 11,
+          "status": "SETTLED",
+          "type": "INTERNAL",
+          "grandTotal": 1000000,
+          "paidTotal": 1000000,
+          "paymentDocuments": 1000000,
+          "activeCreditRedemptions": 0
+        }
+      ],
+      "documents": {
+        "paymentRows": 1,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 18
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.716Z",
+      "scenario": "08 return followed by exchange chain",
+      "operation": "return first unit",
+      "note": "return #6",
+      "expected": {
+        "cash": 1000000,
+        "card": 0,
+        "refundCash": 500000,
+        "refundCard": 0,
+        "blue": 500000
+      },
+      "reported": {
+        "cashReceived": 1000000,
+        "cardReceived": 0,
+        "cashRefunded": 500000,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 1000000,
+        "cardReceived": 0,
+        "cashRefunded": 500000,
+        "cardRefunded": 0
+      },
+      "blueActual": 500000,
+      "blueIndependent": 500000,
+      "stock": [
+        {
+          "variant": "08-source",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        },
+        {
+          "variant": "08-replacement",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [],
+      "invoices": [
+        {
+          "id": 11,
+          "receiptNo": 11,
+          "status": "PARTIALLY_RETURNED",
+          "type": "INTERNAL",
+          "grandTotal": 1000000,
+          "paidTotal": 1000000,
+          "paymentDocuments": 1000000,
+          "activeCreditRedemptions": 0
+        }
+      ],
+      "documents": {
+        "paymentRows": 1,
+        "returnRows": 1,
+        "cashMovements": 1,
+        "stockMovements": 19
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.742Z",
+      "scenario": "08 return followed by exchange chain",
+      "operation": "exchange remaining unit down",
+      "note": "exchange return #7",
+      "expected": {
+        "cash": 1000000,
+        "card": 0,
+        "refundCash": 500000,
+        "refundCard": 0,
+        "blue": 500000
+      },
+      "reported": {
+        "cashReceived": 1000000,
+        "cardReceived": 0,
+        "cashRefunded": 500000,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 1000000,
+        "cardReceived": 0,
+        "cashRefunded": 500000,
+        "cardRefunded": 0
+      },
+      "blueActual": 500000,
+      "blueIndependent": 500000,
+      "stock": [
+        {
+          "variant": "08-source",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "08-replacement",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        }
+      ],
+      "credits": [
+        {
+          "label": "exchange-successor",
+          "amount": 50000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null
+        }
+      ],
+      "invoices": [
+        {
+          "id": 11,
+          "receiptNo": 11,
+          "status": "RETURNED",
+          "type": "INTERNAL",
+          "grandTotal": 1000000,
+          "paidTotal": 1000000,
+          "paymentDocuments": 1000000,
+          "activeCreditRedemptions": 0
+        },
+        {
+          "id": 12,
+          "receiptNo": 12,
+          "status": "SETTLED",
+          "type": "EXCHANGE",
+          "grandTotal": 450000,
+          "paidTotal": 450000,
+          "paymentDocuments": 450000,
+          "activeCreditRedemptions": 0
+        }
+      ],
+      "documents": {
+        "paymentRows": 2,
+        "returnRows": 2,
+        "cashMovements": 1,
+        "stockMovements": 21
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.748Z",
+      "scenario": "09 four-barcode sale then multi-source return",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 21
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.841Z",
+      "scenario": "09 four-barcode sale then multi-source return",
+      "operation": "issue barcode fixture 1/4",
+      "note": "credit 1 of 4 issued; physical blue remains zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [
+        {
+          "variant": "09-A",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "09-B",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [
+        {
+          "label": "credit-2",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 21
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:33.928Z",
+      "scenario": "09 four-barcode sale then multi-source return",
+      "operation": "issue barcode fixture 2/4",
+      "note": "credit 2 of 4 issued; physical blue remains zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [
+        {
+          "variant": "09-A",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "09-B",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [
+        {
+          "label": "credit-2",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-3",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 21
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:34.015Z",
+      "scenario": "09 four-barcode sale then multi-source return",
+      "operation": "issue barcode fixture 3/4",
+      "note": "credit 3 of 4 issued; physical blue remains zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [
+        {
+          "variant": "09-A",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "09-B",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [
+        {
+          "label": "credit-2",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-3",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-4",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 21
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:34.103Z",
+      "scenario": "09 four-barcode sale then multi-source return",
+      "operation": "issue barcode fixture 4/4",
+      "note": "credit 4 of 4 issued; physical blue remains zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [
+        {
+          "variant": "09-A",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "09-B",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [
+        {
+          "label": "credit-2",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-3",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-4",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-5",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 21
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:34.110Z",
+      "scenario": "09 four-barcode sale then multi-source return",
+      "operation": "four barcode fixture baseline",
+      "note": "four independent 250,000 balances, none consumed",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [
+        {
+          "variant": "09-A",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "09-B",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [
+        {
+          "label": "credit-2",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-3",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-4",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-5",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 21
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:34.137Z",
+      "scenario": "09 four-barcode sale then multi-source return",
+      "operation": "four barcode sale",
+      "note": "",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [
+        {
+          "variant": "09-A",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        },
+        {
+          "variant": "09-B",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        }
+      ],
+      "credits": [
+        {
+          "label": "credit-2",
+          "amount": 250000,
+          "usedAmount": 250000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-3",
+          "amount": 250000,
+          "usedAmount": 250000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-4",
+          "amount": 250000,
+          "usedAmount": 250000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-5",
+          "amount": 250000,
+          "usedAmount": 250000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [
+        {
+          "id": 13,
+          "receiptNo": 13,
+          "status": "SETTLED",
+          "type": "INTERNAL",
+          "grandTotal": 1000000,
+          "paidTotal": 1000000,
+          "paymentDocuments": 1000000,
+          "activeCreditRedemptions": 4
+        }
+      ],
+      "documents": {
+        "paymentRows": 4,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 23
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:34.163Z",
+      "scenario": "09 four-barcode sale then multi-source return",
+      "operation": "return one of two pooled-funded items",
+      "note": "return #8; no per-item credit lineage presumed",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [
+        {
+          "variant": "09-A",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "09-B",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        }
+      ],
+      "credits": [
+        {
+          "label": "credit-2",
+          "amount": 250000,
+          "usedAmount": 250000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-3",
+          "amount": 250000,
+          "usedAmount": 250000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-4",
+          "amount": 250000,
+          "usedAmount": 250000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-5",
+          "amount": 250000,
+          "usedAmount": 250000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [
+        {
+          "id": 13,
+          "receiptNo": 13,
+          "status": "PARTIALLY_RETURNED",
+          "type": "INTERNAL",
+          "grandTotal": 1000000,
+          "paidTotal": 1000000,
+          "paymentDocuments": 1000000,
+          "activeCreditRedemptions": 2
+        }
+      ],
+      "documents": {
+        "paymentRows": 4,
+        "returnRows": 1,
+        "cashMovements": 0,
+        "stockMovements": 24
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:34.174Z",
+      "scenario": "09 four-barcode sale then multi-source return",
+      "operation": "inspect return successor barcodes",
+      "note": "each returned source credit successor is independently tracked by amount/status; no source-to-line allocation assumed",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [
+        {
+          "variant": "09-A",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "09-B",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        }
+      ],
+      "credits": [
+        {
+          "label": "credit-2",
+          "amount": 250000,
+          "usedAmount": 250000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-3",
+          "amount": 250000,
+          "usedAmount": 250000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-4",
+          "amount": 250000,
+          "usedAmount": 250000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-5",
+          "amount": 250000,
+          "usedAmount": 250000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "return-successor",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "return-successor",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [
+        {
+          "id": 13,
+          "receiptNo": 13,
+          "status": "PARTIALLY_RETURNED",
+          "type": "INTERNAL",
+          "grandTotal": 1000000,
+          "paidTotal": 1000000,
+          "paymentDocuments": 1000000,
+          "activeCreditRedemptions": 2
+        }
+      ],
+      "documents": {
+        "paymentRows": 4,
+        "returnRows": 1,
+        "cashMovements": 0,
+        "stockMovements": 24
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:34.196Z",
+      "scenario": "10 mixed-tender sale, return, and exchange",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 24
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:34.221Z",
+      "scenario": "10 mixed-tender sale, return, and exchange",
+      "operation": "mixed tender sale",
+      "note": "",
+      "expected": {
+        "cash": 400000,
+        "card": 600000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 1000000
+      },
+      "reported": {
+        "cashReceived": 400000,
+        "cardReceived": 600000,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 400000,
+        "cardReceived": 600000,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 1000000,
+      "blueIndependent": 1000000,
+      "stock": [
+        {
+          "variant": "10-source",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        },
+        {
+          "variant": "10-exchange",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "10-next",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [],
+      "invoices": [
+        {
+          "id": 14,
+          "receiptNo": 14,
+          "status": "SETTLED",
+          "type": "INTERNAL",
+          "grandTotal": 1000000,
+          "paidTotal": 1000000,
+          "paymentDocuments": 1000000,
+          "activeCreditRedemptions": 0
+        }
+      ],
+      "documents": {
+        "paymentRows": 2,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 25
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:34.247Z",
+      "scenario": "10 mixed-tender sale, return, and exchange",
+      "operation": "mixed tender exchange down",
+      "note": "",
+      "expected": {
+        "cash": 400000,
+        "card": 600000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 1000000
+      },
+      "reported": {
+        "cashReceived": 400000,
+        "cardReceived": 600000,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 400000,
+        "cardReceived": 600000,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 1000000,
+      "blueIndependent": 1000000,
+      "stock": [
+        {
+          "variant": "10-source",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "10-exchange",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        },
+        {
+          "variant": "10-next",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [
+        {
+          "label": "exchange-successor",
+          "amount": 300000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null
+        }
+      ],
+      "invoices": [
+        {
+          "id": 14,
+          "receiptNo": 14,
+          "status": "RETURNED",
+          "type": "INTERNAL",
+          "grandTotal": 1000000,
+          "paidTotal": 1000000,
+          "paymentDocuments": 1000000,
+          "activeCreditRedemptions": 0
+        },
+        {
+          "id": 15,
+          "receiptNo": 15,
+          "status": "SETTLED",
+          "type": "EXCHANGE",
+          "grandTotal": 700000,
+          "paidTotal": 700000,
+          "paymentDocuments": 700000,
+          "activeCreditRedemptions": 0
+        }
+      ],
+      "documents": {
+        "paymentRows": 3,
+        "returnRows": 1,
+        "cashMovements": 0,
+        "stockMovements": 27
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:34.276Z",
+      "scenario": "10 mixed-tender sale, return, and exchange",
+      "operation": "return exchange replacement for cash",
+      "note": "return #10",
+      "expected": {
+        "cash": 400000,
+        "card": 600000,
+        "refundCash": 700000,
+        "refundCard": 0,
+        "blue": 300000
+      },
+      "reported": {
+        "cashReceived": 400000,
+        "cardReceived": 600000,
+        "cashRefunded": 700000,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 400000,
+        "cardReceived": 600000,
+        "cashRefunded": 700000,
+        "cardRefunded": 0
+      },
+      "blueActual": 300000,
+      "blueIndependent": 300000,
+      "stock": [
+        {
+          "variant": "10-source",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "10-exchange",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "10-next",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [
+        {
+          "label": "exchange-successor",
+          "amount": 300000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null
+        }
+      ],
+      "invoices": [
+        {
+          "id": 14,
+          "receiptNo": 14,
+          "status": "RETURNED",
+          "type": "INTERNAL",
+          "grandTotal": 1000000,
+          "paidTotal": 1000000,
+          "paymentDocuments": 1000000,
+          "activeCreditRedemptions": 0
+        },
+        {
+          "id": 15,
+          "receiptNo": 15,
+          "status": "RETURNED",
+          "type": "EXCHANGE",
+          "grandTotal": 700000,
+          "paidTotal": 700000,
+          "paymentDocuments": 700000,
+          "activeCreditRedemptions": 0
+        }
+      ],
+      "documents": {
+        "paymentRows": 3,
+        "returnRows": 2,
+        "cashMovements": 1,
+        "stockMovements": 28
+      }
+    },
+    {
+      "at": "2026-10-26T12:09:34.300Z",
+      "scenario": "10 mixed-tender sale, return, and exchange",
+      "operation": "final POS sale after return",
+      "note": "",
+      "expected": {
+        "cash": 400000,
+        "card": 1100000,
+        "refundCash": 700000,
+        "refundCard": 0,
+        "blue": 800000
+      },
+      "reported": {
+        "cashReceived": 400000,
+        "cardReceived": 1100000,
+        "cashRefunded": 700000,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 400000,
+        "cardReceived": 1100000,
+        "cashRefunded": 700000,
+        "cardRefunded": 0
+      },
+      "blueActual": 800000,
+      "blueIndependent": 800000,
+      "stock": [
+        {
+          "variant": "10-source",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "10-exchange",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "10-next",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "10-final-sale",
+          "baseline": 20,
+          "expected": 19,
+          "actual": 19,
+          "ledgerDelta": -1
+        }
+      ],
+      "credits": [
+        {
+          "label": "exchange-successor",
+          "amount": 300000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null
+        }
+      ],
+      "invoices": [
+        {
+          "id": 14,
+          "receiptNo": 14,
+          "status": "RETURNED",
+          "type": "INTERNAL",
+          "grandTotal": 1000000,
+          "paidTotal": 1000000,
+          "paymentDocuments": 1000000,
+          "activeCreditRedemptions": 0
+        },
+        {
+          "id": 15,
+          "receiptNo": 15,
+          "status": "RETURNED",
+          "type": "EXCHANGE",
+          "grandTotal": 700000,
+          "paidTotal": 700000,
+          "paymentDocuments": 700000,
+          "activeCreditRedemptions": 0
+        },
+        {
+          "id": 16,
+          "receiptNo": 16,
+          "status": "SETTLED",
+          "type": "INTERNAL",
+          "grandTotal": 500000,
+          "paidTotal": 500000,
+          "paymentDocuments": 500000,
+          "activeCreditRedemptions": 0
+        }
+      ],
+      "documents": {
+        "paymentRows": 4,
+        "returnRows": 2,
+        "cashMovements": 1,
+        "stockMovements": 29
+      }
+    }
+  ]
+}

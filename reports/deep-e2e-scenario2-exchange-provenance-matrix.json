@@ -1,0 +1,3438 @@
+{
+  "generatedAt": "2026-10-30T19:47:17.344Z",
+  "isolatedDatabase": "/tmp/mahak-e100-018-provenance-K1x3pX/isolated.db",
+  "suite": "E100-018 follow-up: invoice-wide credits; return A, optional positive B exchange, then test exchange direction/selection or child invoice.",
+  "totals": {
+    "cases": 7,
+    "accepted": 6,
+    "blocked": 1,
+    "harnessErrors": 0
+  },
+  "cases": [
+    {
+      "id": "A-return_Bplus_CplusDminus",
+      "target": "CD_NEG",
+      "includeB": true,
+      "verdict": "ACCEPTED",
+      "steps": [
+        {
+          "step": "return A through invoice-wide credit pool",
+          "accepted": true,
+          "returnId": 1,
+          "sourceCreditRestoredAmount": 200000,
+          "allocationCount": 6,
+          "allocations": [
+            {
+              "id": 1,
+              "sourceCreditId": 4,
+              "redemptionId": 1,
+              "amount": 100000
+            },
+            {
+              "id": 2,
+              "sourceCreditId": 3,
+              "redemptionId": 2,
+              "amount": 100000
+            },
+            {
+              "id": 3,
+              "sourceCreditId": 1,
+              "redemptionId": 3,
+              "amount": 0
+            },
+            {
+              "id": 4,
+              "sourceCreditId": 5,
+              "redemptionId": 4,
+              "amount": 0
+            },
+            {
+              "id": 5,
+              "sourceCreditId": 6,
+              "redemptionId": 5,
+              "amount": 0
+            },
+            {
+              "id": 6,
+              "sourceCreditId": 2,
+              "redemptionId": 6,
+              "amount": 0
+            }
+          ],
+          "after": {
+            "blue": 400000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 9
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-220k",
+                "stock": 10
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 10
+              },
+              {
+                "label": "D1-290k",
+                "stock": 10
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 1,
+                "code": "CRN6N3PE",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 2,
+                "code": "CRV6PBB7",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 3,
+                "code": "CR9CEQJJ",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 4,
+                "code": "CR6TVUBM",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 5,
+                "code": "CRNYX766",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 6,
+                "code": "CRUUAZHJ",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 1,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              }
+            ],
+            "invoices": [
+              {
+                "id": 1,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "PARTIALLY_RETURNED",
+                "parent": null
+              }
+            ]
+          }
+        },
+        {
+          "step": "B→B1 positive exchange 200k→220k (+20k card)",
+          "accepted": true,
+          "returnId": 2,
+          "exchangeInvoiceId": 2,
+          "diff": 20000,
+          "allocationCount": 2,
+          "allocations": [
+            {
+              "id": 7,
+              "sourceCreditId": 1,
+              "redemptionId": 3,
+              "amount": 100000
+            },
+            {
+              "id": 8,
+              "sourceCreditId": 5,
+              "redemptionId": 4,
+              "amount": 100000
+            }
+          ],
+          "returnDocument": {
+            "total": 200000,
+            "diff": 20000,
+            "settlement": "CASH"
+          },
+          "after": {
+            "blue": 420000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-220k",
+                "stock": 9
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 10
+              },
+              {
+                "label": "D1-290k",
+                "stock": 10
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 1,
+                "code": "CRN6N3PE",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 2,
+                "code": "CRV6PBB7",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 3,
+                "code": "CR9CEQJJ",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 4,
+                "code": "CR6TVUBM",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 5,
+                "code": "CRNYX766",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 6,
+                "code": "CRUUAZHJ",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 1,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              },
+              {
+                "id": 2,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": 20000,
+                "method": "NONE",
+                "settlement": "CASH",
+                "exchangeInvoiceId": 2
+              }
+            ],
+            "invoices": [
+              {
+                "id": 1,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "PARTIALLY_RETURNED",
+                "parent": null
+              },
+              {
+                "id": 2,
+                "total": 220000,
+                "paid": 220000,
+                "status": "SETTLED",
+                "parent": 1
+              }
+            ]
+          }
+        },
+        {
+          "step": "target: C+D negative difference −20k",
+          "accepted": true,
+          "returnId": 3,
+          "exchangeInvoiceId": 3,
+          "diff": -20000,
+          "sourceCreditRestoredAmount": 20000,
+          "issued": [
+            {
+              "id": 9,
+              "code": "CR44RHX8",
+              "amount": 20000,
+              "expiresAt": 1795984199999,
+              "status": "ACTIVE"
+            }
+          ],
+          "after": {
+            "blue": 420000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 10
+              },
+              {
+                "label": "D-300k",
+                "stock": 10
+              },
+              {
+                "label": "B1-220k",
+                "stock": 9
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 9
+              },
+              {
+                "label": "D1-290k",
+                "stock": 9
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 1,
+                "code": "CRN6N3PE",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 2,
+                "code": "CRV6PBB7",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 3,
+                "code": "CR9CEQJJ",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 4,
+                "code": "CR6TVUBM",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 5,
+                "code": "CRNYX766",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 6,
+                "code": "CRUUAZHJ",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 1,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              },
+              {
+                "id": 2,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": 20000,
+                "method": "NONE",
+                "settlement": "CASH",
+                "exchangeInvoiceId": 2
+              },
+              {
+                "id": 3,
+                "kind": "EXCHANGE",
+                "total": 600000,
+                "diff": -20000,
+                "method": "STORE_CREDIT",
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 3
+              }
+            ],
+            "invoices": [
+              {
+                "id": 1,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "RETURNED",
+                "parent": null
+              },
+              {
+                "id": 2,
+                "total": 220000,
+                "paid": 220000,
+                "status": "SETTLED",
+                "parent": 1
+              },
+              {
+                "id": 3,
+                "total": 580000,
+                "paid": 580000,
+                "status": "SETTLED",
+                "parent": 1
+              }
+            ]
+          }
+        }
+      ],
+      "setup": {
+        "invoiceId": 1,
+        "cash": 200000,
+        "card": 200000,
+        "credit": 600000,
+        "scope": "ALL for all six codes"
+      },
+      "child": {
+        "invoiceId": 2,
+        "saleItemId": 5
+      }
+    },
+    {
+      "id": "A-return_Bplus_CplusDplus",
+      "target": "CD_POS",
+      "includeB": true,
+      "verdict": "ACCEPTED",
+      "steps": [
+        {
+          "step": "return A through invoice-wide credit pool",
+          "accepted": true,
+          "returnId": 4,
+          "sourceCreditRestoredAmount": 200000,
+          "allocationCount": 6,
+          "allocations": [
+            {
+              "id": 12,
+              "sourceCreditId": 13,
+              "redemptionId": 7,
+              "amount": 100000
+            },
+            {
+              "id": 13,
+              "sourceCreditId": 11,
+              "redemptionId": 8,
+              "amount": 100000
+            },
+            {
+              "id": 14,
+              "sourceCreditId": 12,
+              "redemptionId": 9,
+              "amount": 0
+            },
+            {
+              "id": 15,
+              "sourceCreditId": 14,
+              "redemptionId": 10,
+              "amount": 0
+            },
+            {
+              "id": 16,
+              "sourceCreditId": 10,
+              "redemptionId": 11,
+              "amount": 0
+            },
+            {
+              "id": 17,
+              "sourceCreditId": 15,
+              "redemptionId": 12,
+              "amount": 0
+            }
+          ],
+          "after": {
+            "blue": 400000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 9
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-220k",
+                "stock": 10
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 10
+              },
+              {
+                "label": "D1-290k",
+                "stock": 10
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 10,
+                "code": "CRQCG8KV",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 11,
+                "code": "CRETRYMR",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 12,
+                "code": "CRGCZZMX",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 13,
+                "code": "CRAN4RFU",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 14,
+                "code": "CRHMWAWP",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 15,
+                "code": "CRT4XMCF",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 4,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              }
+            ],
+            "invoices": [
+              {
+                "id": 4,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "PARTIALLY_RETURNED",
+                "parent": null
+              }
+            ]
+          }
+        },
+        {
+          "step": "B→B1 positive exchange 200k→220k (+20k card)",
+          "accepted": true,
+          "returnId": 5,
+          "exchangeInvoiceId": 5,
+          "diff": 20000,
+          "allocationCount": 2,
+          "allocations": [
+            {
+              "id": 18,
+              "sourceCreditId": 12,
+              "redemptionId": 9,
+              "amount": 100000
+            },
+            {
+              "id": 19,
+              "sourceCreditId": 14,
+              "redemptionId": 10,
+              "amount": 100000
+            }
+          ],
+          "returnDocument": {
+            "total": 200000,
+            "diff": 20000,
+            "settlement": "CASH"
+          },
+          "after": {
+            "blue": 420000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-220k",
+                "stock": 9
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 10
+              },
+              {
+                "label": "D1-290k",
+                "stock": 10
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 10,
+                "code": "CRQCG8KV",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 11,
+                "code": "CRETRYMR",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 12,
+                "code": "CRGCZZMX",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 13,
+                "code": "CRAN4RFU",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 14,
+                "code": "CRHMWAWP",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 15,
+                "code": "CRT4XMCF",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 4,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              },
+              {
+                "id": 5,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": 20000,
+                "method": "NONE",
+                "settlement": "CASH",
+                "exchangeInvoiceId": 5
+              }
+            ],
+            "invoices": [
+              {
+                "id": 4,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "PARTIALLY_RETURNED",
+                "parent": null
+              },
+              {
+                "id": 5,
+                "total": 220000,
+                "paid": 220000,
+                "status": "SETTLED",
+                "parent": 4
+              }
+            ]
+          }
+        },
+        {
+          "step": "target: C+D positive difference +20k",
+          "accepted": true,
+          "returnId": 6,
+          "exchangeInvoiceId": 6,
+          "diff": 20000,
+          "sourceCreditRestoredAmount": 0,
+          "issued": [],
+          "after": {
+            "blue": 440000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 10
+              },
+              {
+                "label": "D-300k",
+                "stock": 10
+              },
+              {
+                "label": "B1-220k",
+                "stock": 9
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 10
+              },
+              {
+                "label": "D1-290k",
+                "stock": 10
+              },
+              {
+                "label": "C2-310k",
+                "stock": 9
+              },
+              {
+                "label": "D2-310k",
+                "stock": 9
+              }
+            ],
+            "credits": [
+              {
+                "id": 10,
+                "code": "CRQCG8KV",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 11,
+                "code": "CRETRYMR",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 12,
+                "code": "CRGCZZMX",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 13,
+                "code": "CRAN4RFU",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 14,
+                "code": "CRHMWAWP",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 15,
+                "code": "CRT4XMCF",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 4,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              },
+              {
+                "id": 5,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": 20000,
+                "method": "NONE",
+                "settlement": "CASH",
+                "exchangeInvoiceId": 5
+              },
+              {
+                "id": 6,
+                "kind": "EXCHANGE",
+                "total": 600000,
+                "diff": 20000,
+                "method": "NONE",
+                "settlement": "CASH",
+                "exchangeInvoiceId": 6
+              }
+            ],
+            "invoices": [
+              {
+                "id": 4,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "RETURNED",
+                "parent": null
+              },
+              {
+                "id": 5,
+                "total": 220000,
+                "paid": 220000,
+                "status": "SETTLED",
+                "parent": 4
+              },
+              {
+                "id": 6,
+                "total": 620000,
+                "paid": 620000,
+                "status": "SETTLED",
+                "parent": 4
+              }
+            ]
+          }
+        }
+      ],
+      "setup": {
+        "invoiceId": 4,
+        "cash": 200000,
+        "card": 200000,
+        "credit": 600000,
+        "scope": "ALL for all six codes"
+      },
+      "child": {
+        "invoiceId": 5,
+        "saleItemId": 12
+      }
+    },
+    {
+      "id": "A-return_Bplus_Cminus",
+      "target": "C_NEG",
+      "includeB": true,
+      "verdict": "ACCEPTED",
+      "steps": [
+        {
+          "step": "return A through invoice-wide credit pool",
+          "accepted": true,
+          "returnId": 7,
+          "sourceCreditRestoredAmount": 200000,
+          "allocationCount": 6,
+          "allocations": [
+            {
+              "id": 22,
+              "sourceCreditId": 22,
+              "redemptionId": 13,
+              "amount": 100000
+            },
+            {
+              "id": 23,
+              "sourceCreditId": 19,
+              "redemptionId": 14,
+              "amount": 100000
+            },
+            {
+              "id": 24,
+              "sourceCreditId": 18,
+              "redemptionId": 15,
+              "amount": 0
+            },
+            {
+              "id": 25,
+              "sourceCreditId": 21,
+              "redemptionId": 16,
+              "amount": 0
+            },
+            {
+              "id": 26,
+              "sourceCreditId": 20,
+              "redemptionId": 17,
+              "amount": 0
+            },
+            {
+              "id": 27,
+              "sourceCreditId": 23,
+              "redemptionId": 18,
+              "amount": 0
+            }
+          ],
+          "after": {
+            "blue": 400000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 9
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-220k",
+                "stock": 10
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 10
+              },
+              {
+                "label": "D1-290k",
+                "stock": 10
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 18,
+                "code": "CRG3TKGZ",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 19,
+                "code": "CREEJLPX",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 20,
+                "code": "CRRCXP3A",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 21,
+                "code": "CRQR86BJ",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 22,
+                "code": "CR8C64BY",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 23,
+                "code": "CRVW8MPA",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 7,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              }
+            ],
+            "invoices": [
+              {
+                "id": 7,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "PARTIALLY_RETURNED",
+                "parent": null
+              }
+            ]
+          }
+        },
+        {
+          "step": "B→B1 positive exchange 200k→220k (+20k card)",
+          "accepted": true,
+          "returnId": 8,
+          "exchangeInvoiceId": 8,
+          "diff": 20000,
+          "allocationCount": 2,
+          "allocations": [
+            {
+              "id": 28,
+              "sourceCreditId": 18,
+              "redemptionId": 15,
+              "amount": 100000
+            },
+            {
+              "id": 29,
+              "sourceCreditId": 21,
+              "redemptionId": 16,
+              "amount": 100000
+            }
+          ],
+          "returnDocument": {
+            "total": 200000,
+            "diff": 20000,
+            "settlement": "CASH"
+          },
+          "after": {
+            "blue": 420000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-220k",
+                "stock": 9
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 10
+              },
+              {
+                "label": "D1-290k",
+                "stock": 10
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 18,
+                "code": "CRG3TKGZ",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 19,
+                "code": "CREEJLPX",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 20,
+                "code": "CRRCXP3A",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 21,
+                "code": "CRQR86BJ",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 22,
+                "code": "CR8C64BY",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 23,
+                "code": "CRVW8MPA",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 7,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              },
+              {
+                "id": 8,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": 20000,
+                "method": "NONE",
+                "settlement": "CASH",
+                "exchangeInvoiceId": 8
+              }
+            ],
+            "invoices": [
+              {
+                "id": 7,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "PARTIALLY_RETURNED",
+                "parent": null
+              },
+              {
+                "id": 8,
+                "total": 220000,
+                "paid": 220000,
+                "status": "SETTLED",
+                "parent": 7
+              }
+            ]
+          }
+        },
+        {
+          "step": "target: C negative difference −10k",
+          "accepted": true,
+          "returnId": 9,
+          "exchangeInvoiceId": 9,
+          "diff": -10000,
+          "sourceCreditRestoredAmount": 10000,
+          "issued": [
+            {
+              "id": 26,
+              "code": "CRDJWEM8",
+              "amount": 10000,
+              "expiresAt": 1795984199999,
+              "status": "ACTIVE"
+            }
+          ],
+          "after": {
+            "blue": 420000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 10
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-220k",
+                "stock": 9
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 9
+              },
+              {
+                "label": "D1-290k",
+                "stock": 10
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 18,
+                "code": "CRG3TKGZ",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 19,
+                "code": "CREEJLPX",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 20,
+                "code": "CRRCXP3A",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 21,
+                "code": "CRQR86BJ",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 22,
+                "code": "CR8C64BY",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 23,
+                "code": "CRVW8MPA",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 7,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              },
+              {
+                "id": 8,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": 20000,
+                "method": "NONE",
+                "settlement": "CASH",
+                "exchangeInvoiceId": 8
+              },
+              {
+                "id": 9,
+                "kind": "EXCHANGE",
+                "total": 300000,
+                "diff": -10000,
+                "method": "STORE_CREDIT",
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 9
+              }
+            ],
+            "invoices": [
+              {
+                "id": 7,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "PARTIALLY_RETURNED",
+                "parent": null
+              },
+              {
+                "id": 8,
+                "total": 220000,
+                "paid": 220000,
+                "status": "SETTLED",
+                "parent": 7
+              },
+              {
+                "id": 9,
+                "total": 290000,
+                "paid": 290000,
+                "status": "SETTLED",
+                "parent": 7
+              }
+            ]
+          }
+        }
+      ],
+      "setup": {
+        "invoiceId": 7,
+        "cash": 200000,
+        "card": 200000,
+        "credit": 600000,
+        "scope": "ALL for all six codes"
+      },
+      "child": {
+        "invoiceId": 8,
+        "saleItemId": 19
+      }
+    },
+    {
+      "id": "A-return_Bplus_Dminus",
+      "target": "D_NEG",
+      "includeB": true,
+      "verdict": "ACCEPTED",
+      "steps": [
+        {
+          "step": "return A through invoice-wide credit pool",
+          "accepted": true,
+          "returnId": 10,
+          "sourceCreditRestoredAmount": 200000,
+          "allocationCount": 6,
+          "allocations": [
+            {
+              "id": 33,
+              "sourceCreditId": 32,
+              "redemptionId": 19,
+              "amount": 100000
+            },
+            {
+              "id": 34,
+              "sourceCreditId": 31,
+              "redemptionId": 20,
+              "amount": 100000
+            },
+            {
+              "id": 35,
+              "sourceCreditId": 27,
+              "redemptionId": 21,
+              "amount": 0
+            },
+            {
+              "id": 36,
+              "sourceCreditId": 30,
+              "redemptionId": 22,
+              "amount": 0
+            },
+            {
+              "id": 37,
+              "sourceCreditId": 29,
+              "redemptionId": 23,
+              "amount": 0
+            },
+            {
+              "id": 38,
+              "sourceCreditId": 28,
+              "redemptionId": 24,
+              "amount": 0
+            }
+          ],
+          "after": {
+            "blue": 400000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 9
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-220k",
+                "stock": 10
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 10
+              },
+              {
+                "label": "D1-290k",
+                "stock": 10
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 27,
+                "code": "CRHU7PYB",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 28,
+                "code": "CRYKVA9Q",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 29,
+                "code": "CRVBN3TD",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 30,
+                "code": "CRNF8MFA",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 31,
+                "code": "CRAC9R4U",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 32,
+                "code": "CR26ZH38",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 10,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              }
+            ],
+            "invoices": [
+              {
+                "id": 10,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "PARTIALLY_RETURNED",
+                "parent": null
+              }
+            ]
+          }
+        },
+        {
+          "step": "B→B1 positive exchange 200k→220k (+20k card)",
+          "accepted": true,
+          "returnId": 11,
+          "exchangeInvoiceId": 11,
+          "diff": 20000,
+          "allocationCount": 2,
+          "allocations": [
+            {
+              "id": 39,
+              "sourceCreditId": 27,
+              "redemptionId": 21,
+              "amount": 100000
+            },
+            {
+              "id": 40,
+              "sourceCreditId": 30,
+              "redemptionId": 22,
+              "amount": 100000
+            }
+          ],
+          "returnDocument": {
+            "total": 200000,
+            "diff": 20000,
+            "settlement": "CASH"
+          },
+          "after": {
+            "blue": 420000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-220k",
+                "stock": 9
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 10
+              },
+              {
+                "label": "D1-290k",
+                "stock": 10
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 27,
+                "code": "CRHU7PYB",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 28,
+                "code": "CRYKVA9Q",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 29,
+                "code": "CRVBN3TD",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 30,
+                "code": "CRNF8MFA",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 31,
+                "code": "CRAC9R4U",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 32,
+                "code": "CR26ZH38",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 10,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              },
+              {
+                "id": 11,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": 20000,
+                "method": "NONE",
+                "settlement": "CASH",
+                "exchangeInvoiceId": 11
+              }
+            ],
+            "invoices": [
+              {
+                "id": 10,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "PARTIALLY_RETURNED",
+                "parent": null
+              },
+              {
+                "id": 11,
+                "total": 220000,
+                "paid": 220000,
+                "status": "SETTLED",
+                "parent": 10
+              }
+            ]
+          }
+        },
+        {
+          "step": "target: D negative difference −10k",
+          "accepted": true,
+          "returnId": 12,
+          "exchangeInvoiceId": 12,
+          "diff": -10000,
+          "sourceCreditRestoredAmount": 10000,
+          "issued": [
+            {
+              "id": 35,
+              "code": "CRHDC2PM",
+              "amount": 10000,
+              "expiresAt": 1795984199999,
+              "status": "ACTIVE"
+            }
+          ],
+          "after": {
+            "blue": 420000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 10
+              },
+              {
+                "label": "B1-220k",
+                "stock": 9
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 10
+              },
+              {
+                "label": "D1-290k",
+                "stock": 9
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 27,
+                "code": "CRHU7PYB",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 28,
+                "code": "CRYKVA9Q",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 29,
+                "code": "CRVBN3TD",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 30,
+                "code": "CRNF8MFA",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 31,
+                "code": "CRAC9R4U",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 32,
+                "code": "CR26ZH38",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 10,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              },
+              {
+                "id": 11,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": 20000,
+                "method": "NONE",
+                "settlement": "CASH",
+                "exchangeInvoiceId": 11
+              },
+              {
+                "id": 12,
+                "kind": "EXCHANGE",
+                "total": 300000,
+                "diff": -10000,
+                "method": "STORE_CREDIT",
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 12
+              }
+            ],
+            "invoices": [
+              {
+                "id": 10,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "PARTIALLY_RETURNED",
+                "parent": null
+              },
+              {
+                "id": 11,
+                "total": 220000,
+                "paid": 220000,
+                "status": "SETTLED",
+                "parent": 10
+              },
+              {
+                "id": 12,
+                "total": 290000,
+                "paid": 290000,
+                "status": "SETTLED",
+                "parent": 10
+              }
+            ]
+          }
+        }
+      ],
+      "setup": {
+        "invoiceId": 10,
+        "cash": 200000,
+        "card": 200000,
+        "credit": 600000,
+        "scope": "ALL for all six codes"
+      },
+      "child": {
+        "invoiceId": 11,
+        "saleItemId": 25
+      }
+    },
+    {
+      "id": "A-return_Bplus_child-B1minus",
+      "target": "B1_CHILD_NEG",
+      "includeB": true,
+      "verdict": "ACCEPTED",
+      "steps": [
+        {
+          "step": "return A through invoice-wide credit pool",
+          "accepted": true,
+          "returnId": 13,
+          "sourceCreditRestoredAmount": 200000,
+          "allocationCount": 6,
+          "allocations": [
+            {
+              "id": 44,
+              "sourceCreditId": 39,
+              "redemptionId": 25,
+              "amount": 100000
+            },
+            {
+              "id": 45,
+              "sourceCreditId": 40,
+              "redemptionId": 26,
+              "amount": 100000
+            },
+            {
+              "id": 46,
+              "sourceCreditId": 41,
+              "redemptionId": 27,
+              "amount": 0
+            },
+            {
+              "id": 47,
+              "sourceCreditId": 36,
+              "redemptionId": 28,
+              "amount": 0
+            },
+            {
+              "id": 48,
+              "sourceCreditId": 37,
+              "redemptionId": 29,
+              "amount": 0
+            },
+            {
+              "id": 49,
+              "sourceCreditId": 38,
+              "redemptionId": 30,
+              "amount": 0
+            }
+          ],
+          "after": {
+            "blue": 400000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 9
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-220k",
+                "stock": 10
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 10
+              },
+              {
+                "label": "D1-290k",
+                "stock": 10
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 36,
+                "code": "CR8K8VJH",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 37,
+                "code": "CRHD7896",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 38,
+                "code": "CRR3Q2N3",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 39,
+                "code": "CR28WXYK",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 40,
+                "code": "CR2PUKG4",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 41,
+                "code": "CR44C6QU",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 13,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              }
+            ],
+            "invoices": [
+              {
+                "id": 13,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "PARTIALLY_RETURNED",
+                "parent": null
+              }
+            ]
+          }
+        },
+        {
+          "step": "B→B1 positive exchange 200k→220k (+20k card)",
+          "accepted": true,
+          "returnId": 14,
+          "exchangeInvoiceId": 14,
+          "diff": 20000,
+          "allocationCount": 2,
+          "allocations": [
+            {
+              "id": 50,
+              "sourceCreditId": 41,
+              "redemptionId": 27,
+              "amount": 100000
+            },
+            {
+              "id": 51,
+              "sourceCreditId": 36,
+              "redemptionId": 28,
+              "amount": 100000
+            }
+          ],
+          "returnDocument": {
+            "total": 200000,
+            "diff": 20000,
+            "settlement": "CASH"
+          },
+          "after": {
+            "blue": 420000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-220k",
+                "stock": 9
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 10
+              },
+              {
+                "label": "D1-290k",
+                "stock": 10
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 36,
+                "code": "CR8K8VJH",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 37,
+                "code": "CRHD7896",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 38,
+                "code": "CRR3Q2N3",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 39,
+                "code": "CR28WXYK",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 40,
+                "code": "CR2PUKG4",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 41,
+                "code": "CR44C6QU",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 13,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              },
+              {
+                "id": 14,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": 20000,
+                "method": "NONE",
+                "settlement": "CASH",
+                "exchangeInvoiceId": 14
+              }
+            ],
+            "invoices": [
+              {
+                "id": 13,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "PARTIALLY_RETURNED",
+                "parent": null
+              },
+              {
+                "id": 14,
+                "total": 220000,
+                "paid": 220000,
+                "status": "SETTLED",
+                "parent": 13
+              }
+            ]
+          }
+        },
+        {
+          "step": "target: B1 re-exchange from child invoice −20k",
+          "accepted": true,
+          "returnId": 15,
+          "exchangeInvoiceId": 15,
+          "diff": -20000,
+          "sourceCreditRestoredAmount": 20000,
+          "issued": [
+            {
+              "id": 44,
+              "code": "CRFKP896",
+              "amount": 20000,
+              "expiresAt": 1795984199999,
+              "status": "ACTIVE"
+            }
+          ],
+          "after": {
+            "blue": 420000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-220k",
+                "stock": 10
+              },
+              {
+                "label": "B2-200k",
+                "stock": 9
+              },
+              {
+                "label": "C1-290k",
+                "stock": 10
+              },
+              {
+                "label": "D1-290k",
+                "stock": 10
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 36,
+                "code": "CR8K8VJH",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 37,
+                "code": "CRHD7896",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 38,
+                "code": "CRR3Q2N3",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 39,
+                "code": "CR28WXYK",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 40,
+                "code": "CR2PUKG4",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 41,
+                "code": "CR44C6QU",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 13,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              },
+              {
+                "id": 14,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": 20000,
+                "method": "NONE",
+                "settlement": "CASH",
+                "exchangeInvoiceId": 14
+              },
+              {
+                "id": 15,
+                "kind": "EXCHANGE",
+                "total": 220000,
+                "diff": -20000,
+                "method": "STORE_CREDIT",
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 15
+              }
+            ],
+            "invoices": [
+              {
+                "id": 13,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "PARTIALLY_RETURNED",
+                "parent": null
+              },
+              {
+                "id": 14,
+                "total": 220000,
+                "paid": 220000,
+                "status": "RETURNED",
+                "parent": 13
+              },
+              {
+                "id": 15,
+                "total": 200000,
+                "paid": 200000,
+                "status": "SETTLED",
+                "parent": 14
+              }
+            ]
+          }
+        }
+      ],
+      "setup": {
+        "invoiceId": 13,
+        "cash": 200000,
+        "card": 200000,
+        "credit": 600000,
+        "scope": "ALL for all six codes"
+      },
+      "child": {
+        "invoiceId": 14,
+        "saleItemId": 31
+      }
+    },
+    {
+      "id": "A-return_Bplus_CD-full-return",
+      "target": "CD_RETURN",
+      "includeB": true,
+      "verdict": "BLOCKED",
+      "steps": [
+        {
+          "step": "return A through invoice-wide credit pool",
+          "accepted": true,
+          "returnId": 16,
+          "sourceCreditRestoredAmount": 200000,
+          "allocationCount": 6,
+          "allocations": [
+            {
+              "id": 55,
+              "sourceCreditId": 46,
+              "redemptionId": 31,
+              "amount": 100000
+            },
+            {
+              "id": 56,
+              "sourceCreditId": 48,
+              "redemptionId": 32,
+              "amount": 100000
+            },
+            {
+              "id": 57,
+              "sourceCreditId": 45,
+              "redemptionId": 33,
+              "amount": 0
+            },
+            {
+              "id": 58,
+              "sourceCreditId": 49,
+              "redemptionId": 34,
+              "amount": 0
+            },
+            {
+              "id": 59,
+              "sourceCreditId": 50,
+              "redemptionId": 35,
+              "amount": 0
+            },
+            {
+              "id": 60,
+              "sourceCreditId": 47,
+              "redemptionId": 36,
+              "amount": 0
+            }
+          ],
+          "after": {
+            "blue": 400000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 9
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-220k",
+                "stock": 10
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 10
+              },
+              {
+                "label": "D1-290k",
+                "stock": 10
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 45,
+                "code": "CRH4L34L",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 46,
+                "code": "CR86VCL6",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 47,
+                "code": "CRRTNFQH",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 48,
+                "code": "CRDAZ8YD",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 49,
+                "code": "CRHZKVQ3",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 50,
+                "code": "CRPP3NQM",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 16,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              }
+            ],
+            "invoices": [
+              {
+                "id": 16,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "PARTIALLY_RETURNED",
+                "parent": null
+              }
+            ]
+          }
+        },
+        {
+          "step": "B→B1 positive exchange 200k→220k (+20k card)",
+          "accepted": true,
+          "returnId": 17,
+          "exchangeInvoiceId": 17,
+          "diff": 20000,
+          "allocationCount": 2,
+          "allocations": [
+            {
+              "id": 61,
+              "sourceCreditId": 45,
+              "redemptionId": 33,
+              "amount": 100000
+            },
+            {
+              "id": 62,
+              "sourceCreditId": 49,
+              "redemptionId": 34,
+              "amount": 100000
+            }
+          ],
+          "returnDocument": {
+            "total": 200000,
+            "diff": 20000,
+            "settlement": "CASH"
+          },
+          "after": {
+            "blue": 420000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-220k",
+                "stock": 9
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 10
+              },
+              {
+                "label": "D1-290k",
+                "stock": 10
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 45,
+                "code": "CRH4L34L",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 46,
+                "code": "CR86VCL6",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 47,
+                "code": "CRRTNFQH",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 48,
+                "code": "CRDAZ8YD",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 49,
+                "code": "CRHZKVQ3",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 50,
+                "code": "CRPP3NQM",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 16,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              },
+              {
+                "id": 17,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": 20000,
+                "method": "NONE",
+                "settlement": "CASH",
+                "exchangeInvoiceId": 17
+              }
+            ],
+            "invoices": [
+              {
+                "id": 16,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "PARTIALLY_RETURNED",
+                "parent": null
+              },
+              {
+                "id": 17,
+                "total": 220000,
+                "paid": 220000,
+                "status": "SETTLED",
+                "parent": 16
+              }
+            ]
+          }
+        },
+        {
+          "step": "target: full C+D return",
+          "accepted": false,
+          "error": "با این برگشت، ۲۰۰٬۰۰۰ ریال اضافه‌دریافت روی فاکتور ۱۶ ساخته می‌شود (پول دریافت‌شده ۴۰۰٬۰۰۰ ریال از مانده‌ی کالا ۲۰۰٬۰۰۰ ریال بیشتر می‌ماند).\\nاگر آگاهانه می‌خواهید همین مبلغ کامل ثبت شود، «بله ثبت کن» را بزنید؛ مبلغ اضافه به‌صورت جدا (ردیف «دریافت پول اضافه») در گزارش فاکتور نمایش داده می‌شود، یا می‌توانید از آن کد اعتبار خرید صادر کنید.",
+          "mutationFree": true,
+          "before": {
+            "blue": 420000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-220k",
+                "stock": 9
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 10
+              },
+              {
+                "label": "D1-290k",
+                "stock": 10
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 45,
+                "code": "CRH4L34L",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 46,
+                "code": "CR86VCL6",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 47,
+                "code": "CRRTNFQH",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 48,
+                "code": "CRDAZ8YD",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 49,
+                "code": "CRHZKVQ3",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 50,
+                "code": "CRPP3NQM",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 16,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              },
+              {
+                "id": 17,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": 20000,
+                "method": "NONE",
+                "settlement": "CASH",
+                "exchangeInvoiceId": 17
+              }
+            ],
+            "invoices": [
+              {
+                "id": 16,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "PARTIALLY_RETURNED",
+                "parent": null
+              },
+              {
+                "id": 17,
+                "total": 220000,
+                "paid": 220000,
+                "status": "SETTLED",
+                "parent": 16
+              }
+            ]
+          },
+          "after": {
+            "blue": 420000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-220k",
+                "stock": 9
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 10
+              },
+              {
+                "label": "D1-290k",
+                "stock": 10
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 45,
+                "code": "CRH4L34L",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 46,
+                "code": "CR86VCL6",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 47,
+                "code": "CRRTNFQH",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 48,
+                "code": "CRDAZ8YD",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 49,
+                "code": "CRHZKVQ3",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 50,
+                "code": "CRPP3NQM",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 16,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              },
+              {
+                "id": 17,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "diff": 20000,
+                "method": "NONE",
+                "settlement": "CASH",
+                "exchangeInvoiceId": 17
+              }
+            ],
+            "invoices": [
+              {
+                "id": 16,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "PARTIALLY_RETURNED",
+                "parent": null
+              },
+              {
+                "id": 17,
+                "total": 220000,
+                "paid": 220000,
+                "status": "SETTLED",
+                "parent": 16
+              }
+            ]
+          }
+        }
+      ],
+      "setup": {
+        "invoiceId": 16,
+        "cash": 200000,
+        "card": 200000,
+        "credit": 600000,
+        "scope": "ALL for all six codes"
+      },
+      "child": {
+        "invoiceId": 17,
+        "saleItemId": 37
+      }
+    },
+    {
+      "id": "A-return_direct_CplusDminus-control",
+      "target": "CD_NEG",
+      "includeB": false,
+      "verdict": "ACCEPTED",
+      "steps": [
+        {
+          "step": "return A through invoice-wide credit pool",
+          "accepted": true,
+          "returnId": 18,
+          "sourceCreditRestoredAmount": 200000,
+          "allocationCount": 6,
+          "allocations": [
+            {
+              "id": 63,
+              "sourceCreditId": 54,
+              "redemptionId": 37,
+              "amount": 100000
+            },
+            {
+              "id": 64,
+              "sourceCreditId": 56,
+              "redemptionId": 38,
+              "amount": 100000
+            },
+            {
+              "id": 65,
+              "sourceCreditId": 53,
+              "redemptionId": 39,
+              "amount": 0
+            },
+            {
+              "id": 66,
+              "sourceCreditId": 58,
+              "redemptionId": 40,
+              "amount": 0
+            },
+            {
+              "id": 67,
+              "sourceCreditId": 57,
+              "redemptionId": 41,
+              "amount": 0
+            },
+            {
+              "id": 68,
+              "sourceCreditId": 55,
+              "redemptionId": 42,
+              "amount": 0
+            }
+          ],
+          "after": {
+            "blue": 400000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 9
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "B1-220k",
+                "stock": 10
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 10
+              },
+              {
+                "label": "D1-290k",
+                "stock": 10
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 53,
+                "code": "CRAYT2RE",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 54,
+                "code": "CR2UWG9Z",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 55,
+                "code": "CRY8CWZR",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 56,
+                "code": "CR7LHHKY",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 57,
+                "code": "CRM9PXUE",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 58,
+                "code": "CRC4F2RH",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 18,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              }
+            ],
+            "invoices": [
+              {
+                "id": 18,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "PARTIALLY_RETURNED",
+                "parent": null
+              }
+            ]
+          }
+        },
+        {
+          "step": "target: C+D negative difference −20k",
+          "accepted": true,
+          "returnId": 19,
+          "exchangeInvoiceId": 19,
+          "diff": -20000,
+          "sourceCreditRestoredAmount": 20000,
+          "issued": [
+            {
+              "id": 61,
+              "code": "CRX6RHHU",
+              "amount": 20000,
+              "expiresAt": 1795984199999,
+              "status": "ACTIVE"
+            }
+          ],
+          "after": {
+            "blue": 400000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 9
+              },
+              {
+                "label": "C-300k",
+                "stock": 10
+              },
+              {
+                "label": "D-300k",
+                "stock": 10
+              },
+              {
+                "label": "B1-220k",
+                "stock": 10
+              },
+              {
+                "label": "B2-200k",
+                "stock": 10
+              },
+              {
+                "label": "C1-290k",
+                "stock": 9
+              },
+              {
+                "label": "D1-290k",
+                "stock": 9
+              },
+              {
+                "label": "C2-310k",
+                "stock": 10
+              },
+              {
+                "label": "D2-310k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 53,
+                "code": "CRAYT2RE",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 54,
+                "code": "CR2UWG9Z",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 55,
+                "code": "CRY8CWZR",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 56,
+                "code": "CR7LHHKY",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 57,
+                "code": "CRM9PXUE",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              },
+              {
+                "id": 58,
+                "code": "CRC4F2RH",
+                "amount": 100000,
+                "usedAmount": 100000,
+                "status": "USED",
+                "scope": "ALL"
+              }
+            ],
+            "returns": [
+              {
+                "id": 18,
+                "kind": "RETURN",
+                "total": 200000,
+                "diff": 0,
+                "method": "NONE",
+                "settlement": null,
+                "exchangeInvoiceId": null
+              },
+              {
+                "id": 19,
+                "kind": "EXCHANGE",
+                "total": 600000,
+                "diff": -20000,
+                "method": "STORE_CREDIT",
+                "settlement": "CREDIT",
+                "exchangeInvoiceId": 19
+              }
+            ],
+            "invoices": [
+              {
+                "id": 18,
+                "total": 1000000,
+                "paid": 1000000,
+                "status": "PARTIALLY_RETURNED",
+                "parent": null
+              },
+              {
+                "id": 19,
+                "total": 580000,
+                "paid": 580000,
+                "status": "SETTLED",
+                "parent": 18
+              }
+            ]
+          }
+        }
+      ],
+      "setup": {
+        "invoiceId": 18,
+        "cash": 200000,
+        "card": 200000,
+        "credit": 600000,
+        "scope": "ALL for all six codes"
+      }
+    }
+  ]
+}

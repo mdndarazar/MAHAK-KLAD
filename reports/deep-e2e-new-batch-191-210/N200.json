@@ -1,0 +1,324 @@
+{
+  "generatedAt": "2026-10-28T18:41:59.609Z",
+  "id": 200,
+  "scenario": "N200",
+  "isolatedDatabase": "/tmp/mahak-next20-200-Kp2XAs/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "settled-sale",
+      "invoiceId": 1,
+      "total": 45000,
+      "cash": 45000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 45000,
+          "lineTotal": 45000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 45000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 45000
+      },
+      "actual": {
+        "cash": 45000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 45000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 45000,
+      "stock": [
+        {
+          "name": "cross-invoice-original",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "foreign-invoice-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 45000,
+          "paid": 45000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "settled-sale",
+      "invoiceId": 2,
+      "total": 55000,
+      "cash": 55000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 2,
+          "variantId": 2,
+          "qty": 1,
+          "unitPrice": 55000,
+          "lineTotal": 55000
+        }
+      ]
+    },
+    {
+      "label": "sale 2",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "cross-invoice-original",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "foreign-invoice-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 45000,
+          "paid": 45000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 55000,
+          "paid": 55000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 45000,
+      "method": "CASH",
+      "refundAmount": 45000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 45000,
+        "refundCard": 0,
+        "blue": 55000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 45000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 45000,
+        "refundCard": 0
+      },
+      "blue": 55000,
+      "stock": [
+        {
+          "name": "cross-invoice-original",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "foreign-invoice-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 45000,
+          "paid": 45000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 55000,
+          "paid": 55000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N200 reconciliation",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 45000,
+        "refundCard": 0,
+        "blue": 55000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 45000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 45000,
+        "refundCard": 0
+      },
+      "blue": 55000,
+      "stock": [
+        {
+          "name": "cross-invoice-original",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "foreign-invoice-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 45000,
+          "paid": 45000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 55000,
+          "paid": 55000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 1,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "modes": [
+    {
+      "key": "foreign sale-item rejected against another invoice",
+      "mutationFree": true
+    },
+    {
+      "key": "valid invoice-owned item returned",
+      "amount": 45000
+    }
+  ],
+  "modeCount": 2,
+  "final": {
+    "expected": {
+      "cash": 100000,
+      "card": 0,
+      "refundCash": 45000,
+      "refundCard": 0,
+      "blue": 55000
+    },
+    "actual": {
+      "cash": 100000,
+      "card": 0,
+      "refundCash": 45000,
+      "refundCard": 0
+    },
+    "blue": 55000,
+    "stock": [
+      {
+        "name": "cross-invoice-original",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "foreign-invoice-item",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 2,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

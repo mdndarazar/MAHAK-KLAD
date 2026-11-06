@@ -1,0 +1,24 @@
+# Batch 30
+
+Executions: 20
+
+- PASS · R30 017 × CASH · exit=0 · status=PASS mode=CASH
+- PASS · R30 017 × CARD · exit=0 · status=PASS mode=CARD
+- PASS · R30 017 × CARD_TO_CARD · exit=0 · status=PASS mode=CARD_TO_CARD
+- PASS · R30 017 × STORE_CREDIT · exit=0 · status=PASS mode=STORE_CREDIT
+- PASS · R30 017 × NONE · exit=0 · status=PASS mode=NONE
+- PASS · R30 018 × CASH · exit=0 · status=PASS mode=CASH
+- PASS · R30 018 × CARD · exit=0 · status=PASS mode=CARD
+- PASS · R30 018 × CARD_TO_CARD · exit=0 · status=PASS mode=CARD_TO_CARD
+- PASS · R30 018 × STORE_CREDIT · exit=0 · status=PASS mode=STORE_CREDIT
+- PASS · R30 018 × NONE · exit=0 · status=PASS mode=NONE
+- PASS · R30 019 × CASH · exit=0 · status=PASS mode=CASH
+- PASS · R30 019 × CARD · exit=0 · status=PASS mode=CARD
+- PASS · R30 019 × CARD_TO_CARD · exit=0 · status=PASS mode=CARD_TO_CARD
+- PASS · R30 019 × STORE_CREDIT · exit=0 · status=PASS mode=STORE_CREDIT
+- PASS · R30 019 × NONE · exit=0 · status=PASS mode=NONE
+- PASS · R30 020 × CASH · exit=0 · status=PASS mode=CASH
+- PASS · R30 020 × CARD · exit=0 · status=PASS mode=CARD
+- PASS · R30 020 × CARD_TO_CARD · exit=0 · status=PASS mode=CARD_TO_CARD
+- PASS · R30 020 × STORE_CREDIT · exit=0 · status=PASS mode=STORE_CREDIT
+- PASS · R30 020 × NONE · exit=0 · status=PASS mode=NONE

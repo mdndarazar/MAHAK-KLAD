@@ -1,0 +1,379 @@
+{
+  "generatedAt": "2026-10-28T18:20:30.513Z",
+  "id": 153,
+  "scenario": "N153",
+  "isolatedDatabase": "/tmp/mahak-followup-153-hcP1lv/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 120000,
+      "cash": 120000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 120000,
+          "lineTotal": 120000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 120000
+      },
+      "actual": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 120000,
+      "stock": [
+        {
+          "name": "store-credit-exchange-source",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "store-credit-exchange-target",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "later-purchase-after-exchange-credit",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 120000,
+          "paid": 120000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0
+    },
+    {
+      "operation": "exchange",
+      "label": "negative-difference-as-store-credit",
+      "sourceInvoiceId": 1,
+      "returnId": 1,
+      "exchangeInvoiceId": 2,
+      "returnTotal": 120000,
+      "exchangeTotal": 100000,
+      "diff": -20000,
+      "cashReceived": 0,
+      "cardReceived": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "newStoreCreditAmount": 20000,
+      "preview": {
+        "ok": true,
+        "returnTotal": 120000,
+        "exchangeTotal": 100000,
+        "nominalDiff": -20000,
+        "effectiveDiff": -20000,
+        "exchangeCreditApplied": 100000,
+        "realMoneySurplus": 20000,
+        "sourceCreditRestoration": 0
+      }
+    },
+    {
+      "label": "exchange negative-difference-as-store-credit",
+      "expected": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 120000
+      },
+      "actual": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 120000,
+      "stock": [
+        {
+          "name": "store-credit-exchange-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "store-credit-exchange-target",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "later-purchase-after-exchange-credit",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 120000,
+          "paid": 120000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 100000,
+          "paid": 100000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returns": 1,
+      "checks": 0
+    },
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 3,
+      "total": 150000,
+      "cash": 130000,
+      "card": 0,
+      "creditApplied": 20000,
+      "items": [
+        {
+          "id": 3,
+          "variantId": 3,
+          "qty": 1,
+          "unitPrice": 150000,
+          "lineTotal": 150000
+        }
+      ]
+    },
+    {
+      "label": "sale 3",
+      "expected": {
+        "cash": 250000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 250000
+      },
+      "actual": {
+        "cash": 250000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 250000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 250000,
+      "stock": [
+        {
+          "name": "store-credit-exchange-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "store-credit-exchange-target",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "later-purchase-after-exchange-credit",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 120000,
+          "paid": 120000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 100000,
+          "paid": 100000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        },
+        {
+          "id": 3,
+          "total": 150000,
+          "paid": 150000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0
+    },
+    {
+      "label": "final N153 reconciliation",
+      "expected": {
+        "cash": 250000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 250000
+      },
+      "actual": {
+        "cash": 250000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 250000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 250000,
+      "stock": [
+        {
+          "name": "store-credit-exchange-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "store-credit-exchange-target",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "later-purchase-after-exchange-credit",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 120000,
+          "paid": 120000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 100000,
+          "paid": 100000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        },
+        {
+          "id": 3,
+          "total": 150000,
+          "paid": 150000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0
+    }
+  ],
+  "assertions": [
+    {
+      "key": "negative-exchange-credit-issued-and-redeemed-on-settled-sale",
+      "pass": true,
+      "exchangeDifference": -20000,
+      "creditIssued": 20000,
+      "creditApplied": 20000,
+      "cashInAfterCredit": 130000
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 250000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 250000
+    },
+    "actual": {
+      "cash": 250000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 250000,
+    "stock": [
+      {
+        "name": "store-credit-exchange-source",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "store-credit-exchange-target",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      },
+      {
+        "name": "later-purchase-after-exchange-credit",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 3,
+    "returns": 1,
+    "credits": 1,
+    "checks": 0
+  }
+}

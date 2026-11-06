@@ -46,6 +46,8 @@ export interface OverpayContext {
   entryKind?: string | null
   /** kind روش پرداخت (CASH | CARD | CREDIT | CUSTOM | EXCHANGE_CREDIT | STORE_CREDIT) */
   methodKind?: string | null
+  /** برگشت ساده بدون روش واقعی: پس از تأیید اضافه‌دریافت، اعتبارِ پشتوانه‌دار خودکار صادر شود. */
+  autoCredit?: boolean
 }
 
 export interface OverpayFlowState {
@@ -54,6 +56,8 @@ export interface OverpayFlowState {
   message: string | null
   /** سؤال مرحله ۲ اصلاً معنا دارد؟ (پول واقعی) */
   eligible: boolean
+  /** مسیر برگشت بدون روش واقعی: تأیید یعنی اعتبارِ پشتوانه‌دار خودکار صادر شود. */
+  autoCredit?: boolean
   /** درخواستی که در مرحله‌ی submit باید فرستاده شود */
   request: OverpayRequest | null
 }
@@ -84,7 +88,10 @@ export function overpayCreditEligible(ctx: OverpayContext): boolean {
 
 /** سرور هشدار اضافه‌دریافت داد ⇒ مرحله ۱. */
 export function overpayFlowStart(message: string, ctx: OverpayContext): OverpayFlowState {
-  return { step: 'confirm', message: String(message ?? ''), eligible: overpayCreditEligible(ctx), request: null }
+  return {
+    step: 'confirm', message: String(message ?? ''), eligible: overpayCreditEligible(ctx),
+    autoCredit: ctx.autoCredit === true, request: null
+  }
 }
 
 /**
@@ -96,6 +103,8 @@ export function overpayFlowNext(state: OverpayFlowState, answer: OverpayAnswer):
   switch (state.step) {
     case 'confirm':
       if (answer !== 'yes') return { ...IDLE }
+      if (state.autoCredit)
+        return { ...state, step: 'submit', request: { confirmOverpay: true, overpayAsCredit: true } }
       if (state.eligible) return { ...state, step: 'askCredit', request: null }
       return { ...state, step: 'submit', request: { confirmOverpay: true } }
     case 'askCredit':

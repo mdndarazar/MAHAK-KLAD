@@ -1,0 +1,269 @@
+{
+  "generatedAt": "2026-10-28T18:10:16.838Z",
+  "id": 141,
+  "scenario": "N141",
+  "isolatedDatabase": "/tmp/mahak-followup-141-6bfrqE/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "settled-sale",
+      "invoiceId": 1,
+      "total": 150000,
+      "cash": 150000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 3,
+          "unitPrice": 50000,
+          "lineTotal": 150000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 150000
+      },
+      "actual": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 150000,
+      "stock": [
+        {
+          "name": "three-unit-lot",
+          "expected": 7,
+          "actual": 7,
+          "ledger": -3
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 150000,
+          "paid": 150000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "credits": [],
+      "checks": 0
+    },
+    {
+      "operation": "return",
+      "returnId": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "returnTotal": 50000,
+      "method": "CASH",
+      "refundAmount": 50000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 50000,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 50000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 50000,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "three-unit-lot",
+          "expected": 8,
+          "actual": 8,
+          "ledger": -2
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 150000,
+          "paid": 150000,
+          "status": "PARTIALLY_RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "credits": [],
+      "checks": 0
+    },
+    {
+      "operation": "return",
+      "returnId": 2,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "returnTotal": 50000,
+      "method": "CASH",
+      "refundAmount": 50000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 2",
+      "expected": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0,
+        "blue": 50000
+      },
+      "actual": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0
+      },
+      "blue": 50000,
+      "stock": [
+        {
+          "name": "three-unit-lot",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 150000,
+          "paid": 150000,
+          "status": "PARTIALLY_RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 2,
+      "credits": [],
+      "checks": 0
+    },
+    {
+      "operation": "oversized-third-return-rejected",
+      "requestedQty": 2,
+      "remainingQty": 1,
+      "error": "تعداد برگشتی «N141-1-three-unit-lot سایز NF-1» (۲) از تعداد قابل برگشت (۱) بیشتر است.\nبرگشت بیشتر از باقی‌ماندهٔ قابل‌برگشت در هیچ حالتی مجاز نیست (حتی با تایید مدیر). اگر تعداد فاکتور اصلی اشتباه ثبت شده، اول خودِ فاکتور را اصلاح کنید.",
+      "mutationFree": true
+    },
+    {
+      "label": "final N141 reconciliation",
+      "expected": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0,
+        "blue": 50000
+      },
+      "actual": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 150000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0
+      },
+      "blue": 50000,
+      "stock": [
+        {
+          "name": "three-unit-lot",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 150000,
+          "paid": 150000,
+          "status": "PARTIALLY_RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 2,
+      "credits": [],
+      "checks": 0
+    }
+  ],
+  "assertions": [
+    {
+      "key": "successive-partial-returns-and-over-return-block",
+      "pass": true,
+      "returnedQty": 2,
+      "remainingQty": 1,
+      "rejectedQty": 2
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 150000,
+      "card": 0,
+      "refundCash": 100000,
+      "refundCard": 0,
+      "blue": 50000
+    },
+    "actual": {
+      "cash": 150000,
+      "card": 0,
+      "refundCash": 100000,
+      "refundCard": 0
+    },
+    "blue": 50000,
+    "stock": [
+      {
+        "name": "three-unit-lot",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 1,
+    "returns": 2,
+    "credits": 0,
+    "checks": 0
+  }
+}

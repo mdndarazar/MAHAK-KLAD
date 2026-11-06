@@ -37,6 +37,7 @@ import { readCreditSettings, storeCreditService } from './StoreCreditService'
 import {
   CREDIT_MARK_PRINTED_NONE,
   CREDIT_SCOPE_LABELS,
+  CREDIT_STATUS_LABELS,
   CreditRestrictScope,
   CreditSource,
   CreditStatus,
@@ -213,6 +214,33 @@ function logCreditMarkFailure(scope: string, err: unknown): void {
   console.error(`[print-credit] ${scope} markPrinted failed`, err)
 }
 
+/**
+ * A printed exchange receipt can contain redeemable credit barcodes. Track each
+ * physical copy against those existing records so a later certificate print is
+ * correctly labelled as a reprint. This changes print audit only, never value,
+ * remaining balance, uses, or status.
+ */
+async function markExchangeCreditCopiesPrinted(input: {
+  creditIds: readonly number[]
+  copies: number
+  userId?: number | null
+  uncertain?: boolean
+}): Promise<number> {
+  let failures = 0
+  const copies = Math.max(0, Math.round(Number(input.copies) || 0))
+  for (let copy = 0; copy < copies; copy++) {
+    for (const id of input.creditIds) {
+      try {
+        await storeCreditService.markPrinted({ id, userId: input.userId ?? null, uncertain: input.uncertain === true })
+      } catch (err) {
+        failures++
+        logCreditMarkFailure('exchange receipt', err)
+      }
+    }
+  }
+  return failures
+}
+
 export const printService = {
   /** داده‌ی رسید یک فاکتور ثبت‌شده، مستقیم از دیتابیس. */
   async receiptDataFor(invoiceId: number): Promise<ReceiptData> {
@@ -224,7 +252,10 @@ export const printService = {
         user: true,
         shift: true,
         payments: { where: { voidedAt: null }, include: { method: true } },
-        returns: { where: { voidedAt: null }, select: { kind: true, total: true, refundMethod: true, refundAmount: true } }
+        returns: {
+          where: { voidedAt: null },
+          select: { kind: true, total: true, refundMethod: true, refundAmount: true, refundStoreCreditAmount: true }
+        }
       }
     })
     if (!inv) throw new BusinessError('این فاکتور پیدا نشد؛ ممکن است حذف شده باشد.')
@@ -396,18 +427,36 @@ export const printService = {
     const row = await salesService.exchangeGet({ id: returnId })
     const sale = await settingsService.saleDefaults()
 
-    // گزارش ExchangeReportRow عمداً کد ندارد؛ چاپ از رکورد اصلی در main می‌خواند.
-    const credit = await prisma.storeCredit.findFirst({ where: { returnId }, orderBy: { id: 'desc' } })
-
-    let storeCreditBarcodeDataUrl: string | null = null
-    if (credit?.code && tpl.showReturnBarcode) {
-      try {
-        storeCreditBarcodeDataUrl = await barcodePng(credit.code, { scale: 2, height: 10 })
-      } catch (e) {
-        // نبودن تصویر بارکد نباید جلوی چاپ سند را بگیرد (کد به‌صورت متن چاپ است)
-        console.error('[print] store credit barcode failed', e)
+    // گزارش ExchangeReportRow عمداً کد ندارد؛ چاپ از رکوردهای اصلی main می‌خواند.
+    // یک تعویض می‌تواند هم جانشینِ اعتبارِ منشأدار داشته باشد و هم بارکد جداگانه
+    // برای سهم وجه واقعی؛ هر دو باید روی رسید چاپ شوند، اما هیچ‌کدام با هم جمع/ادغام نمی‌شوند.
+    const returnRow = await prisma.saleReturn.findUnique({ where: { id: returnId }, select: { storeCreditId: true } })
+    const linkedCredits = await prisma.storeCredit.findMany({
+      where: { OR: [{ returnId }, ...(returnRow?.storeCreditId ? [{ id: Number(returnRow.storeCreditId) }] : [])] },
+      orderBy: { id: 'asc' }
+    })
+    const credit = linkedCredits[linkedCredits.length - 1] ?? null
+    const storeCredits = await Promise.all(linkedCredits.map(async (row: any) => {
+      let barcodeDataUrl: string | null = null
+      if (row.code && tpl.showReturnBarcode) {
+        try {
+          barcodeDataUrl = await barcodePng(row.code, { scale: 2, height: 10 })
+        } catch (e) {
+          // نبودن تصویر بارکد نباید جلوی چاپ سند را بگیرد (کد به‌صورت متن چاپ است)
+          console.error('[print] store credit barcode failed', e)
+        }
       }
-    }
+      const isSourceSuccessor = String(row.note ?? '').includes('جانشین')
+      return {
+        code: String(row.code ?? ''),
+        amount: toNumberRial(row.amount),
+        expiresJalali: row.expiresAt ? toJalaliDate(row.expiresAt) : null,
+        statusLabel: CREDIT_STATUS_LABELS[String(row.status)] ?? String(row.status),
+        deliveryPending: String(row.status) === 'DRAFT' && (row.returnId != null || row.exchangeInvoiceId != null),
+        label: isSourceSuccessor ? 'جانشینِ غیرنقدیِ سهم اعتبارِ منشأدار' : 'بارکدِ جداگانه‌ی سهم وجه واقعی',
+        barcodeDataUrl
+      }
+    }))
 
     const exchangeInvoice = row.exchangeInvoiceId
       ? await prisma.saleInvoice.findUnique({
@@ -443,11 +492,17 @@ export const printService = {
       diff: row.diff,
       settlementLabel: row.settlementLabel,
       cashReceived: row.cashReceived,
+      cashRefunded: row.cashRefunded,
+      cardRefunded: row.cardRefunded,
       storeCreditCode: credit?.code ?? null,
       storeCreditAmount: row.storeCreditAmount,
       storeCreditStatusLabel: row.storeCreditStatusLabel,
       storeCreditExpiresJalali: credit?.expiresAtJalali ?? null,
-      storeCreditBarcodeDataUrl,
+      storeCreditBarcodeDataUrl: storeCredits[0]?.barcodeDataUrl ?? null,
+      storeCredits,
+      // Internal main-process bookkeeping; exchangeReceiptHtml ignores this.
+      // Used only to audit barcodes that the printed receipt actually contains.
+      storeCreditIds: linkedCredits.map((credit: any) => Number(credit.id)).filter((id: number) => Number.isSafeInteger(id) && id > 0),
       note: row.note
     }
   },
@@ -471,11 +526,14 @@ export const printService = {
     copies?: number
     silent?: boolean
     deviceName?: string
+    userId?: number | null
   }) {
     const returnId = Number(input?.returnId ?? input?.id ?? 0)
     if (!returnId) throw new BusinessError('سند تعویضی برای چاپ مشخص نشده است.')
     const tpl = await settingsService.receiptTemplate()
-    const html = await this.exchangeHtml(returnId)
+    const data = await this.exchangeDataFor(returnId, tpl)
+    const html = exchangeReceiptHtml(data, tpl)
+    const creditIds = [...new Set(data.storeCreditIds ?? [])]
     /** نشست ۲۲۲ · فاز ۱ — همان اندازه‌ی کاغذ فاکتور (سند تعویض هم رسید حرارتی است). */
     const spec = receiptPageSpec(tpl, 'RETAIL')
     /** فاز ۳ — نام چاپگر از resolver (بدون fallback خودکار). */
@@ -483,20 +541,45 @@ export const printService = {
     const copies = Math.min(Math.max(Math.round(input.copies ?? tpl.copies ?? 1), 1), 5)
     const singleDialogJob = input.silent === false && tpl.printMethod !== 'RAW' && copies > 1
     const jobs = singleDialogJob ? 1 : copies
+    let markFailures = 0
     for (let i = 0; i < jobs; i++) {
-      await printMaybeRaw({
-        method: tpl.printMethod,
-        html,
-        deviceName,
-        silent: input.silent ?? true,
-        copies: singleDialogJob ? copies : 1,
-        pageSize: { widthMm: spec.widthMm, heightMm: spec.heightMm, heightSafetyMm: tpl.heightSafetyMm },
-        rawDpi: tpl.rawDpi,
-        rawInvert: tpl.rawInvert,
-        cutMode: tpl.cutMode
-      })
+      const copiesInJob = singleDialogJob ? copies : 1
+      try {
+        await printMaybeRaw({
+          method: tpl.printMethod,
+          html,
+          deviceName,
+          silent: input.silent ?? true,
+          copies: copiesInJob,
+          pageSize: { widthMm: spec.widthMm, heightMm: spec.heightMm, heightSafetyMm: tpl.heightSafetyMm },
+          rawDpi: tpl.rawDpi,
+          rawInvert: tpl.rawInvert,
+          cutMode: tpl.cutMode
+        })
+      } catch (err) {
+        // Printer outcome may be unknown (for example a driver crash after spool).
+        // Conservatively count the affected copy/copies so a later credit print
+        // cannot be mislabeled as the first copy.
+        if (creditIds.length && isPrintOutcomeUnknown(err)) {
+          markFailures += await markExchangeCreditCopiesPrinted({
+            creditIds,
+            copies: copiesInJob,
+            userId: input.userId,
+            uncertain: true
+          })
+        }
+        throw err
+      }
+      if (creditIds.length) {
+        markFailures += await markExchangeCreditCopiesPrinted({
+          creditIds,
+          copies: copiesInJob,
+          userId: input.userId
+        })
+      }
     }
-    return { copies, returnId }
+    const warnings = markFailures ? [printMarkWarning('اعتبارهای روی سند تعویض')] : []
+    return { copies, returnId, markFailed: markFailures > 0, warnings }
   },
 
   /**
@@ -564,6 +647,39 @@ export const printService = {
       expiresJalali: c.expiresAtJalali ?? null,
       status: c.status ?? null
     }))
+    // An expired source share is closed, not reissued. Keep it visible on the
+    // return receipt with its original expiry, without exposing the barcode.
+    const closedSourceShares = await prisma.creditReturnAllocation.findMany({
+      where: { returnId: ret.id, creditRestored: false, amount: { gt: 0 } },
+      select: { amount: true, sourceCreditId: true }
+    }) as Array<{ amount: number | bigint; sourceCreditId: number }>
+    const closedSourceIds = [...new Set(closedSourceShares.map((row) => Number(row.sourceCreditId)))]
+    const closedSources = (closedSourceIds.length
+      ? await prisma.storeCredit.findMany({
+          where: { id: { in: closedSourceIds } },
+          select: { id: true, expiresAt: true, expiresAtJalali: true, status: true, updatedAt: true }
+        })
+      : []) as Array<{ id: number; expiresAt: Date | null; expiresAtJalali: string | null; status: string; updatedAt: Date }>
+    const closedSourceById = new Map<number, { id: number; expiresAt: Date | null; expiresAtJalali: string | null; status: string; updatedAt: Date }>(
+      closedSources.map((row) => [Number(row.id), row])
+    )
+    const closedExpiredSourceCredits = new Map<string, { amount: number; expiresJalali: string | null }>()
+    const returnTime = new Date(ret.returnedAt).getTime()
+    for (const share of closedSourceShares) {
+      const source = closedSourceById.get(Number(share.sourceCreditId))
+      if (!source) continue
+      const expiresAt = source.expiresAt == null ? null : new Date(source.expiresAt).getTime()
+      const expiredByDate = expiresAt != null && Number.isFinite(expiresAt) && expiresAt <= returnTime
+      const expiredByStatus = source.status === 'EXPIRED' && new Date(source.updatedAt).getTime() <= returnTime
+      if (!expiredByDate && !expiredByStatus) continue
+      const expiresJalali = source.expiresAtJalali ?? null
+      const key = `${expiresAt ?? 'status-expired'}:${expiresJalali ?? ''}`
+      const current = closedExpiredSourceCredits.get(key)
+      closedExpiredSourceCredits.set(key, {
+        amount: (current?.amount ?? 0) + toNumberRial(share.amount),
+        expiresJalali
+      })
+    }
 
     return {
       returnId: ret.id,
@@ -594,6 +710,7 @@ export const printService = {
       restockedQty: ret.items.reduce((s, i) => s + i.restockedQty, 0),
       hasRemovedItems: ret.hasRemovedItems,
       storeCredits,
+      closedExpiredSourceCredits: [...closedExpiredSourceCredits.values()],
       note: ret.note ?? undefined
     }
   },
@@ -837,6 +954,7 @@ export const printService = {
       remaining: c.remaining,
       sourceLabel: c.sourceLabel,
       statusLabel: c.statusLabel,
+      deliveryPending: c.status === 'DRAFT' && (c.returnId != null || c.exchangeInvoiceId != null),
       issuedJalali: c.issuedAtJalali,
       issuedTime: c.issuedAtTime,
       expiresJalali: c.expiresAtJalali,

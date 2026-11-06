@@ -1,0 +1,281 @@
+{
+  "generatedAt": "2026-10-28T18:33:35.183Z",
+  "id": 179,
+  "scenario": "N179",
+  "isolatedDatabase": "/tmp/mahak-next20-179-2QVVTh/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "issue-test-credit",
+      "id": 1,
+      "amount": 100000,
+      "status": "ACTIVE",
+      "multiUse": true
+    },
+    {
+      "operation": "issue-test-credit",
+      "id": 2,
+      "amount": 100000,
+      "status": "ACTIVE",
+      "multiUse": true
+    },
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 100000,
+      "cash": 50000,
+      "card": 0,
+      "creditApplied": 50000,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 100000,
+          "lineTotal": 100000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 50000
+      },
+      "actual": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 50000,
+      "stock": [
+        {
+          "name": "two-credit-funded-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CR4RRXQ9",
+          "amount": 100000,
+          "usedAmount": 30000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED"
+        },
+        {
+          "id": 2,
+          "code": "CRWHZXP9",
+          "amount": 100000,
+          "usedAmount": 20000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED"
+        }
+      ]
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 100000,
+      "method": "STORE_CREDIT",
+      "refundAmount": 50000,
+      "returnCreditAmount": 50000
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 50000
+      },
+      "actual": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 50000,
+      "stock": [
+        {
+          "name": "two-credit-funded-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CR4RRXQ9",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE"
+        },
+        {
+          "id": 2,
+          "code": "CRWHZXP9",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE"
+        }
+      ]
+    },
+    {
+      "label": "final N179 reconciliation",
+      "expected": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 50000
+      },
+      "actual": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 50000,
+      "stock": [
+        {
+          "name": "two-credit-funded-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CR4RRXQ9",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE"
+        },
+        {
+          "id": 2,
+          "code": "CRWHZXP9",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE"
+        }
+      ]
+    }
+  ],
+  "assertions": [
+    {
+      "key": "two-source-barcodes-restored-exactly-and-cash-share-issued-as-credit",
+      "pass": true,
+      "sourceShares": [
+        {
+          "creditId": 1,
+          "amount": 30000
+        },
+        {
+          "creditId": 2,
+          "amount": 20000
+        }
+      ],
+      "sourceRestored": 50000,
+      "cashShareVoucher": 50000
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 50000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 50000
+    },
+    "actual": {
+      "cash": 50000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 50000,
+    "stock": [
+      {
+        "name": "two-credit-funded-item",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      }
+    ],
+    "invoices": 1,
+    "returns": 1,
+    "credits": 3,
+    "checks": 0
+  }
+}

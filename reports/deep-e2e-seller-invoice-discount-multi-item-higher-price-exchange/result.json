@@ -1,0 +1,116 @@
+{
+  "scenario": "4 x 2m toman = 8m toman gross; invoice discount 800k toman; exchange one item to 3m toman",
+  "isolatedDatabase": "/tmp/mahak-seller-discount-multi-high-exchange-b9v8LY/isolated.db",
+  "status": "FAIL",
+  "sale": {
+    "gross": 80000000,
+    "invoiceDiscount": 8000000,
+    "net": 72000000,
+    "lineCount": 4,
+    "lineGrossPrice": 2000000
+  },
+  "exchange": {
+    "returnedItemGross": 2000000,
+    "allocatedInvoiceDiscountShare": 2000000,
+    "sourceReturnValue": 18000000,
+    "replacementGross": 30000000,
+    "replacementInvoiceDiscount": 2000000,
+    "actualDifference": 10000000,
+    "previewDifference": 10000000,
+    "cashReceived": 10000000,
+    "cashRefunded": 0,
+    "settlement": "CASH"
+  },
+  "reconciliation": {
+    "rawPayments": [
+      {
+        "amount": 72000000,
+        "kind": "CASH",
+        "destination": "CASH",
+        "methodKind": "CASH",
+        "key": "MULTI-SELLER-DISC-HIGH-CASH"
+      },
+      {
+        "amount": 18000000,
+        "kind": "CASH",
+        "destination": null,
+        "methodKind": "EXCHANGE_CREDIT",
+        "key": "EXCHANGE_CREDIT"
+      },
+      {
+        "amount": 10000000,
+        "kind": "CASH",
+        "destination": "CASH",
+        "methodKind": "CASH",
+        "key": "MULTI-SELLER-DISC-HIGH-CASH"
+      }
+    ],
+    "rawCash": 82000000,
+    "refund": 0,
+    "blue": 82000000,
+    "reportTotals": {
+      "count": 2,
+      "goodsTotal": 110000000,
+      "taxTotal": 0,
+      "serviceTotal": 0,
+      "discountTotal": 10000000,
+      "deliveryTotal": 0,
+      "grandTotal": 100000000,
+      "cashTotal": 82000000,
+      "cardTotal": 0,
+      "creditTotal": 0,
+      "otherTotal": 0,
+      "receivedTotal": 82000000,
+      "returnedTotal": 0,
+      "exchangeCreditTotal": 18000000,
+      "storeCreditUsedTotal": 0,
+      "storeCreditIssuedTotal": 0,
+      "exchangeCount": 1,
+      "exchangeDiffTotal": 10000000,
+      "overpayTotal": 0,
+      "creditRemainingTotal": 0,
+      "priorSettlementTotal": 0,
+      "netReceivedTotal": 82000000,
+      "exchangeReturnedTotal": 18000000,
+      "refundCashTotal": 0,
+      "refundCardTotal": 0,
+      "refundDebtOnlyTotal": 0,
+      "storeCreditRefundTotal": 0,
+      "legacyRefundCount": 0,
+      "managerAccountTotal": 0,
+      "destinationUnknownTotal": 0
+    },
+    "stock": [
+      {
+        "name": "A returned",
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "B kept",
+        "actual": 9,
+        "ledger": -1
+      },
+      {
+        "name": "C kept",
+        "actual": 9,
+        "ledger": -1
+      },
+      {
+        "name": "D kept",
+        "actual": 9,
+        "ledger": -1
+      },
+      {
+        "name": "replacement",
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "cheques": 0
+  },
+  "failure": {
+    "message": "Expected values to be strictly equal:\n+ actual - expected\n\n+ 28000000\n- 30000000\n",
+    "stack": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ 28000000\n- 30000000\n\n    at file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-seller-invoice-discount-multi-item-higher-price-exchange.mjs:48:106"
+  }
+}

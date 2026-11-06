@@ -1,0 +1,207 @@
+{
+  "generatedAt": "2026-10-28T18:09:28.606Z",
+  "id": 142,
+  "scenario": "N142",
+  "isolatedDatabase": "/tmp/mahak-followup-142-tv4Bgr/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "settled-sale",
+      "invoiceId": 1,
+      "total": 200000,
+      "cash": 0,
+      "card": 200000,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 2,
+          "unitPrice": 100000,
+          "lineTotal": 200000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 0,
+        "card": 200000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 200000
+      },
+      "actual": {
+        "cash": 0,
+        "card": 200000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 200000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 200000,
+      "stock": [
+        {
+          "name": "POS-funded-two-unit-item",
+          "expected": 8,
+          "actual": 8,
+          "ledger": -2
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 200000,
+          "paid": 200000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "credits": [],
+      "checks": 0
+    },
+    {
+      "operation": "return",
+      "returnId": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "returnTotal": 100000,
+      "method": "CARD",
+      "refundAmount": 100000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 0,
+        "card": 200000,
+        "refundCash": 0,
+        "refundCard": 100000,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 0,
+        "card": 200000,
+        "refundCash": 0,
+        "refundCard": 100000
+      },
+      "raw": {
+        "cash": 0,
+        "card": 200000,
+        "refundCash": 0,
+        "refundCard": 100000
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "POS-funded-two-unit-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 200000,
+          "paid": 200000,
+          "status": "PARTIALLY_RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "credits": [],
+      "checks": 0
+    },
+    {
+      "label": "final N142 reconciliation",
+      "expected": {
+        "cash": 0,
+        "card": 200000,
+        "refundCash": 0,
+        "refundCard": 100000,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 0,
+        "card": 200000,
+        "refundCash": 0,
+        "refundCard": 100000
+      },
+      "raw": {
+        "cash": 0,
+        "card": 200000,
+        "refundCash": 0,
+        "refundCard": 100000
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "POS-funded-two-unit-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 200000,
+          "paid": 200000,
+          "status": "PARTIALLY_RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "credits": [],
+      "checks": 0
+    }
+  ],
+  "assertions": [
+    {
+      "key": "partial-POS-return-reconciles-card-and-blue",
+      "pass": true,
+      "cardSale": 200000,
+      "cardRefund": 100000,
+      "blue": 100000
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 0,
+      "card": 200000,
+      "refundCash": 0,
+      "refundCard": 100000,
+      "blue": 100000
+    },
+    "actual": {
+      "cash": 0,
+      "card": 200000,
+      "refundCash": 0,
+      "refundCard": 100000
+    },
+    "blue": 100000,
+    "stock": [
+      {
+        "name": "POS-funded-two-unit-item",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 1,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

@@ -1,0 +1,326 @@
+{
+  "generatedAt": "2026-10-28T18:33:42.269Z",
+  "id": 183,
+  "scenario": "N183",
+  "isolatedDatabase": "/tmp/mahak-next20-183-ANye2B/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 45000,
+      "cash": 45000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 45000,
+          "lineTotal": 45000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 45000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 45000
+      },
+      "actual": {
+        "cash": 45000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 45000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 45000,
+      "stock": [
+        {
+          "name": "cross-return-owner-A",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "cross-return-owner-B",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 45000,
+          "paid": 45000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 2,
+      "total": 55000,
+      "cash": 55000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 2,
+          "variantId": 2,
+          "qty": 1,
+          "unitPrice": 55000,
+          "lineTotal": 55000
+        }
+      ]
+    },
+    {
+      "label": "sale 2",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "cross-return-owner-A",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "cross-return-owner-B",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 45000,
+          "paid": 45000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 55000,
+          "paid": 55000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "foreign-invoice-item-return-blocked",
+      "error": "یکی از اقلام انتخاب‌شده در این فاکتور نیست؛ صفحه را تازه کنید.",
+      "mutationFree": true
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 45000,
+      "method": "CASH",
+      "refundAmount": 45000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 45000,
+        "refundCard": 0,
+        "blue": 55000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 45000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 45000,
+        "refundCard": 0
+      },
+      "blue": 55000,
+      "stock": [
+        {
+          "name": "cross-return-owner-A",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "cross-return-owner-B",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 45000,
+          "paid": 45000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 55000,
+          "paid": 55000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N183 reconciliation",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 45000,
+        "refundCard": 0,
+        "blue": 55000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 45000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 45000,
+        "refundCard": 0
+      },
+      "blue": 55000,
+      "stock": [
+        {
+          "name": "cross-return-owner-A",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "cross-return-owner-B",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 45000,
+          "paid": 45000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 55000,
+          "paid": 55000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "assertions": [
+    {
+      "key": "foreign-invoice-item-blocked-correct-invoice-item-accepted",
+      "pass": true,
+      "returnAmount": 45000,
+      "mutationFreeOnReject": true
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 100000,
+      "card": 0,
+      "refundCash": 45000,
+      "refundCard": 0,
+      "blue": 55000
+    },
+    "actual": {
+      "cash": 100000,
+      "card": 0,
+      "refundCash": 45000,
+      "refundCard": 0
+    },
+    "blue": 55000,
+    "stock": [
+      {
+        "name": "cross-return-owner-A",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "cross-return-owner-B",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 2,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

@@ -1,0 +1,763 @@
+{
+  "generatedAt": "2026-10-27T19:03:54.034Z",
+  "campaign": "Discount Policy 80",
+  "scenario": "D80-S19",
+  "case": "six-multi-use-partial-redemption",
+  "returnMode": "CASH",
+  "fixture": {
+    "discountLabel": "invoice 9%",
+    "discountKind": "PERCENT",
+    "lines": [
+      {
+        "unitPrice": 400000,
+        "qty": 1,
+        "discount": 0
+      }
+    ],
+    "invoiceDiscount": 36000
+  },
+  "saleTenders": [
+    "CASH"
+  ],
+  "isolatedDatabase": "/tmp/mahak-d80-s19-VTtkuP/isolated.db",
+  "status": "PASS",
+  "creditIssue": [
+    {
+      "id": 1,
+      "code": "CRFBBANJ",
+      "amount": 30000,
+      "multiUse": true,
+      "carryRemainder": true,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL"
+    },
+    {
+      "id": 2,
+      "code": "CRE73LUB",
+      "amount": 30000,
+      "multiUse": true,
+      "carryRemainder": true,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL"
+    },
+    {
+      "id": 3,
+      "code": "CRYJTQYJ",
+      "amount": 30000,
+      "multiUse": true,
+      "carryRemainder": true,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL"
+    },
+    {
+      "id": 4,
+      "code": "CR98QEWE",
+      "amount": 30000,
+      "multiUse": true,
+      "carryRemainder": true,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL"
+    },
+    {
+      "id": 5,
+      "code": "CRA4Z2WY",
+      "amount": 30000,
+      "multiUse": true,
+      "carryRemainder": true,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL"
+    },
+    {
+      "id": 6,
+      "code": "CRBRQTG8",
+      "amount": 30000,
+      "multiUse": true,
+      "carryRemainder": true,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL"
+    }
+  ],
+  "sales": [
+    {
+      "id": 1,
+      "invoiceIndex": 1,
+      "gross": 400000,
+      "lineDiscount": 0,
+      "invoiceDiscount": 36000,
+      "totalDiscount": 36000,
+      "net": 364000,
+      "paid": 364000,
+      "storeCreditRequested": 60000,
+      "storeCreditApplied": 60000,
+      "cashTender": 304000,
+      "posTender": 0,
+      "tender": "CASH",
+      "settled": true,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "gross": 400000,
+          "lineDiscount": 0,
+          "netShare": 364000
+        }
+      ]
+    }
+  ],
+  "redemptions": [
+    {
+      "id": 1,
+      "creditId": 4,
+      "invoiceId": 1,
+      "amount": 10000,
+      "reversedAt": null
+    },
+    {
+      "id": 2,
+      "creditId": 5,
+      "invoiceId": 1,
+      "amount": 10000,
+      "reversedAt": null
+    },
+    {
+      "id": 3,
+      "creditId": 6,
+      "invoiceId": 1,
+      "amount": 10000,
+      "reversedAt": null
+    },
+    {
+      "id": 4,
+      "creditId": 2,
+      "invoiceId": 1,
+      "amount": 10000,
+      "reversedAt": null
+    },
+    {
+      "id": 5,
+      "creditId": 1,
+      "invoiceId": 1,
+      "amount": 10000,
+      "reversedAt": null
+    },
+    {
+      "id": 6,
+      "creditId": 3,
+      "invoiceId": 1,
+      "amount": 10000,
+      "reversedAt": null
+    }
+  ],
+  "returns": [
+    {
+      "id": 1,
+      "invoiceId": 1,
+      "expectedNet": 364000,
+      "actualNet": 364000,
+      "expectedSourceCreditReturn": 60000,
+      "expectedMoneyBackedRight": 304000,
+      "refundMethod": "CASH",
+      "refundAmount": 304000,
+      "refundStoreCreditAmount": 0,
+      "sourceCreditReturned": 60000,
+      "sourceCreditRestoredAmount": 60000,
+      "sourceCreditSuccessors": [],
+      "creditReturnAllocations": [
+        {
+          "id": 1,
+          "redemptionId": 1,
+          "sourceCreditId": 4,
+          "amount": 10000,
+          "creditRestored": true
+        },
+        {
+          "id": 2,
+          "redemptionId": 2,
+          "sourceCreditId": 5,
+          "amount": 10000,
+          "creditRestored": true
+        },
+        {
+          "id": 3,
+          "redemptionId": 3,
+          "sourceCreditId": 6,
+          "amount": 10000,
+          "creditRestored": true
+        },
+        {
+          "id": 4,
+          "redemptionId": 4,
+          "sourceCreditId": 2,
+          "amount": 10000,
+          "creditRestored": true
+        },
+        {
+          "id": 5,
+          "redemptionId": 5,
+          "sourceCreditId": 1,
+          "amount": 10000,
+          "creditRestored": true
+        },
+        {
+          "id": 6,
+          "redemptionId": 6,
+          "sourceCreditId": 3,
+          "amount": 10000,
+          "creditRestored": true
+        }
+      ],
+      "createdCredits": [],
+      "noMethodCreditExpected": null,
+      "overpayCreditAmount": 0,
+      "customerValue": 364000,
+      "items": [
+        {
+          "saleItemId": 1,
+          "qty": 1,
+          "unitPrice": 400000,
+          "lineTotal": 364000,
+          "restockedQty": 1
+        }
+      ]
+    }
+  ],
+  "sourceCreditSuccessors": [],
+  "managerTransfers": [],
+  "checkpoints": [
+    {
+      "label": "fresh isolated DB",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stocks": [],
+      "credits": [],
+      "counts": {
+        "invoices": 0,
+        "returns": 0,
+        "payments": 0,
+        "credits": 0,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "all test-only ALL barcodes issued",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stocks": [],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRFBBANJ",
+          "amount": 30000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 2,
+          "code": "CRE73LUB",
+          "amount": 30000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 3,
+          "code": "CRYJTQYJ",
+          "amount": 30000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 4,
+          "code": "CR98QEWE",
+          "amount": 30000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 5,
+          "code": "CRA4Z2WY",
+          "amount": 30000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 6,
+          "code": "CRBRQTG8",
+          "amount": 30000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        }
+      ],
+      "counts": {
+        "invoices": 0,
+        "returns": 0,
+        "payments": 0,
+        "credits": 6,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "invoice 1 sold, barcode redemption + cash/POS reconciled",
+      "expected": {
+        "cash": 304000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 304000
+      },
+      "actualService": {
+        "cash": 304000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 304000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 304000,
+      "stocks": [
+        {
+          "variantId": 1,
+          "label": "inv1-item1",
+          "expected": 19,
+          "actual": 19,
+          "ledger": -1
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRFBBANJ",
+          "amount": 30000,
+          "usedAmount": 10000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 2,
+          "code": "CRE73LUB",
+          "amount": 30000,
+          "usedAmount": 10000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 3,
+          "code": "CRYJTQYJ",
+          "amount": 30000,
+          "usedAmount": 10000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 4,
+          "code": "CR98QEWE",
+          "amount": 30000,
+          "usedAmount": 10000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 5,
+          "code": "CRA4Z2WY",
+          "amount": 30000,
+          "usedAmount": 10000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 6,
+          "code": "CRBRQTG8",
+          "amount": 30000,
+          "usedAmount": 10000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        }
+      ],
+      "counts": {
+        "invoices": 1,
+        "returns": 0,
+        "payments": 7,
+        "credits": 6,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "official return CASH, expected net 364000, source credits and stock reconciled",
+      "expected": {
+        "cash": 304000,
+        "card": 0,
+        "refundCash": 304000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 304000,
+        "card": 0,
+        "refundCash": 304000,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 304000,
+        "card": 0,
+        "refundCash": 304000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stocks": [
+        {
+          "variantId": 1,
+          "label": "inv1-item1",
+          "expected": 20,
+          "actual": 20,
+          "ledger": 0
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRFBBANJ",
+          "amount": 30000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 2,
+          "code": "CRE73LUB",
+          "amount": 30000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 3,
+          "code": "CRYJTQYJ",
+          "amount": 30000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 4,
+          "code": "CR98QEWE",
+          "amount": 30000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 5,
+          "code": "CRA4Z2WY",
+          "amount": 30000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 6,
+          "code": "CRBRQTG8",
+          "amount": 30000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        }
+      ],
+      "counts": {
+        "invoices": 1,
+        "returns": 1,
+        "payments": 7,
+        "credits": 6,
+        "deliveries": 0,
+        "checks": 0
+      }
+    }
+  ],
+  "findings": [],
+  "finalCreditState": [
+    {
+      "id": 1,
+      "code": "CRFBBANJ",
+      "amount": 30000,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL",
+      "delivery": null
+    },
+    {
+      "id": 2,
+      "code": "CRE73LUB",
+      "amount": 30000,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL",
+      "delivery": null
+    },
+    {
+      "id": 3,
+      "code": "CRYJTQYJ",
+      "amount": 30000,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL",
+      "delivery": null
+    },
+    {
+      "id": 4,
+      "code": "CR98QEWE",
+      "amount": 30000,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL",
+      "delivery": null
+    },
+    {
+      "id": 5,
+      "code": "CRA4Z2WY",
+      "amount": 30000,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL",
+      "delivery": null
+    },
+    {
+      "id": 6,
+      "code": "CRBRQTG8",
+      "amount": 30000,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL",
+      "delivery": null
+    }
+  ],
+  "operationOutcome": "COMPLETED",
+  "final": {
+    "expected": {
+      "cash": 304000,
+      "card": 0,
+      "refundCash": 304000,
+      "refundCard": 0,
+      "blue": 0
+    },
+    "actual": {
+      "cash": 304000,
+      "card": 0,
+      "refundCash": 304000,
+      "refundCard": 0
+    },
+    "blue": 0,
+    "stocks": [
+      {
+        "variantId": 1,
+        "label": "inv1-item1",
+        "expected": 20,
+        "actual": 20,
+        "ledger": 0
+      }
+    ],
+    "invoiceCount": 1,
+    "returnCount": 1,
+    "paymentCount": 7,
+    "creditCount": 6,
+    "deliveryCount": 0,
+    "checkCount": 0
+  }
+}

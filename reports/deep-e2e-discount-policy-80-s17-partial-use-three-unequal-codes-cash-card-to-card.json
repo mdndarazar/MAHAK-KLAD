@@ -1,0 +1,618 @@
+{
+  "generatedAt": "2026-10-27T19:02:39.560Z",
+  "campaign": "Discount Policy 80",
+  "scenario": "D80-S17",
+  "case": "partial-use-three-unequal-codes",
+  "returnMode": "CARD_TO_CARD",
+  "fixture": {
+    "discountLabel": "invoice 6%",
+    "discountKind": "PERCENT",
+    "lines": [
+      {
+        "unitPrice": 300000,
+        "qty": 1,
+        "discount": 0
+      }
+    ],
+    "invoiceDiscount": 18000
+  },
+  "saleTenders": [
+    "CASH"
+  ],
+  "isolatedDatabase": "/tmp/mahak-d80-s17-a71wui/isolated.db",
+  "status": "PASS",
+  "creditIssue": [
+    {
+      "id": 1,
+      "code": "CRMMLLBH",
+      "amount": 30000,
+      "multiUse": false,
+      "carryRemainder": true,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL"
+    },
+    {
+      "id": 2,
+      "code": "CR9WDJVG",
+      "amount": 50000,
+      "multiUse": false,
+      "carryRemainder": true,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL"
+    },
+    {
+      "id": 3,
+      "code": "CRAZJADC",
+      "amount": 70000,
+      "multiUse": false,
+      "carryRemainder": true,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL"
+    }
+  ],
+  "sales": [
+    {
+      "id": 1,
+      "invoiceIndex": 1,
+      "gross": 300000,
+      "lineDiscount": 0,
+      "invoiceDiscount": 18000,
+      "totalDiscount": 18000,
+      "net": 282000,
+      "paid": 282000,
+      "storeCreditRequested": 60000,
+      "storeCreditApplied": 60000,
+      "cashTender": 222000,
+      "posTender": 0,
+      "tender": "CASH",
+      "settled": true,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "gross": 300000,
+          "lineDiscount": 0,
+          "netShare": 282000
+        }
+      ]
+    }
+  ],
+  "redemptions": [
+    {
+      "id": 1,
+      "creditId": 2,
+      "invoiceId": 1,
+      "amount": 20000,
+      "reversedAt": null
+    },
+    {
+      "id": 2,
+      "creditId": 3,
+      "invoiceId": 1,
+      "amount": 30000,
+      "reversedAt": null
+    },
+    {
+      "id": 3,
+      "creditId": 1,
+      "invoiceId": 1,
+      "amount": 10000,
+      "reversedAt": null
+    }
+  ],
+  "returns": [
+    {
+      "id": 1,
+      "invoiceId": 1,
+      "expectedNet": 282000,
+      "actualNet": 282000,
+      "expectedSourceCreditReturn": 60000,
+      "expectedMoneyBackedRight": 222000,
+      "refundMethod": "CARD_TO_CARD",
+      "refundAmount": 222000,
+      "refundStoreCreditAmount": 0,
+      "sourceCreditReturned": 60000,
+      "sourceCreditRestoredAmount": 60000,
+      "sourceCreditSuccessors": [],
+      "creditReturnAllocations": [
+        {
+          "id": 1,
+          "redemptionId": 1,
+          "sourceCreditId": 2,
+          "amount": 20000,
+          "creditRestored": true
+        },
+        {
+          "id": 2,
+          "redemptionId": 2,
+          "sourceCreditId": 3,
+          "amount": 30000,
+          "creditRestored": true
+        },
+        {
+          "id": 3,
+          "redemptionId": 3,
+          "sourceCreditId": 1,
+          "amount": 10000,
+          "creditRestored": true
+        }
+      ],
+      "createdCredits": [],
+      "noMethodCreditExpected": null,
+      "overpayCreditAmount": 0,
+      "customerValue": 282000,
+      "items": [
+        {
+          "saleItemId": 1,
+          "qty": 1,
+          "unitPrice": 300000,
+          "lineTotal": 282000,
+          "restockedQty": 1
+        }
+      ]
+    }
+  ],
+  "sourceCreditSuccessors": [],
+  "managerTransfers": [
+    {
+      "id": 1,
+      "status": "PENDING",
+      "amount": 222000
+    },
+    {
+      "id": 1,
+      "status": "PAID",
+      "amount": 222000,
+      "paidAmount": 222000,
+      "method": "MANAGER_CARD_TO_CARD",
+      "trackingNo": "D80-S17-partial-use-three-unequal-codes"
+    }
+  ],
+  "checkpoints": [
+    {
+      "label": "fresh isolated DB",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stocks": [],
+      "credits": [],
+      "counts": {
+        "invoices": 0,
+        "returns": 0,
+        "payments": 0,
+        "credits": 0,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "all test-only ALL barcodes issued",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stocks": [],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRMMLLBH",
+          "amount": 30000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 2,
+          "code": "CR9WDJVG",
+          "amount": 50000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 3,
+          "code": "CRAZJADC",
+          "amount": 70000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        }
+      ],
+      "counts": {
+        "invoices": 0,
+        "returns": 0,
+        "payments": 0,
+        "credits": 3,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "invoice 1 sold, barcode redemption + cash/POS reconciled",
+      "expected": {
+        "cash": 222000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 222000
+      },
+      "actualService": {
+        "cash": 222000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 222000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 222000,
+      "stocks": [
+        {
+          "variantId": 1,
+          "label": "inv1-item1",
+          "expected": 19,
+          "actual": 19,
+          "ledger": -1
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRMMLLBH",
+          "amount": 30000,
+          "usedAmount": 10000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 2,
+          "code": "CR9WDJVG",
+          "amount": 50000,
+          "usedAmount": 20000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 3,
+          "code": "CRAZJADC",
+          "amount": 70000,
+          "usedAmount": 30000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        }
+      ],
+      "counts": {
+        "invoices": 1,
+        "returns": 0,
+        "payments": 4,
+        "credits": 3,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "C2C request pending; source and cash ledgers retained",
+      "expected": {
+        "cash": 222000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 222000
+      },
+      "actualService": {
+        "cash": 222000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 222000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 222000,
+      "stocks": [
+        {
+          "variantId": 1,
+          "label": "inv1-item1",
+          "expected": 19,
+          "actual": 19,
+          "ledger": -1
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRMMLLBH",
+          "amount": 30000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 2,
+          "code": "CR9WDJVG",
+          "amount": 50000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 3,
+          "code": "CRAZJADC",
+          "amount": 70000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        }
+      ],
+      "counts": {
+        "invoices": 1,
+        "returns": 1,
+        "payments": 4,
+        "credits": 3,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "official return CARD_TO_CARD, expected net 282000, source credits and stock reconciled",
+      "expected": {
+        "cash": 222000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 222000
+      },
+      "actualService": {
+        "cash": 222000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 222000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 222000,
+      "stocks": [
+        {
+          "variantId": 1,
+          "label": "inv1-item1",
+          "expected": 20,
+          "actual": 20,
+          "ledger": 0
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRMMLLBH",
+          "amount": 30000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 2,
+          "code": "CR9WDJVG",
+          "amount": 50000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 3,
+          "code": "CRAZJADC",
+          "amount": 70000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        }
+      ],
+      "counts": {
+        "invoices": 1,
+        "returns": 1,
+        "payments": 4,
+        "credits": 3,
+        "deliveries": 0,
+        "checks": 0
+      }
+    }
+  ],
+  "findings": [],
+  "finalCreditState": [
+    {
+      "id": 1,
+      "code": "CRMMLLBH",
+      "amount": 30000,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL",
+      "delivery": null
+    },
+    {
+      "id": 2,
+      "code": "CR9WDJVG",
+      "amount": 50000,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL",
+      "delivery": null
+    },
+    {
+      "id": 3,
+      "code": "CRAZJADC",
+      "amount": 70000,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL",
+      "delivery": null
+    }
+  ],
+  "operationOutcome": "COMPLETED",
+  "final": {
+    "expected": {
+      "cash": 222000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 222000
+    },
+    "actual": {
+      "cash": 222000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 222000,
+    "stocks": [
+      {
+        "variantId": 1,
+        "label": "inv1-item1",
+        "expected": 20,
+        "actual": 20,
+        "ledger": 0
+      }
+    ],
+    "invoiceCount": 1,
+    "returnCount": 1,
+    "paymentCount": 4,
+    "creditCount": 3,
+    "deliveryCount": 0,
+    "checkCount": 0
+  }
+}

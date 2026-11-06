@@ -1,0 +1,249 @@
+{
+  "generatedAt": "2026-10-28T18:42:03.730Z",
+  "id": 202,
+  "scenario": "N202",
+  "isolatedDatabase": "/tmp/mahak-next20-202-u7tQ2m/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "issue-credit",
+      "id": 1,
+      "amount": 40000,
+      "status": "ACTIVE",
+      "scope": "ALL"
+    },
+    {
+      "operation": "settled-sale",
+      "invoiceId": 1,
+      "total": 40000,
+      "cash": 0,
+      "card": 0,
+      "creditApplied": 40000,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 40000,
+          "lineTotal": 40000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "voucher-only-source",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 40000,
+          "paid": 40000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 0,
+      "checks": 0,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CRATE372",
+          "amount": 40000,
+          "usedAmount": 40000,
+          "usedCount": 1,
+          "status": "USED"
+        }
+      ]
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 40000,
+      "method": "NONE",
+      "refundAmount": 0,
+      "returnCreditAmount": 40000
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "voucher-only-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 40000,
+          "paid": 40000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 1,
+      "checks": 0,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CRATE372",
+          "amount": 40000,
+          "usedAmount": 40000,
+          "usedCount": 1,
+          "status": "USED"
+        }
+      ]
+    },
+    {
+      "label": "final N202 reconciliation",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "voucher-only-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 40000,
+          "paid": 40000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 1,
+      "checks": 0,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CRATE372",
+          "amount": 40000,
+          "usedAmount": 40000,
+          "usedCount": 1,
+          "status": "USED"
+        }
+      ]
+    }
+  ],
+  "modes": [
+    {
+      "key": "voucher fully funds sale with no physical cash",
+      "credit": 40000,
+      "cash": 0
+    },
+    {
+      "key": "cash method yields zero payout without money received",
+      "cashRefund": 0
+    },
+    {
+      "key": "source-credit restoration/ successor is recorded separately from cash",
+      "restored": 40000,
+      "successors": 1
+    }
+  ],
+  "modeCount": 3,
+  "final": {
+    "expected": {
+      "cash": 0,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 0
+    },
+    "actual": {
+      "cash": 0,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 0,
+    "stock": [
+      {
+        "name": "voucher-only-source",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      }
+    ],
+    "invoices": 1,
+    "returns": 1,
+    "credits": 2,
+    "checks": 0
+  }
+}

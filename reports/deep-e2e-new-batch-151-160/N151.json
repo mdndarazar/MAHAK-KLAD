@@ -1,0 +1,234 @@
+{
+  "generatedAt": "2026-10-28T18:19:42.027Z",
+  "id": 151,
+  "scenario": "N151",
+  "isolatedDatabase": "/tmp/mahak-followup-151-W5unN7/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 100000,
+      "cash": 100000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 60000,
+          "lineTotal": 60000
+        },
+        {
+          "id": 2,
+          "variantId": 2,
+          "qty": 1,
+          "unitPrice": 40000,
+          "lineTotal": 40000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "multi-return-item-A",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "multi-return-item-B",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0
+    },
+    {
+      "operation": "full-two-item-return",
+      "returnId": 1,
+      "itemValues": [
+        60000,
+        40000
+      ],
+      "total": 100000,
+      "cashRefund": 100000
+    },
+    {
+      "label": "full multi-item cash return",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "multi-return-item-A",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "multi-return-item-B",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0
+    },
+    {
+      "label": "final N151 reconciliation",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "multi-return-item-A",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "multi-return-item-B",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0
+    }
+  ],
+  "assertions": [
+    {
+      "key": "multi-item-return-total-conserved",
+      "pass": true,
+      "sourceTotal": 100000,
+      "returnedTotal": 100000,
+      "cashRefund": 100000
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 100000,
+      "card": 0,
+      "refundCash": 100000,
+      "refundCard": 0,
+      "blue": 0
+    },
+    "actual": {
+      "cash": 100000,
+      "card": 0,
+      "refundCash": 100000,
+      "refundCard": 0
+    },
+    "blue": 0,
+    "stock": [
+      {
+        "name": "multi-return-item-A",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "multi-return-item-B",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      }
+    ],
+    "invoices": 1,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

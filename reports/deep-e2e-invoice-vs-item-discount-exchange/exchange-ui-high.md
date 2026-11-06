@@ -1,0 +1,9 @@
+# تخفیف کل فاکتور در برابر تخفیف هر قلم — EXCHANGE-UI-HIGH
+
+**نتیجهٔ آزمون:** PASS
+**SQLite موقت:** /tmp/mahak-invoice-item-discount-exchange-ui-high-vKHsp4/isolated.db
+
+## نتیجهٔ قابل‌خواندن
+- {"exchangeApiMode":"current SalesReturn-style payload; no replacement invoiceDiscount","sourceSaleGross":10000000,"sourceInvoiceDiscount":1000000,"sourcePaidAndReturnValue":9000000,"replacementGross":11000000,"replacementInvoiceDiscount":0,"replacementNet":11000000,"diff":2000000,"direction":"collect","cashReceived":2000000,"cashRefunded":0,"currentExchangeUiHasManagerAutoDiscount":false,"transferYesNoImplemented":false}
+
+فقط SQLite موقت/ایزوله؛ بدون DB واقعی/staging و وجه واقعی. هیچ منطق production تغییر نکرد.

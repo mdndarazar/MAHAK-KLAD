@@ -1,0 +1,3925 @@
+{
+  "generatedAt": "2026-10-27T16:09:52.723Z",
+  "isolatedDatabase": "/tmp/mahak-e2e-100-AuthSI/isolated.db",
+  "financialSafety": {
+    "invoiceCount": 5,
+    "unpaidInvoices": 0,
+    "unsettledInvoices": 0,
+    "checkPayments": 0,
+    "debtTables": []
+  },
+  "requestedScenarios": 1,
+  "executedScenarios": 1,
+  "caseLimit": 100,
+  "selectedCase": 51,
+  "forcedScope": "VARIANTS_ALL",
+  "passed": 1,
+  "failed": 0,
+  "blocked": 0,
+  "unexpectedErrors": 0,
+  "findings": 0,
+  "expectedBlocks": 2,
+  "barcodeCountsTested": [
+    2
+  ],
+  "purchaseTenderKindsTested": [
+    "CARD"
+  ],
+  "returnModesTested": [
+    "STORE_CREDIT"
+  ],
+  "noChecksDebtOrSettlements": true,
+  "blueDefinition": "physical cash received + POS received - cash refund - POS refund; store credit and pending/paid C2C transfers are excluded",
+  "results": [
+    {
+      "index": 51,
+      "name": "E100-051",
+      "shiftId": 1,
+      "variants": [
+        {
+          "id": 1,
+          "name": "A-root-200k",
+          "price": 200000,
+          "baseline": 10,
+          "expected": 10
+        },
+        {
+          "id": 2,
+          "name": "B-root-200k",
+          "price": 200000,
+          "baseline": 10,
+          "expected": 10
+        },
+        {
+          "id": 3,
+          "name": "C-root-300k",
+          "price": 300000,
+          "baseline": 10,
+          "expected": 10
+        },
+        {
+          "id": 4,
+          "name": "D-root-300k",
+          "price": 300000,
+          "baseline": 10,
+          "expected": 10
+        },
+        {
+          "id": 5,
+          "name": "B1-180000",
+          "price": 180000,
+          "baseline": 10,
+          "expected": 10
+        },
+        {
+          "id": 6,
+          "name": "C1-310000",
+          "price": 310000,
+          "baseline": 10,
+          "expected": 9
+        },
+        {
+          "id": 7,
+          "name": "D1-310000",
+          "price": 310000,
+          "baseline": 10,
+          "expected": 9
+        },
+        {
+          "id": 8,
+          "name": "B2-reexchange-200k",
+          "price": 200000,
+          "baseline": 10,
+          "expected": 9
+        },
+        {
+          "id": 9,
+          "name": "aux-1-100000",
+          "price": 100000,
+          "baseline": 10,
+          "expected": 9
+        },
+        {
+          "id": 10,
+          "name": "aux-2-100000",
+          "price": 100000,
+          "baseline": 10,
+          "expected": 9
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRW3GABE",
+          "label": "source-1"
+        },
+        {
+          "id": 2,
+          "code": "CR32JMTL",
+          "label": "source-2"
+        },
+        {
+          "id": 3,
+          "code": "CRER84LK",
+          "label": "root-return-credit-1"
+        },
+        {
+          "id": 4,
+          "code": "CRN2R7YV",
+          "label": "root-return-credit-2"
+        },
+        {
+          "id": 5,
+          "code": "ECM4PN",
+          "label": "exchange B 200k to B1 180k-credit-1"
+        }
+      ],
+      "invoices": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "events": [
+        {
+          "scenario": "E100-051",
+          "operation": "baseline; isolated shift starts at zero blue and stock ledger",
+          "at": "2026-10-27T16:09:52.044Z",
+          "note": "",
+          "expectedFlow": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blueActual": 0,
+          "blueRaw": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "returns": [],
+          "cardTransfers": [],
+          "creditAllocations": [],
+          "counts": {
+            "paymentRows": 0,
+            "checkPayments": 0,
+            "cashMovements": 0,
+            "returns": 0,
+            "invoices": 0,
+            "cardTransfers": 0
+          }
+        },
+        {
+          "scenario": "E100-051",
+          "operation": "credit issue source-1: 200000 multi-use",
+          "at": "2026-10-27T16:09:52.149Z",
+          "note": "",
+          "expectedFlow": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blueActual": 0,
+          "blueRaw": 0,
+          "stock": [
+            {
+              "sku": "A-root-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B-root-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "C-root-300k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "D-root-300k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B1-180000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "C1-310000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "D1-310000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B2-reexchange-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "aux-1-100000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "aux-2-100000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "code": "CRW3GABE",
+              "label": "source-1",
+              "amount": 200000,
+              "usedAmount": 0,
+              "available": 200000,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": []
+            }
+          ],
+          "invoices": [],
+          "returns": [],
+          "cardTransfers": [],
+          "creditAllocations": [],
+          "counts": {
+            "paymentRows": 0,
+            "checkPayments": 0,
+            "cashMovements": 0,
+            "returns": 0,
+            "invoices": 0,
+            "cardTransfers": 0
+          }
+        },
+        {
+          "scenario": "E100-051",
+          "operation": "credit issue source-2: 200000 multi-use",
+          "at": "2026-10-27T16:09:52.240Z",
+          "note": "",
+          "expectedFlow": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blueActual": 0,
+          "blueRaw": 0,
+          "stock": [
+            {
+              "sku": "A-root-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B-root-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "C-root-300k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "D-root-300k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B1-180000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "C1-310000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "D1-310000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B2-reexchange-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "aux-1-100000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "aux-2-100000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "code": "CRW3GABE",
+              "label": "source-1",
+              "amount": 200000,
+              "usedAmount": 0,
+              "available": 200000,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": []
+            },
+            {
+              "id": 2,
+              "code": "CR32JMTL",
+              "label": "source-2",
+              "amount": 200000,
+              "usedAmount": 0,
+              "available": 200000,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": []
+            }
+          ],
+          "invoices": [],
+          "returns": [],
+          "cardTransfers": [],
+          "creditAllocations": [],
+          "counts": {
+            "paymentRows": 0,
+            "checkPayments": 0,
+            "cashMovements": 0,
+            "returns": 0,
+            "invoices": 0,
+            "cardTransfers": 0
+          }
+        },
+        {
+          "scenario": "E100-051",
+          "operation": "root sale A+B+C+D=1,000,000; 2 barcodes=200000; cash=0; POS=800000",
+          "at": "2026-10-27T16:09:52.355Z",
+          "note": "MULTI_USED_TWICE; initial barcode count varied across 0/1/2/3/4/6; source scope=VARIANTS_ALL",
+          "expectedFlow": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 800000
+          },
+          "reported": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blueActual": 800000,
+          "blueRaw": 800000,
+          "stock": [
+            {
+              "sku": "A-root-200k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "B-root-200k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "C-root-300k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "D-root-300k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "B1-180000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "C1-310000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "D1-310000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B2-reexchange-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "aux-1-100000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "aux-2-100000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "code": "CRW3GABE",
+              "label": "source-1",
+              "amount": 200000,
+              "usedAmount": 100000,
+              "available": 100000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 2,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": false,
+                  "invoiceId": 1
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "code": "CR32JMTL",
+              "label": "source-2",
+              "amount": 200000,
+              "usedAmount": 100000,
+              "available": 100000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 1,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": false,
+                  "invoiceId": 1
+                }
+              ]
+            }
+          ],
+          "invoices": [
+            {
+              "id": 1,
+              "receiptNo": 1,
+              "status": "SETTLED",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "settledAt": 1793117392338,
+              "sourceInvoiceId": null,
+              "exchangeReturnId": null,
+              "items": [
+                {
+                  "id": 1,
+                  "variantId": 1,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 2,
+                  "variantId": 2,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 3,
+                  "variantId": 3,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                },
+                {
+                  "id": 4,
+                  "variantId": 4,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                }
+              ]
+            }
+          ],
+          "returns": [],
+          "cardTransfers": [],
+          "creditAllocations": [],
+          "counts": {
+            "paymentRows": 3,
+            "checkPayments": 0,
+            "cashMovements": 0,
+            "returns": 0,
+            "invoices": 1,
+            "cardTransfers": 0
+          }
+        },
+        {
+          "scenario": "E100-051",
+          "operation": "multi-use codes legitimately redeemed a second time for 200000",
+          "at": "2026-10-27T16:09:52.385Z",
+          "note": "second distinct redemption sequence per code; no physical payment and no blue increase",
+          "expectedFlow": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 800000
+          },
+          "reported": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blueActual": 800000,
+          "blueRaw": 800000,
+          "stock": [
+            {
+              "sku": "A-root-200k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "B-root-200k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "C-root-300k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "D-root-300k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "B1-180000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "C1-310000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "D1-310000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B2-reexchange-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "aux-1-100000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "aux-2-100000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "code": "CRW3GABE",
+              "label": "source-1",
+              "amount": 200000,
+              "usedAmount": 200000,
+              "available": 0,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 2,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": false,
+                  "invoiceId": 1
+                },
+                {
+                  "id": 4,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 0,
+                  "seq": 2,
+                  "reversed": false,
+                  "invoiceId": 2
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "code": "CR32JMTL",
+              "label": "source-2",
+              "amount": 200000,
+              "usedAmount": 200000,
+              "available": 0,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 1,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": false,
+                  "invoiceId": 1
+                },
+                {
+                  "id": 3,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 0,
+                  "seq": 2,
+                  "reversed": false,
+                  "invoiceId": 2
+                }
+              ]
+            }
+          ],
+          "invoices": [
+            {
+              "id": 1,
+              "receiptNo": 1,
+              "status": "SETTLED",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "settledAt": 1793117392338,
+              "sourceInvoiceId": null,
+              "exchangeReturnId": null,
+              "items": [
+                {
+                  "id": 1,
+                  "variantId": 1,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 2,
+                  "variantId": 2,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 3,
+                  "variantId": 3,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                },
+                {
+                  "id": 4,
+                  "variantId": 4,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "receiptNo": 2,
+              "status": "SETTLED",
+              "grandTotal": 200000,
+              "paidTotal": 200000,
+              "settledAt": 1793117392368,
+              "sourceInvoiceId": null,
+              "exchangeReturnId": null,
+              "items": [
+                {
+                  "id": 5,
+                  "variantId": 9,
+                  "qty": 1,
+                  "unitPrice": 100000,
+                  "lineTotal": 100000
+                },
+                {
+                  "id": 6,
+                  "variantId": 10,
+                  "qty": 1,
+                  "unitPrice": 100000,
+                  "lineTotal": 100000
+                }
+              ]
+            }
+          ],
+          "returns": [],
+          "cardTransfers": [],
+          "creditAllocations": [],
+          "counts": {
+            "paymentRows": 5,
+            "checkPayments": 0,
+            "cashMovements": 0,
+            "returns": 0,
+            "invoices": 2,
+            "cardTransfers": 0
+          }
+        },
+        {
+          "scenario": "E100-051",
+          "operation": "panel lookup/preview check of fully used barcode blocked without mutation: این اعتبار (CRW3GABE) کامل مصرف شده است — آخرین مصرف روی فاکتور شماره ۲ در تاریخ ۱۴۰۵/۰۸/۰۵.\n۲ تلاش دیگر باقی مانده است؛ بعد از آن ورود رمز برای ۱۰ دقیقه قفل می‌شود.",
+          "at": "2026-10-27T16:09:52.407Z",
+          "note": "",
+          "expectedFlow": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 800000
+          },
+          "reported": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blueActual": 800000,
+          "blueRaw": 800000,
+          "stock": [
+            {
+              "sku": "A-root-200k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "B-root-200k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "C-root-300k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "D-root-300k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "B1-180000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "C1-310000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "D1-310000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B2-reexchange-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "aux-1-100000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "aux-2-100000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "code": "CRW3GABE",
+              "label": "source-1",
+              "amount": 200000,
+              "usedAmount": 200000,
+              "available": 0,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 2,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": false,
+                  "invoiceId": 1
+                },
+                {
+                  "id": 4,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 0,
+                  "seq": 2,
+                  "reversed": false,
+                  "invoiceId": 2
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "code": "CR32JMTL",
+              "label": "source-2",
+              "amount": 200000,
+              "usedAmount": 200000,
+              "available": 0,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 1,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": false,
+                  "invoiceId": 1
+                },
+                {
+                  "id": 3,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 0,
+                  "seq": 2,
+                  "reversed": false,
+                  "invoiceId": 2
+                }
+              ]
+            }
+          ],
+          "invoices": [
+            {
+              "id": 1,
+              "receiptNo": 1,
+              "status": "SETTLED",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "settledAt": 1793117392338,
+              "sourceInvoiceId": null,
+              "exchangeReturnId": null,
+              "items": [
+                {
+                  "id": 1,
+                  "variantId": 1,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 2,
+                  "variantId": 2,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 3,
+                  "variantId": 3,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                },
+                {
+                  "id": 4,
+                  "variantId": 4,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "receiptNo": 2,
+              "status": "SETTLED",
+              "grandTotal": 200000,
+              "paidTotal": 200000,
+              "settledAt": 1793117392368,
+              "sourceInvoiceId": null,
+              "exchangeReturnId": null,
+              "items": [
+                {
+                  "id": 5,
+                  "variantId": 9,
+                  "qty": 1,
+                  "unitPrice": 100000,
+                  "lineTotal": 100000
+                },
+                {
+                  "id": 6,
+                  "variantId": 10,
+                  "qty": 1,
+                  "unitPrice": 100000,
+                  "lineTotal": 100000
+                }
+              ]
+            }
+          ],
+          "returns": [],
+          "cardTransfers": [],
+          "creditAllocations": [],
+          "counts": {
+            "paymentRows": 5,
+            "checkPayments": 0,
+            "cashMovements": 0,
+            "returns": 0,
+            "invoices": 2,
+            "cardTransfers": 0
+          }
+        },
+        {
+          "scenario": "E100-051",
+          "operation": "read-only used-code guard; no invoice/payment/stock/redemption mutation",
+          "at": "2026-10-27T16:09:52.419Z",
+          "note": "این اعتبار (CRW3GABE) کامل مصرف شده است — آخرین مصرف روی فاکتور شماره ۲ در تاریخ ۱۴۰۵/۰۸/۰۵.\n۲ تلاش دیگر باقی مانده است؛ بعد از آن ورود رمز برای ۱۰ دقیقه قفل می‌شود.",
+          "expectedFlow": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 800000
+          },
+          "reported": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blueActual": 800000,
+          "blueRaw": 800000,
+          "stock": [
+            {
+              "sku": "A-root-200k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "B-root-200k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "C-root-300k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "D-root-300k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "B1-180000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "C1-310000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "D1-310000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B2-reexchange-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "aux-1-100000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "aux-2-100000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "code": "CRW3GABE",
+              "label": "source-1",
+              "amount": 200000,
+              "usedAmount": 200000,
+              "available": 0,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 2,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": false,
+                  "invoiceId": 1
+                },
+                {
+                  "id": 4,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 0,
+                  "seq": 2,
+                  "reversed": false,
+                  "invoiceId": 2
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "code": "CR32JMTL",
+              "label": "source-2",
+              "amount": 200000,
+              "usedAmount": 200000,
+              "available": 0,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 1,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": false,
+                  "invoiceId": 1
+                },
+                {
+                  "id": 3,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 0,
+                  "seq": 2,
+                  "reversed": false,
+                  "invoiceId": 2
+                }
+              ]
+            }
+          ],
+          "invoices": [
+            {
+              "id": 1,
+              "receiptNo": 1,
+              "status": "SETTLED",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "settledAt": 1793117392338,
+              "sourceInvoiceId": null,
+              "exchangeReturnId": null,
+              "items": [
+                {
+                  "id": 1,
+                  "variantId": 1,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 2,
+                  "variantId": 2,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 3,
+                  "variantId": 3,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                },
+                {
+                  "id": 4,
+                  "variantId": 4,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "receiptNo": 2,
+              "status": "SETTLED",
+              "grandTotal": 200000,
+              "paidTotal": 200000,
+              "settledAt": 1793117392368,
+              "sourceInvoiceId": null,
+              "exchangeReturnId": null,
+              "items": [
+                {
+                  "id": 5,
+                  "variantId": 9,
+                  "qty": 1,
+                  "unitPrice": 100000,
+                  "lineTotal": 100000
+                },
+                {
+                  "id": 6,
+                  "variantId": 10,
+                  "qty": 1,
+                  "unitPrice": 100000,
+                  "lineTotal": 100000
+                }
+              ]
+            }
+          ],
+          "returns": [],
+          "cardTransfers": [],
+          "creditAllocations": [],
+          "counts": {
+            "paymentRows": 5,
+            "checkPayments": 0,
+            "cashMovements": 0,
+            "returns": 0,
+            "invoices": 2,
+            "cardTransfers": 0
+          }
+        },
+        {
+          "scenario": "E100-051",
+          "operation": "credit-only cashout blocked safely: با این برگشت مبلغ اضافه‌ای برای صدور اعتبار خرید ساخته نمی‌شود؛ یا بازپرداخت همان اضافه را پوشش داده یا فاکتور هنوز بدهکار است.",
+          "at": "2026-10-27T16:09:52.579Z",
+          "note": "",
+          "expectedFlow": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 800000
+          },
+          "reported": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blueActual": 800000,
+          "blueRaw": 800000,
+          "stock": [
+            {
+              "sku": "A-root-200k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "B-root-200k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "C-root-300k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "D-root-300k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "B1-180000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "C1-310000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "D1-310000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B2-reexchange-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "aux-1-100000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "aux-2-100000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "code": "CRW3GABE",
+              "label": "source-1",
+              "amount": 200000,
+              "usedAmount": 200000,
+              "available": 0,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 2,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": false,
+                  "invoiceId": 1
+                },
+                {
+                  "id": 4,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 0,
+                  "seq": 2,
+                  "reversed": false,
+                  "invoiceId": 2
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "code": "CR32JMTL",
+              "label": "source-2",
+              "amount": 200000,
+              "usedAmount": 200000,
+              "available": 0,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 1,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": false,
+                  "invoiceId": 1
+                },
+                {
+                  "id": 3,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 0,
+                  "seq": 2,
+                  "reversed": false,
+                  "invoiceId": 2
+                }
+              ]
+            }
+          ],
+          "invoices": [
+            {
+              "id": 1,
+              "receiptNo": 1,
+              "status": "SETTLED",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "settledAt": 1793117392338,
+              "sourceInvoiceId": null,
+              "exchangeReturnId": null,
+              "items": [
+                {
+                  "id": 1,
+                  "variantId": 1,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 2,
+                  "variantId": 2,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 3,
+                  "variantId": 3,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                },
+                {
+                  "id": 4,
+                  "variantId": 4,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "receiptNo": 2,
+              "status": "SETTLED",
+              "grandTotal": 200000,
+              "paidTotal": 200000,
+              "settledAt": 1793117392368,
+              "sourceInvoiceId": null,
+              "exchangeReturnId": null,
+              "items": [
+                {
+                  "id": 5,
+                  "variantId": 9,
+                  "qty": 1,
+                  "unitPrice": 100000,
+                  "lineTotal": 100000
+                },
+                {
+                  "id": 6,
+                  "variantId": 10,
+                  "qty": 1,
+                  "unitPrice": 100000,
+                  "lineTotal": 100000
+                }
+              ]
+            }
+          ],
+          "returns": [],
+          "cardTransfers": [],
+          "creditAllocations": [],
+          "counts": {
+            "paymentRows": 5,
+            "checkPayments": 0,
+            "cashMovements": 0,
+            "returns": 0,
+            "invoices": 2,
+            "cardTransfers": 0
+          }
+        },
+        {
+          "scenario": "E100-051",
+          "operation": "return A 200,000 via STORE_CREDIT; source barcode restored=200000; real-money right=0",
+          "at": "2026-10-27T16:09:52.609Z",
+          "note": "return #1; C2C=not used; only cash/POS refund enters blue",
+          "expectedFlow": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 800000
+          },
+          "reported": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blueActual": 800000,
+          "blueRaw": 800000,
+          "stock": [
+            {
+              "sku": "A-root-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B-root-200k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "C-root-300k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "D-root-300k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "B1-180000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "C1-310000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "D1-310000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B2-reexchange-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "aux-1-100000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "aux-2-100000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "code": "CRW3GABE",
+              "label": "source-1",
+              "amount": 200000,
+              "usedAmount": 200000,
+              "available": 0,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 2,
+                  "amount": 100000,
+                  "restoredAmount": 100000,
+                  "netAmount": 0,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": true,
+                  "invoiceId": 1
+                },
+                {
+                  "id": 4,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 0,
+                  "seq": 2,
+                  "reversed": false,
+                  "invoiceId": 2
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "code": "CR32JMTL",
+              "label": "source-2",
+              "amount": 200000,
+              "usedAmount": 200000,
+              "available": 0,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 1,
+                  "amount": 100000,
+                  "restoredAmount": 100000,
+                  "netAmount": 0,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": true,
+                  "invoiceId": 1
+                },
+                {
+                  "id": 3,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 0,
+                  "seq": 2,
+                  "reversed": false,
+                  "invoiceId": 2
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "code": "CRER84LK",
+              "label": "root-return-credit-1",
+              "amount": 100000,
+              "usedAmount": 0,
+              "available": 100000,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": 1,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": {
+                "status": "PENDING",
+                "handoffType": "CUSTOMER",
+                "deliveredAt": null,
+                "userId": null,
+                "note": null
+              },
+              "redemptions": []
+            },
+            {
+              "id": 4,
+              "code": "CRN2R7YV",
+              "label": "root-return-credit-2",
+              "amount": 100000,
+              "usedAmount": 0,
+              "available": 100000,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": 1,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": {
+                "status": "PENDING",
+                "handoffType": "CUSTOMER",
+                "deliveredAt": null,
+                "userId": null,
+                "note": null
+              },
+              "redemptions": []
+            }
+          ],
+          "invoices": [
+            {
+              "id": 1,
+              "receiptNo": 1,
+              "status": "PARTIALLY_RETURNED",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "settledAt": 1793117392338,
+              "sourceInvoiceId": null,
+              "exchangeReturnId": null,
+              "items": [
+                {
+                  "id": 1,
+                  "variantId": 1,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 2,
+                  "variantId": 2,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 3,
+                  "variantId": 3,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                },
+                {
+                  "id": 4,
+                  "variantId": 4,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "receiptNo": 2,
+              "status": "SETTLED",
+              "grandTotal": 200000,
+              "paidTotal": 200000,
+              "settledAt": 1793117392368,
+              "sourceInvoiceId": null,
+              "exchangeReturnId": null,
+              "items": [
+                {
+                  "id": 5,
+                  "variantId": 9,
+                  "qty": 1,
+                  "unitPrice": 100000,
+                  "lineTotal": 100000
+                },
+                {
+                  "id": 6,
+                  "variantId": 10,
+                  "qty": 1,
+                  "unitPrice": 100000,
+                  "lineTotal": 100000
+                }
+              ]
+            }
+          ],
+          "returns": [
+            {
+              "id": 1,
+              "invoiceId": 1,
+              "kind": "RETURN",
+              "total": 200000,
+              "refundMethod": "NONE",
+              "refundAmount": 0,
+              "refundStoreCreditAmount": 0,
+              "exchangeInvoiceId": null,
+              "exchangeTotal": 0,
+              "exchangeDiff": 0,
+              "exchangeSettlement": null,
+              "voided": false
+            }
+          ],
+          "cardTransfers": [],
+          "creditAllocations": [
+            {
+              "id": 1,
+              "eventKey": "return-credit:v1:r1:d1:i1",
+              "invoiceId": 1,
+              "returnId": 1,
+              "redemptionId": 1,
+              "sourceCreditId": 2,
+              "amount": 100000,
+              "creditRestored": true,
+              "settlementAdjusted": true,
+              "saleItemId": 1
+            },
+            {
+              "id": 2,
+              "eventKey": "return-credit:v1:r1:d2:i1",
+              "invoiceId": 1,
+              "returnId": 1,
+              "redemptionId": 2,
+              "sourceCreditId": 1,
+              "amount": 100000,
+              "creditRestored": true,
+              "settlementAdjusted": true,
+              "saleItemId": 1
+            }
+          ],
+          "counts": {
+            "paymentRows": 5,
+            "checkPayments": 0,
+            "cashMovements": 0,
+            "returns": 1,
+            "invoices": 2,
+            "cardTransfers": 0
+          }
+        },
+        {
+          "scenario": "E100-051",
+          "operation": "exchange B 200k to B1 180k success; diff=-20000; return=2; exchangeInvoice=3",
+          "at": "2026-10-27T16:09:52.642Z",
+          "note": "negative exchange; physical payout must be no greater than real-money funding after pooled source-credit restoration",
+          "expectedFlow": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 800000
+          },
+          "reported": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 0,
+            "card": 800000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blueActual": 800000,
+          "blueRaw": 800000,
+          "stock": [
+            {
+              "sku": "A-root-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B-root-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "C-root-300k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "D-root-300k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "B1-180000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "C1-310000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "D1-310000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B2-reexchange-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "aux-1-100000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "aux-2-100000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "code": "CRW3GABE",
+              "label": "source-1",
+              "amount": 200000,
+              "usedAmount": 200000,
+              "available": 0,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 2,
+                  "amount": 100000,
+                  "restoredAmount": 100000,
+                  "netAmount": 0,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": true,
+                  "invoiceId": 1
+                },
+                {
+                  "id": 4,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 0,
+                  "seq": 2,
+                  "reversed": false,
+                  "invoiceId": 2
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "code": "CR32JMTL",
+              "label": "source-2",
+              "amount": 200000,
+              "usedAmount": 200000,
+              "available": 0,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 1,
+                  "amount": 100000,
+                  "restoredAmount": 100000,
+                  "netAmount": 0,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": true,
+                  "invoiceId": 1
+                },
+                {
+                  "id": 3,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 0,
+                  "seq": 2,
+                  "reversed": false,
+                  "invoiceId": 2
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "code": "CRER84LK",
+              "label": "root-return-credit-1",
+              "amount": 100000,
+              "usedAmount": 0,
+              "available": 100000,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": 1,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": {
+                "status": "PENDING",
+                "handoffType": "CUSTOMER",
+                "deliveredAt": null,
+                "userId": null,
+                "note": null
+              },
+              "redemptions": []
+            },
+            {
+              "id": 4,
+              "code": "CRN2R7YV",
+              "label": "root-return-credit-2",
+              "amount": 100000,
+              "usedAmount": 0,
+              "available": 100000,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": 1,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": {
+                "status": "PENDING",
+                "handoffType": "CUSTOMER",
+                "deliveredAt": null,
+                "userId": null,
+                "note": null
+              },
+              "redemptions": []
+            },
+            {
+              "id": 5,
+              "code": "ECM4PN",
+              "label": "exchange B 200k to B1 180k-credit-1",
+              "amount": 20000,
+              "usedAmount": 0,
+              "available": 20000,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": null,
+              "source": "EXCHANGE",
+              "returnId": 2,
+              "exchangeInvoiceId": 3,
+              "restrictScope": "ALL",
+              "restrictVariantIdsJson": null,
+              "delivery": {
+                "status": "PENDING",
+                "handoffType": "CUSTOMER",
+                "deliveredAt": null,
+                "userId": null,
+                "note": null
+              },
+              "redemptions": []
+            }
+          ],
+          "invoices": [
+            {
+              "id": 1,
+              "receiptNo": 1,
+              "status": "PARTIALLY_RETURNED",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "settledAt": 1793117392338,
+              "sourceInvoiceId": null,
+              "exchangeReturnId": null,
+              "items": [
+                {
+                  "id": 1,
+                  "variantId": 1,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 2,
+                  "variantId": 2,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 3,
+                  "variantId": 3,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                },
+                {
+                  "id": 4,
+                  "variantId": 4,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "receiptNo": 2,
+              "status": "SETTLED",
+              "grandTotal": 200000,
+              "paidTotal": 200000,
+              "settledAt": 1793117392368,
+              "sourceInvoiceId": null,
+              "exchangeReturnId": null,
+              "items": [
+                {
+                  "id": 5,
+                  "variantId": 9,
+                  "qty": 1,
+                  "unitPrice": 100000,
+                  "lineTotal": 100000
+                },
+                {
+                  "id": 6,
+                  "variantId": 10,
+                  "qty": 1,
+                  "unitPrice": 100000,
+                  "lineTotal": 100000
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "receiptNo": 3,
+              "status": "SETTLED",
+              "grandTotal": 180000,
+              "paidTotal": 180000,
+              "settledAt": 1793117392625,
+              "sourceInvoiceId": 1,
+              "exchangeReturnId": 2,
+              "items": [
+                {
+                  "id": 7,
+                  "variantId": 5,
+                  "qty": 1,
+                  "unitPrice": 180000,
+                  "lineTotal": 180000
+                }
+              ]
+            }
+          ],
+          "returns": [
+            {
+              "id": 1,
+              "invoiceId": 1,
+              "kind": "RETURN",
+              "total": 200000,
+              "refundMethod": "NONE",
+              "refundAmount": 0,
+              "refundStoreCreditAmount": 0,
+              "exchangeInvoiceId": null,
+              "exchangeTotal": 0,
+              "exchangeDiff": 0,
+              "exchangeSettlement": null,
+              "voided": false
+            },
+            {
+              "id": 2,
+              "invoiceId": 1,
+              "kind": "EXCHANGE",
+              "total": 200000,
+              "refundMethod": "STORE_CREDIT",
+              "refundAmount": 20000,
+              "refundStoreCreditAmount": 0,
+              "exchangeInvoiceId": 3,
+              "exchangeTotal": 180000,
+              "exchangeDiff": -20000,
+              "exchangeSettlement": "CREDIT",
+              "voided": false
+            }
+          ],
+          "cardTransfers": [],
+          "creditAllocations": [
+            {
+              "id": 1,
+              "eventKey": "return-credit:v1:r1:d1:i1",
+              "invoiceId": 1,
+              "returnId": 1,
+              "redemptionId": 1,
+              "sourceCreditId": 2,
+              "amount": 100000,
+              "creditRestored": true,
+              "settlementAdjusted": true,
+              "saleItemId": 1
+            },
+            {
+              "id": 2,
+              "eventKey": "return-credit:v1:r1:d2:i1",
+              "invoiceId": 1,
+              "returnId": 1,
+              "redemptionId": 2,
+              "sourceCreditId": 1,
+              "amount": 100000,
+              "creditRestored": true,
+              "settlementAdjusted": true,
+              "saleItemId": 1
+            }
+          ],
+          "counts": {
+            "paymentRows": 6,
+            "checkPayments": 0,
+            "cashMovements": 0,
+            "returns": 2,
+            "invoices": 3,
+            "cardTransfers": 0
+          }
+        },
+        {
+          "scenario": "E100-051",
+          "operation": "exchange C+D together, 700k to 720k success; diff=20000; return=3; exchangeInvoice=4",
+          "at": "2026-10-27T16:09:52.675Z",
+          "note": "two returned items and two replacements in one exchange; positive difference collected once",
+          "expectedFlow": {
+            "cash": 0,
+            "card": 820000,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 820000
+          },
+          "reported": {
+            "cash": 0,
+            "card": 820000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 0,
+            "card": 820000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blueActual": 820000,
+          "blueRaw": 820000,
+          "stock": [
+            {
+              "sku": "A-root-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B-root-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "C-root-300k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "D-root-300k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B1-180000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "C1-310000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "D1-310000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "B2-reexchange-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "aux-1-100000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "aux-2-100000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "code": "CRW3GABE",
+              "label": "source-1",
+              "amount": 200000,
+              "usedAmount": 200000,
+              "available": 0,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 2,
+                  "amount": 100000,
+                  "restoredAmount": 100000,
+                  "netAmount": 0,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": true,
+                  "invoiceId": 1
+                },
+                {
+                  "id": 4,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 0,
+                  "seq": 2,
+                  "reversed": false,
+                  "invoiceId": 2
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "code": "CR32JMTL",
+              "label": "source-2",
+              "amount": 200000,
+              "usedAmount": 200000,
+              "available": 0,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 1,
+                  "amount": 100000,
+                  "restoredAmount": 100000,
+                  "netAmount": 0,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": true,
+                  "invoiceId": 1
+                },
+                {
+                  "id": 3,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 0,
+                  "seq": 2,
+                  "reversed": false,
+                  "invoiceId": 2
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "code": "CRER84LK",
+              "label": "root-return-credit-1",
+              "amount": 100000,
+              "usedAmount": 0,
+              "available": 100000,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": 1,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": {
+                "status": "PENDING",
+                "handoffType": "CUSTOMER",
+                "deliveredAt": null,
+                "userId": null,
+                "note": null
+              },
+              "redemptions": []
+            },
+            {
+              "id": 4,
+              "code": "CRN2R7YV",
+              "label": "root-return-credit-2",
+              "amount": 100000,
+              "usedAmount": 0,
+              "available": 100000,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": 1,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": {
+                "status": "PENDING",
+                "handoffType": "CUSTOMER",
+                "deliveredAt": null,
+                "userId": null,
+                "note": null
+              },
+              "redemptions": []
+            },
+            {
+              "id": 5,
+              "code": "ECM4PN",
+              "label": "exchange B 200k to B1 180k-credit-1",
+              "amount": 20000,
+              "usedAmount": 0,
+              "available": 20000,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": null,
+              "source": "EXCHANGE",
+              "returnId": 2,
+              "exchangeInvoiceId": 3,
+              "restrictScope": "ALL",
+              "restrictVariantIdsJson": null,
+              "delivery": {
+                "status": "PENDING",
+                "handoffType": "CUSTOMER",
+                "deliveredAt": null,
+                "userId": null,
+                "note": null
+              },
+              "redemptions": []
+            }
+          ],
+          "invoices": [
+            {
+              "id": 1,
+              "receiptNo": 1,
+              "status": "RETURNED",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "settledAt": 1793117392338,
+              "sourceInvoiceId": null,
+              "exchangeReturnId": null,
+              "items": [
+                {
+                  "id": 1,
+                  "variantId": 1,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 2,
+                  "variantId": 2,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 3,
+                  "variantId": 3,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                },
+                {
+                  "id": 4,
+                  "variantId": 4,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "receiptNo": 2,
+              "status": "SETTLED",
+              "grandTotal": 200000,
+              "paidTotal": 200000,
+              "settledAt": 1793117392368,
+              "sourceInvoiceId": null,
+              "exchangeReturnId": null,
+              "items": [
+                {
+                  "id": 5,
+                  "variantId": 9,
+                  "qty": 1,
+                  "unitPrice": 100000,
+                  "lineTotal": 100000
+                },
+                {
+                  "id": 6,
+                  "variantId": 10,
+                  "qty": 1,
+                  "unitPrice": 100000,
+                  "lineTotal": 100000
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "receiptNo": 3,
+              "status": "SETTLED",
+              "grandTotal": 180000,
+              "paidTotal": 180000,
+              "settledAt": 1793117392625,
+              "sourceInvoiceId": 1,
+              "exchangeReturnId": 2,
+              "items": [
+                {
+                  "id": 7,
+                  "variantId": 5,
+                  "qty": 1,
+                  "unitPrice": 180000,
+                  "lineTotal": 180000
+                }
+              ]
+            },
+            {
+              "id": 4,
+              "receiptNo": 4,
+              "status": "SETTLED",
+              "grandTotal": 620000,
+              "paidTotal": 620000,
+              "settledAt": 1793117392657,
+              "sourceInvoiceId": 1,
+              "exchangeReturnId": 3,
+              "items": [
+                {
+                  "id": 8,
+                  "variantId": 6,
+                  "qty": 1,
+                  "unitPrice": 310000,
+                  "lineTotal": 310000
+                },
+                {
+                  "id": 9,
+                  "variantId": 7,
+                  "qty": 1,
+                  "unitPrice": 310000,
+                  "lineTotal": 310000
+                }
+              ]
+            }
+          ],
+          "returns": [
+            {
+              "id": 1,
+              "invoiceId": 1,
+              "kind": "RETURN",
+              "total": 200000,
+              "refundMethod": "NONE",
+              "refundAmount": 0,
+              "refundStoreCreditAmount": 0,
+              "exchangeInvoiceId": null,
+              "exchangeTotal": 0,
+              "exchangeDiff": 0,
+              "exchangeSettlement": null,
+              "voided": false
+            },
+            {
+              "id": 2,
+              "invoiceId": 1,
+              "kind": "EXCHANGE",
+              "total": 200000,
+              "refundMethod": "STORE_CREDIT",
+              "refundAmount": 20000,
+              "refundStoreCreditAmount": 0,
+              "exchangeInvoiceId": 3,
+              "exchangeTotal": 180000,
+              "exchangeDiff": -20000,
+              "exchangeSettlement": "CREDIT",
+              "voided": false
+            },
+            {
+              "id": 3,
+              "invoiceId": 1,
+              "kind": "EXCHANGE",
+              "total": 600000,
+              "refundMethod": "NONE",
+              "refundAmount": 0,
+              "refundStoreCreditAmount": 0,
+              "exchangeInvoiceId": 4,
+              "exchangeTotal": 620000,
+              "exchangeDiff": 20000,
+              "exchangeSettlement": "CASH",
+              "voided": false
+            }
+          ],
+          "cardTransfers": [],
+          "creditAllocations": [
+            {
+              "id": 1,
+              "eventKey": "return-credit:v1:r1:d1:i1",
+              "invoiceId": 1,
+              "returnId": 1,
+              "redemptionId": 1,
+              "sourceCreditId": 2,
+              "amount": 100000,
+              "creditRestored": true,
+              "settlementAdjusted": true,
+              "saleItemId": 1
+            },
+            {
+              "id": 2,
+              "eventKey": "return-credit:v1:r1:d2:i1",
+              "invoiceId": 1,
+              "returnId": 1,
+              "redemptionId": 2,
+              "sourceCreditId": 1,
+              "amount": 100000,
+              "creditRestored": true,
+              "settlementAdjusted": true,
+              "saleItemId": 1
+            }
+          ],
+          "counts": {
+            "paymentRows": 8,
+            "checkPayments": 0,
+            "cashMovements": 0,
+            "returns": 3,
+            "invoices": 4,
+            "cardTransfers": 0
+          }
+        },
+        {
+          "scenario": "E100-051",
+          "operation": "re-exchange already-exchanged B1 from invoice 2 to B2 200k success; diff=20000; return=4; exchangeInvoice=5",
+          "at": "2026-10-27T16:09:52.708Z",
+          "note": "source is the child invoice that actually sold B1; tests second-generation exchange and no duplicate refund",
+          "expectedFlow": {
+            "cash": 0,
+            "card": 820000,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 820000
+          },
+          "reported": {
+            "cash": 0,
+            "card": 820000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 0,
+            "card": 820000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blueActual": 820000,
+          "blueRaw": 820000,
+          "stock": [
+            {
+              "sku": "A-root-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B-root-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "C-root-300k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "D-root-300k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B1-180000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "C1-310000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "D1-310000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "B2-reexchange-200k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "aux-1-100000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "aux-2-100000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "code": "CRW3GABE",
+              "label": "source-1",
+              "amount": 200000,
+              "usedAmount": 200000,
+              "available": 0,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 2,
+                  "amount": 100000,
+                  "restoredAmount": 100000,
+                  "netAmount": 0,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": true,
+                  "invoiceId": 1
+                },
+                {
+                  "id": 4,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 0,
+                  "seq": 2,
+                  "reversed": false,
+                  "invoiceId": 2
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "code": "CR32JMTL",
+              "label": "source-2",
+              "amount": 200000,
+              "usedAmount": 200000,
+              "available": 0,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 1,
+                  "amount": 100000,
+                  "restoredAmount": 100000,
+                  "netAmount": 0,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": true,
+                  "invoiceId": 1
+                },
+                {
+                  "id": 3,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 0,
+                  "seq": 2,
+                  "reversed": false,
+                  "invoiceId": 2
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "code": "CRER84LK",
+              "label": "root-return-credit-1",
+              "amount": 100000,
+              "usedAmount": 0,
+              "available": 100000,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": 1,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": {
+                "status": "PENDING",
+                "handoffType": "CUSTOMER",
+                "deliveredAt": null,
+                "userId": null,
+                "note": null
+              },
+              "redemptions": []
+            },
+            {
+              "id": 4,
+              "code": "CRN2R7YV",
+              "label": "root-return-credit-2",
+              "amount": 100000,
+              "usedAmount": 0,
+              "available": 100000,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": 1,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": {
+                "status": "PENDING",
+                "handoffType": "CUSTOMER",
+                "deliveredAt": null,
+                "userId": null,
+                "note": null
+              },
+              "redemptions": []
+            },
+            {
+              "id": 5,
+              "code": "ECM4PN",
+              "label": "exchange B 200k to B1 180k-credit-1",
+              "amount": 20000,
+              "usedAmount": 20000,
+              "available": 0,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": null,
+              "source": "EXCHANGE",
+              "returnId": 2,
+              "exchangeInvoiceId": 3,
+              "restrictScope": "ALL",
+              "restrictVariantIdsJson": null,
+              "delivery": {
+                "status": "PENDING",
+                "handoffType": "CUSTOMER",
+                "deliveredAt": null,
+                "userId": null,
+                "note": null
+              },
+              "redemptions": [
+                {
+                  "id": 5,
+                  "amount": 20000,
+                  "restoredAmount": 0,
+                  "netAmount": 20000,
+                  "remainderAfter": 0,
+                  "seq": 1,
+                  "reversed": false,
+                  "invoiceId": 5
+                }
+              ]
+            }
+          ],
+          "invoices": [
+            {
+              "id": 1,
+              "receiptNo": 1,
+              "status": "RETURNED",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "settledAt": 1793117392338,
+              "sourceInvoiceId": null,
+              "exchangeReturnId": null,
+              "items": [
+                {
+                  "id": 1,
+                  "variantId": 1,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 2,
+                  "variantId": 2,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 3,
+                  "variantId": 3,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                },
+                {
+                  "id": 4,
+                  "variantId": 4,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "receiptNo": 2,
+              "status": "SETTLED",
+              "grandTotal": 200000,
+              "paidTotal": 200000,
+              "settledAt": 1793117392368,
+              "sourceInvoiceId": null,
+              "exchangeReturnId": null,
+              "items": [
+                {
+                  "id": 5,
+                  "variantId": 9,
+                  "qty": 1,
+                  "unitPrice": 100000,
+                  "lineTotal": 100000
+                },
+                {
+                  "id": 6,
+                  "variantId": 10,
+                  "qty": 1,
+                  "unitPrice": 100000,
+                  "lineTotal": 100000
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "receiptNo": 3,
+              "status": "RETURNED",
+              "grandTotal": 180000,
+              "paidTotal": 180000,
+              "settledAt": 1793117392625,
+              "sourceInvoiceId": 1,
+              "exchangeReturnId": 2,
+              "items": [
+                {
+                  "id": 7,
+                  "variantId": 5,
+                  "qty": 1,
+                  "unitPrice": 180000,
+                  "lineTotal": 180000
+                }
+              ]
+            },
+            {
+              "id": 4,
+              "receiptNo": 4,
+              "status": "SETTLED",
+              "grandTotal": 620000,
+              "paidTotal": 620000,
+              "settledAt": 1793117392657,
+              "sourceInvoiceId": 1,
+              "exchangeReturnId": 3,
+              "items": [
+                {
+                  "id": 8,
+                  "variantId": 6,
+                  "qty": 1,
+                  "unitPrice": 310000,
+                  "lineTotal": 310000
+                },
+                {
+                  "id": 9,
+                  "variantId": 7,
+                  "qty": 1,
+                  "unitPrice": 310000,
+                  "lineTotal": 310000
+                }
+              ]
+            },
+            {
+              "id": 5,
+              "receiptNo": 5,
+              "status": "SETTLED",
+              "grandTotal": 200000,
+              "paidTotal": 200000,
+              "settledAt": 1793117392687,
+              "sourceInvoiceId": 3,
+              "exchangeReturnId": 4,
+              "items": [
+                {
+                  "id": 10,
+                  "variantId": 8,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                }
+              ]
+            }
+          ],
+          "returns": [
+            {
+              "id": 1,
+              "invoiceId": 1,
+              "kind": "RETURN",
+              "total": 200000,
+              "refundMethod": "NONE",
+              "refundAmount": 0,
+              "refundStoreCreditAmount": 0,
+              "exchangeInvoiceId": null,
+              "exchangeTotal": 0,
+              "exchangeDiff": 0,
+              "exchangeSettlement": null,
+              "voided": false
+            },
+            {
+              "id": 2,
+              "invoiceId": 1,
+              "kind": "EXCHANGE",
+              "total": 200000,
+              "refundMethod": "STORE_CREDIT",
+              "refundAmount": 20000,
+              "refundStoreCreditAmount": 0,
+              "exchangeInvoiceId": 3,
+              "exchangeTotal": 180000,
+              "exchangeDiff": -20000,
+              "exchangeSettlement": "CREDIT",
+              "voided": false
+            },
+            {
+              "id": 3,
+              "invoiceId": 1,
+              "kind": "EXCHANGE",
+              "total": 600000,
+              "refundMethod": "NONE",
+              "refundAmount": 0,
+              "refundStoreCreditAmount": 0,
+              "exchangeInvoiceId": 4,
+              "exchangeTotal": 620000,
+              "exchangeDiff": 20000,
+              "exchangeSettlement": "CASH",
+              "voided": false
+            },
+            {
+              "id": 4,
+              "invoiceId": 3,
+              "kind": "EXCHANGE",
+              "total": 180000,
+              "refundMethod": "NONE",
+              "refundAmount": 0,
+              "refundStoreCreditAmount": 0,
+              "exchangeInvoiceId": 5,
+              "exchangeTotal": 200000,
+              "exchangeDiff": 20000,
+              "exchangeSettlement": "CREDIT",
+              "voided": false
+            }
+          ],
+          "cardTransfers": [],
+          "creditAllocations": [
+            {
+              "id": 1,
+              "eventKey": "return-credit:v1:r1:d1:i1",
+              "invoiceId": 1,
+              "returnId": 1,
+              "redemptionId": 1,
+              "sourceCreditId": 2,
+              "amount": 100000,
+              "creditRestored": true,
+              "settlementAdjusted": true,
+              "saleItemId": 1
+            },
+            {
+              "id": 2,
+              "eventKey": "return-credit:v1:r1:d2:i1",
+              "invoiceId": 1,
+              "returnId": 1,
+              "redemptionId": 2,
+              "sourceCreditId": 1,
+              "amount": 100000,
+              "creditRestored": true,
+              "settlementAdjusted": true,
+              "saleItemId": 1
+            }
+          ],
+          "counts": {
+            "paymentRows": 10,
+            "checkPayments": 0,
+            "cashMovements": 0,
+            "returns": 4,
+            "invoices": 5,
+            "cardTransfers": 0
+          }
+        },
+        {
+          "scenario": "E100-051",
+          "operation": "final chain: root return, B exchange, C+D two-item exchange, B1 re-exchange, all barcode/redemption/allocation caps",
+          "at": "2026-10-27T16:09:52.723Z",
+          "note": "final blue is recomputed from raw physical documents; each barcode usedAmount/count and every stock ledger reconciled",
+          "expectedFlow": {
+            "cash": 0,
+            "card": 820000,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 820000
+          },
+          "reported": {
+            "cash": 0,
+            "card": 820000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 0,
+            "card": 820000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blueActual": 820000,
+          "blueRaw": 820000,
+          "stock": [
+            {
+              "sku": "A-root-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B-root-200k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "C-root-300k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "D-root-300k",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "B1-180000",
+              "baseline": 10,
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "sku": "C1-310000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "D1-310000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "B2-reexchange-200k",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "aux-1-100000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "sku": "aux-2-100000",
+              "baseline": 10,
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "code": "CRW3GABE",
+              "label": "source-1",
+              "amount": 200000,
+              "usedAmount": 200000,
+              "available": 0,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 2,
+                  "amount": 100000,
+                  "restoredAmount": 100000,
+                  "netAmount": 0,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": true,
+                  "invoiceId": 1
+                },
+                {
+                  "id": 4,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 0,
+                  "seq": 2,
+                  "reversed": false,
+                  "invoiceId": 2
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "code": "CR32JMTL",
+              "label": "source-2",
+              "amount": 200000,
+              "usedAmount": 200000,
+              "available": 0,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": null,
+              "redemptions": [
+                {
+                  "id": 1,
+                  "amount": 100000,
+                  "restoredAmount": 100000,
+                  "netAmount": 0,
+                  "remainderAfter": 100000,
+                  "seq": 1,
+                  "reversed": true,
+                  "invoiceId": 1
+                },
+                {
+                  "id": 3,
+                  "amount": 100000,
+                  "restoredAmount": 0,
+                  "netAmount": 100000,
+                  "remainderAfter": 0,
+                  "seq": 2,
+                  "reversed": false,
+                  "invoiceId": 2
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "code": "CRER84LK",
+              "label": "root-return-credit-1",
+              "amount": 100000,
+              "usedAmount": 0,
+              "available": 100000,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": 1,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": {
+                "status": "PENDING",
+                "handoffType": "CUSTOMER",
+                "deliveredAt": null,
+                "userId": null,
+                "note": null
+              },
+              "redemptions": []
+            },
+            {
+              "id": 4,
+              "code": "CRN2R7YV",
+              "label": "root-return-credit-2",
+              "amount": 100000,
+              "usedAmount": 0,
+              "available": 100000,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795724999999,
+              "source": "MANUAL",
+              "returnId": 1,
+              "exchangeInvoiceId": null,
+              "restrictScope": "VARIANTS",
+              "restrictVariantIdsJson": "[1,2,3,4,5,6,7,8,9,10]",
+              "delivery": {
+                "status": "PENDING",
+                "handoffType": "CUSTOMER",
+                "deliveredAt": null,
+                "userId": null,
+                "note": null
+              },
+              "redemptions": []
+            },
+            {
+              "id": 5,
+              "code": "ECM4PN",
+              "label": "exchange B 200k to B1 180k-credit-1",
+              "amount": 20000,
+              "usedAmount": 20000,
+              "available": 0,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": null,
+              "source": "EXCHANGE",
+              "returnId": 2,
+              "exchangeInvoiceId": 3,
+              "restrictScope": "ALL",
+              "restrictVariantIdsJson": null,
+              "delivery": {
+                "status": "PENDING",
+                "handoffType": "CUSTOMER",
+                "deliveredAt": null,
+                "userId": null,
+                "note": null
+              },
+              "redemptions": [
+                {
+                  "id": 5,
+                  "amount": 20000,
+                  "restoredAmount": 0,
+                  "netAmount": 20000,
+                  "remainderAfter": 0,
+                  "seq": 1,
+                  "reversed": false,
+                  "invoiceId": 5
+                }
+              ]
+            }
+          ],
+          "invoices": [
+            {
+              "id": 1,
+              "receiptNo": 1,
+              "status": "RETURNED",
+              "grandTotal": 1000000,
+              "paidTotal": 1000000,
+              "settledAt": 1793117392338,
+              "sourceInvoiceId": null,
+              "exchangeReturnId": null,
+              "items": [
+                {
+                  "id": 1,
+                  "variantId": 1,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 2,
+                  "variantId": 2,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                },
+                {
+                  "id": 3,
+                  "variantId": 3,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                },
+                {
+                  "id": 4,
+                  "variantId": 4,
+                  "qty": 1,
+                  "unitPrice": 300000,
+                  "lineTotal": 300000
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "receiptNo": 2,
+              "status": "SETTLED",
+              "grandTotal": 200000,
+              "paidTotal": 200000,
+              "settledAt": 1793117392368,
+              "sourceInvoiceId": null,
+              "exchangeReturnId": null,
+              "items": [
+                {
+                  "id": 5,
+                  "variantId": 9,
+                  "qty": 1,
+                  "unitPrice": 100000,
+                  "lineTotal": 100000
+                },
+                {
+                  "id": 6,
+                  "variantId": 10,
+                  "qty": 1,
+                  "unitPrice": 100000,
+                  "lineTotal": 100000
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "receiptNo": 3,
+              "status": "RETURNED",
+              "grandTotal": 180000,
+              "paidTotal": 180000,
+              "settledAt": 1793117392625,
+              "sourceInvoiceId": 1,
+              "exchangeReturnId": 2,
+              "items": [
+                {
+                  "id": 7,
+                  "variantId": 5,
+                  "qty": 1,
+                  "unitPrice": 180000,
+                  "lineTotal": 180000
+                }
+              ]
+            },
+            {
+              "id": 4,
+              "receiptNo": 4,
+              "status": "SETTLED",
+              "grandTotal": 620000,
+              "paidTotal": 620000,
+              "settledAt": 1793117392657,
+              "sourceInvoiceId": 1,
+              "exchangeReturnId": 3,
+              "items": [
+                {
+                  "id": 8,
+                  "variantId": 6,
+                  "qty": 1,
+                  "unitPrice": 310000,
+                  "lineTotal": 310000
+                },
+                {
+                  "id": 9,
+                  "variantId": 7,
+                  "qty": 1,
+                  "unitPrice": 310000,
+                  "lineTotal": 310000
+                }
+              ]
+            },
+            {
+              "id": 5,
+              "receiptNo": 5,
+              "status": "SETTLED",
+              "grandTotal": 200000,
+              "paidTotal": 200000,
+              "settledAt": 1793117392687,
+              "sourceInvoiceId": 3,
+              "exchangeReturnId": 4,
+              "items": [
+                {
+                  "id": 10,
+                  "variantId": 8,
+                  "qty": 1,
+                  "unitPrice": 200000,
+                  "lineTotal": 200000
+                }
+              ]
+            }
+          ],
+          "returns": [
+            {
+              "id": 1,
+              "invoiceId": 1,
+              "kind": "RETURN",
+              "total": 200000,
+              "refundMethod": "NONE",
+              "refundAmount": 0,
+              "refundStoreCreditAmount": 0,
+              "exchangeInvoiceId": null,
+              "exchangeTotal": 0,
+              "exchangeDiff": 0,
+              "exchangeSettlement": null,
+              "voided": false
+            },
+            {
+              "id": 2,
+              "invoiceId": 1,
+              "kind": "EXCHANGE",
+              "total": 200000,
+              "refundMethod": "STORE_CREDIT",
+              "refundAmount": 20000,
+              "refundStoreCreditAmount": 0,
+              "exchangeInvoiceId": 3,
+              "exchangeTotal": 180000,
+              "exchangeDiff": -20000,
+              "exchangeSettlement": "CREDIT",
+              "voided": false
+            },
+            {
+              "id": 3,
+              "invoiceId": 1,
+              "kind": "EXCHANGE",
+              "total": 600000,
+              "refundMethod": "NONE",
+              "refundAmount": 0,
+              "refundStoreCreditAmount": 0,
+              "exchangeInvoiceId": 4,
+              "exchangeTotal": 620000,
+              "exchangeDiff": 20000,
+              "exchangeSettlement": "CASH",
+              "voided": false
+            },
+            {
+              "id": 4,
+              "invoiceId": 3,
+              "kind": "EXCHANGE",
+              "total": 180000,
+              "refundMethod": "NONE",
+              "refundAmount": 0,
+              "refundStoreCreditAmount": 0,
+              "exchangeInvoiceId": 5,
+              "exchangeTotal": 200000,
+              "exchangeDiff": 20000,
+              "exchangeSettlement": "CREDIT",
+              "voided": false
+            }
+          ],
+          "cardTransfers": [],
+          "creditAllocations": [
+            {
+              "id": 1,
+              "eventKey": "return-credit:v1:r1:d1:i1",
+              "invoiceId": 1,
+              "returnId": 1,
+              "redemptionId": 1,
+              "sourceCreditId": 2,
+              "amount": 100000,
+              "creditRestored": true,
+              "settlementAdjusted": true,
+              "saleItemId": 1
+            },
+            {
+              "id": 2,
+              "eventKey": "return-credit:v1:r1:d2:i1",
+              "invoiceId": 1,
+              "returnId": 1,
+              "redemptionId": 2,
+              "sourceCreditId": 1,
+              "amount": 100000,
+              "creditRestored": true,
+              "settlementAdjusted": true,
+              "saleItemId": 1
+            }
+          ],
+          "counts": {
+            "paymentRows": 10,
+            "checkPayments": 0,
+            "cashMovements": 0,
+            "returns": 4,
+            "invoices": 5,
+            "cardTransfers": 0
+          }
+        }
+      ],
+      "expectedBlocks": [
+        {
+          "label": "panel lookup/preview check of fully used barcode",
+          "message": "این اعتبار (CRW3GABE) کامل مصرف شده است — آخرین مصرف روی فاکتور شماره ۲ در تاریخ ۱۴۰۵/۰۸/۰۵.\n۲ تلاش دیگر باقی مانده است؛ بعد از آن ورود رمز برای ۱۰ دقیقه قفل می‌شود.",
+          "mutationFree": true
+        },
+        {
+          "label": "credit-only cashout probe",
+          "message": "با این برگشت مبلغ اضافه‌ای برای صدور اعتبار خرید ساخته نمی‌شود؛ یا بازپرداخت همان اضافه را پوشش داده یا فاکتور هنوز بدهکار است.",
+          "mutationFree": true,
+          "expected": "no physical refund from fully credit-funded item"
+        }
+      ],
+      "findings": [],
+      "expected": {
+        "cash": 0,
+        "card": 820000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "config": {
+        "creditCount": 2,
+        "unit": 100000,
+        "lifecycle": "MULTI_USED_TWICE",
+        "consumeRemainder": true,
+        "tender": "CARD",
+        "scopeMode": "VARIANTS_ALL",
+        "sourceCreditTotal": 200000,
+        "returnedCreditExpected": 200000,
+        "moneyRight": 0,
+        "cashShare": 0,
+        "cardShare": 800000,
+        "returnMethod": "STORE_CREDIT",
+        "b1Price": 180000,
+        "cdExchangeDiff": 20000
+      },
+      "rootInvoice": 1,
+      "returnId": 1,
+      "reexchange": {
+        "returnId": 4,
+        "childSourceInvoice": 3,
+        "newInvoice": 5,
+        "diff": 20000
+      },
+      "status": "PASS",
+      "summary": "n=2, unit=100000, MULTI_USED_TWICE/reused, CARD, return=STORE_CREDIT; B→180000, C+D diff=+20k, B1→B2=+20k"
+    }
+  ]
+}

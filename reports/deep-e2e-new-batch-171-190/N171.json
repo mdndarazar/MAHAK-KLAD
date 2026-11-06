@@ -1,0 +1,317 @@
+{
+  "generatedAt": "2026-10-28T18:33:21.261Z",
+  "id": 171,
+  "scenario": "N171",
+  "isolatedDatabase": "/tmp/mahak-next20-171-Q6qg6o/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 100000,
+      "cash": 100000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 4,
+          "unitPrice": 25000,
+          "lineTotal": 100000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "four-unit-source",
+          "expected": 6,
+          "actual": 6,
+          "ledger": -4
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 25000,
+      "method": "CASH",
+      "refundAmount": 25000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 25000,
+        "refundCard": 0,
+        "blue": 75000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 25000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 25000,
+        "refundCard": 0
+      },
+      "blue": 75000,
+      "stock": [
+        {
+          "name": "four-unit-source",
+          "expected": 7,
+          "actual": 7,
+          "ledger": -3
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "PARTIALLY_RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "return",
+      "id": 2,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 2,
+      "total": 50000,
+      "method": "CASH",
+      "refundAmount": 50000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 2",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 75000,
+        "refundCard": 0,
+        "blue": 25000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 75000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 75000,
+        "refundCard": 0
+      },
+      "blue": 25000,
+      "stock": [
+        {
+          "name": "four-unit-source",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "PARTIALLY_RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 2,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "return",
+      "id": 3,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 25000,
+      "method": "CASH",
+      "refundAmount": 25000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 3",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "four-unit-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 3,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N171 reconciliation",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 100000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "four-unit-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 3,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "assertions": [
+    {
+      "key": "four-unit-lot-returns-in-1-2-1-quantity-sequence",
+      "pass": true,
+      "soldQty": 4,
+      "returnedQty": 4,
+      "cashRefund": 100000
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 100000,
+      "card": 0,
+      "refundCash": 100000,
+      "refundCard": 0,
+      "blue": 0
+    },
+    "actual": {
+      "cash": 100000,
+      "card": 0,
+      "refundCash": 100000,
+      "refundCard": 0
+    },
+    "blue": 0,
+    "stock": [
+      {
+        "name": "four-unit-source",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      }
+    ],
+    "invoices": 1,
+    "returns": 3,
+    "credits": 0,
+    "checks": 0
+  }
+}

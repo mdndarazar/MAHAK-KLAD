@@ -1,0 +1,284 @@
+{
+  "generatedAt": "2026-10-28T18:33:37.036Z",
+  "id": 180,
+  "scenario": "N180",
+  "isolatedDatabase": "/tmp/mahak-next20-180-soz9cE/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 70000,
+      "cash": 70000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 70000,
+          "lineTotal": 70000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 70000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 70000
+      },
+      "actual": {
+        "cash": 70000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 70000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 70000,
+      "stock": [
+        {
+          "name": "same-SKU-return-resell-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 70000,
+          "paid": 70000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 70000,
+      "method": "CASH",
+      "refundAmount": 70000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 70000,
+        "card": 0,
+        "refundCash": 70000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 70000,
+        "card": 0,
+        "refundCash": 70000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 70000,
+        "card": 0,
+        "refundCash": 70000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "same-SKU-return-resell-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 70000,
+          "paid": 70000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 2,
+      "total": 70000,
+      "cash": 70000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 2,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 70000,
+          "lineTotal": 70000
+        }
+      ]
+    },
+    {
+      "label": "sale 2",
+      "expected": {
+        "cash": 140000,
+        "card": 0,
+        "refundCash": 70000,
+        "refundCard": 0,
+        "blue": 70000
+      },
+      "actual": {
+        "cash": 140000,
+        "card": 0,
+        "refundCash": 70000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 140000,
+        "card": 0,
+        "refundCash": 70000,
+        "refundCard": 0
+      },
+      "blue": 70000,
+      "stock": [
+        {
+          "name": "same-SKU-return-resell-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 70000,
+          "paid": 70000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 70000,
+          "paid": 70000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N180 reconciliation",
+      "expected": {
+        "cash": 140000,
+        "card": 0,
+        "refundCash": 70000,
+        "refundCard": 0,
+        "blue": 70000
+      },
+      "actual": {
+        "cash": 140000,
+        "card": 0,
+        "refundCash": 70000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 140000,
+        "card": 0,
+        "refundCash": 70000,
+        "refundCard": 0
+      },
+      "blue": 70000,
+      "stock": [
+        {
+          "name": "same-SKU-return-resell-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 70000,
+          "paid": 70000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 70000,
+          "paid": 70000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "assertions": [
+    {
+      "key": "returned-SKU-resold-once-stock-and-cash-reconcile",
+      "pass": true,
+      "firstRefund": 70000,
+      "secondInvoice": 2,
+      "finalStock": 9
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 140000,
+      "card": 0,
+      "refundCash": 70000,
+      "refundCard": 0,
+      "blue": 70000
+    },
+    "actual": {
+      "cash": 140000,
+      "card": 0,
+      "refundCash": 70000,
+      "refundCard": 0
+    },
+    "blue": 70000,
+    "stock": [
+      {
+        "name": "same-SKU-return-resell-item",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 2,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

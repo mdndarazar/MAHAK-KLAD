@@ -1,0 +1,1118 @@
+{
+  "generatedAt": "2026-10-26T12:07:39.234Z",
+  "isolatedDatabase": "/tmp/mahak-deep-e2e-10-ydmo7K/isolated-test.db",
+  "blueDefinition": "cashReceived + posReceived - cashRefunded - posRefunded; store credit and debt are excluded",
+  "blueSource": "CustodyAggregateService.physicalMovementForCustodyShift uses salesService.reportRows; each checkpoint independently sums physical Payment kinds and active return documents/CashMovement rows.",
+  "totalScenarios": 10,
+  "completed": 0,
+  "failed": 10,
+  "blocked": 0,
+  "results": [
+    {
+      "name": "01 exact cash sale and inventory",
+      "status": "FAIL",
+      "checkpoints": 1,
+      "failure": {
+        "message": "no such column: changeDue",
+        "stack": "Error: no such column: changeDue\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:124:26\n    at Array.map (<anonymous>)\n    at Object.checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:123:35)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:173:3\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:153:20)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:169:1"
+      },
+      "events": [
+        {
+          "at": "2026-10-26T12:07:38.428Z",
+          "scenario": "01 exact cash sale and inventory",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 split cash and POS, partial cash return",
+      "status": "FAIL",
+      "checkpoints": 1,
+      "failure": {
+        "message": "no such column: changeDue",
+        "stack": "Error: no such column: changeDue\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:124:26\n    at Array.map (<anonymous>)\n    at Object.checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:123:35)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:182:3\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:153:20)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:178:1"
+      },
+      "events": [
+        {
+          "at": "2026-10-26T12:07:38.550Z",
+          "scenario": "02 split cash and POS, partial cash return",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 POS sale and POS return",
+      "status": "FAIL",
+      "checkpoints": 1,
+      "failure": {
+        "message": "no such column: changeDue",
+        "stack": "Error: no such column: changeDue\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:124:26\n    at Array.map (<anonymous>)\n    at Object.checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:123:35)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:193:3\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:153:20)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:190:1"
+      },
+      "events": [
+        {
+          "at": "2026-10-26T12:07:38.587Z",
+          "scenario": "03 POS sale and POS return",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 4
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 exchange down with store-credit difference",
+      "status": "FAIL",
+      "checkpoints": 1,
+      "failure": {
+        "message": "no such column: changeDue",
+        "stack": "Error: no such column: changeDue\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:124:26\n    at Array.map (<anonymous>)\n    at Object.checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:123:35)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:205:3\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:153:20)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:202:1"
+      },
+      "events": [
+        {
+          "at": "2026-10-26T12:07:38.611Z",
+          "scenario": "04 exchange down with store-credit difference",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 5
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 exchange up with cash difference",
+      "status": "FAIL",
+      "checkpoints": 1,
+      "failure": {
+        "message": "no such column: changeDue",
+        "stack": "Error: no such column: changeDue\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:124:26\n    at Array.map (<anonymous>)\n    at Object.checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:123:35)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:221:3\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:153:20)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:218:1"
+      },
+      "events": [
+        {
+          "at": "2026-10-26T12:07:38.640Z",
+          "scenario": "05 exchange up with cash difference",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 6
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 exchange down with card refund",
+      "status": "FAIL",
+      "checkpoints": 1,
+      "failure": {
+        "message": "no such column: changeDue",
+        "stack": "Error: no such column: changeDue\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:124:26\n    at Array.map (<anonymous>)\n    at Object.checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:123:35)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:235:3\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:153:20)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:232:1"
+      },
+      "events": [
+        {
+          "at": "2026-10-26T12:07:38.673Z",
+          "scenario": "06 exchange down with card refund",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 7
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 store-credit-only sale and partial remainder",
+      "status": "FAIL",
+      "checkpoints": 2,
+      "failure": {
+        "message": "no such column: changeDue",
+        "stack": "Error: no such column: changeDue\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:124:26\n    at Array.map (<anonymous>)\n    at Object.checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:123:35)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:255:3\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:153:20)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:247:1"
+      },
+      "events": [
+        {
+          "at": "2026-10-26T12:07:38.698Z",
+          "scenario": "07 store-credit-only sale and partial remainder",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 8
+          }
+        },
+        {
+          "at": "2026-10-26T12:07:38.760Z",
+          "scenario": "07 store-credit-only sale and partial remainder",
+          "operation": "manual credit fixture baseline",
+          "note": "credit issued in isolated harness before sale; 1,000,000 available, physical blue zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [
+            {
+              "variant": "07-item",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "credit-1",
+              "amount": 1000000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            }
+          ],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 8
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 return followed by exchange chain",
+      "status": "FAIL",
+      "checkpoints": 1,
+      "failure": {
+        "message": "no such column: changeDue",
+        "stack": "Error: no such column: changeDue\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:124:26\n    at Array.map (<anonymous>)\n    at Object.checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:123:35)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:265:3\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:153:20)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:262:1"
+      },
+      "events": [
+        {
+          "at": "2026-10-26T12:07:38.788Z",
+          "scenario": "08 return followed by exchange chain",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 9
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 four-barcode sale then multi-source return",
+      "status": "FAIL",
+      "checkpoints": 2,
+      "failure": {
+        "message": "no such column: changeDue",
+        "stack": "Error: no such column: changeDue\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:124:26\n    at Array.map (<anonymous>)\n    at Object.checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:123:35)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:288:3\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:153:20)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:278:1"
+      },
+      "events": [
+        {
+          "at": "2026-10-26T12:07:38.819Z",
+          "scenario": "09 four-barcode sale then multi-source return",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 10
+          }
+        },
+        {
+          "at": "2026-10-26T12:07:39.169Z",
+          "scenario": "09 four-barcode sale then multi-source return",
+          "operation": "four barcode fixture baseline",
+          "note": "four independent 250,000 balances, none consumed",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [
+            {
+              "variant": "09-A",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "09-B",
+              "baseline": 20,
+              "expected": 20,
+              "actual": 20,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "credit-2",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-3",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-4",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            },
+            {
+              "label": "credit-5",
+              "amount": 250000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795638599999
+            }
+          ],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 10
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 mixed-tender sale, return, and exchange",
+      "status": "FAIL",
+      "checkpoints": 1,
+      "failure": {
+        "message": "no such column: changeDue",
+        "stack": "Error: no such column: changeDue\n    at Object.one (file:///home/user/MAHAK-KLAD/test/harness/seed.mjs:131:31)\n    at file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:124:26\n    at Array.map (<anonymous>)\n    at Object.checkpoint (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:123:35)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:304:3\n    at async scenario (file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:153:20)\n    at async file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-10-financial-flows.mjs:300:1"
+      },
+      "events": [
+        {
+          "at": "2026-10-26T12:07:39.209Z",
+          "scenario": "10 mixed-tender sale, return, and exchange",
+          "operation": "BASELINE",
+          "note": "fresh isolated shift; opening physical movement and document totals are zero",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0,
+            "blue": 0
+          },
+          "reported": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "rawIndependent": {
+            "cashReceived": 0,
+            "cardReceived": 0,
+            "cashRefunded": 0,
+            "cardRefunded": 0
+          },
+          "blueActual": 0,
+          "blueIndependent": 0,
+          "stock": [],
+          "credits": [],
+          "invoices": [],
+          "documents": {
+            "paymentRows": 0,
+            "returnRows": 0,
+            "cashMovements": 0,
+            "stockMovements": 12
+          }
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "at": "2026-10-26T12:07:38.428Z",
+      "scenario": "01 exact cash sale and inventory",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 0
+      }
+    },
+    {
+      "at": "2026-10-26T12:07:38.550Z",
+      "scenario": "02 split cash and POS, partial cash return",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 2
+      }
+    },
+    {
+      "at": "2026-10-26T12:07:38.587Z",
+      "scenario": "03 POS sale and POS return",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 4
+      }
+    },
+    {
+      "at": "2026-10-26T12:07:38.611Z",
+      "scenario": "04 exchange down with store-credit difference",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 5
+      }
+    },
+    {
+      "at": "2026-10-26T12:07:38.640Z",
+      "scenario": "05 exchange up with cash difference",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 6
+      }
+    },
+    {
+      "at": "2026-10-26T12:07:38.673Z",
+      "scenario": "06 exchange down with card refund",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 7
+      }
+    },
+    {
+      "at": "2026-10-26T12:07:38.698Z",
+      "scenario": "07 store-credit-only sale and partial remainder",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 8
+      }
+    },
+    {
+      "at": "2026-10-26T12:07:38.760Z",
+      "scenario": "07 store-credit-only sale and partial remainder",
+      "operation": "manual credit fixture baseline",
+      "note": "credit issued in isolated harness before sale; 1,000,000 available, physical blue zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [
+        {
+          "variant": "07-item",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [
+        {
+          "label": "credit-1",
+          "amount": 1000000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 8
+      }
+    },
+    {
+      "at": "2026-10-26T12:07:38.788Z",
+      "scenario": "08 return followed by exchange chain",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 9
+      }
+    },
+    {
+      "at": "2026-10-26T12:07:38.819Z",
+      "scenario": "09 four-barcode sale then multi-source return",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 10
+      }
+    },
+    {
+      "at": "2026-10-26T12:07:39.169Z",
+      "scenario": "09 four-barcode sale then multi-source return",
+      "operation": "four barcode fixture baseline",
+      "note": "four independent 250,000 balances, none consumed",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [
+        {
+          "variant": "09-A",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "09-B",
+          "baseline": 20,
+          "expected": 20,
+          "actual": 20,
+          "ledgerDelta": 0
+        }
+      ],
+      "credits": [
+        {
+          "label": "credit-2",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-3",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-4",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        },
+        {
+          "label": "credit-5",
+          "amount": 250000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795638599999
+        }
+      ],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 10
+      }
+    },
+    {
+      "at": "2026-10-26T12:07:39.209Z",
+      "scenario": "10 mixed-tender sale, return, and exchange",
+      "operation": "BASELINE",
+      "note": "fresh isolated shift; opening physical movement and document totals are zero",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "rawIndependent": {
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "cashRefunded": 0,
+        "cardRefunded": 0
+      },
+      "blueActual": 0,
+      "blueIndependent": 0,
+      "stock": [],
+      "credits": [],
+      "invoices": [],
+      "documents": {
+        "paymentRows": 0,
+        "returnRows": 0,
+        "cashMovements": 0,
+        "stockMovements": 12
+      }
+    }
+  ]
+}

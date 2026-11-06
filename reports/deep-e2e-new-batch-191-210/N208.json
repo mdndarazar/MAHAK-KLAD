@@ -1,0 +1,256 @@
+{
+  "generatedAt": "2026-10-28T18:42:16.101Z",
+  "id": 208,
+  "scenario": "N208",
+  "isolatedDatabase": "/tmp/mahak-next20-208-HX4Bzn/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "settled-sale",
+      "invoiceId": 1,
+      "total": 55000,
+      "cash": 55000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 55000,
+          "lineTotal": 55000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 55000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 55000
+      },
+      "actual": {
+        "cash": 55000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 55000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 55000,
+      "stock": [
+        {
+          "name": "return-voucher-void-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 55000,
+          "paid": 55000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 55000,
+      "method": "STORE_CREDIT",
+      "refundAmount": 55000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 55000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 55000
+      },
+      "actual": {
+        "cash": 55000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 55000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 55000,
+      "stock": [
+        {
+          "name": "return-voucher-void-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 55000,
+          "paid": 55000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "return void reverses restock and cancels unused credit",
+      "expected": {
+        "cash": 55000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 55000
+      },
+      "actual": {
+        "cash": 55000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 55000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 55000,
+      "stock": [
+        {
+          "name": "return-voucher-void-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 55000,
+          "paid": 55000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N208 reconciliation",
+      "expected": {
+        "cash": 55000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 55000
+      },
+      "actual": {
+        "cash": 55000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 55000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 55000,
+      "stock": [
+        {
+          "name": "return-voucher-void-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 55000,
+          "paid": 55000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 1,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "modes": [
+    {
+      "key": "unused return voucher exists",
+      "amount": 55000,
+      "status": "ACTIVE"
+    },
+    {
+      "key": "voiding unused credit reverses stock and cancels the code",
+      "returnVoided": true,
+      "credit": "CANCELED",
+      "stock": 9
+    }
+  ],
+  "modeCount": 2,
+  "final": {
+    "expected": {
+      "cash": 55000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 55000
+    },
+    "actual": {
+      "cash": 55000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 55000,
+    "stock": [
+      {
+        "name": "return-voucher-void-item",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 1,
+    "returns": 1,
+    "credits": 1,
+    "checks": 0
+  }
+}

@@ -1,0 +1,1774 @@
+{
+  "generatedAt": "2026-10-30T19:46:00.838Z",
+  "independentScenario": 5,
+  "status": "PASS",
+  "isolatedDatabase": "/tmp/mahak-followup-s06-8FO8hn/isolated.db",
+  "policy": {
+    "multipleFundingCounts": [
+      0,
+      1,
+      4
+    ],
+    "saleOfGoodsThenExchangeInvoice2Return": true,
+    "returnModes": [
+      "CASH",
+      "CARD",
+      "CARD_TO_CARD",
+      "STORE_CREDIT"
+    ]
+  },
+  "physicalExpected": {
+    "cash": 1800000,
+    "card": 1900000,
+    "refundCash": 800000,
+    "refundCard": 800000
+  },
+  "physicalRaw": {
+    "cash": 1800000,
+    "card": 1900000,
+    "refundCash": 800000,
+    "refundCard": 800000
+  },
+  "blue": 2100000,
+  "blueExpected": 2100000,
+  "branches": [
+    {
+      "name": "ZERO-CODE",
+      "status": "PASS",
+      "count": 0,
+      "creditTotal": 0,
+      "cashTender": 800000,
+      "cardTender": 200000,
+      "refundMethod": "CASH",
+      "events": [
+        {
+          "label": "ZERO-CODE: issue 0 barcode(s)",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "actual": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "independent": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blue": 0,
+          "blueExpected": 0,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": []
+        },
+        {
+          "label": "ZERO-CODE: source sale",
+          "expected": {
+            "cash": 800000,
+            "card": 200000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "actual": {
+            "cash": 800000,
+            "card": 200000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "independent": {
+            "cash": 800000,
+            "card": 200000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blue": 1000000,
+          "blueExpected": 1000000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": []
+        },
+        {
+          "label": "ZERO-CODE: exchange creates invoice 2",
+          "expected": {
+            "cash": 800000,
+            "card": 200000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "actual": {
+            "cash": 800000,
+            "card": 200000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "independent": {
+            "cash": 800000,
+            "card": 200000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blue": 1000000,
+          "blueExpected": 1000000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-invoice2-replacement-B-800k",
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": []
+        },
+        {
+          "label": "ZERO-CODE: simple return of item printed on invoice 2 (CASH)",
+          "expected": {
+            "cash": 800000,
+            "card": 200000,
+            "refundCash": 800000,
+            "refundCard": 0
+          },
+          "actual": {
+            "cash": 800000,
+            "card": 200000,
+            "refundCash": 800000,
+            "refundCard": 0
+          },
+          "independent": {
+            "cash": 800000,
+            "card": 200000,
+            "refundCash": 800000,
+            "refundCard": 0
+          },
+          "blue": 200000,
+          "blueExpected": 200000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": []
+        }
+      ],
+      "saleId": 1,
+      "exchange1": {
+        "returnId": 1,
+        "invoice2": 2,
+        "diff": -200000,
+        "sourceCreditRestored": 0,
+        "newStoreCredit": 200000
+      },
+      "invoice2": {
+        "id": 2,
+        "sourceInvoiceId": 1,
+        "grandTotal": 800000,
+        "paidTotal": 800000,
+        "status": "SETTLED"
+      },
+      "exchange1Credits": [
+        {
+          "id": 1,
+          "amount": 200000,
+          "source": "EXCHANGE",
+          "status": "ACTIVE",
+          "expiresAt": null
+        }
+      ],
+      "return2": {
+        "id": 2,
+        "invoiceId": 2,
+        "total": 800000,
+        "refundMethod": "CASH",
+        "refundAmount": 800000,
+        "refundStoreCreditAmount": 0,
+        "sourceCreditRestored": 0,
+        "returnCredit": 0
+      },
+      "returnCredits": []
+    },
+    {
+      "name": "ONE-CODE",
+      "status": "PASS",
+      "count": 1,
+      "creditTotal": 100000,
+      "cashTender": 100000,
+      "cardTender": 800000,
+      "refundMethod": "CARD",
+      "events": [
+        {
+          "label": "ONE-CODE: issue 1 barcode(s)",
+          "expected": {
+            "cash": 800000,
+            "card": 200000,
+            "refundCash": 800000,
+            "refundCard": 0
+          },
+          "actual": {
+            "cash": 800000,
+            "card": 200000,
+            "refundCash": 800000,
+            "refundCard": 0
+          },
+          "independent": {
+            "cash": 800000,
+            "card": 200000,
+            "refundCash": 800000,
+            "refundCard": 0
+          },
+          "blue": 200000,
+          "blueExpected": 200000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-sale-code-1",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "ONE-CODE: source sale",
+          "expected": {
+            "cash": 900000,
+            "card": 1000000,
+            "refundCash": 800000,
+            "refundCard": 0
+          },
+          "actual": {
+            "cash": 900000,
+            "card": 1000000,
+            "refundCash": 800000,
+            "refundCard": 0
+          },
+          "independent": {
+            "cash": 900000,
+            "card": 1000000,
+            "refundCash": 800000,
+            "refundCard": 0
+          },
+          "blue": 1100000,
+          "blueExpected": 1100000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-sale-code-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "ONE-CODE: exchange creates invoice 2",
+          "expected": {
+            "cash": 900000,
+            "card": 1000000,
+            "refundCash": 800000,
+            "refundCard": 0
+          },
+          "actual": {
+            "cash": 900000,
+            "card": 1000000,
+            "refundCash": 800000,
+            "refundCard": 0
+          },
+          "independent": {
+            "cash": 900000,
+            "card": 1000000,
+            "refundCash": 800000,
+            "refundCard": 0
+          },
+          "blue": 1100000,
+          "blueExpected": 1100000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-invoice2-replacement-B-800k",
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-sale-code-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "ONE-CODE: simple return of item printed on invoice 2 (CARD)",
+          "expected": {
+            "cash": 900000,
+            "card": 1000000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "actual": {
+            "cash": 900000,
+            "card": 1000000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "independent": {
+            "cash": 900000,
+            "card": 1000000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "blue": 300000,
+          "blueExpected": 300000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-sale-code-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        }
+      ],
+      "saleId": 3,
+      "exchange1": {
+        "returnId": 3,
+        "invoice2": 4,
+        "diff": -200000,
+        "sourceCreditRestored": 100000,
+        "newStoreCredit": 100000
+      },
+      "invoice2": {
+        "id": 4,
+        "sourceInvoiceId": 3,
+        "grandTotal": 800000,
+        "paidTotal": 800000,
+        "status": "SETTLED"
+      },
+      "exchange1Credits": [
+        {
+          "id": 3,
+          "amount": 100000,
+          "source": "MANUAL",
+          "status": "ACTIVE",
+          "expiresAt": 1795984199999
+        },
+        {
+          "id": 4,
+          "amount": 100000,
+          "source": "EXCHANGE",
+          "status": "ACTIVE",
+          "expiresAt": null
+        }
+      ],
+      "return2": {
+        "id": 4,
+        "invoiceId": 4,
+        "total": 800000,
+        "refundMethod": "CARD",
+        "refundAmount": 800000,
+        "refundStoreCreditAmount": 0,
+        "sourceCreditRestored": 0,
+        "returnCredit": 0
+      },
+      "returnCredits": []
+    },
+    {
+      "name": "FOUR-CODES-C2C",
+      "status": "PASS",
+      "count": 4,
+      "creditTotal": 100000,
+      "cashTender": 450000,
+      "cardTender": 450000,
+      "refundMethod": "CARD_TO_CARD",
+      "events": [
+        {
+          "label": "FOUR-CODES-C2C: issue 4 barcode(s)",
+          "expected": {
+            "cash": 900000,
+            "card": 1000000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "actual": {
+            "cash": 900000,
+            "card": 1000000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "independent": {
+            "cash": 900000,
+            "card": 1000000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "blue": 300000,
+          "blueExpected": 300000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C2C-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C2C-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-sale-code-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-1",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-2",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-3",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-4",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "FOUR-CODES-C2C: source sale",
+          "expected": {
+            "cash": 1350000,
+            "card": 1450000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "actual": {
+            "cash": 1350000,
+            "card": 1450000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "independent": {
+            "cash": 1350000,
+            "card": 1450000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "blue": 1200000,
+          "blueExpected": 1200000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C2C-root-A-1m",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODES-C2C-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-sale-code-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "FOUR-CODES-C2C: exchange creates invoice 2",
+          "expected": {
+            "cash": 1350000,
+            "card": 1450000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "actual": {
+            "cash": 1350000,
+            "card": 1450000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "independent": {
+            "cash": 1350000,
+            "card": 1450000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "blue": 1200000,
+          "blueExpected": 1200000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C2C-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C2C-invoice2-replacement-B-800k",
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-sale-code-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "FOUR-CODES-C2C: invoice-2 return C2C pending",
+          "expected": {
+            "cash": 1350000,
+            "card": 1450000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "actual": {
+            "cash": 1350000,
+            "card": 1450000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "independent": {
+            "cash": 1350000,
+            "card": 1450000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "blue": 1200000,
+          "blueExpected": 1200000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C2C-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C2C-invoice2-replacement-B-800k",
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-sale-code-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "FOUR-CODES-C2C: simple return of item printed on invoice 2 (CARD_TO_CARD)",
+          "expected": {
+            "cash": 1350000,
+            "card": 1450000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "actual": {
+            "cash": 1350000,
+            "card": 1450000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "independent": {
+            "cash": 1350000,
+            "card": 1450000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "blue": 1200000,
+          "blueExpected": 1200000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C2C-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C2C-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-sale-code-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        }
+      ],
+      "saleId": 5,
+      "exchange1": {
+        "returnId": 5,
+        "invoice2": 6,
+        "diff": -200000,
+        "sourceCreditRestored": 100000,
+        "newStoreCredit": 100000
+      },
+      "invoice2": {
+        "id": 6,
+        "sourceInvoiceId": 5,
+        "grandTotal": 800000,
+        "paidTotal": 800000,
+        "status": "SETTLED"
+      },
+      "exchange1Credits": [
+        {
+          "id": 9,
+          "amount": 25000,
+          "source": "MANUAL",
+          "status": "ACTIVE",
+          "expiresAt": 1795984199999
+        },
+        {
+          "id": 10,
+          "amount": 25000,
+          "source": "MANUAL",
+          "status": "ACTIVE",
+          "expiresAt": 1795984199999
+        },
+        {
+          "id": 11,
+          "amount": 25000,
+          "source": "MANUAL",
+          "status": "ACTIVE",
+          "expiresAt": 1795984199999
+        },
+        {
+          "id": 12,
+          "amount": 25000,
+          "source": "MANUAL",
+          "status": "ACTIVE",
+          "expiresAt": 1795984199999
+        },
+        {
+          "id": 13,
+          "amount": 100000,
+          "source": "EXCHANGE",
+          "status": "ACTIVE",
+          "expiresAt": null
+        }
+      ],
+      "return2": {
+        "id": 6,
+        "invoiceId": 6,
+        "total": 800000,
+        "refundMethod": "CARD_TO_CARD",
+        "refundAmount": 800000,
+        "refundStoreCreditAmount": 0,
+        "sourceCreditRestored": 0,
+        "returnCredit": 0
+      },
+      "transferPending": {
+        "id": 1,
+        "status": "PENDING",
+        "amount": 800000,
+        "operationKind": "RETURN"
+      },
+      "transferPaid": {
+        "status": "PAID",
+        "paidAmount": 800000,
+        "paidMethod": "MANAGER_CARD_TO_CARD",
+        "trackingNo": "S06-FOUR-CODES-C2C-RETURN-C2C"
+      },
+      "returnCredits": []
+    },
+    {
+      "name": "FOUR-CODES-STORE-CREDIT",
+      "status": "PASS",
+      "count": 4,
+      "creditTotal": 100000,
+      "cashTender": 450000,
+      "cardTender": 450000,
+      "refundMethod": "STORE_CREDIT",
+      "events": [
+        {
+          "label": "FOUR-CODES-STORE-CREDIT: issue 4 barcode(s)",
+          "expected": {
+            "cash": 1350000,
+            "card": 1450000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "actual": {
+            "cash": 1350000,
+            "card": 1450000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "independent": {
+            "cash": 1350000,
+            "card": 1450000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "blue": 1200000,
+          "blueExpected": 1200000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C2C-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C2C-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-STORE-CREDIT-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-STORE-CREDIT-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-sale-code-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-STORE-CREDIT-sale-code-1",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-STORE-CREDIT-sale-code-2",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-STORE-CREDIT-sale-code-3",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-STORE-CREDIT-sale-code-4",
+              "amount": 25000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "FOUR-CODES-STORE-CREDIT: source sale",
+          "expected": {
+            "cash": 1800000,
+            "card": 1900000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "actual": {
+            "cash": 1800000,
+            "card": 1900000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "independent": {
+            "cash": 1800000,
+            "card": 1900000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "blue": 2100000,
+          "blueExpected": 2100000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C2C-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C2C-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-STORE-CREDIT-root-A-1m",
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODES-STORE-CREDIT-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-sale-code-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-STORE-CREDIT-sale-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-STORE-CREDIT-sale-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-STORE-CREDIT-sale-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-STORE-CREDIT-sale-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "FOUR-CODES-STORE-CREDIT: exchange creates invoice 2",
+          "expected": {
+            "cash": 1800000,
+            "card": 1900000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "actual": {
+            "cash": 1800000,
+            "card": 1900000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "independent": {
+            "cash": 1800000,
+            "card": 1900000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "blue": 2100000,
+          "blueExpected": 2100000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C2C-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C2C-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-STORE-CREDIT-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-STORE-CREDIT-invoice2-replacement-B-800k",
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-sale-code-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-STORE-CREDIT-sale-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-STORE-CREDIT-sale-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-STORE-CREDIT-sale-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-STORE-CREDIT-sale-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        },
+        {
+          "label": "FOUR-CODES-STORE-CREDIT: simple return of item printed on invoice 2 (STORE_CREDIT)",
+          "expected": {
+            "cash": 1800000,
+            "card": 1900000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "actual": {
+            "cash": 1800000,
+            "card": 1900000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "independent": {
+            "cash": 1800000,
+            "card": 1900000,
+            "refundCash": 800000,
+            "refundCard": 800000
+          },
+          "blue": 2100000,
+          "blueExpected": 2100000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C2C-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-C2C-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-STORE-CREDIT-root-A-1m",
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODES-STORE-CREDIT-invoice2-replacement-B-800k",
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "label": "ONE-CODE-sale-code-1",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-C2C-sale-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-STORE-CREDIT-sale-code-1",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-STORE-CREDIT-sale-code-2",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-STORE-CREDIT-sale-code-3",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            },
+            {
+              "label": "FOUR-CODES-STORE-CREDIT-sale-code-4",
+              "amount": 25000,
+              "usedAmount": 25000,
+              "usedCount": 1,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL"
+            }
+          ]
+        }
+      ],
+      "saleId": 7,
+      "exchange1": {
+        "returnId": 7,
+        "invoice2": 8,
+        "diff": -200000,
+        "sourceCreditRestored": 100000,
+        "newStoreCredit": 100000
+      },
+      "invoice2": {
+        "id": 8,
+        "sourceInvoiceId": 7,
+        "grandTotal": 800000,
+        "paidTotal": 800000,
+        "status": "SETTLED"
+      },
+      "exchange1Credits": [
+        {
+          "id": 18,
+          "amount": 25000,
+          "source": "MANUAL",
+          "status": "ACTIVE",
+          "expiresAt": 1795984199999
+        },
+        {
+          "id": 19,
+          "amount": 25000,
+          "source": "MANUAL",
+          "status": "ACTIVE",
+          "expiresAt": 1795984199999
+        },
+        {
+          "id": 20,
+          "amount": 25000,
+          "source": "MANUAL",
+          "status": "ACTIVE",
+          "expiresAt": 1795984199999
+        },
+        {
+          "id": 21,
+          "amount": 25000,
+          "source": "MANUAL",
+          "status": "ACTIVE",
+          "expiresAt": 1795984199999
+        },
+        {
+          "id": 22,
+          "amount": 100000,
+          "source": "EXCHANGE",
+          "status": "ACTIVE",
+          "expiresAt": null
+        }
+      ],
+      "return2": {
+        "id": 8,
+        "invoiceId": 8,
+        "total": 800000,
+        "refundMethod": "STORE_CREDIT",
+        "refundAmount": 800000,
+        "refundStoreCreditAmount": 0,
+        "sourceCreditRestored": 0,
+        "returnCredit": 0
+      },
+      "returnCredits": [
+        {
+          "id": 23,
+          "amount": 800000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null,
+          "source": "EXCHANGE"
+        }
+      ]
+    }
+  ]
+}

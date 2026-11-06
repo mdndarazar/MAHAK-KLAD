@@ -1,0 +1,818 @@
+src/main/db/client.ts(10,10): error TS2305: Module '"@prisma/client"' has no exported member 'PrismaClient'.
+src/main/db/migrator.ts(5,10): error TS2305: Module '"@prisma/client"' has no exported member 'PrismaClient'.
+src/main/ipc/index.ts(420,36): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/AuditService.ts(7,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/CardTransferService.ts(369,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/CardTransferService.ts(524,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/CardTransferService.ts(637,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/CardTransferService.ts(671,34): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/main/services/CardTransferService.ts(671,39): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/main/services/CashMovementService.ts(1,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/CashMovementService.ts(165,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/CashMovementService.ts(270,30): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/CashboxService.ts(1,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/CashboxService.ts(387,54): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(419,17): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(422,37): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(423,39): error TS2345: Argument of type 'unknown' is not assignable to parameter of type '{ kind: string | null; chequeStatus: string | null; }'.
+src/main/services/CashboxService.ts(428,23): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(428,50): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(428,70): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(430,8): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(430,57): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(432,28): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(432,60): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(436,23): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(436,53): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(436,67): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(436,90): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(437,24): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(437,51): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(437,71): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(439,24): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(443,18): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(449,21): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(449,52): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(450,19): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(450,43): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(451,40): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(452,20): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(453,14): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(455,35): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(469,13): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(471,48): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(472,49): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(473,45): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(488,55): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(488,61): error TS18046: 'p' is of type 'unknown'.
+src/main/services/CashboxService.ts(549,20): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/main/services/CashboxService.ts(898,74): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/CashboxService.ts(1203,40): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/CashboxService.ts(1420,45): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/CashboxService.ts(1448,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/CashboxService.ts(1458,44): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/CashboxService.ts(1741,40): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/CustodyService.ts(863,137): error TS2339: Property 'status' does not exist on type '{}'.
+src/main/services/CustodyService.ts(863,187): error TS2339: Property 'mustChange' does not exist on type '{}'.
+src/main/services/CustodyService.ts(1011,27): error TS2339: Property 'endedAt' does not exist on type '{}'.
+src/main/services/CustodyService.ts(1012,35): error TS2339: Property 'custodianUserId' does not exist on type '{}'.
+src/main/services/CustodyService.ts(1013,46): error TS2339: Property 'custodianUserId' does not exist on type '{}'.
+src/main/services/CustodyService.ts(1014,30): error TS2339: Property 'templateId' does not exist on type '{}'.
+src/main/services/CustodyService.ts(1015,41): error TS2339: Property 'planTitle' does not exist on type '{}'.
+src/main/services/CustodyService.ts(1016,34): error TS2339: Property 'scheduledEndAt' does not exist on type '{}'.
+src/main/services/CustodyService.ts(1017,32): error TS2339: Property 'templateId' does not exist on type '{}'.
+src/main/services/CustodyService.ts(1017,64): error TS2339: Property 'planId' does not exist on type '{}'.
+src/main/services/CustodyService.ts(1018,27): error TS2339: Property 'endKind' does not exist on type '{}'.
+src/main/services/CustodyService.ts(1019,31): error TS2339: Property 'countStatus' does not exist on type '{}'.
+src/main/services/CustodyService.ts(1020,34): error TS2339: Property 'operationalDay' does not exist on type '{}'.
+src/main/services/CustodyService.ts(1035,31): error TS2339: Property 'receiptNo' does not exist on type '{}'.
+src/main/services/CustodyService.ts(1036,34): error TS2339: Property 'issuedAt' does not exist on type '{}'.
+src/main/services/CustodyService.ts(2239,36): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'string | number | bigint | boolean'.
+  Type 'undefined' is not assignable to type 'string | number | bigint | boolean'.
+src/main/services/CustodyService.ts(2240,38): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'string | number | bigint | boolean'.
+  Type 'undefined' is not assignable to type 'string | number | bigint | boolean'.
+src/main/services/CustodyService.ts(2370,361): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'string | number | bigint | boolean'.
+  Type 'undefined' is not assignable to type 'string | number | bigint | boolean'.
+src/main/services/CustodyService.ts(2370,399): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'string | number | bigint | boolean'.
+  Type 'undefined' is not assignable to type 'string | number | bigint | boolean'.
+src/main/services/DebtReminderService.ts(150,39): error TS7006: Parameter 'inv' implicitly has an 'any' type.
+src/main/services/DebtReminderService.ts(152,31): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/DebtReminderService.ts(198,26): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/DebtReminderService.ts(198,29): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/FraudService.ts(215,42): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(215,68): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(223,15): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'number | bigint | null | undefined'.
+src/main/services/FraudService.ts(223,38): error TS18046: 's' is of type 'unknown'.
+src/main/services/FraudService.ts(223,52): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(228,7): error TS2322: Type 'unknown' is not assignable to type 'number'.
+src/main/services/FraudService.ts(228,38): error TS18046: 's' is of type 'unknown'.
+src/main/services/FraudService.ts(228,52): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(232,13): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(233,19): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(233,65): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(233,102): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(234,27): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(235,21): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(261,19): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(263,22): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(286,19): error TS18046: 'sale' is of type 'unknown'.
+src/main/services/FraudService.ts(287,60): error TS18046: 'sale' is of type 'unknown'.
+src/main/services/FraudService.ts(308,37): error TS7006: Parameter 'u' implicitly has an 'any' type.
+src/main/services/FraudService.ts(311,18): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(312,17): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(312,45): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(313,18): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(336,45): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(344,7): error TS2322: Type 'unknown' is not assignable to type 'number'.
+src/main/services/FraudService.ts(344,42): error TS18046: 's' is of type 'unknown'.
+src/main/services/FraudService.ts(344,48): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(346,7): error TS2322: Type '{ amount: number; dateJalali: any; receiptNo: any; userName: {} | null; invoiceId: any; kind: string; id: any; label: string; }[]' is not assignable to type '{ kind: string; id: number; label: string; amount: number; dateJalali: string | null; receiptNo?: number | null | undefined; userName?: string | null | undefined; invoiceId?: number | null | undefined; }[]'.
+  Type '{ amount: number; dateJalali: any; receiptNo: any; userName: {} | null; invoiceId: any; kind: string; id: any; label: string; }' is not assignable to type '{ kind: string; id: number; label: string; amount: number; dateJalali: string | null; receiptNo?: number | null | undefined; userName?: string | null | undefined; invoiceId?: number | null | undefined; }'.
+    Types of property 'userName' are incompatible.
+      Type '{} | null' is not assignable to type 'string | null | undefined'.
+        Type '{}' is not assignable to type 'string'.
+src/main/services/FraudService.ts(348,13): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(349,23): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(349,40): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(351,19): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(352,21): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(357,53): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(367,44): error TS7006: Parameter 'sh' implicitly has an 'any' type.
+src/main/services/FraudService.ts(367,69): error TS7006: Parameter 'sh' implicitly has an 'any' type.
+src/main/services/FraudService.ts(369,17): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(369,49): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(371,22): error TS2339: Property 'getTime' does not exist on type '{}'.
+src/main/services/FraudService.ts(371,43): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(381,7): error TS2322: Type 'unknown' is not assignable to type 'number'.
+src/main/services/FraudService.ts(381,37): error TS18046: 's' is of type 'unknown'.
+src/main/services/FraudService.ts(381,43): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(383,7): error TS2322: Type '{ amount: number; dateJalali: any; receiptNo: any; userName: {} | null; invoiceId: any; kind: string; id: any; label: string; }[]' is not assignable to type '{ kind: string; id: number; label: string; amount: number; dateJalali: string | null; receiptNo?: number | null | undefined; userName?: string | null | undefined; invoiceId?: number | null | undefined; }[]'.
+  Type '{ amount: number; dateJalali: any; receiptNo: any; userName: {} | null; invoiceId: any; kind: string; id: any; label: string; }' is not assignable to type '{ kind: string; id: number; label: string; amount: number; dateJalali: string | null; receiptNo?: number | null | undefined; userName?: string | null | undefined; invoiceId?: number | null | undefined; }'.
+    Types of property 'userName' are incompatible.
+      Type '{} | null' is not assignable to type 'string | null | undefined'.
+        Type '{}' is not assignable to type 'string'.
+src/main/services/FraudService.ts(385,13): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(386,23): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(386,40): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(388,19): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(389,21): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(395,22): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(395,53): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(396,41): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(403,7): error TS2322: Type 'unknown' is not assignable to type 'number'.
+src/main/services/FraudService.ts(403,42): error TS18046: 's' is of type 'unknown'.
+src/main/services/FraudService.ts(403,48): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(405,7): error TS2322: Type '{ amount: number; dateJalali: any; receiptNo: any; userName: {} | null; invoiceId: any; kind: string; id: any; label: string; }[]' is not assignable to type '{ kind: string; id: number; label: string; amount: number; dateJalali: string | null; receiptNo?: number | null | undefined; userName?: string | null | undefined; invoiceId?: number | null | undefined; }[]'.
+  Type '{ amount: number; dateJalali: any; receiptNo: any; userName: {} | null; invoiceId: any; kind: string; id: any; label: string; }' is not assignable to type '{ kind: string; id: number; label: string; amount: number; dateJalali: string | null; receiptNo?: number | null | undefined; userName?: string | null | undefined; invoiceId?: number | null | undefined; }'.
+    Types of property 'userName' are incompatible.
+      Type '{} | null' is not assignable to type 'string | null | undefined'.
+        Type '{}' is not assignable to type 'string'.
+src/main/services/FraudService.ts(407,13): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(408,23): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(408,40): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(410,19): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(411,21): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(421,54): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(434,46): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/FraudService.ts(436,58): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(448,18): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(448,55): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(448,75): error TS2339: Property 'receiptNo' does not exist on type '{}'.
+src/main/services/FraudService.ts(449,17): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(449,45): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(450,18): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(453,19): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(453,56): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(454,29): error TS2339: Property 'grandTotal' does not exist on type '{}'.
+src/main/services/FraudService.ts(454,50): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(454,68): error TS2339: Property 'grandTotal' does not exist on type '{}'.
+src/main/services/FraudService.ts(463,7): error TS2322: Type 'unknown' is not assignable to type 'number'.
+src/main/services/FraudService.ts(463,41): error TS18046: 's' is of type 'unknown'.
+src/main/services/FraudService.ts(463,47): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(465,7): error TS2322: Type '{ amount: number; dateJalali: any; receiptNo: any; userName: {} | null; invoiceId: any; kind: string; id: any; label: string; }[]' is not assignable to type '{ kind: string; id: number; label: string; amount: number; dateJalali: string | null; receiptNo?: number | null | undefined; userName?: string | null | undefined; invoiceId?: number | null | undefined; }[]'.
+  Type '{ amount: number; dateJalali: any; receiptNo: any; userName: {} | null; invoiceId: any; kind: string; id: any; label: string; }' is not assignable to type '{ kind: string; id: number; label: string; amount: number; dateJalali: string | null; receiptNo?: number | null | undefined; userName?: string | null | undefined; invoiceId?: number | null | undefined; }'.
+    Types of property 'userName' are incompatible.
+      Type '{} | null' is not assignable to type 'string | null | undefined'.
+        Type '{}' is not assignable to type 'string'.
+src/main/services/FraudService.ts(467,13): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(470,27): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(470,58): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(470,83): error TS2339: Property 'receiptNo' does not exist on type '{}'.
+src/main/services/FraudService.ts(472,19): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(473,21): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(477,47): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(483,7): error TS2322: Type 'unknown' is not assignable to type 'number'.
+src/main/services/FraudService.ts(483,44): error TS18046: 's' is of type 'unknown'.
+src/main/services/FraudService.ts(483,50): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(485,7): error TS2322: Type '{ amount: number; dateJalali: any; receiptNo: any; userName: {} | null; invoiceId: any; kind: string; id: any; label: string; }[]' is not assignable to type '{ kind: string; id: number; label: string; amount: number; dateJalali: string | null; receiptNo?: number | null | undefined; userName?: string | null | undefined; invoiceId?: number | null | undefined; }[]'.
+  Type '{ amount: number; dateJalali: any; receiptNo: any; userName: {} | null; invoiceId: any; kind: string; id: any; label: string; }' is not assignable to type '{ kind: string; id: number; label: string; amount: number; dateJalali: string | null; receiptNo?: number | null | undefined; userName?: string | null | undefined; invoiceId?: number | null | undefined; }'.
+    Types of property 'userName' are incompatible.
+      Type '{} | null' is not assignable to type 'string | null | undefined'.
+        Type '{}' is not assignable to type 'string'.
+src/main/services/FraudService.ts(487,13): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(489,27): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(491,19): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(492,21): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(512,31): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(516,18): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(516,45): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(516,75): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(519,23): error TS18046: 'c' is of type 'unknown'.
+src/main/services/FraudService.ts(594,13): error TS18046: 'a' is of type 'unknown'.
+src/main/services/FraudService.ts(595,19): error TS18046: 'a' is of type 'unknown'.
+src/main/services/FraudService.ts(595,33): error TS18046: 'a' is of type 'unknown'.
+src/main/services/FraudService.ts(603,14): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(603,56): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(603,88): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(607,71): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(608,34): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(617,7): error TS2322: Type 'unknown' is not assignable to type 'number'.
+src/main/services/FraudService.ts(617,47): error TS18046: 's' is of type 'unknown'.
+src/main/services/FraudService.ts(617,53): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(619,7): error TS2322: Type '{ amount: number; dateJalali: any; receiptNo: any; userName: {} | null; invoiceId: any; kind: string; id: any; label: string; }[]' is not assignable to type '{ kind: string; id: number; label: string; amount: number; dateJalali: string | null; receiptNo?: number | null | undefined; userName?: string | null | undefined; invoiceId?: number | null | undefined; }[]'.
+  Type '{ amount: number; dateJalali: any; receiptNo: any; userName: {} | null; invoiceId: any; kind: string; id: any; label: string; }' is not assignable to type '{ kind: string; id: number; label: string; amount: number; dateJalali: string | null; receiptNo?: number | null | undefined; userName?: string | null | undefined; invoiceId?: number | null | undefined; }'.
+    Types of property 'userName' are incompatible.
+      Type '{} | null' is not assignable to type 'string | null | undefined'.
+        Type '{}' is not assignable to type 'string'.
+src/main/services/FraudService.ts(621,13): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(622,23): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(622,40): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(624,19): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(625,21): error TS18046: 'r' is of type 'unknown'.
+src/main/services/FraudService.ts(656,7): error TS2322: Type 'unknown' is not assignable to type 'number'.
+src/main/services/FraudService.ts(657,35): error TS18046: 'a' is of type 'unknown'.
+src/main/services/FraudService.ts(658,34): error TS18046: 'a' is of type 'unknown'.
+src/main/services/FraudService.ts(660,21): error TS18046: 'a' is of type 'unknown'.
+src/main/services/FraudService.ts(661,16): error TS18046: 's' is of type 'unknown'.
+src/main/services/FraudService.ts(665,35): error TS18046: 'a' is of type 'unknown'.
+src/main/services/FraudService.ts(668,15): error TS18046: 'a' is of type 'unknown'.
+src/main/services/FraudService.ts(669,21): error TS18046: 'a' is of type 'unknown'.
+src/main/services/FraudService.ts(669,35): error TS18046: 'a' is of type 'unknown'.
+src/main/services/FraudService.ts(671,23): error TS18046: 'a' is of type 'unknown'.
+src/main/services/FraudService.ts(671,43): error TS18046: 'a' is of type 'unknown'.
+src/main/services/InventoryService.ts(1,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/MaintenanceService.ts(345,14): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/MergeService.ts(1,10): error TS2305: Module '"@prisma/client"' has no exported member 'PrismaClient'.
+src/main/services/MergeService.ts(457,14): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/MergeService.ts(517,53): error TS7006: Parameter 'w' implicitly has an 'any' type.
+src/main/services/MergeService.ts(522,41): error TS2345: Argument of type '{}' is not assignable to parameter of type 'number'.
+src/main/services/MergeService.ts(535,53): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/main/services/MergeService.ts(540,38): error TS2345: Argument of type '{}' is not assignable to parameter of type 'number'.
+src/main/services/MergeService.ts(562,50): error TS7006: Parameter 'u' implicitly has an 'any' type.
+src/main/services/MergeService.ts(567,36): error TS2345: Argument of type '{}' is not assignable to parameter of type 'number'.
+src/main/services/MergeService.ts(590,54): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/MergeService.ts(591,54): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/MergeService.ts(597,40): error TS2345: Argument of type '{}' is not assignable to parameter of type 'number'.
+src/main/services/MergeService.ts(622,53): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/MergeService.ts(623,53): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/MergeService.ts(627,40): error TS2345: Argument of type '{}' is not assignable to parameter of type 'number'.
+src/main/services/MergeService.ts(653,52): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/main/services/MergeService.ts(659,39): error TS2345: Argument of type '{}' is not assignable to parameter of type 'number'.
+src/main/services/MergeService.ts(686,55): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/main/services/MergeService.ts(687,52): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/main/services/MergeService.ts(692,50): error TS2339: Property 'id' does not exist on type '{}'.
+src/main/services/MergeService.ts(695,68): error TS2339: Property 'product' does not exist on type '{}'.
+src/main/services/MergeService.ts(698,30): error TS2339: Property 'product' does not exist on type '{}'.
+src/main/services/MergeService.ts(749,51): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/MergeService.ts(754,37): error TS2345: Argument of type '{}' is not assignable to parameter of type 'number'.
+src/main/services/PartyService.ts(15,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/PartyService.ts(120,34): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/PartyService.ts(131,28): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/main/services/PartyService.ts(131,31): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/PartyService.ts(225,16): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/PartyService.ts(226,16): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/PartyService.ts(227,13): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/PartyService.ts(253,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/PartyService.ts(465,19): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/main/services/PartyService.ts(477,55): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/PartyService.ts(479,101): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/PeriodLockService.ts(1,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/PriceAdjustService.ts(1,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/PriceAdjustService.ts(717,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/PriceAdjustService.ts(850,27): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/PriceAdjustService.ts(883,22): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/PriceAdjustService.ts(966,22): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/PriceAdjustService.ts(1004,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/PriceAdjustService.ts(1026,26): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/PriceAdjustService.ts(1148,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/PriceAdjustService.ts(1239,39): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/PriceAdjustService.ts(1242,18): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/PriceAdjustService.ts(1257,49): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/PriceAdjustService.ts(1257,89): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/PriceAdjustService.ts(1289,40): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/main/services/PriceAdjustService.ts(1289,45): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/PriceAdjustService.ts(1360,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/PriceAdjustService.ts(1459,52): error TS7006: Parameter 'b' implicitly has an 'any' type.
+src/main/services/PriceAdjustService.ts(1494,44): error TS7006: Parameter 'b' implicitly has an 'any' type.
+src/main/services/PriceAdjustService.ts(1549,37): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/PriceAdjustService.ts(1618,37): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/PriceAdjustService.ts(1626,24): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/PrintService.ts(264,51): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/PrintService.ts(265,51): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'readonly number[]'.
+  Type 'unknown' is not assignable to type 'number'.
+src/main/services/PrintService.ts(288,29): error TS7006: Parameter 'it' implicitly has an 'any' type.
+src/main/services/PrintService.ts(320,38): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/main/services/PrintService.ts(320,69): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/main/services/PrintService.ts(613,51): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/PrintService.ts(614,51): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'readonly number[]'.
+  Type 'unknown' is not assignable to type 'number'.
+src/main/services/PrintService.ts(641,39): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/PrintService.ts(693,29): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/PrintService.ts(709,34): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/PrintService.ts(710,39): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/PrintService.ts(710,42): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/PrintService.ts(785,37): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/PrintService.ts(785,40): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/ProductService.ts(1,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/ProductService.ts(141,28): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/main/services/ProductService.ts(141,31): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/ProductService.ts(407,81): error TS7031: Binding element '_hidden' implicitly has an 'any' type.
+src/main/services/ProductService.ts(452,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/ProductService.ts(613,64): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/ProductService.ts(677,81): error TS7031: Binding element '_hidden' implicitly has an 'any' type.
+src/main/services/ProductService.ts(689,64): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/ProductService.ts(716,21): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/main/services/ProductService.ts(739,14): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/ProductService.ts(798,45): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/main/services/ProductService.ts(798,50): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/ProductService.ts(854,36): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/PurchaseService.ts(2,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/PurchaseService.ts(116,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/PurchaseService.ts(207,54): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/PurchaseService.ts(243,35): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/PurchaseService.ts(302,37): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/ReturnCodeService.ts(2,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/ReturnCodeService.ts(77,36): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(1,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/SalesLedger.ts(244,60): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(244,63): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(246,50): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(246,99): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(246,102): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(247,44): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(247,95): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(247,98): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(248,37): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(248,40): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(317,49): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(317,73): error TS7006: Parameter 'x' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(318,50): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(318,75): error TS7006: Parameter 'x' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(319,44): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(319,79): error TS7006: Parameter 'x' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(321,15): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'number[]'.
+  Type 'unknown' is not assignable to type 'number'.
+src/main/services/SalesLedger.ts(322,15): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'number[]'.
+  Type 'unknown' is not assignable to type 'number'.
+src/main/services/SalesLedger.ts(323,15): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'number[]'.
+  Type 'unknown' is not assignable to type 'number'.
+src/main/services/SalesLedger.ts(349,54): error TS18046: 'u' is of type 'unknown'.
+src/main/services/SalesLedger.ts(349,60): error TS18046: 'u' is of type 'unknown'.
+src/main/services/SalesLedger.ts(350,56): error TS18046: 's' is of type 'unknown'.
+src/main/services/SalesLedger.ts(350,62): error TS18046: 's' is of type 'unknown'.
+src/main/services/SalesLedger.ts(351,50): error TS18046: 'i' is of type 'unknown'.
+src/main/services/SalesLedger.ts(351,56): error TS18046: 'i' is of type 'unknown'.
+src/main/services/SalesLedger.ts(351,72): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(351,75): error TS7006: Parameter 'x' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(352,54): error TS18046: 'i' is of type 'unknown'.
+src/main/services/SalesLedger.ts(352,60): error TS18046: 'i' is of type 'unknown'.
+src/main/services/SalesLedger.ts(358,30): error TS18046: 'i' is of type 'unknown'.
+src/main/services/SalesLedger.ts(358,37): error TS18046: 'i' is of type 'unknown'.
+src/main/services/SalesLedger.ts(358,82): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(358,85): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(361,41): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(361,44): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(479,14): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(506,60): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(506,92): error TS7006: Parameter 'x' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(507,59): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(507,92): error TS7006: Parameter 'x' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(509,17): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'number[]'.
+  Type 'unknown' is not assignable to type 'number'.
+src/main/services/SalesLedger.ts(510,17): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'number[]'.
+  Type 'unknown' is not assignable to type 'number'.
+src/main/services/SalesLedger.ts(512,62): error TS18046: 's' is of type 'unknown'.
+src/main/services/SalesLedger.ts(512,68): error TS18046: 's' is of type 'unknown'.
+src/main/services/SalesLedger.ts(513,60): error TS18046: 'u' is of type 'unknown'.
+src/main/services/SalesLedger.ts(513,66): error TS18046: 'u' is of type 'unknown'.
+src/main/services/SalesLedger.ts(574,54): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(574,86): error TS7006: Parameter 'x' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(578,17): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(579,20): error TS7006: Parameter 'x' implicitly has an 'any' type.
+src/main/services/SalesLedger.ts(583,15): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'number[]'.
+  Type 'unknown' is not assignable to type 'number'.
+src/main/services/SalesLedger.ts(584,15): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'number[]'.
+  Type 'unknown' is not assignable to type 'number'.
+src/main/services/SalesLedger.ts(586,64): error TS18046: 's' is of type 'unknown'.
+src/main/services/SalesLedger.ts(586,70): error TS18046: 's' is of type 'unknown'.
+src/main/services/SalesLedger.ts(587,62): error TS18046: 'u' is of type 'unknown'.
+src/main/services/SalesLedger.ts(587,68): error TS18046: 'u' is of type 'unknown'.
+src/main/services/SalesService.ts(179,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/SalesService.ts(607,39): error TS2345: Argument of type '{}' is not assignable to parameter of type 'RialLike'.
+src/main/services/SalesService.ts(1009,28): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/main/services/SalesService.ts(1009,31): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/SalesService.ts(1257,20): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/SalesService.ts(1552,37): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/SalesService.ts(1552,40): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(1553,41): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/SalesService.ts(1553,44): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(1615,37): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SalesService.ts(1700,32): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'RialLike'.
+src/main/services/SalesService.ts(1744,35): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'RialLike'.
+src/main/services/SalesService.ts(1771,42): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/SalesService.ts(1775,25): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/main/services/SalesService.ts(1775,28): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/SalesService.ts(1832,8): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/main/services/SalesService.ts(1832,13): error TS7006: Parameter 'payment' implicitly has an 'any' type.
+src/main/services/SalesService.ts(1842,33): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/main/services/SalesService.ts(2457,35): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/SalesService.ts(2471,46): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/SalesService.ts(2504,20): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/SalesService.ts(2602,21): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/main/services/SalesService.ts(2608,39): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/main/services/SalesService.ts(2613,37): error TS2345: Argument of type '{} | null' is not assignable to parameter of type 'string | null | undefined'.
+  Type '{}' is not assignable to type 'string'.
+src/main/services/SalesService.ts(2614,44): error TS2345: Argument of type '{} | null' is not assignable to parameter of type 'string | null | undefined'.
+  Type '{}' is not assignable to type 'string'.
+src/main/services/SalesService.ts(2812,38): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SalesService.ts(2818,49): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'number'.
+src/main/services/SalesService.ts(2826,9): error TS2322: Type 'unknown' is not assignable to type 'number | null | undefined'.
+src/main/services/SalesService.ts(4251,30): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(4267,75): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(4286,39): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(4307,35): error TS7006: Parameter 'ret' implicitly has an 'any' type.
+src/main/services/SalesService.ts(4308,31): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/main/services/SalesService.ts(4365,41): error TS7006: Parameter 'candidate' implicitly has an 'any' type.
+src/main/services/SalesService.ts(4485,45): error TS7006: Parameter 'candidate' implicitly has an 'any' type.
+src/main/services/SalesService.ts(4828,43): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/SalesService.ts(4828,46): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(4829,47): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/SalesService.ts(4829,50): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(4992,14): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/SalesService.ts(5083,15): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/SalesService.ts(5084,50): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/main/services/SalesService.ts(5084,55): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/SalesService.ts(5092,43): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/SalesService.ts(5096,43): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/SalesService.ts(5150,42): error TS7006: Parameter 'method' implicitly has an 'any' type.
+src/main/services/SalesService.ts(5280,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SalesService.ts(5560,39): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(5791,33): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/main/services/SalesService.ts(5855,37): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(5863,49): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/main/services/SalesService.ts(5863,54): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/main/services/SalesService.ts(5871,17): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/main/services/SalesService.ts(5932,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SalesService.ts(6105,41): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/main/services/SalesService.ts(6190,48): error TS7006: Parameter 'd' implicitly has an 'any' type.
+src/main/services/SalesService.ts(6280,37): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(6531,35): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(6538,32): error TS7006: Parameter 'inv' implicitly has an 'any' type.
+src/main/services/SalesService.ts(6683,51): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/SalesService.ts(6683,83): error TS7006: Parameter 'x' implicitly has an 'any' type.
+src/main/services/SalesService.ts(6687,45): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'Iterable<number>'.
+  The types returned by '[Symbol.iterator]().next(...)' are incompatible between these types.
+    Type 'IteratorResult<unknown, undefined>' is not assignable to type 'IteratorResult<number, any>'.
+      Type 'IteratorYieldResult<unknown>' is not assignable to type 'IteratorResult<number, any>'.
+        Type 'IteratorYieldResult<unknown>' is not assignable to type 'IteratorYieldResult<number>'.
+          Type 'unknown' is not assignable to type 'number'.
+src/main/services/SalesService.ts(6816,39): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(6816,58): error TS7006: Parameter 'it' implicitly has an 'any' type.
+src/main/services/SalesService.ts(6817,54): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(6817,73): error TS7006: Parameter 'it' implicitly has an 'any' type.
+src/main/services/SalesService.ts(6822,38): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'Iterable<number>'.
+  The types returned by '[Symbol.iterator]().next(...)' are incompatible between these types.
+    Type 'IteratorResult<unknown, undefined>' is not assignable to type 'IteratorResult<number, any>'.
+      Type 'IteratorYieldResult<unknown>' is not assignable to type 'IteratorResult<number, any>'.
+        Type 'IteratorYieldResult<unknown>' is not assignable to type 'IteratorYieldResult<number>'.
+          Type 'unknown' is not assignable to type 'number'.
+src/main/services/SalesService.ts(6994,46): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/SalesService.ts(7027,55): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(7028,61): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'Iterable<number>'.
+  The types returned by '[Symbol.iterator]().next(...)' are incompatible between these types.
+    Type 'IteratorResult<unknown, undefined>' is not assignable to type 'IteratorResult<number, any>'.
+      Type 'IteratorYieldResult<unknown>' is not assignable to type 'IteratorResult<number, any>'.
+        Type 'IteratorYieldResult<unknown>' is not assignable to type 'IteratorYieldResult<number>'.
+          Type 'unknown' is not assignable to type 'number'.
+src/main/services/SalesService.ts(7047,58): error TS7006: Parameter 'it' implicitly has an 'any' type.
+src/main/services/SalesService.ts(7105,48): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/SalesService.ts(7118,51): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/SalesService.ts(7262,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SalesService.ts(7444,47): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SalesService.ts(7458,34): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/main/services/SalesService.ts(7464,44): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/SalesService.ts(7803,47): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SalesService.ts(8393,54): error TS7006: Parameter 'method' implicitly has an 'any' type.
+src/main/services/SalesService.ts(8399,70): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string | null | undefined'.
+src/main/services/SalesService.ts(8877,16): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/SalesService.ts(8905,9): error TS2353: Object literal may only specify known properties, and 'restockPending' does not exist in type 'ExchangeSaleResult'.
+src/main/services/SalesService.ts(9062,50): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9063,59): error TS7006: Parameter 'it' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9100,12): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9100,17): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9126,39): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9134,52): error TS7006: Parameter 'it' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9393,44): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9393,47): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9610,52): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9610,76): error TS7006: Parameter 'n' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9612,38): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'Iterable<number>'.
+  The types returned by '[Symbol.iterator]().next(...)' are incompatible between these types.
+    Type 'IteratorResult<unknown, undefined>' is not assignable to type 'IteratorResult<number, any>'.
+      Type 'IteratorYieldResult<unknown>' is not assignable to type 'IteratorResult<number, any>'.
+        Type 'IteratorYieldResult<unknown>' is not assignable to type 'IteratorYieldResult<number>'.
+          Type 'unknown' is not assignable to type 'number'.
+src/main/services/SalesService.ts(9618,53): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9618,72): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9620,38): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'Iterable<number>'.
+  The types returned by '[Symbol.iterator]().next(...)' are incompatible between these types.
+    Type 'IteratorResult<unknown, undefined>' is not assignable to type 'IteratorResult<number, any>'.
+      Type 'IteratorYieldResult<unknown>' is not assignable to type 'IteratorResult<number, any>'.
+        Type 'IteratorYieldResult<unknown>' is not assignable to type 'IteratorYieldResult<number>'.
+          Type 'unknown' is not assignable to type 'number'.
+src/main/services/SalesService.ts(9635,31): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9650,28): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9650,31): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9651,37): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9651,40): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9683,27): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9737,55): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9738,61): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'Iterable<number>'.
+  The types returned by '[Symbol.iterator]().next(...)' are incompatible between these types.
+    Type 'IteratorResult<unknown, undefined>' is not assignable to type 'IteratorResult<number, any>'.
+      Type 'IteratorYieldResult<unknown>' is not assignable to type 'IteratorResult<number, any>'.
+        Type 'IteratorYieldResult<unknown>' is not assignable to type 'IteratorYieldResult<number>'.
+          Type 'unknown' is not assignable to type 'number'.
+src/main/services/SalesService.ts(9750,56): error TS7006: Parameter 'it' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9881,45): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9998,57): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(9999,59): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'Iterable<number>'.
+  The types returned by '[Symbol.iterator]().next(...)' are incompatible between these types.
+    Type 'IteratorResult<unknown, undefined>' is not assignable to type 'IteratorResult<number, any>'.
+      Type 'IteratorYieldResult<unknown>' is not assignable to type 'IteratorResult<number, any>'.
+        Type 'IteratorYieldResult<unknown>' is not assignable to type 'IteratorYieldResult<number>'.
+          Type 'unknown' is not assignable to type 'number'.
+src/main/services/SalesService.ts(10043,41): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(10107,48): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/SalesService.ts(10107,51): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(10397,47): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SalesService.ts(10535,33): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/SalesService.ts(10937,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SalesService.ts(11039,31): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/SalesService.ts(11043,31): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/main/services/SalesService.ts(11043,36): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/SalesService.ts(11198,44): error TS2339: Property 'id' does not exist on type 'never'.
+src/main/services/SalesService.ts(11205,76): error TS2339: Property 'amount' does not exist on type 'never'.
+src/main/services/SalesService.ts(11211,44): error TS2339: Property 'id' does not exist on type 'never'.
+src/main/services/SalesService.ts(11222,41): error TS2339: Property 'id' does not exist on type 'never'.
+src/main/services/SalesService.ts(11225,70): error TS2339: Property 'id' does not exist on type 'never'.
+src/main/services/SalesService.ts(11587,34): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/main/services/SalesService.ts(11587,39): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/SalesService.ts(11595,38): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/main/services/SalesService.ts(11595,43): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/SalesService.ts(11627,27): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/SalesService.ts(11627,65): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/main/services/SalesService.ts(11628,30): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/SalesService.ts(11628,73): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/main/services/SalesService.ts(11651,45): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/SalesService.ts(11652,53): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/SalesService.ts(11673,38): error TS2345: Argument of type '{ amount: number; usedAmount: number; }' is not assignable to parameter of type 'CreditCore'.
+  Property 'status' is missing in type '{ amount: number; usedAmount: number; }' but required in type 'CreditCore'.
+src/main/services/SalesService.ts(11682,58): error TS2339: Property 'id' does not exist on type '{}'.
+src/main/services/SalesService.ts(11686,45): error TS2339: Property 'id' does not exist on type '{}'.
+src/main/services/SalesService.ts(11687,46): error TS2339: Property 'seq' does not exist on type '{}'.
+src/main/services/SalesService.ts(11780,47): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SalesService.ts(12048,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SalesService.ts(12159,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SalesService.ts(12352,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SalesService.ts(12530,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SalesService.ts(12720,70): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/main/services/SalesService.ts(12723,27): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/main/services/SalesService.ts(12962,14): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SalesService.ts(13001,113): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/SecondaryStockService.ts(1,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/SecondaryStockService.ts(580,64): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SecondaryStockService.ts(594,42): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/SecondaryStockService.ts(643,38): error TS7006: Parameter 'h' implicitly has an 'any' type.
+src/main/services/SecondaryStockService.ts(766,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SecondaryStockService.ts(956,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SecondaryStockService.ts(1031,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SecondaryStockService.ts(1112,50): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/main/services/SecondaryStockService.ts(1213,38): error TS7006: Parameter 'h' implicitly has an 'any' type.
+src/main/services/SecondaryStockService.ts(1219,57): error TS7006: Parameter 'h' implicitly has an 'any' type.
+src/main/services/SecondaryStockService.ts(1228,36): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/SecondaryStockService.ts(1237,36): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type '{ id: number; name: string; code: string | null; qty: number; }[]'.
+  Type 'unknown' is not assignable to type '{ id: number; name: string; code: string | null; qty: number; }'.
+src/main/services/SecondaryStockService.ts(1239,77): error TS2339: Property 'warehouseId' does not exist on type '{}'.
+src/main/services/SecondaryStockService.ts(1246,25): error TS2339: Property 'qty' does not exist on type '{}'.
+src/main/services/SecondaryStockService.ts(1247,46): error TS2339: Property 'qty' does not exist on type '{}'.
+src/main/services/SecondaryStockService.ts(1248,13): error TS2339: Property 'qty' does not exist on type '{}'.
+src/main/services/SecondaryStockService.ts(1250,67): error TS2339: Property 'id' does not exist on type '{}'.
+src/main/services/SecondaryStockService.ts(1250,90): error TS2339: Property 'qty' does not exist on type '{}'.
+src/main/services/SecondaryStockService.ts(1252,19): error TS2339: Property 'id' does not exist on type '{}'.
+src/main/services/SecondaryStockService.ts(1253,21): error TS2339: Property 'name' does not exist on type '{}'.
+src/main/services/SecondaryStockService.ts(1255,26): error TS2339: Property 'qty' does not exist on type '{}'.
+src/main/services/SecondaryStockService.ts(1256,28): error TS2339: Property 'warehouseId' does not exist on type '{}'.
+src/main/services/SecondaryStockService.ts(1257,46): error TS2339: Property 'warehouseId' does not exist on type '{}'.
+src/main/services/SecondaryStockService.ts(1268,25): error TS2339: Property 'qty' does not exist on type '{}'.
+src/main/services/SecondaryStockService.ts(1269,27): error TS2339: Property 'warehouseId' does not exist on type '{}'.
+src/main/services/SecondaryStockService.ts(1270,43): error TS2339: Property 'warehouseId' does not exist on type '{}'.
+src/main/services/SecondaryStockService.ts(1271,64): error TS2339: Property 'qty' does not exist on type '{}'.
+src/main/services/SettingsService.ts(2,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/SettingsService.ts(190,66): error TS7006: Parameter 'user' implicitly has an 'any' type.
+src/main/services/SettingsService.ts(284,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/SettingsService.ts(968,38): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/ShiftService.ts(1,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/ShiftService.ts(458,25): error TS7006: Parameter 'u' implicitly has an 'any' type.
+src/main/services/ShiftService.ts(853,50): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/ShiftService.ts(997,38): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/ShiftService.ts(1192,53): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/ShiftService.ts(1249,44): error TS7006: Parameter 'inv' implicitly has an 'any' type.
+src/main/services/ShiftService.ts(1390,38): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(126,38): error TS7006: Parameter 'u' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(127,40): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(159,22): error TS7006: Parameter 'u' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(207,36): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(207,67): error TS7006: Parameter 'x' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(215,47): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(221,60): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(221,84): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(232,58): error TS7006: Parameter 'u' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(233,41): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(239,59): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(244,27): error TS2345: Argument of type 'unknown' is not assignable to parameter of type '{ displayName?: string | null | undefined; username?: string | null | undefined; } | null | undefined'.
+src/main/services/StaffReportService.ts(256,21): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(294,33): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(303,15): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(328,15): error TS7006: Parameter 'u' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(336,9): error TS2322: Type '{}' is not assignable to type 'string'.
+src/main/services/StaffReportService.ts(471,31): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(489,29): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(504,51): error TS2339: Property 'name' does not exist on type '{}'.
+src/main/services/StaffReportService.ts(506,37): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(516,49): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(553,13): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(571,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(572,14): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(572,17): error TS7006: Parameter 'b' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(714,15): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(730,15): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StaffReportService.ts(738,53): error TS2339: Property 'name' does not exist on type '{}'.
+src/main/services/StaffReportService.ts(739,56): error TS2339: Property 'name' does not exist on type '{}'.
+src/main/services/StaffReportService.ts(740,61): error TS2339: Property 'name' does not exist on type '{}'.
+src/main/services/StaffReportService.ts(740,98): error TS2339: Property 'sessionSeq' does not exist on type '{}'.
+src/main/services/StaffReportService.ts(742,60): error TS2339: Property 'nameOverridden' does not exist on type '{}'.
+src/main/services/StaffReportService.ts(743,31): error TS2345: Argument of type 'unknown' is not assignable to parameter of type '{ displayName?: string | null | undefined; username?: string | null | undefined; } | null | undefined'.
+src/main/services/StockAllocationService.ts(1,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/StockAllocationService.ts(196,38): error TS7006: Parameter 'h' implicitly has an 'any' type.
+src/main/services/StockAllocationService.ts(350,38): error TS7006: Parameter 'h' implicitly has an 'any' type.
+src/main/services/StockAllocationService.ts(951,46): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StockAllocationService.ts(952,57): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'Iterable<number>'.
+  The types returned by '[Symbol.iterator]().next(...)' are incompatible between these types.
+    Type 'IteratorResult<unknown, undefined>' is not assignable to type 'IteratorResult<number, any>'.
+      Type 'IteratorYieldResult<unknown>' is not assignable to type 'IteratorResult<number, any>'.
+        Type 'IteratorYieldResult<unknown>' is not assignable to type 'IteratorYieldResult<number>'.
+          Type 'unknown' is not assignable to type 'number'.
+src/main/services/StockCountService.ts(117,30): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/main/services/StockCountService.ts(185,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/StockCountService.ts(301,30): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/StockCountService.ts(309,40): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/StockCountService.ts(311,42): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/main/services/StockCountService.ts(311,47): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/StockCountService.ts(362,47): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/main/services/StockCountService.ts(419,57): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'number[]'.
+  Type 'unknown' is not assignable to type 'number'.
+src/main/services/StockCountService.ts(424,31): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'number'.
+src/main/services/StockCountService.ts(438,48): error TS2538: Type 'unknown' cannot be used as an index type.
+src/main/services/StockCountService.ts(443,44): error TS2345: Argument of type '{ variantId: unknown; name: string; code: any; systemQty: number; countedQty: any; systemQtyAtCount: any; returnedQty: {}; pendingRestockQty: number; countedAtJalali: any; }[]' is not assignable to parameter of type 'StockDiscrepancyInput[]'.
+  Type '{ variantId: unknown; name: string; code: any; systemQty: number; countedQty: any; systemQtyAtCount: any; returnedQty: {}; pendingRestockQty: number; countedAtJalali: any; }' is not assignable to type 'StockDiscrepancyInput'.
+    Types of property 'variantId' are incompatible.
+      Type 'unknown' is not assignable to type 'number'.
+src/main/services/StoreCreditService.ts(2,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/StoreCreditService.ts(553,41): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(565,67): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(577,21): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(948,37): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(1073,29): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(1727,37): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(2125,37): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(2349,50): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(2500,24): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(2652,23): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(2652,28): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(2687,29): error TS7006: Parameter 'u' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(2968,18): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(2969,15): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(2985,23): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(2985,52): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(3054,29): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(3058,13): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(3059,16): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(3080,32): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(3144,27): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(3145,20): error TS7006: Parameter 'l' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(3146,25): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(3150,55): error TS7006: Parameter 'l' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(3172,22): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(3179,37): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(3180,7): error TS2322: Type 'PagedRows<unknown>' is not assignable to type 'CreditReminderLogRow[]'.
+  The types returned by 'pop()' are incompatible between these types.
+    Type 'unknown' is not assignable to type 'CreditReminderLogRow | undefined'.
+src/main/services/StoreCreditService.ts(3233,30): error TS7006: Parameter 'b' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(3342,26): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(3389,14): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(3416,39): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(3829,47): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/StoreCreditService.ts(3830,22): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/VariantPurgeService.ts(1,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/VariantPurgeService.ts(89,28): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/VariantPurgeService.ts(94,34): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/VariantPurgeService.ts(342,14): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/WooSyncService.ts(8,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/WooSyncService.ts(91,12): error TS2416: Property 'code' in type 'WooHttpError' is not assignable to the same property in base type 'BusinessError'.
+  Type 'string | null' is not assignable to type 'string | undefined'.
+    Type 'null' is not assignable to type 'string | undefined'.
+src/main/services/WooSyncService.ts(177,3): error TS2322: Type 'number | null' is not assignable to type 'number'.
+  Type 'null' is not assignable to type 'number'.
+src/main/services/accountingReport.ts(2,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/accountingReport.ts(289,43): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/accountingReport.ts(293,39): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/main/services/accountingReport.ts(324,74): error TS2322: Type '{}' is not assignable to type 'string'.
+src/main/services/accountingReport.ts(347,76): error TS2322: Type '{}' is not assignable to type 'string'.
+src/main/services/accountingReport.ts(367,82): error TS2322: Type '{}' is not assignable to type 'string'.
+src/main/services/accountingReport.ts(393,51): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/accountingReport.ts(397,51): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/main/services/accountingReport.ts(406,74): error TS2322: Type '{}' is not assignable to type 'string'.
+src/main/services/accountingReport.ts(437,85): error TS2322: Type '{}' is not assignable to type 'string'.
+src/main/services/accountingReport.ts(669,65): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/accountingReport.ts(1577,41): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/main/services/accountingReport.ts(1582,9): error TS2322: Type '{}' is not assignable to type 'string'.
+src/main/services/accountingReport.ts(1931,37): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/accountingReport.ts(2066,32): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/main/services/accountingReport.ts(2068,58): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/main/services/accountingReport.ts(2456,32): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/accountingReport.ts(2458,5): error TS2322: Type '{}' is not assignable to type 'number'.
+src/main/services/accountingReport.ts(2459,18): error TS2365: Operator '+' cannot be applied to types '{}' and '{}'.
+src/main/services/accountingReport.ts(2460,15): error TS2365: Operator '+' cannot be applied to types '{}' and '{}'.
+src/main/services/accountingReport.ts(2461,14): error TS2365: Operator '+' cannot be applied to types '{}' and '{}'.
+src/main/services/bridgeDiagnosticsService.ts(147,49): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/bridgeDiagnosticsService.ts(147,73): error TS7006: Parameter 'x' implicitly has an 'any' type.
+src/main/services/bridgeDiagnosticsService.ts(151,54): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/main/services/bridgeDiagnosticsService.ts(217,7): error TS2322: Type 'import("/home/user/MAHAK-KLAD/src/shared/bridgeDiagnostics").BridgeDiagFlag[]' is not assignable to type 'import("/home/user/MAHAK-KLAD/src/shared/types").BridgeDiagFlag[]'.
+  Type 'import("/home/user/MAHAK-KLAD/src/shared/bridgeDiagnostics").BridgeDiagFlag' is not assignable to type 'import("/home/user/MAHAK-KLAD/src/shared/types").BridgeDiagFlag'.
+    Types of property 'code' are incompatible.
+      Type '"note" | "sign" | "largest" | "equals-unexplained" | "date"' is not assignable to type '"sign" | "largest" | "equals-unexplained" | "date"'.
+        Type '"note"' is not assignable to type '"sign" | "largest" | "equals-unexplained" | "date"'.
+src/main/services/bridgeDiagnosticsService.ts(347,41): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/main/services/bridgeDiagnosticsService.ts(354,42): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/main/services/bridgeDiagnosticsService.ts(356,36): error TS7006: Parameter 'it' implicitly has an 'any' type.
+src/main/services/bridgeDiagnosticsService.ts(359,20): error TS2339: Property 'product' does not exist on type '{}'.
+src/main/services/bridgeDiagnosticsService.ts(359,41): error TS2339: Property 'product' does not exist on type '{}'.
+src/main/services/bridgeDiagnosticsService.ts(359,59): error TS2339: Property 'size' does not exist on type '{}'.
+src/main/services/bridgeDiagnosticsService.ts(360,20): error TS2339: Property 'code' does not exist on type '{}'.
+src/main/services/bridgeDiagnosticsService.ts(389,16): error TS2322: Type '"EXCHANGE" | "RETURN"' is not assignable to type '"STORE_CREDIT" | "RETURN" | "CASH_MOVEMENT" | "INVOICE" | "PAYMENT"'.
+  Type '"EXCHANGE"' is not assignable to type '"STORE_CREDIT" | "RETURN" | "CASH_MOVEMENT" | "INVOICE" | "PAYMENT"'.
+src/main/services/bridgeDiagnosticsService.ts(469,40): error TS2345: Argument of type 'BridgeDocDetail | null' is not assignable to parameter of type 'BridgeDocDetail'.
+  Type 'null' is not assignable to type 'BridgeDocDetail'.
+src/main/services/bridgeDiagnosticsService.ts(475,24): error TS2322: Type 'BridgeDocDetail | null' is not assignable to type 'BridgeDocDetail | undefined'.
+  Type 'null' is not assignable to type 'BridgeDocDetail | undefined'.
+src/main/services/creditReportScope.ts(26,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/creditReportScope.ts(146,39): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/creditReportScope.ts(163,46): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/creditReportScope.ts(200,38): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/creditReportScope.ts(202,32): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/main/services/creditReportScope.ts(212,34): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/exchangeReplacementFunding.ts(4,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/financialInspectorService.ts(431,41): error TS2345: Argument of type '{ amount: number; usedAmount: number; }' is not assignable to parameter of type 'CreditCore'.
+  Property 'status' is missing in type '{ amount: number; usedAmount: number; }' but required in type 'CreditCore'.
+src/main/services/invoiceDebt.ts(1,15): error TS2305: Module '"@prisma/client"' has no exported member 'Prisma'.
+src/main/services/management/CostEngine.ts(1630,36): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/management/CostEngine.ts(1915,16): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/main/services/management/ProfitService.ts(119,39): error TS7006: Parameter 'inv' implicitly has an 'any' type.
+src/main/services/management/ProfitService.ts(121,18): error TS7006: Parameter 'it' implicitly has an 'any' type.
+src/main/services/management/ProfitService.ts(122,15): error TS7006: Parameter 'it' implicitly has an 'any' type.
+src/main/services/management/ProfitService.ts(124,48): error TS7006: Parameter 'inv' implicitly has an 'any' type.
+src/main/services/management/ProfitService.ts(155,37): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/main/services/management/ProfitService.ts(207,12): error TS2345: Argument of type '{}' is not assignable to parameter of type 'string'.
+src/main/services/management/ProfitService.ts(256,49): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/management/ProfitService.ts(256,77): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/main/services/management/ProfitService.ts(258,77): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type '(string | number | null | undefined)[]'.
+  Type 'unknown' is not assignable to type 'string | number | null | undefined'.
+src/main/services/management/ProfitService.ts(281,11): error TS2322: Type 'unknown[]' is not assignable to type 'number[]'.
+  Type 'unknown' is not assignable to type 'number'.
+src/main/services/management/ProfitService.ts(417,23): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/management/ProfitService.ts(586,37): error TS7006: Parameter 'x' implicitly has an 'any' type.
+src/main/services/management/ProfitService.ts(589,28): error TS2339: Property 'variant' does not exist on type '{}'.
+src/main/services/management/ProfitService.ts(590,21): error TS2339: Property 'variant' does not exist on type '{}'.
+src/main/services/management/ProfitService.ts(591,21): error TS2339: Property 'variant' does not exist on type '{}'.
+src/main/services/management/ProfitService.ts(592,26): error TS2339: Property 'invoice' does not exist on type '{}'.
+src/main/services/management/ProfitService.ts(602,64): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type '(string | number | null | undefined)[]'.
+  Type 'unknown' is not assignable to type 'string | number | null | undefined'.
+src/main/services/management/StockInsightService.ts(142,38): error TS2352: Conversion of type '{ from: Date; toJalali: string; }' to type 'SaleReportFilter' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Types of property 'from' are incompatible.
+    Type 'Date' is not comparable to type 'string'.
+src/main/services/management/StockInsightService.ts(162,37): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/main/services/management/StockInsightService.ts(162,65): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/main/services/management/StockInsightService.ts(184,41): error TS7006: Parameter 'it' implicitly has an 'any' type.
+src/main/services/management/StockInsightService.ts(207,49): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/management/StockInsightService.ts(403,50): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/management/StockInsightService.ts(403,78): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/main/services/management/StockInsightService.ts(405,77): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type '(string | number | null | undefined)[]'.
+  Type 'unknown' is not assignable to type 'string | number | null | undefined'.
+src/main/services/management/StockInsightService.ts(575,17): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'Record<string, { stock: number; sold90: number; }> | {}'.
+src/main/services/management/StockInsightService.ts(578,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'Record<string, { stock: number; sold90: number; }> | {}'.
+src/main/services/management/StockInsightService.ts(640,33): error TS7006: Parameter 'inv' implicitly has an 'any' type.
+src/main/services/management/StockInsightService.ts(657,13): error TS2322: Type 'unknown[]' is not assignable to type 'number[]'.
+  Type 'unknown' is not assignable to type 'number'.
+src/main/services/management/TrendService.ts(221,43): error TS7006: Parameter 'inv' implicitly has an 'any' type.
+src/main/services/management/TrendService.ts(249,53): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/main/services/management/TrendService.ts(249,97): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/main/services/management/TrendService.ts(251,73): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type '(string | number | null | undefined)[]'.
+  Type 'unknown' is not assignable to type 'string | number | null | undefined'.
+src/main/services/management/TrendService.ts(293,38): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/main/services/management/TrendService.ts(293,41): error TS7006: Parameter 'inv' implicitly has an 'any' type.
+src/renderer/src/components/CustodyChip.tsx(213,333): error TS7006: Parameter 'resolutionId' implicitly has an 'any' type.
+src/renderer/src/components/CustodyChip.tsx(214,334): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/renderer/src/lib/api.ts(9,42): error TS2345: Argument of type 'string' is not assignable to parameter of type 'IpcChannel'.
+src/renderer/src/pages/CashClose.tsx(990,435): error TS18048: 'custodyTimeline.coverage' is possibly 'undefined'.
+src/renderer/src/pages/CashClose.tsx(990,630): error TS18048: 'custodyTimeline.coverage' is possibly 'undefined'.

@@ -1,0 +1,118 @@
+{
+  "generatedAt": "2026-10-30T19:46:33.412Z",
+  "isolatedDatabase": "/tmp/mahak-invoice-discount-return-20m-xyk3hE/isolated.db",
+  "verdict": "PASS",
+  "checks": {
+    "one-item: gross goods 20m and invoice net 18m": true,
+    "one-item: actual payment 18m and settled": true,
+    "one-item: no credit barcode created at sale": true,
+    "one-item: return amount equals discounted invoice net 18m": true,
+    "one-item: actual cash refund equals net paid 18m": true,
+    "one-item: no credit barcode on return": true,
+    "two-equal-items: gross goods 20m and invoice net 18m": true,
+    "two-equal-items: actual payment 18m and settled": true,
+    "two-equal-items: no credit barcode created at sale": true,
+    "two equal items: discount share is 1m each, return is 9m per item": true,
+    "two equal items: cash paid across both returns totals exactly 18m": true,
+    "two equal items: no credit barcode for discount or returns": true,
+    "three-unequal-items: gross goods 20m and invoice net 18m": true,
+    "three-unequal-items: actual payment 18m and settled": true,
+    "three-unequal-items: no credit barcode created at sale": true,
+    "three unequal items: proportional net values 4.5m, 6.3m, 7.2m": true,
+    "three unequal items: refunds reconcile exactly to 18m paid": true,
+    "three unequal items: no credit barcode created": true,
+    "manager-full-price-override: gross goods 20m and invoice net 18m": true,
+    "manager-full-price-override: actual payment 18m and settled": true,
+    "manager-full-price-override: no credit barcode created at sale": true,
+    "manager full-price override requires actual manager approval and returns first item at list price": true,
+    "remaining item refund is limited to cash still backed after override": true,
+    "manager exception does not create extra credit beyond net payment": true
+  },
+  "cases": [
+    {
+      "label": "one-item",
+      "goodsPrices": [
+        20000000
+      ],
+      "invoiceDiscount": 2000000,
+      "saleTotal": 18000000,
+      "salePaid": 18000000,
+      "returnAmounts": [
+        18000000
+      ],
+      "cashRefundAmounts": [
+        18000000
+      ],
+      "finalCreditCount": 0
+    },
+    {
+      "label": "two-equal-items",
+      "goodsPrices": [
+        10000000,
+        10000000
+      ],
+      "invoiceDiscount": 2000000,
+      "saleTotal": 18000000,
+      "salePaid": 18000000,
+      "returnAmounts": [
+        9000000,
+        9000000
+      ],
+      "cashRefundAmounts": [
+        9000000,
+        9000000
+      ],
+      "finalCreditCount": 0
+    },
+    {
+      "label": "three-unequal-items",
+      "goodsPrices": [
+        5000000,
+        7000000,
+        8000000
+      ],
+      "invoiceDiscount": 2000000,
+      "saleTotal": 18000000,
+      "salePaid": 18000000,
+      "returnAmounts": [
+        4500000,
+        6300000,
+        7200000
+      ],
+      "cashRefundAmounts": [
+        4500000,
+        6300000,
+        7200000
+      ],
+      "finalCreditCount": 0
+    },
+    {
+      "label": "manager-full-price-override",
+      "goodsPrices": [
+        10000000,
+        10000000
+      ],
+      "invoiceDiscount": 2000000,
+      "saleTotal": 18000000,
+      "salePaid": 18000000,
+      "returnAmounts": [
+        10000000,
+        9000000
+      ],
+      "cashRefundAmounts": [
+        10000000,
+        8000000
+      ],
+      "managerOverride": true,
+      "finalCreditCount": 0
+    }
+  ],
+  "conclusion": "With gross goods of 20,000,000 and a 2,000,000 invoice-level discount, the POS invoice is 18,000,000. A full cash return refunds exactly the 18,000,000 actually paid. Partial returns use proportional net item values; when all items are returned, totals reconcile exactly to 18,000,000. No barcode credit is created in these explicit CASH-refund cases.",
+  "safety": {
+    "liveDatabase": false,
+    "productionCodeChanged": false,
+    "checksOrDebt": false,
+    "paymentMethod": "cash only",
+    "realRefundTotalAcrossAllCases": 72000000
+  }
+}
