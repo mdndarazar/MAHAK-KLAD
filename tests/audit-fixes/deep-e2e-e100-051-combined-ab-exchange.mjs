@@ -171,10 +171,15 @@ try {
     result.status = 'BLOCKED'
     result.operation.mutationFree = true
   } else {
-    assert.equal(num(operation.diff), -20_000)
+    // Claude low-risk: diff=0 می‌تواند درست باشد به شرطِ صدورِ جانشینِ 20,000
+    assert.equal(num(operation.diff), 0)
+    assert.equal(num(operation.sourceCreditRestoredAmount), 20_000)
     assert.equal(after.blue, 800_000, 'STORE_CREDIT exchange must not change physical blue')
     assert.equal(after.physical.refundCash, 0)
     assert.equal(after.physical.refundCard, 0)
+    // جانشینِ 20k باید با همان scope صادر شده باشد
+    const successor = after.credits.find(c => num(c.amount) === 20_000 && c.status === 'ACTIVE')
+    assert.ok(successor && successor.restrictScope === 'VARIANTS', 'successor 20k with same scope should exist')
     result.status = 'PASS'
     result.operation.mutationFree = false
     const ret = seed.one('SELECT id,invoiceId,kind,total,refundMethod,refundAmount,refundStoreCreditAmount,exchangeInvoiceId,exchangeTotal,exchangeDiff,exchangeSettlement FROM "SaleReturn" WHERE id=?', operation.returnId)

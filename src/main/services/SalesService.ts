@@ -7597,7 +7597,10 @@ export const salesService = {
         const debt = await invoiceRemaining(
           tx, invoice.id, toNumberRial(invoice.grandTotal), receivedTotalOf(paymentRows as any[])
         )
-        const debtReduction = Math.min(returnTotal, Math.max(0, debt.remaining))
+        // FAIL 1 fix (Claude low-risk): برگشتِ تعویض بدهیِ فاکتورِ مبدأ را کم نمی‌کند؛
+        // debtReduction فقط در مسیر جداگانهٔ debtCut و از مازادِ واقعی کم می‌شود.
+        // پیش‌نمایش باید مثلِ ثبت، funding را بدونِ کم‌کردنِ بدهی بسازد.
+        const debtReduction = 0
         const returnedFunding = await exchangeReturnFundingBuckets(
           tx, Number(invoice.id), null, returnTotal, new Set<number>(), returnedLines, debtReduction
         )
