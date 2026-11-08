@@ -44,7 +44,16 @@ jobs:
         run: npm ci
 
       - name: Validate Prisma schema
-        run: npx prisma validate
+        shell: pwsh
+        run: |
+          npx prisma validate *>&1 | Tee-Object -FilePath prisma-validation.log
+          $validateExit = $LASTEXITCODE
+          if ($validateExit -ne 0) {
+            $detail = (Get-Content prisma-validation.log -Tail 20) -join ' | '
+            if ($detail.Length -gt 3500) { $detail = $detail.Substring($detail.Length - 3500) }
+            Write-Output "::error title=Prisma validate failed::$detail"
+            exit $validateExit
+          }
 
       - name: Generate Prisma Client
         run: npm run db:generate
@@ -139,11 +148,13 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Upload build log
+      - name: Upload validation and build logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: MahakPOS-Windows-build-log
-          path: build-output.log
+          path: |
+            prisma-validation.log
+            build-output.log
           if-no-files-found: warn
           retention-days: 30
