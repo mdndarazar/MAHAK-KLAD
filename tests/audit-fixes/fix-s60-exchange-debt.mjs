@@ -120,11 +120,17 @@ const back = (id) => {
 const exch = async (paid, price, mode, method = cash) => {
   const inv = await twoItemSale(paid)
   const v = variant(price)
-  const r = await salesService.createExchange({
-    invoiceId: inv.id, lines: [{ saleItemId: itemsOf(inv.id)[0].id, qty: 1 }],
-    replacements: [{ variantId: v, qty: 1 }], refundMode: mode, methodId: method, userId, shiftId
+  const lines = [{ saleItemId: itemsOf(inv.id)[0].id, qty: 1 }]
+  const replacements = [{ variantId: v, qty: 1 }]
+  const preview = await salesService.previewExchangeFunding({
+    invoiceId: inv.id, lines, replacements, full: false
   })
-  return { inv, r }
+  if (!preview.ok) throw new Error(preview.error ?? 'پیش‌نمایش تعویض ناموفق بود')
+  const r = await salesService.createExchange({
+    invoiceId: inv.id, lines, replacements, refundMode: mode, methodId: method,
+    expectedSettlementDiff: preview.effectiveDiff, userId, shiftId
+  })
+  return { inv, r, preview }
 }
 const exDocOf = (sourceId) => seed.one('SELECT id, paidTotal, settledAt FROM "SaleInvoice" WHERE sourceInvoiceId = ? ORDER BY id DESC', sourceId)
 
@@ -150,8 +156,10 @@ const exchangeCashEffect = async (retId) => {
 // ===========================================================================
 console.log('\n— ۱) نسیه‌ی پرداخت‌نشده ۱٬۰۰۰، تعویض ۶۰۰ ⇒ ۲۰۰ با انتخاب «نقد» (پیش‌فرض UI)')
 {
-  let src = null, res = null
-  const { d, after } = await step('تعویض روی نسیه', async () => { const x = await exch(0, 200, 'CASH'); src = x.inv; res = x.r })
+  let src = null, res = null, preview = null
+  const { d, after } = await step('تعویض روی نسیه', async () => { const x = await exch(0, 200, 'CASH'); src = x.inv; res = x.r; preview = x.preview })
+  eq('پیش‌نمایش debtCut = ۴۰۰', preview?.debtReduction, 400)
+  eq('پیش‌نمایش و ثبت: اختلاف مؤثر = ۰', preview?.effectiveDiff, 0)
   const r = src ? retOf(src.id) : null
   eq('هیچ پولی از کشو خارج نشد (CashMovement بازپرداخت = ۰)', r ? cashMoveOf(r.id) : -1, 0)
   eq('کاهش بدهی فاکتور اصلی روی سند = ۴۰۰', Number(r?.debtReduction ?? -1), 400)
@@ -186,8 +194,11 @@ console.log('\n— ۳) بند ۴-۳۷: روی نسیه‌ی پرداخت‌نش�
 }
 console.log('\n— ۴) پرداخت ۷۰۰ (بدهی ۳۰۰)، تعویض ۶۰۰ ⇒ ۱۰۰ با نقد: ۳۰۰ کاهش بدهی + ۲۰۰ بازپرداخت نقدی')
 {
-  let src = null, res = null
-  const { d, after } = await step('ترکیبی', async () => { const x = await exch(700, 100, 'CASH'); src = x.inv; res = x.r })
+  let src = null, res = null, preview = null
+  const { d, after } = await step('ترکیبی', async () => { const x = await exch(700, 100, 'CASH'); src = x.inv; res = x.r; preview = x.preview })
+  eq('پیش‌نمایش debtCut = ۳۰۰', preview?.debtReduction, 300)
+  eq('پیش‌نمایش: فقط ۲۰۰ وجه واقعی پس از debtCut', preview?.realMoneySurplus, 200)
+  eq('پیش‌نمایش اختلاف مؤثر = −۲۰۰', preview?.effectiveDiff, -200)
   const r = src ? retOf(src.id) : null
   eq('CashMovement بازپرداخت = ۲۰۰ (نه ۵۰۰)', r ? cashMoveOf(r.id) : -1, 200)
   eq('کاهش بدهی = ۳۰۰', Number(r?.debtReduction ?? -1), 300)
@@ -211,8 +222,10 @@ console.log('\n— ۵) پرداخت ۷۰۰، تعویض ۶۰۰ ⇒ ۱۰۰ بدو
 }
 console.log('\n— ۶) رگرسیون: فاکتور پرداخت‌شده‌ی ۱٬۰۰۰، تعویض ۶۰۰ ⇒ ۲۰۰ نقد ⇒ ۴۰۰ بازپرداخت، بدون کاهش بدهی')
 {
-  let src = null
-  const { d, after } = await step('پرداخت‌شده', async () => { src = (await exch(1000, 200, 'CASH')).inv })
+  let src = null, preview = null
+  const { d, after } = await step('پرداخت‌شده', async () => { const x = await exch(1000, 200, 'CASH'); src = x.inv; preview = x.preview })
+  eq('پیش‌نمایش debtCut = ۰', preview?.debtReduction, 0)
+  eq('پیش‌نمایش بازپرداخت واقعی = ۴۰۰', preview?.realMoneySurplus, 400)
   const r = src ? retOf(src.id) : null
   eq('CashMovement = ۴۰۰', r ? cashMoveOf(r.id) : -1, 400)
   eq('debtReduction = ۰', Number(r?.debtReduction ?? -1), 0)
@@ -247,7 +260,8 @@ console.log('\n— ۹) نسیه‌ی پرداخت‌نشده‌ی دو روز پ
     const inv = await twoItemSale(0); back(inv.id); src = inv
     await salesService.createExchange({ invoiceId: inv.id, lines: [{ saleItemId: itemsOf(inv.id)[0].id, qty: 1 }], replacements: [{ variantId: variant(200), qty: 1 }], refundMode: 'CASH', userId, shiftId })
   })
-  eq('هیچ پولی از کشو خارج نشد', src ? cashMoveOf(retOf(src.id).id) : -1, 0)
+  const r = src ? retOf(src.id) : null
+  eq('هیچ پولی از کشو خارج نشد', r ? cashMoveOf(r.id) : -1, 0)
   eq('ردیف «کاهش بدهی فاکتور دوره‌ی قبل» = ۴۰۰ (−)', d.priorDebtReturns, -400)
   closed(after)
 }

@@ -768,51 +768,112 @@ async function historicalDiscountWindows(
   return windows
 }
 
+type ExchangeRefundProjection = {
+  sourceCreditRestoration: number
+  sourceCreditClosedExpired: number
+  realMoneySurplus: number
+  debtReduction: number
+  realMoneyRefund: number
+  finalRefundValue: number
+  fundingTotal: number
+  effectiveDiff: number
+  exchangeCreditApplied: number
+  moneyAfterReplacement: Array<Extract<ExchangeFundingBucket, { kind: 'MONEY' }>>
+  consumedEligibleCreditBySource: Map<string, number>
+}
+
+/**
+ * R1-B01: settle the raw return/replacement difference against the source
+ * invoice's real remaining debt before treating any residual as a refund.
+ * N = return value, R = final replacement value, B = source debt.
+ */
+function exchangeDebtReduction(returnTotal: number, exchangeTotal: number, debtRemaining: number): number {
+  const N = Math.max(0, Math.round(Number(returnTotal) || 0))
+  const R = Math.max(0, Math.round(Number(exchangeTotal) || 0))
+  const B = Math.max(0, Math.round(Number(debtRemaining) || 0))
+  return Math.min(Math.max(N - R, 0), B)
+}
+
 function projectExchangeRefundValue(
   returnedFunding: ExchangeFundingBucket[],
   eligibleSourceCreditFunding: ExchangeFundingBucket[],
   exchangeTotal: number,
-  debtRemaining: number,
+  debtReduction: number,
   now: Date
-): { sourceCreditRestoration: number; sourceCreditClosedExpired: number; realMoneySurplus: number; debtReduction: number; realMoneyRefund: number; finalRefundValue: number } {
-  const moneyTotal = returnedFunding
-    .filter((bucket) => bucket.kind === 'MONEY')
-    .reduce((sum, bucket) => sum + bucket.amount, 0)
-  const eligibleCreditTotal = eligibleSourceCreditFunding
-    .filter((bucket) => bucket.kind === 'CREDIT')
-    .reduce((sum, bucket) => sum + bucket.amount, 0)
-  let replacementNeed = Math.min(exchangeTotal, moneyTotal + eligibleCreditTotal)
-  replacementNeed = Math.max(0, replacementNeed - Math.min(moneyTotal, replacementNeed))
-  const consumedBySource = new Map<string, number>()
-  for (const bucket of eligibleSourceCreditFunding) {
-    if (bucket.kind !== 'CREDIT' || replacementNeed <= 0) continue
+): ExchangeRefundProjection {
+  const moneyBuckets = returnedFunding.filter(
+    (bucket): bucket is Extract<ExchangeFundingBucket, { kind: 'MONEY' }> => bucket.kind === 'MONEY'
+  )
+  const debtBuckets = returnedFunding.filter(
+    (bucket): bucket is Extract<ExchangeFundingBucket, { kind: 'DEBT' }> => bucket.kind === 'DEBT'
+  )
+  const eligibleCreditBuckets = eligibleSourceCreditFunding.filter(
+    (bucket): bucket is Extract<ExchangeFundingBucket, { kind: 'CREDIT' }> => bucket.kind === 'CREDIT'
+  )
+  const moneyTotal = moneyBuckets.reduce((sum, bucket) => sum + bucket.amount, 0)
+  const eligibleCreditTotal = eligibleCreditBuckets.reduce((sum, bucket) => sum + bucket.amount, 0)
+  const debtFundingTotal = debtBuckets.reduce((sum, bucket) => sum + bucket.amount, 0)
+  const fundingTotal = moneyTotal + eligibleCreditTotal + debtFundingTotal
+  const replacementValue = Math.max(0, Math.round(Number(exchangeTotal) || 0))
+  const exchangeCreditApplied = Math.min(replacementValue, fundingTotal)
+  let replacementNeed = exchangeCreditApplied
+
+  // Match createExchange's order exactly: traced money, eligible source-credit,
+  // then explicitly debt-backed value. Debt is never converted to cash/credit.
+  const moneyAfterReplacement: Array<Extract<ExchangeFundingBucket, { kind: 'MONEY' }>> = []
+  for (const bucket of moneyBuckets) {
+    const consumed = Math.min(replacementNeed, bucket.amount)
+    replacementNeed -= consumed
+    if (bucket.amount > consumed)
+      moneyAfterReplacement.push({ ...bucket, amount: bucket.amount - consumed })
+  }
+
+  const consumedEligibleCreditBySource = new Map<string, number>()
+  for (const bucket of eligibleCreditBuckets) {
+    if (replacementNeed <= 0) break
     const consumed = Math.min(replacementNeed, bucket.amount)
     replacementNeed -= consumed
     if (consumed > 0)
-      consumedBySource.set(bucket.sourceKey, (consumedBySource.get(bucket.sourceKey) ?? 0) + consumed)
+      consumedEligibleCreditBySource.set(
+        bucket.sourceKey,
+        (consumedEligibleCreditBySource.get(bucket.sourceKey) ?? 0) + consumed
+      )
   }
+  for (const bucket of debtBuckets) {
+    if (replacementNeed <= 0) break
+    replacementNeed -= Math.min(replacementNeed, bucket.amount)
+  }
+  if (replacementNeed > 0)
+    throw new BusinessError('پشتوانهٔ مجاز برای مبلغ سند جایگزین کامل نیست؛ هیچ تعویضی ثبت نشد.')
+
   let sourceCreditRestoration = 0
   let sourceCreditClosedExpired = 0
+  const creditConsumptionLeft = new Map(consumedEligibleCreditBySource)
   for (const bucket of returnedFunding) {
     if (bucket.kind !== 'CREDIT') continue
-    const restore = Math.max(0, bucket.amount - Math.min(bucket.amount, consumedBySource.get(bucket.sourceKey) ?? 0))
+    const left = creditConsumptionLeft.get(bucket.sourceKey) ?? 0
+    const consumed = Math.min(bucket.amount, left)
+    if (consumed > 0) creditConsumptionLeft.set(bucket.sourceKey, left - consumed)
+    const restore = Math.max(0, bucket.amount - consumed)
     if (!restore) continue
     if (String(bucket.credit?.status ?? '') === CreditStatus.EXPIRED || isExpiredAt(bucket.credit, now))
       sourceCreditClosedExpired += restore
     else sourceCreditRestoration += restore
   }
-  const realMoneySurplus = Math.max(0, moneyTotal - exchangeTotal)
-  const debtReduction = Math.min(realMoneySurplus, Math.max(0, debtRemaining))
-  const realMoneyRefund = Math.max(0, realMoneySurplus - debtReduction)
+  const realMoneySurplus = moneyAfterReplacement.reduce((sum, bucket) => sum + bucket.amount, 0)
   return {
     sourceCreditRestoration,
     sourceCreditClosedExpired,
     realMoneySurplus,
     debtReduction,
-    realMoneyRefund,
-    // Total value actually returned/applied to the customer; source-credit
-    // returns are included as value but remain a separately labeled noncash leg.
-    finalRefundValue: sourceCreditRestoration + realMoneySurplus
+    realMoneyRefund: realMoneySurplus,
+    // Source credit remains a separately labeled, noncash restoration.
+    finalRefundValue: sourceCreditRestoration + realMoneySurplus,
+    fundingTotal,
+    effectiveDiff: replacementValue - fundingTotal,
+    exchangeCreditApplied,
+    moneyAfterReplacement,
+    consumedEligibleCreditBySource
   }
 }
 
@@ -1845,7 +1906,7 @@ async function exchangeRefundsAlreadyPaid(
   const prevEx = await tx.saleReturn.findMany({
     where: { invoiceId: sourceId, kind: ReturnKind.EXCHANGE, id: { not: exceptId }, voidedAt: null },
     select: {
-      id: true, exchangeDiff: true, debtReduction: true, refundAmount: true,
+      id: true, total: true, exchangeTotal: true, exchangeDiff: true, debtReduction: true, refundAmount: true,
       refundStoreCreditAmount: true, refundMethod: true, exchangeSettlement: true
     }
   })
@@ -1867,6 +1928,7 @@ async function exchangeRefundsAlreadyPaid(
 
 type ExchangeFundingBucket =
   | { kind: 'MONEY'; amount: number; sourceKey: string }
+  | { kind: 'DEBT'; amount: number; sourceKey: string }
   | {
       kind: 'CREDIT'; amount: number; credit: any; sourceKey: string
       sourceRedemptionId?: number; allocationSaleItemId?: number | null
@@ -1917,6 +1979,9 @@ async function exchangeInvoiceFundingBuckets(
       0
     )
     if (parentReturn && exchangeCreditAmount > 0) {
+      const inheritedDebtAllowance = allowDebtBackedRemainder
+        ? await exchangeChainDebtAvailable(tx, Number(parentReturn.invoiceId))
+        : undefined
       const inherited = await exchangeReturnFundingBuckets(
         tx,
         Number(parentReturn.invoiceId),
@@ -1925,14 +1990,16 @@ async function exchangeInvoiceFundingBuckets(
         nextVisited,
         parentReturn.items.map((item) => ({ saleItemId: item.saleItemId, variantId: item.variantId, value: toNumberRial(item.lineTotal) })),
         toNumberRial(parentReturn.debtReduction),
-        allowDebtBackedRemainder
+        allowDebtBackedRemainder,
+        inheritedDebtAllowance
       )
       // createExchange allocates replacement value MONEY-first, then source
       // credit. Preserve that exact order in descendants; otherwise a later
       // return could mistake barcode value for the money that actually funded B.
       const replacementFundingOrder = [
         ...inherited.filter((bucket) => bucket.kind === 'MONEY'),
-        ...inherited.filter((bucket) => bucket.kind === 'CREDIT')
+        ...inherited.filter((bucket) => bucket.kind === 'CREDIT'),
+        ...inherited.filter((bucket) => bucket.kind === 'DEBT')
       ]
       const transferred = takeExchangeFunding(replacementFundingOrder, exchangeCreditAmount)
       // The exchange invoice records returned value as an invoice-level
@@ -1979,7 +2046,8 @@ async function exchangeInvoiceFundingBuckets(
   // consume real MONEY first in createExchange, never turn credit into cash.
   return [
     ...buckets.filter((bucket) => bucket.kind === 'CREDIT'),
-    ...buckets.filter((bucket) => bucket.kind === 'MONEY')
+    ...buckets.filter((bucket) => bucket.kind === 'MONEY'),
+    ...buckets.filter((bucket) => bucket.kind === 'DEBT')
   ]
 }
 
@@ -2012,9 +2080,11 @@ async function planExchangeReturnFunding(
   rawLines: Array<{ saleItemId: number; variantId: number; value?: number }>,
   returnTotal: number,
   debtReduction = 0,
-  debtBackingAllowance = 0
+  debtBackingAllowance = 0,
+  debtBackingSourceKey = 'debt:exchange'
 ): Promise<ExchangeFundingBucket[]> {
   const moneyBuckets = buckets.filter((bucket) => bucket.kind === 'MONEY')
+  const debtBuckets = buckets.filter((bucket) => bucket.kind === 'DEBT')
   const creditBuckets = buckets.filter((bucket) => bucket.kind === 'CREDIT')
   const returnedValue = rawLines.reduce((sum, line) => sum + Math.max(0, Math.round(Number(line.value ?? 0))), 0)
   if (returnedValue !== Math.max(0, Math.round(returnTotal)))
@@ -2122,17 +2192,35 @@ async function planExchangeReturnFunding(
     .map(({ bucket }) => ({ ...bucket, amount: 0, allocationSaleItemId: null }))
   const allocatedMoney = takeExchangeFunding(moneyBuckets, plan.realMoneyRight)
   const moneyAvailable = allocatedMoney.reduce((sum, bucket) => sum + bucket.amount, 0)
-  const debtBackedRemainder = Math.max(0, plan.realMoneyRight - moneyAvailable)
-  if (debtBackedRemainder > Math.max(0, Math.round(debtBackingAllowance)))
+  const debtNeedAfterMoney = Math.max(0, plan.realMoneyRight - moneyAvailable)
+  const allocatedExistingDebt = takeExchangeFunding(debtBuckets, debtNeedAfterMoney)
+  const existingDebtAvailable = debtBuckets.reduce((sum, bucket) => sum + bucket.amount, 0)
+  const existingDebtApplied = allocatedExistingDebt.reduce((sum, bucket) => sum + bucket.amount, 0)
+  // Existing DEBT provenance already occupies part of the linked invoice debt;
+  // only the remaining debt balance can back a newly traced debt bucket.
+  const additionalDebtAllowance = Math.max(
+    0,
+    Math.max(0, Math.round(debtBackingAllowance)) - existingDebtAvailable
+  )
+  const debtBackedRemainder = Math.max(0, debtNeedAfterMoney - existingDebtApplied)
+  if (debtBackedRemainder > additionalDebtAllowance)
     throw new BusinessError(
-      `سهم وجه واقعیِ قابل‌تسویه ${money(plan.realMoneyRight)} ریال است، اما در زنجیره فقط ${money(moneyAvailable)} ریال وجه وصول‌شده و قابل‌ردیابی وجود دارد. ` +
-      'اعتبار، چکِ وصول‌نشده یا بدهی به‌جای پول واقعی بازپرداخت نمی‌شود.'
+      `سهم وجه واقعیِ قابل‌تسویه ${money(plan.realMoneyRight)} ریال است، اما در زنجیره فقط ${money(moneyAvailable)} ریال وجه وصول‌شده و ${money(existingDebtApplied)} ریال پشتوانهٔ بدهیِ ثبت‌شده پیدا شد. ` +
+      'اعتبار، چکِ وصول‌نشده یا بدهیِ بیش از ماندهٔ واقعی به‌جای پول واقعی بازپرداخت نمی‌شود.'
     )
+  const newlyBackedDebt: ExchangeFundingBucket[] = debtBackedRemainder > 0
+    ? [{ kind: 'DEBT', amount: debtBackedRemainder, sourceKey: debtBackingSourceKey }]
+    : []
 
-  // Return rights keep barcode provenance separate from real-money rights.
-  // The replacement allocation later consumes MONEY first; any remaining
-  // credit share is restored to its source (or a same-expiry successor).
-  return [...allocatedCredit, ...explicitZeroShares, ...allocatedMoney]
+  // Debt reduction itself is not a funding bucket. Any residual DEBT provenance
+  // can cover replacement value, but can never become cash or purchase credit.
+  return [
+    ...allocatedCredit,
+    ...explicitZeroShares,
+    ...allocatedMoney,
+    ...allocatedExistingDebt,
+    ...newlyBackedDebt
+  ]
 }
 
 async function exchangeLineageUsesOnlyInvoicePooledCredits(
@@ -2182,12 +2270,18 @@ async function exchangeReturnFundingBuckets(
   visited = new Set<number>(),
   returnedLines: Array<{ saleItemId: number; variantId: number; value?: number }> = [],
   debtReduction = 0,
-  allowDebtBackedRemainder = false
+  allowDebtBackedRemainder = false,
+  debtBackingAllowanceOverride?: number | null
 ): Promise<ExchangeFundingBucket[]> {
   const available = await exchangeInvoiceFundingBuckets(tx, invoiceId, visited, allowDebtBackedRemainder)
-  const debtBackingAllowance = allowDebtBackedRemainder
+  const linkedDebtAvailable = allowDebtBackedRemainder
     ? await exchangeChainDebtAvailable(tx, invoiceId)
     : 0
+  const debtBackingAllowance = !allowDebtBackedRemainder
+    ? 0
+    : debtBackingAllowanceOverride != null
+      ? Math.max(0, Math.round(Number(debtBackingAllowanceOverride)))
+      : Math.max(0, linkedDebtAvailable - Math.max(0, Math.round(debtReduction)))
   const previous = await tx.saleReturn.findMany({
     where: { invoiceId, ...(returnId == null ? {} : { id: { lt: returnId } }), voidedAt: null },
     orderBy: { id: 'asc' },
@@ -2210,6 +2304,7 @@ async function exchangeReturnFundingBuckets(
   const reversedRedemptionIds = new Set((priorRedemptions as any[])
     .filter((row) => row.reversedAt != null).map((row) => Number(row.id)))
   const allocationsByReturn = new Map<number, Array<{ redemptionId: number; amount: number }>>()
+  let unbucketedPriorDebtFunding = 0
   for (const row of priorCreditAllocations as any[]) {
     const id = Number(row.returnId)
     allocationsByReturn.set(id, [
@@ -2224,8 +2319,9 @@ async function exchangeReturnFundingBuckets(
     if (priorLinesTotal !== priorTotal)
       throw new BusinessError(`برگشت قبلی #${priorId} با ردیف‌هایش تطبیق ندارد؛ منشأ مالی تعویض با حدس بازسازی نشد و هیچ تغییری ثبت نشد.`)
 
-    const nonFundingReduction = Math.max(0,
-      toNumberRial(prior.debtReduction) + toNumberRial(prior.exchangeCreditReversed))
+    const priorDebtReduction = Math.max(0, toNumberRial(prior.debtReduction))
+    const priorExchangeCreditReversed = Math.max(0, toNumberRial(prior.exchangeCreditReversed))
+    const nonFundingReduction = priorDebtReduction + priorExchangeCreditReversed
     const fundedReturn = Math.max(0, priorTotal - nonFundingReduction)
     const creditAllocations = allocationsByReturn.get(priorId) ?? []
     const creditByRedemption = new Map<number, number>()
@@ -2275,13 +2371,12 @@ async function exchangeReturnFundingBuckets(
         throw new BusinessError(`برگشت قبلی #${priorId} به مصرف اعتبار #${sourceKey.slice('redemption:'.length)} اشاره دارد که در زنجیرهٔ مالی فعلی پیدا نشد؛ هیچ تغییری ثبت نشد.`)
     }
 
-    const moneyToRemove = fundedReturn - creditRemoved
+    const nonCreditFundingToRemove = Math.max(0, fundedReturn - creditRemoved)
+    const availableMoney = remaining
+      .filter((bucket): bucket is Extract<ExchangeFundingBucket, { kind: 'MONEY' }> => bucket.kind === 'MONEY')
+      .reduce((sum, bucket) => sum + bucket.amount, 0)
+    const moneyToRemove = Math.min(nonCreditFundingToRemove, availableMoney)
     if (moneyToRemove > 0) {
-      const availableMoney = remaining
-        .filter((bucket): bucket is Extract<ExchangeFundingBucket, { kind: 'MONEY' }> => bucket.kind === 'MONEY')
-        .reduce((sum, bucket) => sum + bucket.amount, 0)
-      if (moneyToRemove > availableMoney)
-        throw new BusinessError(`سهم وجه برگشت قبلی #${priorId} (${money(moneyToRemove)} ریال) از وجه باقی‌ماندهٔ زنجیره (${money(availableMoney)} ریال) بیشتر است؛ هیچ تعویضی ثبت نشد.`)
       let left = moneyToRemove
       remaining = remaining.flatMap((bucket) => {
         if (bucket.kind !== 'MONEY' || left <= 0) return [bucket]
@@ -2291,10 +2386,128 @@ async function exchangeReturnFundingBuckets(
         return keep > 0 ? [{ ...bucket, amount: keep } as ExchangeFundingBucket] : []
       })
     }
+
+    let debtFundingToRemove = Math.max(0, nonCreditFundingToRemove - moneyToRemove)
+    const availableDebt = remaining
+      .filter((bucket): bucket is Extract<ExchangeFundingBucket, { kind: 'DEBT' }> => bucket.kind === 'DEBT')
+      .reduce((sum, bucket) => sum + bucket.amount, 0)
+    const debtToRemove = Math.min(debtFundingToRemove, availableDebt)
+    if (debtToRemove > 0) {
+      let left = debtToRemove
+      remaining = remaining.flatMap((bucket) => {
+        if (bucket.kind !== 'DEBT' || left <= 0) return [bucket]
+        const remove = Math.min(left, bucket.amount)
+        left -= remove
+        const keep = bucket.amount - remove
+        return keep > 0 ? [{ ...bucket, amount: keep } as ExchangeFundingBucket] : []
+      })
+      debtFundingToRemove -= debtToRemove
+    }
+    if (debtFundingToRemove > 0) {
+      // Root invoices do not persist a DEBT bucket for a prior exchange's
+      // residual value. Validate it against the live linked debt, but do not
+      // pretend it was money or consume it from a descendant's buckets.
+      unbucketedPriorDebtFunding += debtFundingToRemove
+      if (!allowDebtBackedRemainder || unbucketedPriorDebtFunding > linkedDebtAvailable)
+        throw new BusinessError(
+          `سهم مالی برگشت قبلی #${priorId} (${money(nonCreditFundingToRemove)} ریال) از وجه و بدهیِ ثبت‌شدهٔ زنجیره ` +
+          `(${money(availableMoney)} ریال وجه، ${money(availableDebt)} ریال بدهی و ${money(linkedDebtAvailable)} ریال ماندهٔ واقعی بدهی) بیشتر است؛ هیچ تعویضی ثبت نشد.`
+        )
+    }
+
+    // An ordinary return from an exchange child reverses its debt-backed share
+    // on the parent chain. Remove that same share from inherited provenance too.
+    if (priorExchangeCreditReversed > 0) {
+      let left = priorExchangeCreditReversed
+      remaining = remaining.flatMap((bucket) => {
+        if (bucket.kind !== 'DEBT' || left <= 0) return [bucket]
+        const remove = Math.min(left, bucket.amount)
+        left -= remove
+        const keep = bucket.amount - remove
+        return keep > 0 ? [{ ...bucket, amount: keep } as ExchangeFundingBucket] : []
+      })
+    }
   }
   return planExchangeReturnFunding(
-    tx, remaining, returnedLines, returnTotal, debtReduction, debtBackingAllowance
+    tx, remaining, returnedLines, returnTotal, debtReduction, debtBackingAllowance, `debt:${invoiceId}`
   )
+}
+
+
+async function planExchangeFunding(
+  tx: Prisma.TransactionClient,
+  input: {
+    invoiceId: number
+    returnId: number | null
+    returnTotal: number
+    exchangeTotal: number
+    debtRemaining: number
+    returnedLines: Array<{ saleItemId: number; variantId: number; value?: number }>
+    replacements: any[]
+    now: Date
+    useInvoiceDebtOnly: boolean
+  }
+): Promise<{
+  returnedFunding: ExchangeFundingBucket[]
+  eligibleSourceCreditFunding: ExchangeFundingBucket[]
+  sourceCreditBuckets: Array<Extract<ExchangeFundingBucket, { kind: 'CREDIT' }>>
+  moneyFunding: Array<Extract<ExchangeFundingBucket, { kind: 'MONEY' }>>
+  debtFunding: Array<Extract<ExchangeFundingBucket, { kind: 'DEBT' }>>
+  fundingTotal: number
+  effectiveDiff: number
+  exchangeCreditApplied: number
+  debtReduction: number
+  moneyAfterReplacement: Array<Extract<ExchangeFundingBucket, { kind: 'MONEY' }>>
+  consumedEligibleCreditBySource: Map<string, number>
+  realMoneySurplus: number
+  refund: ExchangeRefundProjection
+}> {
+  const debtReduction = exchangeDebtReduction(input.returnTotal, input.exchangeTotal, input.debtRemaining)
+  const directDebtAllowance = input.useInvoiceDebtOnly
+    ? Math.max(0, Math.round(Number(input.debtRemaining) || 0) - debtReduction)
+    : undefined
+  const returnedFunding = await exchangeReturnFundingBuckets(
+    tx,
+    input.invoiceId,
+    input.returnId,
+    input.returnTotal,
+    new Set<number>(),
+    input.returnedLines,
+    debtReduction,
+    true,
+    directDebtAllowance
+  )
+  const eligibleSourceCreditFunding = await planReplacementSourceCredit(
+    tx, returnedFunding, input.replacements, input.exchangeTotal, input.now
+  )
+  const refund = projectExchangeRefundValue(
+    returnedFunding,
+    eligibleSourceCreditFunding,
+    input.exchangeTotal,
+    debtReduction,
+    input.now
+  )
+  return {
+    returnedFunding,
+    eligibleSourceCreditFunding,
+    sourceCreditBuckets: returnedFunding.filter(
+      (bucket): bucket is Extract<ExchangeFundingBucket, { kind: 'CREDIT' }> => bucket.kind === 'CREDIT'
+    ),
+    moneyFunding: returnedFunding.filter(
+      (bucket): bucket is Extract<ExchangeFundingBucket, { kind: 'MONEY' }> => bucket.kind === 'MONEY'
+    ),
+    debtFunding: returnedFunding.filter(
+      (bucket): bucket is Extract<ExchangeFundingBucket, { kind: 'DEBT' }> => bucket.kind === 'DEBT'
+    ),
+    fundingTotal: refund.fundingTotal,
+    effectiveDiff: refund.effectiveDiff,
+    exchangeCreditApplied: refund.exchangeCreditApplied,
+    debtReduction,
+    moneyAfterReplacement: refund.moneyAfterReplacement,
+    consumedEligibleCreditBySource: refund.consumedEligibleCreditBySource,
+    realMoneySurplus: refund.realMoneySurplus,
+    refund
+  }
 }
 
 async function restoreExchangeCreditSource(
@@ -7523,6 +7736,7 @@ export const salesService = {
       serviceCharge?: number
       nominalDiff?: number
       effectiveDiff?: number
+      debtReduction?: number
       exchangeCreditApplied?: number
       realMoneySurplus?: number
       sourceCreditRestoration?: number
@@ -7597,13 +7811,6 @@ export const salesService = {
         const debt = await invoiceRemaining(
           tx, invoice.id, toNumberRial(invoice.grandTotal), receivedTotalOf(paymentRows as any[])
         )
-        // FAIL 1 fix (Claude low-risk): برگشتِ تعویض بدهیِ فاکتورِ مبدأ را کم نمی‌کند؛
-        // debtReduction فقط در مسیر جداگانهٔ debtCut و از مازادِ واقعی کم می‌شود.
-        // پیش‌نمایش باید مثلِ ثبت، funding را بدونِ کم‌کردنِ بدهی بسازد.
-        const debtReduction = 0
-        const returnedFunding = await exchangeReturnFundingBuckets(
-          tx, Number(invoice.id), null, returnTotal, new Set<number>(), returnedLines, debtReduction
-        )
         const previewVariants = await loadProductVariantsByIds(tx, replacements.map((line) => Number(line.variantId)), {
           id: true, salePrice: true
         })
@@ -7639,13 +7846,17 @@ export const salesService = {
           const taxTotal = exchangeScope === 'pos' ? charges.taxPerLine.reduce((sum, tax) => sum + tax, 0) : charges.taxTotal
           const adjustedTotal = Math.max(0, goods - discounts - invoiceDiscount + taxTotal + charges.serviceTotal)
           if (!Number.isSafeInteger(adjustedTotal)) throw new BusinessError('جمع جایگزین برای پیش‌نمایش معتبر نیست.')
-          const eligible = await planReplacementSourceCredit(tx, returnedFunding, adjustedLines, adjustedTotal, now)
-          const moneyTotal = returnedFunding
-            .filter((bucket) => bucket.kind === 'MONEY')
-            .reduce((sum, bucket) => sum + bucket.amount, 0)
-          const eligibleCreditTotal = eligible.reduce((sum, bucket) => sum + bucket.amount, 0)
-          const fundingTotal = moneyTotal + eligibleCreditTotal
-          const refund = projectExchangeRefundValue(returnedFunding, eligible, adjustedTotal, debt.remaining, now)
+          const funding = await planExchangeFunding(tx, {
+            invoiceId: Number(invoice.id),
+            returnId: null,
+            returnTotal,
+            exchangeTotal: adjustedTotal,
+            debtRemaining: debt.remaining,
+            returnedLines,
+            replacements: adjustedLines,
+            now,
+            useInvoiceDebtOnly: invoice.orderType !== OrderType.EXCHANGE
+          })
           return {
             allocations,
             exchangeTotal: adjustedTotal,
@@ -7654,13 +7865,13 @@ export const salesService = {
             serviceCharge: charges.serviceTotal,
             replacementDiscounts: adjustedLines.map((line) => line.discount),
             replacementUnitPrices: adjustedLines.map((line) => line.unitPrice),
-            eligible,
-            moneyTotal,
-            eligibleCreditTotal,
-            fundingTotal,
-            refund,
-            effectiveDiff: adjustedTotal - fundingTotal,
-            exchangeCreditApplied: Math.min(adjustedTotal, fundingTotal)
+            eligible: funding.eligibleSourceCreditFunding,
+            moneyTotal: funding.moneyFunding.reduce((sum, bucket) => sum + bucket.amount, 0),
+            eligibleCreditTotal: funding.eligibleSourceCreditFunding.reduce((sum, bucket) => sum + bucket.amount, 0),
+            fundingTotal: funding.fundingTotal,
+            refund: funding.refund,
+            effectiveDiff: funding.effectiveDiff,
+            exchangeCreditApplied: funding.exchangeCreditApplied
           }
         }
 
@@ -7716,6 +7927,7 @@ export const salesService = {
           serviceCharge: selected.serviceCharge,
           nominalDiff: baseExchangeTotal - returnTotal,
           effectiveDiff: selected.effectiveDiff,
+          debtReduction: selected.refund.debtReduction,
           exchangeCreditApplied: selected.exchangeCreditApplied,
           realMoneySurplus: selected.refund.realMoneySurplus,
           sourceCreditRestoration: selected.refund.sourceCreditRestoration,
@@ -7978,6 +8190,13 @@ export const salesService = {
       const source = back.invoice
       const returnTotal = toNumberRial(back.total)
       const now = new Date()
+      const sourcePaymentRows = await tx.payment.findMany({
+        where: { invoiceId: source.id, voidedAt: null },
+        select: { amount: true, kind: true, chequeStatus: true }
+      })
+      const sourceDebt = await invoiceRemaining(
+        tx, source.id, toNumberRial(source.grandTotal), receivedTotalOf(sourcePaymentRows as any[])
+      )
 
       // ---------- ۲) قیمت اقلام جایگزین ----------
       const variantIds = [...new Set(replacements.map((r) => Number(r.variantId)))]
@@ -8082,19 +8301,28 @@ export const salesService = {
         throw new BusinessError('جمع سند تعویض پس از تخفیف منفی می‌شود؛ تعویض ثبت نشد.')
       assertSafeInteger(exTotals.grandTotal, 'جمع سند تعویض پس از انتقال تخفیف', 0)
       const exchangeTotal = exTotals.grandTotal
-      const returnedFunding = await exchangeReturnFundingBuckets(
-        tx,
-        Number(source.id),
-        Number(back.id),
+      const fundingPlan = await planExchangeFunding(tx, {
+        invoiceId: Number(source.id),
+        returnId: Number(back.id),
         returnTotal,
-        new Set<number>(),
-        back.returnedLines.map((line: any) => ({
+        exchangeTotal,
+        debtRemaining: sourceDebt.remaining,
+        returnedLines: back.returnedLines.map((line: any) => ({
           saleItemId: Number(line.saleItemId),
           variantId: Number(line.variantId),
           value: toNumberRial(line.lineTotal)
         })),
-        toNumberRial((back as any).debtReduction ?? 0)
-      )
+        replacements: repLines,
+        now,
+        useInvoiceDebtOnly: source.orderType !== OrderType.EXCHANGE
+      })
+      const sourceCreditBuckets = fundingPlan.sourceCreditBuckets
+      const moneyAfterReplacement = fundingPlan.moneyAfterReplacement
+      const consumedEligibleCreditBySource = fundingPlan.consumedEligibleCreditBySource
+      const exchangeCreditApplied = fundingPlan.exchangeCreditApplied
+      const diff = fundingPlan.effectiveDiff
+      const debtCut = fundingPlan.debtReduction
+      const realMoneySurplusBeforeDebt = fundingPlan.realMoneySurplus
       const discountWindows = await historicalDiscountWindows(tx, source, back.returnRecord)
       const historicalDiscount = discountWindows.reduce((sum, window) => sum + window.historicalDiscount, 0)
       const baseReplacementInput = { ...input, replacements: rawReplacements }
@@ -8132,26 +8360,8 @@ export const salesService = {
       if (childTransferRemaining.some((amount) => amount > 0))
         throw new BusinessError('تخصیص مبلغ انتقالی میان ردیف‌های مبدأ و جایگزین کامل نشد؛ تعویض ثبت نشد.')
       const nominalDiff = baseExchangeTotal - returnTotal
-      const eligibleSourceCreditFunding = await planReplacementSourceCredit(
-        tx, returnedFunding, repLines, exchangeTotal, now
-      )
-      const moneyFunding = returnedFunding.filter(
-        (bucket): bucket is Extract<ExchangeFundingBucket, { kind: 'MONEY' }> => bucket.kind === 'MONEY'
-      )
-      const sourceCreditBuckets = returnedFunding.filter(
-        (bucket): bucket is Extract<ExchangeFundingBucket, { kind: 'CREDIT' }> => bucket.kind === 'CREDIT'
-      )
-      const moneyFundingTotal = moneyFunding.reduce((sum, bucket) => sum + bucket.amount, 0)
-      const eligibleCreditTotal = eligibleSourceCreditFunding.reduce((sum, bucket) => sum + bucket.amount, 0)
-      const eligibleFundingTotal = moneyFundingTotal + eligibleCreditTotal
-      const exchangeCreditApplied = Math.min(exchangeTotal, eligibleFundingTotal)
-      // Only actual money can leave the exchange as a refund. Any unused or
-      // out-of-scope source credit is restored separately with its own scope.
-      const realMoneySurplusBeforeDebt = Math.max(0, moneyFundingTotal - exchangeTotal)
-      // This is the actual value gap after keeping out-of-scope credit aside.
-      // Credit surplus remains a separate noncash restoration; it is not paid as
-      // money, but it still contributes to the returned-value difference.
-      const diff = exchangeTotal - eligibleFundingTotal
+      // The shared planner includes the final replacement value and the source's
+      // current debt. DEBT is kept separate from real money and source-credit.
       if (input.expectedSettlementDiff != null &&
         (!Number.isSafeInteger(Number(input.expectedSettlementDiff)) || Number(input.expectedSettlementDiff) !== diff))
         throw new BusinessError(
@@ -8159,26 +8369,6 @@ export const salesService = {
         )
       if (requestedPayoutAmount != null && diff >= 0)
         throw new BusinessError('مبلغ بازپرداخت جزئی فقط برای مابه‌التفاوت منفی قابل ثبت است؛ تعویض تغییری نکرد.')
-
-      let replacementNeed = exchangeCreditApplied
-      const moneyAfterReplacement: Extract<ExchangeFundingBucket, { kind: 'MONEY' }>[] = []
-      for (const bucket of moneyFunding) {
-        const consumed = Math.min(replacementNeed, bucket.amount)
-        replacementNeed -= consumed
-        if (bucket.amount > consumed)
-          moneyAfterReplacement.push({ ...bucket, amount: bucket.amount - consumed })
-      }
-      const consumedEligibleCreditBySource = new Map<string, number>()
-      for (const bucket of eligibleSourceCreditFunding) {
-        if (replacementNeed <= 0) break
-        const consumed = Math.min(replacementNeed, bucket.amount)
-        replacementNeed -= consumed
-        if (consumed > 0)
-          consumedEligibleCreditBySource.set(bucket.sourceKey,
-            (consumedEligibleCreditBySource.get(bucket.sourceKey) ?? 0) + consumed)
-      }
-      if (replacementNeed > 0)
-        throw new BusinessError('پشتوانهٔ مجاز برای مبلغ سند جایگزین کامل نیست؛ هیچ تعویضی ثبت نشد.')
 
       const creditConsumptionLeft = new Map(consumedEligibleCreditBySource)
       const consumedSourceCreditBuckets: Extract<ExchangeFundingBucket, { kind: 'CREDIT' }>[] = []
@@ -8384,8 +8574,7 @@ export const salesService = {
       let sourceCreditClosedExpiredAmount = 0
       let realMoneyRefundAmount = 0
       let exchangeCreditRefundAmount = 0
-      /** نشست ۶۰ (بند ۴-۵) — بخشی از مابه‌التفاوت منفی که از بدهی فاکتور اصلی کم شد */
-      let debtCut = 0
+      /** نشست ۶۰ / R1-B01 — کاهش بدهی واقعی که پیش از funding محاسبه شد */
       let appliedRefundMode: string | null = refundMode
 
       // Return every source-credit share that was not actually consumed on an
@@ -8456,39 +8645,6 @@ export const salesService = {
           policyVersion: RETURN_CREDIT_POLICY_VERSION,
           createdAt: now
         } })
-      }
-
-      // D+C کم‌ریسک: برای تعویضِ مثبت (B) که فاکتورِ مبدأ خودش فرزندِ تعویض است،
-      // یک ردیفِ صفرِ invoice-wide (ALL pooled) ثبت می‌کنیم تا زنجیرهٔ بعدی (C+D)
-      // بتواند pool را بازسازی کند. مبلغ صفر است پس هیچ اثرِ مالی ندارد؛ فقط
-      // lineage را حفظ می‌کند. این دقیقاً پیشنهادِ «ردیف صفر» مشاورِ مستقل است.
-      if (diff > 0 && Number(source.sourceInvoiceId) > 0 && String(source.orderType) === 'EXCHANGE') {
-        try {
-          const provenanceBucket = eligibleSourceCreditFunding.find((bucket) => Number(bucket.sourceRedemptionId) > 0) ??
-            sourceCreditBuckets.find((bucket) => Number(bucket.sourceRedemptionId) > 0)
-          if (provenanceBucket && Number(provenanceBucket.sourceRedemptionId) > 0 && Number(provenanceBucket.credit?.id) > 0) {
-            const provenanceEventKey = `exchange-return-credit:v${RETURN_CREDIT_POLICY_VERSION}:r${back.id}:d${provenanceBucket.sourceRedemptionId}:iNO_SHARE`
-            const existingProvenance = await (tx as any).creditReturnAllocation.findUnique({ where: { eventKey: provenanceEventKey } }).catch(() => null)
-            if (!existingProvenance) {
-              await tx.creditReturnAllocation.create({ data: {
-                eventKey: provenanceEventKey,
-                invoiceId: Number(source.id),
-                returnId: Number(back.id),
-                redemptionId: Number(provenanceBucket.sourceRedemptionId),
-                sourceCreditId: Number(provenanceBucket.credit.id),
-                amount: 0,
-                creditRestored: false,
-                settlementAdjusted: false,
-                restrictScope: String(provenanceBucket.credit.restrictScope ?? 'ALL'),
-                saleItemId: null,
-                policyVersion: RETURN_CREDIT_POLICY_VERSION,
-                createdAt: now
-              } })
-            }
-          }
-        } catch {
-          // ردیفِ صفر فقط lineage است؛ اگر به هر دلیل ثبت نشد، تعویض نباید بشکند.
-        }
       }
 
       finalRefundValue = sourceCreditRestoredAmount + realMoneySurplusBeforeDebt
@@ -8648,18 +8804,10 @@ export const salesService = {
          * داده ــ با روش انتخابی (نقد/کارت/کارت‌به‌کارت/اعتبار) پس داده می‌شود.
          * کاهش بدهی هیچ پولی جابه‌جا نمی‌کند ⇒ نه CashMovement، نه اعتبار.
          */
-        const owedTotal = -diff
-        const srcRows = await tx.payment.findMany({
-          // ممیزی A88-03 — بدهی فاکتور مبدأ بدون پرداخت‌های باطل
-          where: { invoiceId: source.id, voidedAt: null },
-          select: { amount: true, kind: true, chequeStatus: true }
-        })
-        const srcDebt = await invoiceRemaining(tx, source.id, toNumberRial(source.grandTotal), receivedTotalOf(srcRows))
-        // Only surplus real money can reduce source debt; source-credit value
-        // remains credit and is restored through its original scope separately.
-        const realMoneySurplus = realMoneySurplusBeforeDebt
-        debtCut = Math.min(realMoneySurplus, Math.max(0, srcDebt.remaining))
-        const owed = realMoneySurplus - debtCut
+        // debtCut was computed from U=max(N-R,0) and the live source debt B.
+        // Only source-traced money remaining after replacement can be paid out;
+        // debt reduction and source-credit restoration are not payout funds.
+        const owed = realMoneySurplusBeforeDebt
         if (owed > 0) {
           // The shared return policy first separates source-credit value from
           // real-money value. Replacement consumes the money portion first;
@@ -8678,16 +8826,11 @@ export const salesService = {
 
           const moneySurplus = backedSurplus.reduce((sum, bucket) => sum + bucket.amount, 0)
           realMoneyRefundAmount = moneySurplus
-          if (owed > 0 && moneySurplus > 0 && !appliedRefundMode) {
-            if (settlementDecision === 'UNSELECTED')
-              throw new BusinessError(
-                `برای این تعویض ${money(moneySurplus)} ریال وجه واقعیِ قابل‌تسویه وجود دارد، اما فروشنده روش را انتخاب نکرده است. ` +
-                'نقد، کارت، اعتبار خرید یا کارت‌به‌کارت مدیر را صریحاً انتخاب کنید؛ هیچ برگشت، پرداخت، اعتبار یا حرکت موجودی ثبت نشد.'
-              )
-            // Compatibility for legacy callers that do not send the new
-            // decision marker. The current UI always sends it explicitly.
-            appliedRefundMode = RefundMethod.STORE_CREDIT
-          }
+          if (owed > 0 && moneySurplus > 0 && !appliedRefundMode)
+            throw new BusinessError(
+              `برای این تعویض ${money(moneySurplus)} ریال وجه واقعیِ قابل‌تسویه وجود دارد، اما روش بازپرداخت انتخاب نشده است. ` +
+              'نقد، کارت، اعتبار خرید یا کارت‌به‌کارت مدیر را صریحاً انتخاب کنید؛ هیچ برگشت، پرداخت، اعتبار یا حرکت موجودی ثبت نشد.'
+            )
 
           // Source-credit shares (including expired portions) have already been
           // returned to their own source or closed without cash by this point.
@@ -8777,6 +8920,11 @@ export const salesService = {
             ? ExchangeSettlement.CREDIT
             : debtCut > 0 ? ExchangeSettlement.DEBT_REDUCTION : ExchangeSettlement.NONE
         }
+      } else {
+        // Zero effective difference can still contain a real source-debt cut.
+        settlement = sourceCreditRestoredAmount > 0
+          ? ExchangeSettlement.CREDIT
+          : debtCut > 0 ? ExchangeSettlement.DEBT_REDUCTION : ExchangeSettlement.NONE
       }
 
       /** بند ۱۸ — قیمت دستی، با قیمت واقعی و قیمت واردشده، در AuditLog */
@@ -9014,15 +9162,15 @@ export const salesService = {
               `${barcodeCreditApplied > 0 && cashDue > 0 ? ' و ' : ''}` +
               `${cashDue > 0 ? `${money(cashDue)} ریال از مشتری دریافت شد` : ''}`
             : diff < 0
-              ? (debtCut > 0 ? `${money(debtCut)} ریال از بدهی فاکتور اصلی کم شد` : '') +
-                (debtCut > 0 && -diff - debtCut > 0 ? ' و ' : '') +
-                (-diff - debtCut > 0
-                  ? credit
-                    ? `${money(-diff - debtCut)} ریال اعتبار #${credit.id} صادر شد`
-                    : cardToCard > 0
-                      ? `${money(cardToCard)} ریال کارت‌به‌کارت مدیر (در انتظار)`
-                      : `${money(cashRefunded + cardRefunded)} ریال ${appliedRefundMode === 'CARD' ? 'به کارت مشتری' : 'نقد از صندوق'} برگشت`
-                  : '')
+              ? [
+                  debtCut > 0 ? `${money(debtCut)} ریال از بدهی فاکتور اصلی کم شد` : '',
+                  sourceCreditRestoredAmount > 0 ? `${money(sourceCreditRestoredAmount)} ریال اعتبارِ منشأ بازگردانده شد` : '',
+                  exchangeCreditRefundAmount > 0 ? `${money(exchangeCreditRefundAmount)} ریال اعتبار جدید صادر شد` : '',
+                  cardToCard > 0 ? `${money(cardToCard)} ریال کارت‌به‌کارت مدیر (در انتظار)` : '',
+                  cashRefunded + cardRefunded > 0
+                    ? `${money(cashRefunded + cardRefunded)} ریال ${appliedRefundMode === 'CARD' ? 'به کارت مشتری' : 'نقد از صندوق'} برگشت`
+                    : ''
+                ].filter(Boolean).join(' و ')
               : 'مابه‌التفاوت صفر بود') +
           (stockWarnings.length ? ' · با کمبود موجودی کالای جایگزین' : '') +
           // جلسه ۵۰ · مرحله ۱-ب — همان جمله‌ای که پنل و گزارش نشان می‌دهند
@@ -11208,6 +11356,8 @@ export const salesService = {
         const exchangeSettlement = String(ret.exchangeSettlement ?? '')
         const exchangeRefund = exchangeRefundPartOf({
           exchangeDiff,
+          total: ret.total,
+          exchangeTotal: ret.exchangeTotal,
           debtReduction: ret.debtReduction ?? 0,
           refundAmount: ret.refundAmount ?? null,
           refundStoreCreditAmount: ret.refundStoreCreditAmount ?? 0

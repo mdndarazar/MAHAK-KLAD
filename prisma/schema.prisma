@@ -815,7 +815,8 @@ model SaleReturn {
   refundPaymentId    Int?
   /// نشست ۶۰ · خوشه B (بند ۴-۵) — فقط برای تعویض (kind = EXCHANGE): بخشی از
   /// مابه‌التفاوت منفی که به‌جای پرداخت پول، از بدهی فاکتور اصلی کم شد.
-  /// همیشه ≤ −exchangeDiff؛ بخش بازپرداخت‌شده = −exchangeDiff − debtReduction.
+  /// سقف آن اختلاف خام U=max(0,total−exchangeTotal) است، نه exchangeDiff؛ چون
+  /// exchangeDiff اختلاف مؤثر پس از funding است. کاهش بدهی جابه‌جایی وجه نیست.
   /// پیش‌فرض ۰ ⇒ همه‌ی تعویض‌های قبلی دقیقاً مثل قبل.
   debtReduction      BigInt    @default(0)
   /// Invoice-level value of synthetic EXCHANGE_CREDIT reversed by a return on this child invoice.

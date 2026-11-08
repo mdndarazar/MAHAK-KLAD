@@ -638,7 +638,7 @@ export default function SalesReturn() {
           qty: line.qty,
           unitPrice: line.unitPrice,
           discount: Math.max(0, Math.round(line.discount)),
-          tax: exFundingPreview.replacementTaxes?.[index] ?? (exCharges.taxPerLine[index] != null && exScope === 'pos' ? exCharges.taxPerLine[index] : 0)
+          tax: exScope === 'pos' ? exCharges.taxPerLine[index] ?? 0 : 0
         })),
         invoiceTax: exScope === 'wholesale' ? exCharges.taxTotal : 0,
         serviceCharge: exCharges.serviceTotal,

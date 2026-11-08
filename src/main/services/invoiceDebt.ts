@@ -37,7 +37,7 @@ export async function debtAdjustmentsByInvoice(client: Client, ids: number[], as
     const rets = await (client as any).saleReturn.findMany({
       // نشست ۶۴ · بند ۴-۲۲ — برگشت باطل‌شده بدهی را کم نمی‌کند
       where: { invoiceId: { in: chunk }, voidedAt: null, ...(asOf ? { returnedAt: { lte: asOf } } : {}) },
-      select: { id: true, invoiceId: true, kind: true, total: true, refundMethod: true, refundAmount: true, exchangeDiff: true, debtReduction: true, exchangeCreditReversed: true }
+      select: { id: true, invoiceId: true, kind: true, total: true, exchangeTotal: true, refundMethod: true, refundAmount: true, exchangeDiff: true, debtReduction: true, exchangeCreditReversed: true }
     })
     if (!rets.length) continue
     /**

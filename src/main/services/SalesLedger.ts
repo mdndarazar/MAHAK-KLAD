@@ -389,7 +389,8 @@ export const salesLedger = {
         const replacementQty = r.exchangeInvoiceId != null ? exQty.get(r.exchangeInvoiceId) ?? 0 : 0
         /** نشست ۶۰ (بند ۴-۵/۴-۴۹) — فقط بخش بازپرداخت‌شده؛ کاهش بدهی فاکتور اصلی پول نیست */
         const refundPart = exchangeRefundPartOf({
-          exchangeDiff: diff, debtReduction: (r as any).debtReduction,
+          exchangeDiff: diff, total: r.total, exchangeTotal: r.exchangeTotal,
+          debtReduction: (r as any).debtReduction,
           refundAmount: r.refundAmount, refundStoreCreditAmount: (r as any).refundStoreCreditAmount
         })
         const debtCut = Math.max(0, n((r as any).debtReduction))

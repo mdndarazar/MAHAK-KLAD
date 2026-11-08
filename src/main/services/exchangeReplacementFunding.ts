@@ -5,6 +5,7 @@ import type { Prisma } from '@prisma/client'
 
 type FundingBucket =
   | { kind: 'MONEY'; amount: number; sourceKey: string }
+  | { kind: 'DEBT'; amount: number; sourceKey: string }
   | {
       kind: 'CREDIT'; amount: number; credit: any; sourceKey: string
       sourceRedemptionId?: number; allocationSaleItemId?: number | null

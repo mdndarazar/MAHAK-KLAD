@@ -611,6 +611,8 @@ async function returnStatement(scope: StatementScope): Promise<ReturnTotals & { 
          */
         const refunded = exchangeRefundPartOf({
           exchangeDiff: diff,
+          total: n(r._sum.total),
+          exchangeTotal: n(r._sum.exchangeTotal),
           debtReduction: n((r._sum as any).debtReduction),
           refundAmount: (r._sum as any).refundAmount == null ? null : n((r._sum as any).refundAmount),
           refundStoreCreditAmount: n((r._sum as any).refundStoreCreditAmount)
@@ -659,7 +661,7 @@ async function returnStatement(scope: StatementScope): Promise<ReturnTotals & { 
     },
     select: {
       id: true, kind: true, refundAmount: true, refundStoreCreditAmount: true,
-      exchangeDiff: true, debtReduction: true, total: true
+      exchangeDiff: true, exchangeTotal: true, debtReduction: true, total: true
     }
   })
   if (c2cRets.length) {
@@ -677,6 +679,7 @@ async function returnStatement(scope: StatementScope): Promise<ReturnTotals & { 
         r.kind === ReturnKind.EXCHANGE
           ? exchangeRefundPartOf({
               exchangeDiff: n(r.exchangeDiff),
+              total: n(r.total), exchangeTotal: n(r.exchangeTotal),
               debtReduction: n(r.debtReduction),
               refundAmount: r.refundAmount == null ? null : n(r.refundAmount),
               refundStoreCreditAmount: n(r.refundStoreCreditAmount)
@@ -1415,7 +1418,7 @@ async function returnBridgeItems(scope: StatementScope): Promise<ReturnBridgeIte
     select: {
       id: true, invoiceId: true, kind: true, total: true, refundMethod: true,
       refundAmount: true, refundStoreCreditAmount: true,
-      exchangeDiff: true, exchangeSettlement: true, debtReduction: true,
+      exchangeTotal: true, exchangeDiff: true, exchangeSettlement: true, debtReduction: true,
       returnedAtJalali: true, invoice: { select: { receiptNo: true } }
     },
     orderBy: { id: 'asc' }
