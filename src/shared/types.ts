@@ -2386,6 +2386,9 @@ export interface ExchangeSaleResult {
   refundMode?: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | 'NONE' | null
   /** تعدادی که به موجودی فروشگاه برگشت */
   restockedQty: number
+  /** کالاهای برگشتیِ معلق برای تأیید انبار */
+  restockPending?: boolean
+  pendingRestockQty?: number
   /** هشدارهای موجودی کالای جایگزین */
   stockWarnings: string[]
   /**

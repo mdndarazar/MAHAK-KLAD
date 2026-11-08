@@ -7477,7 +7477,7 @@ export const salesService = {
       !isPastTehranExpiryDate(policy.returnCodeExpiresAt, now)
     )
 
-    let invoice: any = validCodeCandidate?.row ?? null
+    let invoice = validCodeCandidate?.row ?? null
     let lookupKind: ReturnLookup['lookupKind'] | null = validCodeCandidate ? 'RETURN_CODE' : null
     let deadlinePolicy = validCodeCandidate?.policy ?? null
 
@@ -11532,7 +11532,7 @@ export const salesService = {
       let originalCashOrCardOut = 0
       let originalCashOrCardIn = 0
       /** درخواست معلق پول هنوز جابه‌جا نشده است؛ با اصلاح گراف باید صریحاً لغو شود. */
-      let pendingCardTransfer: { id: number; amount: number | bigint } | null = null
+      const pendingCardTransferState: { value: { id: number; amount: number | bigint } | null } = { value: null }
       const refundMethod = String(ret.refundMethod ?? '')
       /**
        * درخواست کارت‌به‌کارت یک تعهد/جریان جداست: PENDING هنوز پرداخت نشده و
@@ -11553,7 +11553,7 @@ export const salesService = {
         if (request.status === CardTransferStatus.PENDING) {
           if (request.paidAt != null || request.paidAmount != null)
             throw new BusinessError('درخواست کارت‌به‌کارت این سند هم‌زمان «در انتظار» و دارای پرداخت ثبت‌شده است؛ مبلغ بازیافتی حدس زده نمی‌شود و رسیدگی دستی مدیر لازم است.')
-          pendingCardTransfer = { id: request.id, amount: request.amount }
+          pendingCardTransferState.value = { id: request.id, amount: request.amount }
           return 0
         }
         if (request.status === CardTransferStatus.CANCELED) {
@@ -11729,6 +11729,7 @@ export const salesService = {
        * اگر با اصلاح سند زنده بماند، مدیر بعداً برای معامله‌ای که برگردانده
        * شده پول می‌پردازد؛ پس آن را با دلیلِ خودِ اثر جبرانی لغو و ثبت می‌کنیم.
        */
+      const pendingCardTransfer = pendingCardTransferState.value
       if (pendingCardTransfer) {
         await tx.cardTransferRequest.update({
           where: { id: pendingCardTransfer.id },
@@ -12030,7 +12031,11 @@ export const salesService = {
       include: { effects: { orderBy: { id: 'asc' } }, return: { select: { invoiceId: true, returnedAtJalali: true, total: true } } },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
     })
-    const userIds = [...new Set(rows.flatMap((row: any) => [row.originalUserId, row.correctingUserId, row.approvingManagerId]).filter(Boolean))]
+    const userIds = [...new Set<number>(
+      rows.flatMap((row: any) => [row.originalUserId, row.correctingUserId, row.approvingManagerId])
+        .map((id: unknown) => Number(id))
+        .filter((id: number) => Number.isSafeInteger(id) && id > 0)
+    )]
     const users = userIds.length
       ? await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, displayName: true } })
       : []
@@ -12206,7 +12211,7 @@ export const salesService = {
         sourceLabel: CREDIT_ISSUE_REASON_LABELS[creditIssueReasonOf(credit)],
         status,
         statusLabel: CREDIT_STATUS_LABELS[status] ?? status,
-        remaining: creditRemainingOf({ amount: toNumberRial(credit.amount), usedAmount: toNumberRial(credit.usedAmount) })
+        remaining: creditRemainingOf({ amount: toNumberRial(credit.amount), usedAmount: toNumberRial(credit.usedAmount), status: String(credit.status ?? 'ACTIVE') })
       }
     }
     const rows: CreditSettlementLineageView['rows'] = []
