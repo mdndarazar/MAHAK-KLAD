@@ -45,6 +45,8 @@ jobs:
 
       - name: Validate Prisma schema
         shell: pwsh
+        env:
+          DATABASE_URL: file:./ci-validation.db
         run: |
           npx prisma validate *>&1 | Tee-Object -FilePath prisma-validation.log
           $validateExit = $LASTEXITCODE
@@ -56,6 +58,8 @@ jobs:
           }
 
       - name: Generate Prisma Client
+        env:
+          DATABASE_URL: file:./ci-validation.db
         run: npm run db:generate
 
       - name: Apply Prisma migrations to a clean temporary SQLite database
@@ -103,6 +107,8 @@ jobs:
 
       - name: Build Windows installer
         shell: pwsh
+        env:
+          DATABASE_URL: file:./ci-validation.db
         run: |
           npm run dist:win -- --publish never *>&1 | Tee-Object -FilePath build-output.log
           if ($LASTEXITCODE -ne 0) {
