@@ -1070,7 +1070,17 @@ export function physicalMoneyInDrawerAndCard(input: {
 }
 
 /** مبلغ اعتبار صادرشده روی یک سند برگشت (صفر اگر تسویه اعتبار نبوده). */
-export function returnCreditAmountOf(r: { refundMethod?: string | null; refundAmount?: RialLike } = {}): Rial {
+export function returnCreditAmountOf(r: {
+  refundMethod?: string | null
+  refundAmount?: RialLike
+  storeCredits?: readonly { amount?: RialLike }[] | null
+  storeCreditTotal?: RialLike
+} = {}): Rial {
+  // The complete credit array is authoritative. The legacy scalar/refund fields
+  // are read only for older DTOs that do not contain the new array.
+  if (Array.isArray(r.storeCredits))
+    return r.storeCredits.reduce((sum, credit) => sum + Math.max(0, n(credit.amount)), 0)
+  if (r.storeCreditTotal != null) return Math.max(0, n(r.storeCreditTotal))
   return r.refundMethod === 'STORE_CREDIT' ? Math.max(0, n(r.refundAmount)) : 0
 }
 

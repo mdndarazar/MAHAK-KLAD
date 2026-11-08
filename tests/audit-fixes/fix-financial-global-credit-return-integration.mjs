@@ -104,7 +104,12 @@ const returnedB = await returnLine(scopedSale.id, scopedItems.find((item) => Num
   10_000_000, 10_000_000)
 assert.equal(Number(returnedB.returnCreditAmount), 0)
 assert.equal(Number(returnedB.refundAmount), 10_000_000, 'B keeps its full money right')
-assert.equal(seed.one('SELECT COUNT(*) n FROM "CreditReturnAllocation" WHERE returnId=?', returnedB.id).n, 0)
+const noShareAllocation = seed.one(
+  'SELECT amount,restrictScope,saleItemId FROM "CreditReturnAllocation" WHERE returnId=?', returnedB.id
+)
+assert.equal(Number(noShareAllocation.amount), 0, 'out-of-scope return keeps a zero-value NO_SHARE provenance row')
+assert.equal(noShareAllocation.restrictScope, 'VARIANTS')
+assert.equal(noShareAllocation.saleItemId, null)
 assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', scoped.id).status, 'USED')
 
 const returnedA = await returnLine(scopedSale.id, scopedItems.find((item) => Number(item.variantId) === variantA).id,
@@ -303,7 +308,9 @@ const barcodeExchange = await salesService.createExchange({
   replacements: [{ variantId: variant(productB, 800_000), qty: 1 }],
   refundMode: 'STORE_CREDIT'
 })
-assert.equal(barcodeExchange.diff, -200_000)
+assert.equal(barcodeExchange.nominalDiff, -200_000, 'the nominal return-minus-replacement gap remains visible')
+assert.equal(barcodeExchange.diff, 0, 'restored source credit is separate from effective money settlement')
+assert.equal(barcodeExchange.sourceCreditRestoredAmount, 200_000)
 assert.equal(barcodeExchange.cashRefunded, 0)
 const barcodeB = saleItems(barcodeExchange.exchangeInvoiceId)[0]
 const returnedBarcodeB = await returnLine(barcodeExchange.exchangeInvoiceId, barcodeB.id, 800_000, 800_000)
@@ -340,8 +347,10 @@ const mixedExchange = await salesService.createExchange({
   replacements: [{ variantId: variant(productB, 800_000), qty: 1 }],
   refundMode: 'CASH'
 })
-assert.equal(mixedExchange.diff, -200_000)
+assert.equal(mixedExchange.nominalDiff, -200_000, 'the nominal return/replacement gap is reduced against source debt')
+assert.equal(mixedExchange.diff, 0, 'the effective settlement is zero after the 200K debt cut')
 assert.equal(mixedExchange.debtReduction, 200_000)
+assert.equal(mixedExchange.cashRefunded, 0, 'the debt-backed portion is not paid out as cash')
 assert.equal((await invoiceRemaining(db, mixedA.id, 1_000_000, 500_000)).remaining, 300_000)
 const mixedB = saleItems(mixedExchange.exchangeInvoiceId)[0]
 const returnedMixedB = await returnLine(mixedExchange.exchangeInvoiceId, mixedB.id, 800_000, 200_000)

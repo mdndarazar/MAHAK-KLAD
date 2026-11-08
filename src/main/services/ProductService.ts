@@ -11,6 +11,7 @@ import { PANEL_KEYS } from '@shared/panels'
 import type { PagedRows } from '@shared/types'
 import { toRial } from '@shared/money'
 import { custodyService } from './CustodyService'
+import { categoryAncestryPath, categoryParentMap } from '@shared/categoryAncestry'
 
 export interface VariantInput {
   id?: number
@@ -348,20 +349,25 @@ async function categoryWithDescendants(
   client: Prisma.TransactionClient | typeof prisma = prisma
 ): Promise<number[]> {
   const all = await client.category.findMany({ select: { id: true, parentId: true } })
+  let parents: Map<number, number | null>
+  try {
+    parents = categoryParentMap(all as Array<{ id: number; parentId: number | null }>)
+  } catch (error) {
+    throw new BusinessError(String((error as Error)?.message ?? 'زنجیرهٔ دسته‌ها معتبر نیست.'))
+  }
+  if (!parents.has(Number(rootId))) throw new BusinessError('دستهٔ انتخاب‌شده پیدا نشد؛ فهرست دسته‌ها را تازه کنید.')
+
   const childrenOf = new Map<number, number[]>()
-  for (const c of all) {
-    if (c.parentId == null) continue
-    const list = childrenOf.get(c.parentId) ?? []
-    list.push(c.id)
-    childrenOf.set(c.parentId, list)
+  for (const [id, parentId] of parents) {
+    if (parentId == null) continue
+    const list = childrenOf.get(parentId) ?? []
+    list.push(id)
+    childrenOf.set(parentId, list)
   }
   const out: number[] = []
-  const seen = new Set<number>()
-  const stack = [rootId]
+  const stack = [Number(rootId)]
   while (stack.length) {
     const id = stack.pop() as number
-    if (seen.has(id)) continue
-    seen.add(id)
     out.push(id)
     for (const child of childrenOf.get(id) ?? []) stack.push(child)
   }
@@ -844,44 +850,67 @@ export const productService = {
       select: { id: true, name: true, parentId: true },
       orderBy: { name: 'asc' }
     })
+    try {
+      categoryParentMap(all as Array<{ id: number; parentId: number | null }>)
+    } catch (error) {
+      throw new BusinessError(String((error as Error)?.message ?? 'زنجیرهٔ دسته‌ها معتبر نیست.'))
+    }
     const childrenOf = new Map<number | null, typeof all>()
-    for (const c of all) {
-      const key = c.parentId ?? null
+    for (const category of all) {
+      const key = category.parentId ?? null
       const list = childrenOf.get(key) ?? []
-      list.push(c)
+      list.push(category)
       childrenOf.set(key, list)
     }
-    const known = new Set(all.map((c) => c.id))
+
+    // Iterative traversal supports arbitrarily deep valid trees without a
+    // contractual depth cap or JavaScript recursion-stack failure.
     const out: CategoryNode[] = []
-    const placed = new Set<number>()
-
-    const walk = (parentId: number | null, depth: number) => {
-      for (const c of childrenOf.get(parentId) ?? []) {
-        if (placed.has(c.id)) continue // محافظت از حلقه‌ی parentId
-        placed.add(c.id)
-        out.push({ id: c.id, name: c.name, parentId: c.parentId ?? null, depth })
-        walk(c.id, depth + 1)
-      }
+    const stack = (childrenOf.get(null) ?? []).slice().reverse().map((category) => ({ category, depth: 0 }))
+    while (stack.length) {
+      const { category, depth } = stack.pop()!
+      out.push({ id: category.id, name: category.name, parentId: category.parentId ?? null, depth })
+      const children = childrenOf.get(category.id) ?? []
+      for (let index = children.length - 1; index >= 0; index--)
+        stack.push({ category: children[index], depth: depth + 1 })
     }
-    walk(null, 0)
-
-    // یتیم‌ها: parentId ای که دیگر وجود ندارد، یا داخل حلقه گیر افتاده
-    for (const c of all) {
-      if (placed.has(c.id)) continue
-      placed.add(c.id)
-      out.push({
-        id: c.id,
-        name: c.name,
-        parentId: c.parentId != null && known.has(c.parentId) ? c.parentId : null,
-        depth: 0
-      })
-    }
+    if (out.length !== all.length)
+      throw new BusinessError('همهٔ دسته‌ها از ریشه قابل پیمایش نیستند؛ چرخه یا والد خراب پیدا شد.')
     return out
   },
 
-  categoryUpsert(input: { id?: number; name: string; parentId?: number | null }) {
-    return input.id
-      ? prisma.category.update({ where: { id: input.id }, data: { name: input.name, parentId: input.parentId ?? null } })
-      : prisma.category.create({ data: { name: input.name, parentId: input.parentId ?? null } })
+  async categoryUpsert(input: { id?: number; name: string; parentId?: number | null }) {
+    const id = input.id == null ? null : Number(input.id)
+    const parentId = input.parentId == null ? null : Number(input.parentId)
+    if (id != null && (!Number.isSafeInteger(id) || id <= 0))
+      throw new BusinessError('شناسهٔ دسته برای ویرایش معتبر نیست.')
+    if (parentId != null && (!Number.isSafeInteger(parentId) || parentId <= 0))
+      throw new BusinessError('شناسهٔ والد دسته معتبر نیست.')
+
+    return prisma.$transaction(async (tx) => {
+      const all = await tx.category.findMany({ select: { id: true, parentId: true } })
+      let parents: Map<number, number | null>
+      try {
+        parents = categoryParentMap(all as Array<{ id: number; parentId: number | null }>)
+      } catch (error) {
+        throw new BusinessError(String((error as Error)?.message ?? 'زنجیرهٔ دسته‌ها معتبر نیست.'))
+      }
+      if (id != null && !parents.has(id)) throw new BusinessError('دسته‌ای که می‌خواهید ویرایش کنید پیدا نشد.')
+      if (parentId != null && !parents.has(parentId)) throw new BusinessError('والد انتخاب‌شده پیدا نشد؛ هیچ تغییری ذخیره نشد.')
+
+      if (id != null) {
+        const candidateRows = all.map((category) => ({
+          id: category.id,
+          parentId: category.id === id ? parentId : category.parentId
+        }))
+        try {
+          categoryParentMap(candidateRows as Array<{ id: number; parentId: number | null }>)
+        } catch (error) {
+          throw new BusinessError(String((error as Error)?.message ?? 'این والد چرخه در دسته‌ها می‌سازد؛ تغییر ذخیره نشد.'))
+        }
+        return tx.category.update({ where: { id }, data: { name: input.name, parentId } })
+      }
+      return tx.category.create({ data: { name: input.name, parentId } })
+    })
   }
 }

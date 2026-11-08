@@ -655,13 +655,20 @@ export interface ReturnLookupItem {
 export interface ReturnLookup {
   invoiceId: number
   receiptNo: number
-  returnCode: string
+  /** تشخیص مستقلِ مسیر پیدا کردن فاکتور؛ شماره فیش، کد برگشت نیست. */
+  lookupKind: 'RETURN_CODE' | 'RECEIPT_NUMBER'
+  /** کد برگشت واقعاً روی فاکتور ثبت شده باشد؛ برای فاکتورهای بدون کد null است. */
+  returnCode: string | null
+  /** PRESENT = کد در سند هست؛ NOT_ISSUED = برای این سند کدی صادر نشده است. */
+  codeState: 'PRESENT' | 'NOT_ISSUED'
+  /** وضعیت مهلت بر اساس روز تهران، مستقل از داشتن/نداشتن کد. */
+  expiryState: 'VALID' | 'EXPIRED' | 'NOT_APPLICABLE' | 'UNPROVEN'
   issuedAt: string
   issuedAtJalali: string
   issuedTime: string
-  expiresAtJalali: string
-  /** روزهای باقی‌مانده از اعتبار یک‌هفته‌ای کد */
-  daysLeft: number
+  expiresAtJalali: string | null
+  /** روزهای باقی‌مانده از مهلت کد؛ null یعنی deadline وجود ندارد. */
+  daysLeft: number | null
   expired: boolean
   customerId: number | null
   customerName: string
@@ -2064,7 +2071,7 @@ export interface ExchangeSaleInput {
    * روی این یونیون `switch` جامع ندارد) ⇒ هیچ مسیر دیگری تنگ‌تر نمی‌شود.
    */
   refundMode?: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD_TO_CARD' | null
-  /** UI decision marker: an explicit UNSELECTED request never auto-issues a credit barcode. */
+  /** UI decision marker: UNSELECTED means the backed money share defaults to non-expiring store credit; METHOD uses refundMode. */
   exchangeSettlementDecision?: 'UNSELECTED' | 'METHOD'
   /**
    * مبلغ وجه نقدیِ واقعی برای مابه‌التفاوت منفی، فقط وقتی refundMode = CASH است.
@@ -2430,11 +2437,20 @@ export interface ExchangeReportRow {
   cardRefunded: number
   /** مابه‌التفاوتی که واقعاً با کارت دریافت شد (فقط مقصد CARD). */
   cardReceived: number
-  /** شناسهٔ امن اعتبارِ صادرشده روی همین تعویض؛ کد قابل‌مصرف در گزارش نیست. */
+  /** مبلغی که به حساب شخصی مدیر رفت؛ نه صندوق فروشگاه است نه کارت‌خوان. */
+  managerReceived: number
+  /** پرداخت‌های قدیمی/نامعتبر که مقصدشان ثبت نشده؛ هرگز به نقد یا کارت حدس زده نمی‌شوند. */
+  unknownReceived: number
+  /** Legacy scalar retained for existing report consumers; not used for aggregates. */
   storeCreditReference: string | null
   storeCreditAmount: number
   storeCreditStatus: string | null
   storeCreditStatusLabel: string | null
+  /** All safe credits linked to this return, including source-credit successors. */
+  storeCredits?: StoreCreditSafeRow[]
+  /** Aggregate over storeCredits; authoritative for reports and totals. */
+  storeCreditTotal?: number
+  storeCreditUsedTotal?: number
   note: string
 }
 
@@ -2494,8 +2510,12 @@ export interface ReturnListRow {
   invoiceUserName: string
   /** کاربری که برگشت را ثبت کرد (چه کسی برگرداند) */
   returnUserName: string
-  /** شناسهٔ امن اعتبارِ صادرشده برای این برگشت (اگر صادر شد)؛ کد قابل‌مصرف نیست. */
+  /** Legacy safe scalar for compatibility; new reports use `storeCredits`. */
   storeCreditReference: string | null
+  /** همهٔ اعتبارهای امنِ وابسته به برگشت، از جمله جانشین‌های منشأدار. */
+  storeCredits?: StoreCreditSafeRow[]
+  /** جمع مبلغ اعتبارهای وابسته؛ از آرایه محاسبه می‌شود، نه از scalar قدیمی. */
+  storeCreditTotal?: number
   /** مابه‌التفاوت تعویض و نحوه‌ی تسویه‌اش */
   exchangeDiff: number
   exchangeSettlement: string | null
@@ -2512,6 +2532,8 @@ export interface ExchangeReportResult {
     diffTotal: number
     cashReceivedTotal: number
     cardReceivedTotal: number
+    managerReceivedTotal: number
+    unknownReceivedTotal: number
     cashRefundTotal: number
     cardRefundTotal: number
     creditIssuedTotal: number

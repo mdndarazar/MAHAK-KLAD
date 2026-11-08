@@ -17,6 +17,8 @@ import {
   verifyManagerCorrectionApproval
 } from './AuthService'
 import { wholesaleDiscountCeilingFor } from '@shared/priceAdjust'
+import { categoryAncestryPath, categoryParentMap } from '@shared/categoryAncestry'
+import { exchangeTenderTotalsOf } from '@shared/exchangeTender'
 import { PANEL_KEYS } from '@shared/panels'
 import { periodLockService } from './PeriodLockService'
 import { settingsService } from './SettingsService'
@@ -36,6 +38,9 @@ import {
   centralWithdrawTotal
 } from '@shared/stockSource'
 import {
+  adjustStoreCreditLineageUsage,
+  creditWithSharedLineageAllowance,
+  ensureStoreCreditLineage,
   issueStoreCredit,
   readCreditSettings,
   redeemStoreCredit,
@@ -47,6 +52,8 @@ import {
   linesForInvoice,
   reverseInvoiceRedemptions
 } from './StoreCreditService'
+import { reverseRestoredExchangeCreditLineage } from './exchangeCreditLineage'
+import { reverseReturnCreditRestorations } from './returnCreditVoid'
 import {
   exchangeCreditDays,
   CreditSource,
@@ -221,6 +228,72 @@ function reportIdChunks(ids: Iterable<number>): number[][] {
   const chunks: number[][] = []
   for (let i = 0; i < unique.length; i += REPORT_IN_CHUNK) chunks.push(unique.slice(i, i + REPORT_IN_CHUNK))
   return chunks
+}
+
+/**
+ * Load every credit safely associated with each return. `SaleReturn.storeCreditId`
+ * is retained as a legacy scalar, while current returns can have several issued
+ * credits and source-credit successors recorded in `CreditReturnAllocation`.
+ */
+async function storeCreditsByReturnId(
+  client: Client,
+  returns: Array<{ id: number; storeCreditId?: number | null }>
+): Promise<Map<number, StoreCreditSafeRow[]>> {
+  const result = new Map<number, StoreCreditSafeRow[]>(returns.map((row) => [Number(row.id), []]))
+  if (!returns.length) return result
+
+  const idsByReturn = new Map<number, Set<number>>()
+  const allReturnIds = returns.map((row) => Number(row.id))
+  for (const row of returns) {
+    const id = Number(row.storeCreditId ?? 0)
+    if (Number.isSafeInteger(id) && id > 0) {
+      const set = idsByReturn.get(Number(row.id)) ?? new Set<number>()
+      set.add(id)
+      idsByReturn.set(Number(row.id), set)
+    }
+  }
+
+  const allocations: Array<{ returnId: number; restoredCreditId: number | null }> = []
+  for (const ids of reportIdChunks(allReturnIds)) {
+    allocations.push(...await (client as any).creditReturnAllocation.findMany({
+      where: { returnId: { in: ids }, restoredCreditId: { not: null } },
+      select: { returnId: true, restoredCreditId: true }
+    }))
+  }
+  for (const allocation of allocations) {
+    const returnId = Number(allocation.returnId)
+    const creditId = Number(allocation.restoredCreditId ?? 0)
+    if (!Number.isSafeInteger(returnId) || !Number.isSafeInteger(creditId) || creditId <= 0) continue
+    const set = idsByReturn.get(returnId) ?? new Set<number>()
+    set.add(creditId)
+    idsByReturn.set(returnId, set)
+  }
+
+  const creditsById = new Map<number, any>()
+  for (const ids of reportIdChunks(allReturnIds)) {
+    const rows = await client.storeCredit.findMany({ where: { returnId: { in: ids } } })
+    for (const credit of rows) creditsById.set(Number(credit.id), credit)
+  }
+  const explicitCreditIds = [...new Set([...idsByReturn.values()].flatMap((set) => [...set]))]
+  for (const ids of reportIdChunks(explicitCreditIds)) {
+    const rows = await client.storeCredit.findMany({ where: { id: { in: ids } } })
+    for (const credit of rows) creditsById.set(Number(credit.id), credit)
+  }
+
+  for (const row of returns) {
+    const returnId = Number(row.id)
+    const ids = new Set<number>(idsByReturn.get(returnId) ?? [])
+    for (const credit of creditsById.values()) {
+      if (Number(credit.returnId ?? 0) === returnId) ids.add(Number(credit.id))
+    }
+    const safeRows = [...ids]
+      .map((id) => creditsById.get(id))
+      .filter(Boolean)
+      .sort((a, b) => Number(a.id) - Number(b.id))
+      .map((credit) => shapeStoreCreditSafe(credit))
+    result.set(returnId, safeRows)
+  }
+  return result
 }
 
 /** گزارش فروش فقط سندهای واقعی را می‌بیند؛ پیش‌نویس و لغوشده مدرک فروش نیستند. */
@@ -1843,14 +1916,16 @@ async function cashLikeRefundableOf(
   let cap = Math.max(0, cashLike - previouslyRefundedMoney)
 
   let parentId = invoice.sourceInvoiceId == null ? null : Number(invoice.sourceInvoiceId)
-  const seen = new Set<number>([invoice.id])
-  while (parentId != null && !seen.has(parentId) && seen.size < 50) {
+  const seen = new Set<number>([Number(invoice.id)])
+  while (parentId != null) {
+    if (!Number.isSafeInteger(parentId) || parentId <= 0 || seen.has(parentId))
+      throw new BusinessError('زنجیرهٔ فاکتور برای محاسبهٔ بازپرداخت دچار چرخه یا شناسهٔ خراب است؛ مبلغ حدس زده نشد.')
     seen.add(parentId)
     const parent = await tx.saleInvoice.findUnique({
       where: { id: parentId },
       select: { id: true, paidTotal: true, sourceInvoiceId: true }
     })
-    if (!parent) break
+    if (!parent) throw new BusinessError(`فاکتور والد ${faDigits(parentId)} در زنجیرهٔ بازپرداخت پیدا نشد؛ ثبت متوقف شد.`)
     const parentCash = await cashLikeReceivedOf(tx, parent.id, toNumberRial(parent.paidTotal))
     const parentAdj = adjustmentsOrEmpty(await debtAdjustmentsByInvoice(tx, [parent.id]), parent.id)
     const parentSourceCreditReturns = await settlementAdjustedSourceCreditReturns(tx, parent.id)
@@ -2136,18 +2211,21 @@ async function planExchangeReturnFunding(
     const hasCategoryCredit = sources.some(({ bucket }) =>
       !bucket.pooledOnExchangeInvoice && String(bucket.credit?.restrictScope ?? 'ALL').toUpperCase() === 'CATEGORY')
     const categories = hasCategoryCredit ? await tx.category.findMany({ select: { id: true, parentId: true } }) : []
-    const parentById = new Map<number, number | null>((categories as any[]).map((row) =>
-      [Number(row.id), row.parentId == null ? null : Number(row.parentId)]))
-    const categoryPath = (categoryId: number | null): number[] => {
-      const path: number[] = []
-      const seen = new Set<number>()
-      let current = categoryId
-      while (current != null && !seen.has(current) && path.length < 100) {
-        seen.add(current)
-        path.push(current)
-        current = parentById.get(current) ?? null
+    let parentById = new Map<number, number | null>()
+    if (hasCategoryCredit) {
+      try {
+        parentById = categoryParentMap(categories as Array<{ id: number; parentId: number | null }>)
+      } catch (error) {
+        throw new BusinessError(String((error as Error)?.message ?? 'زنجیرهٔ دسته‌ها معتبر نیست؛ محدودهٔ اعتبار قابل بررسی نیست.'))
       }
-      return path
+    }
+    const categoryPath = (categoryId: number | null): number[] => {
+      if (!hasCategoryCredit) return []
+      try {
+        return categoryAncestryPath(categoryId, parentById)
+      } catch (error) {
+        throw new BusinessError(String((error as Error)?.message ?? 'زنجیرهٔ دسته‌ها معتبر نیست؛ محدودهٔ اعتبار قابل بررسی نیست.'))
+      }
     }
     lines = rawLines.map((line) => {
       const variant = variantById.get(Number(line.variantId))
@@ -2231,13 +2309,13 @@ async function exchangeLineageUsesOnlyInvoicePooledCredits(
   const seen = new Set<number>()
   let foundCredit = false
   while (invoiceId != null) {
-    if (!Number.isSafeInteger(invoiceId) || invoiceId <= 0 || seen.has(invoiceId) || seen.size >= 50)
-      return false
+    if (!Number.isSafeInteger(invoiceId) || invoiceId <= 0 || seen.has(invoiceId))
+      throw new BusinessError('زنجیرهٔ فاکتور برای تشخیص منشأ اعتبار دچار چرخه یا شناسهٔ خراب است؛ هیچ تسویه‌ای ثبت نشد.')
     seen.add(invoiceId)
     const invoice: { id: number; exchangeReturnId: number | null; sourceInvoiceId: number | null } | null = await tx.saleInvoice.findUnique({
       where: { id: invoiceId }, select: { id: true, exchangeReturnId: true, sourceInvoiceId: true }
     })
-    if (!invoice) return false
+    if (!invoice) throw new BusinessError(`فاکتور والد ${faDigits(invoiceId)} در زنجیرهٔ اعتبار پیدا نشد؛ هیچ تسویه‌ای ثبت نشد.`)
     const redemptions = await tx.storeCreditRedemption.findMany({
       where: { invoiceId, reversedAt: null }, select: { creditId: true }
     })
@@ -2253,7 +2331,8 @@ async function exchangeLineageUsesOnlyInvoicePooledCredits(
       const parentReturn: { invoiceId: number } | null = await tx.saleReturn.findUnique({
         where: { id: Number(invoice.exchangeReturnId) }, select: { invoiceId: true }
       })
-      if (!parentReturn) return false
+      if (!parentReturn)
+        throw new BusinessError(`برگشتِ مرجع ${faDigits(Number(invoice.exchangeReturnId))} در زنجیرهٔ تعویض پیدا نشد؛ هیچ تسویه‌ای ثبت نشد.`)
       invoiceId = Number(parentReturn.invoiceId)
     } else {
       invoiceId = invoice.sourceInvoiceId == null ? null : Number(invoice.sourceInvoiceId)
@@ -2518,6 +2597,8 @@ async function restoreExchangeCreditSource(
 ): Promise<any | null> {
   const restore = Math.max(0, Math.round(amount))
   if (!restore || !credit) return null
+  const lineageInfo = await ensureStoreCreditLineage(tx as any, credit)
+  credit = lineageInfo.credit
   const expired = String(credit.status) === CreditStatus.EXPIRED || isExpiredAt(credit, input.at)
   if (expired) return null
   const usedAmount = Math.max(0, toNumberRial(credit.usedAmount ?? 0))
@@ -2528,6 +2609,7 @@ async function restoreExchangeCreditSource(
     return issueStoreCredit(tx, {
       amount: restore,
       source: String(credit.source ?? 'EXCHANGE'),
+      lineageId: Number(lineageInfo.lineage.id),
       returnId: input.returnId,
       exchangeInvoiceId: input.exchangeInvoiceId,
       sourceInvoiceId: input.sourceInvoiceId,
@@ -2626,6 +2708,7 @@ async function restoreExchangeChildCreditShares(
     currentByRedemption.set(id, (currentByRedemption.get(id) ?? 0) + bucket.amount)
   }
   const fullyRestoredRedemptions = new Set<number>()
+  const lineageIdByCredit = new Map<number, number>()
   for (const [id, currentAmount] of currentByRedemption) {
     const redemption = redemptionById.get(id)
     if (!redemption) throw new BusinessError('مصرف منشأ اعتبار پیدا نشد؛ برگشت بدون تغییر متوقف شد.')
@@ -2640,7 +2723,16 @@ async function restoreExchangeChildCreditShares(
   // Match each prior allocation back to a still-active return. The allocation
   // ledger remains append-only; voided returns do not count toward this use.
   for (const [creditId, creditBuckets] of byCredit) {
-    const credit = creditBuckets[0].credit
+    const rawCredit = creditBuckets[0].credit
+    const { credit: creditWithLineage, lineage } = await ensureStoreCreditLineage(tx as any, rawCredit)
+    const credit = creditWithLineage
+    lineageIdByCredit.set(creditId, Number(lineage.id))
+    for (const bucket of creditBuckets) {
+      const redemption = redemptionById.get(Number(bucket.sourceRedemptionId))
+      if (!redemption || Number(redemption.creditId) !== creditId ||
+          (redemption.lineageId != null && Number(redemption.lineageId) !== Number(lineage.id)))
+        throw new BusinessError('مصرف و lineage اعتبار در زنجیرهٔ تعویض هم‌خوان نیست؛ برگشت بدون تغییر متوقف شد.')
+    }
     const expired = String(credit.status) === CreditStatus.EXPIRED || isExpiredAt(credit, input.at)
     if (expired) {
       for (const bucket of creditBuckets) result.set(bucket, null)
@@ -2680,12 +2772,44 @@ async function restoreExchangeChildCreditShares(
   }
 
   for (const id of fullyRestoredRedemptions) {
+    const redemption = redemptionById.get(id)
+    if (!redemption) throw new BusinessError('مصرف برگشتی پیدا نشد؛ برگشت بدون تغییر متوقف شد.')
+    const redemptionCreditId = Number(redemption.creditId)
+    if (!(byCredit.get(redemptionCreditId) ?? []).some((bucket) => result.get(bucket) != null)) continue
     const changed = await tx.storeCreditRedemption.updateMany({
       where: { id, reversedAt: null },
       data: { reversedAt: input.at, reversedReason: `برگشت سهم مصرف‌شده در برگشت #${input.returnId}` }
     })
     if (changed.count !== 1)
       throw new BusinessError('مصرف اعتبار هم‌زمان تغییر کرد؛ برگشت بدون تغییر دوباره بررسی شود.')
+  }
+  const lineageUsage = new Map<number, { amount: number; uses: number }>()
+  for (const bucket of buckets) {
+    if (!result.get(bucket)) continue
+    const creditId = Number(bucket.credit.id)
+    const lineageId = lineageIdByCredit.get(creditId)
+    if (!lineageId) throw new BusinessError(`lineage اعتبار #${creditId} پیدا نشد؛ برگشت بدون تغییر متوقف شد.`)
+    const entry = lineageUsage.get(lineageId) ?? { amount: 0, uses: 0 }
+    entry.amount += bucket.amount
+    lineageUsage.set(lineageId, entry)
+  }
+  for (const id of fullyRestoredRedemptions) {
+    const redemption = redemptionById.get(id)
+    if (!redemption) throw new BusinessError('مصرف برگشتی پیدا نشد؛ برگشت بدون تغییر متوقف شد.')
+    const redemptionCreditId = Number(redemption.creditId)
+    if (!(byCredit.get(redemptionCreditId) ?? []).some((bucket) => !!result.get(bucket))) continue
+    const lineageId = lineageIdByCredit.get(redemptionCreditId)
+    if (!lineageId) throw new BusinessError('lineage مصرف برگشتی پیدا نشد؛ برگشت بدون تغییر متوقف شد.')
+    const entry = lineageUsage.get(lineageId) ?? { amount: 0, uses: 0 }
+    entry.uses += 1
+    lineageUsage.set(lineageId, entry)
+  }
+  for (const [lineageId, usage] of lineageUsage) {
+    await adjustStoreCreditLineageUsage(tx as any, {
+      lineageId,
+      amountDelta: -usage.amount,
+      useDelta: -usage.uses
+    })
   }
   return result
 }
@@ -3647,40 +3771,81 @@ async function preverifyExchangeCharges(
 }
 
 /**
- * نشست ۱۵۸ (Y14/Y16، بند ۴-۲۱) — کانال واقعی یک فاکتور برای قیمت‌گذاری کالای جایگزین:
- * اگر خودش سند تعویض است، زنجیره‌ی sourceInvoiceId تا اولین فاکتور غیرتعویضی دنبال می‌شود.
- * WHOLESALE ⇒ عمده؛ بقیه ⇒ خرده.
+ * Resolve the immutable return-code policy source of an invoice chain. Cycle,
+ * missing-parent, and corrupt-ID data fail closed instead of inventing a deadline.
  */
-async function rootReturnCodeExpiry(client: Client, invoiceId: number): Promise<Date | null> {
+async function rootReturnCodeInfo(client: Client, invoiceId: number): Promise<{
+  id: number
+  returnCode: string | null
+  hasReturnCode: boolean
+  returnCodeExpiresAt: Date | null
+  orderType: string
+}> {
   let id: number | null = Number(invoiceId)
   const seen = new Set<number>()
   let root: any = null
+  const chain: any[] = []
   while (id != null) {
-    if (!Number.isSafeInteger(id) || id <= 0 || seen.has(id) || seen.size >= 50)
-      throw new BusinessError('زنجیره‌ی فاکتور برای resolve مهلت کد برگشت خراب است؛ هیچ مهلت حدسی اعمال نشد.')
+    if (!Number.isSafeInteger(id) || id <= 0 || seen.has(id))
+      throw new BusinessError('زنجیرهٔ فاکتور برای بررسی مهلت برگشت خراب است؛ مهلت حدس زده نشد.')
     seen.add(id)
     root = await client.saleInvoice.findUnique({
       where: { id },
-      select: { id: true, sourceInvoiceId: true, returnCodeExpiresAt: true }
+      select: { id: true, sourceInvoiceId: true, returnCode: true, returnCodeExpiresAt: true, orderType: true }
     })
-    if (!root) throw new BusinessError('ریشه‌ی زنجیره‌ی فاکتور پیدا نشد؛ مهلت کد برگشت قابل resolve نیست.')
+    if (!root) throw new BusinessError('ریشهٔ زنجیرهٔ فاکتور پیدا نشد؛ مهلت کد برگشت قابل بررسی نیست.')
+    chain.push(root)
     id = root.sourceInvoiceId == null ? null : Number(root.sourceInvoiceId)
   }
-  return root?.returnCodeExpiresAt ?? null
+  const codedNodes = chain.filter((node) => node.returnCode != null)
+  // All issued codes in a chain must have a deadline. Use the earliest recorded
+  // deadline so a malformed child can never extend its source invoice's policy.
+  const codedDeadlines = codedNodes.map((node) => node.returnCodeExpiresAt).filter((d: unknown): d is Date => d != null)
+  const hasUnprovenDeadline = codedNodes.some((node) => node.returnCodeExpiresAt == null)
+  const deadline = hasUnprovenDeadline || codedDeadlines.length === 0
+    ? null
+    : new Date(Math.min(...codedDeadlines.map((d: Date) => new Date(d).getTime())))
+  return {
+    id: Number(root.id),
+    returnCode: codedNodes.length > 0 ? String(codedNodes[codedNodes.length - 1].returnCode) : null,
+    hasReturnCode: codedNodes.length > 0,
+    returnCodeExpiresAt: deadline,
+    orderType: String(root.orderType ?? '')
+  }
+}
+
+async function rootReturnCodeExpiry(client: Client, invoiceId: number): Promise<Date | null> {
+  return (await rootReturnCodeInfo(client, invoiceId)).returnCodeExpiresAt
+}
+
+async function assertReturnDeadline(client: Client, invoiceId: number, now = new Date()): Promise<Date | null> {
+  const root = await rootReturnCodeInfo(client, invoiceId)
+  const deadline = root.returnCodeExpiresAt
+  if (root.hasReturnCode && deadline == null)
+    throw new BusinessError('مهلت کد برگشت این فاکتور در سابقه ثبت نشده است؛ برای جلوگیری از برگشت خارج از مهلت، عملیات ثبت نشد.')
+  if (deadline != null && isPastTehranExpiryDate(deadline, now))
+    throw new BusinessError(
+      `مهلت برگشت فاکتور به پایان رسیده است (تا پایان روز ${faDigits(toJalaliDate(deadline))} به وقت تهران). هیچ تغییری ثبت نشد.`
+    )
+  return deadline
 }
 
 async function exchangeChannelOf(client: Client, invoiceId: number): Promise<'pos' | 'wholesale'> {
-  let id: number | null = invoiceId
+  let id: number | null = Number(invoiceId)
   const seen = new Set<number>()
-  while (id != null && !seen.has(id) && seen.size < 50) {
+  while (id != null) {
+    if (!Number.isSafeInteger(id) || id <= 0 || seen.has(id))
+      throw new BusinessError('زنجیرهٔ فاکتور تعویض دچار چرخه یا شناسهٔ خراب است؛ نوع قیمت‌گذاری قابل تشخیص نیست.')
     seen.add(id)
     const inv: any = await client.saleInvoice.findUnique({
       where: { id },
       select: { orderType: true, sourceInvoiceId: true }
     } as any)
-    if (!inv) return 'pos'
+    if (!inv) throw new BusinessError(`فاکتور ${faDigits(id)} در زنجیرهٔ تعویض پیدا نشد؛ نوع قیمت‌گذاری حدس زده نشد.`)
     if (inv.orderType !== OrderType.EXCHANGE) return inv.orderType === OrderType.WHOLESALE ? 'wholesale' : 'pos'
-    id = inv.sourceInvoiceId == null ? null : Number(inv.sourceInvoiceId)
+    if (inv.sourceInvoiceId == null)
+      throw new BusinessError(`سند تعویض ${faDigits(id)} فاکتور والد ندارد؛ نوع قیمت‌گذاری حدس زده نشد.`)
+    id = Number(inv.sourceInvoiceId)
   }
   return 'pos'
 }
@@ -4538,6 +4703,9 @@ async function runReturn(
           (invoice.status === 'CANCELED' ? 'لغو شده است' : 'هنوز پیش‌نویس است و نهایی نشده') +
           '؛ روی آن هیچ برگشت یا تعویضی ثبت نمی‌شود.'
       )
+    // Final transactional guard: lookup/UI can be bypassed or become stale.
+    // The same guard covers both ordinary returns and exchanges before writes.
+    await assertReturnDeadline(tx, Number(invoice.id), now)
 
     const returnedByItem = new Map<number, number>()
     for (const r of invoice.returns)
@@ -5190,6 +5358,7 @@ async function runReturn(
           returnId: Number(ret.id),
           redemptionId: Number(bucket.sourceRedemptionId),
           sourceCreditId: Number(bucket.credit.id),
+          restoredCreditId: restored ? Number(restored.id) : null,
           amount: bucket.amount,
           creditRestored: !!restored,
           settlementAdjusted: true,
@@ -5968,9 +6137,11 @@ export const salesService = {
           ...line,
           lineTotal: residualByItem.get(Number(line.saleItemId)) ?? 0
         }))
-        const decision = decideRedeem(credit, {
+        const { credit: lineagedCredit, lineage } = await ensureStoreCreditLineage(tx as any, credit)
+        const shared = creditWithSharedLineageAllowance(lineagedCredit, lineage)
+        const decision = decideRedeem(shared.credit, {
           now: registeredAt,
-          applicable,
+          applicable: Math.min(applicable, shared.remaining),
           invoiceTotal: t.grandTotal,
           lines: currentLines,
           customerId,
@@ -7277,20 +7448,12 @@ export const salesService = {
   // =========================================================================
 
   /**
-   * پیدا کردن فاکتور فروش تکی با «کد فاکتور» (تایپ‌شده یا اسکن‌شده).
-   *
-   * قواعد:
-   *   • فقط کدهای *معتبر* (منقضی‌نشده) به فاکتور اشاره می‌کنند. اگر کد منقضی
-   *     شده باشد، پیام روشن با تاریخ انقضا داده می‌شود (چون همان کد ممکن است
-   *     بعداً برای فاکتور دیگری تولید شود).
-   *   • اگر ورودی کاملاً عددی باشد، به‌عنوان «شماره فیش» هم امتحان می‌شود تا
-   *     کاربر بتواند شماره‌ی روی رسید را هم وارد کند.
-   *   • وضعیت انباری هر قلم مشخص می‌شود: کالای حذف‌شده از انبار با پیام
-   *     «این کالا از موجودی انبار حذف شده است» علامت می‌خورد.
+   * ورودی می‌تواند کد برگشت یا شمارهٔ رسید باشد؛ نوع lookup را جدا نگه می‌داریم
+   * تا شمارهٔ رسید به‌اشتباه به‌عنوان کد یا «منقضی» گزارش نشود.
    */
   async findByReturnCode(rawCode: string): Promise<ReturnLookup> {
     const code = normalizeReturnCode(rawCode)
-    if (!code) throw new BusinessError('کد فاکتور را وارد کنید یا بارکد روی رسید را اسکن کنید.')
+    if (!code) throw new BusinessError('کد فاکتور یا شمارهٔ رسید را وارد کنید یا بارکد روی رسید را اسکن کنید.')
 
     const now = new Date()
     const matchingCodeInvoices = await prisma.saleInvoice.findMany({
@@ -7304,12 +7467,21 @@ export const salesService = {
         returns: { where: { voidedAt: null }, include: { items: true } }
       }
     })
-    // Expiry is date-based in Tehran, so legacy rows with a timestamp during
-    // their expiry date remain usable until that Tehran day has ended.
-    let invoice = matchingCodeInvoices.find((row) =>
-      row.returnCodeExpiresAt != null && !isPastTehranExpiryDate(row.returnCodeExpiresAt, now)) ?? null
+    const codeCandidates = await Promise.all(matchingCodeInvoices.map(async (row) => ({
+      row,
+      policy: await rootReturnCodeInfo(prisma, Number(row.id))
+    })))
+    // Expiry is date-based in Tehran: the code remains valid through its expiry day.
+    const validCodeCandidate = codeCandidates.find(({ policy }) =>
+      policy.hasReturnCode && policy.returnCodeExpiresAt != null &&
+      !isPastTehranExpiryDate(policy.returnCodeExpiresAt, now)
+    )
 
-    // ورودی عددی: احتمالاً شماره فیش روی رسید است
+    let invoice: any = validCodeCandidate?.row ?? null
+    let lookupKind: ReturnLookup['lookupKind'] | null = validCodeCandidate ? 'RETURN_CODE' : null
+    let deadlinePolicy = validCodeCandidate?.policy ?? null
+
+    // Only a numeric input can be a receipt number; this lookup is not a code match.
     if (!invoice && /^[0-9]+$/.test(code)) {
       invoice = await prisma.saleInvoice.findFirst({
         where: { receiptNo: Number(code) },
@@ -7321,22 +7493,37 @@ export const salesService = {
           returns: { where: { voidedAt: null }, include: { items: true } }
         }
       })
+      if (invoice) {
+        lookupKind = 'RECEIPT_NUMBER'
+        deadlinePolicy = await rootReturnCodeInfo(prisma, Number(invoice.id))
+      }
     }
 
     if (!invoice) {
-      const expired = matchingCodeInvoices[0] ?? null
-      if (expired) {
+      const invalidCode = codeCandidates.find(({ policy }) =>
+        !policy.hasReturnCode || policy.returnCodeExpiresAt == null ||
+        isPastTehranExpiryDate(policy.returnCodeExpiresAt, now)
+      )
+      if (invalidCode) {
+        const deadline = invalidCode.policy.returnCodeExpiresAt
+        if (deadline == null || !invalidCode.policy.hasReturnCode)
+          throw new BusinessError(
+            `برای کد «${code}» مهلت معتبر در سابقه ثبت نشده است؛ ثبت برگشت مسدود شد. ` +
+              'اگر رسید را دارید، شمارهٔ رسید را جداگانه وارد کنید تا وضعیت فاکتور بررسی شود.'
+          )
         throw new BusinessError(
-          `اعتبار کد «${code}» تمام شده است. این کد برای فاکتور شماره ${faDigits(expired.receiptNo)} ` +
-            `(تاریخ ${faDigits(expired.issuedAtJalali)}) صادر شده بود و اعتبارش ` +
-            `${expired.returnCodeExpiresAt ? faDigits(toJalaliDate(expired.returnCodeExpiresAt)) : 'تاریخ ثبت نشده'} به پایان رسیده است. ` +
-            'برای برگشت این فاکتور از «گزارشات فروش» شماره فیش را پیدا کنید.'
+          `مهلت کد «${code}» به پایان رسیده است. این کد برای فاکتور شماره ${faDigits(invalidCode.row.receiptNo)} ` +
+            `(تاریخ ${faDigits(invalidCode.row.issuedAtJalali)}) صادر شده بود و تا پایان روز ` +
+            `${faDigits(toJalaliDate(deadline))} به وقت تهران اعتبار داشت. ` +
+            'برای بررسی، شمارهٔ رسید را جداگانه وارد کنید.'
         )
       }
       throw new BusinessError(
-        `فاکتوری با کد «${code}» پیدا نشد. کد را دوباره وارد کنید یا بارکد روی رسید را اسکن کنید.`
+        `فاکتوری با کد «${code}» پیدا نشد. کد یا شمارهٔ رسید را دوباره وارد کنید یا بارکد روی رسید را اسکن کنید.`
       )
     }
+    if (!lookupKind || !deadlinePolicy)
+      throw new BusinessError('وضعیت مهلت فاکتور قابل بررسی نیست؛ ثبت برگشت انجام نشد.')
 
     // ---- وضعیت انباری اقلام (بدون include تودرتو، تا کالای حذف‌شده گزارش را نخواباند) ----
     const variantIds = [...new Set(invoice.items.map((i) => i.variantId))]
@@ -7393,12 +7580,19 @@ export const salesService = {
       }
     })
 
-    const expiresAt = invoice.returnCodeExpiresAt ?? null
+    const expiresAt = deadlinePolicy.returnCodeExpiresAt
+    const expiryState: ReturnLookup['expiryState'] = !deadlinePolicy.hasReturnCode
+      ? 'NOT_APPLICABLE'
+      : expiresAt == null
+        ? 'UNPROVEN'
+        : isPastTehranExpiryDate(expiresAt, now)
+          ? 'EXPIRED'
+          : 'VALID'
     const expiryKey = expiresAt ? tehranDateKey(expiresAt) : null
     const todayKey = tehranDateKey(now)
     const daysLeft = expiryKey && todayKey
       ? Math.max(0, Math.round((Date.parse(`${expiryKey}T00:00:00Z`) - Date.parse(`${todayKey}T00:00:00Z`)) / DAY_MS))
-      : 0
+      : null
 
     // نشست ۳۱۹ — پروفایل تسویه‌ی فاکتور مرجع (فقط‌خواندنی)
     const paidNow = toNumberRial(invoice.paidTotal)
@@ -7476,13 +7670,16 @@ export const salesService = {
     return {
       invoiceId: invoice.id,
       receiptNo: invoice.receiptNo,
-      returnCode: invoice.returnCode ?? code,
+      lookupKind,
+      returnCode: invoice.returnCode ?? null,
+      codeState: invoice.returnCode == null ? 'NOT_ISSUED' : 'PRESENT',
+      expiryState,
       issuedAt: issuedAt.toISOString(),
       issuedAtJalali: invoice.issuedAtJalali || toJalaliDate(issuedAt),
       issuedTime: toClock(issuedAt),
-      expiresAtJalali: toJalaliDate(expiresAt),
+      expiresAtJalali: expiresAt ? toJalaliDate(expiresAt) : null,
       daysLeft,
-      expired: expiresAt.getTime() <= now.getTime(),
+      expired: expiryState === 'EXPIRED',
       customerId: invoice.customerId ?? null,
       customerName: invoice.customer?.name ?? 'مشتری عمومی',
       shiftName: invoice.shift?.name ?? null,
@@ -8587,6 +8784,7 @@ export const salesService = {
         restoreByCreditId.set(id, { credit: bucket.credit, amount: (prior?.amount ?? 0) + bucket.amount })
       }
       const sourceCreditRestoreSucceeded = new Map<number, boolean>()
+      const sourceCreditRestoreCreditId = new Map<number, number | null>()
       for (const { credit: sourceCredit, amount } of restoreByCreditId.values()) {
         const sourceExpired = String(sourceCredit.status) === CreditStatus.EXPIRED || isExpiredAt(sourceCredit, now)
         const terminal = ['CANCELED', 'VOIDED', 'SUSPENDED'].includes(String(sourceCredit.status))
@@ -8622,6 +8820,7 @@ export const salesService = {
         const restoredOk = !!restored
         sourceCreditRestoreSucceeded.set(Number(sourceCredit.id), restoredOk)
         if (restoredOk) {
+          sourceCreditRestoreCreditId.set(Number(sourceCredit.id), Number(restored.id))
           sourceCreditRestoredAmount += amount
           if (String(sourceCredit.status) === CreditStatus.USED) sourceCreditSuccessors.push(restored)
           if (!credit) credit = restored
@@ -8637,6 +8836,7 @@ export const salesService = {
           returnId: Number(back.id),
           redemptionId: Number(bucket.sourceRedemptionId),
           sourceCreditId: Number(bucket.credit.id),
+          restoredCreditId: sourceCreditRestoreCreditId.get(Number(bucket.credit.id)) ?? null,
           amount: bucket.amount,
           creditRestored: sourceCreditRestoreSucceeded.get(Number(bucket.credit.id)) === true,
           settlementAdjusted: false,
@@ -8645,6 +8845,46 @@ export const salesService = {
           policyVersion: RETURN_CREDIT_POLICY_VERSION,
           createdAt: now
         } })
+      }
+      await reverseRestoredExchangeCreditLineage(tx, {
+        returnId: Number(back.id),
+        at: now,
+        shares: sourceCreditRestoreBuckets,
+        restoredCreditIdBySource: sourceCreditRestoreCreditId
+      })
+
+      // ردیف صفرریالی NO_SHARE فقط منشأ زنجیره را نگه می‌دارد؛ مبلغ اعتباری
+      // یا اثر مالی تازه‌ای نمی‌سازد. این ردیف برای تعویضِ مثبتِ یک فاکتورِ
+      // تعویضی لازم است تا برگشت/تعویض نسل بعد بتواند pool را بازسازی کند.
+      if (diff > 0 && Number(source.sourceInvoiceId) > 0 && String(source.orderType) === 'EXCHANGE') {
+        try {
+          const provenanceBucket = fundingPlan.eligibleSourceCreditFunding.find(
+            (bucket): bucket is Extract<ExchangeFundingBucket, { kind: 'CREDIT' }> =>
+              bucket.kind === 'CREDIT' && Number(bucket.sourceRedemptionId) > 0
+          ) ?? sourceCreditBuckets.find((bucket) => Number(bucket.sourceRedemptionId) > 0)
+          if (provenanceBucket && Number(provenanceBucket.sourceRedemptionId) > 0 && Number(provenanceBucket.credit?.id) > 0) {
+            const provenanceEventKey = `exchange-return-credit:v${RETURN_CREDIT_POLICY_VERSION}:r${back.id}:d${provenanceBucket.sourceRedemptionId}:iNO_SHARE`
+            const existingProvenance = await (tx as any).creditReturnAllocation.findUnique({ where: { eventKey: provenanceEventKey } }).catch(() => null)
+            if (!existingProvenance) {
+              await tx.creditReturnAllocation.create({ data: {
+                eventKey: provenanceEventKey,
+                invoiceId: Number(source.id),
+                returnId: Number(back.id),
+                redemptionId: Number(provenanceBucket.sourceRedemptionId),
+                sourceCreditId: Number(provenanceBucket.credit.id),
+                amount: 0,
+                creditRestored: false,
+                settlementAdjusted: false,
+                restrictScope: String(provenanceBucket.credit.restrictScope ?? 'ALL'),
+                saleItemId: null,
+                policyVersion: RETURN_CREDIT_POLICY_VERSION,
+                createdAt: now
+              } })
+            }
+          }
+        } catch {
+          // این ردیف فقط برای lineage است؛ شکست ثبت آن نباید پول/اعتبار بسازد.
+        }
       }
 
       finalRefundValue = sourceCreditRestoredAmount + realMoneySurplusBeforeDebt
@@ -8733,16 +8973,15 @@ export const salesService = {
             cardReceived = cardRows[0].amount
           } else {
             // مشتری باقیمانده‌ی مابه‌التفاوت را با یک روش پرداخت می‌کند.
-            const methodRow = input.methodId
-              ? await tx.paymentMethod.findUnique({ where: { id: Number(input.methodId) }, select: { id: true, kind: true, key: true } })
-              : await tx.paymentMethod.findFirst({
-                  where: { isActive: true },
-                  orderBy: { sortOrder: 'asc' },
-                  select: { id: true, kind: true, key: true }
-                })
+            if (!input.methodId)
+              throw new BusinessError('برای دریافت مابه‌التفاوت، روش پرداخت فعال را صریح انتخاب کنید؛ هیچ روش پیش‌فرضی انتخاب نمی‌شود.')
+            const methodRow = await tx.paymentMethod.findUnique({
+              where: { id: Number(input.methodId) },
+              select: { id: true, kind: true, key: true }
+            })
             const methodId = methodRow?.id
             if (!methodId)
-              throw new BusinessError('روش پرداخت پیدا نشد؛ از پنل تنظیمات یک روش پرداخت فعال کنید.')
+              throw new BusinessError('روش پرداخت انتخاب‌شده پیدا نشد؛ روش فعال دیگری را صریح انتخاب کنید.')
             await assertPaymentMethodExists(tx, methodId)
             const destination = assertDestination(
               input.destination ?? destinationFromMethodKind(methodRow?.kind ?? null),
@@ -8775,15 +9014,15 @@ export const salesService = {
         settlement = barcodeCreditApplied > 0 && cashDue === 0 ? ExchangeSettlement.CREDIT : ExchangeSettlement.CASH
       } else if (diff < 0) {
         /**
-         * ============== بند ۱۲ — ما بدهکار شدیم: انتخاب، نه پیش‌فرض ==============
-         * رفتار قبلی: *همیشه و بدون پرسیدن* `issueStoreCredit`. یعنی مشتری هیچ‌وقت
-         * نمی‌توانست پول نقدش را بگیرد و سیستم هم هیچ‌وقت نمی‌دانست پولی از کشو
-         * بیرون رفته یا نه. حالا `refundMode` اجباری است:
+         * بند ۱۲ — فروشنده می‌تواند روش فیزیکی را انتخاب کند؛ اگر انتخاب نکند،
+         * فقط سهم پولیِ واقعی و قابل‌ردیابی به اعتبار خریدِ بدون انقضا تبدیل می‌شود.
+         * این پیش‌فرض پولی از صندوق/کارت‌خوان خارج نمی‌کند و اعتبارِ برگشتیِ منبع
+         * را با اعتبارِ سهم پولی یکی نمی‌گیرد.
          *
          *   CASH         ⇒ فقط `CashMovement(EXCHANGE_REFUND)` + ثبت روی سند تعویض
          *   CARD         ⇒ فقط ثبت روی سند تعویض (اثرش روی کارتخوان است)
-         *   (نشست ۵۹: `Payment` منفی دیگر ساخته نمی‌شود — پاراگراف ⚠️ زیر منسوخ است)
-         *   STORE_CREDIT ⇒ رفتار قدیمی (بارکد اعتبار)
+         *   CARD_TO_CARD ⇒ درخواست انتقال مدیر، تا زمان پرداخت پول نقد نیست
+         *   STORE_CREDIT ⇒ بارکد اعتبارِ سهم پولیِ واقعی
          *
          * ⚠️ [منسوخ از نشست ۵۹، بند ۴-۹ مالک] تصمیم معماری قدیمی: **`Payment` با مبلغ منفی**، نه یک مدل
          * جدید `Refund`. دلیلش این است که کل برنامه (بستن صندوق، جزئیات شیفت،
@@ -8826,11 +9065,9 @@ export const salesService = {
 
           const moneySurplus = backedSurplus.reduce((sum, bucket) => sum + bucket.amount, 0)
           realMoneyRefundAmount = moneySurplus
-          if (owed > 0 && moneySurplus > 0 && !appliedRefundMode)
-            throw new BusinessError(
-              `برای این تعویض ${money(moneySurplus)} ریال وجه واقعیِ قابل‌تسویه وجود دارد، اما روش بازپرداخت انتخاب نشده است. ` +
-              'نقد، کارت، اعتبار خرید یا کارت‌به‌کارت مدیر را صریحاً انتخاب کنید؛ هیچ برگشت، پرداخت، اعتبار یا حرکت موجودی ثبت نشد.'
-            )
+          // هیچ روش تسویه‌ای به‌طور خودکار انتخاب نمی‌شود. اگر پس از کسر بدهی و
+          // بازگرداندن اعتبار منشأدار، وجه واقعی باقی بماند، فروشنده باید روش فعال
+          // و مجاز را صریح انتخاب کند؛ اعتبار خرید نیز از این قاعده مستثنا نیست.
 
           // Source-credit shares (including expired portions) have already been
           // returned to their own source or closed without cash by this point.
@@ -9356,11 +9593,7 @@ export const salesService = {
       }
       const exMap = new Map(exchangeInvoices.map((i) => [i.id, i]))
 
-      const credits: any[] = []
-      for (const ids of reportIdChunks(returns.map((r) => r.id))) {
-        credits.push(...(await prisma.storeCredit.findMany({ where: { returnId: { in: ids } } })))
-      }
-      const creditMap = new Map(credits.map((c) => [c.returnId ?? 0, c]))
+      const creditsByReturn = await storeCreditsByReturnId(prisma, returns)
 
       // نام کالاها یک‌جا (بدون include تودرتو، تا کالای حذف‌شده گزارش را نخواباند)
       const variantIds = [
@@ -9390,33 +9623,15 @@ export const salesService = {
 
       const rows: ExchangeReportRow[] = returns.map((r) => {
         const ex = r.exchangeInvoiceId ? exMap.get(r.exchangeInvoiceId) : null
-        const credit = creditMap.get(r.id) ?? null
+        const storeCredits = creditsByReturn.get(Number(r.id)) ?? []
+        const legacyCredit = storeCredits.find((row) => Number(row.id) === Number(r.storeCreditId)) ?? storeCredits[0] ?? null
+        const storeCreditTotal = storeCredits.reduce((sum, row) => sum + toNumberRial(row.amount ?? 0), 0)
+        const storeCreditUsedTotal = storeCredits.reduce((sum, row) => sum + toNumberRial(row.usedAmount ?? 0), 0)
         const returnedAt = r.returnedAt instanceof Date ? r.returnedAt : new Date(r.returnedAt)
-        /**
-         * «نقد دریافتی» فقط پرداختی‌های *واقعی* سند تعویض است: ردیف‌های
-         * EXCHANGE_CREDIT و STORE_CREDIT عمداً بیرون می‌مانند، وگرنه مابه‌التفاوتی
-         * که هیچ‌وقت دریافت نشده، در گزارش «دریافتی» دیده می‌شد.
-         */
-        /**
-         * گزارش تعویض نباید دریافت کارت را «نقد» بنامد. همان destination ذخیره‌شده
-         * روی Payment منبع حقیقت است؛ EXCHANGE_CREDIT/STORE_CREDIT و چکِ پاس‌نشده
-         * اساساً پول دریافتی نیستند.
-         */
-        const received = (ex?.payments ?? []).reduce(
-          (sum, p) => {
-            const kind = p.method?.kind ?? ''
-            if (kind === PaymentKind.EXCHANGE_CREDIT || kind === PaymentKind.STORE_CREDIT) return sum
-            if ((p.kind ?? PaymentEntryKind.CASH) === PaymentEntryKind.CHEQUE && p.chequeStatus !== ChequeStatus.CLEARED)
-              return sum
-            const amount = toNumberRial(p.amount)
-            if (p.destination === PaymentDestination.CARD) sum.card += amount
-            else sum.cash += amount
-            return sum
-          },
-          { cash: 0, card: 0 }
-        )
+        // destination is authoritative; manager and missing/invalid legacy
+        // destinations stay in their own report buckets, never in cash.
+        const received = exchangeTenderTotalsOf(ex?.payments ?? [])
         const settlement = r.exchangeSettlement ?? ExchangeSettlement.NONE
-        const creditRow = credit ? shapeStoreCredit(credit) : null
         return {
           returnId: r.id,
           invoiceId: r.invoiceId,
@@ -9452,15 +9667,20 @@ export const salesService = {
           settlementLabel: EXCHANGE_SETTLEMENT_LABELS[settlement] ?? settlement,
           cashReceived: received.cash,
           cardReceived: received.card,
+          managerReceived: received.manager,
+          unknownReceived: received.unknown,
           cashRefunded: settlement === ExchangeSettlement.CASH_REFUND
             ? Math.max(0, toNumberRial(r.refundAmount ?? 0)) : 0,
           cardRefunded: settlement === ExchangeSettlement.CARD_REFUND
             ? Math.max(0, toNumberRial(r.refundAmount ?? 0)) : 0,
-          /** کد قابل‌مصرف فقط برای چاپ/مسیر مجوزدار است؛ گزارش شناسهٔ امن دارد. */
-          storeCreditReference: creditRow || r.storeCreditId ? `اعتبار #${creditRow?.id ?? r.storeCreditId}` : null,
-          storeCreditAmount: creditRow?.amount ?? 0,
-          storeCreditStatus: creditRow?.status ?? null,
-          storeCreditStatusLabel: creditRow?.statusLabel ?? null,
+          /** Legacy scalar for compatibility; totals and new UI use the full safe array below. */
+          storeCreditReference: legacyCredit?.publicReference ?? (r.storeCreditId ? `اعتبار #${r.storeCreditId}` : null),
+          storeCreditAmount: legacyCredit?.amount ?? 0,
+          storeCreditStatus: legacyCredit?.status ?? null,
+          storeCreditStatusLabel: legacyCredit?.statusLabel ?? null,
+          storeCredits,
+          storeCreditTotal,
+          storeCreditUsedTotal,
           note: r.note ?? ''
         }
       })
@@ -9473,13 +9693,12 @@ export const salesService = {
       diffTotal: rows.reduce((s, r) => s + r.diff, 0),
       cashReceivedTotal: rows.reduce((s, r) => s + r.cashReceived, 0),
       cardReceivedTotal: rows.reduce((s, r) => s + r.cardReceived, 0),
+      managerReceivedTotal: rows.reduce((s, r) => s + r.managerReceived, 0),
+      unknownReceivedTotal: rows.reduce((s, r) => s + r.unknownReceived, 0),
       cashRefundTotal: rows.reduce((s, r) => s + r.cashRefunded, 0),
       cardRefundTotal: rows.reduce((s, r) => s + r.cardRefunded, 0),
-      creditIssuedTotal: rows.reduce((s, r) => s + r.storeCreditAmount, 0),
-      creditUsedTotal: rows.reduce(
-        (s, r) => s + (r.storeCreditStatus === StoreCreditStatus.USED ? r.storeCreditAmount : 0),
-        0
-      )
+      creditIssuedTotal: rows.reduce((s, r) => s + (r.storeCreditTotal ?? 0), 0),
+      creditUsedTotal: rows.reduce((s, r) => s + (r.storeCreditUsedTotal ?? 0), 0)
     })
 
     const rows = await shapeRows(await loadReturns(page.skip, page.take))
@@ -9921,6 +10140,7 @@ export const salesService = {
       )
     }
     const umap = new Map(returnUsers.map((u) => [u.id, u.displayName]))
+    const creditsByReturn = await storeCreditsByReturnId(prisma, returns)
     const variantIds = [...new Set(returns.flatMap((r) => r.items.map((i) => i.variantId)))]
     const variants: any[] = []
     for (const ids of reportIdChunks(variantIds)) {
@@ -9938,7 +10158,11 @@ export const salesService = {
       )
     }
     const vmap = new Map(variants.map((v) => [v.id, v]))
-    const rows = returns.map((r) => ({
+    const rows = returns.map((r) => {
+      const storeCredits = creditsByReturn.get(Number(r.id)) ?? []
+      const legacyCredit = storeCredits.find((credit) => Number(credit.id) === Number(r.storeCreditId)) ?? storeCredits[0] ?? null
+      const storeCreditTotal = storeCredits.reduce((sum, credit) => sum + toNumberRial(credit.amount ?? 0), 0)
+      return {
       id: r.id,
       /** RETURN = برگشت ساده · EXCHANGE = برگشتی که سند تعویض دارد (مورد ۵) */
       kind: r.kind,
@@ -9978,8 +10202,10 @@ export const salesService = {
       legacyAssumed: !r.refundMethod,
       invoiceUserName: r.invoice?.user?.displayName ?? 'مدیر',
       returnUserName: (r.userId != null ? umap.get(r.userId) : null) ?? 'مدیر',
-      /** کد اعتبار از DTO گزارش برگشت حذف است؛ id فقط ردیابی غیرقابل‌مصرف است. */
-      storeCreditReference: r.storeCreditId ? `اعتبار #${r.storeCreditId}` : null,
+      /** Legacy scalar stays safe for compatibility; the array below is authoritative. */
+      storeCreditReference: legacyCredit?.publicReference ?? (r.storeCreditId ? `اعتبار #${r.storeCreditId}` : null),
+      storeCredits,
+      storeCreditTotal,
       exchangeDiff: toNumberRial(r.exchangeDiff ?? 0),
       exchangeSettlement: r.exchangeSettlement ?? null,
       exchangeSettlementLabel: r.exchangeSettlement
@@ -9998,7 +10224,8 @@ export const salesService = {
           restockedQty: i.restockedQty
         }
       })
-    }))
+      }
+    })
     return attachReportPage(rows, page)
   }
 ,
@@ -10821,6 +11048,7 @@ export const salesService = {
                 'موضوع برای رسیدگی مدیر ثبت شد.'
             )
         }
+        await reverseReturnCreditRestorations(tx, { returnId: Number(ret.id), creditsIssuedByReturn: credits })
 
         /** جلسه ۴۰ · کار ب — کالای این برگشت معلق بود؟ (برای متن‌ها و AuditLog) */
         const wasPending = ret.restockPending === true

@@ -122,7 +122,7 @@ for (const order of sourceCodes) {
     userId, shiftId, invoiceId: invoice.id,
     lines: requestedLines,
     replacements: order === 'ABC' ? replacements : [...replacements].reverse()
-  }), /قبلاً در تعویض ثبت شده.*گزارشات فروش.*تعویض کالا/)
+  }), /قبلاً در تعویض ثبت شده.*گزارشات فروش.*تعویض کالا|تعداد برگشتی برای پیش‌نمایش از باقی‌ماندهٔ مجاز بیشتر است/u)
   assert.equal(seed.count('SaleInvoice'), invoiceCountBeforeReplay,
     `${order}: replay creates no duplicate invoice`)
   assert.equal(seed.count('SaleReturn'), returnCountBeforeReplay,

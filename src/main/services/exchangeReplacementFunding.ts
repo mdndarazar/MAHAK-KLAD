@@ -2,6 +2,7 @@ import { planReturnCreditSources, type ReturnCreditLine } from '@shared/returnCr
 import { isExpiredAt } from '@shared/credit'
 import { BusinessError } from '../errors'
 import type { Prisma } from '@prisma/client'
+import { categoryAncestryPath, categoryParentMap } from '@shared/categoryAncestry'
 
 type FundingBucket =
   | { kind: 'MONEY'; amount: number; sourceKey: string }
@@ -49,18 +50,21 @@ export async function planReplacementSourceCredit(
   const hasCategoryScope = sources.some(({ bucket }) =>
     !bucket.pooledOnExchangeInvoice && String(bucket.credit?.restrictScope ?? 'ALL').toUpperCase() === 'CATEGORY')
   const categories = hasCategoryScope ? await tx.category.findMany({ select: { id: true, parentId: true } }) : []
-  const parentById = new Map<number, number | null>((categories as any[]).map((row) =>
-    [Number(row.id), row.parentId == null ? null : Number(row.parentId)]))
-  const categoryPath = (categoryId: number | null): number[] => {
-    const path: number[] = []
-    const seen = new Set<number>()
-    let current = categoryId
-    while (current != null && !seen.has(current) && path.length < 100) {
-      seen.add(current)
-      path.push(current)
-      current = parentById.get(current) ?? null
+  let parentById = new Map<number, number | null>()
+  if (hasCategoryScope) {
+    try {
+      parentById = categoryParentMap(categories as Array<{ id: number; parentId: number | null }>)
+    } catch (error) {
+      throw new BusinessError(String((error as Error)?.message ?? 'زنجیرهٔ دسته‌ها معتبر نیست؛ محدودهٔ اعتبار قابل بررسی نیست.'))
     }
-    return path
+  }
+  const categoryPath = (categoryId: number | null): number[] => {
+    if (!hasCategoryScope) return []
+    try {
+      return categoryAncestryPath(categoryId, parentById)
+    } catch (error) {
+      throw new BusinessError(String((error as Error)?.message ?? 'زنجیرهٔ دسته‌ها معتبر نیست؛ محدودهٔ اعتبار قابل بررسی نیست.'))
+    }
   }
 
   const rawLines = replacements.map((line, index) => {

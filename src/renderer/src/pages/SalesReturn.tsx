@@ -40,10 +40,10 @@ import { PANEL_KEYS } from '@shared/panels'
  * ===================== برگشت از فروش و تعویض کالا =====================
  * جریان کار (همان چیزی که در فروشگاه اتفاق می‌افتد):
  *
- *   ۱) مشتری رسید را می‌آورد. کاربر «کد فاکتور» را وارد می‌کند — یا بارکد
+ *   ۱) مشتری رسید را می‌آورد. کاربر کد برگشت یا شمارهٔ فیش را وارد می‌کند — یا بارکد
  *      روی رسید را با بارکدخوان اسکن می‌کند (بدون تایپ).
- *   ۲) سیستم فاکتور فروش تکی متناظر را — در بازه‌ی اعتبار یک‌هفته‌ای کد — پیدا
- *      می‌کند و اقلامش را نشان می‌دهد.
+ *   ۲) سیستم روش پیدا کردن، وجود کد و مهلت آن را جداگانه نشان می‌دهد؛ تاریخ‌ها
+ *      با قاعدهٔ پایان روز تهران بررسی می‌شوند و مهلت نامعلوم/گذشته اجازهٔ ثبت نمی‌دهد.
  *   ۳) کاربر تعداد برگشتی هر قلم را می‌گذارد (کامل یا جزئی) و ثبت می‌کند؛
  *      همان تعداد به موجودی انبار برمی‌گردد (حرکت انبار SALE_RETURN، قطعی).
  *
@@ -56,9 +56,10 @@ import { PANEL_KEYS } from '@shared/panels'
  *
  * «مابه‌التفاوت» زنده و همان لحظه حساب می‌شود (جمع کالای جایگزین − جمع کالای
  * برگشتی) و روی صفحه سه حالتش روشن نوشته می‌شود:
- *   • مثبت ⇒ مشتری می‌پردازد (روش پرداختش را همان‌جا انتخاب می‌کنید).
- *   • منفی ⇒ ما بدهکاریم و «بارکد اعتبار خرید بعدی» صادر می‌شود.
- *   • صفر  ⇒ تسویه‌ای لازم نیست.
+ *   • مثبت ⇒ مشتری می‌پردازد و روش پرداخت باید صریح انتخاب شود.
+ *   • منفی ⇒ بدهی فاکتور و اعتبار منشأدار جداگانه حساب می‌شوند؛ اگر وجه واقعی باقی بماند،
+ *     فروشنده باید روش تسویه را صریح انتخاب کند (هیچ اعتبار/روش پیش‌فرضی صادر نمی‌شود).
+ *   • صفر یا نبود وجه واقعی برای تسویه ⇒ روش تسویه لازم نیست.
  * دکمه‌ی «ثبت تعویض کالا» کانال IPC `sale:exchange:create` را صدا می‌زند و کل
  * کار (برگشت + سند تعویض + تسویه + صدور بارکد) در یک تراکنش سمت main انجام
  * می‌شود؛ این صفحه هیچ محاسبه‌ی مالی‌ای را «تصمیم» نمی‌گیرد، فقط نمایش می‌دهد.
@@ -97,6 +98,11 @@ interface Method {
   label: string
   kind: string
 }
+
+const returnLookupInput = (value: Pick<ReturnLookup, 'lookupKind' | 'returnCode' | 'receiptNo'>): string =>
+  value.lookupKind === 'RETURN_CODE' && value.returnCode
+    ? value.returnCode
+    : String(value.receiptNo)
 
 /** یک قلم «جایگزین» در فرم تعویض کالا (همان شکل ردیف سبد پنل فروش). */
 interface RepLine {
@@ -329,10 +335,9 @@ export default function SalesReturn() {
     inputRef.current?.focus()
     call<Method[]>(CH.paymentMethods)
       .then((list) => {
+        // Tender selection is a per-transaction seller decision; never preselect
+        // the first active method (including the cash/card split fields).
         setMethods(list ?? [])
-        setMethodId((cur) => cur ?? list?.[0]?.id ?? null)
-        setExSplitCashMethodId((cur) => cur ?? list?.find((method) => method.kind === 'CASH')?.id ?? null)
-        setExSplitCardMethodId((cur) => cur ?? list?.find((method) => method.kind === 'CARD')?.id ?? null)
       })
       .catch(() => setMethods([]))
   }, [])
@@ -456,11 +461,18 @@ export default function SalesReturn() {
     try {
       const res = await call<ReturnLookup>(CH.saleByReturnCode, { code: value })
       setLookup(res)
-      // پیش‌فرض: هیچ قلمی تیک‌خورده نیست تا کاربر آگاهانه تعداد بگذارد
+      // Settlement/tender choices are explicit for each new lookup, never inherited.
+      setMethodId(null)
+      setExSplitPayment(false)
+      setExSplitCashMethodId(null)
+      setExSplitCardMethodId(null)
+      setExRefundMode(null)
+      setExRefundPayoutAmount('')
+      // هیچ قلمی تیک‌خورده نیست تا کاربر آگاهانه تعداد بگذارد
       setQty({})
       setAllowRemoved(false)
       setNote('')
-      setCode(res.returnCode)
+      setCode(returnLookupInput(res))
       scan.reset()
       if (res.warnings.length) setErr(res.warnings.join('\n'))
     } catch (e: any) {
@@ -568,8 +580,18 @@ export default function SalesReturn() {
   }, [loadHistory])
 
   const items = lookup?.items ?? []
-  /** نشست ۲ · C7 (بند ۴-۲۰) — فاکتور لغوشده/پیش‌نویس: دکمه‌های برگشت و تعویض قفل */
-  const lookupLocked = !!lookup && !isReturnableStatus(lookup.status)
+  const deadlineBlocked = !!lookup && (lookup.expiryState === 'EXPIRED' || lookup.expiryState === 'UNPROVEN')
+  /** وضعیت فاکتور و مهلت هر دو در main هم دوباره بررسی می‌شوند؛ UI فقط زودتر هشدار می‌دهد. */
+  const lookupLocked = !!lookup && (!isReturnableStatus(lookup.status) || deadlineBlocked)
+  const lookupExpiryLabel = !lookup
+    ? '—'
+    : lookup.expiryState === 'VALID'
+      ? `${lookup.daysLeft == null ? '' : `${faDigits(lookup.daysLeft)} روز مانده`}${lookup.expiresAtJalali ? ` (تا ${faDigits(lookup.expiresAtJalali)})` : ''}`
+      : lookup.expiryState === 'EXPIRED'
+        ? `منقضی شده${lookup.expiresAtJalali ? ` · تا ${faDigits(lookup.expiresAtJalali)}` : ''}`
+        : lookup.expiryState === 'UNPROVEN'
+          ? 'مهلت در سابقه ثبت نشده؛ ثبت مسدود است'
+          : 'برای این فاکتور کدی صادر نشده'
   const selected = useMemo(
     () => items.filter((i) => (qty[i.saleItemId] ?? 0) > 0),
     [items, qty]
@@ -861,7 +883,7 @@ export default function SalesReturn() {
           setIssuedOverpayCredit(res.overpayCredit)
           await printIssuedOverpayCredit(res.overpayCredit)
         }
-        await lookupCode(lookup.returnCode)
+        await lookupCode(returnLookupInput(lookup))
         await loadHistory()
       } catch (e: any) {
         const message = String(e.message ?? '')
@@ -926,6 +948,8 @@ export default function SalesReturn() {
         return setErr('پیش‌نمایش محدودیت‌های اعتبار هنوز کامل نشده است؛ لحظه‌ای صبر کنید.')
       if (exSettlementDiff > 0 && exCreditCode.trim() && exCreditPreview?.ok !== true)
         return setErr(exCreditError || 'اعتبار روی این تعویض قابل استفاده نیست.')
+      if (exSettlementDiff > 0 && exCashDuePreview > 0 && !exSplitPayment && !methodId)
+        return setErr('برای دریافت مابه‌التفاوت، روش پرداخت را صریح انتخاب کنید؛ هیچ روش پیش‌فرضی انتخاب نمی‌شود.')
       if (exSettlementDiff > 0 && exCashDuePreview > 0 && exSplitPayment) {
         if (!exSplitCashMethodId || !exSplitCardMethodId)
           return setErr('برای پرداخت ترکیبی، یک روش فعال نقدی و یک روش فعال کارتی انتخاب کنید.')
@@ -1040,6 +1064,9 @@ export default function SalesReturn() {
         setExSplitPayment(false)
         setExSplitCash('')
         setExSplitCard('')
+        setMethodId(null)
+        setExSplitCashMethodId(null)
+        setExSplitCardMethodId(null)
         setPriceOverrideOn(false)
         setManagerPw('')
         setLockNeeded(false)
@@ -1071,7 +1098,7 @@ export default function SalesReturn() {
             (res.centralWithdrawText ? '\n' + res.centralWithdrawText : '') +
             (res.stockWarnings?.length ? '\n' + res.stockWarnings.join('\n') : '')
         )
-        await lookupCode(lookup.returnCode)
+        await lookupCode(returnLookupInput(lookup))
         await loadHistory()
       } catch (e: any) {
         const message = String(e.message ?? '')
@@ -1215,7 +1242,7 @@ export default function SalesReturn() {
           (res.canceledCreditRefs?.length ? ` · ${res.canceledCreditRefs.join('، ')} هم باطل شد` : '')
       )
       await loadHistory()
-      if (lookup) await lookupCode(lookup.returnCode)
+      if (lookup) await lookupCode(returnLookupInput(lookup))
     } catch (e: any) {
       /** هدف باز می‌ماند تا فروشنده بتواند، مثلاً، رمز لازم را وارد و دوباره ثبت کند. */
       setVoidReasonErr(String(e?.message ?? 'ابطال انجام نشد.'))
@@ -1271,7 +1298,7 @@ export default function SalesReturn() {
           (res.unrecoveredAmount ? ` · مغایرت بازیافت‌نشده: ${money(res.unrecoveredAmount)} ریال` : '')
       )
       await loadHistory()
-      if (lookup) await lookupCode(lookup.returnCode)
+      if (lookup) await lookupCode(returnLookupInput(lookup))
     } catch (e: any) {
       setCorrectionErr(String(e?.message ?? 'اصلاح جبرانی انجام نشد.'))
     } finally {
@@ -1320,6 +1347,9 @@ export default function SalesReturn() {
     setExSplitPayment(false)
     setExSplitCash('')
     setExSplitCard('')
+    setMethodId(null)
+    setExSplitCashMethodId(null)
+    setExSplitCardMethodId(null)
     setPriceOverrideOn(false)
     setManagerPw('')
     setLockNeeded(false)
@@ -1350,7 +1380,7 @@ export default function SalesReturn() {
                   ? 'صدور بارکد تازه فقط برای سهم وجه واقعی'
                   : exRefundMode === 'CARD_TO_CARD'
                     ? 'درخواست کارت‌به‌کارت مدیر برای سهم وجه واقعی'
-                    : 'روش تسویه‌ی سهم وجه واقعی را انتخاب کنید'
+                    : 'روش تسویه را صریح انتخاب کنید اگر پس از کسر بدهی و بازگرداندن اعتبار منشأدار، وجه واقعی برای تسویه باقی بماند'
           }`
         : 'مابه‌التفاوت صفر است؛ تسویه‌ای لازم نیست'
 
@@ -1600,19 +1630,13 @@ export default function SalesReturn() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2">
               <Info label="شماره فیش" value={faDigits(lookup.receiptNo)} strong />
-              <Info label="کد فاکتور" value={lookup.returnCode} ltr strong />
+              <Info label="کد برگشت" value={lookup.returnCode ?? 'صادر نشده'} ltr strong />
+              <Info label="جست‌وجو با" value={lookup.lookupKind === 'RETURN_CODE' ? 'کد برگشت' : 'شماره فیش'} />
               <Info label="تاریخ / ساعت" value={`${faDigits(lookup.issuedAtJalali)} · ${faDigits(lookup.issuedTime)}`} />
               <Info label="خریدار" value={lookup.customerName} />
               <Info label="شیفت" value={lookup.shiftName ?? '—'} />
               <Info label="وضعیت" value={lookup.statusLabel} />
-              <Info
-                label="اعتبار کد"
-                value={
-                  lookup.expired
-                    ? 'منقضی شده'
-                    : `${faDigits(lookup.daysLeft)} روز مانده (تا ${faDigits(lookup.expiresAtJalali)})`
-                }
-              />
+              <Info label="اعتبار کد" value={lookupExpiryLabel} />
               <Info label="جمع مبلغ کالا" value={money(lookup.goodsTotal)} />
               <Info label="تخفیف" value={money(lookup.discountTotal)} />
               <Info label="حق سرویس" value={money(lookup.serviceCharge)} />
@@ -2069,20 +2093,20 @@ export default function SalesReturn() {
                     </div>
                   </div>
                 )}
-                {/* انتخاب روش فقط برای مبلغ وجه واقعیِ قابل‌پرداختِ مثبت لازم است؛ هیچ اعتبار یا پرداخت خودکاری جای تصمیم فروشنده را نمی‌گیرد. */}
+                {/* روش تسویه فقط برای سهم پولیِ واقعیِ باقی‌مانده پس از کسر بدهی و اعتبار منشأدار لازم است؛ انتخاب خودکار نداریم. */}
                 {!discountTransferNeedsChoice && exSettlementDiff < 0 && (
                   <div
                     className={`col-span-2 md:col-span-4 rounded p-2 border-2 ${
-                      exRefundMode ? 'bg-white border-emerald-400' : 'bg-rose-50 border-rose-400'
+                      exRefundMode ? 'bg-white border-emerald-400' : 'bg-amber-50 border-amber-300'
                     }`}
                   >
                     <div className="flex flex-wrap items-center gap-2 mb-1">
                       <b>تسویه‌ی مابه‌التفاوت منفی — {money(-exSettlementDiff)} ریال</b>
-                      {!exRefundMode && <span className="text-rose-800 font-bold">روش انتخاب نشده است؛ انتخاب روش فقط وقتی لازم است که پس از محاسبهٔ نهایی، مبلغ وجه واقعیِ قابل‌پرداخت مثبت باشد. اگر مبلغ نهایی صفر است، روش را خالی بگذارید.</span>}
+                      {!exRefundMode && <span className="text-amber-900 font-bold">اگر پس از کسر بدهی و برگرداندن اعتبار منشأدار، وجه واقعی باقی بماند، انتخاب روش تسویه اجباری است؛ هیچ روش یا اعتباری خودکار انتخاب نمی‌شود.</span>}
                     </div>
                     <div className="kbd mb-2">
-                      سهم اعتبارِ منشأدار جداگانه و غیرنقدی به منبع/جانشین خودش برمی‌گردد. روش انتخابی فقط برای وجه واقعیِ قابل‌پرداختِ نهایی است؛ انتخاب روش وقتی لازم است که این مبلغ مثبت باشد. اگر مبلغ نهایی صفر است، روش را خالی بگذارید؛ کنترل‌های دیگر تعویض همچنان برقرارند.
-                      مثلاً با برگشت ۲۰، شامل ۵ اعتبار و ۱۵ وجه واقعی، و تعویض ۱۰، در نبود بدهیِ قابل‌کسر، ۵ اعتبار منشأدار به منبعش برمی‌گردد و برای ۵ وجه واقعی باید روش تسویه صریح انتخاب شود.
+                      سهم اعتبارِ منشأدار جداگانه و غیرنقدی به منبع/جانشین خودش برمی‌گردد. اگر پس از کسر بدهی و این سهم، وجه واقعی باقی بماند، یک روش مجاز را صریح انتخاب کنید؛ سیستم اعتبار خرید یا اولین روش فعال را به‌جای شما انتخاب نمی‌کند.
+                      مثلاً با برگشت ۲۰، شامل ۵ اعتبار و ۱۵ وجه واقعی، و تعویض ۱۰، در نبود بدهیِ قابل‌کسر، ۵ اعتبار منشأدار به منبعش برمی‌گردد و برای ۵ وجه واقعی باید روش تسویه را انتخاب کنید.
                     </div>
                     {/* جلسه ۱۷ · بند ۱ — چهار ستون، چون گزینه‌ی «کارت‌به‌کارت توسط مدیر» اضافه شد */}
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
@@ -2187,6 +2211,7 @@ export default function SalesReturn() {
                               value={methodId ?? ''}
                               onChange={(e) => setMethodId(e.target.value ? Number(e.target.value) : null)}
                             >
+                              <option value="">روش پرداخت را انتخاب کنید</option>
                               {methods.map((m) => (
                                 <option key={m.id} value={m.id}>
                                   {m.label}
@@ -2406,9 +2431,16 @@ export default function SalesReturn() {
                 رسیدگی دستی: کالای حذف‌شده از انبار هم برگشت بخورد
               </label>
             )}
-            {lookupLocked && (
+            {lookup && deadlineBlocked && (
               <div className="text-rose-700 font-bold">
-                این فاکتور {lookup?.status === 'CANCELED' ? 'لغو شده' : 'پیش‌نویس'} است؛ برگشت و تعویض روی آن ممکن نیست.
+                {lookup.expiryState === 'EXPIRED'
+                  ? `مهلت برگشت تا پایان روز ${lookup.expiresAtJalali ? faDigits(lookup.expiresAtJalali) : 'ثبت‌شده'} به وقت تهران تمام شده است؛ برگشت و تعویض ثبت نمی‌شود.`
+                  : 'مهلت کد در سابقه ثبت نشده است؛ برای جلوگیری از ثبت خارج از مهلت، برگشت و تعویض مسدود است.'}
+              </div>
+            )}
+            {lookup && !isReturnableStatus(lookup.status) && (
+              <div className="text-rose-700 font-bold">
+                این فاکتور {lookup.status === 'CANCELED' ? 'لغو شده' : 'پیش‌نویس'} است؛ برگشت و تعویض روی آن ممکن نیست.
               </div>
             )}
             {exchangeMode ? (
@@ -2659,7 +2691,7 @@ export default function SalesReturn() {
         onSaved={(m) => {
           flash(m)
           void loadHistory()
-          if (lookup) void lookupCode(lookup.returnCode)
+          if (lookup) void lookupCode(returnLookupInput(lookup))
         }}
       />
 

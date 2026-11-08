@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-10-27T15:36:53.556Z",
-  "isolatedDatabase": "/tmp/mahak-e100-034-discount-stZe8k/isolated.db",
-  "case": "E100-034; fifth blocked case in the 13-stop sequence; index 34",
+  "generatedAt": "2026-11-08T21:36:07.053Z",
+  "isolatedDatabase": "/tmp/mahak-e100-034-discount-X5vCct/isolated.db",
+  "case": "E100-034; positive-exchange credit provenance and later C+D settlement",
   "checks": {
     "noDiscountControlPass": true,
     "discountedFixturePass": true,
@@ -11,7 +11,7 @@
   "originalTrace": {
     "noDiscountRootTender": "300,000 ALL credit + 350,000 cash + 350,000 POS",
     "BPositiveExchangeTender": "BARCODE",
-    "CDBlockedAtPriorReturn": "B return has no CreditReturnAllocation"
+    "BConsumedSourceCreditRecorded": true
   },
   "fixtures": {
     "noDiscount": {
@@ -54,15 +54,21 @@
         "allocations": [
           {
             "redemptionId": 1,
-            "sourceCreditId": 2,
+            "sourceCreditId": 1,
             "amount": 100000,
             "creditRestored": true
           },
           {
             "redemptionId": 2,
-            "sourceCreditId": 3,
+            "sourceCreditId": 2,
             "amount": 100000,
             "creditRestored": true
+          },
+          {
+            "redemptionId": 3,
+            "sourceCreditId": 3,
+            "amount": 0,
+            "creditRestored": false
           }
         ]
       },
@@ -86,28 +92,66 @@
           "diff": 20000,
           "settlement": "CREDIT"
         },
-        "creditReturnAllocations": []
+        "creditReturnAllocations": [
+          {
+            "id": 4,
+            "amount": 100000,
+            "redemptionId": 3,
+            "sourceCreditId": 3,
+            "creditRestored": false,
+            "settlementAdjusted": false,
+            "restrictScope": "ALL",
+            "saleItemId": null
+          }
+        ]
       },
       "exchangeCD": {
         "returnTotal": 600000,
         "replacementTotal": 580000,
         "diff": -20000,
-        "accepted": false,
-        "error": "برگشت قبلی #2 تخصیص منشأ اعتبار ندارد؛ هیچ تعویضی ثبت نشد تا منبع مالی با حدس جابه‌جا نشود.",
-        "returnRecord": null,
-        "returnLines": [],
-        "payments": [],
-        "mutationFree": true,
+        "accepted": true,
+        "error": null,
+        "returnRecord": {
+          "id": 3,
+          "total": 600000,
+          "exchangeTotal": 580000,
+          "exchangeDiff": -20000,
+          "exchangeSettlement": "CASH_REFUND",
+          "refundMethod": "CASH",
+          "refundAmount": 20000
+        },
+        "returnLines": [
+          {
+            "variantId": 3,
+            "lineTotal": 300000,
+            "restockedQty": 1
+          },
+          {
+            "variantId": 4,
+            "lineTotal": 300000,
+            "restockedQty": 1
+          }
+        ],
+        "payments": [
+          {
+            "methodId": 4,
+            "amount": 580000,
+            "kind": "CASH",
+            "destination": null,
+            "note": "ارزش کالای برگشتی فاکتور ۱ (پول نقد نیست)"
+          }
+        ],
+        "mutationRecorded": true,
         "ledgerBefore": {
           "invoices": 2,
           "returns": 2,
           "payments": 7,
-          "allocations": 2,
+          "allocations": 4,
           "credits": [
             [
               1,
-              120000,
-              2,
+              20000,
+              1,
               "PARTIALLY_USED"
             ],
             [
@@ -118,9 +162,9 @@
             ],
             [
               3,
-              0,
-              0,
-              "ACTIVE"
+              100000,
+              1,
+              "PARTIALLY_USED"
             ]
           ],
           "stocks": [
@@ -155,15 +199,15 @@
           ]
         },
         "ledgerAfter": {
-          "invoices": 2,
-          "returns": 2,
-          "payments": 7,
-          "allocations": 2,
+          "invoices": 3,
+          "returns": 3,
+          "payments": 8,
+          "allocations": 4,
           "credits": [
             [
               1,
-              120000,
-              2,
+              20000,
+              1,
               "PARTIALLY_USED"
             ],
             [
@@ -174,9 +218,9 @@
             ],
             [
               3,
-              0,
-              0,
-              "ACTIVE"
+              100000,
+              1,
+              "PARTIALLY_USED"
             ]
           ],
           "stocks": [
@@ -190,11 +234,11 @@
             ],
             [
               "no-discount-control-C-300k",
-              9
+              10
             ],
             [
               "no-discount-control-D-300k",
-              9
+              10
             ],
             [
               "no-discount-control-B1-220k",
@@ -202,11 +246,11 @@
             ],
             [
               "no-discount-control-C1-290k",
-              10
+              9
             ],
             [
               "no-discount-control-D1-290k",
-              10
+              9
             ]
           ]
         }
@@ -214,21 +258,20 @@
       "stocks": {
         "no-discount-control-A-200k": 10,
         "no-discount-control-B-200k": 10,
-        "no-discount-control-C-300k": 9,
-        "no-discount-control-D-300k": 9,
+        "no-discount-control-C-300k": 10,
+        "no-discount-control-D-300k": 10,
         "no-discount-control-B1-220k": 9,
-        "no-discount-control-C1-290k": 10,
-        "no-discount-control-D1-290k": 10
+        "no-discount-control-C1-290k": 9,
+        "no-discount-control-D1-290k": 9
       },
       "checks": {
         "initialInvoiceAndFundingCorrect": true,
         "returnedAUsesDiscountedOrGrossLine": true,
-        "BExchangeUsesBarcodeAndCorrectDelta": true,
+        "BExchangeUsesBarcodeAndRecordsConsumedSourceCredit": true,
         "cDArithmeticMatchesFixture": true,
-        "discountedCDAcceptedAndActualLinesProportional": true,
-        "undiscountedCDBlockedByPriorBProvenance": true,
-        "rejectedAttemptMutationFree": true,
-        "discountedCDCollects40kCashWithoutRefund": true,
+        "cDAcceptedWithCorrectMoneyTreatment": true,
+        "cDLinesAndRestockAreCorrect": true,
+        "acceptedExchangeRecordedInLedger": true,
         "noChecksOrDebt": true
       }
     },
@@ -236,7 +279,7 @@
       "label": "invoice-discount-100k",
       "discount": 100000,
       "rootInvoice": {
-        "id": 3,
+        "id": 4,
         "gross": 1000000,
         "discount": 100000,
         "net": 900000,
@@ -259,20 +302,20 @@
         ]
       },
       "returnA": {
-        "id": 3,
+        "id": 4,
         "total": 180000,
         "sourceCreditRestored": 180000,
         "cashRefund": 0,
         "lines": [
           {
-            "saleItemId": 6,
+            "saleItemId": 8,
             "lineTotal": 180000
           }
         ],
         "allocations": [
           {
             "redemptionId": 5,
-            "sourceCreditId": 5,
+            "sourceCreditId": 4,
             "amount": 100000,
             "creditRestored": true
           },
@@ -281,11 +324,17 @@
             "sourceCreditId": 6,
             "amount": 80000,
             "creditRestored": true
+          },
+          {
+            "redemptionId": 7,
+            "sourceCreditId": 5,
+            "amount": 0,
+            "creditRestored": false
           }
         ]
       },
       "exchangeB": {
-        "returnId": 4,
+        "returnId": 5,
         "returnTotal": 180000,
         "replacementTotal": 220000,
         "diff": 40000,
@@ -293,18 +342,39 @@
         "cashReceived": 0,
         "returnLines": [
           {
-            "saleItemId": 7,
+            "saleItemId": 9,
             "lineTotal": 180000
           }
         ],
         "record": {
-          "id": 4,
+          "id": 5,
           "kind": "EXCHANGE",
           "total": 180000,
           "diff": 40000,
           "settlement": "CREDIT"
         },
-        "creditReturnAllocations": []
+        "creditReturnAllocations": [
+          {
+            "id": 8,
+            "amount": 20000,
+            "redemptionId": 6,
+            "sourceCreditId": 6,
+            "creditRestored": false,
+            "settlementAdjusted": false,
+            "restrictScope": "ALL",
+            "saleItemId": null
+          },
+          {
+            "id": 9,
+            "amount": 100000,
+            "redemptionId": 7,
+            "sourceCreditId": 5,
+            "creditRestored": false,
+            "settlementAdjusted": false,
+            "restrictScope": "ALL",
+            "saleItemId": null
+          }
+        ]
       },
       "exchangeCD": {
         "returnTotal": 540000,
@@ -313,11 +383,12 @@
         "accepted": true,
         "error": null,
         "returnRecord": {
-          "id": 5,
+          "id": 6,
           "total": 540000,
           "exchangeTotal": 580000,
           "exchangeDiff": 40000,
           "exchangeSettlement": "CASH",
+          "refundMethod": "NONE",
           "refundAmount": 0
         },
         "returnLines": [
@@ -338,7 +409,7 @@
             "amount": 540000,
             "kind": "CASH",
             "destination": null,
-            "note": "ارزش کالای برگشتی فاکتور ۳ (پول نقد نیست)"
+            "note": "ارزش کالای برگشتی فاکتور ۴ (پول نقد نیست)"
           },
           {
             "methodId": 1,
@@ -348,17 +419,17 @@
             "note": "مابه‌التفاوت تعویض کالا پس از اعتبار (دریافت از مشتری)"
           }
         ],
-        "mutationFree": false,
+        "mutationRecorded": true,
         "ledgerBefore": {
-          "invoices": 4,
-          "returns": 4,
-          "payments": 14,
-          "allocations": 4,
+          "invoices": 5,
+          "returns": 5,
+          "payments": 15,
+          "allocations": 9,
           "credits": [
             [
               1,
-              120000,
-              2,
+              20000,
+              1,
               "PARTIALLY_USED"
             ],
             [
@@ -369,21 +440,21 @@
             ],
             [
               3,
-              0,
-              0,
-              "ACTIVE"
+              100000,
+              1,
+              "PARTIALLY_USED"
             ],
             [
               4,
-              140000,
-              2,
+              40000,
+              1,
               "PARTIALLY_USED"
             ],
             [
               5,
-              0,
-              0,
-              "ACTIVE"
+              100000,
+              1,
+              "PARTIALLY_USED"
             ],
             [
               6,
@@ -424,15 +495,15 @@
           ]
         },
         "ledgerAfter": {
-          "invoices": 5,
-          "returns": 5,
-          "payments": 16,
-          "allocations": 4,
+          "invoices": 6,
+          "returns": 6,
+          "payments": 17,
+          "allocations": 9,
           "credits": [
             [
               1,
-              120000,
-              2,
+              20000,
+              1,
               "PARTIALLY_USED"
             ],
             [
@@ -443,21 +514,21 @@
             ],
             [
               3,
-              0,
-              0,
-              "ACTIVE"
+              100000,
+              1,
+              "PARTIALLY_USED"
             ],
             [
               4,
-              140000,
-              2,
+              40000,
+              1,
               "PARTIALLY_USED"
             ],
             [
               5,
-              0,
-              0,
-              "ACTIVE"
+              100000,
+              1,
+              "PARTIALLY_USED"
             ],
             [
               6,
@@ -510,24 +581,22 @@
       "checks": {
         "initialInvoiceAndFundingCorrect": true,
         "returnedAUsesDiscountedOrGrossLine": true,
-        "BExchangeUsesBarcodeAndCorrectDelta": true,
+        "BExchangeUsesBarcodeAndRecordsConsumedSourceCredit": true,
         "cDArithmeticMatchesFixture": true,
-        "discountedCDAcceptedAndActualLinesProportional": true,
-        "undiscountedCDBlockedByPriorBProvenance": true,
-        "rejectedAttemptMutationFree": true,
-        "discountedCDCollects40kCashWithoutRefund": true,
+        "cDAcceptedWithCorrectMoneyTreatment": true,
+        "cDLinesAndRestockAreCorrect": true,
+        "acceptedExchangeRecordedInLedger": true,
         "noChecksOrDebt": true
       }
     }
   },
   "rootCause": {
-    "positiveBWrite": "In SalesService.ts:7429 the +20,000 B exchange takes the diff>0 path. In E100-034 its difference is paid by an ALL barcode; the return value is recorded as generic EXCHANGE_CREDIT on the child invoice, but no per-redemption CreditReturnAllocation is written for B's 200,000 return. Test ledger confirms exchangeB.creditReturnAllocations=[].",
-    "negativeCDRead": "C+D at -20,000 enters SalesService.ts:7540 and calls exchangeReturnFundingBuckets at :7585. Prior B has fundedReturn=200,000, creditRemoved=0, no allocation rows, while remaining source CREDIT exists. Guard at :1839-1840 rejects rather than guessing.",
-    "codeAsymmetry": "Exchange CreditReturnAllocation writes at SalesService.ts:7701-7720 occur in the negative-difference refund branch and describe credit surplus after replacements, not the consumed credit provenance missing from the earlier positive B exchange.",
-    "tenderVariant": "The 350k cash + 350k POS mix and B barcode tender are not the cause: the no-discount case4 control with cash tender and case5 split/credit tender both hit the same provenance guard.",
-    "discountBehavior": "The 100k discount is allocated correctly but makes C+D +40,000 instead of -20,000, so the positive collection branch avoids the refund-path guard. It does not repair the missing provenance write."
+    "positiveBWrite": "The positive B exchange records the exact source-credit share consumed by replacement funding as immutable CreditReturnAllocation rows. This fixture verifies 100,000 in the no-discount case and 120,000 in the discounted case; those rows are not marked restored or settlement-adjusted.",
+    "negativeCDRead": "The later C+D exchange reconstructs its funding from the recorded source allocations and real-money tenders. Without invoice discount, it safely refunds only the 20,000 real-money surplus; the source-credit share is never paid as cash.",
+    "tenderVariant": "The 300,000 ALL-credit pool plus cash/card tender split remains traceable through the positive exchange and the later return; no cheque or debt is introduced.",
+    "discountBehavior": "The 100,000 invoice discount is allocated proportionally: it changes C+D from a 20,000 real-money refund to a 40,000 cash collection. Both paths complete with the recorded credit provenance."
   },
-  "conclusion": "The no-discount control reproduces the original stop: C+D returns 600,000 against 580,000 replacements (diff -20,000), so the refund path hits the missing-allocation gate after B exchange. With a 100,000 invoice discount, actual line net values are A/B/C/D=180,000/180,000/270,000/270,000; B->B1 becomes +40,000 paid by barcode; C+D becomes +40,000 and is accepted with 40,000 cash. The discount is allocated correctly to returned-line values, but it does not repair provenance: it flips the C+D difference to positive and avoids the refund branch that fails.",
+  "conclusion": "The test verifies that a positive B exchange records the source-credit amount it consumes, then allows the later C+D exchange to settle safely. Without invoice discount, C+D is -20,000 and the system refunds 20,000 from the traceable real-money surplus only. With a 100,000 invoice discount, C+D is +40,000 and collects 40,000 cash. Both cases preserve source-credit separation, restock the returned items, and avoid checks or debt.",
   "safety": {
     "isolatedDatabase": true,
     "productionCodeChanged": false,

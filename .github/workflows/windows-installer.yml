@@ -5,6 +5,10 @@ on:
     branches:
       - arena/074a2e5d-newmahak
       - arena/8a852de1-mahak-klad
+      - arena/7bfe7000-mahak-klad
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       create_release:
@@ -39,8 +43,54 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate Prisma schema
+        run: npx prisma validate
+
+      - name: Generate Prisma Client
+        run: npm run db:generate
+
+      - name: Apply Prisma migrations to a clean temporary SQLite database
+        shell: pwsh
+        run: |
+          $env:DATABASE_URL = 'file:./ci-validation.db'
+          try {
+            npx prisma migrate deploy
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          finally {
+            Remove-Item -Force prisma/ci-validation.db* -ErrorAction SilentlyContinue
+          }
+
+      - name: Typecheck application
+        run: npm run typecheck
+
       - name: Verify source syntax
         run: npm run check:syntax
+
+      - name: Run financial audit regression tests
+        shell: pwsh
+        run: |
+          $tests = @(
+            'tests/audit-fixes/fix-s60-exchange-debt.mjs',
+            'tests/audit-fixes/fix-s64-return-void.mjs',
+            'tests/audit-fixes/deep-e2e-scenario5-e100-034-invoice-discount.mjs',
+            'tests/audit-fixes/fix-r1-b04-category-ancestry.mjs',
+            'tests/audit-fixes/fix-r1-b05-b06-exchange-report.mjs',
+            'tests/audit-fixes/fix-r1-b07-return-code-expiry.mjs',
+            'tests/audit-fixes/fix-r2-b02-credit-lineage.mjs',
+            'tests/audit-fixes/fix-financial-global-credit-return-policy.mjs',
+            'tests/audit-fixes/fix-financial-global-credit-return-integration.mjs',
+            'tests/audit-fixes/fix-financial-scenario4-multiuse-return-exchange-stock.mjs',
+            'tests/audit-fixes/fix-exchange-child-restricted-credit-pooling.mjs',
+            'tests/audit-fixes/fix-s340-returns-tabs-characterization.mjs',
+            'tests/audit-fixes/deep-e2e-refund-decision-state-machine.mjs',
+            'tests/audit-fixes/deep-e2e-followup-scenario13-no-method-auto-credit-and-independent-limit-gates.mjs'
+          )
+          foreach ($test in $tests) {
+            Write-Host "Running $test"
+            node --import ./test/harness/register.mjs $test
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
 
       - name: Build Windows installer
         shell: pwsh

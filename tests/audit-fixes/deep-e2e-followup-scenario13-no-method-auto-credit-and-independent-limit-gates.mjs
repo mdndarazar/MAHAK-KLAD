@@ -88,8 +88,9 @@ assert.equal(afterReturn.cashMoves, beforeReturn.cashMoves, 'NONE creates no cas
 assert.equal(afterReturn.returnCash, beforeReturn.returnCash, 'NONE creates no cash refund amount')
 assert.equal(afterReturn.stock, beforeReturn.stock + 1, 'return restores stock exactly once')
 
-// A negative exchange with no method also creates backed, non-expiring credit.
-// Legacy managerPassword can satisfy price/period checks but not this credit cap.
+// A negative exchange with a real-money surplus requires an explicit settlement.
+// The general managerPassword is not a substitute for either the tender choice
+// or the separate high-credit-limit authorization.
 const original2 = seed.variant(product, 'S13-exchange-original')
 const replacement = seed.variant(product, 'S13-exchange-replacement')
 sql.prepare('UPDATE "ProductVariant" SET stock=20,salePrice=1000 WHERE id=?').run(original2)
@@ -103,16 +104,31 @@ const sale2Item = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?',
 const exchangeInput = {
   userId, shiftId, invoiceId: n(sale2.id), full: false,
   lines: [{ saleItemId: n(sale2Item.id), qty: 1 }],
-  replacements: [line(replacement, 800)]
+  replacements: [line(replacement, 800)],
+  // This is the marker sent by the screen when no settlement option is picked.
+  exchangeSettlementDecision: 'UNSELECTED'
 }
 const beforeExchange = raw()
-await assert.rejects(() => salesService.createExchange({ ...exchangeInput, managerPassword: DEFAULT_MANAGER_PASSWORD }), /تایید مدیر لازم دارد/)
-assert.deepEqual(raw(), beforeExchange, 'wrong authorization channel does not mutate rejected exchange')
+await assert.rejects(
+  () => salesService.createExchange({ ...exchangeInput, managerPassword: DEFAULT_MANAGER_PASSWORD }),
+  /روش تسویه انتخاب نشده/
+)
+assert.deepEqual(raw(), beforeExchange, 'no explicit tender choice does not mutate the rejected exchange')
+const explicitCreditChoice = {
+  ...exchangeInput,
+  refundMode: 'STORE_CREDIT',
+  exchangeSettlementDecision: 'METHOD'
+}
+await assert.rejects(
+  () => salesService.createExchange({ ...explicitCreditChoice, managerPassword: DEFAULT_MANAGER_PASSWORD }),
+  /تایید مدیر لازم دارد/
+)
+assert.deepEqual(raw(), beforeExchange, 'general manager password does not pass the independent credit-limit gate')
 const exchange = await salesService.createExchange({
-  ...exchangeInput, storeCreditManagerPassword: DEFAULT_MANAGER_PASSWORD
+  ...explicitCreditChoice, storeCreditManagerPassword: DEFAULT_MANAGER_PASSWORD
 })
 assert.equal(n(exchange.diff), -200)
-assert.equal(exchange.refundMode, 'STORE_CREDIT', 'no method defaults safely to store credit')
+assert.equal(exchange.refundMode, 'STORE_CREDIT', 'credit is issued only after explicit tender choice')
 assert.equal(n(exchange.payoutAmount), 0, 'no cash/card payout')
 assert.equal(n(exchange.newStoreCreditAmount), 200, 'only the backed negative difference is credited')
 const exchangeCredit = seed.one('SELECT id,amount,usedAmount,status,expiresAt,source FROM "StoreCredit" WHERE exchangeInvoiceId=? ORDER BY id DESC LIMIT 1', exchange.exchangeInvoiceId)
@@ -124,5 +140,5 @@ assert.equal(postExchange.cashMoves, beforeExchange.cashMoves)
 assert.equal(postExchange.returnCash, beforeExchange.returnCash)
 assert.equal(postExchange.stock, beforeExchange.stock)
 assert.equal(n(await settingsService.accountingPolicy().then(p => p.storeCreditLimit)), 100)
-console.log('Scenario 13 PASS: no-method return/exchange caused no payout; only truly backed amounts became non-expiring credit; unrelated managerPassword did not pass either independent credit-limit gate; all rejected attempts were mutation-free.')
+console.log('Scenario 13 PASS: unselected exchange tender was blocked without writes; explicit STORE_CREDIT plus its dedicated authorization passed; automatic no-method credit selection stayed disabled.')
 await db.$disconnect?.()

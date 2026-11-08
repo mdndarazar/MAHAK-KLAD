@@ -3,7 +3,8 @@ import { isExpiredAt, parseIdList } from '@shared/credit'
 import { BusinessError } from '../errors'
 import { toNumberRial } from '@shared/money'
 import { audit } from './AuditService'
-import { issueStoreCredit } from './StoreCreditService'
+import { adjustStoreCreditLineageUsage, ensureStoreCreditLineage, issueStoreCredit } from './StoreCreditService'
+import { categoryAncestryPath, categoryParentMap } from '@shared/categoryAncestry'
 import { assertCreditScopeUnchangedSinceRedemption } from './creditScopeHistory'
 import {
   planReturnCreditSources,
@@ -15,6 +16,7 @@ import {
 type CreditReturnTx = {
   storeCreditRedemption: any
   storeCredit: any
+  storeCreditLineage: any
   creditReturnAllocation: any
   productVariant: any
   category: any
@@ -48,7 +50,15 @@ export async function planCreditReturn(
   })
   const ids = [...new Set(redemptions.map((row: any) => Number(row.creditId)))]
   const credits = ids.length ? await tx.storeCredit.findMany({ where: { id: { in: ids } } }) : []
-  const creditsById = new Map((credits as any[]).map((credit) => [Number(credit.id), credit]))
+  const creditsById = new Map<number, any>()
+  for (const rawCredit of credits as any[]) {
+    const { credit, lineage } = await ensureStoreCreditLineage(tx as any, rawCredit)
+    creditsById.set(Number(credit.id), credit)
+    for (const redemption of redemptions as any[]) {
+      if (Number(redemption.creditId) === Number(credit.id) && redemption.lineageId != null &&
+          Number(redemption.lineageId) !== Number(lineage.id)) fail()
+    }
+  }
   const redemptionsById = new Map((redemptions as any[]).map((row) => [Number(row.id), row]))
   const openRedemptions = (redemptions as any[]).filter((row) => row.reversedAt == null)
   if (creditsById.size !== ids.length) fail()
@@ -85,22 +95,26 @@ export async function planCreditReturn(
     : []
   if (scopedSources.length && variants.length !== variantIds.length) fail()
   const variantMap = new Map((variants as any[]).map((variant) => [Number(variant.id), variant]))
-  const categories = scopedSources.some((row) =>
+  const needsCategoryAncestry = scopedSources.some((row) =>
     String(creditsById.get(Number(row.creditId))?.restrictScope ?? '').toUpperCase() === 'CATEGORY')
+  const categories = needsCategoryAncestry
     ? await tx.category.findMany({ select: { id: true, parentId: true } })
     : []
-  const parentById = new Map<number, number | null>((categories as any[]).map((category) =>
-    [Number(category.id), category.parentId == null ? null : Number(category.parentId)]))
-  const categoryPath = (categoryId: number | null): number[] => {
-    const result: number[] = []
-    const seen = new Set<number>()
-    let id = categoryId
-    while (id != null && !seen.has(id) && result.length < 100) {
-      seen.add(id)
-      result.push(id)
-      id = parentById.get(id) ?? null
+  let parentById = new Map<number, number | null>()
+  if (needsCategoryAncestry) {
+    try {
+      parentById = categoryParentMap(categories as Array<{ id: number; parentId: number | null }>)
+    } catch (error) {
+      throw new BusinessError(String((error as Error)?.message ?? 'زنجیرهٔ دسته‌ها معتبر نیست؛ محدودهٔ اعتبار قابل بررسی نیست.'))
     }
-    return result
+  }
+  const categoryPath = (categoryId: number | null): number[] => {
+    if (!needsCategoryAncestry) return []
+    try {
+      return categoryAncestryPath(categoryId, parentById)
+    } catch (error) {
+      throw new BusinessError(String((error as Error)?.message ?? 'زنجیرهٔ دسته‌ها معتبر نیست؛ محدودهٔ اعتبار قابل بررسی نیست.'))
+    }
   }
   const lines: ReturnCreditLine[] = input.lines.map((line) => {
     const variant = variantMap.get(Number(line.variantId))
@@ -206,6 +220,7 @@ export async function restoreCreditReturnSources(
   }
 
   const successorByShare = new Map<(typeof shares)[number], any>()
+  const lineageUsageById = new Map<number, { amount: number; uses: number }>()
   for (const share of shares) {
     const redemption = input.planned.redemptionsById.get(share.redemptionId)
     const credit = input.planned.creditsById.get(share.creditId)
@@ -219,6 +234,7 @@ export async function restoreCreditReturnSources(
       const successor = await issueStoreCredit(tx, {
         amount: share.amount,
         source: String(credit.source ?? 'EXCHANGE'),
+        lineageId: Number(credit.lineageId ?? credit.id),
         returnId: input.returnId,
         sourceInvoiceId: credit.sourceInvoiceId ?? input.invoiceId,
         customerId: credit.customerId ?? null,
@@ -261,6 +277,9 @@ export async function restoreCreditReturnSources(
       returnId: input.returnId,
       redemptionId: share.redemptionId,
       sourceCreditId: share.creditId,
+      restoredCreditId: creditRestored
+        ? Number(successorByShare.get(share)?.id ?? credit.id)
+        : null,
       amount: share.amount,
       creditRestored,
       settlementAdjusted: true,
@@ -275,7 +294,8 @@ export async function restoreCreditReturnSources(
     const cumulative = (input.planned.priorByRedemption.get(share.redemptionId) ?? 0) +
       redemptionShares.reduce((sum, row) => sum + row.amount, 0)
     const fullyRestoredUse = cumulative >= toNumberRial(redemption.amount)
-    if (fullyRestoredUse && !redemption.reversedAt) {
+    let reversedNow = false
+    if (creditRestored && fullyRestoredUse && !redemption.reversedAt) {
       // Multiple item shares can reference one redemption; reverse it exactly once.
       const changed = await tx.storeCreditRedemption.updateMany({
         where: { id: share.redemptionId, reversedAt: null },
@@ -283,6 +303,14 @@ export async function restoreCreditReturnSources(
       })
       if (changed.count !== 1) fail()
       redemption.reversedAt = input.at
+      reversedNow = true
+    }
+    if (creditRestored) {
+      const lineageId = Number(credit.lineageId ?? credit.id)
+      const priorLineageUse = lineageUsageById.get(lineageId) ?? { amount: 0, uses: 0 }
+      priorLineageUse.amount += share.amount
+      if (reversedNow) priorLineageUse.uses += 1
+      lineageUsageById.set(lineageId, priorLineageUse)
     }
 
     await audit(tx, {
@@ -306,6 +334,14 @@ export async function restoreCreditReturnSources(
         : outcome === 'SOURCE_STATUS_PRESERVED'
           ? `سهم برگشتی #${share.creditId} ثبت شد اما وضعیت ${credit.status} طبق قاعده حفظ شد؛ سهم به پول تبدیل نشد.`
           : `سهم ${share.amount} ریالی اعتبار #${share.creditId} طبق قانون بازگشت اعتبار در برگشت #${input.returnId} به منشأ خود بازگشت.`
+    })
+  }
+
+  for (const [lineageId, usage] of lineageUsageById) {
+    await adjustStoreCreditLineageUsage(tx as any, {
+      lineageId,
+      amountDelta: -usage.amount,
+      useDelta: -usage.uses
     })
   }
 

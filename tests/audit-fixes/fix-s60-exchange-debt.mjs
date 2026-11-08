@@ -63,7 +63,7 @@ const variant = (price) => {
   sql.prepare('UPDATE "ProductVariant" SET stock = 100, salePrice = ? WHERE id = ?').run(price, id)
   return id
 }
-const itemsOf = (invoiceId) => seed.rows('SELECT id, qty, lineTotal FROM "SaleInvoiceItem" WHERE invoiceId = ? ORDER BY id', invoiceId)
+const itemsOf = (invoiceId) => seed.rows('SELECT id, variantId, qty, lineTotal FROM "SaleInvoiceItem" WHERE invoiceId = ? ORDER BY id', invoiceId)
 const invRow = (id) => seed.one('SELECT paidTotal, settledAt FROM "SaleInvoice" WHERE id = ?', id)
 const payRows = (invoiceId) => seed.rows('SELECT id, amount, overpayAmount FROM "Payment" WHERE invoiceId = ? ORDER BY seq, id', invoiceId)
 const overpaySum = (invoiceId) => payRows(invoiceId).reduce((s, p) => s + Number(p.overpayAmount ?? 0), 0)
@@ -138,13 +138,20 @@ const exDocOf = (sourceId) => seed.one('SELECT id, paidTotal, settledAt FROM "Sa
 const retOf = (sourceId) => seed.one('SELECT * FROM "SaleReturn" WHERE invoiceId = ? AND kind = \'EXCHANGE\' ORDER BY id DESC', sourceId)
 const cashMoveOf = (retId) => Number(seed.one(`SELECT COALESCE(SUM(amount),0) AS s FROM "CashMovement" WHERE type = 'EXCHANGE_REFUND' AND refType = 'SaleReturn' AND refId = ?`, retId).s)
 const creditCount = () => Number(seed.one('SELECT COUNT(*) AS c FROM "StoreCredit"').c)
+const writeCounts = () => ({
+  returns: Number(seed.one('SELECT COUNT(*) AS c FROM "SaleReturn"').c),
+  invoices: Number(seed.one('SELECT COUNT(*) AS c FROM "SaleInvoice"').c),
+  payments: Number(seed.one('SELECT COUNT(*) AS c FROM "Payment"').c),
+  cashMovements: Number(seed.one('SELECT COUNT(*) AS c FROM "CashMovement"').c),
+  credits: creditCount()
+})
 const remainingOfInv = async (id) => (await creditRowOf(id))?.remaining ?? 0
 const exchNoMode = async (paid, price) => {
   const inv = await twoItemSale(paid)
   const v = variant(price)
   const r = await salesService.createExchange({
     invoiceId: inv.id, lines: [{ saleItemId: itemsOf(inv.id)[0].id, qty: 1 }],
-    replacements: [{ variantId: v, qty: 1 }], methodId: cash, userId, shiftId
+    replacements: [{ variantId: v, qty: 1 }], userId, shiftId
   })
   return { inv, r }
 }
@@ -210,17 +217,53 @@ console.log('\n— ۴) پرداخت ۷۰۰ (بدهی ۳۰۰)، تعویض ۶۰۰
   eq('صورت برگشت: بازپرداخت نقدی تعویض = ۲۰۰', d.retExCash, 200)
   closed(after)
 }
-console.log('\n— ۵) پرداخت ۷۰۰، تعویض ۶۰۰ ⇒ ۱۰۰ بدون انتخاب روش: فقط برای ۲۰۰ اضافه باید انتخاب کند')
+console.log('\n— ۵) پرداخت ۷۰۰، تعویض ۶۰۰ ⇒ بدهی ۳۰۰ کم می‌شود؛ ۲۰۰ وجه واقعی باقی‌مانده بدون روش صریح باید رد شود')
 {
   const inv = await twoItemSale(700)
-  const v = variant(100)
-  await throwsWith('انتخاب روش برای ۲۰۰ ریال اجباری است', () => salesService.createExchange({
-    invoiceId: inv.id, lines: [{ saleItemId: itemsOf(inv.id)[0].id, qty: 1 }],
-    replacements: [{ variantId: v, qty: 1 }], methodId: cash, userId, shiftId
-  }), '۲۰۰')
-  last = null
+  const sourceLine = itemsOf(inv.id)[0]
+  const sourceVariant = seed.one('SELECT variantId FROM "SaleInvoiceItem" WHERE id=?', sourceLine.id).variantId
+  const replacementVariant = variant(100)
+  const lines = [{ saleItemId: sourceLine.id, qty: 1 }]
+  const replacements = [{ variantId: replacementVariant, qty: 1 }]
+  const preview = await salesService.previewExchangeFunding({ invoiceId: inv.id, lines, replacements, full: false })
+  eq('پیش‌نمایش نشان می‌دهد پس از بدهی ۲۰۰ وجه واقعی باقی می‌ماند', preview?.realMoneySurplus, 200)
+  const before = writeCounts()
+  const sourceStockBefore = Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', sourceVariant).stock)
+  const replacementStockBefore = Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', replacementVariant).stock)
+  await throwsWith('نبود روش تسویهٔ منفی رد شد', () => salesService.createExchange({
+    invoiceId: inv.id, lines, replacements, expectedSettlementDiff: preview.effectiveDiff, userId, shiftId
+  }), 'روش تسویه انتخاب نشده')
+  const after = writeCounts()
+  eq('برگشت/سند/پرداخت/حرکت نقدی/اعتبار جدیدی ثبت نشد', JSON.stringify(after), JSON.stringify(before))
+  eq('موجودی کالای برگشتی تغییر نکرد', Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', sourceVariant).stock), sourceStockBefore)
+  eq('موجودی کالای جایگزین تغییر نکرد', Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', replacementVariant).stock), replacementStockBefore)
+  eq('بدهی اصلی همان ۳۰۰ باقی ماند', await remainingOfInv(inv.id), 300)
+  last = await report()
+  closed(last)
 }
-console.log('\n— ۶) رگرسیون: فاکتور پرداخت‌شده‌ی ۱٬۰۰۰، تعویض ۶۰۰ ⇒ ۲۰۰ نقد ⇒ ۴۰۰ بازپرداخت، بدون کاهش بدهی')
+console.log('\n— ۶) مابه‌التفاوت مثبت ۲۰۰ بدون روش پرداخت انتخاب‌شده رد می‌شود و هیچ تغییری ثبت نمی‌کند')
+{
+  const inv = await twoItemSale(1000)
+  const sourceLine = itemsOf(inv.id)[0]
+  const sourceVariant = Number(sourceLine.variantId)
+  const replacementVariant = variant(800)
+  const lines = [{ saleItemId: sourceLine.id, qty: 1 }]
+  const replacements = [{ variantId: replacementVariant, qty: 1 }]
+  const preview = await salesService.previewExchangeFunding({ invoiceId: inv.id, lines, replacements, full: false })
+  eq('پیش‌نمایش اختلاف مثبت ۲۰۰', preview?.effectiveDiff, 200)
+  const before = writeCounts()
+  const sourceStockBefore = Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', sourceVariant).stock)
+  const replacementStockBefore = Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', replacementVariant).stock)
+  await throwsWith('نبود روش دریافت صریح رد شد', () => salesService.createExchange({
+    invoiceId: inv.id, lines, replacements, expectedSettlementDiff: preview.effectiveDiff, userId, shiftId
+  }), 'روش پرداخت فعال را صریح انتخاب کنید')
+  eq('هیچ سند یا پرداخت/اعتباری ساخته نشد', JSON.stringify(writeCounts()), JSON.stringify(before))
+  eq('موجودی کالای برگشتی دست‌نخورده ماند', Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', sourceVariant).stock), sourceStockBefore)
+  eq('موجودی کالای جایگزین دست‌نخورده ماند', Number(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', replacementVariant).stock), replacementStockBefore)
+  last = await report()
+  closed(last)
+}
+console.log('\n— ۷) رگرسیون: فاکتور پرداخت‌شده‌ی ۱٬۰۰۰، تعویض ۶۰۰ ⇒ ۲۰۰ نقد ⇒ ۴۰۰ بازپرداخت، بدون کاهش بدهی')
 {
   let src = null, preview = null
   const { d, after } = await step('پرداخت‌شده', async () => { const x = await exch(1000, 200, 'CASH'); src = x.inv; preview = x.preview })

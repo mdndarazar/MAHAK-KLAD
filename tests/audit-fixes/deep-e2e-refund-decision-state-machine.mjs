@@ -130,7 +130,7 @@ const results = []
     })
   } catch (e) { error = String(e?.message ?? e) }
   const after = snapshot([source.variant.id, replacement.id])
-  if (!error.includes('فروشنده روش را انتخاب نکرده')) throw new Error(`Unselected exchange did not show the expected guidance: ${error}`)
+  if (!error.includes('روش تسویه انتخاب نشده')) throw new Error(`Unselected exchange did not show the expected guidance: ${error}`)
   if (JSON.stringify(before) !== JSON.stringify(after)) throw new Error('Unselected exchange mutated the isolated database')
   results.push({ case: 'unselected-exchange-positive-right', blocked: true, mutationFree: true, error })
 }
