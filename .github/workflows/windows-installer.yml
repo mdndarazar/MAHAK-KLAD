@@ -83,6 +83,8 @@ jobs:
       - name: Run financial audit regression tests
         shell: pwsh
         run: |
+          $logPath = 'financial-regression.log'
+          Remove-Item -Force $logPath -ErrorAction SilentlyContinue
           $tests = @(
             'tests/audit-fixes/fix-s60-exchange-debt.mjs',
             'tests/audit-fixes/fix-s64-return-void.mjs',
@@ -104,9 +106,16 @@ jobs:
             'tests/audit-fixes/fix-s396-custody-aggregate-final-rollback.mjs'
           )
           foreach ($test in $tests) {
+            Add-Content -Path $logPath -Value "Running $test"
             Write-Host "Running $test"
-            node --import ./test/harness/register.mjs $test
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            node --import ./test/harness/register.mjs $test *>&1 | Tee-Object -FilePath $logPath -Append
+            $testExit = $LASTEXITCODE
+            if ($testExit -ne 0) {
+              $detail = (Get-Content $logPath -Tail 60) -join ' | '
+              if ($detail.Length -gt 3500) { $detail = $detail.Substring($detail.Length - 3500) }
+              Write-Output "::error title=Financial regression failed::$test (exit $testExit) · $detail"
+              exit $testExit
+            }
           }
 
       - name: Build Windows installer
@@ -165,6 +174,7 @@ jobs:
           name: MahakPOS-Windows-build-log
           path: |
             prisma-validation.log
+            financial-regression.log
             build-output.log
           if-no-files-found: warn
           retention-days: 30
