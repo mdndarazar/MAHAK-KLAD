@@ -18,6 +18,7 @@
 import { mkdtempSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const DIR = mkdtempSync(join(tmpdir(), 'mahak-fix-s63v-'))
 process.env.HARNESS_DIR = DIR
@@ -36,7 +37,7 @@ const { PANEL_KEYS, allLockedConfig } = await import('@shared/panels')
 const db = harnessClient()
 const seed = makeSeeder(db)
 const sql = db.$harness.db
-const ROOT = new URL('../../', import.meta.url).pathname
+const ROOT = fileURLToPath(new URL('../../', import.meta.url))
 const src = (p) => (existsSync(join(ROOT, p)) ? readFileSync(join(ROOT, p), 'utf8') : '')
 
 let ok = 0
