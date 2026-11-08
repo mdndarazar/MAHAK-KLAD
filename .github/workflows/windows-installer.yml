@@ -111,9 +111,19 @@ jobs:
             node --import ./test/harness/register.mjs $test *>&1 | Tee-Object -FilePath $logPath -Append
             $testExit = $LASTEXITCODE
             if ($testExit -ne 0) {
-              $detail = (Get-Content $logPath -Tail 60) -join ' | '
-              if ($detail.Length -gt 3500) { $detail = $detail.Substring($detail.Length - 3500) }
-              Write-Output "::error title=Financial regression failed::$test (exit $testExit) · $detail"
+              $logLines = @(Get-Content $logPath)
+              $failureLines = @($logLines | Where-Object { $_ -match '✗|AssertionError|ReferenceError|TypeError|SyntaxError|Unhandled|ERR_' } | Select-Object -Last 12)
+              Write-Output "::error title=Financial regression failed::$test (exit $testExit)"
+              foreach ($line in $failureLines) {
+                $message = $line -replace '[\r\n]+', ' '
+                if ($message.Length -gt 800) { $message = $message.Substring(0, 800) }
+                Write-Output "::error title=Financial regression detail::$message"
+              }
+              if ($failureLines.Count -eq 0) {
+                $detail = ($logLines | Select-Object -Last 10) -join ' | '
+                if ($detail.Length -gt 2500) { $detail = $detail.Substring($detail.Length - 2500) }
+                Write-Output "::error title=Financial regression tail::$detail"
+              }
               exit $testExit
             }
           }
