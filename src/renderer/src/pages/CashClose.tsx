@@ -597,6 +597,7 @@ export default function CashClose() {
   }, [custodyTimeline])
   const custodyResolutions = useMemo(() => (custodyTimeline?.resolutions ?? []).slice(0, 8), [custodyTimeline])
   const custodyDispositions = useMemo(() => (custodyTimeline?.dispositions ?? []).slice(0, 12), [custodyTimeline])
+  const custodyCoverage = custodyTimeline?.coverage
 
   /**
    * «شمارش دستی» و «موجودی اول» با تأخیر کوتاه به سرور می‌روند تا مغایرت زنده
@@ -987,8 +988,8 @@ export default function CashClose() {
             <button className="btn py-0.5" disabled={busy} onClick={() => void loadCustodyTimeline(0, true)}>تازه‌سازی</button>
             <button className="btn py-0.5 mr-auto" disabled={busy || custodyExportBusy} onClick={() => void exportCustodyTimeline()}>{custodyExportBusy ? 'در حال ساخت خروجی…' : 'خروجی اکسل همین صفحه'}</button>
           </div>
-          {custodyTimeline.coverage ? <div className="flex flex-wrap items-center gap-2 text-xs"><span>{custodyUseSelectedDateRange ? `بازهٔ شمسی ${faDigits(filters.fromJalali)} تا ${faDigits(filters.toJalali)}` : 'بازهٔ ثابت گزارش'} · شروع از ردیف {faDigits(custodyReportSkip + 1)}</span><button className="btn py-0.5" disabled={busy || custodyReportSkip <= 0} onClick={() => void loadCustodyTimeline(Math.max(0, custodyReportSkip - custodyTimeline.coverage.take))}>جدیدتر</button><button className="btn py-0.5" disabled={busy || !custodyTimeline.coverage.hasMoreAny} onClick={() => void loadCustodyTimeline(custodyReportSkip + custodyTimeline.coverage.take)}>قدیمی‌تر</button></div> : null}
-          {custodyTimeline.coverage?.hasMoreAny ? <div className="rounded border border-amber-400 bg-amber-50 px-2 py-1 text-xs text-amber-950">در یک یا چند بخش، evidence قدیمی‌تر از این صفحه باقی مانده است. برای همان بازهٔ ثابت، «قدیمی‌تر» را بزنید؛ این صفحه به‌تنهایی تاریخچهٔ کامل نیست.</div> : null}
+          {custodyCoverage ? <div className="flex flex-wrap items-center gap-2 text-xs"><span>{custodyUseSelectedDateRange ? `بازهٔ شمسی ${faDigits(filters.fromJalali)} تا ${faDigits(filters.toJalali)}` : 'بازهٔ ثابت گزارش'} · شروع از ردیف {faDigits(custodyReportSkip + 1)}</span><button className="btn py-0.5" disabled={busy || custodyReportSkip <= 0} onClick={() => void loadCustodyTimeline(Math.max(0, custodyReportSkip - custodyCoverage.take))}>جدیدتر</button><button className="btn py-0.5" disabled={busy || !custodyCoverage.hasMoreAny} onClick={() => void loadCustodyTimeline(custodyReportSkip + custodyCoverage.take)}>قدیمی‌تر</button></div> : null}
+          {custodyCoverage?.hasMoreAny ? <div className="rounded border border-amber-400 bg-amber-50 px-2 py-1 text-xs text-amber-950">در یک یا چند بخش، evidence قدیمی‌تر از این صفحه باقی مانده است. برای همان بازهٔ ثابت، «قدیمی‌تر» را بزنید؛ این صفحه به‌تنهایی تاریخچهٔ کامل نیست.</div> : null}
           {custodySegments.length ? <div className="grid lg:grid-cols-2 gap-2">
             {custodySegments.map((segment) => <div key={segment.shiftId} className="rounded border border-indigo-200 bg-white p-2 text-sm leading-6">
               <div className="font-bold">مسئول: {segment.custodianName ?? '—'} <span className="font-normal text-slate-500">· نشست {faDigits(segment.shiftId)}</span></div>

@@ -5,7 +5,9 @@ declare global {
 }
 
 /** فراخوانی IPC با throw کردن خطای فارسی؛ تا صفحات فقط try/catch بزنند. */
-export async function call<T = any>(channel: string, payload?: unknown): Promise<T> {
+type ApiChannel = Parameters<Api['invoke']>[0]
+
+export async function call<T = any>(channel: ApiChannel, payload?: unknown): Promise<T> {
   const res = await window.api.invoke<T>(channel, payload)
   if (!res.ok) {
     const err = new Error(res.error) as Error & { code?: string; printCancelled?: boolean; printOutcomeUnknown?: boolean }

@@ -2359,6 +2359,13 @@ export interface ExchangeSaleResult {
   barcodeCreditApplied?: number
   /** باقی‌مانده‌ی اختلاف که واقعاً باید نقد/کارت دریافت شود. */
   cashDue?: number
+  /** دریافت‌های واقعیِ نقدی و کارت‌خوان برای نمایش گزارش/رسید. */
+  cashReceived?: number
+  cardReceived?: number
+  /** مبلغ درخواستیِ کارت‌به‌کارت، تا زمان پرداخت مدیر. */
+  cardToCard?: number
+  cardTransfer?: { id: number; amount: number | bigint; status: string } | null
+  exchangeCreditApplied?: number
   /** CASH | CREDIT | NONE */
   settlement: string
   settlementLabel: string
@@ -2366,6 +2373,11 @@ export interface ExchangeSaleResult {
   storeCredit: StoreCreditSafeRow | null
   /** اعتبارهای برگشت/تعویضِ پیش‌نویس که باید جداگانه به مشتری تحویل شوند. */
   handoffCredits?: StoreCreditSafeRow[]
+  /** کاهش بدهی فاکتور اصلی و ماندهٔ حساب پس از ثبت تعویض. */
+  debtReduction?: number
+  sourceRemaining?: number | null
+  paidTotal?: number
+  settled?: boolean
   /** جانشین‌های غیرنقدیِ سهم بارکدهای مبدأ که در همین تعویض برگشته‌اند. */
   sourceCreditSuccessors?: StoreCreditSafeRow[]
   /** مبلغی که واقعاً به منبع بارکدی برگشت؛ غیرنقدی و خارج از عدد آبی. */
