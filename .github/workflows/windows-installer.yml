@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - arena/074a2e5d-newmahak
+      - arena/8a852de1-mahak-klad
   workflow_dispatch:
     inputs:
       create_release:
