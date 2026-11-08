@@ -909,6 +909,9 @@ model CreditReturnAllocation {
   returnId       Int
   redemptionId   Int
   sourceCreditId Int
+  /// شناسهٔ اعتباری که واقعاً سهم به آن برگشت (همان بارکد یا جانشین آن).
+  /// null فقط برای دادهٔ قدیمی/ردیف‌هایی است که اعتبار واقعاً برنگشته است.
+  restoredCreditId Int?
   amount         BigInt
   creditRestored Boolean  @default(true)
   settlementAdjusted Boolean @default(true)
@@ -920,6 +923,7 @@ model CreditReturnAllocation {
   @@index([invoiceId, redemptionId])
   @@index([returnId])
   @@index([sourceCreditId])
+  @@index([restoredCreditId])
 }
 
 model SaleReturnItem {
@@ -1179,6 +1183,8 @@ model StoreCredit {
   /// مبلغ اعتبار به ریال. ⚠️ این «مبلغ اولیه» است و با مصرف هیچ‌وقت کم نمی‌شود؛
   /// باقی‌مانده = amount − usedAmount (§۴).
   amount     BigInt  @default(0)
+  /// اعتبارهای جانشین و ریشه یک allowance مشترک دارند؛ شناسهٔ lineage به رکورد ریشه اشاره می‌کند.
+  lineageId  Int?
 
   // ------------------- جلسه ۲۰ · نوع اعتبار (§۲) -------------------
   /// EXCHANGE = ناشی از تعویض کالا (پیش‌فرض و مسیر تاریخی) ·
@@ -1304,6 +1310,21 @@ model StoreCredit {
   @@index([batchId])
   @@index([deletedAt])
   @@index([source, status])
+  @@index([lineageId])
+}
+
+/// یک سهم مصرف مشترک برای اعتبار ریشه و همهٔ جانشین‌های صادرشده از آن.
+/// `usedAmount` و `usedCount` با هر مصرف/برگشت اتمیک تغییر می‌کنند؛ مبلغ هر بارکد
+/// همچنان سقف محلی خودش را دارد، اما مجموع اعضای این lineage از مبلغ ریشه بیشتر نمی‌شود.
+model StoreCreditLineage {
+  id            Int      @id
+  issuedAmount  BigInt
+  maxUses       Int      @default(1)
+  multiUse      Boolean  @default(false)
+  carryRemainder Boolean @default(true)
+  usedAmount    BigInt   @default(0)
+  usedCount     Int      @default(0)
+  createdAt     DateTime @default(now())
 }
 
 /// ===========================================================================
@@ -1344,6 +1365,8 @@ model StoreCreditDelivery {
 model StoreCreditRedemption {
   id             Int    @id @default(autoincrement())
   creditId       Int
+  /// snapshot lineage مصرف‌شده، برای برگشت و ممیزی مستقل از تغییرات آیندهٔ بارکد
+  lineageId      Int?
   /// کد اعتبار در همان لحظه (snapshot، برای خوانا ماندن سابقه)
   code           String @default("")
   /// مبلغی که در همین مصرف کم شد
@@ -1375,6 +1398,7 @@ model StoreCreditRedemption {
 
   @@unique([idempotencyKey])
   @@index([creditId])
+  @@index([lineageId])
   @@index([invoiceId])
   @@index([at])
   @@index([code])

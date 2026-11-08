@@ -5,6 +5,10 @@ on:
     branches:
       - arena/074a2e5d-newmahak
       - arena/8a852de1-mahak-klad
+      - arena/7bfe7000-mahak-klad
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       create_release:
@@ -39,11 +43,95 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate Prisma schema
+        shell: pwsh
+        env:
+          DATABASE_URL: file:./ci-validation.db
+        run: |
+          npx prisma validate *>&1 | Tee-Object -FilePath prisma-validation.log
+          $validateExit = $LASTEXITCODE
+          if ($validateExit -ne 0) {
+            $detail = (Get-Content prisma-validation.log -Tail 20) -join ' | '
+            if ($detail.Length -gt 3500) { $detail = $detail.Substring($detail.Length - 3500) }
+            Write-Output "::error title=Prisma validate failed::$detail"
+            exit $validateExit
+          }
+
+      - name: Generate Prisma Client
+        env:
+          DATABASE_URL: file:./ci-validation.db
+        run: npm run db:generate
+
+      - name: Apply Prisma migrations to a clean temporary SQLite database
+        shell: pwsh
+        run: |
+          $env:DATABASE_URL = 'file:./ci-validation.db'
+          try {
+            npx prisma migrate deploy
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          finally {
+            Remove-Item -Force prisma/ci-validation.db* -ErrorAction SilentlyContinue
+          }
+
+      - name: Typecheck application
+        run: npm run typecheck
+
       - name: Verify source syntax
         run: npm run check:syntax
 
+      - name: Run financial audit regression tests
+        shell: pwsh
+        run: |
+          $logPath = 'financial-regression.log'
+          Remove-Item -Force $logPath -ErrorAction SilentlyContinue
+          $tests = @(
+            'tests/audit-fixes/fix-s60-exchange-debt.mjs',
+            'tests/audit-fixes/fix-s64-return-void.mjs',
+            'tests/audit-fixes/deep-e2e-scenario5-e100-034-invoice-discount.mjs',
+            'tests/audit-fixes/fix-r1-b04-category-ancestry.mjs',
+            'tests/audit-fixes/fix-r1-b05-b06-exchange-report.mjs',
+            'tests/audit-fixes/fix-r1-b07-return-code-expiry.mjs',
+            'tests/audit-fixes/fix-r2-b02-credit-lineage.mjs',
+            'tests/audit-fixes/fix-financial-global-credit-return-policy.mjs',
+            'tests/audit-fixes/fix-financial-global-credit-return-integration.mjs',
+            'tests/audit-fixes/fix-financial-scenario4-multiuse-return-exchange-stock.mjs',
+            'tests/audit-fixes/fix-exchange-child-restricted-credit-pooling.mjs',
+            'tests/audit-fixes/fix-s340-returns-tabs-characterization.mjs',
+            'tests/audit-fixes/deep-e2e-refund-decision-state-machine.mjs',
+            'tests/audit-fixes/deep-e2e-followup-scenario13-no-method-auto-credit-and-independent-limit-gates.mjs',
+            'tests/audit-fixes/fix-s318-1-bridge-diag-annotate.mjs',
+            'tests/audit-fixes/fix-s318-2-bridge-diag-service.mjs',
+            'tests/audit-fixes/fix-s319-4-bridge-suspects.mjs',
+            'tests/audit-fixes/fix-s396-custody-aggregate-final-rollback.mjs'
+          )
+          foreach ($test in $tests) {
+            Add-Content -Path $logPath -Value "Running $test"
+            Write-Host "Running $test"
+            node --import ./test/harness/register.mjs $test *>&1 | Tee-Object -FilePath $logPath -Append
+            $testExit = $LASTEXITCODE
+            if ($testExit -ne 0) {
+              $logLines = @(Get-Content $logPath)
+              $failureLines = @($logLines | Where-Object { $_ -match '✗|AssertionError|ReferenceError|TypeError|SyntaxError|Unhandled|ERR_' } | Select-Object -Last 12)
+              Write-Output "::error title=Financial regression failed::$test (exit $testExit)"
+              foreach ($line in $failureLines) {
+                $message = $line -replace '[\r\n]+', ' '
+                if ($message.Length -gt 800) { $message = $message.Substring(0, 800) }
+                Write-Output "::error title=Financial regression detail::$message"
+              }
+              if ($failureLines.Count -eq 0) {
+                $detail = ($logLines | Select-Object -Last 10) -join ' | '
+                if ($detail.Length -gt 2500) { $detail = $detail.Substring($detail.Length - 2500) }
+                Write-Output "::error title=Financial regression tail::$detail"
+              }
+              exit $testExit
+            }
+          }
+
       - name: Build Windows installer
         shell: pwsh
+        env:
+          DATABASE_URL: file:./ci-validation.db
         run: |
           npm run dist:win -- --publish never *>&1 | Tee-Object -FilePath build-output.log
           if ($LASTEXITCODE -ne 0) {
@@ -89,11 +177,14 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Upload build log
+      - name: Upload validation and build logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: MahakPOS-Windows-build-log
-          path: build-output.log
+          path: |
+            prisma-validation.log
+            financial-regression.log
+            build-output.log
           if-no-files-found: warn
           retention-days: 30

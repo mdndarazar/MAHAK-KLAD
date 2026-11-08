@@ -2219,7 +2219,7 @@ export const custodyService = {
         throw error
       }
     }
-    if (!Number.isSafeInteger(expectedCash) || expectedCash! < 0 || !Number.isSafeInteger(differenceCash))
+    if (expectedCash == null || differenceCash == null || !Number.isSafeInteger(expectedCash) || expectedCash < 0 || !Number.isSafeInteger(differenceCash))
       throw new BusinessError('مبلغ انتظاری تحویل قابل محاسبه نیست.', 'CUSTODY_INVARIANT_BROKEN')
 
     /** The receiver never supplies an explanation for a discrepancy. A legacy

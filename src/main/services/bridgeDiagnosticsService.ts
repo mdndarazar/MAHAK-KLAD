@@ -386,7 +386,8 @@ export const bridgeDiagnosticsService = {
       }
 
       docDetail = {
-        ref: { kind: ret.kind === 'EXCHANGE' ? 'EXCHANGE' : 'RETURN', id: ret.id },
+        // SaleReturn is the persisted source record for both ordinary returns and exchanges.
+        ref: { kind: 'RETURN', id: ret.id },
         docType: ret.kind === 'EXCHANGE' ? 'EXCHANGE' : 'SIMPLE_RETURN',
         docNo: String(ret.id),
         parent: ret.invoice
@@ -462,6 +463,8 @@ export const bridgeDiagnosticsService = {
         voided: inv.voidedAt != null
       }
     }
+
+    if (!docDetail) throw new BusinessError('شناسنامهٔ سند برای این ارجاع قابل ساخت نیست.')
 
     const res: any = await salesService.reportRows({ ...(scope as any), withDrillDown: false })
     const period = res?.accounting?.period ?? { fromJalali: '?', toJalali: '?' }

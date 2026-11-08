@@ -597,7 +597,7 @@ export const profitService = {
       where: { OR: [{ source: 'NO_INVOICE' }, { approx: true }], qtyLeft: { gt: 0 } },
       select: { variantId: true, qtyLeft: true }
     })
-    const missingPurchaseIds = [...new Set(approxLots.map((l: any) => l.variantId))]
+    const missingPurchaseIds: number[] = [...new Set<number>((approxLots as Array<{ variantId: number }>).map((lot) => Number(lot.variantId)))]
     const missingPurchase = missingPurchaseIds.length
       ? await findByIds(prisma as any, 'productVariant', 'id', missingPurchaseIds, {
           select: { id: true, size: true, code: true, product: { select: { name: true } } }

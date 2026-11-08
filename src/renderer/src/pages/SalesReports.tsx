@@ -351,6 +351,8 @@ const EXCHANGE_HEADERS = [
   'نحوه‌ی تسویه',
   'دریافت نقدی',
   'دریافت کارتی',
+  'دریافت به حساب مدیر',
+  'دریافت با مقصد نامشخص',
   'بازپرداخت نقدی',
   'بازپرداخت کارتی',
   'شناسهٔ امن اعتبار',
@@ -434,6 +436,8 @@ const emptyExchange = (): ExchangeReportResult => ({
     diffTotal: 0,
     cashReceivedTotal: 0,
     cardReceivedTotal: 0,
+    managerReceivedTotal: 0,
+    unknownReceivedTotal: 0,
     cashRefundTotal: 0,
     cardRefundTotal: 0,
     creditIssuedTotal: 0,
@@ -472,13 +476,12 @@ const exchangeTotalsFromRows = (rows: ExchangeReportResult['rows']): ExchangeRep
   diffTotal: rows.reduce((sum, row) => sum + Number(row.diff ?? 0), 0),
   cashReceivedTotal: rows.reduce((sum, row) => sum + Number(row.cashReceived ?? 0), 0),
   cardReceivedTotal: rows.reduce((sum, row) => sum + Number(row.cardReceived ?? 0), 0),
+  managerReceivedTotal: rows.reduce((sum, row) => sum + Number(row.managerReceived ?? 0), 0),
+  unknownReceivedTotal: rows.reduce((sum, row) => sum + Number(row.unknownReceived ?? 0), 0),
   cashRefundTotal: rows.reduce((sum, row) => sum + Number(row.cashRefunded ?? 0), 0),
   cardRefundTotal: rows.reduce((sum, row) => sum + Number(row.cardRefunded ?? 0), 0),
-  creditIssuedTotal: rows.reduce((sum, row) => sum + Number(row.storeCreditAmount ?? 0), 0),
-  creditUsedTotal: rows.reduce(
-    (sum, row) => sum + (row.storeCreditStatus === 'USED' ? Number(row.storeCreditAmount ?? 0) : 0),
-    0
-  )
+  creditIssuedTotal: rows.reduce((sum, row) => sum + Number(row.storeCreditTotal ?? 0), 0),
+  creditUsedTotal: rows.reduce((sum, row) => sum + Number(row.storeCreditUsedTotal ?? 0), 0)
 })
 
 const creditTotalsFromRows = (
@@ -1411,6 +1414,8 @@ export default function SalesReports() {
             '',
             money(output.exchangeTotals.cashReceivedTotal),
             money(output.exchangeTotals.cardReceivedTotal),
+            money(output.exchangeTotals.managerReceivedTotal),
+            money(output.exchangeTotals.unknownReceivedTotal),
             money(output.exchangeTotals.cashRefundTotal),
             money(output.exchangeTotals.cardRefundTotal),
             '',
@@ -1504,7 +1509,7 @@ export default function SalesReports() {
             money(r.total),
             r.refundMethodLabel ?? '—',
             money(r.cashRefundAmount ?? 0),
-            r.storeCreditReference ?? '—',
+            (r.storeCredits ?? []).map((credit: StoreCreditSafeRow) => credit.publicReference).join(' · ') || r.storeCreditReference || '—',
             money(returnCreditAmountOf(r)),
             faDigits(r.restockedQty),
             faDigits(r.pendingRestockQty ?? 0),
@@ -1686,6 +1691,8 @@ export default function SalesReports() {
             '',
             output.exchangeTotals.cashReceivedTotal,
             output.exchangeTotals.cardReceivedTotal,
+            output.exchangeTotals.managerReceivedTotal,
+            output.exchangeTotals.unknownReceivedTotal,
             output.exchangeTotals.cashRefundTotal,
             output.exchangeTotals.cardRefundTotal,
             '',
@@ -1797,7 +1804,7 @@ export default function SalesReports() {
             r.total,
             r.refundMethodLabel ?? '',
             r.cashRefundAmount ?? 0,
-            r.storeCreditReference ?? '',
+            (r.storeCredits ?? []).map((credit: StoreCreditSafeRow) => credit.publicReference).join(' · ') || r.storeCreditReference || '',
             returnCreditAmountOf(r),
             r.restockedQty,
             r.pendingRestockQty ?? 0,
@@ -2488,7 +2495,7 @@ export default function SalesReports() {
             </thead>
             <tbody>
               {returns.map((r) => (
-                <tr key={r.id} className={r.storeCreditReference || r.hasRemovedItems ? 'bg-amber-50' : ''}>
+                <tr key={r.id} className={r.storeCreditReference || (r.storeCredits?.length ?? 0) > 0 || r.hasRemovedItems ? 'bg-amber-50' : ''}>
                   <td className="font-bold">{faDigits(r.receiptNo ?? '—')}</td>
                   <td dir="ltr">{r.returnCode ?? '—'}</td>
                   <td>{faDigits(r.invoiceDateJalali)}</td>
@@ -2505,8 +2512,8 @@ export default function SalesReports() {
                     {r.isExchange && <div className="kbd text-sky-800 font-bold">سند تعویض</div>}
                   </td>
                   <td className={r.cashRefundAmount ? 'text-rose-700 font-bold' : ''}>{money(r.cashRefundAmount ?? 0)}</td>
-                  <td dir="ltr" className={r.storeCreditReference ? 'font-bold text-amber-900' : ''}>
-                    {r.storeCreditReference ?? '—'}
+                  <td dir="ltr" className={r.storeCreditReference || (r.storeCredits?.length ?? 0) > 0 ? 'font-bold text-amber-900' : ''}>
+                    {(r.storeCredits ?? []).map((credit: StoreCreditSafeRow) => credit.publicReference).join(' · ') || r.storeCreditReference || '—'}
                   </td>
                   <td className={returnCreditAmountOf(r) ? 'font-bold text-amber-900' : ''}>
                     {money(returnCreditAmountOf(r))}
@@ -3024,7 +3031,7 @@ export default function SalesReports() {
         {tab === 'exchanges' && (
           <div className="kbd">
             {faDigits(exchanges.totals.count)} تعویض · جمع برگشتی {money(exchanges.totals.returnTotal)} · جمع جایگزین{' '}
-            {money(exchanges.totals.exchangeTotal)} · مابه‌التفاوت {money(exchanges.totals.diffTotal)} · دریافت نقدی {money(exchanges.totals.cashReceivedTotal)} · کارت دریافتی {money(exchanges.totals.cardReceivedTotal)} · بازپرداخت نقدی {money(exchanges.totals.cashRefundTotal)} · بازپرداخت کارتی {money(exchanges.totals.cardRefundTotal)} · اعتبار صادرشده {money(exchanges.totals.creditIssuedTotal)} ریال
+            {money(exchanges.totals.exchangeTotal)} · مابه‌التفاوت {money(exchanges.totals.diffTotal)} · دریافت نقدی {money(exchanges.totals.cashReceivedTotal)} · کارت دریافتی {money(exchanges.totals.cardReceivedTotal)} · حساب مدیر {money(exchanges.totals.managerReceivedTotal)} · مقصد نامشخص {money(exchanges.totals.unknownReceivedTotal)} · بازپرداخت نقدی {money(exchanges.totals.cashRefundTotal)} · بازپرداخت کارتی {money(exchanges.totals.cardRefundTotal)} · اعتبار صادرشده {money(exchanges.totals.creditIssuedTotal)} ریال
           </div>
         )}
         {outputDirty && (
@@ -3720,11 +3727,13 @@ function exchangeRowValues(
     r.settlementLabel,
     r.cashReceived,
     r.cardReceived,
+    r.managerReceived,
+    r.unknownReceived,
     r.cashRefunded,
     r.cardRefunded,
-    r.storeCreditReference ?? '',
-    r.storeCreditAmount,
-    r.storeCreditStatusLabel ?? ''
+    (r.storeCredits ?? []).map((credit: StoreCreditSafeRow) => credit.publicReference).join(' · ') || r.storeCreditReference || '',
+    r.storeCreditTotal ?? 0,
+    (r.storeCredits ?? []).map((credit: StoreCreditSafeRow) => credit.statusLabel).filter(Boolean).join(' · ') || r.storeCreditStatusLabel || ''
   ]
 }
 
@@ -3763,7 +3772,7 @@ function ExchangeTable({
       </thead>
       <tbody>
         {data.rows.map((r) => (
-          <tr key={r.returnId} className={r.storeCreditReference ? 'bg-amber-50' : ''}>
+          <tr key={r.returnId} className={r.storeCreditReference || (r.storeCredits?.length ?? 0) > 0 ? 'bg-amber-50' : ''}>
             <td className="font-bold">{faDigits(r.receiptNo)}</td>
             <td className="font-bold">{r.exchangeReceiptNo ? faDigits(r.exchangeReceiptNo) : '—'}</td>
             <td>{faDigits(r.dateJalali)}</td>
@@ -3799,13 +3808,19 @@ function ExchangeTable({
             <td>{r.settlementLabel}</td>
             <td>{money(r.cashReceived)}</td>
             <td>{money(r.cardReceived)}</td>
+            <td title={r.managerReceived > 0 ? 'به صندوق و کارت‌خوان فروشگاه نرسیده است' : undefined}>
+              {money(r.managerReceived)}
+            </td>
+            <td title={r.unknownReceived > 0 ? 'مقصد در داده ثبت نشده؛ به نقد یا کارت حدس زده نمی‌شود' : undefined}>
+              {money(r.unknownReceived)}
+            </td>
             <td>{r.cashRefunded > 0 ? money(r.cashRefunded) : '—'}</td>
             <td>{r.cardRefunded > 0 ? money(r.cardRefunded) : '—'}</td>
             <td dir="ltr" className="font-bold">
-              {r.storeCreditReference ?? '—'}
+              {(r.storeCredits ?? []).map((credit: StoreCreditSafeRow) => credit.publicReference).join(' · ') || r.storeCreditReference || '—'}
             </td>
-            <td>{r.storeCreditAmount ? money(r.storeCreditAmount) : '—'}</td>
-            <td>{r.storeCreditStatusLabel ?? '—'}</td>
+            <td>{(r.storeCreditTotal ?? 0) > 0 ? money(r.storeCreditTotal ?? 0) : '—'}</td>
+            <td>{(r.storeCredits ?? []).map((credit: StoreCreditSafeRow) => credit.statusLabel).filter(Boolean).join(' · ') || r.storeCreditStatusLabel || '—'}</td>
             <td>
               <button className="text-brand" onClick={() => onPrint(r.returnId)} title="چاپ دوباره‌ی سند تعویض">
                 چاپ سند
@@ -3855,6 +3870,8 @@ function ExchangeTable({
             <td></td>
             <td>{money(t.cashReceivedTotal)}</td>
             <td>{money(t.cardReceivedTotal)}</td>
+            <td>{money(t.managerReceivedTotal)}</td>
+            <td>{money(t.unknownReceivedTotal)}</td>
             <td>{money(t.cashRefundTotal)}</td>
             <td>{money(t.cardRefundTotal)}</td>
             <td></td>

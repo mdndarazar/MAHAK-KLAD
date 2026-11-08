@@ -13,6 +13,7 @@ import { reportDayInput } from './reportDate'
 import { TX_OPTIONS } from '../db/tx'
 import { normalizeReturnCode, DAY_MS } from './ReturnCodeService'
 import { tehranEndOfDayAfter, tehranStartOfDay } from '@shared/tehranTime'
+import { categoryAncestryPath, categoryParentMap } from '@shared/categoryAncestry'
 import {
   assertManagerPassword,
   assertPanelPasswordStrict,
@@ -121,6 +122,117 @@ import type {
 import { toNumberRial } from '@shared/money'
 
 type Client = Prisma.TransactionClient | typeof prisma
+
+/**
+ * Resolve a legacy/directly-created barcode into a shared allowance row.
+ * Production migrations backfill every existing barcode; the lazy path keeps
+ * tests/imports safe and refuses a dangling non-root lineage instead of
+ * silently splitting its balance.
+ */
+export async function ensureStoreCreditLineage(client: Client, rawCredit: any): Promise<{ credit: any; lineage: any }> {
+  const creditId = Number(rawCredit?.id)
+  const lineageId = rawCredit?.lineageId == null ? creditId : Number(rawCredit.lineageId)
+  if (!Number.isSafeInteger(creditId) || creditId <= 0 || !Number.isSafeInteger(lineageId) || lineageId <= 0)
+    throw new BusinessError('شناسهٔ اعتبار یا lineage آن نامعتبر است؛ مصرف/برگشت اعتبار متوقف شد.')
+
+  let lineage = await (client as any).storeCreditLineage.findUnique({ where: { id: lineageId } })
+  if (!lineage) {
+    if (lineageId !== creditId)
+      throw new BusinessError(`lineage ریشهٔ اعتبار #${creditId} پیدا نشد؛ موجودی مشترک با حدس بازسازی نشد.`)
+    try {
+      lineage = await (client as any).storeCreditLineage.create({ data: {
+        id: creditId,
+        issuedAmount: toNumberRial(rawCredit.amount ?? 0),
+        maxUses: Math.max(1, Math.round(Number(rawCredit.maxUses ?? 1))),
+        multiUse: rawCredit.multiUse === true,
+        carryRemainder: rawCredit.carryRemainder !== false,
+        usedAmount: toNumberRial(rawCredit.usedAmount ?? 0),
+        usedCount: Math.max(0, Math.round(Number(rawCredit.usedCount ?? 0))),
+        createdAt: rawCredit.issuedAt ?? new Date()
+      } })
+    } catch (error) {
+      // A concurrent first use may have inserted the root row between read/write.
+      lineage = await (client as any).storeCreditLineage.findUnique({ where: { id: lineageId } })
+      if (!lineage) throw error
+    }
+  }
+
+  const issuedAmount = toNumberRial(lineage.issuedAmount)
+  const usedAmount = toNumberRial(lineage.usedAmount)
+  const usedCount = Math.round(Number(lineage.usedCount ?? 0))
+  if (!Number.isSafeInteger(issuedAmount) || issuedAmount < 0 || !Number.isSafeInteger(usedAmount) ||
+      usedAmount < 0 || usedAmount > issuedAmount || !Number.isSafeInteger(usedCount) || usedCount < 0)
+    throw new BusinessError(`دفتر سهم مشترک اعتبار #${creditId} ناسازگار است؛ مصرف/برگشت متوقف شد تا موجودی اصلاح شود.`)
+
+  if (rawCredit.lineageId == null) {
+    const linked = await client.storeCredit.updateMany({
+      where: { id: creditId, lineageId: null },
+      data: { lineageId }
+    })
+    if (linked.count !== 1) {
+      const latest = await client.storeCredit.findUnique({ where: { id: creditId } })
+      if (Number(latest?.lineageId) !== lineageId)
+        throw new BusinessError(`اعتبار #${creditId} هم‌زمان به lineage دیگری وصل شد؛ عملیات بدون تغییر متوقف شد.`)
+    }
+  } else if (Number(rawCredit.lineageId) !== lineageId) {
+    throw new BusinessError(`اعتبار #${creditId} به lineage نامعتبر وصل است؛ عملیات بدون تغییر متوقف شد.`)
+  }
+
+  if (lineageId === creditId && issuedAmount !== toNumberRial(rawCredit.amount ?? 0))
+    throw new BusinessError(`مبلغ ریشهٔ اعتبار #${creditId} با دفتر lineage برابر نیست؛ عملیات بدون تغییر متوقف شد.`)
+  return { credit: { ...rawCredit, lineageId }, lineage }
+}
+
+/** Pure snapshot used by POS preview and the outer sale preflight. */
+export function creditWithSharedLineageAllowance(credit: any, lineage: any): { credit: any; remaining: number } {
+  const localRemaining = Math.max(0, remainingOf(credit))
+  const issuedAmount = toNumberRial(lineage?.issuedAmount ?? credit?.amount ?? 0)
+  const sharedUsedAmount = toNumberRial(lineage?.usedAmount ?? credit?.usedAmount ?? 0)
+  const remaining = Math.min(localRemaining, Math.max(0, issuedAmount - sharedUsedAmount))
+  return {
+    remaining,
+    credit: {
+      ...credit,
+      amount: sharedUsedAmount + remaining,
+      usedAmount: sharedUsedAmount,
+      usedCount: lineage?.usedCount ?? credit?.usedCount ?? 0,
+      maxUses: lineage?.maxUses ?? credit?.maxUses ?? 1,
+      multiUse: lineage?.multiUse ?? credit?.multiUse ?? false,
+      carryRemainder: lineage?.carryRemainder ?? credit?.carryRemainder ?? true
+    }
+  }
+}
+
+/** Compare-and-update the amount/use allowance shared by every barcode in a lineage. */
+export async function adjustStoreCreditLineageUsage(
+  client: Client,
+  input: { lineageId: number; amountDelta: number; useDelta: number }
+): Promise<any> {
+  const lineageId = Number(input.lineageId)
+  const amountDelta = Number(input.amountDelta)
+  const useDelta = Number(input.useDelta)
+  if (!Number.isSafeInteger(lineageId) || lineageId <= 0 || !Number.isSafeInteger(amountDelta) || !Number.isSafeInteger(useDelta))
+    throw new BusinessError('تغییر سهم مشترک اعتبار نامعتبر است؛ هیچ مصرف یا برگشتی ثبت نشد.')
+  const lineage = await (client as any).storeCreditLineage.findUnique({ where: { id: lineageId } })
+  if (!lineage) throw new BusinessError(`دفتر سهم مشترک اعتبار #${lineageId} پیدا نشد؛ هیچ مصرف یا برگشتی ثبت نشد.`)
+  const issuedAmount = toNumberRial(lineage.issuedAmount)
+  const usedAmount = toNumberRial(lineage.usedAmount)
+  const usedCount = Math.round(Number(lineage.usedCount ?? 0))
+  const nextAmount = usedAmount + amountDelta
+  const nextCount = usedCount + useDelta
+  if (!Number.isSafeInteger(nextAmount) || nextAmount < 0 || nextAmount > issuedAmount || !Number.isSafeInteger(nextCount) || nextCount < 0)
+    throw new BusinessError(`سهم مشترک اعتبار #${lineageId} پس از تغییر از موجودی ریشه فراتر می‌رود؛ عملیات متوقف شد.`)
+  const usageLimitApplies = lineage.multiUse === true || lineage.carryRemainder === false
+  if (useDelta > 0 && usageLimitApplies && nextCount > Math.max(1, Number(lineage.maxUses ?? 1)))
+    throw new BusinessError(`دفعات مجاز lineage اعتبار #${lineageId} تمام شده است؛ هیچ مصرف/ابطالی ثبت نشد.`)
+  const changed = await (client as any).storeCreditLineage.updateMany({
+    where: { id: lineageId, usedAmount: lineage.usedAmount, usedCount: lineage.usedCount },
+    data: { usedAmount: nextAmount, usedCount: nextCount }
+  })
+  if (changed.count !== 1)
+    throw new BusinessError(`سهم مشترک اعتبار #${lineageId} هم‌زمان تغییر کرد؛ عملیات بدون تغییر دوباره بررسی شود.`)
+  return { ...lineage, usedAmount: nextAmount, usedCount: nextCount }
+}
 
 /**
  * ===========================================================================
@@ -560,18 +672,20 @@ export async function linesForInvoice(client: Client, invoiceId: number): Promis
   }
   const catOf = new Map<number, number | null>(variants.map((v) => [v.id, v.product?.categoryId ?? null]))
 
-  // نیاکان دسته‌ها: محدودیت روی یک دسته‌ی والد باید همه‌ی زیرشاخه‌هایش را بپوشاند
+  // نیاکان دسته‌ها بدون سقف عمق قراردادی؛ والد گمشده و چرخه با خطای روشن رد می‌شوند.
   const categories = await client.category.findMany({ select: { id: true, parentId: true } })
-  const parentOf = new Map<number, number | null>(categories.map((c) => [c.id, c.parentId ?? null]))
+  let parentOf: Map<number, number | null>
+  try {
+    parentOf = categoryParentMap(categories as Array<{ id: number; parentId: number | null }>)
+  } catch (error) {
+    throw new BusinessError(String((error as Error)?.message ?? 'زنجیرهٔ دسته‌ها معتبر نیست؛ محدودهٔ اعتبار قابل بررسی نیست.'))
+  }
   const pathOf = (id: number | null): number[] => {
-    const out: number[] = []
-    let cur = id
-    let guard = 0
-    while (cur != null && guard++ < 20) {
-      out.push(cur)
-      cur = parentOf.get(cur) ?? null
+    try {
+      return categoryAncestryPath(id, parentOf)
+    } catch (error) {
+      throw new BusinessError(String((error as Error)?.message ?? 'زنجیرهٔ دسته‌ها معتبر نیست؛ محدودهٔ اعتبار قابل بررسی نیست.'))
     }
-    return out
   }
 
   return items.map((i) => {
@@ -608,6 +722,8 @@ export interface IssueCreditInput {
   /** EXCHANGE (پیش‌فرض — مسیر تاریخی) | MANUAL */
   source?: string | null
   returnId?: number | null
+  /** lineage ریشه؛ فقط برای جانشینی که سهم همان اعتبار را برمی‌گرداند. */
+  lineageId?: number | null
   exchangeInvoiceId?: number | null
   sourceInvoiceId?: number | null
   customerId?: number | null
@@ -764,6 +880,25 @@ export async function issueStoreCredit(client: Client, input: IssueCreditInput):
   const source = normalizeCreditSource(input.source)
   const issuedAt = input.issuedAt ?? new Date()
   const rules = resolveRules(settings, source, input)
+  const lineageId = input.lineageId == null ? null : Number(input.lineageId)
+  let inheritedLineage: any = null
+  if (lineageId != null) {
+    if (!Number.isSafeInteger(lineageId) || lineageId <= 0)
+      throw new BusinessError('شناسهٔ lineage جانشین نامعتبر است؛ اعتبار صادر نشد.')
+    inheritedLineage = await (client as any).storeCreditLineage.findUnique({ where: { id: lineageId } })
+    if (!inheritedLineage)
+      throw new BusinessError(`lineage ریشهٔ اعتبار #${lineageId} پیدا نشد؛ جانشین صادر نشد.`)
+    if (amount > toNumberRial(inheritedLineage.issuedAmount))
+      throw new BusinessError(`مبلغ جانشین از مبلغ ریشهٔ اعتبار #${lineageId} بیشتر است؛ جانشین صادر نشد.`)
+  }
+  const appliedRules = inheritedLineage
+    ? {
+        ...rules,
+        maxUses: Math.max(1, Math.round(Number(inheritedLineage.maxUses ?? 1))),
+        multiUse: inheritedLineage.multiUse === true,
+        carryRemainder: inheritedLineage.carryRemainder !== false
+      }
+    : rules
   const prefix = prefixFor(settings, source, input.prefix)
   const requiresCustomerHandoff = input.returnId != null || input.exchangeInvoiceId != null
   const requestedStatus = String(input.status ?? StoreCreditStatus.ACTIVE)
@@ -788,10 +923,11 @@ export async function issueStoreCredit(client: Client, input: IssueCreditInput):
     issuedAtJalali: toJalaliDate(issuedAt),
     issuedAtTime: toClock(issuedAt),
     status,
-    maxUses: rules.maxUses,
-    multiUse: rules.multiUse,
+    lineageId,
+    maxUses: appliedRules.maxUses,
+    multiUse: appliedRules.multiUse,
     // نشست ۱۸۳ — قاعده‌ی باقی‌مانده در لحظه‌ی صدور قفل می‌شود (نه لحظه‌ی مصرف)
-    carryRemainder: rules.carryRemainder,
+    carryRemainder: appliedRules.carryRemainder,
     usedAmount: 0,
     usedCount: 0,
     settingsOverride: rules.override,
@@ -885,6 +1021,13 @@ export async function issueStoreCredit(client: Client, input: IssueCreditInput):
     )
   }
 
+  if (lineageId == null) {
+    const linked = await ensureStoreCreditLineage(client, created)
+    created = linked.credit
+  } else {
+    created = { ...created, lineageId }
+  }
+
   if (requiresCustomerHandoff) {
     // The scalar link keeps the historical credit schema stable while this
     // append-only lifecycle row records the exact customer handoff.
@@ -910,8 +1053,9 @@ export async function issueStoreCredit(client: Client, input: IssueCreditInput):
       source,
       status,
       requiresCustomerHandoff,
-      maxUses: rules.maxUses,
-      multiUse: rules.multiUse,
+      lineageId: created.lineageId ?? null,
+      maxUses: appliedRules.maxUses,
+      multiUse: appliedRules.multiUse,
       restrictScope: scope,
       expiresAtJalali: created.expiresAtJalali,
       batchId: input.batchId ?? null,
@@ -924,7 +1068,7 @@ export async function issueStoreCredit(client: Client, input: IssueCreditInput):
       // §۶ — رشد خودکار طول کد باید در همان سند صدور دیده شود (مسیر گروهی هم همین را می‌نویسد)
       (growth.grown ? ` · طول کد خودکار از ${faDigits(growth.from)} به ${faDigits(growth.to)} افزایش یافت` : '') +
       (created.expiresAtJalali ? ` · اعتبار تا ${faDigits(created.expiresAtJalali)}` : ' · بدون انقضا') +
-      (rules.multiUse ? ` · چندباره (تا ${faDigits(rules.maxUses)} بار)` : ' · یک‌بارمصرف') +
+      (appliedRules.multiUse ? ` · چندباره (تا ${faDigits(appliedRules.maxUses)} بار)` : ' · یک‌بارمصرف') +
       (scope !== CreditRestrictScope.ALL ? ` · ${CREDIT_SCOPE_LABELS[scope]}` : '') +
       (rules.override ? ` · با استثنا${trimOrNull(input.overrideReason) ? `: ${input.overrideReason}` : ''}` : '')
   })
@@ -1226,7 +1370,8 @@ export async function redeemStoreCredit(client: Client, input: RedeemCreditInput
     }
   }
 
-  const credit = await findRedeemable(client, input.code)
+  const rawCredit = await findRedeemable(client, input.code)
+  const { credit, lineage } = await ensureStoreCreditLineage(client, rawCredit)
 
   // ---- فاکتور مرجع باید معتبر باشد (§۸: اعتبار روی فاکتور باطل خرج نمی‌شود) ----
   const invoice = await client.saleInvoice.findUnique({
@@ -1248,9 +1393,16 @@ export async function redeemStoreCredit(client: Client, input: RedeemCreditInput
         ? { ...line, lineTotal: lineAmounts.get(line.saleItemId)! }
         : line)
     : (input.lines ?? [])
-  const decision = decideRedeem(credit, {
+  const localRemaining = Math.max(0, remainingOf(credit))
+  const { credit: lineageDecisionCredit, remaining: sharedRemaining } =
+    creditWithSharedLineageAllowance(credit, lineage)
+  // decideRedeem remains the single rule engine; the snapshot replaces only
+  // the per-barcode allowance with the shared root allowance.
+  const requestedApplicable = input.applicable == null
+    ? localRemaining : Math.max(0, Math.round(Number(input.applicable) || 0))
+  const decision = decideRedeem(lineageDecisionCredit, {
     now: usedAt,
-    applicable: input.applicable == null ? remainingOf(credit) : Math.max(0, Math.round(Number(input.applicable) || 0)),
+    applicable: Math.min(requestedApplicable, sharedRemaining),
     invoiceTotal:
       input.invoiceTotal == null ? toNumberRial(invoice.grandTotal) : Math.round(Number(input.invoiceTotal) || 0),
     lines,
@@ -1307,6 +1459,11 @@ export async function redeemStoreCredit(client: Client, input: RedeemCreditInput
       `اعتبار «${credit.code}» همین لحظه روی فاکتور دیگری مصرف شد، پس روی این فاکتور ثبت نمی‌شود.\n` +
         'فهرست اعتبارها را تازه کنید و باقی‌مانده‌ی واقعی را ببینید.'
     )
+  await adjustStoreCreditLineageUsage(client, {
+    lineageId: Number(lineage.id),
+    amountDelta: applied,
+    useDelta: 1
+  })
 
   const methodId = await nonCashMethodId(client, STORE_CREDIT_METHOD_KEY)
   const createdAt = new Date()
@@ -1343,6 +1500,7 @@ export async function redeemStoreCredit(client: Client, input: RedeemCreditInput
     redemption = await client.storeCreditRedemption.create({
       data: {
         creditId: credit.id,
+        lineageId: Number(lineage.id),
         code: credit.code,
         amount: applied,
         remainderAfter,
@@ -1494,8 +1652,11 @@ export async function reverseInvoiceRedemptions(
   let reversed = 0
 
   for (const r of rows) {
-    const credit = await client.storeCredit.findUnique({ where: { id: r.creditId } })
-    if (!credit) continue
+    const rawCredit = await client.storeCredit.findUnique({ where: { id: r.creditId } })
+    if (!rawCredit) continue
+    const { credit, lineage } = await ensureStoreCreditLineage(client, rawCredit)
+    if (r.lineageId != null && Number(r.lineageId) !== Number(lineage.id))
+      throw new BusinessError(`مصرف #${r.id} به lineage دیگری نسبت داده شده است؛ برگشت اعتبار متوقف شد.`)
     const before = {
       usedAmount: asNum(credit.usedAmount),
       usedCount: asNum(credit.usedCount),
@@ -1530,12 +1691,19 @@ export async function reverseInvoiceRedemptions(
       continue
     }
 
+    await adjustStoreCreditLineageUsage(client, {
+      lineageId: Number(lineage.id),
+      amountDelta: -toNumberRial(r.amount),
+      useDelta: -1
+    })
+
     if (String(credit.status) === StoreCreditStatus.USED) {
       // USED is terminal: restoration must not make the old barcode redeemable.
       // Issue a successor with the exact root deadline (including no-expiry).
       const successor = await issueStoreCredit(client, {
         amount: toNumberRial(r.amount),
         source: String(credit.source ?? CreditSource.EXCHANGE),
+        lineageId: Number(credit.lineageId ?? credit.id),
         returnId: input.returnId ?? credit.returnId ?? null,
         exchangeInvoiceId: input.exchangeInvoiceId ?? credit.exchangeInvoiceId ?? null,
         sourceInvoiceId: credit.sourceInvoiceId ?? null,
@@ -2904,8 +3072,13 @@ export const storeCreditService = {
     excludedVariantIds: number[]
   }> {
     const row = await guardCreditCode(String(input?.code ?? ''), input?.userId ?? null)
-    const decision = decideRedeem(row, {
-      applicable: Math.max(0, Math.round(Number(input.applicable ?? row.amount) || 0)),
+    const lineageId = Number(row.lineageId ?? row.id)
+    const lineage = await (prisma as any).storeCreditLineage.findUnique({ where: { id: lineageId } })
+    if (row.lineageId != null && !lineage)
+      throw new BusinessError(`lineage ریشهٔ اعتبار #${row.id} پیدا نشد؛ پیش‌نمایش مصرف قابل‌اعتماد نیست.`)
+    const shared = creditWithSharedLineageAllowance(row, lineage)
+    const decision = decideRedeem(shared.credit, {
+      applicable: Math.min(shared.remaining, Math.max(0, Math.round(Number(input.applicable ?? shared.remaining) || 0))),
       invoiceTotal: input.invoiceTotal == null ? undefined : Math.max(0, Math.round(Number(input.invoiceTotal) || 0)),
       lines: input.lines ?? [],
       customerId: input.customerId ?? null,

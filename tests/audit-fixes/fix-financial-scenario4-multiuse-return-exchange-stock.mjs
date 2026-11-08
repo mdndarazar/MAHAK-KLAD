@@ -138,12 +138,22 @@ const secondReturn = seed.one('SELECT invoiceId,restockPending FROM "SaleReturn"
 const secondReturnItems = seed.rows('SELECT qty,restockedQty,variantId FROM "SaleReturnItem" WHERE returnId=? ORDER BY id', thirdExchange.returnId)
 const secondRedemption = seed.one('SELECT amount FROM "StoreCreditRedemption" WHERE invoiceId=? AND creditId=?', thirdExchange.exchangeInvoiceId, root.id)
 const thirdCashPayment = seed.one('SELECT amount FROM "Payment" WHERE invoiceId=? AND methodId=? AND voidedAt IS NULL', thirdExchange.exchangeInvoiceId, cashMethodId)
+const noShareProvenance = seed.one(
+  'SELECT eventKey,amount,redemptionId,sourceCreditId,restrictScope,saleItemId FROM "CreditReturnAllocation" WHERE returnId=? AND amount=0 ORDER BY id LIMIT 1',
+  thirdExchange.returnId
+)
 
 assert.equal(Number(thirdExchange.diff), 56_000_000, '60M replacement less 4M returned items is a 56M difference')
 assert.equal(Number(thirdExchange.barcodeCreditApplied), 46_000_000, 'the root balance of 46M is used first')
 assert.equal(Number(thirdExchange.cashDue), 10_000_000)
 assert.equal(Number(thirdExchange.cashReceived), 10_000_000)
 assert.equal(Number(secondRedemption.amount), 46_000_000)
+assert.ok(noShareProvenance, 'positive exchange of a child invoice retains the zero-value NO_SHARE lineage row')
+assert.match(noShareProvenance.eventKey, /:iNO_SHARE$/)
+assert.equal(Number(noShareProvenance.amount), 0, 'the lineage marker carries no financial value')
+assert.equal(Number(noShareProvenance.sourceCreditId), Number(root.id))
+assert.equal(noShareProvenance.restrictScope, 'ALL')
+assert.equal(noShareProvenance.saleItemId, null)
 assert.equal(Number(thirdCashPayment.amount), 10_000_000)
 assert.equal(Number(rootAfterThirdInvoice.usedAmount), 50_000_000)
 assert.equal(Number(rootAfterThirdInvoice.amount) - Number(rootAfterThirdInvoice.usedAmount), 0)
