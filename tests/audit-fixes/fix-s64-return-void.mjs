@@ -38,7 +38,7 @@ const db = harnessClient()
 const seed = makeSeeder(db)
 const sql = db.$harness.db
 const ROOT = fileURLToPath(new URL('../../', import.meta.url))
-const src = (p) => (existsSync(join(ROOT, p)) ? readFileSync(join(ROOT, p), 'utf8') : '')
+const src = (p) => (existsSync(join(ROOT, p)) ? readFileSync(join(ROOT, p), 'utf8').replace(/\r\n/g, '\n') : '')
 
 let ok = 0
 let bad = 0
