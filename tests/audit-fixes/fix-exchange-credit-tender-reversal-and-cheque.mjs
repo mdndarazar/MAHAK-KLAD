@@ -296,7 +296,8 @@ const s11Exchange = await salesService.createExchange({
   replacements: [{ variantId: s11ReplacementVariant, qty: 1 }],
   refundMode: 'STORE_CREDIT'
 })
-assert.equal(s11Exchange.diff, -500_000)
+assert.equal(s11Exchange.exchangeTotal - s11Exchange.returnTotal, -500_000, 'اختلاف خام قیمت پیش از کاهش بدهی')
+assert.equal(s11Exchange.diff, -200_000, 'اختلاف مؤثر پس از کسر ۳۰۰٬۰۰۰ بدهی')
 assert.equal(s11Exchange.debtReduction, 300_000)
 assert.equal(s11Exchange.storeCredit.amount, 200_000)
 assert.equal(s11Exchange.cashRefunded, 0)

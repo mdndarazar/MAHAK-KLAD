@@ -66,7 +66,7 @@ const exchange = await salesService.createExchange({
   userId, shiftId, invoiceId: n(root.id),
   lines: [{ saleItemId: n(sourceItem(A).id), qty: 1 }],
   replacements: [line(A1)],
-  refundMode: 'CASH',
+  refundMode: 'STORE_CREDIT',
   idempotencyKey: 'e3-prior-2m-exchange-1598-to-1500'
 })
 const originalAfterExchange = originalRaw()
@@ -90,7 +90,12 @@ const checks = {
   successorKeepsSourceExpiry: successorRows.length === 1 && successorRows[0].expiresAt === n(originalBefore.expiresAt),
   noCashRefundBecauseSurplusWasCreditBacked: cashRefundTotal === 0 && n(exchange.cashRefunded) === 0,
   exchangeReturnsStoreCredit: String(exchange.refundMode) === 'STORE_CREDIT' && String(exchangeReturn.refundMethod) === 'STORE_CREDIT',
-  allocationIsInvoicePoolNotItemShare: allocationRows.length === 1 && allocationRows[0].amount === 980_000 && allocationRows[0].saleItemId === null,
+  allocationIsInvoicePoolNotItemShare:
+    allocationRows.length === 2 &&
+    allocationRows.every((row) => row.saleItemId === null && row.restrictScope === 'ALL') &&
+    allocationRows.reduce((sum, row) => sum + row.amount, 0) === 2_000_000 &&
+    allocationRows.reduce((sum, row) => sum + (row.creditRestored ? row.amount : 0), 0) === 980_000 &&
+    allocationRows.reduce((sum, row) => sum + (row.creditRestored ? 0 : row.amount), 0) === 1_020_000,
   replacementInvoicePaid: n(childInvoice.grandTotal) === 15_000_000 && n(childInvoice.paidTotal) === 15_000_000 && childInvoice.settledAt != null,
   stockReturnedAndReplacementSold: n(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', A.id).stock) === 10 && n(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', A1.id).stock) === 9,
   noOtherProductChanged: [B, C].every(item => n(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', item.id).stock) === 9)
@@ -107,7 +112,7 @@ const summary = {
   exchange: {
     originalItem: { label: A.label, price: A.price }, replacement: { label: A1.label, price: A1.price },
     returnId: n(exchange.returnId), exchangeInvoiceId: n(exchange.exchangeInvoiceId), returnTotal: n(exchange.returnTotal), exchangeTotal: n(exchange.exchangeTotal), diff: n(exchange.diff),
-    requestedRefundMode: 'CASH', appliedRefundMode: exchange.refundMode, settlement: exchange.settlement,
+    requestedRefundMode: 'STORE_CREDIT', appliedRefundMode: exchange.refundMode, settlement: exchange.settlement,
     cashRefunded: n(exchange.cashRefunded), cardRefunded: n(exchange.cardRefunded), realMoneyRefundAmount: n(exchange.realMoneyRefundAmount),
     sourceCreditRestoredAmount: n(exchange.sourceCreditRestoredAmount), newStoreCreditAmount: n(exchange.newStoreCreditAmount),
     sourceSuccessors: exchange.sourceCreditSuccessors?.map(code => ({ id: n(code.id), amount: n(code.amount), expiresAt: code.expiresAt, status: code.status })) ?? [],
@@ -135,7 +140,7 @@ const md = [
   '',
   '## تعویض',
   `- کالای ${fa(A.price)} برگشت و کالای ${fa(A1.price)} جایگزین شد. اختلاف: **${fa(A.price)} − ${fa(A1.price)} = ${fa(-n(exchange.diff))}** به نفع مشتری.`,
-  '- درخواست برگشت نقدی بررسی شد؛ سیستم هیچ وجه نقدی برنگرداند، چون ماندهٔ ۹۸۰٬۰۰۰ از سهم اعتبار منبعی آمده بود، نه از وجه نقد واقعی.',
+  '- تسویهٔ «اعتبار خرید» انتخاب شد؛ هیچ وجه نقدی برنگشت، چون ماندهٔ ۹۸۰٬۰۰۰ از سهم اعتبار منبعی بود، نه از وجه نقد واقعی.',
   `- سیستم سهم اعتبار اولیه را در کل فاکتور (ALL) محاسبه کرد: ۲٬۰۰۰٬۰۰۰ اعتبار از ۱۵٬۹۸۰٬۰۰۰ برگشتی باز شد؛ ۱۳٬۹۸۰٬۰۰۰ سهم پول واقعی بود. جایگزین ۱۵٬۰۰۰٬۰۰۰ ابتدا ۱۳٬۹۸۰٬۰۰۰ پولی و سپس ۱٬۰۲۰٬۰۰۰ اعتباری را پوشاند؛ بنابراین **۹۸۰٬۰۰۰ اعتبار منبعی** باقی ماند.`,
   `- کد اصلی ۲٬۰۰۰٬۰۰۰ با وضعیت 'USED' ماند؛ یک جانشین تازهٔ **۹۸۰٬۰۰۰** با همان انقضای منبع ساخته شد. سهم آن در allocation به‌صورت invoice-pool با saleItemId برابر null ثبت شد، نه سهم اختصاصیِ آن کالا.`, 
   '',
