@@ -36,25 +36,25 @@
  * ===========================================================================
  */
 
-import { toNumberRial } from './money'
+import { toNumberRial, type RialLike } from './money'
 
 export type SettlementStateCode = 'UNPAID' | 'PARTIAL' | 'SETTLED'
 
 export interface DebtReturnInput {
   kind?: string | null
-  total?: number | null
+  total?: RialLike
   refundMethod?: string | null
-  refundAmount?: number | null
+  refundAmount?: RialLike
   /** Internal EXCHANGE_CREDIT reversed by a child return; not a customer payout. */
-  exchangeCreditReversed?: number | null
+  exchangeCreditReversed?: RialLike
   /** درخواست کارت‌به‌کارت همین برگشت لغو شده؟ (پولی به مشتری نرسید و نمی‌رسد) */
   refundCanceled?: boolean | null
   /** Final replacement value for exchanges; together with total reconstructs raw N−R. */
-  exchangeTotal?: number | null
+  exchangeTotal?: RialLike
   /** Legacy/effective settlement difference; raw N−R is preferred when available. */
-  exchangeDiff?: number | null
+  exchangeDiff?: RialLike
   /** نشست ۶۰ — فقط تعویض: بخشی از مابه‌التفاوت منفی که از بدهی فاکتور اصلی کم شد */
-  debtReduction?: number | null
+  debtReduction?: RialLike
 }
 
 const REFUNDING_METHODS = ['CASH', 'CARD', 'STORE_CREDIT', 'CARD_TO_CARD']

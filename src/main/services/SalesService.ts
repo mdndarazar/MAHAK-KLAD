@@ -148,7 +148,7 @@ import {
 import { SETTING_KEYS, parseSaleDefaults } from '@shared/receipt'
 import { discountCeilingFor, fixedDiscountFor } from '@shared/priceAdjust'
 import { computeCharges, type ChargeBreakdown } from '@shared/charges'
-import { toNumberRial, toRial } from '@shared/money'
+import { toNumberRial, toRial, type RialLike } from '@shared/money'
 import type {
   CreateSaleInput,
   ReturnSaleInput,
@@ -674,7 +674,7 @@ function validateReturnUpdateMutation(input: UpdateReturnInput): void {
  * کاهش بدهی). یک‌بار بیرون از تراکنش برای سنجش رمز، یک‌بار داخل برای هم‌زمانی.
  */
 function returnUpdateFinancialGate(
-  ret: { refundAmount?: unknown; refundMethod?: string | null },
+  ret: { refundAmount?: RialLike | null; refundMethod?: string | null },
   /** فقط مرجع امن؛ کد قابل‌مصرف نباید حتی در پیام gate یا Audit راه پیدا کند. */
   settledCredit: { id: number } | null,
   relatedTransfer: { status: string } | null
@@ -1903,7 +1903,7 @@ async function settlementAdjustedSourceCreditReturns(tx: Prisma.TransactionClien
 
 async function cashLikeRefundableOf(
   tx: Prisma.TransactionClient | typeof prisma,
-  invoice: { id: number; paidTotal: unknown; sourceInvoiceId?: number | null },
+  invoice: { id: number; paidTotal: RialLike; sourceInvoiceId?: number | null },
   previouslyRefunded: number
 ): Promise<number> {
   const paidNow = toNumberRial(invoice.paidTotal)
@@ -1951,7 +1951,7 @@ async function exchangeChainDebtAvailable(
     if (!Number.isSafeInteger(invoiceId) || invoiceId <= 0 || seen.has(invoiceId) || seen.size >= 50)
       throw new BusinessError('زنجیرهٔ فاکتور تعویض قابل‌تطبیق نیست؛ برگشت متوقف شد تا بدهی حدس زده نشود.')
     seen.add(invoiceId)
-    const invoice: { id: number; grandTotal: unknown; sourceInvoiceId: number | null } | null = await tx.saleInvoice.findUnique({
+    const invoice: { id: number; grandTotal: RialLike; sourceInvoiceId: number | null } | null = await tx.saleInvoice.findUnique({
       where: { id: invoiceId },
       select: { id: true, grandTotal: true, sourceInvoiceId: true }
     })
@@ -7526,7 +7526,7 @@ export const salesService = {
       throw new BusinessError('وضعیت مهلت فاکتور قابل بررسی نیست؛ ثبت برگشت انجام نشد.')
 
     // ---- وضعیت انباری اقلام (بدون include تودرتو، تا کالای حذف‌شده گزارش را نخواباند) ----
-    const variantIds = [...new Set(invoice.items.map((i) => i.variantId))]
+    const variantIds = [...new Set(invoice.items.map((i: { variantId: number }) => i.variantId))]
     const variants = await loadProductVariantsByIds(prisma, variantIds, {
       id: true,
       code: true,
