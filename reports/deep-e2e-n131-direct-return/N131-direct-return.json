@@ -1,0 +1,75 @@
+{
+  "scenario": "N131 follow-up: direct return after invoice-level discount",
+  "isolatedDatabase": "/tmp/mahak-n131-direct-return-LXfe6m/isolated.db",
+  "status": "PASS",
+  "fixture": {
+    "stickerPrice": 100000,
+    "invoiceDiscount": 10000,
+    "netPaid": 90000
+  },
+  "sale": {
+    "invoiceId": 1,
+    "itemId": 1,
+    "gross": 100000,
+    "discount": 10000,
+    "net": 90000,
+    "paid": 90000,
+    "settled": true
+  },
+  "return": {
+    "id": 1,
+    "storedTotal": 90000,
+    "method": "CASH",
+    "refundAmount": 90000,
+    "returnCredit": 0
+  },
+  "answer": {
+    "systemCountsReturnedItemAs": 90000,
+    "cashActuallyRefunded": 90000,
+    "directCashReturn": "CASH"
+  },
+  "reconciliation": {
+    "expectedCashIn": 90000,
+    "rawCashIn": 90000,
+    "rawCashRefund": 90000,
+    "reportTotals": {
+      "count": 1,
+      "goodsTotal": 100000,
+      "taxTotal": 0,
+      "serviceTotal": 0,
+      "discountTotal": 10000,
+      "deliveryTotal": 0,
+      "grandTotal": 90000,
+      "cashTotal": 90000,
+      "cardTotal": 0,
+      "creditTotal": 0,
+      "otherTotal": 0,
+      "receivedTotal": 90000,
+      "returnedTotal": 90000,
+      "exchangeCreditTotal": 0,
+      "storeCreditUsedTotal": 0,
+      "storeCreditIssuedTotal": 0,
+      "exchangeCount": 0,
+      "exchangeDiffTotal": 0,
+      "overpayTotal": 0,
+      "creditRemainingTotal": 0,
+      "priorSettlementTotal": 0,
+      "netReceivedTotal": 90000,
+      "exchangeReturnedTotal": 0,
+      "refundCashTotal": 90000,
+      "refundCardTotal": 0,
+      "refundDebtOnlyTotal": 0,
+      "storeCreditRefundTotal": 0,
+      "legacyRefundCount": 0,
+      "managerAccountTotal": 0,
+      "destinationUnknownTotal": 0
+    },
+    "blue": 0,
+    "stock": {
+      "initial": 10,
+      "actual": 10,
+      "ledger": 0
+    },
+    "checks": 0
+  }
+}

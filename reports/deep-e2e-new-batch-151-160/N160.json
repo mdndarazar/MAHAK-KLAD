@@ -1,0 +1,206 @@
+{
+  "generatedAt": "2026-10-28T18:20:57.093Z",
+  "id": 160,
+  "scenario": "N160",
+  "isolatedDatabase": "/tmp/mahak-followup-160-Pzln1A/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 100000,
+      "cash": 0,
+      "card": 100000,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 100000,
+          "lineTotal": 100000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "C2C-return-to-void-source",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0
+    },
+    {
+      "operation": "void-pending-C2C-return",
+      "returnId": 1,
+      "voided": true,
+      "reason": "آزمون لغو درخواست پرداخت معلق",
+      "requestBefore": "PENDING",
+      "requestAfter": "CANCELED",
+      "requestPaidAmount": 0,
+      "stockBeforeVoid": 9,
+      "stockAfterVoid": 9,
+      "refundMethod": "CARD_TO_CARD",
+      "requestedAmount": 100000
+    },
+    {
+      "label": "void pending C2C return; settled card payment remains and no refund/restock is fabricated",
+      "expected": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "C2C-return-to-void-source",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0
+    },
+    {
+      "label": "final N160 reconciliation",
+      "expected": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 100000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "C2C-return-to-void-source",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0
+    }
+  ],
+  "assertions": [
+    {
+      "key": "void-pending-C2C-cancels-request-and-keeps-stock-and-money-consistent",
+      "pass": true,
+      "requestCanceled": true,
+      "returnVoided": true,
+      "noPayout": true
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 0,
+      "card": 100000,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 100000
+    },
+    "actual": {
+      "cash": 0,
+      "card": 100000,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 100000,
+    "stock": [
+      {
+        "name": "C2C-return-to-void-source",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 1,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

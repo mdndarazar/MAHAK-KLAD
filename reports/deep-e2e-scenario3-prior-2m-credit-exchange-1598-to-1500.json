@@ -1,0 +1,138 @@
+{
+  "generatedAt": "2026-10-27T14:05:34.309Z",
+  "isolatedDatabase": "/tmp/mahak-e100-prior-2m-credit-exchange-qH3swu/isolated.db",
+  "assumptions": {
+    "invoiceMeaning": "50,000,000 gross sale; prior 2,000,000 store-credit barcode is a tender; customer pays the remaining 48,000,000 cash. Thus the POS invoice grandTotal remains 50,000,000 and is fully paid.",
+    "sourceBarcode": {
+      "id": 1,
+      "code": "CRFE2HQT",
+      "amount": 2000000,
+      "statusAfterUse": "USED",
+      "scope": "ALL",
+      "expiry": "1405/09/05"
+    },
+    "sourceScope": "ALL invoice-wide pool; no item-level attribution is assigned."
+  },
+  "originalSale": {
+    "invoiceId": 1,
+    "items": [
+      {
+        "label": "return-item-15980000",
+        "price": 15980000
+      },
+      {
+        "label": "other-goods-14020000",
+        "price": 14020000
+      },
+      {
+        "label": "other-goods-20000000",
+        "price": 20000000
+      }
+    ],
+    "total": 50000000,
+    "creditApplied": 2000000,
+    "actualCashPaid": 48000000,
+    "paidTotal": 50000000,
+    "settled": true
+  },
+  "exchange": {
+    "originalItem": {
+      "label": "return-item-15980000",
+      "price": 15980000
+    },
+    "replacement": {
+      "label": "replacement-15000000",
+      "price": 15000000
+    },
+    "returnId": 1,
+    "exchangeInvoiceId": 2,
+    "returnTotal": 15980000,
+    "exchangeTotal": 15000000,
+    "diff": -980000,
+    "requestedRefundMode": "CASH",
+    "appliedRefundMode": "STORE_CREDIT",
+    "settlement": "CREDIT",
+    "cashRefunded": 0,
+    "cardRefunded": 0,
+    "realMoneyRefundAmount": 0,
+    "sourceCreditRestoredAmount": 980000,
+    "newStoreCreditAmount": 0,
+    "sourceSuccessors": [
+      {
+        "id": 2,
+        "amount": 980000,
+        "status": "ACTIVE"
+      }
+    ],
+    "allocationRows": [
+      {
+        "id": 1,
+        "invoiceId": 1,
+        "returnId": 1,
+        "redemptionId": 1,
+        "sourceCreditId": 1,
+        "amount": 980000,
+        "creditRestored": true,
+        "saleItemId": null,
+        "restrictScope": "ALL"
+      }
+    ],
+    "successorRows": [
+      {
+        "id": 2,
+        "code": "CRPL38UZ",
+        "amount": 980000,
+        "usedAmount": 0,
+        "usedCount": 0,
+        "status": "ACTIVE",
+        "expiresAt": 1795724999999,
+        "expiresAtJalali": "1405/09/05",
+        "source": "MANUAL",
+        "scope": "ALL",
+        "variants": null,
+        "returnId": 1
+      }
+    ],
+    "originalCodeAfter": {
+      "id": 1,
+      "amount": 2000000,
+      "usedAmount": 2000000,
+      "status": "USED",
+      "expiresAt": "1405/09/05"
+    },
+    "childInvoice": {
+      "id": 2,
+      "total": 15000000,
+      "paid": 15000000,
+      "status": "SETTLED",
+      "settled": true
+    },
+    "cashRefundTotalAfterExchange": 0,
+    "checks": {
+      "originalInvoiceIs50m": true,
+      "creditUsedAs2mTender": true,
+      "realCashReceived48m": true,
+      "exchangedItemValue1598m": true,
+      "replacementValue15m": true,
+      "differenceNegative980k": true,
+      "sourceCreditRestored980k": true,
+      "oneFreshSuccessor980k": true,
+      "old2mCodeStaysUsed": true,
+      "successorKeepsSourceExpiry": true,
+      "noCashRefundBecauseSurplusWasCreditBacked": true,
+      "exchangeReturnsStoreCredit": true,
+      "allocationIsInvoicePoolNotItemShare": true,
+      "replacementInvoicePaid": true,
+      "stockReturnedAndReplacementSold": true,
+      "noOtherProductChanged": true
+    }
+  },
+  "verdict": "PASS",
+  "safety": {
+    "liveDatabase": false,
+    "productionCodeChanged": false,
+    "cashRefund": 0,
+    "unpaidInvoices": 0,
+    "checksOrDebt": false
+  }
+}

@@ -284,7 +284,7 @@ export const salesLedger = {
       where: returnWhere,
       select: {
         id: true, kind: true, total: true, returnedAt: true, returnedAtJalali: true, returnedAtTime: true,
-        refundMethod: true, refundAmount: true, refundReference: true, note: true,
+        refundMethod: true, refundAmount: true, refundStoreCreditAmount: true, refundReference: true, note: true,
         exchangeTotal: true, exchangeDiff: true, exchangeSettlement: true, exchangeInvoiceId: true, debtReduction: true,
         exchangeReceiptNo: true, storeCreditId: true, userId: true, shiftId: true,
         invoiceId: true,
@@ -388,10 +388,19 @@ export const salesLedger = {
         })
         const replacementQty = r.exchangeInvoiceId != null ? exQty.get(r.exchangeInvoiceId) ?? 0 : 0
         /** نشست ۶۰ (بند ۴-۵/۴-۴۹) — فقط بخش بازپرداخت‌شده؛ کاهش بدهی فاکتور اصلی پول نیست */
-        const refundPart = exchangeRefundPartOf({ exchangeDiff: diff, debtReduction: (r as any).debtReduction })
-        const debtCut = Math.max(0, -diff - refundPart)
+        const refundPart = exchangeRefundPartOf({
+          exchangeDiff: diff, total: r.total, exchangeTotal: r.exchangeTotal,
+          debtReduction: (r as any).debtReduction,
+          refundAmount: r.refundAmount, refundStoreCreditAmount: (r as any).refundStoreCreditAmount
+        })
+        const debtCut = Math.max(0, n((r as any).debtReduction))
+        const cashOrCardPart = Math.min(refundPart, Math.max(0, n(r.refundAmount)))
+        const splitCreditPart = Math.min(refundPart, Math.max(0, n((r as any).refundStoreCreditAmount)))
+        const creditIssuedPart = settle === ExchangeSettlement.CREDIT
+          ? refundPart
+          : splitCreditPart
         const exDrawer = r.exchangeInvoiceId != null ? exDrawerCash.get(r.exchangeInvoiceId) ?? null : null
-        const cashEffect = exchangeCashEffect(diff, settle, refundPart, exDrawer)
+        const cashEffect = exchangeCashEffect(diff, settle, cashOrCardPart, exDrawer)
         rows.push({
           ...base,
           key: `EXP-${r.id}`,
@@ -407,15 +416,18 @@ export const salesLedger = {
               : diff < 0
                 ? (debtCut > 0 ? `${money(debtCut)} ریال از بدهی فاکتور اصلی کم شد (اثر نقدی صفر)` : '') +
                   (debtCut > 0 && refundPart > 0 ? ' · ' : '') +
-                  (refundPart <= 0
-                    ? ''
-                    : cashEffect < 0
-                      ? `${money(refundPart)} ریال مابه‌التفاوت نقدی به مشتری برگشت`
-                      : settle === ExchangeSettlement.CARD_REFUND
-                        ? `${money(refundPart)} ریال به کارت مشتری برگشت (اثر نقدی کشو صفر)`
+                  [
+                    cashOrCardPart > 0
+                      ? settle === ExchangeSettlement.CARD_REFUND
+                        ? `${money(cashOrCardPart)} ریال به کارت مشتری برگشت (اثر نقدی کشو صفر)`
                         : settle === ExchangeSettlement.CARD_TO_CARD
-                          ? `${money(refundPart)} ریال در درخواست کارت‌به‌کارت مدیر ثبت شد (اثر نقدی صفر)`
-                          : `${money(refundPart)} ریال اعتبار خرید صادر شد (اثر نقدی صفر، بدهی ما)`)
+                          ? `${money(cashOrCardPart)} ریال در درخواست کارت‌به‌کارت مدیر ثبت شد (اثر نقدی صفر)`
+                          : `${money(cashOrCardPart)} ریال مابه‌التفاوت نقدی به مشتری برگشت`
+                      : '',
+                    creditIssuedPart > 0
+                      ? `${money(creditIssuedPart)} ریال اعتبار خرید صادر شد (اثر نقدی صفر، بدهی ما)`
+                      : ''
+                  ].filter(Boolean).join(' · ')
                 : 'مابه‌التفاوت صفر',
           stockEffect: -replacementQty,
           invoiceId: r.exchangeInvoiceId ?? r.invoiceId,

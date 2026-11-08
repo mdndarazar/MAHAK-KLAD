@@ -1,0 +1,280 @@
+{
+  "generatedAt": "2026-10-28T18:42:13.942Z",
+  "id": 207,
+  "scenario": "N207",
+  "isolatedDatabase": "/tmp/mahak-next20-207-OfNos0/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "issue-credit",
+      "id": 1,
+      "amount": 100000,
+      "status": "ACTIVE",
+      "scope": "ALL"
+    },
+    {
+      "operation": "issue-credit",
+      "id": 2,
+      "amount": 100000,
+      "status": "ACTIVE",
+      "scope": "ALL"
+    },
+    {
+      "operation": "settled-sale",
+      "invoiceId": 1,
+      "total": 100000,
+      "cash": 50000,
+      "card": 0,
+      "creditApplied": 50000,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 100000,
+          "lineTotal": 100000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 50000
+      },
+      "actual": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 50000,
+      "stock": [
+        {
+          "name": "multi-code-return-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 0,
+      "checks": 0,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CRWB8FQL",
+          "amount": 100000,
+          "usedAmount": 30000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED"
+        },
+        {
+          "id": 2,
+          "code": "CRMDQ7H7",
+          "amount": 100000,
+          "usedAmount": 20000,
+          "usedCount": 1,
+          "status": "PARTIALLY_USED"
+        }
+      ]
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 100000,
+      "method": "STORE_CREDIT",
+      "refundAmount": 50000,
+      "returnCreditAmount": 50000
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 50000
+      },
+      "actual": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 50000,
+      "stock": [
+        {
+          "name": "multi-code-return-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 1,
+      "checks": 0,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CRWB8FQL",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE"
+        },
+        {
+          "id": 2,
+          "code": "CRMDQ7H7",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE"
+        }
+      ]
+    },
+    {
+      "label": "final N207 reconciliation",
+      "expected": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 50000
+      },
+      "actual": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 50000,
+      "stock": [
+        {
+          "name": "multi-code-return-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 1,
+      "checks": 0,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CRWB8FQL",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE"
+        },
+        {
+          "id": 2,
+          "code": "CRMDQ7H7",
+          "amount": 100000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE"
+        }
+      ]
+    }
+  ],
+  "modes": [
+    {
+      "key": "two separate source codes fund exact 50k share",
+      "applied": 50000
+    },
+    {
+      "key": "both source shares restored to their original code IDs",
+      "restored": 50000,
+      "allocations": 2
+    },
+    {
+      "key": "50k real-money share issued as separate non-expiring voucher",
+      "amount": 50000,
+      "expiresAt": null
+    }
+  ],
+  "modeCount": 3,
+  "final": {
+    "expected": {
+      "cash": 50000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 50000
+    },
+    "actual": {
+      "cash": 50000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 50000,
+    "stock": [
+      {
+        "name": "multi-code-return-item",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      }
+    ],
+    "invoices": 1,
+    "returns": 1,
+    "credits": 3,
+    "checks": 0
+  }
+}

@@ -242,6 +242,10 @@ eq('«انصراف» در مرحله ۱ ⇒ هیچ ارسالی', stx?.step, 'id
 const stp = st2 && F.overpayFlowPassword?.(st2, 'رمز')
 truthy('رمز مدیر همان درخواست مرحله ۳ را با managerPassword تکرار می‌کند',
   stp?.step === 'submit' && stp?.request?.overpayAsCredit === true && stp?.request?.managerPassword === 'رمز')
+const autoState = F.overpayFlowStart?.('هشدار', { entryKind: 'CASH', methodKind: 'CASH', autoCredit: true })
+const autoSubmit = autoState && F.overpayFlowNext?.(autoState, 'yes')
+truthy('نبود روش واقعی پس از تأیید مستقیماً اعتبار پشتوانه‌دار می‌سازد، بدون سؤال دوم',
+  autoState?.autoCredit === true && autoSubmit?.step === 'submit' && autoSubmit?.request?.confirmOverpay === true && autoSubmit?.request?.overpayAsCredit === true)
 const flashText = F.overpayCreditFlash?.({ id: 12, publicReference: 'اعتبار #12', amount: 300, expiresAtJalali: null, notice: 'x' }, (n) => String(n), (s) => s)
 truthy('متن نتیجه مرجع امن، مبلغ و «غیرقابل نقد شدن» را دارد',
   typeof flashText === 'string' && flashText.includes('اعتبار #12') && !flashText.includes('AB12') && flashText.includes('300') && flashText.includes('غیرقابل نقد شدن'))

@@ -1,0 +1,10 @@
+MAHAK-KLAD — External Review Snapshot
+
+Repository: mdndarazar/MAHAK-KLAD
+Working branch: arena/8a852de1-mahak-klad
+HEAD at packaging: 44a86434d9f26dc85b3be68dc48d7b4bcf4b94ea
+Snapshot date: 2026-10-31
+
+This is a source-review snapshot of the latest working tree at packaging time, not a clean commit and not an installable/release ZIP. Modified tracked files and non-ignored untracked files are included. The snapshot intentionally does not include .git, node_modules, environment/secret files excluded by Git, or ignored build outputs. The Persian review prompt is included at deliverables/external-review-discount-transfer-2026-10-31/REVIEW-PROMPT-FA.md.
+
+Review scope is limited to the three agreed matters in that prompt: YES_ZERO transfer arithmetic, discount-only recommended-star behavior, and simple dynamic discount-only explanations beneath NO / YES / YES_ZERO. No code changes were made to prepare this package.

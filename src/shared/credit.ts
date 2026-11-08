@@ -22,6 +22,7 @@
  */
 
 import { toNumberRial } from './money'
+import { isPastTehranExpiryDate } from './tehranTime'
 
 // ---------------------------------------------------------------------------
 // ۱) نوع اعتبار (§۲ سند مرجع)
@@ -454,10 +455,9 @@ export function usesLeftOf(c: CreditCore): number {
 /** اعتبار منقضی شده است؟ (مستقل از ستون وضعیت — ستون ممکن است عقب باشد) */
 export function isExpiredAt(c: CreditCore, now: Date | number = Date.now()): boolean {
   if (!c.expiresAt) return false
-  const t = c.expiresAt instanceof Date ? c.expiresAt.getTime() : new Date(c.expiresAt).getTime()
-  if (!Number.isFinite(t)) return false
-  const ref = now instanceof Date ? now.getTime() : now
-  return t <= ref
+  const t = c.expiresAt instanceof Date ? c.expiresAt : new Date(c.expiresAt)
+  if (!Number.isFinite(t.getTime())) return false
+  return isPastTehranExpiryDate(t, now)
 }
 
 /**
@@ -554,6 +554,8 @@ export function parseIdList(raw: unknown): number[] {
 
 /** یک قلم سبد، از دید قواعد اعتبار (نه از دید فروش). */
 export interface CreditCartLine {
+  /** Database line identity (available to main for cumulative restricted-credit caps). */
+  saleItemId?: number
   variantId: number
   /** دسته‌ی کالا (از دیتابیس خوانده می‌شود؛ UI هم همین را دارد) */
   categoryId?: number | null

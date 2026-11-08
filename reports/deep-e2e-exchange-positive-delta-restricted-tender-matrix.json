@@ -1,0 +1,59 @@
+{
+  "generatedAt": "2026-11-05T21:07:36.247Z",
+  "isolatedDatabase": "/tmp/mahak-positive-delta-credit-scope-cy4F74/isolated.db",
+  "scenario": "Cash-paid A=100,000 returned; B=120,000 replacement; 50,000 multi-use barcode is tried against ALL, B variant, B category, A-only variant, and C-only category scopes.",
+  "expected": "Accept ALL/B-variant/B-category; apply exactly 20,000; keep 30,000 on the same barcode. Reject A-only and C-only scopes with no persistent mutation.",
+  "passed": 5,
+  "failed": 0,
+  "results": [
+    {
+      "name": "ordinary-ALL-multiuse",
+      "result": "PASS",
+      "accepted": true,
+      "scope": "ALL",
+      "diff": 20000,
+      "applied": 20000,
+      "remainingOnSameBarcode": 30000,
+      "status": "PARTIALLY_USED",
+      "usedCount": 1
+    },
+    {
+      "name": "restricted-to-B-variant",
+      "result": "PASS",
+      "accepted": true,
+      "scope": "VARIANTS",
+      "diff": 20000,
+      "applied": 20000,
+      "remainingOnSameBarcode": 30000,
+      "status": "PARTIALLY_USED",
+      "usedCount": 1
+    },
+    {
+      "name": "restricted-to-category-containing-B",
+      "result": "PASS",
+      "accepted": true,
+      "scope": "CATEGORY",
+      "diff": 20000,
+      "applied": 20000,
+      "remainingOnSameBarcode": 30000,
+      "status": "PARTIALLY_USED",
+      "usedCount": 1
+    },
+    {
+      "name": "restricted-to-A-variant-rejects-B",
+      "result": "PASS",
+      "accepted": false,
+      "scope": "VARIANTS",
+      "error": "هیچ‌کدام از اقلام این فاکتور با محدودیت این اعتبار (کالا/دسته‌بندی) نمی‌خواند، پس این اعتبار روی این فاکتور قابل استفاده نیست.",
+      "mutationFree": true
+    },
+    {
+      "name": "restricted-to-C-category-rejects-B",
+      "result": "PASS",
+      "accepted": false,
+      "scope": "CATEGORY",
+      "error": "هیچ‌کدام از اقلام این فاکتور با محدودیت این اعتبار (کالا/دسته‌بندی) نمی‌خواند، پس این اعتبار روی این فاکتور قابل استفاده نیست.",
+      "mutationFree": true
+    }
+  ]
+}

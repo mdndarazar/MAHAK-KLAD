@@ -10,14 +10,32 @@
  */
 
 /**
- * نشست ۶۰ · بند ۴-۵/۴-۹ — بخش *بازپرداخت‌شده* (نقد/کارت/کارت‌به‌کارت/اعتبار) از
- * مابه‌التفاوت منفی یک تعویض = −exchangeDiff − debtReduction. تعویض قدیمی
- * (debtReduction = ۰) ⇒ دقیقاً همان −exchangeDiff قبلی.
+ * نشست ۶۰ · R1-B01 — بخش بازپرداخت‌شده از ماندهٔ خام U=max(N−R,0) پس از
+ * debtReduction به‌دست می‌آید؛ exchangeDiff در رکورد جدید، اختلاف مؤثر پس از
+ * funding است، پس debtReduction را نباید دوباره از آن کم کرد.
  */
-export function exchangeRefundPartOf(r: { exchangeDiff?: RialLike | null; debtReduction?: RialLike | null }): number {
+export function exchangeRefundPartOf(r: {
+  exchangeDiff?: RialLike | null
+  total?: RialLike | null
+  exchangeTotal?: RialLike | null
+  debtReduction?: RialLike | null
+  /** Exact cash/card/C2C or full-credit amount; null preserves legacy inference. */
+  refundAmount?: RialLike | null
+  /** Additional non-cash credit issued alongside a real-money refund. */
+  refundStoreCreditAmount?: RialLike | null
+}): number {
   const r0 = (x: unknown): number => { const v = Math.round(Number(x ?? 0)); return Number.isFinite(v) ? v : 0 }
-  const owed = Math.max(0, -r0(r.exchangeDiff))
-  return Math.max(0, owed - Math.max(0, r0(r.debtReduction)))
+  const rawOwed = r.total != null && r.exchangeTotal != null
+    ? Math.max(0, r0(r.total) - r0(r.exchangeTotal))
+    : Math.max(0, -r0(r.exchangeDiff))
+  const debtCut = Math.min(rawOwed, Math.max(0, r0(r.debtReduction)))
+  // exchangeDiff is the effective settlement difference; unlike the raw N−R,
+  // it already reflects the debt cut and the funding applied to replacement.
+  // Bound legacy inference by it, but never subtract debtReduction twice.
+  const eligible = Math.min(Math.max(0, rawOwed - debtCut), Math.max(0, -r0(r.exchangeDiff)))
+  const recorded = r.refundAmount != null || Math.max(0, r0(r.refundStoreCreditAmount)) > 0
+  if (recorded) return Math.min(eligible, Math.max(0, r0(r.refundAmount)) + Math.max(0, r0(r.refundStoreCreditAmount)))
+  return eligible
 }
 
 export type Rial = number
@@ -86,6 +104,7 @@ export interface ReturnEvent {
   total?: RialLike
   refundMethod?: RefundMethod | string | null
   refundAmount?: RialLike
+  refundStoreCreditAmount?: RialLike
   returnedAt?: Date | string | number
   exchangeTotal?: RialLike
   exchangeDiff?: RialLike
@@ -587,10 +606,21 @@ export function calculateReturnTotals(events: ReturnEvent[] = [], period?: Perio
            که نویسنده‌ی سند می‌نوشت دیگر به سبد «اعتبار خرید» نمی‌افتد. */
         const { bucket } = normalizeSettlement({ exchangeSettlement: r.exchangeSettlement, refundMethod: r.refundMethod })
         /* نشست ۶۰ (بند ۴-۵) — فقط بخش بازپرداخت‌شده؛ کاهش بدهی فاکتور اصلی پول نیست */
-        const refunded = exchangeRefundPartOf({ exchangeDiff: diff, debtReduction: r.debtReduction })
+        const refunded = exchangeRefundPartOf({
+          exchangeDiff: diff, total: r.total, exchangeTotal: r.exchangeTotal,
+          debtReduction: r.debtReduction,
+          refundAmount: r.refundAmount, refundStoreCreditAmount: r.refundStoreCreditAmount
+        })
+        const splitCredit = Math.min(refunded, Math.max(0, n(r.refundStoreCreditAmount)))
         if (refunded <= 0) { /* فقط کاهش بدهی */ }
-        else if (bucket === 'CASH_REFUND') out.exchangeCashRefunds += refunded
-        else if (bucket === 'CARD_REFUND') out.exchangeCardRefunds += refunded
+        else if (bucket === 'CASH_REFUND') {
+          out.exchangeCashRefunds += Math.min(refunded, Math.max(0, n(r.refundAmount)))
+          out.exchangeStoreCreditIssued += splitCredit
+        }
+        else if (bucket === 'CARD_REFUND') {
+          out.exchangeCardRefunds += Math.min(refunded, Math.max(0, n(r.refundAmount)))
+          out.exchangeStoreCreditIssued += splitCredit
+        }
         /* جلسه ۱۷ · بند ۱ — کارت‌به‌کارت مدیر: نه نقد، نه کارت‌خوان، نه اعتبار خرید */
         else if (bucket === 'CARD_TO_CARD') {
           if (!r.refundCanceled) out.exchangeCardToCardPending += refunded

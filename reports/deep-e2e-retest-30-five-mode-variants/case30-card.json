@@ -1,0 +1,197 @@
+{
+  "generatedAt": "2026-10-28T17:30:59.251Z",
+  "scenarioId": 30,
+  "scenario": "رد برگشت تکراری بدون تغییر",
+  "mode": "CARD",
+  "matrixRole": "one of five return-settlement variants; baseline is recorded in deep-e2e-retest-30-summary",
+  "isolatedDatabase": "/tmp/mahak-retest30-30-card-v1ULNf/isolated.db",
+  "sourceShape": {
+    "itemCount": 1,
+    "unitPrice": 100000,
+    "saleTender": "CASH",
+    "lineDiscount": 0,
+    "invoiceDiscount": 0,
+    "gross": 100000,
+    "netInvoice": 100000,
+    "returnedCount": 1,
+    "returnedNet": 100000
+  },
+  "status": "PASS",
+  "expectedFinancial": {
+    "cash": 100000,
+    "card": 0,
+    "refundCash": 0,
+    "refundCard": 100000
+  },
+  "checkpoints": [
+    {
+      "label": "isolated empty shift",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "reported": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "variantId": 1,
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [],
+      "counts": {
+        "returns": 0,
+        "credits": 0,
+        "transfers": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "sale settled; gross=100000; discount=0; net=100000",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "reported": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "variantId": 1,
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "grossPaid": 100000,
+          "paid": 100000,
+          "discount": 0,
+          "settled": true
+        }
+      ],
+      "counts": {
+        "returns": 0,
+        "credits": 0,
+        "transfers": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "return completed via CARD; return net=100000",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 100000,
+        "blue": 0
+      },
+      "reported": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 100000
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 100000
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "variantId": 1,
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "grossPaid": 100000,
+          "paid": 100000,
+          "discount": 0,
+          "settled": true
+        }
+      ],
+      "counts": {
+        "returns": 1,
+        "credits": 0,
+        "transfers": 0,
+        "checks": 0
+      }
+    }
+  ],
+  "return": {
+    "id": 1,
+    "total": 100000,
+    "refundMethod": "CARD",
+    "refundAmount": 100000,
+    "refundStoreCreditAmount": 0,
+    "exchangeSettlement": null,
+    "exchangeInvoiceId": null,
+    "credits": []
+  },
+  "managerTransfer": null,
+  "findings": [],
+  "final": {
+    "expected": {
+      "cash": 100000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 100000,
+      "blue": 0
+    },
+    "actual": {
+      "cash": 100000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 100000
+    },
+    "blue": 0,
+    "stock": [
+      {
+        "id": 1,
+        "actual": 10,
+        "ledger": 0
+      }
+    ],
+    "returns": 1,
+    "credits": 0,
+    "transfers": 0,
+    "checkPayments": 0
+  }
+}

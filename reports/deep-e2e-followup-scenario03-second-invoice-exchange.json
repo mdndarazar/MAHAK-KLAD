@@ -1,0 +1,259 @@
+{
+  "generatedAt": "2026-10-30T19:45:50.047Z",
+  "scenario": "Independent follow-up scenario 2 (generation-two exchange via customer-presented invoice 2)",
+  "status": "PASS",
+  "isolatedDatabase": "/tmp/mahak-followup-s03-BMiDxr/isolated.db",
+  "example": {
+    "rootSale": 500000,
+    "exchange1": {
+      "returned": 500000,
+      "replacement": 450000,
+      "difference": -50000
+    },
+    "exchange2": {
+      "returned": 450000,
+      "replacement": 400000,
+      "difference": -50000
+    },
+    "cashInitiallyReceived": 500000,
+    "physicalBlueAfterBothExchanges": 500000
+  },
+  "invoices": [
+    {
+      "id": 1,
+      "grandTotal": 500000,
+      "paidTotal": 500000,
+      "orderType": "INTERNAL"
+    },
+    {
+      "id": 2,
+      "sourceInvoiceId": 1,
+      "exchangeReturnId": 1,
+      "grandTotal": 450000,
+      "paidTotal": 450000,
+      "status": "SETTLED"
+    },
+    {
+      "id": 3,
+      "sourceInvoiceId": 2,
+      "exchangeReturnId": 2,
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "status": "SETTLED"
+    }
+  ],
+  "exchangeResults": [
+    {
+      "returnId": 1,
+      "exchangeInvoiceId": 2,
+      "diff": -50000,
+      "cashRefunded": 0,
+      "newStoreCreditAmount": 50000
+    },
+    {
+      "returnId": 2,
+      "exchangeInvoiceId": 3,
+      "diff": -50000,
+      "cashRefunded": 0,
+      "newStoreCreditAmount": 50000
+    }
+  ],
+  "returns": [
+    {
+      "id": 1,
+      "invoiceId": 1,
+      "kind": "EXCHANGE",
+      "total": 500000,
+      "exchangeInvoiceId": 2,
+      "exchangeTotal": 450000,
+      "exchangeDiff": -50000,
+      "exchangeSettlement": "CREDIT",
+      "refundMethod": "STORE_CREDIT",
+      "refundAmount": 50000,
+      "refundStoreCreditAmount": 0
+    },
+    {
+      "id": 2,
+      "invoiceId": 2,
+      "kind": "EXCHANGE",
+      "total": 450000,
+      "exchangeInvoiceId": 3,
+      "exchangeTotal": 400000,
+      "exchangeDiff": -50000,
+      "exchangeSettlement": "CREDIT",
+      "refundMethod": "STORE_CREDIT",
+      "refundAmount": 50000,
+      "refundStoreCreditAmount": 0
+    }
+  ],
+  "credits": [
+    {
+      "id": 1,
+      "amount": 50000,
+      "usedAmount": 0,
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "returnId": 1,
+      "source": "EXCHANGE"
+    },
+    {
+      "id": 2,
+      "amount": 50000,
+      "usedAmount": 0,
+      "status": "ACTIVE",
+      "expiresAt": null,
+      "returnId": 2,
+      "source": "EXCHANGE"
+    }
+  ],
+  "checkpoints": [
+    {
+      "label": "baseline",
+      "blueExpected": 0,
+      "blueActual": 0,
+      "reportSums": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "stocks": [
+        {
+          "variant": "original-A-500k",
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "replacement-B-450k",
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "replacement-C-400k",
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        }
+      ]
+    },
+    {
+      "label": "root sale A 500k cash",
+      "blueExpected": 500000,
+      "blueActual": 500000,
+      "reportSums": {
+        "cash": 500000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 500000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "stocks": [
+        {
+          "variant": "original-A-500k",
+          "expected": 9,
+          "actual": 9,
+          "ledgerDelta": -1
+        },
+        {
+          "variant": "replacement-B-450k",
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "replacement-C-400k",
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        }
+      ]
+    },
+    {
+      "label": "exchange 1: A 500k → invoice 2 / B 450k; 50k store-credit difference",
+      "blueExpected": 500000,
+      "blueActual": 500000,
+      "reportSums": {
+        "cash": 500000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 500000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "stocks": [
+        {
+          "variant": "original-A-500k",
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "replacement-B-450k",
+          "expected": 9,
+          "actual": 9,
+          "ledgerDelta": -1
+        },
+        {
+          "variant": "replacement-C-400k",
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        }
+      ]
+    },
+    {
+      "label": "exchange 2: customer invoice 2 B 450k → invoice 3 / C 400k",
+      "blueExpected": 500000,
+      "blueActual": 500000,
+      "reportSums": {
+        "cash": 500000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 500000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "stocks": [
+        {
+          "variant": "original-A-500k",
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "replacement-B-450k",
+          "expected": 10,
+          "actual": 10,
+          "ledgerDelta": 0
+        },
+        {
+          "variant": "replacement-C-400k",
+          "expected": 9,
+          "actual": 9,
+          "ledgerDelta": -1
+        }
+      ]
+    }
+  ]
+}

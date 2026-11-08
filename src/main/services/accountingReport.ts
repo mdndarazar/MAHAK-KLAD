@@ -566,7 +566,10 @@ async function returnStatement(scope: StatementScope): Promise<ReturnTotals & { 
     by: ['kind', 'refundMethod', 'exchangeSettlement'],
     /** A1 — برگشت با `returnedAt` خودش اسکوپ می‌شود، نه با تاریخ صدور فاکتور. */
     where: { invoice: returnInvoiceWhere(scope), ...returnScopeWhere(scope), voidedAt: null, ...(range ? { returnedAt: range } : {}) },
-    _sum: { total: true, refundAmount: true, exchangeTotal: true, exchangeDiff: true, debtReduction: true },
+    _sum: {
+      total: true, refundAmount: true, refundStoreCreditAmount: true,
+      exchangeTotal: true, exchangeDiff: true, debtReduction: true
+    },
     _count: { _all: true }
   })
 
@@ -606,10 +609,24 @@ async function returnStatement(scope: StatementScope): Promise<ReturnTotals & { 
          * پول نیست و در هیچ سبد بازپرداختی نمی‌نشیند (در باقی‌مانده‌ی بدهی دیده می‌شود).
          * همه‌ی ردیف‌های یک گروه تسویه‌ی منفی دارند، پس جمع گروهی مجاز است.
          */
-        const refunded = exchangeRefundPartOf({ exchangeDiff: diff, debtReduction: n((r._sum as any).debtReduction) })
+        const refunded = exchangeRefundPartOf({
+          exchangeDiff: diff,
+          total: n(r._sum.total),
+          exchangeTotal: n(r._sum.exchangeTotal),
+          debtReduction: n((r._sum as any).debtReduction),
+          refundAmount: (r._sum as any).refundAmount == null ? null : n((r._sum as any).refundAmount),
+          refundStoreCreditAmount: n((r._sum as any).refundStoreCreditAmount)
+        })
+        const splitCredit = Math.min(refunded, Math.max(0, n((r._sum as any).refundStoreCreditAmount)))
         if (refunded <= 0) { /* فقط کاهش بدهی */ }
-        else if (bucket === 'CASH_REFUND') out.exchangeCashRefunds += refunded
-        else if (bucket === 'CARD_REFUND') out.exchangeCardRefunds += refunded
+        else if (bucket === 'CASH_REFUND') {
+          out.exchangeCashRefunds += Math.min(refunded, Math.max(0, n((r._sum as any).refundAmount)))
+          out.exchangeStoreCreditIssued += splitCredit
+        }
+        else if (bucket === 'CARD_REFUND') {
+          out.exchangeCardRefunds += Math.min(refunded, Math.max(0, n((r._sum as any).refundAmount)))
+          out.exchangeStoreCreditIssued += splitCredit
+        }
         else if (bucket === 'CARD_TO_CARD') out.exchangeCardToCardPending += refunded
         else out.exchangeStoreCreditIssued += refunded
         if (legacy) out.legacyAssumedCount += count
@@ -642,7 +659,10 @@ async function returnStatement(scope: StatementScope): Promise<ReturnTotals & { 
       ...(range ? { returnedAt: range } : {}),
       OR: [{ refundMethod: RefundMethod.CARD_TO_CARD }, { exchangeSettlement: 'CARD_TO_CARD' }]
     },
-    select: { id: true, kind: true, refundAmount: true, exchangeDiff: true, debtReduction: true, total: true }
+    select: {
+      id: true, kind: true, refundAmount: true, refundStoreCreditAmount: true,
+      exchangeDiff: true, exchangeTotal: true, debtReduction: true, total: true
+    }
   })
   if (c2cRets.length) {
     const canceled = new Set<number>()
@@ -657,7 +677,13 @@ async function returnStatement(scope: StatementScope): Promise<ReturnTotals & { 
       if (!canceled.has(r.id)) continue
       const refunded =
         r.kind === ReturnKind.EXCHANGE
-          ? exchangeRefundPartOf({ exchangeDiff: n(r.exchangeDiff), debtReduction: n(r.debtReduction) })
+          ? exchangeRefundPartOf({
+              exchangeDiff: n(r.exchangeDiff),
+              total: n(r.total), exchangeTotal: n(r.exchangeTotal),
+              debtReduction: n(r.debtReduction),
+              refundAmount: r.refundAmount == null ? null : n(r.refundAmount),
+              refundStoreCreditAmount: n(r.refundStoreCreditAmount)
+            })
           : Math.min(Math.max(0, n(r.total)), Math.max(0, n(r.refundAmount) || n(r.total)))
       if (r.kind === ReturnKind.EXCHANGE) out.exchangeCardToCardPending = Math.max(0, out.exchangeCardToCardPending - refunded)
       else out.cardToCardPending = Math.max(0, out.cardToCardPending - refunded)
@@ -1390,8 +1416,9 @@ async function returnBridgeItems(scope: StatementScope): Promise<ReturnBridgeIte
   const rets = await prisma.saleReturn.findMany({
     where: { invoice: returnInvoiceWhere(scope), ...returnScopeWhere(scope), voidedAt: null, ...(range ? { returnedAt: range } : {}) },
     select: {
-      id: true, invoiceId: true, kind: true, total: true, refundMethod: true, refundAmount: true,
-      exchangeDiff: true, exchangeSettlement: true, debtReduction: true,
+      id: true, invoiceId: true, kind: true, total: true, refundMethod: true,
+      refundAmount: true, refundStoreCreditAmount: true,
+      exchangeTotal: true, exchangeDiff: true, exchangeSettlement: true, debtReduction: true,
       returnedAtJalali: true, invoice: { select: { receiptNo: true } }
     },
     orderBy: { id: 'asc' }
@@ -1440,7 +1467,12 @@ async function returnBridgeItems(scope: StatementScope): Promise<ReturnBridgeIte
     const method = diff < 0 ? BUCKET_TO_METHOD[bucket] ?? 'NONE' : 'NONE'
     /** نشست ۶۰ (بند ۴-۵) — فقط بخش بازپرداخت‌شده؛ کاهش بدهی جداست */
     const refundPart = exchangeRefundPartOf(r)
-    const refund = diff < 0 && !(method === 'CARD_TO_CARD' && canceled.has(r.id)) ? refundPart : 0
+    // The reconciliation bridge tracks actual cash/card/C2C outflow. A split
+    // barcode remainder belongs in credit-liability reporting, not as cash.
+    const payoutPart = method === 'CASH' || method === 'CARD'
+      ? Math.min(refundPart, Math.max(0, n(r.refundAmount)))
+      : method === 'CARD_TO_CARD' ? refundPart : 0
+    const refund = diff < 0 && !(method === 'CARD_TO_CARD' && canceled.has(r.id)) ? payoutPart : 0
     const debtCut = exchangeDebtReductionOf(r)
     /**
      * سند تعویض یک فاکتور تازه در همین بازه است؛ ولی «کاهش بدهی» روی فاکتور

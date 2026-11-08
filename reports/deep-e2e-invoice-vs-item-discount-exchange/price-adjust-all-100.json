@@ -1,0 +1,15 @@
+{
+  "case": "PRICE-ADJUST-ALL-100",
+  "isolatedDatabase": "/tmp/mahak-invoice-item-discount-price-adjust-all-100-9YNLqY/isolated.db",
+  "status": "PASS",
+  "observation": {
+    "mechanism": "PriceAdjust scope ALL mutates each SKU salePrice; it is not an invoice discount field",
+    "skuCount": 100,
+    "baseEach": 100000,
+    "adjustedEach": 90000,
+    "totalBase": 10000000,
+    "totalAfter": 9000000,
+    "storedInvoiceDiscount": 0,
+    "lineRows": 100
+  }
+}

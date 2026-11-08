@@ -1,0 +1,242 @@
+{
+  "generatedAt": "2026-10-28T18:33:33.480Z",
+  "id": 178,
+  "scenario": "N178",
+  "isolatedDatabase": "/tmp/mahak-next20-178-TpGQZu/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "issue-test-credit",
+      "id": 1,
+      "amount": 50000,
+      "status": "ACTIVE",
+      "multiUse": false
+    },
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 50000,
+      "cash": 0,
+      "card": 0,
+      "creditApplied": 50000,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 50000,
+          "lineTotal": 50000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "voucher-funded-return-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 50000,
+          "paid": 50000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CR2NF4N7",
+          "amount": 50000,
+          "usedAmount": 50000,
+          "usedCount": 1,
+          "status": "USED"
+        }
+      ]
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 50000,
+      "method": "NONE",
+      "refundAmount": 0,
+      "returnCreditAmount": 50000
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "voucher-funded-return-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 50000,
+          "paid": 50000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CR2NF4N7",
+          "amount": 50000,
+          "usedAmount": 50000,
+          "usedCount": 1,
+          "status": "USED"
+        }
+      ]
+    },
+    {
+      "label": "final N178 reconciliation",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "voucher-funded-return-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 50000,
+          "paid": 50000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": [
+        {
+          "id": 1,
+          "code": "CR2NF4N7",
+          "amount": 50000,
+          "usedAmount": 50000,
+          "usedCount": 1,
+          "status": "USED"
+        }
+      ]
+    }
+  ],
+  "assertions": [
+    {
+      "key": "voucher-funded-return-does-not-create-cash-outflow",
+      "pass": true,
+      "saleCreditApplied": 50000,
+      "cashRefund": 0,
+      "restoredSourceCredit": 50000,
+      "successors": 1
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 0,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 0
+    },
+    "actual": {
+      "cash": 0,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 0,
+    "stock": [
+      {
+        "name": "voucher-funded-return-item",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      }
+    ],
+    "invoices": 1,
+    "returns": 1,
+    "credits": 2,
+    "checks": 0
+  }
+}

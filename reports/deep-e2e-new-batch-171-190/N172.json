@@ -1,0 +1,207 @@
+{
+  "generatedAt": "2026-10-28T18:33:23.019Z",
+  "id": 172,
+  "scenario": "N172",
+  "isolatedDatabase": "/tmp/mahak-next20-172-id4dlr/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 80000,
+      "cash": 0,
+      "card": 80000,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 80000,
+          "lineTotal": 80000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 0,
+        "card": 80000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 80000
+      },
+      "actual": {
+        "cash": 0,
+        "card": 80000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 80000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 80000,
+      "stock": [
+        {
+          "name": "POS-sale-cash-refund-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 80000,
+          "paid": 80000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 80000,
+      "method": "CASH",
+      "refundAmount": 80000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 0,
+        "card": 80000,
+        "refundCash": 80000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 0,
+        "card": 80000,
+        "refundCash": 80000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 80000,
+        "refundCash": 80000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "POS-sale-cash-refund-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 80000,
+          "paid": 80000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N172 reconciliation",
+      "expected": {
+        "cash": 0,
+        "card": 80000,
+        "refundCash": 80000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 0,
+        "card": 80000,
+        "refundCash": 80000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 0,
+        "card": 80000,
+        "refundCash": 80000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "POS-sale-cash-refund-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 80000,
+          "paid": 80000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "assertions": [
+    {
+      "key": "card-funded-sale-cash-refund-tracked-as-cash-outflow",
+      "pass": true,
+      "cardIn": 80000,
+      "cashRefund": 80000,
+      "blue": 0
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 0,
+      "card": 80000,
+      "refundCash": 80000,
+      "refundCard": 0,
+      "blue": 0
+    },
+    "actual": {
+      "cash": 0,
+      "card": 80000,
+      "refundCash": 80000,
+      "refundCard": 0
+    },
+    "blue": 0,
+    "stock": [
+      {
+        "name": "POS-sale-cash-refund-item",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      }
+    ],
+    "invoices": 1,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

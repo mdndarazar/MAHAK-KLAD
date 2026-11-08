@@ -1,0 +1,4019 @@
+{
+  "generatedAt": "2026-10-30T19:46:19.225Z",
+  "independentScenario": 9,
+  "isolatedDatabase": "/tmp/mahak-followup-s10-bOqDCb/isolated.db",
+  "status": "EVALUATED_WITH_FINDINGS",
+  "passBranches": 5,
+  "policyGapBranches": 0,
+  "reproducedBugBranches": 0,
+  "blockedBranches": 0,
+  "unexpectedBlocks": 0,
+  "purchaseBarcodeCounts": [
+    0,
+    1,
+    4
+  ],
+  "positiveExchangeTenderPaths": [
+    "cash",
+    "card",
+    "cash+card split",
+    "barcode only",
+    "barcode+cash+card split"
+  ],
+  "childReturnMethods": [
+    "CASH",
+    "CARD",
+    "CARD_TO_CARD",
+    "STORE_CREDIT",
+    "NONE"
+  ],
+  "physicalExpected": {
+    "cash": 2475000,
+    "card": 2475000,
+    "refundCash": 550000,
+    "refundCard": 300000
+  },
+  "physicalRaw": {
+    "cash": 2475000,
+    "card": 2475000,
+    "refundCash": 550000,
+    "refundCard": 300000
+  },
+  "reported": {
+    "cash": 2475000,
+    "card": 2475000,
+    "refundCash": 550000,
+    "refundCard": 300000
+  },
+  "blue": 4100000,
+  "blueExpected": 4100000,
+  "branches": [
+    {
+      "name": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN",
+      "status": "PASS",
+      "events": [
+        {
+          "label": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN: credit issue",
+          "expected": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "reported": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 0,
+            "card": 0,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blue": 0,
+          "blueExpected": 0,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": []
+        },
+        {
+          "label": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN: purchase",
+          "expected": {
+            "cash": 500000,
+            "card": 500000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "reported": {
+            "cash": 500000,
+            "card": 500000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 500000,
+            "card": 500000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blue": 1000000,
+          "blueExpected": 1000000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": []
+        },
+        {
+          "label": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN: positive exchange settled",
+          "expected": {
+            "cash": 575000,
+            "card": 575000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "reported": {
+            "cash": 575000,
+            "card": 575000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 575000,
+            "card": 575000,
+            "refundCash": 0,
+            "refundCard": 0
+          },
+          "blue": 1150000,
+          "blueExpected": 1150000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": []
+        },
+        {
+          "label": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN: full child-invoice return via CASH",
+          "expected": {
+            "cash": 575000,
+            "card": 575000,
+            "refundCash": 550000,
+            "refundCard": 0
+          },
+          "reported": {
+            "cash": 575000,
+            "card": 575000,
+            "refundCash": 550000,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 575000,
+            "card": 575000,
+            "refundCash": 550000,
+            "refundCard": 0
+          },
+          "blue": 600000,
+          "blueExpected": 600000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": []
+        }
+      ],
+      "positiveExchangeTender": "SPLIT",
+      "childInvoiceReturnMethod": "CASH",
+      "purchaseFunding": {
+        "barcodeCount": 0,
+        "appliedCredit": 0,
+        "cash": 500000,
+        "card": 500000
+      },
+      "sale": {
+        "invoiceId": 1,
+        "total": 1000000,
+        "creditApplied": 0,
+        "originalItemId": 1,
+        "keptItemId": 2
+      },
+      "sourceCreditAfterSale": [],
+      "exchange": {
+        "invoiceId": 2,
+        "returnId": 1,
+        "sourceInvoiceId": 1,
+        "diff": 150000,
+        "tender": "SPLIT",
+        "cashReceived": 75000,
+        "cardReceived": 75000,
+        "barcodeCreditApplied": 0
+      },
+      "childReturnRequested": {
+        "invoiceId": 2,
+        "saleItemId": 3,
+        "amount": 550000,
+        "method": "CASH"
+      },
+      "childReturn": {
+        "id": 2,
+        "invoiceId": 2,
+        "returnedTotal": 550000,
+        "method": "CASH",
+        "refundAmount": 550000,
+        "returnCreditAmount": 0,
+        "sourceCreditRestoredAmount": 0,
+        "realMoneyRefundAmount": 0,
+        "exchangeCreditReversed": 0,
+        "overpayAmount": 0,
+        "overpayCreditAmount": 0,
+        "overpayCreditExpiresAt": null,
+        "sourceSuccessorIds": [],
+        "refundedCash": 550000
+      },
+      "sourceSuccessorRows": [],
+      "creditsCreatedByChildReturn": []
+    },
+    {
+      "name": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN",
+      "status": "PASS",
+      "events": [
+        {
+          "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN: credit issue",
+          "expected": {
+            "cash": 575000,
+            "card": 575000,
+            "refundCash": 550000,
+            "refundCard": 0
+          },
+          "reported": {
+            "cash": 575000,
+            "card": 575000,
+            "refundCash": 550000,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 575000,
+            "card": 575000,
+            "refundCash": 550000,
+            "refundCard": 0
+          },
+          "blue": 600000,
+          "blueExpected": 600000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-kept-600k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            }
+          ]
+        },
+        {
+          "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN: purchase",
+          "expected": {
+            "cash": 1025000,
+            "card": 1025000,
+            "refundCash": 550000,
+            "refundCard": 0
+          },
+          "reported": {
+            "cash": 1025000,
+            "card": 1025000,
+            "refundCash": 550000,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 1025000,
+            "card": 1025000,
+            "refundCash": 550000,
+            "refundCard": 0
+          },
+          "blue": 1500000,
+          "blueExpected": 1500000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-original-400k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            }
+          ]
+        },
+        {
+          "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN: positive exchange settled",
+          "expected": {
+            "cash": 1025000,
+            "card": 1025000,
+            "refundCash": 550000,
+            "refundCard": 0
+          },
+          "reported": {
+            "cash": 1025000,
+            "card": 1025000,
+            "refundCash": 550000,
+            "refundCard": 0
+          },
+          "raw": {
+            "cash": 1025000,
+            "card": 1025000,
+            "refundCash": 550000,
+            "refundCard": 0
+          },
+          "blue": 1500000,
+          "blueExpected": 1500000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-replacement-550k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 250000,
+              "usedCount": 2,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            }
+          ]
+        },
+        {
+          "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN: full child-invoice return via CARD",
+          "expected": {
+            "cash": 1025000,
+            "card": 1025000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "reported": {
+            "cash": 1025000,
+            "card": 1025000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "raw": {
+            "cash": 1025000,
+            "card": 1025000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "blue": 1200000,
+          "blueExpected": 1200000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            }
+          ]
+        }
+      ],
+      "positiveExchangeTender": "CREDIT",
+      "childInvoiceReturnMethod": "CARD",
+      "purchaseFunding": {
+        "barcodeCount": 1,
+        "appliedCredit": 100000,
+        "cash": 450000,
+        "card": 450000
+      },
+      "sale": {
+        "invoiceId": 3,
+        "total": 1000000,
+        "creditApplied": 100000,
+        "originalItemId": 4,
+        "keptItemId": 5
+      },
+      "sourceCreditAfterSale": [
+        {
+          "id": 1,
+          "code": "CRMGB7GJ",
+          "amount": 300000,
+          "usedAmount": 100000,
+          "status": "PARTIALLY_USED"
+        }
+      ],
+      "exchange": {
+        "invoiceId": 4,
+        "returnId": 3,
+        "sourceInvoiceId": 3,
+        "diff": 150000,
+        "tender": "CREDIT",
+        "cashReceived": 0,
+        "cardReceived": 0,
+        "barcodeCreditApplied": 150000
+      },
+      "exchangeBarcodeAfterUse": {
+        "id": 1,
+        "code": "CRMGB7GJ",
+        "amount": 300000,
+        "usedAmount": 250000,
+        "status": "PARTIALLY_USED"
+      },
+      "childReturnRequested": {
+        "invoiceId": 4,
+        "saleItemId": 6,
+        "amount": 550000,
+        "method": "CARD"
+      },
+      "childReturn": {
+        "id": 4,
+        "invoiceId": 4,
+        "returnedTotal": 550000,
+        "method": "CARD",
+        "refundAmount": 300000,
+        "returnCreditAmount": 250000,
+        "sourceCreditRestoredAmount": 250000,
+        "realMoneyRefundAmount": 0,
+        "exchangeCreditReversed": 0,
+        "overpayAmount": 0,
+        "overpayCreditAmount": 0,
+        "overpayCreditExpiresAt": null,
+        "sourceSuccessorIds": [],
+        "refundedCard": 300000
+      },
+      "sourceSuccessorRows": [],
+      "creditsCreatedByChildReturn": []
+    },
+    {
+      "name": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN",
+      "status": "PASS",
+      "events": [
+        {
+          "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN: credit issue",
+          "expected": {
+            "cash": 1025000,
+            "card": 1025000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "reported": {
+            "cash": 1025000,
+            "card": 1025000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "raw": {
+            "cash": 1025000,
+            "card": 1025000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "blue": 1200000,
+          "blueExpected": 1200000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-kept-600k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 2,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 3,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 4,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 5,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            }
+          ]
+        },
+        {
+          "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN: purchase",
+          "expected": {
+            "cash": 1425000,
+            "card": 1425000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "reported": {
+            "cash": 1425000,
+            "card": 1425000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "raw": {
+            "cash": 1425000,
+            "card": 1425000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "blue": 2000000,
+          "blueExpected": 2000000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-original-400k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 2,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 50000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 3,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 50000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 4,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 50000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 5,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 50000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            }
+          ]
+        },
+        {
+          "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN: positive exchange settled",
+          "expected": {
+            "cash": 1475000,
+            "card": 1475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "reported": {
+            "cash": 1475000,
+            "card": 1475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "raw": {
+            "cash": 1475000,
+            "card": 1475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "blue": 2100000,
+          "blueExpected": 2100000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-replacement-550k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 2,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 3,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 50000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 4,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 50000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 5,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 50000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            }
+          ]
+        },
+        {
+          "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN: child return C2C pending",
+          "expected": {
+            "cash": 1475000,
+            "card": 1475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "reported": {
+            "cash": 1475000,
+            "card": 1475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "raw": {
+            "cash": 1475000,
+            "card": 1475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "blue": 2100000,
+          "blueExpected": 2100000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-replacement-550k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 2,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 3,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 4,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 5,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            }
+          ]
+        },
+        {
+          "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN: full child-invoice return via CARD_TO_CARD",
+          "expected": {
+            "cash": 1475000,
+            "card": 1475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "reported": {
+            "cash": 1475000,
+            "card": 1475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "raw": {
+            "cash": 1475000,
+            "card": 1475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "blue": 2100000,
+          "blueExpected": 2100000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 2,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 3,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 4,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 5,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 6,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-source-successor",
+              "kind": "source-successor",
+              "amount": 50000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": 6,
+              "exchangeInvoiceId": 6,
+              "sourceInvoiceId": 5
+            },
+            {
+              "id": 7,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-source-successor",
+              "kind": "source-successor",
+              "amount": 50000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": 6,
+              "exchangeInvoiceId": 6,
+              "sourceInvoiceId": 5
+            }
+          ]
+        }
+      ],
+      "positiveExchangeTender": "CREDIT-SPLIT",
+      "childInvoiceReturnMethod": "CARD_TO_CARD",
+      "purchaseFunding": {
+        "barcodeCount": 4,
+        "appliedCredit": 200000,
+        "cash": 400000,
+        "card": 400000
+      },
+      "sale": {
+        "invoiceId": 5,
+        "total": 1000000,
+        "creditApplied": 200000,
+        "originalItemId": 7,
+        "keptItemId": 8
+      },
+      "sourceCreditAfterSale": [
+        {
+          "id": 2,
+          "code": "CRHCGJYU",
+          "amount": 100000,
+          "usedAmount": 50000,
+          "status": "PARTIALLY_USED"
+        },
+        {
+          "id": 3,
+          "code": "CR6P8X7L",
+          "amount": 100000,
+          "usedAmount": 50000,
+          "status": "PARTIALLY_USED"
+        },
+        {
+          "id": 4,
+          "code": "CR2BAM9D",
+          "amount": 100000,
+          "usedAmount": 50000,
+          "status": "PARTIALLY_USED"
+        },
+        {
+          "id": 5,
+          "code": "CREWGWXT",
+          "amount": 100000,
+          "usedAmount": 50000,
+          "status": "PARTIALLY_USED"
+        }
+      ],
+      "exchange": {
+        "invoiceId": 6,
+        "returnId": 5,
+        "sourceInvoiceId": 5,
+        "diff": 150000,
+        "tender": "CREDIT-SPLIT",
+        "cashReceived": 50000,
+        "cardReceived": 50000,
+        "barcodeCreditApplied": 50000
+      },
+      "exchangeBarcodeAfterUse": {
+        "id": 2,
+        "code": "CRHCGJYU",
+        "amount": 100000,
+        "usedAmount": 100000,
+        "status": "USED"
+      },
+      "childReturnRequested": {
+        "invoiceId": 6,
+        "saleItemId": 9,
+        "amount": 550000,
+        "method": "CARD_TO_CARD"
+      },
+      "childReturn": {
+        "id": 6,
+        "invoiceId": 6,
+        "returnedTotal": 550000,
+        "method": "CARD_TO_CARD",
+        "refundAmount": 300000,
+        "returnCreditAmount": 250000,
+        "sourceCreditRestoredAmount": 250000,
+        "realMoneyRefundAmount": 0,
+        "exchangeCreditReversed": 0,
+        "overpayAmount": 0,
+        "overpayCreditAmount": 0,
+        "overpayCreditExpiresAt": null,
+        "sourceSuccessorIds": [
+          6,
+          7
+        ]
+      },
+      "transferPending": {
+        "id": 1,
+        "status": "PENDING",
+        "amount": 300000,
+        "operationKind": "RETURN"
+      },
+      "transferPaid": {
+        "status": "PAID",
+        "paidAmount": 300000,
+        "paidMethod": "MANAGER_CARD_TO_CARD",
+        "trackingNo": "S10-FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-CHILD-RETURN"
+      },
+      "sourceSuccessorRows": [
+        {
+          "id": 6,
+          "code": "CR47YZFH",
+          "amount": 50000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795984199999,
+          "apiExpiresAt": null,
+          "source": "MANUAL",
+          "returnId": 6,
+          "exchangeInvoiceId": 6,
+          "sourceInvoiceId": 5
+        },
+        {
+          "id": 7,
+          "code": "CR8HWWRA",
+          "amount": 50000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795984199999,
+          "apiExpiresAt": null,
+          "source": "MANUAL",
+          "returnId": 6,
+          "exchangeInvoiceId": 6,
+          "sourceInvoiceId": 5
+        }
+      ],
+      "creditsCreatedByChildReturn": [
+        {
+          "id": 6,
+          "code": "CR47YZFH",
+          "amount": 50000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795984199999,
+          "source": "MANUAL",
+          "returnId": 6,
+          "exchangeInvoiceId": 6,
+          "sourceInvoiceId": 5
+        },
+        {
+          "id": 7,
+          "code": "CR8HWWRA",
+          "amount": 50000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795984199999,
+          "source": "MANUAL",
+          "returnId": 6,
+          "exchangeInvoiceId": 6,
+          "sourceInvoiceId": 5
+        }
+      ]
+    },
+    {
+      "name": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN",
+      "status": "PASS",
+      "events": [
+        {
+          "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN: credit issue",
+          "expected": {
+            "cash": 1475000,
+            "card": 1475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "reported": {
+            "cash": 1475000,
+            "card": 1475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "raw": {
+            "cash": 1475000,
+            "card": 1475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "blue": 2100000,
+          "blueExpected": 2100000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-kept-600k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 2,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 3,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 4,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 5,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 6,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-source-successor",
+              "kind": "source-successor",
+              "amount": 50000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": 6,
+              "exchangeInvoiceId": 6,
+              "sourceInvoiceId": 5
+            },
+            {
+              "id": 7,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-source-successor",
+              "kind": "source-successor",
+              "amount": 50000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": 6,
+              "exchangeInvoiceId": 6,
+              "sourceInvoiceId": 5
+            },
+            {
+              "id": 8,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 9,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 10,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 11,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            }
+          ]
+        },
+        {
+          "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN: purchase",
+          "expected": {
+            "cash": 1875000,
+            "card": 1875000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "reported": {
+            "cash": 1875000,
+            "card": 1875000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "raw": {
+            "cash": 1875000,
+            "card": 1875000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "blue": 2900000,
+          "blueExpected": 2900000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-original-400k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 2,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 3,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 4,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 5,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 6,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-source-successor",
+              "kind": "source-successor",
+              "amount": 50000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": 6,
+              "exchangeInvoiceId": 6,
+              "sourceInvoiceId": 5
+            },
+            {
+              "id": 7,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-source-successor",
+              "kind": "source-successor",
+              "amount": 50000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": 6,
+              "exchangeInvoiceId": 6,
+              "sourceInvoiceId": 5
+            },
+            {
+              "id": 8,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 50000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 9,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 50000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 10,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 50000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 11,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 50000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            }
+          ]
+        },
+        {
+          "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN: positive exchange settled",
+          "expected": {
+            "cash": 1875000,
+            "card": 2025000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "reported": {
+            "cash": 1875000,
+            "card": 2025000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "raw": {
+            "cash": 1875000,
+            "card": 2025000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "blue": 3050000,
+          "blueExpected": 3050000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-replacement-550k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 2,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 3,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 4,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 5,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 6,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-source-successor",
+              "kind": "source-successor",
+              "amount": 50000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": 6,
+              "exchangeInvoiceId": 6,
+              "sourceInvoiceId": 5
+            },
+            {
+              "id": 7,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-source-successor",
+              "kind": "source-successor",
+              "amount": 50000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": 6,
+              "exchangeInvoiceId": 6,
+              "sourceInvoiceId": 5
+            },
+            {
+              "id": 8,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 50000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 9,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 50000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 10,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 50000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 11,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 50000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            }
+          ]
+        },
+        {
+          "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN: full child-invoice return via STORE_CREDIT",
+          "expected": {
+            "cash": 1875000,
+            "card": 2025000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "reported": {
+            "cash": 1875000,
+            "card": 2025000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "raw": {
+            "cash": 1875000,
+            "card": 2025000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "blue": 3050000,
+          "blueExpected": 3050000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 2,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 3,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 4,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 5,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 6,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-source-successor",
+              "kind": "source-successor",
+              "amount": 50000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": 6,
+              "exchangeInvoiceId": 6,
+              "sourceInvoiceId": 5
+            },
+            {
+              "id": 7,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-source-successor",
+              "kind": "source-successor",
+              "amount": 50000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": 6,
+              "exchangeInvoiceId": 6,
+              "sourceInvoiceId": 5
+            },
+            {
+              "id": 8,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 9,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 10,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 11,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 12,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-child-return-credit",
+              "kind": "child-return-credit",
+              "amount": 350000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": null,
+              "source": "EXCHANGE",
+              "returnId": 8,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": 8
+            }
+          ]
+        }
+      ],
+      "positiveExchangeTender": "CARD",
+      "childInvoiceReturnMethod": "STORE_CREDIT",
+      "purchaseFunding": {
+        "barcodeCount": 4,
+        "appliedCredit": 200000,
+        "cash": 400000,
+        "card": 400000
+      },
+      "sale": {
+        "invoiceId": 7,
+        "total": 1000000,
+        "creditApplied": 200000,
+        "originalItemId": 10,
+        "keptItemId": 11
+      },
+      "sourceCreditAfterSale": [
+        {
+          "id": 8,
+          "code": "CR3REP78",
+          "amount": 100000,
+          "usedAmount": 50000,
+          "status": "PARTIALLY_USED"
+        },
+        {
+          "id": 9,
+          "code": "CRB3HJPL",
+          "amount": 100000,
+          "usedAmount": 50000,
+          "status": "PARTIALLY_USED"
+        },
+        {
+          "id": 10,
+          "code": "CR6W82N4",
+          "amount": 100000,
+          "usedAmount": 50000,
+          "status": "PARTIALLY_USED"
+        },
+        {
+          "id": 11,
+          "code": "CR7U7ML6",
+          "amount": 100000,
+          "usedAmount": 50000,
+          "status": "PARTIALLY_USED"
+        }
+      ],
+      "exchange": {
+        "invoiceId": 8,
+        "returnId": 7,
+        "sourceInvoiceId": 7,
+        "diff": 150000,
+        "tender": "CARD",
+        "cashReceived": 0,
+        "cardReceived": 150000,
+        "barcodeCreditApplied": 0
+      },
+      "childReturnRequested": {
+        "invoiceId": 8,
+        "saleItemId": 12,
+        "amount": 550000,
+        "method": "STORE_CREDIT"
+      },
+      "childReturn": {
+        "id": 8,
+        "invoiceId": 8,
+        "returnedTotal": 550000,
+        "method": "STORE_CREDIT",
+        "refundAmount": 350000,
+        "returnCreditAmount": 200000,
+        "sourceCreditRestoredAmount": 200000,
+        "realMoneyRefundAmount": 0,
+        "exchangeCreditReversed": 0,
+        "overpayAmount": 0,
+        "overpayCreditAmount": 0,
+        "overpayCreditExpiresAt": null,
+        "sourceSuccessorIds": []
+      },
+      "sourceSuccessorRows": [],
+      "creditsCreatedByChildReturn": [
+        {
+          "id": 12,
+          "code": "E7JX9A",
+          "amount": 350000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null,
+          "source": "EXCHANGE",
+          "returnId": 8,
+          "exchangeInvoiceId": null,
+          "sourceInvoiceId": 8
+        }
+      ],
+      "storeCreditReturnObservation": {
+        "id": 12,
+        "amount": 350000,
+        "expiresAt": null,
+        "source": "EXCHANGE"
+      }
+    },
+    {
+      "name": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN",
+      "status": "PASS",
+      "events": [
+        {
+          "label": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN: credit issue",
+          "expected": {
+            "cash": 1875000,
+            "card": 2025000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "reported": {
+            "cash": 1875000,
+            "card": 2025000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "raw": {
+            "cash": 1875000,
+            "card": 2025000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "blue": 3050000,
+          "blueExpected": 3050000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN-kept-600k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 2,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 3,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 4,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 5,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 6,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-source-successor",
+              "kind": "source-successor",
+              "amount": 50000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": 6,
+              "exchangeInvoiceId": 6,
+              "sourceInvoiceId": 5
+            },
+            {
+              "id": 7,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-source-successor",
+              "kind": "source-successor",
+              "amount": 50000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": 6,
+              "exchangeInvoiceId": 6,
+              "sourceInvoiceId": 5
+            },
+            {
+              "id": 8,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 9,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 10,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 11,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 12,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-child-return-credit",
+              "kind": "child-return-credit",
+              "amount": 350000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": null,
+              "source": "EXCHANGE",
+              "returnId": 8,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": 8
+            },
+            {
+              "id": 13,
+              "label": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            }
+          ]
+        },
+        {
+          "label": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN: purchase",
+          "expected": {
+            "cash": 2325000,
+            "card": 2475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "reported": {
+            "cash": 2325000,
+            "card": 2475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "raw": {
+            "cash": 2325000,
+            "card": 2475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "blue": 3950000,
+          "blueExpected": 3950000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN-original-400k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 2,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 3,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 4,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 5,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 6,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-source-successor",
+              "kind": "source-successor",
+              "amount": 50000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": 6,
+              "exchangeInvoiceId": 6,
+              "sourceInvoiceId": 5
+            },
+            {
+              "id": 7,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-source-successor",
+              "kind": "source-successor",
+              "amount": 50000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": 6,
+              "exchangeInvoiceId": 6,
+              "sourceInvoiceId": 5
+            },
+            {
+              "id": 8,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 9,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 10,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 11,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 12,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-child-return-credit",
+              "kind": "child-return-credit",
+              "amount": 350000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": null,
+              "source": "EXCHANGE",
+              "returnId": 8,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": 8
+            },
+            {
+              "id": 13,
+              "label": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            }
+          ]
+        },
+        {
+          "label": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN: positive exchange settled",
+          "expected": {
+            "cash": 2475000,
+            "card": 2475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "reported": {
+            "cash": 2475000,
+            "card": 2475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "raw": {
+            "cash": 2475000,
+            "card": 2475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "blue": 4100000,
+          "blueExpected": 4100000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN-replacement-550k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 2,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 3,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 4,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 5,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 6,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-source-successor",
+              "kind": "source-successor",
+              "amount": 50000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": 6,
+              "exchangeInvoiceId": 6,
+              "sourceInvoiceId": 5
+            },
+            {
+              "id": 7,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-source-successor",
+              "kind": "source-successor",
+              "amount": 50000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": 6,
+              "exchangeInvoiceId": 6,
+              "sourceInvoiceId": 5
+            },
+            {
+              "id": 8,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 9,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 10,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 11,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 12,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-child-return-credit",
+              "kind": "child-return-credit",
+              "amount": 350000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": null,
+              "source": "EXCHANGE",
+              "returnId": 8,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": 8
+            },
+            {
+              "id": 13,
+              "label": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 100000,
+              "usedCount": 1,
+              "status": "PARTIALLY_USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            }
+          ]
+        },
+        {
+          "label": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN: full child-invoice return via NONE",
+          "expected": {
+            "cash": 2475000,
+            "card": 2475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "reported": {
+            "cash": 2475000,
+            "card": 2475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "raw": {
+            "cash": 2475000,
+            "card": 2475000,
+            "refundCash": 550000,
+            "refundCard": 300000
+          },
+          "blue": 4100000,
+          "blueExpected": 4100000,
+          "stock": [
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ZERO-CODE-SPLIT-EXCHANGE-CASH-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN-original-400k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            },
+            {
+              "variant": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN-kept-600k",
+              "expected": 9,
+              "actual": 9,
+              "ledgerDelta": -1
+            },
+            {
+              "variant": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN-replacement-550k",
+              "expected": 10,
+              "actual": 10,
+              "ledgerDelta": 0
+            }
+          ],
+          "credits": [
+            {
+              "id": 1,
+              "label": "ONE-CODE-CREDIT-ONLY-EXCHANGE-CARD-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 2,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 100000,
+              "usedCount": 2,
+              "status": "USED",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 3,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 4,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 5,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 6,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-source-successor",
+              "kind": "source-successor",
+              "amount": 50000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": 6,
+              "exchangeInvoiceId": 6,
+              "sourceInvoiceId": 5
+            },
+            {
+              "id": 7,
+              "label": "FOUR-CODE-CREDIT-SPLIT-EXCHANGE-C2C-RETURN-source-successor",
+              "kind": "source-successor",
+              "amount": 50000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": 6,
+              "exchangeInvoiceId": 6,
+              "sourceInvoiceId": 5
+            },
+            {
+              "id": 8,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 9,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-2",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 10,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-3",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 11,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-code-4",
+              "kind": "purchase-source",
+              "amount": 100000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 12,
+              "label": "FOUR-CODE-CARD-EXCHANGE-STORE-CREDIT-RETURN-child-return-credit",
+              "kind": "child-return-credit",
+              "amount": 350000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": null,
+              "source": "EXCHANGE",
+              "returnId": 8,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": 8
+            },
+            {
+              "id": 13,
+              "label": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN-code-1",
+              "kind": "purchase-source",
+              "amount": 300000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": 1795984199999,
+              "source": "MANUAL",
+              "returnId": null,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": null
+            },
+            {
+              "id": 14,
+              "label": "ONE-CODE-CASH-EXCHANGE-NONE-RETURN-child-return-credit",
+              "kind": "child-return-credit",
+              "amount": 450000,
+              "usedAmount": 0,
+              "usedCount": 0,
+              "status": "ACTIVE",
+              "expiresAt": null,
+              "source": "OVERPAY",
+              "returnId": 10,
+              "exchangeInvoiceId": null,
+              "sourceInvoiceId": 10
+            }
+          ]
+        }
+      ],
+      "positiveExchangeTender": "CASH",
+      "childInvoiceReturnMethod": "NONE",
+      "purchaseFunding": {
+        "barcodeCount": 1,
+        "appliedCredit": 100000,
+        "cash": 450000,
+        "card": 450000
+      },
+      "sale": {
+        "invoiceId": 9,
+        "total": 1000000,
+        "creditApplied": 100000,
+        "originalItemId": 13,
+        "keptItemId": 14
+      },
+      "sourceCreditAfterSale": [
+        {
+          "id": 13,
+          "code": "CR2BN2KN",
+          "amount": 300000,
+          "usedAmount": 100000,
+          "status": "PARTIALLY_USED"
+        }
+      ],
+      "exchange": {
+        "invoiceId": 10,
+        "returnId": 9,
+        "sourceInvoiceId": 9,
+        "diff": 150000,
+        "tender": "CASH",
+        "cashReceived": 150000,
+        "cardReceived": 0,
+        "barcodeCreditApplied": 0
+      },
+      "childReturnRequested": {
+        "invoiceId": 10,
+        "saleItemId": 15,
+        "amount": 550000,
+        "method": "NONE"
+      },
+      "childReturn": {
+        "id": 10,
+        "invoiceId": 10,
+        "returnedTotal": 550000,
+        "method": "NONE",
+        "refundAmount": 0,
+        "returnCreditAmount": 100000,
+        "sourceCreditRestoredAmount": 100000,
+        "realMoneyRefundAmount": 0,
+        "exchangeCreditReversed": 0,
+        "overpayAmount": 450000,
+        "overpayCreditAmount": 450000,
+        "overpayCreditExpiresAt": null,
+        "sourceSuccessorIds": []
+      },
+      "sourceSuccessorRows": [],
+      "creditsCreatedByChildReturn": [
+        {
+          "id": 14,
+          "code": "E97THE",
+          "amount": 450000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null,
+          "source": "OVERPAY",
+          "returnId": 10,
+          "exchangeInvoiceId": null,
+          "sourceInvoiceId": 10
+        }
+      ]
+    }
+  ]
+}

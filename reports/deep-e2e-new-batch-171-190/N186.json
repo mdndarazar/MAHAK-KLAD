@@ -1,0 +1,269 @@
+{
+  "generatedAt": "2026-10-28T18:33:47.933Z",
+  "id": 186,
+  "scenario": "N186",
+  "isolatedDatabase": "/tmp/mahak-next20-186-e7xpe3/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 100000,
+      "cash": 100000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 100000,
+          "lineTotal": 100000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "fresh-preview-source",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "fresh-preview-target",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "stale-diff-preview-rejected",
+      "quoted": 24000,
+      "actual": 25000,
+      "error": "منشأ اعتبار/پول از زمان پیش‌نمایش تغییر کرده است؛ هیچ تغییری ثبت نشد. پیش‌نمایش مابه‌التفاوت را تازه کنید و دوباره بررسی کنید.",
+      "mutationFree": true
+    },
+    {
+      "operation": "exchange",
+      "label": "fresh-preview-retry",
+      "sourceInvoiceId": 1,
+      "returnId": 1,
+      "exchangeInvoiceId": 2,
+      "returnTotal": 100000,
+      "exchangeTotal": 125000,
+      "diff": 25000,
+      "cashReceived": 25000,
+      "cardReceived": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "barcodeCreditApplied": 0,
+      "newStoreCreditAmount": 0,
+      "cardToCard": 0,
+      "preview": {
+        "ok": true,
+        "returnTotal": 100000,
+        "exchangeTotal": 125000,
+        "nominalDiff": 25000,
+        "effectiveDiff": 25000,
+        "exchangeCreditApplied": 100000,
+        "realMoneySurplus": 0,
+        "sourceCreditRestoration": 0
+      }
+    },
+    {
+      "label": "exchange fresh-preview-retry",
+      "expected": {
+        "cash": 125000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 125000
+      },
+      "actual": {
+        "cash": 125000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 125000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 125000,
+      "stock": [
+        {
+          "name": "fresh-preview-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "fresh-preview-target",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 125000,
+          "paid": 125000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N186 reconciliation",
+      "expected": {
+        "cash": 125000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 125000
+      },
+      "actual": {
+        "cash": 125000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 125000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 125000,
+      "stock": [
+        {
+          "name": "fresh-preview-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "fresh-preview-target",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 125000,
+          "paid": 125000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "assertions": [
+    {
+      "key": "stale-exchange-preview-rolled-back-fresh-retry-succeeds",
+      "pass": true,
+      "diff": 25000,
+      "staleMutationFree": true
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 125000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 125000
+    },
+    "actual": {
+      "cash": 125000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 125000,
+    "stock": [
+      {
+        "name": "fresh-preview-source",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "fresh-preview-target",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 2,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

@@ -1,0 +1,338 @@
+{
+  "generatedAt": "2026-10-30T19:45:17.856Z",
+  "isolatedDatabase": "/tmp/mahak-e100-051-combined-266IEh/isolated.db",
+  "case": "E100-051 combined A+B exchange from original root invoice; no separate prior A return",
+  "setup": {
+    "prices": {
+      "A": 200000,
+      "B": 200000,
+      "C": 300000,
+      "D": 300000,
+      "A1": 200000,
+      "B1": 180000
+    },
+    "rootInvoiceId": 1,
+    "auxiliaryInvoiceId": 2,
+    "sourceCredits": [
+      {
+        "id": 1,
+        "code": "CRAT8H6C"
+      },
+      {
+        "id": 2,
+        "code": "CRZ9P93A"
+      }
+    ],
+    "sourceCreditLifecycle": "two restricted multi-use codes; each 100,000 on root and 100,000 on auxiliary invoice; both USED, usedCount=2",
+    "sourceScope": "B/C/D and B1/auxiliary variants; A and A1 excluded",
+    "rootSettlement": {
+      "POS": 800000,
+      "credit": 200000,
+      "total": 1000000
+    },
+    "before": {
+      "counts": {
+        "SaleInvoice": 2,
+        "SaleReturn": 0,
+        "Payment": 5,
+        "CashMovement": 0,
+        "CardTransferRequest": 0,
+        "StoreCreditRedemption": 4,
+        "CreditReturnAllocation": 0,
+        "StockMovement": 6
+      },
+      "physical": {
+        "cash": 0,
+        "card": 800000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 800000,
+      "stocks": [
+        {
+          "name": "A-root-200k",
+          "startStock": 10,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "B-root-200k",
+          "startStock": 10,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "C-root-300k",
+          "startStock": 10,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "D-root-300k",
+          "startStock": 10,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "A1-200k",
+          "startStock": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "B1-180k",
+          "startStock": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "aux-1-100k",
+          "startStock": 10,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "aux-2-100k",
+          "startStock": 10,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRAT8H6C",
+          "amount": 200000,
+          "usedAmount": 200000,
+          "usedCount": 2,
+          "status": "USED",
+          "restrictScope": "VARIANTS",
+          "restrictVariantIdsJson": "[2,3,4,6,7,8]"
+        },
+        {
+          "id": 2,
+          "code": "CRZ9P93A",
+          "amount": 200000,
+          "usedAmount": 200000,
+          "usedCount": 2,
+          "status": "USED",
+          "restrictScope": "VARIANTS",
+          "restrictVariantIdsJson": "[2,3,4,6,7,8]"
+        }
+      ]
+    }
+  },
+  "operation": {
+    "requestedTogether": [
+      "A 200,000 → A1 200,000",
+      "B 200,000 → B1 180,000"
+    ],
+    "netDifference": -20000,
+    "settlementRequested": "STORE_CREDIT",
+    "error": null,
+    "returnedOperation": {
+      "returnId": 1,
+      "exchangeInvoiceId": 3,
+      "diff": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "barcodeCreditApplied": 0,
+      "sourceCreditRestoredAmount": 20000,
+      "refundStoreCreditAmount": 0
+    },
+    "before": {
+      "counts": {
+        "SaleInvoice": 2,
+        "SaleReturn": 0,
+        "Payment": 5,
+        "CashMovement": 0,
+        "CardTransferRequest": 0,
+        "StoreCreditRedemption": 4,
+        "CreditReturnAllocation": 0,
+        "StockMovement": 6
+      },
+      "physical": {
+        "cash": 0,
+        "card": 800000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 800000,
+      "stocks": [
+        {
+          "name": "A-root-200k",
+          "startStock": 10,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "B-root-200k",
+          "startStock": 10,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "C-root-300k",
+          "startStock": 10,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "D-root-300k",
+          "startStock": 10,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "A1-200k",
+          "startStock": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "B1-180k",
+          "startStock": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "aux-1-100k",
+          "startStock": 10,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "aux-2-100k",
+          "startStock": 10,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRAT8H6C",
+          "amount": 200000,
+          "usedAmount": 200000,
+          "usedCount": 2,
+          "status": "USED",
+          "restrictScope": "VARIANTS",
+          "restrictVariantIdsJson": "[2,3,4,6,7,8]"
+        },
+        {
+          "id": 2,
+          "code": "CRZ9P93A",
+          "amount": 200000,
+          "usedAmount": 200000,
+          "usedCount": 2,
+          "status": "USED",
+          "restrictScope": "VARIANTS",
+          "restrictVariantIdsJson": "[2,3,4,6,7,8]"
+        }
+      ]
+    },
+    "after": {
+      "counts": {
+        "SaleInvoice": 3,
+        "SaleReturn": 1,
+        "Payment": 6,
+        "CashMovement": 0,
+        "CardTransferRequest": 0,
+        "StoreCreditRedemption": 4,
+        "CreditReturnAllocation": 3,
+        "StockMovement": 10
+      },
+      "physical": {
+        "cash": 0,
+        "card": 800000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 800000,
+      "stocks": [
+        {
+          "name": "A-root-200k",
+          "startStock": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "B-root-200k",
+          "startStock": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "C-root-300k",
+          "startStock": 10,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "D-root-300k",
+          "startStock": 10,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "A1-200k",
+          "startStock": 10,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "B1-180k",
+          "startStock": 10,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "aux-1-100k",
+          "startStock": 10,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "aux-2-100k",
+          "startStock": 10,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CRAT8H6C",
+          "amount": 200000,
+          "usedAmount": 200000,
+          "usedCount": 2,
+          "status": "USED",
+          "restrictScope": "VARIANTS",
+          "restrictVariantIdsJson": "[2,3,4,6,7,8]"
+        },
+        {
+          "id": 2,
+          "code": "CRZ9P93A",
+          "amount": 200000,
+          "usedAmount": 200000,
+          "usedCount": 2,
+          "status": "USED",
+          "restrictScope": "VARIANTS",
+          "restrictVariantIdsJson": "[2,3,4,6,7,8]"
+        },
+        {
+          "id": 3,
+          "code": "CRK6RYUH",
+          "amount": 20000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "restrictScope": "VARIANTS",
+          "restrictVariantIdsJson": "[2,3,4,6,7,8]"
+        }
+      ]
+    }
+  },
+  "status": "FAIL",
+  "unexpectedError": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n0 !== -20000\n\n    at file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-e100-051-combined-ab-exchange.mjs:174:12"
+}

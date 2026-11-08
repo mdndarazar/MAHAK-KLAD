@@ -1,0 +1,263 @@
+{
+  "generatedAt": "2026-10-28T18:42:20.364Z",
+  "id": 210,
+  "scenario": "N210",
+  "isolatedDatabase": "/tmp/mahak-next20-210-5eC29K/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "settled-sale",
+      "invoiceId": 1,
+      "total": 85000,
+      "cash": 85000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 85000,
+          "lineTotal": 85000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 85000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 85000
+      },
+      "actual": {
+        "cash": 85000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 85000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 85000,
+      "stock": [
+        {
+          "name": "exchange-then-return-source",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "exchange-then-return-target",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 85000,
+          "paid": 85000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "exchange",
+      "label": "consume-source-before-return-retry",
+      "returnId": 1,
+      "exchangeInvoiceId": 2,
+      "diff": 10000,
+      "cashReceived": 10000,
+      "cardReceived": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "barcodeCreditApplied": 0,
+      "newStoreCreditAmount": 0,
+      "cardToCard": 0,
+      "preview": {
+        "ok": true,
+        "returnTotal": 85000,
+        "exchangeTotal": 95000,
+        "nominalDiff": 10000,
+        "effectiveDiff": 10000,
+        "exchangeCreditApplied": 85000,
+        "realMoneySurplus": 0,
+        "sourceCreditRestoration": 0
+      }
+    },
+    {
+      "label": "exchange consume-source-before-return-retry",
+      "expected": {
+        "cash": 95000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 95000
+      },
+      "actual": {
+        "cash": 95000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 95000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 95000,
+      "stock": [
+        {
+          "name": "exchange-then-return-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "exchange-then-return-target",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 85000,
+          "paid": 85000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 95000,
+          "paid": 95000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returnCount": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N210 reconciliation",
+      "expected": {
+        "cash": 95000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 95000
+      },
+      "actual": {
+        "cash": 95000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 95000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 95000,
+      "stock": [
+        {
+          "name": "exchange-then-return-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "exchange-then-return-target",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 85000,
+          "paid": 85000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 95000,
+          "paid": 95000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returnCount": 1,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "modes": [
+    {
+      "key": "source item consumed by valid exchange",
+      "diff": 10000
+    },
+    {
+      "key": "second return from consumed source rejected without mutation",
+      "mutationFree": true,
+      "error": "تعداد برگشتی «N210-1-exchange-then-return-source سایز NF21-1» (۱) از تعداد قابل برگشت (۰) بیشتر است.\nبرگشت بیشتر از باقی‌ماندهٔ قابل‌برگشت در هیچ حالتی مجاز نیست (حتی با تایید مدیر). اگر تعداد فاکتور اصلی اشتباه ثبت شده، اول خودِ فاکتور را اصلاح کنید."
+    }
+  ],
+  "modeCount": 2,
+  "final": {
+    "expected": {
+      "cash": 95000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 95000
+    },
+    "actual": {
+      "cash": 95000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 95000,
+    "stock": [
+      {
+        "name": "exchange-then-return-source",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "exchange-then-return-target",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 2,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

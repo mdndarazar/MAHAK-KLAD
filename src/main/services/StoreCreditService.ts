@@ -12,6 +12,7 @@ import { BusinessError } from '../errors'
 import { reportDayInput } from './reportDate'
 import { TX_OPTIONS } from '../db/tx'
 import { normalizeReturnCode, DAY_MS } from './ReturnCodeService'
+import { tehranEndOfDayAfter, tehranStartOfDay } from '@shared/tehranTime'
 import {
   assertManagerPassword,
   assertPanelPasswordStrict,
@@ -99,7 +100,7 @@ import {
   type CreditSettings,
   type CreditStatusBucket
 } from '@shared/credit'
-import { toJalaliDate, toClock, faDigits, money, jalaliStartOfDay, jalaliEndOfDay, jalaliToday } from '@shared/jalali'
+import { toJalaliDate, toClock, faDigits, money, toLatinDigits, jalaliStartOfDay, jalaliEndOfDay, jalaliToday } from '@shared/jalali'
 import { notificationSender } from './NotificationSender'
 import type {
   CreditBatchRow,
@@ -343,7 +344,7 @@ export async function generateStoreCreditCode(
 ): Promise<{ code: string; expiresAt: Date | null }> {
   const issuedAt = opts.issuedAt ?? new Date()
   const days = opts.days == null ? null : clampInt(opts.days, 0, 3650, 0)
-  const expiresAt = days && days > 0 ? new Date(issuedAt.getTime() + days * DAY_MS) : null
+  const expiresAt = days && days > 0 ? tehranEndOfDayAfter(issuedAt, days) : null
 
   const settings = opts.settings ?? (await readCreditSettings(client))
   const source = normalizeCreditSource(opts.source)
@@ -543,7 +544,7 @@ async function receiptNoMap(client: Client, rows: any[]): Promise<Map<number, nu
 export async function linesForInvoice(client: Client, invoiceId: number): Promise<CreditCartLine[]> {
   const items = await client.saleInvoiceItem.findMany({
     where: { invoiceId },
-    select: { variantId: true, variantName: true, qty: true, lineTotal: true }
+    select: { id: true, variantId: true, variantName: true, qty: true, lineTotal: true }
   })
   if (!items.length) return []
 
@@ -576,6 +577,7 @@ export async function linesForInvoice(client: Client, invoiceId: number): Promis
   return items.map((i) => {
     const categoryId = catOf.get(i.variantId) ?? null
     return {
+      saleItemId: Number(i.id),
       variantId: i.variantId,
       categoryId,
       categoryPath: pathOf(categoryId),
@@ -639,7 +641,7 @@ export interface IssueCreditInput {
   overrideReason?: string | null
   batchId?: number | null
   prefix?: string | null
-  /** DRAFT برای اعتبار ساخته‌شده‌ی صادرنشده (§۱۱) — پیش‌فرض ACTIVE */
+  /** اعتبارهای برگشت/تعویض از لحظه‌ی صدور ACTIVE هستند؛ DRAFT فقط برای سازگاری داده‌های قدیمی باقی می‌ماند. */
   status?: string
   reminderOptOut?: boolean | null
   /** تنظیمات از قبل خوانده‌شده (برای تولید گروهی: یک بار بخوان، هزار بار استفاده کن) */
@@ -763,7 +765,11 @@ export async function issueStoreCredit(client: Client, input: IssueCreditInput):
   const issuedAt = input.issuedAt ?? new Date()
   const rules = resolveRules(settings, source, input)
   const prefix = prefixFor(settings, source, input.prefix)
-  const status = String(input.status ?? StoreCreditStatus.ACTIVE)
+  const requiresCustomerHandoff = input.returnId != null || input.exchangeInvoiceId != null
+  const requestedStatus = String(input.status ?? StoreCreditStatus.ACTIVE)
+  if (requiresCustomerHandoff && requestedStatus !== StoreCreditStatus.ACTIVE)
+    throw new BusinessError('اعتبار ناشی از برگشت یا تعویض هنگام صدور باید فوراً فعال باشد؛ تحویل فقط سابقه است.')
+  const status = requestedStatus
   if (status !== StoreCreditStatus.ACTIVE && status !== StoreCreditStatus.DRAFT)
     throw new BusinessError('اعتبار جدید فقط می‌تواند «فعال» یا «پیش‌نویس» ساخته شود.')
 
@@ -849,7 +855,7 @@ export async function issueStoreCredit(client: Client, input: IssueCreditInput):
   for (let attempt = 0; attempt < 8 && !created; attempt++) {
     const generated =
       input.code && attempt === 0
-        ? { code: normalizeCreditCode(input.code), expiresAt: rules.days ? new Date(issuedAt.getTime() + rules.days * DAY_MS) : null }
+        ? { code: normalizeCreditCode(input.code), expiresAt: rules.days ? tehranEndOfDayAfter(issuedAt, rules.days) : null }
         : await generateStoreCreditCode(client, {
             length: codeLength,
             days: rules.days,
@@ -879,6 +885,18 @@ export async function issueStoreCredit(client: Client, input: IssueCreditInput):
     )
   }
 
+  if (requiresCustomerHandoff) {
+    // The scalar link keeps the historical credit schema stable while this
+    // append-only lifecycle row records the exact customer handoff.
+    await (client as any).storeCreditDelivery.create({ data: {
+      creditId: Number(created.id),
+      status: 'PENDING',
+      handoffType: 'CUSTOMER',
+      createdAt: issuedAt,
+      policyVersion: 1
+    } })
+  }
+
   await audit(client, {
     action: input.auditAction ?? (source === CreditSource.MANUAL ? AuditAction.CREDIT_ISSUE_MANUAL : AuditAction.STORE_CREDIT_ISSUE),
     entity: 'StoreCredit',
@@ -891,6 +909,7 @@ export async function issueStoreCredit(client: Client, input: IssueCreditInput):
       amount,
       source,
       status,
+      requiresCustomerHandoff,
       maxUses: rules.maxUses,
       multiUse: rules.multiUse,
       restrictScope: scope,
@@ -911,6 +930,62 @@ export async function issueStoreCredit(client: Client, input: IssueCreditInput):
   })
 
   return created
+}
+
+/**
+ * Record that a return/exchange barcode reached its customer. This is an
+ * audit/history operation only; newly issued credits are already usable and
+ * delivery never changes their status. Legacy DRAFT rows are promoted for
+ * compatibility, without reactivating spent, suspended, or expired credits.
+ */
+export async function confirmStoreCreditDelivery(input: {
+  id: number
+  userId?: number | null
+}): Promise<{ credit: StoreCreditReportRow; deliveredAt: Date | null; replayed: boolean }> {
+  const id = Number(input?.id)
+  if (!Number.isSafeInteger(id) || id <= 0) throw new BusinessError('اعتبار تحویلی معتبر نیست.')
+
+  return prisma.$transaction(async (tx) => {
+    const credit = await tx.storeCredit.findUnique({ where: { id } })
+    if (!credit) throw new BusinessError('اعتبار موردنظر پیدا نشد.')
+    if (credit.returnId == null && credit.exchangeInvoiceId == null)
+      throw new BusinessError('فقط اعتبار ناشی از برگشت یا تعویض از مسیر تحویل مشتری فعال می‌شود.')
+    if (credit.deletedAt != null || credit.voidedAt != null)
+      throw new BusinessError('اعتبار بایگانی یا باطل‌شده تحویل‌پذیر نیست.')
+
+    const delivery = await (tx as any).storeCreditDelivery.findUnique({ where: { creditId: id } })
+    if (!delivery) throw new BusinessError('سابقه‌ی تحویل برای این اعتبار پیدا نشد؛ وضعیت آن تغییر نکرد.')
+    if (String(delivery.status) === 'DELIVERED') {
+      return {
+        credit: shapeStoreCreditSafe(shapeStoreCredit(credit)),
+        deliveredAt: delivery.deliveredAt ?? null,
+        replayed: true
+      }
+    }
+    if (String(delivery.status) !== 'PENDING')
+      throw new BusinessError('این سابقه‌ی تحویل دیگر در انتظار ثبت نیست.')
+    const now = new Date()
+    await (tx as any).storeCreditDelivery.update({
+      where: { creditId: id },
+      data: { status: 'DELIVERED', deliveredAt: now, userId: input.userId ?? null }
+    })
+    // Legacy DRAFT rows may still be activated through this audited compatibility
+    // path. New return/exchange credits are ACTIVE from creation; delivery never
+    // gates their usability.
+    const activated = String(credit.status) === StoreCreditStatus.DRAFT
+      ? await tx.storeCredit.update({ where: { id }, data: { status: StoreCreditStatus.ACTIVE } })
+      : credit
+    await audit(tx, {
+      action: AuditAction.CREDIT_DELIVERY_CONFIRM,
+      entity: 'StoreCredit',
+      entityId: id,
+      userId: input.userId ?? null,
+      before: JSON.stringify({ creditId: id, creditStatus: credit.status, deliveryStatus: 'PENDING' }),
+      after: JSON.stringify({ creditId: id, creditStatus: activated.status, deliveryStatus: 'DELIVERED', deliveredAt: now.toISOString() }),
+      note: `ثبت سابقه‌ی تحویل فیزیکی بارکد اعتبار #${id}`
+    })
+    return { credit: shapeStoreCreditSafe(shapeStoreCredit(activated)), deliveredAt: now, replayed: false }
+  }, TX_OPTIONS)
 }
 
 // ---------------------------------------------------------------------------
@@ -1079,6 +1154,8 @@ export interface RedeemCreditInput {
    * ثبت فاکتور (که هنوز ردیفی در دیتابیس ندارد) استفاده می‌شود.
    */
   lines?: readonly CreditCartLine[]
+  /** Main-only residual item capacities for cumulative restricted-credit redemption. */
+  lineAmounts?: readonly { saleItemId: number; lineTotal: number }[]
   note?: string | null
 }
 
@@ -1165,7 +1242,12 @@ export async function redeemStoreCredit(client: Client, input: RedeemCreditInput
 
   // ---- لایه ۲: تصمیم واحد، با اقلام واقعیِ دیتابیس (نه ورودی UI) ----
   const dbLines = await linesForInvoice(client, input.invoiceId)
-  const lines = dbLines.length ? dbLines : (input.lines ?? [])
+  const lineAmounts = new Map((input.lineAmounts ?? []).map((line) => [Number(line.saleItemId), Math.max(0, Math.round(Number(line.lineTotal) || 0))]))
+  const lines = dbLines.length
+    ? dbLines.map((line) => line.saleItemId != null && lineAmounts.has(line.saleItemId)
+        ? { ...line, lineTotal: lineAmounts.get(line.saleItemId)! }
+        : line)
+    : (input.lines ?? [])
   const decision = decideRedeem(credit, {
     now: usedAt,
     applicable: input.applicable == null ? remainingOf(credit) : Math.max(0, Math.round(Number(input.applicable) || 0)),
@@ -1374,9 +1456,10 @@ export async function redeemStoreCredit(client: Client, input: RedeemCreditInput
 /**
  * برگشت مصرف‌های یک فاکتور، وقتی خود فاکتور Refund/Reverse/باطل می‌شود (§۸).
  *
- * منطقش عمداً «برگرداندن مبلغ روی همان اعتبار» است، نه ساختن اعتبار جدید: کاری
- * که انجام نشده نباید سابقه‌ی جدید بسازد. ردیف دفتر مصرف حذف نمی‌شود، فقط
- * `reversedAt` می‌خورد تا سابقه‌ی حسابداری کامل بماند.
+ * دفتر مصرف حذف نمی‌شود و با `reversedAt` یک‌بار claim می‌شود. اعتبار زنده‌ی
+ * ACTIVE/PARTIALLY_USED روی همان بارکد و با همان انقضا اصلاح می‌شود؛ اگر بارکد
+ * قبلاً USED شده باشد، وضعیت قدیمی برای همیشه USED می‌ماند و فقط جانشینی با
+ * `expiresAtExact` ریشه صادر می‌شود. اعتبار منقضی نه احیا می‌شود و نه جانشین می‌گیرد.
  *
  * مصرف‌کننده‌های واقعی (سند به‌روز است — جلسه ۲۸):
  *   • `SalesService.createReturn` برای **برگشت کامل** فاکتور (از جلسه ۲۱).
@@ -1386,7 +1469,14 @@ export async function redeemStoreCredit(client: Client, input: RedeemCreditInput
  */
 export async function reverseInvoiceRedemptions(
   client: Client,
-  input: { invoiceId: number; reason?: string | null; userId?: number | null; redemptionIds?: number[] }
+  input: {
+    invoiceId: number
+    reason?: string | null
+    userId?: number | null
+    redemptionIds?: number[]
+    returnId?: number | null
+    exchangeInvoiceId?: number | null
+  }
 ): Promise<number> {
   /**
    * ممیزی A88-02 — `redemptionIds` برگشت را به همان ردیف(های) دفتر مصرفِ یک پرداخت
@@ -1406,18 +1496,96 @@ export async function reverseInvoiceRedemptions(
   for (const r of rows) {
     const credit = await client.storeCredit.findUnique({ where: { id: r.creditId } })
     if (!credit) continue
-    /**
-     * جلسه ۲۹ · §۱۱ — وضعیت دیگر «مستقیم» نوشته نمی‌شود.
-     *
-     * نسخه‌ی قبلی خودش وضعیت بعدی را حساب می‌کرد و بی‌هیچ اعتبارسنجی
-     * می‌نوشت (تنها محافظش یک `if` دستی برای CANCELED بود). حالا تصمیم از
-     * `planRedemptionReversal` می‌آید که Transition را با جدول *مخصوص برگشت*
-     * (`CREDIT_REVERSAL_TRANSITIONS`) می‌سنجد: `USED ⇒ ACTIVE` فقط از همین
-     * مسیر مجاز است، `CANCELED` پایانی می‌ماند و `SUSPENDED` هم با برگشت
-     * فاکتور از تعلیق در نمی‌آید. اگر Transition مجاز نبود، مبلغ و دفعات
-     * برمی‌گردند ولی وضعیت دست‌نخورده می‌ماند و *دلیلش* در AuditLog می‌نشیند
-     * (قبلاً بی‌صدا رد می‌شد).
-     */
+    const before = {
+      usedAmount: asNum(credit.usedAmount),
+      usedCount: asNum(credit.usedCount),
+      status: String(credit.status)
+    }
+    const expired = String(credit.status) === StoreCreditStatus.EXPIRED || isExpiredAt(credit, now)
+
+    // Claim this ledger row once, inside the caller's transaction. A retry or
+    // concurrent reversal cannot issue another successor for the same use.
+    const claimed = await client.storeCreditRedemption.updateMany({
+      where: { id: r.id, reversedAt: null },
+      data: {
+        reversedAt: now,
+        reversedReason: input.reason ?? 'برگشت/ابطال فاکتور مرجع'
+      }
+    })
+    if (claimed.count !== 1) continue
+
+    if (expired) {
+      // An expired barcode is never reactivated and its deadline is not extended.
+      await audit(client, {
+        action: AuditAction.CREDIT_REACTIVATE,
+        entity: 'StoreCredit',
+        entityId: credit.id,
+        userId: input.userId ?? null,
+        before: JSON.stringify(before),
+        after: JSON.stringify({ ...before, restoredAmount: 0, expired: true }),
+        note: `مصرف اعتبار #${credit.id} در برگشت مرجع ثبت شد، اما مهلت ریشه گذشته است؛ اعتبار منقضی احیا یا جایگزین نشد` +
+          (input.reason ? ` · دلیل: ${input.reason}` : '')
+      })
+      reversed++
+      continue
+    }
+
+    if (String(credit.status) === StoreCreditStatus.USED) {
+      // USED is terminal: restoration must not make the old barcode redeemable.
+      // Issue a successor with the exact root deadline (including no-expiry).
+      const successor = await issueStoreCredit(client, {
+        amount: toNumberRial(r.amount),
+        source: String(credit.source ?? CreditSource.EXCHANGE),
+        returnId: input.returnId ?? credit.returnId ?? null,
+        exchangeInvoiceId: input.exchangeInvoiceId ?? credit.exchangeInvoiceId ?? null,
+        sourceInvoiceId: credit.sourceInvoiceId ?? null,
+        customerId: credit.customerId ?? null,
+        customerName: credit.customerName ?? null,
+        expiresAtExact: credit.expiresAt ?? null,
+        length: Math.max(MIN_CREDIT_CODE_LENGTH, String(credit.code ?? '').length),
+        maxUses: Math.max(1, Number(credit.maxUses ?? 1)),
+        multiUse: credit.multiUse === true,
+        carryRemainder: credit.carryRemainder !== false,
+        restrictScope: String(credit.restrictScope ?? CreditRestrictScope.ALL),
+        restrictCategoryIds: parseIdList(credit.restrictCategoryIdsJson),
+        restrictVariantIds: parseIdList(credit.restrictVariantIdsJson),
+        minPurchase: toNumberRial(credit.minPurchase ?? 0),
+        maxPerTransaction: toNumberRial(credit.maxPerTransaction ?? 0),
+        customerLocked: credit.customerLocked === true,
+        holderCompany: credit.holderCompany ?? null,
+        holderNationalId: credit.holderNationalId ?? null,
+        holderPhone: credit.holderPhone ?? null,
+        holderAddress: credit.holderAddress ?? null,
+        holderAgent: credit.holderAgent ?? null,
+        holderNote: credit.holderNote ?? null,
+        note: `جانشین اعتبار مصرف‌شده #${credit.id} · بازگشت ${money(toNumberRial(r.amount))} ریال` +
+          (input.reason ? ` · ${input.reason}` : ''),
+        userId: input.userId ?? null,
+        issuedAt: now
+      })
+      if (input.returnId != null) {
+        await client.saleReturn.updateMany({
+          where: { id: input.returnId, storeCreditId: null },
+          data: { storeCreditId: successor.id, storeCreditCode: successor.code }
+        })
+      }
+      await audit(client, {
+        action: AuditAction.CREDIT_REACTIVATE,
+        entity: 'StoreCredit',
+        entityId: credit.id,
+        userId: input.userId ?? null,
+        before: JSON.stringify(before),
+        after: JSON.stringify({ ...before, restoredAmount: toNumberRial(r.amount), successorCreditId: successor.id, successorExpiresAt: successor.expiresAt }),
+        note: `بارکد مصرف‌شده #${credit.id} برای همیشه USED ماند؛ ${money(toNumberRial(r.amount))} ریال با مهلت دقیق ریشه به بارکد جانشین #${successor.id} منتقل شد` +
+          (input.reason ? ` · دلیل: ${input.reason}` : '')
+      })
+      reversed++
+      continue
+    }
+
+    // ACTIVE/PARTIALLY_USED codes may continue on the same barcode, but use an
+    // optimistic compare-and-update so a simultaneous redemption cannot be
+    // overwritten by this rollback.
     const plan = planRedemptionReversal(
       {
         amount: asNum(credit.amount),
@@ -1429,20 +1597,23 @@ export async function reverseInvoiceRedemptions(
       asNum(r.amount),
       now
     )
-    await client.storeCredit.update({
-      where: { id: credit.id },
+    const updated = await client.storeCredit.updateMany({
+      where: {
+        id: credit.id,
+        status: String(credit.status),
+        usedAmount: credit.usedAmount,
+        usedCount: credit.usedCount
+      },
       data: { usedAmount: plan.usedAmount, usedCount: plan.usedCount, status: plan.status }
     })
-    await client.storeCreditRedemption.update({
-      where: { id: r.id },
-      data: { reversedAt: now, reversedReason: input.reason ?? 'برگشت/ابطال فاکتور مرجع' }
-    })
+    if (updated.count !== 1)
+      throw new BusinessError(`اعتبار #${credit.id} هم‌زمان تغییر کرد؛ برگشت مصرف انجام نشد و تراکنش باید دوباره بررسی شود.`)
     await audit(client, {
       action: AuditAction.CREDIT_REACTIVATE,
       entity: 'StoreCredit',
       entityId: credit.id,
       userId: input.userId ?? null,
-      before: JSON.stringify({ usedAmount: credit.usedAmount, usedCount: credit.usedCount, status: credit.status }),
+      before: JSON.stringify(before),
       after: JSON.stringify({
         usedAmount: plan.usedAmount,
         usedCount: plan.usedCount,
@@ -1451,7 +1622,7 @@ export async function reverseInvoiceRedemptions(
         transitionBlocked: plan.blocked
       }),
       note:
-        `برگشت مصرف اعتبار #${credit.id} به مبلغ ${money(asNum(r.amount))} ریال، چون فاکتور مرجع برگشت/باطل شد` +
+        `برگشت مصرف اعتبار #${credit.id} به مبلغ ${money(asNum(r.amount))} ریال؛ همان بارکد با مهلت ریشه حفظ شد` +
         (input.reason ? ` · دلیل: ${input.reason}` : '') +
         (plan.blocked ? ` · ${plan.blocked}` : '')
     })
@@ -1573,6 +1744,12 @@ async function managerChange(
     const sourceError = sourceChangeError(row.source, (built.data as Record<string, unknown>).source)
     if (sourceError) throw new BusinessError(sourceError)
     const updated = await tx.storeCredit.update({ where: { id: row.id }, data: built.data })
+    if (String((built.data as any).status ?? '') === StoreCreditStatus.CANCELED) {
+      await (tx as any).storeCreditDelivery.updateMany({
+        where: { creditId: row.id },
+        data: { status: 'CANCELED', note: reason }
+      })
+    }
     await audit(tx, {
       action: input.auditAction,
       entity: 'StoreCredit',
@@ -1657,7 +1834,7 @@ export async function reactivateCredit(input: {
       const to = used > 0 ? StoreCreditStatus.PARTIALLY_USED : StoreCreditStatus.ACTIVE
       if (!canCreditTransition(String(row.status), to)) throw new BusinessError(transitionError(String(row.status), to))
       const now = new Date()
-      const expiresAt = extend > 0 ? new Date(now.getTime() + extend * DAY_MS) : row.expiresAt
+      const expiresAt = extend > 0 ? tehranEndOfDayAfter(now, extend) : row.expiresAt
       return {
         data: {
           status: to,
@@ -2141,7 +2318,7 @@ export async function bulkIssueCredits(input: BulkIssueInput): Promise<CreditBul
     throw new BusinessError('برای محدود کردن این دسته به کالا، حداقل یک کالا انتخاب کنید.')
 
   const now = new Date()
-  const expiresAt = rules.days && rules.days > 0 ? new Date(now.getTime() + rules.days * DAY_MS) : null
+  const expiresAt = rules.days && rules.days > 0 ? tehranEndOfDayAfter(now, rules.days) : null
   const title =
     trimOrNull(input.title) ??
     `${faDigits(count)} اعتبار ${money(amountEach)} ریالی` + (input.holderCompany ? ` · ${input.holderCompany}` : '')
@@ -2486,6 +2663,7 @@ const CREDIT_AUDIT_LABELS: Record<string, string> = {
   [AuditAction.STORE_CREDIT_REDEEM]: 'مصرف اعتبار',
   [AuditAction.CREDIT_REDEEM_BLOCKED]: 'تلاش ناموفق/مسدودشده',
   [AuditAction.CREDIT_VOID]: 'ابطال',
+  [AuditAction.CREDIT_DELIVERY_CONFIRM]: 'تحویل بارکد به مشتری',
   [AuditAction.CREDIT_SUSPEND]: 'تعلیق',
   [AuditAction.CREDIT_REACTIVATE]: 'فعال‌سازی مجدد',
   [AuditAction.CREDIT_EXPIRY_CHANGE]: 'تغییر تاریخ انقضا',
@@ -2620,7 +2798,7 @@ function duePrefilter(base: any, settings: CreditReminderSettings, now: number):
     }
 
     /** اعتبارِ منقضی هیچ‌وقت واجد شرایط نیست. */
-    and.push({ OR: [{ expiresAt: null }, { expiresAt: { gte: new Date(now) } }] })
+    and.push({ OR: [{ expiresAt: null }, { expiresAt: { gte: tehranStartOfDay(now) } }] })
 
     /**
      * شرط مثبت: ردیف فقط وقتی می‌تواند «سررسید» باشد که یا از صدورِ آن
@@ -2640,7 +2818,7 @@ function duePrefilter(base: any, settings: CreditReminderSettings, now: number):
     if (settings.minDaysSinceIssue > 0) {
       const positive: any[] = [{ issuedAt: { lte: new Date(now - settings.minDaysSinceIssue * day) } }]
       if (settings.beforeExpiryDays > 0)
-        positive.push({ expiresAt: { gte: new Date(now), lte: new Date(now + settings.beforeExpiryDays * day) } })
+        positive.push({ expiresAt: { gte: tehranStartOfDay(now), lte: tehranEndOfDayAfter(new Date(now), settings.beforeExpiryDays) } })
       and.push({ OR: positive })
     }
 
@@ -2817,6 +2995,90 @@ export const storeCreditService = {
     const map = await receiptNoMap(prisma, rows)
     const shaped = rows.map((r) => shapeStoreCreditSafe(shapeStoreCredit(r, map)))
     return attachCreditPage(shaped, page)
+  },
+
+  /**
+   * مدیر با کد فاکتور یا شمارهٔ رسید، فقط اعتبارهای مستقیمِ پیوندخورده به همان
+   * سند را برای بازیابی چاپ پیدا می‌کند. این lookup هیچ اعتبار/کدی ایجاد نمی‌کند
+   * و عمداً sourceInvoiceId را دنبال نمی‌کند تا زنجیرهٔ همهٔ فرزندان حدس زده نشود.
+   * credential اعتبار از IPC بیرون نمی‌رود؛ چاپ بعدی با id همین رکورد انجام می‌شود.
+   */
+  async linkedCreditsForInvoice(input: { code?: unknown }) {
+    const raw = toLatinDigits(String(input?.code ?? '').trim()).toUpperCase()
+    if (!raw) throw new BusinessError('بارکد فاکتور یا شمارهٔ رسید را اسکن/وارد کنید.')
+    if (raw.length > 100) throw new BusinessError('کد فاکتور معتبر نیست.')
+
+    let invoice: any = null
+    const byCode = await prisma.saleInvoice.findMany({
+      where: { returnCode: raw },
+      select: {
+        id: true, receiptNo: true, issuedAt: true, issuedAtJalali: true,
+        orderType: true, status: true, voidedAt: true,
+        exchangeReturnId: true, sourceInvoiceId: true
+      },
+      orderBy: [{ issuedAt: 'desc' }, { id: 'desc' }],
+      take: 3
+    })
+    if (byCode.length > 1)
+      throw new BusinessError('این بارکد فاکتور روی چند سند قدیمی پیدا شد؛ شمارهٔ رسید روی برگه را وارد کنید تا سند اشتباهی انتخاب نشود.')
+    invoice = byCode[0] ?? null
+
+    let lookupKind: 'BARCODE' | 'RECEIPT' = 'BARCODE'
+    if (!invoice && /^\d+$/.test(raw)) {
+      const receiptNo = Number(raw)
+      if (Number.isSafeInteger(receiptNo) && receiptNo > 0) {
+        invoice = await prisma.saleInvoice.findUnique({
+          where: { receiptNo },
+          select: {
+            id: true, receiptNo: true, issuedAt: true, issuedAtJalali: true,
+            orderType: true, status: true, voidedAt: true,
+            exchangeReturnId: true, sourceInvoiceId: true
+          }
+        })
+        lookupKind = 'RECEIPT'
+      }
+    }
+    if (!invoice) throw new BusinessError('فاکتوری با این بارکد یا شمارهٔ رسید پیدا نشد.')
+
+    // Direct relation only: returns made from this exact invoice, plus the
+    // exchange return that created this exact replacement invoice. Do not walk
+    // recursively from an old invoice into every later descendant.
+    const directReturns = await prisma.saleReturn.findMany({
+      where: {
+        voidedAt: null,
+        OR: [{ invoiceId: Number(invoice.id) }, { exchangeInvoiceId: Number(invoice.id) }]
+      },
+      select: { id: true, storeCreditId: true }
+    })
+    const returnIds = [...new Set([
+      ...directReturns.map((row) => Number(row.id)),
+      ...(invoice.exchangeReturnId == null ? [] : [Number(invoice.exchangeReturnId)])
+    ].filter((id) => Number.isSafeInteger(id) && id > 0))]
+    const linkedCreditIds = [...new Set(directReturns
+      .map((row) => row.storeCreditId == null ? 0 : Number(row.storeCreditId))
+      .filter((id) => Number.isSafeInteger(id) && id > 0))]
+    const creditOr: Prisma.StoreCreditWhereInput[] = [
+      { exchangeInvoiceId: Number(invoice.id) },
+      ...(returnIds.length ? [{ returnId: { in: returnIds } }] : []),
+      ...(linkedCreditIds.length ? [{ id: { in: linkedCreditIds } }] : [])
+    ]
+    const creditRows = await prisma.storeCredit.findMany({
+      where: { deletedAt: null, OR: creditOr },
+      orderBy: [{ issuedAt: 'asc' }, { id: 'asc' }]
+    })
+    const receiptNos = await receiptNoMap(prisma, creditRows)
+    return {
+      invoice: {
+        id: Number(invoice.id),
+        receiptNo: Number(invoice.receiptNo),
+        issuedAtJalali: String(invoice.issuedAtJalali ?? ''),
+        orderType: String(invoice.orderType ?? ''),
+        status: String(invoice.status ?? ''),
+        voided: invoice.voidedAt != null,
+        lookupKind
+      },
+      credits: creditRows.map((row) => shapeStoreCreditSafe(shapeStoreCredit(row, receiptNos)))
+    }
   },
 
   /**
@@ -3010,7 +3272,7 @@ export const storeCreditService = {
       prisma.storeCredit.groupBy({ by: ['status'], where, _count: { _all: true }, _sum: { amount: true, usedAmount: true } }),
       prisma.storeCredit.groupBy({
         by: ['status'],
-        where: { ...where, status: { in: [...EXPIRABLE_STATUSES] }, expiresAt: { lte: now } },
+        where: { ...where, status: { in: [...EXPIRABLE_STATUSES] }, expiresAt: { lt: tehranStartOfDay(now) } },
         _count: { _all: true },
         _sum: { amount: true, usedAmount: true }
       }),
@@ -3020,8 +3282,8 @@ export const storeCreditService = {
           ...where,
           status: { in: [StoreCreditStatus.ACTIVE, StoreCreditStatus.PARTIALLY_USED] },
           expiresAt: {
-            gt: now,
-            lte: new Date(now.getTime() + Math.max(1, settings.reminder.beforeExpiryDays || 7) * DAY_MS)
+            gte: tehranStartOfDay(now),
+            lte: tehranEndOfDayAfter(now, Math.max(1, settings.reminder.beforeExpiryDays || 7))
           }
         }
       }),

@@ -1,0 +1,98 @@
+{
+  "status": "PASS",
+  "scenario": "first numbered example only",
+  "isolatedDatabase": "/tmp/mahak-exchange-credit-first-only-U0d2nl/isolated.db",
+  "setup": {
+    "originalSaleTotal": 2000,
+    "cashPaid": 2000,
+    "barcodeCreditIssued": 700,
+    "sourceItemReturned": 1000,
+    "replacementItem": 1500
+  },
+  "exchange": {
+    "nominalDifference": 500,
+    "barcodeCreditApplied": 500,
+    "additionalCashDue": 0,
+    "cashReceived": 0
+  },
+  "creditAfter": {
+    "amount": 700,
+    "usedAmount": 500,
+    "usedCount": 1,
+    "status": "PARTIALLY_USED"
+  },
+  "reconciliation": {
+    "expectedCash": 2000,
+    "actualCash": 2000,
+    "card": 0,
+    "blue": 2000,
+    "reportTotals": {
+      "count": 2,
+      "goodsTotal": 3500,
+      "taxTotal": 0,
+      "serviceTotal": 0,
+      "discountTotal": 0,
+      "deliveryTotal": 0,
+      "grandTotal": 3500,
+      "cashTotal": 2000,
+      "cardTotal": 0,
+      "creditTotal": 0,
+      "otherTotal": 0,
+      "receivedTotal": 2000,
+      "returnedTotal": 0,
+      "exchangeCreditTotal": 1000,
+      "storeCreditUsedTotal": 500,
+      "storeCreditIssuedTotal": 0,
+      "exchangeCount": 1,
+      "exchangeDiffTotal": 500,
+      "overpayTotal": 0,
+      "creditRemainingTotal": 0,
+      "priorSettlementTotal": 0,
+      "netReceivedTotal": 2000,
+      "exchangeReturnedTotal": 1000,
+      "refundCashTotal": 0,
+      "refundCardTotal": 0,
+      "refundDebtOnlyTotal": 0,
+      "storeCreditRefundTotal": 0,
+      "legacyRefundCount": 0,
+      "managerAccountTotal": 0,
+      "destinationUnknownTotal": 0
+    },
+    "invoices": [
+      {
+        "id": 1,
+        "total": 2000,
+        "paid": 2000,
+        "settled": true
+      },
+      {
+        "id": 2,
+        "total": 1500,
+        "paid": 1500,
+        "settled": true
+      }
+    ],
+    "stocks": [
+      {
+        "name": "A source",
+        "expected": 100,
+        "actual": 100,
+        "ledger": 0
+      },
+      {
+        "name": "B kept item",
+        "expected": 99,
+        "actual": 99,
+        "ledger": -1
+      },
+      {
+        "name": "C replacement",
+        "expected": 99,
+        "actual": 99,
+        "ledger": -1
+      }
+    ],
+    "chequePayments": 0
+  },
+  "note": "Only scenario 1 was run. Scenario 2 and later were not executed."
+}

@@ -619,6 +619,8 @@ export const AuditAction = {
   SALE_EXCHANGE: 'SALE_EXCHANGE',
   /** صدور «بارکد اعتبار خرید بعدی» (ما به مشتری بدهکار شدیم) */
   STORE_CREDIT_ISSUE: 'STORE_CREDIT_ISSUE',
+  /** Explicit confirmation that a return/exchange barcode reached the customer. */
+  CREDIT_DELIVERY_CONFIRM: 'CREDIT_DELIVERY_CONFIRM',
   /** مصرف یک «بارکد اعتبار خرید بعدی» روی یک فاکتور جدید */
   STORE_CREDIT_REDEEM: 'STORE_CREDIT_REDEEM',
   /** قفل موقت یک گیت رمز بعد از چند تلاش ناموفق پشت‌سرهم (بخش ۲) */

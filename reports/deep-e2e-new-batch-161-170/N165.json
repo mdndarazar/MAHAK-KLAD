@@ -1,0 +1,259 @@
+{
+  "generatedAt": "2026-10-28T18:26:23.593Z",
+  "id": 165,
+  "scenario": "N165",
+  "isolatedDatabase": "/tmp/mahak-followup-165-nXF6ve/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 80000,
+      "cash": 80000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 80000,
+          "lineTotal": 80000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 80000
+      },
+      "actual": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 80000,
+      "stock": [
+        {
+          "name": "unused-return-credit-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 80000,
+          "paid": 80000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 80000,
+      "method": "STORE_CREDIT",
+      "refundAmount": 80000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 80000
+      },
+      "actual": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 80000,
+      "stock": [
+        {
+          "name": "unused-return-credit-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 80000,
+          "paid": 80000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "void-unused-store-credit-return",
+      "returnId": 1,
+      "voided": true,
+      "creditId": 1,
+      "creditStatusAfter": "CANCELED",
+      "reason": "N165 ابطال اعتبار برگشتی مصرف‌نشده"
+    },
+    {
+      "label": "void unused voucher return; source sale remains paid, credit canceled, stock reversal reconciles",
+      "expected": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 80000
+      },
+      "actual": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 80000,
+      "stock": [
+        {
+          "name": "unused-return-credit-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 80000,
+          "paid": 80000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N165 reconciliation",
+      "expected": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 80000
+      },
+      "actual": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 80000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 80000,
+      "stock": [
+        {
+          "name": "unused-return-credit-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 80000,
+          "paid": 80000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "assertions": [
+    {
+      "key": "void-unused-return-credit-cancels-voucher-and-reverses-restock",
+      "pass": true,
+      "returnVoided": true,
+      "creditCanceled": true,
+      "stockRestoredToPreReturn": true
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 80000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 80000
+    },
+    "actual": {
+      "cash": 80000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 80000,
+    "stock": [
+      {
+        "name": "unused-return-credit-item",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 1,
+    "returns": 1,
+    "credits": 1,
+    "checks": 0
+  }
+}

@@ -1,0 +1,847 @@
+{
+  "generatedAt": "2026-10-30T19:45:01.371Z",
+  "isolatedDatabase": "/tmp/mahak-b-first-a-second-f4HKuO/isolated.db",
+  "suite": "Reverse-order controls: B operation first, then A operation; four independent sequences.",
+  "totals": {
+    "cases": 4,
+    "accepted": 4,
+    "blocked": 0,
+    "harnessErrors": 0
+  },
+  "cases": [
+    {
+      "id": "B-exchange_then_A-cash-return",
+      "aAction": "RETURN",
+      "bAction": "EXCHANGE",
+      "verdict": "ACCEPTED",
+      "steps": [
+        {
+          "step": "B first: B→B1 exchange",
+          "accepted": true,
+          "returnId": 1,
+          "diff": -20000,
+          "total": null,
+          "sourceCreditRestoredAmount": 20000,
+          "issuedCredits": [
+            {
+              "id": 5,
+              "code": "CRABP6YW",
+              "amount": 20000,
+              "expiresAt": 1795984199999,
+              "status": "ACTIVE",
+              "source": "MANUAL",
+              "restrictScope": "CATEGORY",
+              "restrictCategoryIdsJson": "[2]"
+            }
+          ],
+          "oldBSource": {
+            "status": "USED",
+            "usedAmount": 50000
+          },
+          "after": {
+            "blue": 800000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 9
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              },
+              {
+                "label": "B1-180k",
+                "stock": 9
+              }
+            ],
+            "credits": [
+              {
+                "id": 1,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 2,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 3,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 4,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 1,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "method": "STORE_CREDIT",
+                "refundAmount": 0,
+                "diff": -20000
+              }
+            ]
+          }
+        },
+        {
+          "step": "A second: cash return 200,000",
+          "accepted": true,
+          "returnId": 2,
+          "diff": null,
+          "refundAmount": 200000,
+          "sourceCreditRestoredAmount": 0,
+          "issuedCredits": [],
+          "after": {
+            "blue": 600000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              },
+              {
+                "label": "B1-180k",
+                "stock": 9
+              }
+            ],
+            "credits": [
+              {
+                "id": 1,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 2,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 3,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 4,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 1,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "method": "STORE_CREDIT",
+                "refundAmount": 0,
+                "diff": -20000
+              },
+              {
+                "id": 2,
+                "kind": "RETURN",
+                "total": 200000,
+                "method": "CASH",
+                "refundAmount": 200000,
+                "diff": 0
+              }
+            ]
+          }
+        }
+      ],
+      "setup": {
+        "invoiceId": 1,
+        "total": 1000000,
+        "creditApplied": 200000,
+        "cashPaid": 800000,
+        "bSource": {
+          "code": "CR628TPR",
+          "amount": 50000,
+          "scope": "B only"
+        }
+      }
+    },
+    {
+      "id": "B-exchange_then_A-exchange",
+      "aAction": "EXCHANGE",
+      "bAction": "EXCHANGE",
+      "verdict": "ACCEPTED",
+      "steps": [
+        {
+          "step": "B first: B→B1 exchange",
+          "accepted": true,
+          "returnId": 3,
+          "diff": -20000,
+          "total": null,
+          "sourceCreditRestoredAmount": 20000,
+          "issuedCredits": [
+            {
+              "id": 10,
+              "code": "CRGBJ9FD",
+              "amount": 20000,
+              "expiresAt": 1795984199999,
+              "status": "ACTIVE",
+              "source": "MANUAL",
+              "restrictScope": "CATEGORY",
+              "restrictCategoryIdsJson": "[5]"
+            }
+          ],
+          "oldBSource": {
+            "status": "USED",
+            "usedAmount": 50000
+          },
+          "after": {
+            "blue": 800000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 9
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              },
+              {
+                "label": "B1-180k",
+                "stock": 9
+              }
+            ],
+            "credits": [
+              {
+                "id": 6,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 7,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 8,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 9,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 3,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "method": "STORE_CREDIT",
+                "refundAmount": 0,
+                "diff": -20000
+              }
+            ]
+          }
+        },
+        {
+          "step": "A second: A→A1 exchange 200,000→180,000",
+          "accepted": true,
+          "returnId": 4,
+          "diff": -20000,
+          "refundAmount": 0,
+          "sourceCreditRestoredAmount": 0,
+          "issuedCredits": [
+            {
+              "id": 11,
+              "code": "EWT7KL",
+              "amount": 20000,
+              "expiresAt": null,
+              "status": "ACTIVE",
+              "source": "EXCHANGE",
+              "restrictScope": "ALL",
+              "restrictCategoryIdsJson": null
+            }
+          ],
+          "after": {
+            "blue": 800000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "A1-180k",
+                "stock": 9
+              },
+              {
+                "label": "B1-180k",
+                "stock": 9
+              }
+            ],
+            "credits": [
+              {
+                "id": 6,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 7,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 8,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 9,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 3,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "method": "STORE_CREDIT",
+                "refundAmount": 0,
+                "diff": -20000
+              },
+              {
+                "id": 4,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "method": "STORE_CREDIT",
+                "refundAmount": 20000,
+                "diff": -20000
+              }
+            ]
+          }
+        }
+      ],
+      "setup": {
+        "invoiceId": 3,
+        "total": 1000000,
+        "creditApplied": 200000,
+        "cashPaid": 800000,
+        "bSource": {
+          "code": "CR6EEMUV",
+          "amount": 50000,
+          "scope": "B only"
+        }
+      }
+    },
+    {
+      "id": "B-return_then_A-cash-return",
+      "aAction": "RETURN",
+      "bAction": "RETURN",
+      "verdict": "ACCEPTED",
+      "steps": [
+        {
+          "step": "B first: full B return",
+          "accepted": true,
+          "returnId": 5,
+          "diff": null,
+          "total": 200000,
+          "sourceCreditRestoredAmount": 50000,
+          "issuedCredits": [
+            {
+              "id": 16,
+              "code": "ENM63X",
+              "amount": 150000,
+              "expiresAt": null,
+              "status": "ACTIVE",
+              "source": "EXCHANGE",
+              "restrictScope": "ALL",
+              "restrictCategoryIdsJson": null
+            },
+            {
+              "id": 17,
+              "code": "CRF9NG9R",
+              "amount": 50000,
+              "expiresAt": 1795984199999,
+              "status": "ACTIVE",
+              "source": "MANUAL",
+              "restrictScope": "CATEGORY",
+              "restrictCategoryIdsJson": "[8]"
+            }
+          ],
+          "oldBSource": {
+            "status": "USED",
+            "usedAmount": 50000
+          },
+          "after": {
+            "blue": 800000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 9
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              },
+              {
+                "label": "B1-180k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 12,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 13,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 14,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 15,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 5,
+                "kind": "RETURN",
+                "total": 200000,
+                "method": "STORE_CREDIT",
+                "refundAmount": 150000,
+                "diff": 0
+              }
+            ]
+          }
+        },
+        {
+          "step": "A second: cash return 200,000",
+          "accepted": true,
+          "returnId": 6,
+          "diff": null,
+          "refundAmount": 200000,
+          "sourceCreditRestoredAmount": 0,
+          "issuedCredits": [],
+          "after": {
+            "blue": 600000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              },
+              {
+                "label": "B1-180k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 12,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 13,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 14,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 15,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 5,
+                "kind": "RETURN",
+                "total": 200000,
+                "method": "STORE_CREDIT",
+                "refundAmount": 150000,
+                "diff": 0
+              },
+              {
+                "id": 6,
+                "kind": "RETURN",
+                "total": 200000,
+                "method": "CASH",
+                "refundAmount": 200000,
+                "diff": 0
+              }
+            ]
+          }
+        }
+      ],
+      "setup": {
+        "invoiceId": 6,
+        "total": 1000000,
+        "creditApplied": 200000,
+        "cashPaid": 800000,
+        "bSource": {
+          "code": "CRUXGXYC",
+          "amount": 50000,
+          "scope": "B only"
+        }
+      }
+    },
+    {
+      "id": "B-return_then_A-exchange",
+      "aAction": "EXCHANGE",
+      "bAction": "RETURN",
+      "verdict": "ACCEPTED",
+      "steps": [
+        {
+          "step": "B first: full B return",
+          "accepted": true,
+          "returnId": 7,
+          "diff": null,
+          "total": 200000,
+          "sourceCreditRestoredAmount": 50000,
+          "issuedCredits": [
+            {
+              "id": 22,
+              "code": "EVMDTR",
+              "amount": 150000,
+              "expiresAt": null,
+              "status": "ACTIVE",
+              "source": "EXCHANGE",
+              "restrictScope": "ALL",
+              "restrictCategoryIdsJson": null
+            },
+            {
+              "id": 23,
+              "code": "CRLYY46H",
+              "amount": 50000,
+              "expiresAt": 1795984199999,
+              "status": "ACTIVE",
+              "source": "MANUAL",
+              "restrictScope": "CATEGORY",
+              "restrictCategoryIdsJson": "[11]"
+            }
+          ],
+          "oldBSource": {
+            "status": "USED",
+            "usedAmount": 50000
+          },
+          "after": {
+            "blue": 800000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 9
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "A1-180k",
+                "stock": 10
+              },
+              {
+                "label": "B1-180k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 18,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 19,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 20,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 21,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 7,
+                "kind": "RETURN",
+                "total": 200000,
+                "method": "STORE_CREDIT",
+                "refundAmount": 150000,
+                "diff": 0
+              }
+            ]
+          }
+        },
+        {
+          "step": "A second: A→A1 exchange 200,000→180,000",
+          "accepted": true,
+          "returnId": 8,
+          "diff": -20000,
+          "refundAmount": 0,
+          "sourceCreditRestoredAmount": 0,
+          "issuedCredits": [
+            {
+              "id": 24,
+              "code": "E9WJAR",
+              "amount": 20000,
+              "expiresAt": null,
+              "status": "ACTIVE",
+              "source": "EXCHANGE",
+              "restrictScope": "ALL",
+              "restrictCategoryIdsJson": null
+            }
+          ],
+          "after": {
+            "blue": 800000,
+            "stocks": [
+              {
+                "label": "A-200k",
+                "stock": 10
+              },
+              {
+                "label": "B-200k",
+                "stock": 10
+              },
+              {
+                "label": "C-300k",
+                "stock": 9
+              },
+              {
+                "label": "D-300k",
+                "stock": 9
+              },
+              {
+                "label": "A1-180k",
+                "stock": 9
+              },
+              {
+                "label": "B1-180k",
+                "stock": 10
+              }
+            ],
+            "credits": [
+              {
+                "id": 18,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 19,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 20,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              },
+              {
+                "id": 21,
+                "amount": 50000,
+                "usedAmount": 50000,
+                "status": "USED",
+                "expiresAt": 1795984199999
+              }
+            ],
+            "returns": [
+              {
+                "id": 7,
+                "kind": "RETURN",
+                "total": 200000,
+                "method": "STORE_CREDIT",
+                "refundAmount": 150000,
+                "diff": 0
+              },
+              {
+                "id": 8,
+                "kind": "EXCHANGE",
+                "total": 200000,
+                "method": "STORE_CREDIT",
+                "refundAmount": 20000,
+                "diff": -20000
+              }
+            ]
+          }
+        }
+      ],
+      "setup": {
+        "invoiceId": 7,
+        "total": 1000000,
+        "creditApplied": 200000,
+        "cashPaid": 800000,
+        "bSource": {
+          "code": "CRZZY2ZT",
+          "amount": 50000,
+          "scope": "B only"
+        }
+      }
+    }
+  ]
+}

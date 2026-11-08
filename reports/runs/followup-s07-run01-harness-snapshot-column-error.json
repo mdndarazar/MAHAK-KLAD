@@ -1,0 +1,11 @@
+{
+  "scenario": 6,
+  "attempt": 1,
+  "command": "node --import ./test/harness/register.mjs tests/audit-fixes/deep-e2e-followup-scenario07-partial-return-then-exchange-matrix.mjs",
+  "result": "HARNESS_ERROR_BEFORE_EXCHANGE",
+  "isolatedDatabase": "/tmp/mahak-followup-s07-xO9ySm/isolated.db",
+  "error": "no such column: createdShiftId",
+  "cause": "The scenario's pre-exchange snapshot queried SaleInvoice with seed.count(... createdShiftId=?); SaleInvoice uses shiftId. Sale and partial return completed in temporary SQLite, then the test-only snapshot failed before attempting exchange.",
+  "financialAndStockState": "The harness event checkpoints through partial return reconciled report/raw financials, blue reference, and stock ledger. No real DB or production code was modified.",
+  "resolution": "Changed only the scenario harness snapshot query to count SaleInvoice by shiftId; reran the full scenario in a fresh temporary SQLite database."
+}

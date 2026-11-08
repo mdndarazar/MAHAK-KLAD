@@ -1,0 +1,328 @@
+{
+  "generatedAt": "2026-10-28T18:41:57.652Z",
+  "id": 199,
+  "scenario": "N199",
+  "isolatedDatabase": "/tmp/mahak-next20-199-2wPYHm/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "settled-sale",
+      "invoiceId": 1,
+      "total": 60000,
+      "cash": 60000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 3,
+          "unitPrice": 20000,
+          "lineTotal": 60000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 60000
+      },
+      "actual": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 60000,
+      "stock": [
+        {
+          "name": "partial-quantity-sequence-item",
+          "expected": 7,
+          "actual": 7,
+          "ledger": -3
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 60000,
+          "paid": 60000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 20000,
+      "method": "CASH",
+      "refundAmount": 20000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 20000,
+        "refundCard": 0,
+        "blue": 40000
+      },
+      "actual": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 20000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 20000,
+        "refundCard": 0
+      },
+      "blue": 40000,
+      "stock": [
+        {
+          "name": "partial-quantity-sequence-item",
+          "expected": 8,
+          "actual": 8,
+          "ledger": -2
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 60000,
+          "paid": 60000,
+          "status": "PARTIALLY_RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "return",
+      "id": 2,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 20000,
+      "method": "CASH",
+      "refundAmount": 20000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 2",
+      "expected": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 40000,
+        "refundCard": 0,
+        "blue": 20000
+      },
+      "actual": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 40000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 40000,
+        "refundCard": 0
+      },
+      "blue": 20000,
+      "stock": [
+        {
+          "name": "partial-quantity-sequence-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 60000,
+          "paid": 60000,
+          "status": "PARTIALLY_RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 2,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "return",
+      "id": 3,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 20000,
+      "method": "CASH",
+      "refundAmount": 20000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 3",
+      "expected": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 60000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 60000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 60000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "partial-quantity-sequence-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 60000,
+          "paid": 60000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 3,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N199 reconciliation",
+      "expected": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 60000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 60000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 60000,
+        "card": 0,
+        "refundCash": 60000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "partial-quantity-sequence-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 60000,
+          "paid": 60000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returnCount": 3,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "modes": [
+    {
+      "key": "first partial return qty 1",
+      "returned": 1
+    },
+    {
+      "key": "second partial return qty 1",
+      "cumulative": 2
+    },
+    {
+      "key": "over-return of two when one remains is blocked",
+      "remaining": 1,
+      "mutationFree": true
+    },
+    {
+      "key": "last remaining unit returned and totals close",
+      "totalReturned": 3
+    }
+  ],
+  "modeCount": 4,
+  "final": {
+    "expected": {
+      "cash": 60000,
+      "card": 0,
+      "refundCash": 60000,
+      "refundCard": 0,
+      "blue": 0
+    },
+    "actual": {
+      "cash": 60000,
+      "card": 0,
+      "refundCash": 60000,
+      "refundCard": 0
+    },
+    "blue": 0,
+    "stock": [
+      {
+        "name": "partial-quantity-sequence-item",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      }
+    ],
+    "invoices": 1,
+    "returns": 3,
+    "credits": 0,
+    "checks": 0
+  }
+}

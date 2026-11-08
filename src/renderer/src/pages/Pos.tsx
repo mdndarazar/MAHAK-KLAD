@@ -16,6 +16,7 @@ import { useCharges } from '../hooks/useCharges'
 import VariantSearchBox, { type VariantSearchBoxHandle } from '../components/VariantSearchBox'
 import { ColGroup, ResizableHeaderCells, useResizableColumns } from '../components/ResizableColumns'
 import { money, faDigits, parseGroupedInteger } from '@shared/jalali'
+import { normalizeCreditCode } from '@shared/credit'
 import { digitsOnly, groupThousands } from '../lib/moneyInput'
 import { withFreshSale, type SaleDefaults } from '@shared/receipt'
 import { describeChargeRule } from '@shared/charges'
@@ -27,10 +28,10 @@ import {
   creditCartCoverage,
   isLineExcluded,
   newIdempotencyKey,
-  posCreditPlan,
   posPreviewPayload,
   type CreditPreviewLike
 } from '@shared/creditUi'
+import { posMultiCreditPlan } from '@shared/posMultiCreditPlan'
 
 /** کار الف — کادر مشترک «مقصد پول» (بدون پیش‌فرض) */
 import PaymentDestinationBox from '../components/PaymentDestinationBox'
@@ -113,6 +114,11 @@ interface LastInvoice {
   /** بخش ۶: «بارکد اعتبار» مصرف‌شده روی همین فاکتور (پول نقد نیست) */
   storeCredit?: StoreCreditSafeRow | null
   storeCreditApplied?: number
+  storeCreditOutcomes?: Array<{
+    status: 'APPLIED' | 'UNUSED' | 'REJECTED'
+    amount: number
+    message: string
+  }>
   /** اگر مبلغ اعتبار از فاکتور بیشتر بود، شناسهٔ امنِ باقی‌مانده */
   storeCreditRemainder?: StoreCreditSafeRow | null
   /**
@@ -284,6 +290,18 @@ export default function Pos() {
   const [creditErr, setCreditErr] = useState<string | null>(null)
   const [creditBusy, setCreditBusy] = useState(false)
   const [creditPreview, setCreditPreview] = useState<CreditPreviewLike | null>(null)
+  const [creditPreviewKeyState, setCreditPreviewKeyState] = useState<string | null>(null)
+  const [creditCheckedCode, setCreditCheckedCode] = useState<string | null>(null)
+  const [creditMore, setCreditMore] = useState<Array<{
+    id: string
+    code: string
+    checkedCode: string | null
+    info: StoreCreditSafeRow | null
+    error: string | null
+    preview: CreditPreviewLike | null
+    previewKey: string | null
+  }>>([])
+  const saleIdempotencyRef = useRef<{ signature: string; key: string } | null>(null)
   const [creditRequested, setCreditRequested] = useState<number | null>(null)
   /**
    * feature flag مدیر: خاموش‌بودن فقط «مبلغ دلخواه اعتبار» را می‌بندد؛ مصرف کامل
@@ -549,20 +567,45 @@ export default function Pos() {
   useBarcodeScanner(addByBarcode, { enabled: !modalOpen && !creditFocus && stockChain == null })
 
   /** بررسی بارکد اعتبار *بدون* مصرف کردنش (دکمه‌ی «بررسی»). */
-  const lookupCredit = useCallback(async (raw: string) => {
+  const lookupCredit = useCallback(async (raw: string): Promise<StoreCreditSafeRow | null> => {
     const code = raw.trim()
     setCreditInfo(null)
     setCreditErr(null)
-    if (!code) return
+    setCreditPreview(null)
+    setCreditPreviewKeyState(null)
+    setCreditCheckedCode(null)
+    if (!code) return null
     setCreditBusy(true)
     try {
       const row = await call<StoreCreditSafeRow>(CH.storeCreditLookup, { code })
       setCreditInfo(row)
+      setCreditCheckedCode(normalizeCreditCode(code))
+      return row
     } catch (e: any) {
       // پیام‌های فارسی تفکیک‌شده از main می‌آیند («قبلاً مصرف شده» / «منقضی» / …)
       setCreditErr(e.message)
+      setCreditCheckedCode(normalizeCreditCode(code))
+      return null
     } finally {
       setCreditBusy(false)
+    }
+  }, [])
+
+  const lookupMoreCredit = useCallback(async (id: string, raw: string) => {
+    const code = raw.trim()
+    setCreditMore((rows) => rows.map((row) => row.id === id
+      ? { ...row, checkedCode: null, info: null, error: null, preview: null, previewKey: null }
+      : row))
+    if (!code) return
+    try {
+      const info = await call<StoreCreditSafeRow>(CH.storeCreditLookup, { code })
+      setCreditMore((rows) => rows.map((row) => row.id === id
+        ? { ...row, checkedCode: normalizeCreditCode(code), info, error: null, preview: null, previewKey: null }
+        : row))
+    } catch (error: any) {
+      setCreditMore((rows) => rows.map((row) => row.id === id
+        ? { ...row, checkedCode: normalizeCreditCode(code), info: null, error: String(error?.message ?? error), preview: null, previewKey: null }
+        : row))
     }
   }, [])
 
@@ -697,10 +740,28 @@ export default function Pos() {
     [lines, lineDiscountOf]
   )
 
-  const creditPlan = useMemo(
-    () => posCreditPlan({ payable: totals.payable, preview: creditPreview, requestedInput: effectiveCreditRequested }),
-    [creditPreview, effectiveCreditRequested, totals.payable]
-  )
+  const creditRowsForPlan = useMemo(() => [
+    ...(creditCode.trim() ? [{
+      id: 'primary',
+      code: creditCode,
+      expiresAt: creditInfo?.expiresAtJalali ?? null,
+      restrictScope: creditInfo?.restrictScope ?? 'ALL',
+      preview: creditPreview
+    }] : []),
+    ...creditMore.filter((row) => row.code.trim()).map((row) => ({
+      id: row.id,
+      code: row.code,
+      expiresAt: row.info?.expiresAtJalali ?? null,
+      restrictScope: row.info?.restrictScope ?? 'ALL',
+      preview: row.preview
+    }))
+  ], [creditCode, creditInfo, creditPreview, creditMore])
+  const creditPlan = useMemo(() => posMultiCreditPlan({
+    payable: totals.payable,
+    rows: creditRowsForPlan,
+    lines: creditLines.map((line) => ({ variantId: line.variantId, lineTotal: line.lineTotal })),
+    requestedInput: effectiveCreditRequested
+  }), [creditRowsForPlan, creditLines, effectiveCreditRequested, totals.payable])
   const creditApplied = creditPlan.applied
 
   /**
@@ -739,23 +800,64 @@ export default function Pos() {
       ? posPreviewPayload({
           code: creditCode,
           payable: totals.payable,
-          requested: effectiveCreditRequested,
+          requested: null,
           customerId,
           lines: creditLines
         })
       : null
     if (!payload) {
       setCreditPreview(null)
+      setCreditPreviewKeyState(null)
       return
     }
+    const previewKey = JSON.stringify({ payable: totals.payable, customerId, lines: creditLines })
     let alive = true
     call<CreditPreviewLike>(CH.creditPreview, payload)
-      .then((p) => alive && setCreditPreview(p))
-      .catch(() => alive && setCreditPreview(null))
+      .then((p) => {
+        if (alive) {
+          setCreditPreview(p)
+          setCreditPreviewKeyState(previewKey)
+        }
+      })
+      .catch(() => {
+        if (alive) {
+          setCreditPreview(null)
+          setCreditPreviewKeyState(null)
+        }
+      })
     return () => {
       alive = false
     }
-  }, [creditCode, creditInfo, effectiveCreditRequested, creditLines, totals.payable, customerId])
+  }, [creditCode, creditInfo, creditLines, totals.payable, customerId])
+
+  const creditPreviewKey = JSON.stringify({ payable: totals.payable, customerId, lines: creditLines })
+  useEffect(() => {
+    const pending = creditMore.filter((row) => row.code.trim() && row.info && row.previewKey !== creditPreviewKey)
+    if (!pending.length) return
+    let alive = true
+    Promise.all(pending.map(async (row) => {
+      const payload = posPreviewPayload({
+        code: row.code,
+        payable: totals.payable,
+        requested: null,
+        customerId,
+        lines: creditLines
+      })
+      if (!payload) return { id: row.id, code: row.code, preview: null }
+      try {
+        return { id: row.id, code: row.code, preview: await call<CreditPreviewLike>(CH.creditPreview, payload) }
+      } catch {
+        return { id: row.id, code: row.code, preview: null }
+      }
+    })).then((results) => {
+      if (!alive) return
+      setCreditMore((current) => current.map((row) => {
+        const result = results.find((item) => item.id === row.id && item.code === row.code)
+        return result ? { ...row, preview: result.preview, previewKey: creditPreviewKey } : row
+      }))
+    })
+    return () => { alive = false }
+  }, [creditMore, creditPreviewKey, creditLines, totals.payable, customerId])
 
   /**
    * بخش ۷ — «بدهی باقی‌مانده» زنده: قابل پرداخت منهای اعتبار مصرف‌شده و منهای
@@ -950,25 +1052,47 @@ export default function Pos() {
         return setErr('برای ثبت فروش توسط اپراتور دیگر، نام اپراتور و رمز شخصی حضانت او را وارد کنید.')
       if (custodyGoverned && saleOperatorMode === 'MANAGER_SESSION' && !isManager)
         return setErr('برای ثبت فروش با نشست مدیر، ابتدا با رمز مدیر وارد شوید؛ رمز مشترک هرگز به نام یک مدیر مشخص ثبت نمی‌شود.')
-      /**
-       * بخش ۶ — اگر کد اعتباری تایپ شده ولی هنوز «بررسی» نشده است، *قبل از* ثبت
-       * فاکتور بررسی می‌شود. دلیلش مهم است: مبلغ اعتبار باید از نقدِ دریافتی کم
-       * شود و این کار بدون دانستن مبلغ اعتبار ممکن نیست. اگر کد نامعتبر بود،
-       * همین‌جا با پیام فارسی متوقف می‌شویم و هیچ فاکتوری ثبت نمی‌شود.
-       */
-      if (creditCode.trim() && !creditInfo) {
-        await lookupCredit(creditCode)
-        return setErr(
-          'بارکد اعتبار بررسی شد؛ نتیجه‌اش را بالای صفحه ببینید و اگر معتبر بود دوباره «ثبت» را بزنید ' +
-            '(مبلغ اعتبار باید پیش از ثبت از مبلغ دریافتی کم شود).'
-        )
-      }
       setBusy(true)
       setErr(null)
       setSessionBlock(null)
       setSessionReady(false)
       sessionBlockedRef.current = false
       try {
+        const pendingCreditLookups = [
+          ...(creditCode.trim() && creditCheckedCode !== normalizeCreditCode(creditCode)
+            ? [{ id: 'primary', code: creditCode }]
+            : []),
+          ...creditMore.filter((row) => row.code.trim() && row.checkedCode !== normalizeCreditCode(row.code))
+            .map((row) => ({ id: row.id, code: row.code }))
+        ]
+        if (pendingCreditLookups.length) {
+          await Promise.all(pendingCreditLookups.map((row) => row.id === 'primary'
+            ? lookupCredit(row.code)
+            : lookupMoreCredit(row.id, row.code)))
+          return setErr('بارکدهای واردشده بررسی شدند. بارکد ردشده مصرف نمی‌شود و فروش را متوقف نمی‌کند؛ مبلغ پرداختی را با پیش‌نمایش تازه بررسی کنید و دوباره ثبت را بزنید.')
+        }
+        const primaryPreviewNeedsRefresh = !!creditInfo && (!creditPreview || creditPreviewKeyState !== creditPreviewKey)
+        const morePreviewNeedsRefresh = creditMore.some((row) => row.info && row.code.trim() && (!row.preview || row.previewKey !== creditPreviewKey))
+        if (primaryPreviewNeedsRefresh || morePreviewNeedsRefresh) {
+          if (primaryPreviewNeedsRefresh) {
+            const payload = posPreviewPayload({ code: creditCode, payable: totals.payable, requested: null, customerId, lines: creditLines })
+            if (!payload) return setErr('برای پیش‌نمایش اعتبار، ابتدا کالاهای فاکتور را بررسی کنید.')
+            const preview = await call<CreditPreviewLike>(CH.creditPreview, payload)
+            setCreditPreview(preview)
+            setCreditPreviewKeyState(creditPreviewKey)
+          }
+          const pendingMore = creditMore.filter((row) => row.info && row.code.trim() && (!row.preview || row.previewKey !== creditPreviewKey))
+          const moreResults = await Promise.all(pendingMore.map(async (row) => {
+            const payload = posPreviewPayload({ code: row.code, payable: totals.payable, requested: null, customerId, lines: creditLines })
+            if (!payload) return { id: row.id, preview: null }
+            return { id: row.id, preview: await call<CreditPreviewLike>(CH.creditPreview, payload) }
+          }))
+          const byId = new Map(moreResults.map((result) => [result.id, result.preview]))
+          setCreditMore((rows) => rows.map((row) => byId.has(row.id)
+            ? { ...row, preview: byId.get(row.id) ?? null, previewKey: creditPreviewKey }
+            : row))
+          return setErr('اعتبارها بررسی شدند؛ مبلغ قابل‌مصرف تازه محاسبه شد. پیش‌نمایش را ببینید و دوباره ثبت را بزنید.')
+        }
         /**
          * بخش ۷ — مبلغی که *همین حالا* دریافت می‌شود:
          *   • حالت عادی: کل «قابل پرداخت» (مو‌به‌مو مثل قبل).
@@ -977,7 +1101,7 @@ export default function Pos() {
          */
         if (isSplit && (splitCashAmount == null || splitCardAmount == null || splitTotal == null))
           return setErr('مبلغ نقد یا کارت معتبر نیست؛ فقط عدد صحیحِ غیرمنفی (بدون اعشار، منفی یا حرف) وارد کنید.')
-        if (isSplit && (splitCashAmount <= 0 || splitCardAmount <= 0))
+        if (isSplit && ((splitCashAmount ?? 0) <= 0 || (splitCardAmount ?? 0) <= 0))
           return setErr('پرداخت ترکیبی باید یک سهم نقدیِ مثبت و یک سهم کارتیِ مثبت داشته باشد.')
         const paidNow = isSplit ? splitTotal! : creditMode ? Math.min(Math.max(0, Math.round(creditPaid || 0)), cashDue) : cashDue
         if (isSplit && splitTotal !== cashDue)
@@ -1010,6 +1134,27 @@ export default function Pos() {
           discount: lineDiscountOf(l),
           tax: totals.taxPerLine[i] ?? 0
         }))
+        const allCreditInputs = [
+          ...(creditCode.trim() ? [{ id: 'primary', code: creditCode }] : []),
+          ...creditMore.filter((row) => row.code.trim()).map((row) => ({ id: row.id, code: row.code }))
+        ]
+        const normalizedCreditCounts = new Map<string, number>()
+        for (const row of allCreditInputs) {
+          const code = normalizeCreditCode(row.code)
+          normalizedCreditCounts.set(code, (normalizedCreditCounts.get(code) ?? 0) + 1)
+        }
+        const storeCredits = allCreditInputs
+          .filter((row) => {
+            if (effectiveCreditRequested == null || effectiveCreditRequested <= 0) return true
+            const code = normalizeCreditCode(row.code)
+            return (normalizedCreditCounts.get(code) ?? 0) === 1 && (creditPlan.requestedById[row.id] ?? 0) > 0
+          })
+          .map((row) => ({
+            code: row.code,
+            requestedAmount: effectiveCreditRequested != null && effectiveCreditRequested > 0
+              ? creditPlan.requestedById[row.id] ?? null
+              : null
+          }))
         const basePayload = {
           lines: payloadLines,
           ...(custodyGoverned
@@ -1030,10 +1175,10 @@ export default function Pos() {
           remoteCustomer,
           // مورد ۳: برداشت خودکار کمبود از انبار مرکزی (فقط وقتی تیک روشن باشد)
           autoCentralWithdraw: autoCentral,
-          // بخش ۶: بارکد اعتبار خرید بعدی (اعتبارسنجی و مصرفش سمت main است)
-          storeCreditCode: creditCode.trim() || null,
-          storeCreditAmount: creditCode.trim() ? (effectiveCreditRequested == null ? null : creditApplied) : null,
-          storeCreditIdempotencyKey: creditCode.trim() ? newIdempotencyKey('pos-credit') : null,
+          // هر بارکد جداگانه اعتبارسنجی می‌شود؛ ترتیب ارسالی روی تخصیص FEFO اثر ندارد.
+          storeCredits,
+          // یک کلید برای کل فاکتور؛ retry همان فاکتور را برمی‌گرداند.
+          saleRequestIdempotencyKey: null,
           // بخش ۷: پرداختی جزئی یا هیچ پرداختی (نسیه‌ی کامل)
           splitPayment: isSplit || undefined,
           payments: isSplit
@@ -1045,6 +1190,17 @@ export default function Pos() {
               ? [{ methodId: method!.id, amount: paidNow, destination: destination ?? undefined }]
               : []
         }
+        const requestCredits = storeCredits.map((item) => ({
+          ...item,
+          code: normalizeCreditCode(item.code)
+        })).sort((a, b) => a.code.localeCompare(b.code))
+        const requestSignature = JSON.stringify({ ...basePayload, storeCredits: requestCredits, saleRequestIdempotencyKey: undefined })
+        const priorRequest = saleIdempotencyRef.current
+        const saleRequestIdempotencyKey = priorRequest?.signature === requestSignature
+          ? priorRequest.key
+          : newIdempotencyKey('pos-sale')
+        saleIdempotencyRef.current = { signature: requestSignature, key: saleRequestIdempotencyKey }
+        const requestBasePayload = { ...basePayload, saleRequestIdempotencyKey }
 
         /**
          * -------------------------------------------------------------------
@@ -1078,13 +1234,13 @@ export default function Pos() {
            */
           const payload = picked
             ? {
-                ...basePayload,
+                ...requestBasePayload,
                 autoCentralWithdraw: false,
                 stockPlan: picked.plan,
                 // قفل سمت سرور: `assertPanelPassword(posCentralWithdrawToggle, …)`
                 panelPassword: picked.password
               }
-            : basePayload
+            : requestBasePayload
           try {
             inv = await call<any>(CH.saleCreate, payload)
             planNote = picked ? planShortLine(picked.plan, (id) => nameOfVariant(id), faDigits) : null
@@ -1153,6 +1309,7 @@ export default function Pos() {
           returnCodeDays: inv.returnCodeDays,
           storeCredit: inv.storeCredit ?? null,
           storeCreditApplied: Math.max(0, Math.round(inv.storeCreditApplied ?? 0)),
+          storeCreditOutcomes: Array.isArray(inv.storeCreditOutcomes) ? inv.storeCreditOutcomes : [],
           storeCreditRemainder: inv.storeCreditRemainder ?? null,
           // بخش ۷: باقی‌ماندهٔ بدهی همان عددی است که سرویس حساب کرده است
           remaining: Math.max(0, Math.round(inv.remaining ?? 0)),
@@ -1170,6 +1327,12 @@ export default function Pos() {
         setCreditCode('')
         setCreditInfo(null)
         setCreditErr(null)
+        setCreditPreview(null)
+        setCreditPreviewKeyState(null)
+        setCreditCheckedCode(null)
+        setCreditMore([])
+        setCreditRequested(null)
+        saleIdempotencyRef.current = null
         setCreditMode(false)
         setCreditPaid(0)
         // PIN is one-sale proof, never a reusable renderer session credential.
@@ -1241,7 +1404,14 @@ export default function Pos() {
       printEnabled,
       creditCode,
       creditInfo,
+      creditMore,
+      creditCheckedCode,
+      creditPlan,
+      creditPreviewKey,
+      creditPreviewKeyState,
+      effectiveCreditRequested,
       lookupCredit,
+      lookupMoreCredit,
       // جلسه ۵۲ · مرحله ۳
       resolveStockPlan,
       nameOfVariant,
@@ -1445,14 +1615,14 @@ export default function Pos() {
               مهلت برگشت {faDigits(remoteCustomer ? settings.sale.returnCodeDaysRemote : settings.sale.returnCodeDays)} روز
             </span>
           </label>
-          {/* ---------- بخش ۶: اسکن «بارکد اعتبار خرید بعدی» ---------- */}
+          {/* ---------- POS روزمره: حداکثر ۸ بارکد اعتبار، هرکدام جداگانه بررسی می‌شود ---------- */}
           <label className="flex items-center gap-1 whitespace-nowrap">
-            <span className="kbd">بارکد اعتبار</span>
+            <span className="kbd">بارکد اعتبار ۱ از ۸</span>
             <input
               className="inp w-40 py-1 text-center tracking-widest"
               dir="ltr"
               value={creditCode}
-              placeholder="مثلاً E7M4QP"
+              placeholder="اسکن یا تایپ کنید"
               onFocus={() => setCreditFocus(true)}
               onBlur={(e) => {
                 setCreditFocus(false)
@@ -1462,6 +1632,9 @@ export default function Pos() {
                 setCreditCode(e.target.value.toUpperCase())
                 setCreditInfo(null)
                 setCreditErr(null)
+                setCreditPreview(null)
+                setCreditPreviewKeyState(null)
+                setCreditCheckedCode(null)
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -1469,29 +1642,63 @@ export default function Pos() {
                   void lookupCredit(creditCode)
                 }
               }}
-              title="کد روی «سند تعویض» مشتری. اسکن یا تایپ کنید؛ مبلغش از قابل پرداخت کم می‌شود ولی در «خالص واقعی دریافتی» گزارش شمرده نمی‌شود."
+              title="هر بارکد جداگانه بررسی می‌شود. اعتبار pooled در سطح کل فاکتور است و بین کالاها تقسیم نمی‌شود."
             />
             <button className="btn py-1" onClick={() => void lookupCredit(creditCode)} disabled={creditBusy || !creditCode.trim()}>
               {creditBusy ? '…' : 'بررسی'}
             </button>
+            {creditMore.length < 7 && (
+              <button className="btn py-1" onClick={() => setCreditMore((rows) => [...rows, {
+                id: newIdempotencyKey('credit-row'), code: '', checkedCode: null, info: null, error: null, preview: null, previewKey: null
+              }])}>افزودن بارکد</button>
+            )}
           </label>
           {creditInfo && (
             <span className="kbd text-emerald-800 font-bold">
-              اعتبار معتبر: {money(creditInfo.amount)} ریال
+              بارکد ۱ معتبر: {money(creditInfo.amount)} ریال
               {creditInfo.expiresAtJalali ? ` · تا ${faDigits(creditInfo.expiresAtJalali)}` : ''}
-              {creditInfo.customerName ? ` · ${creditInfo.customerName}` : ''} · با ثبت فاکتور مصرف می‌شود
+              {creditInfo.customerName ? ` · ${creditInfo.customerName}` : ''}
             </span>
           )}
-          {creditInfo && splitStoreCreditPayment && (
+          {creditErr && <span className="kbd text-amber-800 font-bold whitespace-pre-line">بارکد ۱ رد شد و مصرف نمی‌شود: {creditErr}</span>}
+          {creditMore.map((row, index) => (
+            <div key={row.id} className="flex flex-wrap items-center gap-2 basis-full">
+              <label className="flex items-center gap-1 whitespace-nowrap">
+                <span className="kbd">بارکد {index + 2} از ۸</span>
+                <input
+                  className="inp w-40 py-1 text-center tracking-widest"
+                  dir="ltr"
+                  value={row.code}
+                  placeholder="اسکن یا تایپ کنید"
+                  onFocus={() => setCreditFocus(true)}
+                  onBlur={(e) => { setCreditFocus(false); void lookupMoreCredit(row.id, e.target.value) }}
+                  onChange={(e) => setCreditMore((rows) => rows.map((item) => item.id === row.id
+                    ? { ...item, code: e.target.value.toUpperCase(), checkedCode: null, info: null, error: null, preview: null, previewKey: null }
+                    : item))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); void lookupMoreCredit(row.id, row.code) }
+                  }}
+                />
+                <button className="btn py-1" onClick={() => void lookupMoreCredit(row.id, row.code)} disabled={!row.code.trim()}>
+                  بررسی
+                </button>
+                <button className="btn py-1" onClick={() => setCreditMore((rows) => rows.filter((item) => item.id !== row.id))}>
+                  حذف
+                </button>
+              </label>
+              {row.info && <span className="kbd text-emerald-800">معتبر: {money(row.info.amount)} ریال{row.info.expiresAtJalali ? ` · تا ${faDigits(row.info.expiresAtJalali)}` : ''}</span>}
+              {row.error && <span className="kbd text-amber-800 font-bold">رد شد و مصرف نمی‌شود: {row.error}</span>}
+            </div>
+          ))}
+          {creditRowsForPlan.length > 0 && splitStoreCreditPayment && (
             <label className="flex items-center gap-1">
-              <span className="kbd">مبلغ مصرف اعتبار (خالی = حداکثر ممکن)</span>
+              <span className="kbd">مبلغ کلِ مصرف اعتبار (خالی = حداکثر ممکن)</span>
               <input className="inp w-36 py-1" type="number" min={0} value={creditRequested ?? ''} onChange={e => setCreditRequested(e.target.value === '' ? null : Math.max(0, +e.target.value || 0))} />
             </label>
           )}
-          {creditInfo && !splitStoreCreditPayment && (
-            <span className="kbd text-slate-700">پرداخت ترکیبی اعتبار در تنظیمات فروش خاموش است؛ اعتبار تا سقف مجاز کامل مصرف می‌شود.</span>
+          {creditRowsForPlan.length > 0 && !splitStoreCreditPayment && (
+            <span className="kbd text-slate-700">مصرف جزئی اعتبار در تنظیمات فروش خاموش است؛ بارکدها تا سقف مجاز و به‌ترتیب انقضا اعمال می‌شوند.</span>
           )}
-          {creditErr && <span className="kbd text-amber-800 font-bold whitespace-pre-line">{creditErr}</span>}
           {/* §۱۸ — تقسیم سبد به «پوشش‌دار / خارج از دامنه» و پیام‌های خودِ پیش‌نمایش */}
           {creditCoverage.message && (
             <span className="kbd text-amber-900 font-bold whitespace-pre-line basis-full">{creditCoverage.message}</span>
@@ -1677,6 +1884,16 @@ export default function Pos() {
               >
                 {last.storeCreditRemainder.publicReference} · {money(last.storeCreditRemainder.amount)}
               </span>
+            )}
+            {!!last.storeCreditOutcomes?.some((outcome) => outcome.status !== 'APPLIED') && (
+              <div className="basis-full rounded border border-amber-300 bg-amber-50 p-2 text-sm">
+                <b>برخی بارکدهای اعتبار مصرف نشدند:</b>
+                <ul className="mt-1 list-disc ps-5">
+                  {(last.storeCreditOutcomes ?? []).filter((outcome) => outcome.status !== 'APPLIED').map((outcome, index) => (
+                    <li key={`${outcome.status}-${index}`}>{outcome.message}</li>
+                  ))}
+                </ul>
+              </div>
             )}
             {/* بخش ۷: فاکتور نسیه ⇒ باقی‌ماندهٔ بدهی، واضح و جدا */}
             {!!last.remaining && (

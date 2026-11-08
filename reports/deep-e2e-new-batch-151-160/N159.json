@@ -1,0 +1,258 @@
+{
+  "generatedAt": "2026-10-28T18:19:55.959Z",
+  "id": 159,
+  "scenario": "N159",
+  "isolatedDatabase": "/tmp/mahak-followup-159-dt10Oy/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 100000,
+      "cash": 100000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 100000,
+          "lineTotal": 100000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "split-exchange-source",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "split-exchange-target",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0
+    },
+    {
+      "operation": "exchange",
+      "label": "positive-difference-split-cash-and-card",
+      "sourceInvoiceId": 1,
+      "returnId": 1,
+      "exchangeInvoiceId": 2,
+      "returnTotal": 100000,
+      "exchangeTotal": 130000,
+      "diff": 30000,
+      "cashReceived": 10000,
+      "cardReceived": 20000,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "refundStoreCreditAmount": 0,
+      "preview": {
+        "ok": true,
+        "returnTotal": 100000,
+        "exchangeTotal": 130000,
+        "nominalDiff": 30000,
+        "effectiveDiff": 30000,
+        "exchangeCreditApplied": 100000,
+        "realMoneySurplus": 0,
+        "sourceCreditRestoration": 0
+      }
+    },
+    {
+      "label": "exchange positive-difference-split-cash-and-card",
+      "expected": {
+        "cash": 110000,
+        "card": 20000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 130000
+      },
+      "actual": {
+        "cash": 110000,
+        "card": 20000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 110000,
+        "card": 20000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 130000,
+      "stock": [
+        {
+          "name": "split-exchange-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "split-exchange-target",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 130000,
+          "paid": 130000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returns": 1,
+      "checks": 0
+    },
+    {
+      "label": "final N159 reconciliation",
+      "expected": {
+        "cash": 110000,
+        "card": 20000,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 130000
+      },
+      "actual": {
+        "cash": 110000,
+        "card": 20000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 110000,
+        "card": 20000,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 130000,
+      "stock": [
+        {
+          "name": "split-exchange-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "split-exchange-target",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 130000,
+          "paid": 130000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returns": 1,
+      "checks": 0
+    }
+  ],
+  "assertions": [
+    {
+      "key": "exchange-positive-difference-split-tender-reconciles",
+      "pass": true,
+      "diff": 30000,
+      "cash": 10000,
+      "card": 20000
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 110000,
+      "card": 20000,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 130000
+    },
+    "actual": {
+      "cash": 110000,
+      "card": 20000,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 130000,
+    "stock": [
+      {
+        "name": "split-exchange-source",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "split-exchange-target",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 2,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

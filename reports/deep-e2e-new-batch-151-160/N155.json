@@ -1,0 +1,538 @@
+{
+  "generatedAt": "2026-10-28T18:19:48.690Z",
+  "id": 155,
+  "scenario": "N155",
+  "isolatedDatabase": "/tmp/mahak-followup-155-V7v4sk/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 100000,
+      "cash": 100000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 100000,
+          "lineTotal": 100000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 100000
+      },
+      "actual": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 100000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 100000,
+      "stock": [
+        {
+          "name": "three-generation-source",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "three-generation-child-1",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "three-generation-child-2",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "three-generation-child-3",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0
+    },
+    {
+      "operation": "exchange",
+      "label": "generation-1-to-2",
+      "sourceInvoiceId": 1,
+      "returnId": 1,
+      "exchangeInvoiceId": 2,
+      "returnTotal": 100000,
+      "exchangeTotal": 110000,
+      "diff": 10000,
+      "cashReceived": 10000,
+      "cardReceived": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "refundStoreCreditAmount": 0,
+      "preview": {
+        "ok": true,
+        "returnTotal": 100000,
+        "exchangeTotal": 110000,
+        "nominalDiff": 10000,
+        "effectiveDiff": 10000,
+        "exchangeCreditApplied": 100000,
+        "realMoneySurplus": 0,
+        "sourceCreditRestoration": 0
+      }
+    },
+    {
+      "label": "exchange generation-1-to-2",
+      "expected": {
+        "cash": 110000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 110000
+      },
+      "actual": {
+        "cash": 110000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 110000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 110000,
+      "stock": [
+        {
+          "name": "three-generation-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "three-generation-child-1",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "three-generation-child-2",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "three-generation-child-3",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 110000,
+          "paid": 110000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 1
+        }
+      ],
+      "returns": 1,
+      "checks": 0
+    },
+    {
+      "operation": "exchange",
+      "label": "generation-2-to-3",
+      "sourceInvoiceId": 2,
+      "returnId": 2,
+      "exchangeInvoiceId": 3,
+      "returnTotal": 110000,
+      "exchangeTotal": 120000,
+      "diff": 10000,
+      "cashReceived": 10000,
+      "cardReceived": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "refundStoreCreditAmount": 0,
+      "preview": {
+        "ok": true,
+        "returnTotal": 110000,
+        "exchangeTotal": 120000,
+        "nominalDiff": 10000,
+        "effectiveDiff": 10000,
+        "exchangeCreditApplied": 110000,
+        "realMoneySurplus": 0,
+        "sourceCreditRestoration": 0
+      }
+    },
+    {
+      "label": "exchange generation-2-to-3",
+      "expected": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 120000
+      },
+      "actual": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 120000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 120000,
+      "stock": [
+        {
+          "name": "three-generation-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "three-generation-child-1",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "three-generation-child-2",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "three-generation-child-3",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 110000,
+          "paid": 110000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": 1
+        },
+        {
+          "id": 3,
+          "total": 120000,
+          "paid": 120000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 2
+        }
+      ],
+      "returns": 2,
+      "checks": 0
+    },
+    {
+      "operation": "exchange",
+      "label": "generation-3-to-4",
+      "sourceInvoiceId": 3,
+      "returnId": 3,
+      "exchangeInvoiceId": 4,
+      "returnTotal": 120000,
+      "exchangeTotal": 130000,
+      "diff": 10000,
+      "cashReceived": 10000,
+      "cardReceived": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "refundStoreCreditAmount": 0,
+      "preview": {
+        "ok": true,
+        "returnTotal": 120000,
+        "exchangeTotal": 130000,
+        "nominalDiff": 10000,
+        "effectiveDiff": 10000,
+        "exchangeCreditApplied": 120000,
+        "realMoneySurplus": 0,
+        "sourceCreditRestoration": 0
+      }
+    },
+    {
+      "label": "exchange generation-3-to-4",
+      "expected": {
+        "cash": 130000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 130000
+      },
+      "actual": {
+        "cash": 130000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 130000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 130000,
+      "stock": [
+        {
+          "name": "three-generation-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "three-generation-child-1",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "three-generation-child-2",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "three-generation-child-3",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 110000,
+          "paid": 110000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": 1
+        },
+        {
+          "id": 3,
+          "total": 120000,
+          "paid": 120000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": 2
+        },
+        {
+          "id": 4,
+          "total": 130000,
+          "paid": 130000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 3
+        }
+      ],
+      "returns": 3,
+      "checks": 0
+    },
+    {
+      "label": "final N155 reconciliation",
+      "expected": {
+        "cash": 130000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 130000
+      },
+      "actual": {
+        "cash": 130000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 130000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 130000,
+      "stock": [
+        {
+          "name": "three-generation-source",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "three-generation-child-1",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "three-generation-child-2",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "three-generation-child-3",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 100000,
+          "paid": 100000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 110000,
+          "paid": 110000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": 1
+        },
+        {
+          "id": 3,
+          "total": 120000,
+          "paid": 120000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": 2
+        },
+        {
+          "id": 4,
+          "total": 130000,
+          "paid": 130000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": 3
+        }
+      ],
+      "returns": 3,
+      "checks": 0
+    }
+  ],
+  "assertions": [
+    {
+      "key": "three-step-exchange-chain-lineage-and-payments",
+      "pass": true,
+      "diffs": [
+        10000,
+        10000,
+        10000
+      ],
+      "finalParent": 3,
+      "finalInvoice": 4
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 130000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 130000
+    },
+    "actual": {
+      "cash": 130000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 130000,
+    "stock": [
+      {
+        "name": "three-generation-source",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "three-generation-child-1",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "three-generation-child-2",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "three-generation-child-3",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 4,
+    "returns": 3,
+    "credits": 0,
+    "checks": 0
+  }
+}

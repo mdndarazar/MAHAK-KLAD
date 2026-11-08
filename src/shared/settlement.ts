@@ -45,8 +45,14 @@ export interface DebtReturnInput {
   total?: number | null
   refundMethod?: string | null
   refundAmount?: number | null
+  /** Internal EXCHANGE_CREDIT reversed by a child return; not a customer payout. */
+  exchangeCreditReversed?: number | null
   /** درخواست کارت‌به‌کارت همین برگشت لغو شده؟ (پولی به مشتری نرسید و نمی‌رسد) */
   refundCanceled?: boolean | null
+  /** Final replacement value for exchanges; together with total reconstructs raw N−R. */
+  exchangeTotal?: number | null
+  /** Legacy/effective settlement difference; raw N−R is preferred when available. */
+  exchangeDiff?: number | null
   /** نشست ۶۰ — فقط تعویض: بخشی از مابه‌التفاوت منفی که از بدهی فاکتور اصلی کم شد */
   debtReduction?: number | null
 }
@@ -73,14 +79,24 @@ export function refundFromReceivedOf(r: DebtReturnInput): number {
 }
 
 /**
- * نشست ۶۰ · بند ۴-۵ — سهم کاهش بدهی یک تعویض (برای برگشت ساده همیشه ۰).
- * هرگز بیشتر از مابه‌التفاوت منفی نیست (داده‌ی خراب بی‌صدا عدد نمی‌سازد).
+ * نشست ۶۰ · R1-B01 — سهم کاهش بدهی یک تعویض (برای برگشت ساده همیشه ۰).
+ * با دادهٔ خام، سقف آن max(0,total−exchangeTotal) است؛ برای ردیف قدیمیِ فاقد
+ * exchangeTotal از اختلاف ثبت‌شده استفاده می‌شود.
  */
-export function exchangeDebtReductionOf(r: { kind?: string | null; exchangeDiff?: number | null; debtReduction?: number | null }): number {
+export function exchangeDebtReductionOf(r: {
+  kind?: string | null
+  total?: number | null
+  exchangeTotal?: number | null
+  exchangeDiff?: number | null
+  debtReduction?: number | null
+}): number {
   if (isSimpleReturn(r)) return 0
-  const owed = Math.max(0, -r0(r.exchangeDiff))
-  const cut = Math.max(0, r0(r.debtReduction))
-  return r.exchangeDiff == null ? cut : Math.min(owed, cut)
+  // exchangeDiff is the effective settlement difference and may already be
+  // zero after debt/source-credit funding. Cap against the raw N−R instead.
+  const rawOwed = r.total != null && r.exchangeTotal != null
+    ? Math.max(0, r0(r.total) - r0(r.exchangeTotal))
+    : r.exchangeDiff == null ? Math.max(0, r0(r.debtReduction)) : Math.max(0, -r0(r.exchangeDiff))
+  return Math.min(rawOwed, Math.max(0, r0(r.debtReduction)))
 }
 
 /**
@@ -105,7 +121,10 @@ export function debtAdjustmentsOf(returns: DebtReturnInput[] = []): DebtAdjustme
       continue
     }
     returnedValue += Math.max(0, r0(r.total))
-    refundFromReceived += refundFromReceivedOf(r)
+    // A returned replacement item can cancel synthetic EXCHANGE_CREDIT on its
+    // child invoice without paying the customer. Keep that cancellation in the
+    // invoice-wide settlement equation, separate from a cash/barcode payout.
+    refundFromReceived += refundFromReceivedOf(r) + Math.max(0, r0(r.exchangeCreditReversed))
   }
   return { returnedValue, refundFromReceived }
 }

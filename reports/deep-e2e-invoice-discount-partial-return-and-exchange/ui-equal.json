@@ -1,0 +1,9 @@
+{
+  "case": "UI-EQUAL",
+  "isolatedDatabase": "/tmp/mahak-invoice-discount-return-exchange-ui-equal-rdZyWl/isolated.db",
+  "status": "FAIL",
+  "failure": {
+    "message": "Expected values to be strictly equal:\n\n0 !== 1000000\n",
+    "stack": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n0 !== 1000000\n\n    at file:///home/user/MAHAK-KLAD/tests/audit-fixes/deep-e2e-invoice-discount-partial-return-and-exchange.mjs:69:11"
+  }
+}

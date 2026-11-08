@@ -1,0 +1,476 @@
+{
+  "generatedAt": "2026-10-27T19:00:27.118Z",
+  "campaign": "Discount Policy 80",
+  "scenario": "D80-S12",
+  "case": "single-use-pos",
+  "returnMode": "NONE",
+  "fixture": {
+    "discountLabel": "fixed invoice discount 12,500",
+    "discountKind": "FIXED_RIAL",
+    "lines": [
+      {
+        "unitPrice": 200000,
+        "qty": 1,
+        "discount": 0
+      }
+    ],
+    "invoiceDiscount": 12500
+  },
+  "saleTenders": [
+    "POS"
+  ],
+  "isolatedDatabase": "/tmp/mahak-d80-s12-UqiRbY/isolated.db",
+  "status": "POLICY_MISMATCH",
+  "creditIssue": [
+    {
+      "id": 1,
+      "code": "CR2RMXJV",
+      "amount": 40000,
+      "multiUse": false,
+      "carryRemainder": true,
+      "usedAmount": 0,
+      "usedCount": 0,
+      "status": "ACTIVE",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL"
+    }
+  ],
+  "sales": [
+    {
+      "id": 1,
+      "invoiceIndex": 1,
+      "gross": 200000,
+      "lineDiscount": 0,
+      "invoiceDiscount": 12500,
+      "totalDiscount": 12500,
+      "net": 187500,
+      "paid": 187500,
+      "storeCreditRequested": 40000,
+      "storeCreditApplied": 40000,
+      "cashTender": 0,
+      "posTender": 147500,
+      "tender": "POS",
+      "settled": true,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "gross": 200000,
+          "lineDiscount": 0,
+          "netShare": 187500
+        }
+      ]
+    }
+  ],
+  "redemptions": [
+    {
+      "id": 1,
+      "creditId": 1,
+      "invoiceId": 1,
+      "amount": 40000,
+      "reversedAt": null
+    }
+  ],
+  "returns": [
+    {
+      "id": 1,
+      "invoiceId": 1,
+      "expectedNet": 187500,
+      "actualNet": 187500,
+      "expectedSourceCreditReturn": 40000,
+      "expectedMoneyBackedRight": 147500,
+      "refundMethod": "NONE",
+      "refundAmount": 0,
+      "refundStoreCreditAmount": 0,
+      "sourceCreditReturned": 40000,
+      "sourceCreditRestoredAmount": 40000,
+      "sourceCreditSuccessors": [
+        {
+          "id": 2,
+          "amount": 40000,
+          "status": "ACTIVE",
+          "expiresAt": null
+        }
+      ],
+      "creditReturnAllocations": [
+        {
+          "id": 1,
+          "redemptionId": 1,
+          "sourceCreditId": 1,
+          "amount": 40000,
+          "creditRestored": true
+        }
+      ],
+      "createdCredits": [
+        {
+          "id": 2,
+          "code": "CRQKE3NT",
+          "amount": 40000,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "source": "MANUAL",
+          "returnId": 1,
+          "delivery": {
+            "id": 1,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793127627391,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        },
+        {
+          "id": 3,
+          "code": "EJ9KU9",
+          "amount": 107500,
+          "usedAmount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null,
+          "source": "OVERPAY",
+          "returnId": 1,
+          "delivery": {
+            "id": 2,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793127627404,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        }
+      ],
+      "noMethodCreditExpected": 147500,
+      "overpayCreditAmount": 107500,
+      "customerValue": 147500,
+      "items": [
+        {
+          "saleItemId": 1,
+          "qty": 1,
+          "unitPrice": 200000,
+          "lineTotal": 187500,
+          "restockedQty": 1
+        }
+      ]
+    }
+  ],
+  "sourceCreditSuccessors": [
+    {
+      "id": 2,
+      "amount": 40000,
+      "status": "ACTIVE",
+      "expiresAt": null
+    }
+  ],
+  "managerTransfers": [],
+  "checkpoints": [
+    {
+      "label": "fresh isolated DB",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stocks": [],
+      "credits": [],
+      "counts": {
+        "invoices": 0,
+        "returns": 0,
+        "payments": 0,
+        "credits": 0,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "all test-only ALL barcodes issued",
+      "expected": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stocks": [],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CR2RMXJV",
+          "amount": 40000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        }
+      ],
+      "counts": {
+        "invoices": 0,
+        "returns": 0,
+        "payments": 0,
+        "credits": 1,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "invoice 1 sold, barcode redemption + cash/POS reconciled",
+      "expected": {
+        "cash": 0,
+        "card": 147500,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 147500
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 147500,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 147500,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 147500,
+      "stocks": [
+        {
+          "variantId": 1,
+          "label": "inv1-item1",
+          "expected": 19,
+          "actual": 19,
+          "ledger": -1
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CR2RMXJV",
+          "amount": 40000,
+          "usedAmount": 40000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        }
+      ],
+      "counts": {
+        "invoices": 1,
+        "returns": 0,
+        "payments": 2,
+        "credits": 1,
+        "deliveries": 0,
+        "checks": 0
+      }
+    },
+    {
+      "label": "official return NONE, expected net 187500, source credits and stock reconciled",
+      "expected": {
+        "cash": 0,
+        "card": 147500,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 147500
+      },
+      "actualService": {
+        "cash": 0,
+        "card": 147500,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "actualRaw": {
+        "cash": 0,
+        "card": 147500,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 147500,
+      "stocks": [
+        {
+          "variantId": 1,
+          "label": "inv1-item1",
+          "expected": 20,
+          "actual": 20,
+          "ledger": 0
+        }
+      ],
+      "credits": [
+        {
+          "id": 1,
+          "code": "CR2RMXJV",
+          "amount": 40000,
+          "usedAmount": 40000,
+          "usedCount": 1,
+          "status": "USED",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": null,
+          "exchangeInvoiceId": null,
+          "delivery": null
+        },
+        {
+          "id": 2,
+          "code": "CRQKE3NT",
+          "amount": 40000,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": 1795724999999,
+          "restrictScope": "ALL",
+          "source": "MANUAL",
+          "returnId": 1,
+          "exchangeInvoiceId": null,
+          "delivery": {
+            "id": 1,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793127627391,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        },
+        {
+          "id": 3,
+          "code": "EJ9KU9",
+          "amount": 107500,
+          "usedAmount": 0,
+          "usedCount": 0,
+          "status": "ACTIVE",
+          "expiresAt": null,
+          "restrictScope": "ALL",
+          "source": "OVERPAY",
+          "returnId": 1,
+          "exchangeInvoiceId": null,
+          "delivery": {
+            "id": 2,
+            "status": "PENDING",
+            "handoffType": "CUSTOMER",
+            "createdAt": 1793127627404,
+            "deliveredAt": null,
+            "userId": null,
+            "note": null,
+            "policyVersion": 1
+          }
+        }
+      ],
+      "counts": {
+        "invoices": 1,
+        "returns": 1,
+        "payments": 2,
+        "credits": 3,
+        "deliveries": 2,
+        "checks": 0
+      }
+    }
+  ],
+  "findings": [
+    {
+      "kind": "return-entitlement-shortfall",
+      "expectedNet": 187500,
+      "actualCustomerValue": 147500,
+      "shortfall": 40000,
+      "sourceCreditReturned": 40000,
+      "realMoneyRefund": 0,
+      "newMoneyBackedCredit": 107500,
+      "refundMode": "NONE",
+      "explanation": "The returned discounted value was not fully restored as original credit, real-money refund, or the policy-approved no-expiry credit for the money-backed share.",
+      "ownerDisposition": "EXPECTED_NOT_A_MISMATCH_PER_OWNER_CLARIFICATION"
+    }
+  ],
+  "operationOutcome": "RETURN_VALUE_NOT_FULLY_RECONCILED",
+  "finalCreditState": [
+    {
+      "id": 1,
+      "code": "CR2RMXJV",
+      "amount": 40000,
+      "usedAmount": 40000,
+      "usedCount": 1,
+      "status": "USED",
+      "expiresAt": 1795724999999,
+      "restrictScope": "ALL",
+      "source": "MANUAL",
+      "delivery": null
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 0,
+      "card": 147500,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 147500
+    },
+    "actual": {
+      "cash": 0,
+      "card": 147500,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 147500,
+    "stocks": [
+      {
+        "variantId": 1,
+        "label": "inv1-item1",
+        "expected": 20,
+        "actual": 20,
+        "ledger": 0
+      }
+    ],
+    "invoiceCount": 1,
+    "returnCount": 1,
+    "paymentCount": 2,
+    "creditCount": 3,
+    "deliveryCount": 2,
+    "checkCount": 0
+  },
+  "ownerReview": {
+    "disposition": "EXPECTED_NOT_A_MISMATCH",
+    "basis": "The owner clarified that leaving the refund method unselected is not itself considered a discrepancy; the observed NONE outcome is retained as evidence but excluded from mismatch counts."
+  }
+}

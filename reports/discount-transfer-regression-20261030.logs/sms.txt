@@ -1,0 +1,9 @@
+FAIL tests/sms/credit-reminder-quota.mjs (exit 1)
+PASS tests/sms/sms-auto.mjs
+PASS tests/sms/sms-campaign.mjs
+PASS tests/sms/sms-line-purpose.mjs
+PASS tests/sms/sms-logic.mjs
+PASS tests/sms/sms-providers.mjs
+PASS tests/sms/sms-queue.mjs
+PASS tests/sms/sms-sale-thankyou.mjs
+FAIL tests/sms/sms-wiring.mjs (exit 1)

@@ -1,0 +1,320 @@
+{
+  "generatedAt": "2026-10-28T18:26:31.809Z",
+  "id": 170,
+  "scenario": "N170",
+  "isolatedDatabase": "/tmp/mahak-followup-170-yG0iJw/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 50000,
+      "cash": 50000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 50000,
+          "lineTotal": 50000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 50000
+      },
+      "actual": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 50000,
+      "stock": [
+        {
+          "name": "return-credit-source-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        },
+        {
+          "name": "return-credit-redemption-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 50000,
+          "paid": 50000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 50000,
+      "method": "STORE_CREDIT",
+      "refundAmount": 50000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 50000
+      },
+      "actual": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 50000,
+      "stock": [
+        {
+          "name": "return-credit-source-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "return-credit-redemption-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 50000,
+          "paid": 50000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 2,
+      "total": 50000,
+      "cash": 0,
+      "card": 0,
+      "creditApplied": 50000,
+      "items": [
+        {
+          "id": 2,
+          "variantId": 2,
+          "qty": 1,
+          "unitPrice": 50000,
+          "lineTotal": 50000
+        }
+      ]
+    },
+    {
+      "label": "sale 2",
+      "expected": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 50000
+      },
+      "actual": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 50000,
+      "stock": [
+        {
+          "name": "return-credit-source-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "return-credit-redemption-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 50000,
+          "paid": 50000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 50000,
+          "paid": 50000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "void-spent-return-credit-rejected",
+      "returnId": 1,
+      "creditId": 1,
+      "error": "ابطال سند برگشت ۱ ممکن نیست: اعتبار خرید #1 که از همین برگشت صادر شده، ۵۰٬۰۰۰ ریال مصرف شده است (مصرف اعتبار قابل برگرداندن نیست).\nابطال سند، اعتبار خرج‌شده را بی‌پشتوانه می‌گذاشت. موضوع برای رسیدگی مدیر ثبت شد.",
+      "mutationFree": true
+    },
+    {
+      "label": "final N170 reconciliation",
+      "expected": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 50000
+      },
+      "actual": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 50000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 50000,
+      "stock": [
+        {
+          "name": "return-credit-source-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        },
+        {
+          "name": "return-credit-redemption-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 50000,
+          "paid": 50000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        },
+        {
+          "id": 2,
+          "total": 50000,
+          "paid": 50000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "assertions": [
+    {
+      "key": "void-of-return-with-spent-credit-rejected-without-mutation",
+      "pass": true,
+      "creditStatus": "USED",
+      "mutationFree": true
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 50000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0,
+      "blue": 50000
+    },
+    "actual": {
+      "cash": 50000,
+      "card": 0,
+      "refundCash": 0,
+      "refundCard": 0
+    },
+    "blue": 50000,
+    "stock": [
+      {
+        "name": "return-credit-source-item",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      },
+      {
+        "name": "return-credit-redemption-item",
+        "expected": 9,
+        "actual": 9,
+        "ledger": -1
+      }
+    ],
+    "invoices": 2,
+    "returns": 1,
+    "credits": 1,
+    "checks": 0
+  }
+}

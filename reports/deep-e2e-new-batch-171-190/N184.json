@@ -1,0 +1,211 @@
+{
+  "generatedAt": "2026-10-28T18:33:44.182Z",
+  "id": 184,
+  "scenario": "N184",
+  "isolatedDatabase": "/tmp/mahak-next20-184-EMDU9a/isolated.db",
+  "codeTarget": "current local working tree at execution time",
+  "status": "PASS",
+  "events": [
+    {
+      "operation": "fully-settled-sale",
+      "invoiceId": 1,
+      "total": 35000,
+      "cash": 35000,
+      "card": 0,
+      "creditApplied": 0,
+      "items": [
+        {
+          "id": 1,
+          "variantId": 1,
+          "qty": 1,
+          "unitPrice": 35000,
+          "lineTotal": 35000
+        }
+      ]
+    },
+    {
+      "label": "sale 1",
+      "expected": {
+        "cash": 35000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0,
+        "blue": 35000
+      },
+      "actual": {
+        "cash": 35000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 35000,
+        "card": 0,
+        "refundCash": 0,
+        "refundCard": 0
+      },
+      "blue": 35000,
+      "stock": [
+        {
+          "name": "method-unselected-return-item",
+          "expected": 9,
+          "actual": 9,
+          "ledger": -1
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 35000,
+          "paid": 35000,
+          "status": "SETTLED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 0,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "operation": "unselected-refund-method-blocked",
+      "error": "با این برگشت، ۳۵٬۰۰۰ ریال اضافه‌دریافت روی فاکتور ۱ ساخته می‌شود (پول دریافت‌شده ۳۵٬۰۰۰ ریال از مانده‌ی کالا ۰ ریال بیشتر می‌ماند).\\nاگر آگاهانه می‌خواهید همین مبلغ کامل ثبت شود، «بله ثبت کن» را بزنید؛ مبلغ اضافه به‌صورت جدا (ردیف «دریافت پول اضافه») در گزارش فاکتور نمایش داده می‌شود، یا می‌توانید از آن کد اعتبار خرید صادر کنید.",
+      "mutationFree": true
+    },
+    {
+      "operation": "return",
+      "id": 1,
+      "invoiceId": 1,
+      "itemId": 1,
+      "qty": 1,
+      "total": 35000,
+      "method": "CASH",
+      "refundAmount": 35000,
+      "returnCreditAmount": 0
+    },
+    {
+      "label": "return 1",
+      "expected": {
+        "cash": 35000,
+        "card": 0,
+        "refundCash": 35000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 35000,
+        "card": 0,
+        "refundCash": 35000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 35000,
+        "card": 0,
+        "refundCash": 35000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "method-unselected-return-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 35000,
+          "paid": 35000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    },
+    {
+      "label": "final N184 reconciliation",
+      "expected": {
+        "cash": 35000,
+        "card": 0,
+        "refundCash": 35000,
+        "refundCard": 0,
+        "blue": 0
+      },
+      "actual": {
+        "cash": 35000,
+        "card": 0,
+        "refundCash": 35000,
+        "refundCard": 0
+      },
+      "raw": {
+        "cash": 35000,
+        "card": 0,
+        "refundCash": 35000,
+        "refundCard": 0
+      },
+      "blue": 0,
+      "stock": [
+        {
+          "name": "method-unselected-return-item",
+          "expected": 10,
+          "actual": 10,
+          "ledger": 0
+        }
+      ],
+      "invoices": [
+        {
+          "id": 1,
+          "total": 35000,
+          "paid": 35000,
+          "status": "RETURNED",
+          "settled": true,
+          "parent": null
+        }
+      ],
+      "returns": 1,
+      "checks": 0,
+      "creditStates": []
+    }
+  ],
+  "assertions": [
+    {
+      "key": "method-choice-required-then-cash-return-succeeds",
+      "pass": true,
+      "blockedWithoutMutation": true,
+      "amount": 35000
+    }
+  ],
+  "final": {
+    "expected": {
+      "cash": 35000,
+      "card": 0,
+      "refundCash": 35000,
+      "refundCard": 0,
+      "blue": 0
+    },
+    "actual": {
+      "cash": 35000,
+      "card": 0,
+      "refundCash": 35000,
+      "refundCard": 0
+    },
+    "blue": 0,
+    "stock": [
+      {
+        "name": "method-unselected-return-item",
+        "expected": 10,
+        "actual": 10,
+        "ledger": 0
+      }
+    ],
+    "invoices": 1,
+    "returns": 1,
+    "credits": 0,
+    "checks": 0
+  }
+}

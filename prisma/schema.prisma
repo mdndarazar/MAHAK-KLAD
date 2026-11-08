@@ -562,6 +562,11 @@ model SaleInvoice {
 
   note String?
 
+  /// POS request idempotency: one successful logical checkout maps to one invoice.
+  /// Nullable for legacy/imported invoices; unique when supplied by the POS.
+  saleRequestKey         String? @unique
+  saleRequestFingerprint String?
+
   items    SaleInvoiceItem[]
   payments Payment[]
   returns  SaleReturn[]
@@ -766,6 +771,16 @@ model SaleReturn {
   /// ساعت دقیق ثبت برگشت (HH:mm:ss) — گزارش تعویض «دقیق به ثانیه» می‌خواهد
   returnedAtTime   String      @default("")
 
+  /// Stable request-level idempotency for the entire exchange graph. Kept
+  /// separate from ExchangeSaleInput.idempotencyKey, which protects barcode redemption only.
+  exchangeRequestKey         String? @unique
+  exchangeRequestFingerprint String?
+  exchangeRequestResultJson  String?
+  /// Historical discount transfer policy selected and committed for this exchange.
+  discountTransferOption     String?
+  discountTransferAmount    BigInt   @default(0)
+  discountTransferRefundValue BigInt  @default(0)
+
   /// ------------------------ تعویض کالا (بخش ۶) ------------------------
   /// RETURN (پیش‌فرض، همه‌ی برگشت‌های قبلی) = برگشت ساده
   /// EXCHANGE = تعویض کالا: همین برگشت + یک «سند تعویض» با اقلام جایگزین
@@ -794,12 +809,19 @@ model SaleReturn {
   /// روش بازپرداخت؛ برای برگشت‌های قدیمی تهی می‌ماند تا فرض تاریخی جعل نشود.
   refundMethod       String?
   refundAmount       BigInt    @default(0)
+  /// Exchange split refund: the part issued as a new unrestricted store-credit barcode.
+  /// `refundAmount` remains the actual cash/card/C2C component; accounting caps sum both.
+  refundStoreCreditAmount BigInt @default(0)
   refundPaymentId    Int?
   /// نشست ۶۰ · خوشه B (بند ۴-۵) — فقط برای تعویض (kind = EXCHANGE): بخشی از
   /// مابه‌التفاوت منفی که به‌جای پرداخت پول، از بدهی فاکتور اصلی کم شد.
-  /// همیشه ≤ −exchangeDiff؛ بخش بازپرداخت‌شده = −exchangeDiff − debtReduction.
+  /// سقف آن اختلاف خام U=max(0,total−exchangeTotal) است، نه exchangeDiff؛ چون
+  /// exchangeDiff اختلاف مؤثر پس از funding است. کاهش بدهی جابه‌جایی وجه نیست.
   /// پیش‌فرض ۰ ⇒ همه‌ی تعویض‌های قبلی دقیقاً مثل قبل.
   debtReduction      BigInt    @default(0)
+  /// Invoice-level value of synthetic EXCHANGE_CREDIT reversed by a return on this child invoice.
+  /// null means a legacy row predating pooled return accounting; 0 is an explicit new-policy result.
+  exchangeCreditReversed BigInt?
   /// نشست ۶۴ · بند ۴-۲۲ — «حذف» برگشت = ابطال با مهر کی/کِی/چرا؛ سند و اقلامش
   /// به‌عنوان مدرک می‌مانند ولی از همه‌ی محاسبه‌ها (بدهی، سقف برگشت، گزارش، پل)
   /// بیرون می‌روند. null = فعال.
@@ -843,6 +865,61 @@ model SaleReturn {
   /// جلسه ۴۰ · کار ب — کوئری «معلق‌های برگشتی» فقط همین ستون را فیلتر می‌کند
   @@index([voidedAt])
   @@index([restockPending])
+}
+
+/// Append-only provenance ledger for historical discount windows consumed by
+/// committed exchanges. TRANSFER rows map value to child invoice items; EXPIRE
+/// closes unused value on successful exchange; VOID is evidence only and never
+/// makes a source window available again. Rows intentionally have scalar IDs so
+/// later cleanup/variant purge cannot erase financial history.
+model DiscountTransferEvent {
+  id                 Int      @id @default(autoincrement())
+  eventKey           String   @unique
+  eventType          String   // TRANSFER | EXPIRE | VOID
+  sourceInvoiceId    Int
+  sourceSaleItemId   Int
+  sourceReturnId     Int
+  sourceReturnItemId Int
+  sourceQtyStart     Int
+  sourceQtyEnd       Int
+  childInvoiceId     Int?
+  childSaleItemId    Int?
+  option             String   // NO | YES | YES_ZERO
+  amount             BigInt   @default(0)
+  windowDiscount     BigInt   @default(0)
+  provenanceJson     String   @default("{}")
+  userId             Int?
+  createdAt          DateTime @default(now())
+
+  @@index([sourceSaleItemId, sourceQtyStart, sourceQtyEnd])
+  @@index([sourceReturnId])
+  @@index([childInvoiceId, childSaleItemId])
+}
+
+/// Immutable source shares restored by the global pooled-credit return policy.
+/// ALL-scope shares have saleItemId=NULL. Direct returns of manager-restricted
+/// credit are tied to an eligible returned item. A restricted source transferred
+/// into a replacement exchange invoice is pooled there (no explicit item pairing
+/// exists), so its return share also has saleItemId=NULL; restrictScope still
+/// snapshots the original source-code rule and the successor keeps that rule.
+model CreditReturnAllocation {
+  id             Int      @id @default(autoincrement())
+  eventKey       String   @unique
+  invoiceId      Int
+  returnId       Int
+  redemptionId   Int
+  sourceCreditId Int
+  amount         BigInt
+  creditRestored Boolean  @default(true)
+  settlementAdjusted Boolean @default(true)
+  restrictScope  String   @default("ALL")
+  saleItemId     Int?
+  policyVersion  Int      @default(1)
+  createdAt      DateTime @default(now())
+
+  @@index([invoiceId, redemptionId])
+  @@index([returnId])
+  @@index([sourceCreditId])
 }
 
 model SaleReturnItem {
@@ -1247,6 +1324,23 @@ model StoreCredit {
 /// همه‌ی کلیدها عمداً scalar اند (همان اصل CardTransferRequest و SecondaryStockLog):
 /// حذف همیشگی یک فاکتور یا کاربر نباید سابقه‌ی مالی را بشکند.
 /// ===========================================================================
+/// Exactly-once audit state for handing a return/exchange barcode to the customer.
+/// Printing alone never changes StoreCredit.status; only an explicit handoff
+/// confirmation may promote a linked DRAFT credit to ACTIVE.
+model StoreCreditDelivery {
+  id             Int      @id @default(autoincrement())
+  creditId       Int      @unique
+  status         String   @default("PENDING")
+  handoffType    String   @default("CUSTOMER")
+  createdAt      DateTime @default(now())
+  deliveredAt    DateTime?
+  userId         Int?
+  note           String?
+  policyVersion  Int      @default(1)
+
+  @@index([status, createdAt])
+}
+
 model StoreCreditRedemption {
   id             Int    @id @default(autoincrement())
   creditId       Int

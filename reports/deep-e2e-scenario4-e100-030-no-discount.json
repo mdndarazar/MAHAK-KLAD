@@ -1,0 +1,249 @@
+{
+  "generatedAt": "2026-10-27T15:34:51.513Z",
+  "isolatedDatabase": "/tmp/mahak-e100-030-no-discount-vVSrXi/isolated.db",
+  "verdict": "C+D_BLOCKED_AS_EXPECTED",
+  "checks": {
+    "invoiceIs1mWithZeroDiscountAnd700kCash": true,
+    "returnAUsesGross200kAndRestores200k": true,
+    "exchangeBIsPlus20kAndActuallyCollected": true,
+    "exchangeBHasNoSourceCreditSurplusAllocation": true,
+    "CDIsMinus20kAndRefundPathFailsAtSourceGate": true,
+    "rejectedCDAttemptLeavesLedgerAndStockUnchanged": true,
+    "noChecksOrDebt": true
+  },
+  "case": "E100-030 (fourth item in the 13-stop sequence; index 30)",
+  "fixture": {
+    "grossGoods": 1000000,
+    "invoiceDiscount": 0,
+    "netInvoice": 1000000,
+    "creditTender": 300000,
+    "cashTender": 700000,
+    "barcodeCount": 6,
+    "eachRedeemed": 50000,
+    "scope": "ALL"
+  },
+  "operations": {
+    "returnA": {
+      "id": 1,
+      "total": 200000,
+      "sourceCreditRestored": 200000,
+      "cashRefund": 0,
+      "returnLines": [
+        {
+          "saleItemId": 1,
+          "lineTotal": 200000
+        }
+      ],
+      "creditAllocations": [
+        {
+          "redemptionId": 1,
+          "sourceCreditId": 5,
+          "amount": 50000,
+          "creditRestored": true
+        },
+        {
+          "redemptionId": 2,
+          "sourceCreditId": 1,
+          "amount": 50000,
+          "creditRestored": true
+        },
+        {
+          "redemptionId": 3,
+          "sourceCreditId": 2,
+          "amount": 50000,
+          "creditRestored": true
+        },
+        {
+          "redemptionId": 4,
+          "sourceCreditId": 6,
+          "amount": 50000,
+          "creditRestored": true
+        }
+      ]
+    },
+    "exchangeB": {
+      "returnId": 2,
+      "exchangeInvoiceId": 2,
+      "returnTotal": 200000,
+      "replacementTotal": 220000,
+      "diff": 20000,
+      "cashReceived": 0,
+      "cardReceived": 20000,
+      "returnRecord": {
+        "id": 2,
+        "total": 200000,
+        "kind": "EXCHANGE",
+        "exchangeDiff": 20000,
+        "exchangeSettlement": "CASH"
+      },
+      "returnLines": [
+        {
+          "saleItemId": 2,
+          "lineTotal": 200000
+        }
+      ],
+      "creditAllocations": []
+    }
+  },
+  "attemptedCD": {
+    "returnValue": 600000,
+    "replacementValue": 580000,
+    "diff": -20000,
+    "refundMode": "CASH",
+    "accepted": false,
+    "error": "برگشت قبلی #2 تخصیص منشأ اعتبار ندارد؛ هیچ تعویضی ثبت نشد تا منبع مالی با حدس جابه‌جا نشود.",
+    "expectedError": "برگشت قبلی #2 تخصیص منشأ اعتبار ندارد",
+    "mutationFree": true,
+    "ledgerBefore": {
+      "invoiceCount": 2,
+      "returnCount": 2,
+      "paymentCount": 9,
+      "allocationCount": 4,
+      "stock": [
+        [
+          "A-root-200k",
+          10
+        ],
+        [
+          "B-root-200k",
+          10
+        ],
+        [
+          "C-root-300k",
+          9
+        ],
+        [
+          "D-root-300k",
+          9
+        ],
+        [
+          "B1-220k",
+          9
+        ],
+        [
+          "C1-290k",
+          10
+        ],
+        [
+          "D1-290k",
+          10
+        ]
+      ],
+      "credits": [
+        [
+          1,
+          0,
+          "ACTIVE"
+        ],
+        [
+          2,
+          0,
+          "ACTIVE"
+        ],
+        [
+          3,
+          50000,
+          "PARTIALLY_USED"
+        ],
+        [
+          4,
+          50000,
+          "PARTIALLY_USED"
+        ],
+        [
+          5,
+          0,
+          "ACTIVE"
+        ],
+        [
+          6,
+          0,
+          "ACTIVE"
+        ]
+      ]
+    },
+    "ledgerAfter": {
+      "invoiceCount": 2,
+      "returnCount": 2,
+      "paymentCount": 9,
+      "allocationCount": 4,
+      "stock": [
+        [
+          "A-root-200k",
+          10
+        ],
+        [
+          "B-root-200k",
+          10
+        ],
+        [
+          "C-root-300k",
+          9
+        ],
+        [
+          "D-root-300k",
+          9
+        ],
+        [
+          "B1-220k",
+          9
+        ],
+        [
+          "C1-290k",
+          10
+        ],
+        [
+          "D1-290k",
+          10
+        ]
+      ],
+      "credits": [
+        [
+          1,
+          0,
+          "ACTIVE"
+        ],
+        [
+          2,
+          0,
+          "ACTIVE"
+        ],
+        [
+          3,
+          50000,
+          "PARTIALLY_USED"
+        ],
+        [
+          4,
+          50000,
+          "PARTIALLY_USED"
+        ],
+        [
+          5,
+          0,
+          "ACTIVE"
+        ],
+        [
+          6,
+          0,
+          "ACTIVE"
+        ]
+      ]
+    }
+  },
+  "rootCause": {
+    "directGuard": "exchangeReturnFundingBuckets rejects a prior return when fundedReturn > creditRemoved, a CREDIT bucket remains, and that prior return has zero CreditReturnAllocation rows.",
+    "positiveBWritePath": "B->B1 has diff +20,000. SalesService.ts:7429 enters diff>0. That path records generic EXCHANGE_CREDIT for 200,000 and cash for 20,000, but does not persist the per-redemption allocation of B's 200,000 returned funding; in this fixture its 20,000 positive difference is paid by POS.",
+    "laterNegativeCDReadPath": "C+D has diff -20,000. SalesService.ts:7540 enters diff<0 and SalesService.ts:7585 calls exchangeReturnFundingBuckets. At lines 1816-1840 the prior B return is evaluated: fundedReturn=200,000, creditRemoved=0, remaining source credits exist, allocation rows=0, so the safe guard throws.",
+    "allocationWritePath": "The exchange-side CreditReturnAllocation.create at SalesService.ts:7701-7720 is inside the negative-difference refund branch and writes only backed CREDIT surplus after replacement consumption; the positive B exchange never enters it.",
+    "visitVsDocument": "The query considers earlier return documents by id, not elapsed time or customer visit. Separate B and C+D documents can therefore hit the guard even in one visit. A single consolidated exchange has no prior B return and avoids this specific condition."
+  },
+  "conclusion": "With no invoice discount, C+D has return value 600,000 and replacements 580,000, so the store owes 20,000. The exact root cause is a provenance-write/read mismatch: the positive B exchange records only generic exchange-credit tender, not per-redemption CreditReturnAllocation; the later negative C+D branch requires that allocation to safely reconstruct prior funding. The missing record is refused by a protective guard, and the attempted exchange rolls back mutation-free. The invoice discount does not fix this gap; it flips C+D to +40,000, taking the positive collection branch that does not invoke the guard.",
+  "safety": {
+    "isolatedDatabase": true,
+    "productionCodeChanged": false,
+    "liveDatabase": false,
+    "checksOrDebt": false,
+    "realMoneyMoved": false
+  }
+}
