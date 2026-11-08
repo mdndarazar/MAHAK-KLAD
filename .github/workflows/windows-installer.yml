@@ -97,7 +97,11 @@ jobs:
             'tests/audit-fixes/fix-exchange-child-restricted-credit-pooling.mjs',
             'tests/audit-fixes/fix-s340-returns-tabs-characterization.mjs',
             'tests/audit-fixes/deep-e2e-refund-decision-state-machine.mjs',
-            'tests/audit-fixes/deep-e2e-followup-scenario13-no-method-auto-credit-and-independent-limit-gates.mjs'
+            'tests/audit-fixes/deep-e2e-followup-scenario13-no-method-auto-credit-and-independent-limit-gates.mjs',
+            'tests/audit-fixes/fix-s318-1-bridge-diag-annotate.mjs',
+            'tests/audit-fixes/fix-s318-2-bridge-diag-service.mjs',
+            'tests/audit-fixes/fix-s319-4-bridge-suspects.mjs',
+            'tests/audit-fixes/fix-s396-custody-aggregate-final-rollback.mjs'
           )
           foreach ($test in $tests) {
             Write-Host "Running $test"

@@ -3553,6 +3553,7 @@ export interface BridgeDiagFlag {
     | 'largest'            // جزو بزرگ‌ترین ردیف‌های غیرصفر — پیشنهاد نقطه‌ی شروع
     | 'equals-unexplained' // مبلغ ردیف دقیقاً برابر |باقیمانده‌ی بی‌توضیح| است
     | 'date'               // تاریخ سند بیرون از بازه است / تاریخی ثبت نشده
+    | 'note'               // نشانِ متن آموزشیِ پل
   text: string
   certainty: 'TENTATIVE'
 }

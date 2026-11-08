@@ -1,4 +1,5 @@
 import { AuditAction, StoreCreditStatus } from '@shared/enums'
+import type { Prisma } from '@prisma/client'
 import { isExpiredAt, parseIdList } from '@shared/credit'
 import { BusinessError } from '../errors'
 import { toNumberRial } from '@shared/money'
@@ -13,16 +14,7 @@ import {
   type ReturnCreditSource
 } from '@shared/returnCreditPolicy'
 
-type CreditReturnTx = {
-  storeCreditRedemption: any
-  storeCredit: any
-  storeCreditLineage: any
-  creditReturnAllocation: any
-  productVariant: any
-  category: any
-  saleReturn: any
-  auditLog: any
-}
+type CreditReturnTx = Prisma.TransactionClient
 
 export type PlannedCreditReturn = {
   plan: ReturnCreditPlan
