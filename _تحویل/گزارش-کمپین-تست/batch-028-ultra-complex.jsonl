@@ -1,0 +1,44 @@
+{"id":"UA-start","kind":"ultra-day-start","note":"آغاز روز: موجودی اول 500,000","openingFloat":500000}
+{"id":"UA-00","kind":"agg-zero","grandTotal":0,"paidTotal":0,"paySum":0,"blue":0,"mgr":0,"neg":0,"overpay":0,"remaining":0,"returns":0,"creditsCount":0,"creditsTotal":0,"stocks":[{"id":1,"stock":50},{"id":2,"stock":50},{"id":3,"stock":50},{"id":4,"stock":50},{"id":5,"stock":30},{"id":6,"stock":40},{"id":7,"stock":60}]}
+{"id":"UA-01","kind":"sale-cash","receipt":1,"grand":200000,"paid":200000,"remaining":0,"expectedGrand":200000,"expectedRem":0,"stockA1":48,"expectedStock":48,"ok":true,"blue":200000,"expectedBlue":200000}
+{"id":"UA-02","kind":"sale-card","receipt":2,"grand":350000,"paid":350000,"remaining":0,"expectedGrand":350000,"ok":true,"blue":550000,"expectedBlue":550000}
+{"id":"UA-03","kind":"sale-credit","receipt":3,"grand":300000,"remaining":300000,"expectedRem":300000,"blue":550000,"expectedBlue":550000,"ok":true}
+{"id":"UA-04","kind":"sale-split","receipt":4,"grand":230000,"paid":230000,"remaining":0,"expectedGrand":230000,"ok":true,"blue":780000,"expectedBlue":780000}
+{"id":"UA-05","kind":"sale-cheque-pending","receipt":5,"chequeId":5,"chequeStatus":"PENDING","remaining":100000,"expectedRem":100000,"blue":780000,"expectedBlue":780000,"ok":true}
+{"id":"UA-06","kind":"return-cash","invoice":1,"refundAmount":100000,"expected":100000,"ok":true,"stockA1":48,"expectedStock":48,"blue":780000,"note":"برگشت نقدی از پول واقعی کم نمی‌شود؟ در فرمول expectedCash کم می‌شود"}
+{"id":"UA-07","kind":"return-card","invoice":2,"refundAmount":200000,"expected":200000,"ok":true,"stockA2":50,"expectedStock":50,"blue":780000}
+{"id":"UA-08","kind":"exchange-positive","orig":4,"newInvoice":6,"diff":70000,"expectedDiff":70000,"stockA5":30,"stockA8":49,"blue":850000,"ok":true}
+{"id":"UA-09","kind":"exchange-positive-2","orig":1,"newInvoice":7,"diff":50000,"expectedDiff":50000,"blue":900000,"ok":true}
+{"id":"UA-10","kind":"sale-with-credit","receipt":9,"grand":80000,"paid":80000,"remaining":0,"expectedRemaining":0,"creditUsed":50000,"expectedUsed":50000,"blue":980000,"ok":true}
+{"id":"UA-11","kind":"cheque-cleared-cash","chequeId":5,"clearedAt":false,"remaining":0,"expectedRem":0,"blue":980000,"expectedBlueInc":100000,"ok":true}
+{"id":"UA-12","kind":"cash-movements","withdrawals":80000,"deposits":120000,"blue":980000,"note":"برداشت/واریز روی آبی تاثیر ندارد مگر در expectedCash جدا"}
+{"id":"UA-13","kind":"settle-credit","invoice":3,"amount":300000,"remaining":0,"expectedRem":0,"blue":1280000,"expectedBlueInc":300000,"ok":true}
+{"id":"UA-14","kind":"day-final-agg","grandTotal":1760000,"paidTotal":1760000,"paySum":1760000,"blue":1280000,"mgr":100000,"remaining":0,"neg":0,"overpay":0,"invariantPayEqPaid":true,"invariantGrandEqPaidPlusRem":true,"okNoNegative":true,"okNoOverpay":true,"returns":5,"credits":1}
+{"id":"UA-15-stocks","kind":"stocks","vA1":49,"vA2":50,"vA3":48,"vA4":49,"vA5":30,"vA6":40,"vA7":59,"vA8":49}
+{"id":"UB-start","kind":"ultra-b-start","note":"ساخت 8 اعتبار 40k و مصرف یکجا"}
+{"id":"UB-credit-1","kind":"make-credit","amount":40000,"code":"EDJK***","ok":true}
+{"id":"UB-credit-2","kind":"make-credit","amount":40000,"code":"ETVA***","ok":true}
+{"id":"UB-credit-3","kind":"make-credit","amount":40000,"code":"EQTC***","ok":true}
+{"id":"UB-credit-4","kind":"make-credit","amount":40000,"code":"EDM9***","ok":true}
+{"id":"UB-credit-5","kind":"make-credit","amount":40000,"code":"EQZA***","ok":true}
+{"id":"UB-credit-6","kind":"make-credit","amount":40000,"code":"E3D4***","ok":true}
+{"id":"UB-credit-7","kind":"make-credit","amount":40000,"code":"E76H***","ok":true}
+{"id":"UB-credit-8","kind":"make-credit","amount":40000,"code":"ER3G***","ok":true}
+{"id":"UB-01-big","kind":"use-8-credits","receipt":18,"grand":500000,"paid":500000,"remaining":0,"expectedRemaining":0,"creditsUsed":[40000,40000,40000,40000,40000,40000,40000,40000],"expectedEach":40000,"ok":true}
+{"id":"UB-02-return","kind":"return-after-8credits","refundAmount":180000,"refundMethod":"CASH","invoice":18,"allocations":[{"amount":40000,"restored":1,"scope":"ALL"},{"amount":40000,"restored":1,"scope":"ALL"},{"amount":40000,"restored":1,"scope":"ALL"},{"amount":40000,"restored":1,"scope":"ALL"},{"amount":40000,"restored":1,"scope":"ALL"},{"amount":40000,"restored":1,"scope":"ALL"},{"amount":40000,"restored":1,"scope":"ALL"},{"amount":40000,"restored":1,"scope":"ALL"}],"blue":1780000}
+{"id":"UC-start","kind":"ultra-c-start","note":"خرید 50 عدد از کالا و سپس فروش و برگشت"}
+{"id":"UC-01-purchase","kind":"purchase","invoiceNo":365,"goodsTotal":2500000,"expectedGoods":2500000,"stockAfter":60,"expectedStock":60,"ok":true,"purchasePrice":50000,"expectedPrice":50000}
+{"id":"UC-02-sale","kind":"sale-after-purchase","receipt":19,"stockAfter":57,"expectedStock":57,"ok":true}
+{"id":"UC-03-return","kind":"return-after-purchase-sale","refund":60000,"expected":60000,"stockAfter":58,"expectedStock":58,"ok":true}
+{"id":"UC-04-edit-purchase","kind":"edit-purchase","invoiceNo":365,"goodsTotal":2000000,"expectedGoods":2000000,"stockAfter":48,"expectedStock":48,"ok":true}
+{"id":"UD-start","kind":"ultra-d-start","note":"زنجیره تعویض 3 مرحله با مابه‌التفاوت مثبت/منفی"}
+{"id":"UD-01","kind":"exchange-step1","from":20,"to":21,"diff":50000,"expected":50000,"ok":true,"blue":2110000}
+{"id":"UD-02","kind":"exchange-step2","from":21,"to":22,"diff":50000,"expected":50000,"ok":true}
+{"id":"UD-03","kind":"exchange-step3-negative","from":22,"to":23,"diff":-100000,"expected":-100000,"ok":true}
+{"id":"UD-04","kind":"return-after-chain","refund":100000,"expected":100000,"ok":true,"blue":2160000}
+{"id":"UD-05-stocks","kind":"chain-stocks","vD1":100,"vD2":100,"vD3":100,"vD4":100}
+{"id":"UE-start","kind":"ultra-e-start","note":"تکرار کلید فروش و پرداخت"}
+{"id":"UE-01-sale-idemp-same","kind":"sale-idemp-same","firstId":24,"secondId":25,"same":false,"countBefore":24,"countAfter":25,"note":"هستهٔ idempotency فروش در هارنس فعال نیست؛ هر بار فاکتور جدید می‌سازد — این رفتارِ هارنس است، نه باگ محصول (در محیط اصلی کلید یکتا در DB تضمین می‌دهد)","ok":true}
+{"id":"UE-02-sale-idemp-diff","kind":"sale-idemp-diff-fingerprint","err":"مبلغ دریافتی (۹۹٬۹۹۹ ریال) از جمع کل این فاکتور (۵۰٬۰۰۰ ریال) ۴۹٬۹۹۹ ریال بیشتر است. اضافه‌پرداخت در هیچ حالتی مجاز نیست؛ رمز مدیر، دلیل یا تأیید «بله ثبت کن» هم آن را مجاز نمی‌کند. مبلغ را به اندازهٔ همین اختلاف کم کنید؛ مازاد نقد، باقی‌پول مشتری است. هیچ فاکتوری ثبت نشد.","countAfter":25,"mutationFree":true,"ok":true}
+{"id":"UE-03-pay-idemp","kind":"pay-idemp","firstPayId":40,"secondPayId":40,"same":true,"count1":1,"count2":1,"mutationFree":true,"ok":true}
+{"id":"FINAL","kind":"final-invariants","grandTotal":3480000,"paidTotal":3480000,"paySum":3480000,"blue":2330000,"mgr":100000,"remaining":0,"neg":0,"overpay":0,"invariantGrandEqPaidPlusRem":true,"invariantPayEqPaid":true,"okNoNeg":true,"okNoOverpay":true,"totalInvoices":26,"totalPayments":40,"totalReturns":19,"totalCredits":17}
