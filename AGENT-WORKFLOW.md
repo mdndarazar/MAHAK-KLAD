@@ -42,3 +42,45 @@
 
 - هر تصمیم معماری/مالک در `DECISIONS.md` با شناسهٔ نشست (مثل `S223-D9`) ثبت شود.
 - خلاصهٔ هر نشست در `_تحویل/CHANGELOG-جلسه<شماره>.md`.
+
+## ۸) تحویل فایل و «لینک دانلود یک‌کلیکی» (آزموده‌شده در نشست ۲۲۳)
+
+**لینک پیش‌نمایش سندباکس عمر کوتاه دارد.** آدرس‌هایی مثل
+`https://<port>-<sandboxId>.e2b.app/<file>.zip` با ساخته‌شدن سندباکس بعدی می‌میرند و مرورگر
+«SANDBOX NOT FOUND / 502» نشان می‌دهد. برای تحویل نهایی از آن‌ها استفاده نکن.
+
+**GitHub Release از داخل سندباکس قابل آپلود نیست** (`uploads.github.com` مسدود است؛
+`gh release create --asset` با خطای EOF شکست می‌خورد و Release نیمه‌کاره هم rollback می‌شود).
+
+### روش درست (همین که کار کرد)
+
+1. ZIP تازه بساز: فقط کد، `package-lock.json`، `prisma/migrations`، راهنمای نصب و مستندات؛
+   **بدون** `.git`، `node_modules`، دیتابیس، `reports/` و ZIPهای قدیمی.
+   نام فایل شامل ۸ نویسهٔ SHA باشد؛ داخلش `VERSION.txt` با **SHA کامل** کد.
+2. همان ZIP را در شاخهٔ کاری کامیت و push کن (فایل `*.zip` git-ignore است):
+   ```bash
+   git add -f "deliverables/<NAME>.zip"
+   git commit -m "release: <NAME>"
+   git push origin HEAD:refs/heads/<branch>
+   ```
+3. لینک را به **SHA کامیتِ حامل ZIP** پین کن (نه به نام شاخه، تا با کامیت‌های بعدی خراب نشود):
+   ```
+   https://github.com/<owner>/<repo>/raw/<FULL_COMMIT_SHA>/deliverables/<NAME>.zip
+   ```
+4. اعتبارسنجی پیش از تحویل:
+   ```bash
+   curl -sI "<link>" | head -1     # باید 302 بدهد؛ 404 = مسیر یا SHA غلط
+   ```
+   (در این سندباکس فقط `github.com` باز است؛ `raw.githubusercontent.com` برای ایجنت در دسترس نیست،
+   ولی مرورگر کاربر مستقیم دانلود می‌کند.)
+5. در پیام تحویل **دو SHA را جدا** بنویس: SHA کدِ داخل ZIP (در `VERSION.txt`) و SHA کامیتِ حامل ZIP (در لینک).
+
+> مخزن عمومی است ⇒ لینک بالا بدون لاگین و با یک کلیک دانلود می‌شود.
+
+## ۹) پیام آماده برای شروع هر نشست جدید (به ایجنت بده)
+
+> قانون کار تو در این مخزن `AGENT-WORKFLOW.md` است؛ قبل از هر تغییر بخوانش (بخش ۸ و ۹).
+> کار فقط روی آخرین نسخهٔ شاخهٔ گیت‌هاب، push در پایان هر گام، merge فقط با PR پس از build موفق.
+> برای تحویل فایل، ZIP را در `deliverables/` همان شاخه کامیت کن و لینک
+> `https://github.com/mdndarazar/MAHAK-KLAD/raw/<FULL-COMMIT-SHA>/deliverables/<file>.zip`
+> را بده (لینک پیش‌نمایش سندباکس را به‌عنوان تحویل نهایی نده).
