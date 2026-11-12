@@ -1,0 +1,4 @@
+{"id":"W30","kind":"wholesale-exact","ok":true,"expectTotal":735000,"actualTotal":735000,"remaining":0,"overpayRows":0,"match":true}
+{"id":"W100","kind":"wholesale-exact","ok":true,"expectTotal":5950000,"actualTotal":5950000,"remaining":0,"overpayRows":0,"match":true}
+{"id":"R100","kind":"return-1-of-100","ok":true,"returnedAmount":10000}
+{"id":"CH1","kind":"cheque-sale","ok":false,"err":"چک را نمی‌توان در پرداخت اولیه‌ی فاکتور ثبت کرد؛ چک باید با شماره، سررسید و وضعیت «در جریان» از بخش پرداختی‌ها ثبت شود."}
