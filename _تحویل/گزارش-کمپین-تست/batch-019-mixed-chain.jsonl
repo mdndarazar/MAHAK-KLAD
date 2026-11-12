@@ -1,0 +1,5 @@
+{"id":"A1","kind":"deferred-200k","remaining":200000}
+{"id":"A2","kind":"cheque-40k-pending","resultRemaining":200000}
+{"id":"A3","kind":"return-1-line-no-refund","refundAmount":0,"note":"بدهی باید ۲۰۰-۱۰۰=۱۰۰ بماند (چک در جریان کم نمی‌کند)"}
+{"id":"B1","kind":"exchange-100-to-150","ok":false,"err":"برای دریافت مابه‌التفاوت، روش پرداخت فعال را صریح انتخاب کنید؛ هیچ روش پیش‌فرضی انتخاب نمی‌شود."}
+{"id":"C1","kind":"exchange-refund-without-money","accepted":true,"diff":0,"settlement":"DEBT_REDUCTION"}
