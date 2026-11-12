@@ -1,0 +1,4 @@
+{"id":"P1","kind":"exchange-100-to-150","ok":true,"diff":50000,"settlement":"CASH","returnId":1,"child":1}
+{"id":"P2","kind":"exchange-1m-to-1.5m","ok":true,"diff":500000,"settlement":"CASH","returnId":2,"child":3}
+{"id":"C1","kind":"chain-step1","ok":true,"diff":50000,"settlement":"CASH","returnId":3,"child":5}
+{"id":"C2","kind":"chain-step2-on-exchange","ok":false,"msg":"تعداد برگشتی برای پیش‌نمایش از باقی‌ماندهٔ مجاز بیشتر است."}
