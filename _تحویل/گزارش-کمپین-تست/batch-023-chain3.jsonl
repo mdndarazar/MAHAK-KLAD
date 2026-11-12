@@ -1,0 +1,5 @@
+{"id":"C1","kind":"chain-1","diff":50000,"child":2,"settlement":"CASH","returnId":1}
+{"id":"C2","kind":"chain-2","diff":50000,"child":3,"settlement":"CASH","returnId":2}
+{"id":"C3","kind":"return-on-third","refundAmount":200000,"expected":200000,"ok":true}
+{"id":"N1","kind":"exchange-negative-refund","diff":-50000,"child":5,"settlement":"CASH_REFUND","returnId":4,"expectedDiff":-50000,"ok":true}
+{"id":"M1","kind":"exchange-after-partial-return","diff":10000,"settlement":"CASH"}
