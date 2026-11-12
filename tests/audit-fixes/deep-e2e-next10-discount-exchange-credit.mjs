@@ -110,7 +110,7 @@ async function sale(lines, { invoiceDiscount = 0, tender = 'CASH', creditCode = 
   } else if (tender === 'CASH') payments = [{ methodId: cashMethod, amount: net, destination: 'CASH' }]
   else if (tender === 'CARD') payments = [{ methodId: cardMethod, amount: net, destination: 'CARD' }]
   else if (tender === 'SPLIT') payments = [{ methodId: cashMethod, amount: Math.floor(net / 2), destination: 'CASH' }, { methodId: cardMethod, amount: net - Math.floor(net / 2), destination: 'CARD' }]
-  const result = await salesService.create({ userId, shiftId, lines, payments,
+  const result = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines, payments,
     ...(invoiceDiscount ? { invoiceDiscount } : {}), ...(storeCredits ? { storeCredits } : {}), saleRequestIdempotencyKey: idempotencyKey })
   const inv = seed.one('SELECT id,grandTotal,paidTotal,discountTotal,settledAt FROM "SaleInvoice" WHERE id=?', result.id)
   assert.equal(n(inv.grandTotal), net, 'sale net after line/invoice discount')
@@ -257,7 +257,7 @@ try {
   } else if (id === 139) {
     const a = variant('two-qty-credit-funded-item', 100_000)
     const c = await issueCredit(100_000, { multiUse: true, maxUses: 5 })
-    const root = await salesService.create({ userId, shiftId, lines: [line(a, 2)],
+    const root = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(a, 2)],
       payments: [{ methodId: cashMethod, amount: 150_000, destination: 'CASH' }],
       storeCredits: [{ code: c.code, requestedAmount: 50_000 }], saleRequestIdempotencyKey: `n10-${id}-partial-redemption` })
     expected.cash += 150_000
@@ -293,7 +293,7 @@ try {
   } else if (id === 140) {
     const spent = await issueCredit(20_000)
     const spentSku = variant('credit-redemption-item', 20_000)
-    const burnSale = await salesService.create({ userId, shiftId, lines: [line(spentSku)], payments: [], storeCreditCode: spent.code,
+    const burnSale = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(spentSku)], payments: [], storeCreditCode: spent.code,
       storeCreditIdempotencyKey: `n10-${id}-burn-code` })
     variants.find(v => v.id === spentSku.id).expected -= 1
     assert.equal(seed.one('SELECT status FROM "StoreCredit" WHERE id=?', spent.id).status, 'USED')

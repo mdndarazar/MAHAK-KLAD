@@ -34,7 +34,7 @@ try{
    const applied=await priceAdjustService.apply({kind:'DISCOUNT',mode:'PERCENT',value:10,scope:'ALL',target:'SALE',userId,password:DEFAULT_MANAGER_PASSWORD,note:'100 line bulk price-adjust probe'})
    const prices=variants.map(id=>n(seed.one('SELECT salePrice FROM "ProductVariant" WHERE id=?',id).salePrice))
    assert.equal(applied.changedCount,100);assert.ok(prices.every(x=>x===90_000))
-   const sale=await salesService.create({userId,shiftId,lines:variants.map(variantId=>({variantId,qty:1,unitPrice:90_000,discount:0,tax:0})),payments:[{methodId:cash,amount:9_000_000,destination:'CASH'}]})
+   const sale=await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' }, userId,shiftId,lines:variants.map(variantId=>({variantId,qty:1,unitPrice:90_000,discount:0,tax:0})),payments:[{methodId:cash,amount:9_000_000,destination:'CASH'}]})
    const inv=seed.one('SELECT goodsTotal,discountTotal,grandTotal,paidTotal FROM "SaleInvoice" WHERE id=?',sale.id)
    const itemAgg=seed.one('SELECT COUNT(*) count,SUM(unitPrice) gross,SUM(discount) discount,SUM(lineTotal) lineTotal FROM "SaleInvoiceItem" WHERE invoiceId=?',sale.id)
    assert.equal(n(inv.goodsTotal),9_000_000);assert.equal(n(inv.discountTotal),0);assert.equal(n(inv.grandTotal),9_000_000);assert.equal(n(inv.paidTotal),9_000_000)
@@ -42,7 +42,7 @@ try{
    result.status='PASS';result.observation={mechanism:'PriceAdjust scope ALL mutates each SKU salePrice; it is not an invoice discount field',skuCount:100,baseEach:100_000,adjustedEach:90_000,totalBase:10_000_000,totalAfter:9_000_000,storedInvoiceDiscount:n(inv.discountTotal),lineRows:n(itemAgg.count)}
  }else if(key==='INVOICE-PERCENT-100-LINES'){
    configurePolicy(10);const variants=Array.from({length:100},(_,i)=>variant(`invoice-sku-${i+1}`,100_000))
-   const sale=await salesService.create({userId,shiftId,lines:variants.map(variantId=>({variantId,qty:1,unitPrice:100_000,discount:0,tax:0})),invoiceDiscount:1_000_000,payments:[{methodId:cash,amount:9_000_000,destination:'CASH'}]})
+   const sale=await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' }, userId,shiftId,lines:variants.map(variantId=>({variantId,qty:1,unitPrice:100_000,discount:0,tax:0})),invoiceDiscount:1_000_000,payments:[{methodId:cash,amount:9_000_000,destination:'CASH'}]})
    const inv=seed.one('SELECT goodsTotal,discountTotal,grandTotal,paidTotal FROM "SaleInvoice" WHERE id=?',sale.id)
    const itemAgg=seed.one('SELECT COUNT(*) count,SUM(unitPrice) gross,SUM(discount) discount,SUM(lineTotal) lineTotal FROM "SaleInvoiceItem" WHERE invoiceId=?',sale.id)
    assert.equal(n(inv.goodsTotal),10_000_000);assert.equal(n(inv.discountTotal),1_000_000);assert.equal(n(inv.grandTotal),9_000_000);assert.equal(n(inv.paidTotal),9_000_000)
@@ -50,7 +50,7 @@ try{
    result.status='PASS';result.observation={mechanism:'DiscountPolicy FIXED/PERCENT is an invoice-level discount; separate from line discounts',skuCount:100,eachGross:100_000,gross:10_000_000,invoiceDiscount:1_000_000,netPaid:9_000_000,itemDiscountsSum:n(itemAgg.discount),storedInvoiceDiscount:n(inv.discountTotal),storedLineTotalSum:n(itemAgg.lineTotal)}
  }else if(key==='LINE-PERCENT-100-LINES'){
    seed.setting(SETTING_KEYS.discountPolicy,freeLinePolicy());const variants=Array.from({length:100},(_,i)=>variant(`line-sku-${i+1}`,100_000))
-   const sale=await salesService.create({userId,shiftId,lines:variants.map(variantId=>({variantId,qty:1,unitPrice:100_000,discount:10_000,tax:0})),payments:[{methodId:cash,amount:9_000_000,destination:'CASH'}]})
+   const sale=await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' }, userId,shiftId,lines:variants.map(variantId=>({variantId,qty:1,unitPrice:100_000,discount:10_000,tax:0})),payments:[{methodId:cash,amount:9_000_000,destination:'CASH'}]})
    const inv=seed.one('SELECT goodsTotal,discountTotal,grandTotal,paidTotal FROM "SaleInvoice" WHERE id=?',sale.id)
    const agg=seed.one('SELECT COUNT(*) count,SUM(unitPrice) gross,SUM(discount) discount,SUM(lineTotal) lineTotal,MIN(lineTotal) minLine,MAX(lineTotal) maxLine FROM "SaleInvoiceItem" WHERE invoiceId=?',sale.id)
    assert.equal(n(inv.goodsTotal),10_000_000);assert.equal(n(inv.discountTotal),1_000_000);assert.equal(n(inv.grandTotal),9_000_000);assert.equal(n(inv.paidTotal),9_000_000)
@@ -58,7 +58,7 @@ try{
    result.status='PASS';result.observation={mechanism:'100 independently discounted rows; each 10% discount is 10,000, aggregate discount remains 10% of gross, not 100 repeated/compounded discounts',rowCount:n(agg.count),gross:n(agg.gross),discount:n(agg.discount),net:n(inv.grandTotal),perRowDiscount:10_000,perRowNet:90_000}
  }else if(key==='LINE-PERCENT-QTY-100'){
    seed.setting(SETTING_KEYS.discountPolicy,freeLinePolicy());const v=variant('single-sku-qty-100',100_000,200)
-   const sale=await salesService.create({userId,shiftId,lines:[{variantId:v,qty:100,unitPrice:100_000,discount:1_000_000,tax:0}],payments:[{methodId:cash,amount:9_000_000,destination:'CASH'}]})
+   const sale=await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' }, userId,shiftId,lines:[{variantId:v,qty:100,unitPrice:100_000,discount:1_000_000,tax:0}],payments:[{methodId:cash,amount:9_000_000,destination:'CASH'}]})
    const item=seed.one('SELECT qty,unitPrice,discount,lineTotal FROM "SaleInvoiceItem" WHERE invoiceId=?',sale.id)
    const inv=seed.one('SELECT goodsTotal,discountTotal,grandTotal,paidTotal FROM "SaleInvoice" WHERE id=?',sale.id)
    assert.equal(n(item.qty),100);assert.equal(n(item.unitPrice)*n(item.qty),10_000_000);assert.equal(n(item.discount),1_000_000);assert.equal(n(item.lineTotal),9_000_000)
@@ -66,7 +66,7 @@ try{
    result.status='PASS';result.observation={mechanism:'one row with quantity 100; 10% applies once to extended row gross (unitPrice × qty)',qty:100,unitPrice:100_000,gross:n(item.unitPrice)*n(item.qty),discount:n(item.discount),net:n(inv.grandTotal)}
  }else if(key==='FIXED-PER-LINE-REJECT'){
    configurePolicy(10);const v=variant('fixed-policy-line-discount',10_000_000);let error=''
-   try{await salesService.create({userId,shiftId,lines:[{variantId:v,qty:1,unitPrice:10_000_000,discount:1_000_000,tax:0}],payments:[{methodId:cash,amount:9_000_000,destination:'CASH'}]})}catch(e){error=String(e?.message??e)}
+   try{await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' }, userId,shiftId,lines:[{variantId:v,qty:1,unitPrice:10_000_000,discount:1_000_000,tax:0}],payments:[{methodId:cash,amount:9_000_000,destination:'CASH'}]})}catch(e){error=String(e?.message??e)}
    assert.ok(error.includes('فقط تخفیف ثابت مدیر'));assert.equal(seed.count('SaleInvoice','shiftId=?',shiftId),0);assert.equal(seed.count('Payment','createdShiftId=?',shiftId),0)
    result.status='PASS';result.observation={managerFixedInvoicePolicyAcceptsLineDiscount:false,rejection:error,mutationFree:true}
  }else{
@@ -74,7 +74,7 @@ try{
    const targetPrice=targetKind==='EQUAL'?10_000_000:targetKind==='HIGH'?11_000_000:9_000_000
    configurePolicy(10)
    const source=variant('source-10m',10_000_000),replacement=variant(`replacement-${targetKind.toLowerCase()}`,targetPrice)
-   const sale=await salesService.create({userId,shiftId,lines:[{variantId:source,qty:1,unitPrice:10_000_000,discount:0,tax:0}],invoiceDiscount:1_000_000,payments:[{methodId:cash,amount:9_000_000,destination:'CASH'}]})
+   const sale=await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' }, userId,shiftId,lines:[{variantId:source,qty:1,unitPrice:10_000_000,discount:0,tax:0}],invoiceDiscount:1_000_000,payments:[{methodId:cash,amount:9_000_000,destination:'CASH'}]})
    const sourceItem=seed.one('SELECT id,unitPrice,discount,lineTotal FROM "SaleInvoiceItem" WHERE invoiceId=? AND variantId=?',sale.id,source)
    const exchangeInvoiceDiscount=explicit?Math.round(targetPrice*10/100):0
    const effectiveReplacement=targetPrice-exchangeInvoiceDiscount

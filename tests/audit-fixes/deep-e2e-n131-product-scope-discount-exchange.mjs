@@ -39,7 +39,7 @@ try{
  assert.equal(priceOf(A1),replacementScope==='INCLUDED'?90_000:100_000)
  assert.equal(priceOf(C),100_000)
  const saleTotal=priceOf(A)+priceOf(B)
- const sale=await salesService.create({userId,shiftId,lines:[{variantId:A,qty:1,unitPrice:priceOf(A),discount:0,tax:0},{variantId:B,qty:1,unitPrice:priceOf(B),discount:0,tax:0}],payments:[{methodId:cash,amount:saleTotal,destination:'CASH'}]})
+ const sale=await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' }, userId,shiftId,lines:[{variantId:A,qty:1,unitPrice:priceOf(A),discount:0,tax:0},{variantId:B,qty:1,unitPrice:priceOf(B),discount:0,tax:0}],payments:[{methodId:cash,amount:saleTotal,destination:'CASH'}]})
  const items=seed.rows('SELECT id,variantId,qty,unitPrice,lineTotal FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id',sale.id)
  const sourceItem=items.find(i=>n(i.variantId)===A)
  const preview=await salesService.previewExchangeFunding({invoiceId:sale.id,lines:[{saleItemId:n(sourceItem.id),qty:1}],replacements:[{variantId:replacement,qty:1,unitPrice:replacementPrice,discount:0,tax:0}]})

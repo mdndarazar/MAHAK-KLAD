@@ -64,7 +64,7 @@ async function sale({ lines, invoiceDiscount = 0, tender = 'CASH', credit = null
     const half = Math.floor(total / 2)
     payments = [{ methodId: cashId, amount: half, destination: 'CASH' }, { methodId: cardId, amount: total - half, destination: 'CARD' }]
   } else throw new Error(`unknown tender ${tender}`)
-  const created = await salesService.create({ userId, shiftId, lines: lines.map(line => ({ ...line, tax: line.tax ?? 0 })), invoiceDiscount, payments, storeCredits })
+  const created = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: lines.map(line => ({ ...line, tax: line.tax ?? 0 })), invoiceDiscount, payments, storeCredits })
   const items = seed.rows('SELECT id,variantId,qty,unitPrice,discount,lineTotal FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id', created.id)
   return { id: n(created.id), items, total, created }
 }

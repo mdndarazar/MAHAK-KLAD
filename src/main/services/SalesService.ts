@@ -8183,7 +8183,7 @@ export const salesService = {
    */
   /** Read-only settlement preview. It uses the same return lineage and scope planner as createExchange. */
   async previewExchangeFunding(input: Pick<ExchangeSaleInput,
-    'invoiceId' | 'lines' | 'replacements' | 'full' | 'invoiceDiscount' | 'invoiceTax' | 'serviceCharge' | 'discountTransferOption'>): Promise<{
+    'invoiceId' | 'lines' | 'replacements' | 'full' | 'invoiceDiscount' | 'invoiceTax' | 'serviceCharge' | 'discountTransferOption' | 'refundAmount'>): Promise<{
       ok: boolean
       error?: string
       returnTotal?: number
@@ -8203,6 +8203,25 @@ export const salesService = {
       sourceCreditRestoration?: number
       sourceCreditClosedExpired?: number
       finalRefundValue?: number
+      /**
+       * مورد ۳ — تفکیک read-only «چه مقدار وجه واقعی پرداخت می‌شود و چه مقدار به
+       * اعتبار خرید تبدیل می‌شود» با همان اعدادی که commit استفاده می‌کند. این
+       * پیش‌نمایش هیچ چیزی نمی‌نویسد؛ فقط برای تأیید آگاهانهٔ فروشنده پیش از ثبت است.
+       */
+      settlementSplit?: {
+        /** سهم وجه واقعیِ قابل‌پرداخت پس از برگشت اعتبار منشأدار و کسر بدهی */
+        moneySurplus: number
+        /** مبلغی که فروشنده وارد کرده است (null = خالی، یعنی کل سهم) */
+        requestedPayout: number | null
+        /** مبلغی که واقعاً نقد/کارت خارج می‌شود */
+        payoutAmount: number
+        /** بخشی از سهم وجه که به بارکد اعتبار خرید تبدیل می‌شود */
+        remainderAsCredit: number
+        /** مبلغ درخواستی از سهم قابل‌پرداخت بیشتر است ⇒ سرور ثبت را رد می‌کند */
+        overRequested: boolean
+        /** دلیل نامعتبر بودن مبلغ درخواستی (اگر باشد) */
+        invalidReason: string | null
+      }
       discountTransfer?: {
         historicalDiscount: number
         capacity: number
@@ -8375,6 +8394,29 @@ export const salesService = {
           : selectedOption === 'YES'
             ? fullOutcome
             : zeroOutcome
+        /**
+         * مورد ۳ — همان فرمول commit در `createExchange`:
+         *   `cashPayoutAmount = requested ?? moneySurplus`
+         *   `newStoreCreditAmount = max(0, moneySurplus - cashPayoutAmount)`
+         * عددی اینجا ساخته نمی‌شود؛ فقط پیش از ثبت به فروشنده نشان داده می‌شود.
+         */
+        const rawRequested = input.refundAmount == null ? null : Number(input.refundAmount)
+        const requestedValid = rawRequested == null ||
+          (Number.isSafeInteger(rawRequested) && rawRequested >= 0)
+        const moneySurplus = Math.max(0, Math.round(Number(selected.refund.realMoneySurplus ?? 0)))
+        const requestedPayout = requestedValid && rawRequested != null ? rawRequested : null
+        const payoutAmount = requestedPayout == null ? moneySurplus : Math.min(requestedPayout, moneySurplus)
+        const overRequested = requestedPayout != null && requestedPayout > moneySurplus
+        const settlementSplit = {
+          moneySurplus,
+          requestedPayout,
+          payoutAmount,
+          remainderAsCredit: Math.max(0, moneySurplus - payoutAmount),
+          overRequested,
+          invalidReason: requestedValid
+            ? null
+            : 'مبلغ بازپرداخت باید عدد صحیح ریالیِ نامنفی باشد.'
+        }
         return {
           ok: true,
           returnTotal,
@@ -8394,6 +8436,7 @@ export const salesService = {
           sourceCreditRestoration: selected.refund.sourceCreditRestoration,
           sourceCreditClosedExpired: selected.refund.sourceCreditClosedExpired,
           finalRefundValue: selected.refund.finalRefundValue,
+          settlementSplit,
           discountTransfer: historicalDiscount > 0 ? {
             historicalDiscount,
             capacity,

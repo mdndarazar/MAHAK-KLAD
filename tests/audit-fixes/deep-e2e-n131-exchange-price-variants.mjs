@@ -28,7 +28,7 @@ sql.prepare('UPDATE "ProductVariant" SET stock=10,salePrice=100000 WHERE id=?').
 sql.prepare('UPDATE "ProductVariant" SET stock=10,salePrice=? WHERE id=?').run(replacementPrice,replacement)
 const result={scenario:`N131 source 100000 with invoice discount 10000 -> undiscounted replacement ${replacementPrice}`,isolatedDatabase:process.env.HARNESS_DB,status:'RUNNING'}
 try{
- const sale=await salesService.create({userId,shiftId,lines:[{variantId:source,qty:1,unitPrice:100_000,discount:0,tax:0}],invoiceDiscount:10_000,payments:[{methodId:cash,amount:90_000,destination:'CASH'}]})
+ const sale=await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' }, userId,shiftId,lines:[{variantId:source,qty:1,unitPrice:100_000,discount:0,tax:0}],invoiceDiscount:10_000,payments:[{methodId:cash,amount:90_000,destination:'CASH'}]})
  const sourceItem=seed.one('SELECT id,variantId,qty,unitPrice,lineTotal FROM "SaleInvoiceItem" WHERE invoiceId=?',sale.id)
  const preview=await salesService.previewExchangeFunding({invoiceId:sale.id,lines:[{saleItemId:n(sourceItem.id),qty:1}],replacements:[{variantId:replacement,qty:1,unitPrice:replacementPrice,discount:0,tax:0}]})
  assert.equal(preview.ok,true)

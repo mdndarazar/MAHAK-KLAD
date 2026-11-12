@@ -111,7 +111,7 @@ async function createSale(lines, { cash = 0, card = 0, storeCredits: creditsInpu
     ...(cash ? [{ methodId: cashMethod, amount: cash, destination: 'CASH' }] : []),
     ...(card ? [{ methodId: cardMethod, amount: card, destination: 'CARD' }] : [])
   ]
-  const result = await salesService.create({ userId, shiftId, lines, payments, storeCredits: creditsInput, saleRequestIdempotencyKey: key })
+  const result = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines, payments, storeCredits: creditsInput, saleRequestIdempotencyKey: key })
   const row = seed.one('SELECT id,grandTotal,paidTotal,settledAt FROM "SaleInvoice" WHERE id=?', result.id)
   const gross = lines.reduce((s, x) => s + x.unitPrice * x.qty, 0)
   const discounts = lines.reduce((s, x) => s + x.discount, 0)

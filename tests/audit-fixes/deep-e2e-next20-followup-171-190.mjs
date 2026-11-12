@@ -106,7 +106,7 @@ async function createSale(lines, { cash = 0, card = 0, storeCredits = [], key = 
     ...(cash ? [{ methodId: cashMethod, amount: cash, destination: 'CASH' }] : []),
     ...(card ? [{ methodId: cardMethod, amount: card, destination: 'CARD' }] : [])
   ]
-  const sale = await salesService.create({ userId, shiftId, lines, payments, storeCredits, saleRequestIdempotencyKey: key })
+  const sale = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines, payments, storeCredits, saleRequestIdempotencyKey: key })
   const row = seed.one('SELECT id,grandTotal,paidTotal,settledAt FROM "SaleInvoice" WHERE id=?', sale.id)
   const gross = lines.reduce((sum, item) => sum + item.unitPrice * item.qty, 0)
   const discount = lines.reduce((sum, item) => sum + item.discount, 0)
@@ -328,7 +328,7 @@ try {
   } else if (id === 187) {
     const a = variant('sale-key-original', 65_000), b = variant('sale-key-altered', 65_000), key = `nf20-${id}-fingerprint-key`
     const first = await createSale([line(a)], { cash: 65_000, key }), before = await snapshot(); let error = ''
-    try { await salesService.create({ userId, shiftId, lines: [line(b)], payments: [{ methodId: cashMethod, amount: 65_000, destination: 'CASH' }], saleRequestIdempotencyKey: key }) }
+    try { await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(b)], payments: [{ methodId: cashMethod, amount: 65_000, destination: 'CASH' }], saleRequestIdempotencyKey: key }) }
     catch (e) { error = String(e?.message ?? e) }
     const after = await snapshot(); assert.ok(error); assert.deepEqual(after, before)
     events.push({ operation: 'sale-idempotency-payload-mismatch-rejected', originalInvoiceId: first.id, error, mutationFree: true })

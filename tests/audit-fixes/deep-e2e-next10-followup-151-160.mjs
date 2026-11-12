@@ -106,7 +106,7 @@ async function createSale(lines, { cash = 0, card = 0, storeCredits = [], key = 
     ...(cash ? [{ methodId: cashMethod, amount: cash, destination: 'CASH' }] : []),
     ...(card ? [{ methodId: cardMethod, amount: card, destination: 'CARD' }] : [])
   ]
-  const result = await salesService.create({ userId, shiftId, lines, payments, storeCredits, saleRequestIdempotencyKey: key })
+  const result = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines, payments, storeCredits, saleRequestIdempotencyKey: key })
   const invoice = seed.one('SELECT id,grandTotal,paidTotal,settledAt FROM "SaleInvoice" WHERE id=?', result.id)
   const gross = lines.reduce((sum, l) => sum + l.unitPrice * l.qty, 0)
   const discount = lines.reduce((sum, l) => sum + l.discount, 0)
@@ -202,7 +202,7 @@ try {
     const key = `nf2-${id}-same-sale-key`
     const first = await createSale([line(a, 2)], { cash: 150_000, key })
     const before = await snapshot()
-    const retry = await salesService.create({ userId, shiftId, lines: [line(a, 2)],
+    const retry = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(a, 2)],
       payments: [{ methodId: cashMethod, amount: 150_000, destination: 'CASH' }], saleRequestIdempotencyKey: key })
     const after = await snapshot()
     assert.equal(n(retry.id), first.id, 'same idempotency key replays original settled sale')

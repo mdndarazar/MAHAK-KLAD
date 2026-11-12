@@ -37,7 +37,7 @@ try{
  const sourceAfterAdjustment=priceOf(source),targetAfterAdjustment=priceOf(target)
  assert.equal(sourceAfterAdjustment,9_000_000,'10m source should be 9m after either global 1m or 10% adjustment')
  let reverted=null
- const sale=await salesService.create({userId,shiftId,lines:[{variantId:source,qty:1,unitPrice:sourceAfterAdjustment,discount:0,tax:0}],payments:[{methodId:cash,amount:sourceAfterAdjustment,destination:'CASH'}]})
+ const sale=await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' }, userId,shiftId,lines:[{variantId:source,qty:1,unitPrice:sourceAfterAdjustment,discount:0,tax:0}],payments:[{methodId:cash,amount:sourceAfterAdjustment,destination:'CASH'}]})
  const sourceItem=seed.one('SELECT id,unitPrice,discount,lineTotal FROM "SaleInvoiceItem" WHERE invoiceId=? AND variantId=?',sale.id,source)
  assert.equal(n(sourceItem.unitPrice),9_000_000);assert.equal(n(sourceItem.lineTotal),9_000_000)
  if(phase==='reverted'){

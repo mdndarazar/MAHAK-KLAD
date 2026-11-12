@@ -25,7 +25,7 @@ const replacement=variant('replacement-3m',30_000_000,replacementCategory)
 const result={scenario:'4 x 2m toman = 8m toman gross; invoice discount 800k toman; exchange one item to 3m toman',isolatedDatabase:process.env.HARNESS_DB,status:'RUNNING'}
 try{
  const gross=80_000_000,invoiceDiscount=8_000_000,net=72_000_000,discountShare=2_000_000,sourceReturn=18_000_000,targetPrice=30_000_000,expectedCurrentDiff=12_000_000
- const sale=await salesService.create({userId,shiftId,lines:originals.map(variantId=>({variantId,qty:1,unitPrice:20_000_000,discount:0,tax:0})),invoiceDiscount,payments:[{methodId:cash,amount:net,destination:'CASH'}]})
+ const sale=await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' }, userId,shiftId,lines:originals.map(variantId=>({variantId,qty:1,unitPrice:20_000_000,discount:0,tax:0})),invoiceDiscount,payments:[{methodId:cash,amount:net,destination:'CASH'}]})
  const root=seed.one('SELECT id,grandTotal,paidTotal,discountTotal,settledAt FROM "SaleInvoice" WHERE id=?',sale.id)
  const items=seed.rows('SELECT id,variantId,unitPrice,lineTotal FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id',sale.id)
  const itemA=items.find(x=>n(x.variantId)===originals[0])

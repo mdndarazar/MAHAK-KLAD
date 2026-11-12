@@ -88,7 +88,7 @@ async function snapshot() {
 }
 async function createSale(lines, { cash = 0, card = 0, storeCredits = [], key = `nf21-${id}-sale-${events.length}` } = {}) {
   const payments = [...(cash ? [{ methodId: cashMethod, amount: cash, destination: 'CASH' }] : []), ...(card ? [{ methodId: cardMethod, amount: card, destination: 'CARD' }] : [])]
-  const sale = await salesService.create({ userId, shiftId, lines, payments, storeCredits, saleRequestIdempotencyKey: key })
+  const sale = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines, payments, storeCredits, saleRequestIdempotencyKey: key })
   const row = seed.one('SELECT id,grandTotal,paidTotal,settledAt FROM "SaleInvoice" WHERE id=?', sale.id)
   const gross = lines.reduce((s, l) => s + l.unitPrice * l.qty, 0)
   assert.equal(n(row.grandTotal), gross); assert.equal(n(row.paidTotal), gross, 'no debt sales'); assert.ok(row.settledAt != null)
@@ -144,7 +144,7 @@ try {
     const a = variant('sale-replay-item', 90_000), key = `nf21-${id}-exact-replay-key`
     const first = await createSale([line(a)], { cash: 90_000, key }); mode('first sale fully settled', { invoice: first.id })
     const before = await snapshot()
-    const retry = await salesService.create({ userId, shiftId, lines: [line(a)], payments: [{ methodId: cashMethod, amount: 90_000, destination: 'CASH' }], saleRequestIdempotencyKey: key })
+    const retry = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(a)], payments: [{ methodId: cashMethod, amount: 90_000, destination: 'CASH' }], saleRequestIdempotencyKey: key })
     mode('exact retry returns original invoice', { first: first.id, retry: n(retry.id) })
     const after = await snapshot(); assert.equal(n(retry.id), first.id); assert.deepEqual(after, before)
     mode('retry adds no payment, stock movement, or custody movement', { mutationFree: true })
@@ -152,7 +152,7 @@ try {
     const a = variant('payload-original', 70_000), b = variant('payload-changed', 70_000), key = `nf21-${id}-payload-bound`
     const first = await createSale([line(a)], { cash: 70_000, key }); mode('original keyed sale fully settled', { invoice: first.id })
     const before = await snapshot(); let error = ''
-    try { await salesService.create({ userId, shiftId, lines: [line(b)], payments: [{ methodId: cashMethod, amount: 70_000, destination: 'CASH' }], saleRequestIdempotencyKey: key }) }
+    try { await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(b)], payments: [{ methodId: cashMethod, amount: 70_000, destination: 'CASH' }], saleRequestIdempotencyKey: key }) }
     catch (e) { error = String(e?.message ?? e) }
     assert.ok(error); const after = await snapshot(); assert.deepEqual(after, before)
     mode('changed payload under same key rejected', { mutationFree: true, error })

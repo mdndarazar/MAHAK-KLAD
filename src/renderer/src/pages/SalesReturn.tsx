@@ -667,7 +667,15 @@ export default function SalesReturn() {
         invoiceTax: exScope === 'wholesale' ? exCharges.taxTotal : 0,
         serviceCharge: exCharges.serviceTotal,
         // NO is only a neutral preview baseline until the seller explicitly chooses; it is not selected in the UI.
-        discountTransferOption: discountTransferOption ?? undefined
+        discountTransferOption: discountTransferOption ?? undefined,
+        /**
+         * مورد ۳ — مبلغ جزئیِ نقد/کارت هم به سرور می‌رود تا همان‌جا (با همان
+         * plan پشتوانه و منشأ پرداخت) بگوید چه مقدار وجه خارج می‌شود و چه مقدار
+         * به بارکد اعتبار خرید تبدیل می‌شود. خالی = کل سهم وجه واقعی.
+         */
+        refundAmount: exRefundPayoutAmount.trim() === ''
+          ? undefined
+          : Number(exRefundPayoutAmount.replace(/[^0-9]/g, ''))
       }).then((preview) => {
         if (!alive) return
         setExFundingPreview(preview)
@@ -680,7 +688,7 @@ export default function SalesReturn() {
       alive = false
       window.clearTimeout(timer)
     }
-  }, [exchangeMode, lookup, selected, qty, reps, exCharges, exScope, discountTransferOption])
+  }, [exchangeMode, lookup, selected, qty, reps, exCharges, exScope, discountTransferOption, exRefundPayoutAmount])
 
   const exSettlementDiff = exFundingPreview?.ok === true
     ? Math.round(Number(exFundingPreview.effectiveDiff ?? exTotals.diff))
@@ -939,6 +947,13 @@ export default function SalesReturn() {
       const requestedPayout = exRefundPayoutAmount.trim() === ''
         ? undefined
         : Number(exRefundPayoutAmount.replace(/[^0-9]/g, ''))
+      const splitPreview = exFundingPreview?.ok === true ? (exFundingPreview as any).settlementSplit : null
+      if (splitPreview?.overRequested)
+        return setErr(
+          `مبلغ پرداختی (${money(Number(splitPreview.requestedPayout ?? 0))} ریال) از سهم وجه واقعیِ قابل‌پرداخت ` +
+            `(${money(Number(splitPreview.moneySurplus ?? 0))} ریال) بیشتر است؛ ابتدا مبلغ را اصلاح کنید.`
+        )
+      if (splitPreview?.invalidReason) return setErr(String(splitPreview.invalidReason))
       if (exSettlementDiff < 0 && (exRefundMode === 'CASH' || exRefundMode === 'CARD') && requestedPayout != null &&
         (!Number.isSafeInteger(requestedPayout) || requestedPayout < 0 || requestedPayout > -exSettlementDiff))
         return setErr(`مبلغ پرداختی باید نامنفی و از اختلاف کل (${money(-exSettlementDiff)} ریال) بیشتر نباشد؛ سقف سهم وجه واقعی جداگانه در سرور کنترل می‌شود.`)
@@ -2152,11 +2167,49 @@ export default function SalesReturn() {
                         <div className="kbd">
                           خالی بماند: کل سهم وجه واقعی با روش انتخاب‌شده پرداخت می‌شود. مبلغ کمتر: باقیمانده‌ی سهم وجه واقعی به‌صورت بارکد اعتباری صادر می‌شود؛ مبلغ بیشتر از سهم قابل‌پرداخت در سرور رد خواهد شد. سهم اعتبار منشأدار جداگانه و غیرنقدی می‌ماند.
                         </div>
-                        {exRefundPayoutAmount.trim() !== '' && (
-                          <div className="font-semibold">
-                            سهم واقعیِ پرداختی و مانده‌ی اعتبار نهایی پس از بررسی منشأ پرداخت‌های فاکتور، به‌طور قطعی در سرور محاسبه می‌شود.
-                          </div>
-                        )}
+                        {/*
+                          مورد ۳ — پیش‌نمایش read-only از همان plan سرور: عدد پرداختی
+                          و مانده‌ای که بارکد اعتبار می‌شود، پیش از ثبت دیده می‌شود.
+                          ثبت نهایی همین plan را دوباره اعتبارسنجی می‌کند و اگر
+                          عوض شده باشد با اختلاف دقیق رد می‌شود.
+                        */}
+                        {(() => {
+                          const split: any = exFundingPreview?.ok === true ? (exFundingPreview as any).settlementSplit : null
+                          if (!split) return null
+                          const over = Boolean(split.overRequested)
+                          return (
+                            <div className={`rounded border p-2 space-y-1 ${over ? 'border-rose-400 bg-rose-50' : 'border-emerald-300 bg-white'}`}>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1">
+                                <div>
+                                  <div className="kbd">سهم وجه واقعیِ قابل‌پرداخت</div>
+                                  <b>{money(Number(split.moneySurplus ?? 0))} ریال</b>
+                                </div>
+                                <div>
+                                  <div className="kbd">پرداخت واقعی</div>
+                                  <b>{money(Number(split.payoutAmount ?? 0))} ریال</b>
+                                </div>
+                                <div>
+                                  <div className="kbd">تبدیل به بارکد اعتبار</div>
+                                  <b className={Number(split.remainderAsCredit ?? 0) > 0 ? 'text-amber-800' : ''}>
+                                    {money(Number(split.remainderAsCredit ?? 0))} ریال
+                                  </b>
+                                </div>
+                              </div>
+                              {over ? (
+                                <div className="font-bold text-rose-700">
+                                  مبلغ واردشده از سهم وجه واقعی بیشتر است؛ ثبت نهایی رد می‌شود. مبلغ را کم کنید یا فیلد را خالی بگذارید
+                                  تا کل سهم پرداخت شود.
+                                </div>
+                              ) : (
+                                <div className="kbd leading-5">
+                                  {Number(split.remainderAsCredit ?? 0) > 0
+                                    ? `این مبلغ نقد/کارت خارج می‌شود و ${money(Number(split.remainderAsCredit ?? 0))} ریال از سهم وجه واقعی، بارکد اعتبار خرید می‌شود. سهم اعتبار منشأدار همچنان جداگانه به منبعش برمی‌گردد.`
+                                    : 'کل سهم وجه واقعی با روش انتخابی پرداخت می‌شود؛ بارکد اعتباری از این بابت صادر نمی‌شود.'}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </div>
                     )}
                   </div>
@@ -2355,14 +2408,14 @@ export default function SalesReturn() {
                     </label>
                   )}
                   <label className="flex-1 min-w-[200px]">
-                    <div className="kbd">توضیح بازپرداخت (اگر مبلغ را کمتر وارد کنید، اجباری است)</div>
+                    <div className="kbd">توضیح بازپرداخت (اختیاری)</div>
                     <input
                       className="inp"
                       value={refundNote}
                       onChange={(e) => setRefundNote(e.target.value)}
                       placeholder="مثلاً: مشتری درخواست کرد فقط همین مبلغ پرداخت شود"
                     />
-                    <span className="kbd block mt-1">اگر مبلغ واردشده از مبلغ امنِ محاسبه‌شده کمتر باشد، بدون توضیح ثبت نمی‌شود؛ مدیر آن را در گزارش برگشت‌های فروش می‌بیند.</span>
+                    <span className="kbd block mt-1">مبلغ بازپرداخت باید <b>دقیقاً</b> برابر حق امن محاسبه‌شده باشد؛ کمتر یا بیشتر — حتی با توضیح — ثبت نمی‌شود. خالی گذاشتن یعنی همان مبلغ امن. این توضیح فقط برای سابقه و گزارش برگشت‌های فروش است.</span>
                   </label>
                 </div>
               )}
