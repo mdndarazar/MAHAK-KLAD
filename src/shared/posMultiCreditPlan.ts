@@ -40,7 +40,8 @@ export function posMultiCreditPlan(input: {
         const time = new Date(raw).getTime()
         return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY
       }
-      return expiry(a.row) - expiry(b.row) || a.code.localeCompare(b.code) || a.index - b.index
+      // نشست ۲۲۳ · مورد ۱۰ — انقضای برابر: ترتیب ورود فروشنده (نه کد).
+      return expiry(a.row) - expiry(b.row) || a.index - b.index
     })
   const duplicateCounts = new Map<string, number>()
   for (const item of ordered) if (item.code) duplicateCounts.set(item.code, (duplicateCounts.get(item.code) ?? 0) + 1)

@@ -5709,7 +5709,13 @@ export const salesService = {
       }
     }
     const expiryValue = (row: any) => row?.expiresAt == null ? Number.POSITIVE_INFINITY : new Date(row.expiresAt).getTime()
-    candidates.sort((a, b) => expiryValue(a.credit) - expiryValue(b.credit) || a.tender.code.localeCompare(b.tender.code))
+    /**
+     * نشست ۲۲۳ · مورد ۱۰ — FEFO حفظ می‌شود؛ فقط در انقضای برابر، ترتیب ورود
+     * فروشنده تعیین‌کننده است (نه کد/شناسه). `inputIndex` همان ترتیب آرایهٔ
+     * درخواست است و تا commit دست‌نخورده می‌ماند. fingerprint عمداً
+     * ترتیب‌ناوابسته است، پس retry با ترتیب متفاوت همان فاکتور را replay می‌کند.
+     */
+    candidates.sort((a, b) => expiryValue(a.credit) - expiryValue(b.credit) || a.tender.inputIndex - b.tender.inputIndex)
 
     const deductInventory = input.deductInventory !== false
     const issuedAt = input.issuedAtJalali ? jalaliToDateTime(input.issuedAtJalali) : new Date()
