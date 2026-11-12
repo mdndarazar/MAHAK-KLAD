@@ -261,6 +261,13 @@ export default function SalesReturn() {
   const [reps, setReps] = useState<RepLine[]>([])
   const [methods, setMethods] = useState<Method[]>([])
   const [methodId, setMethodId] = useState<number | null>(null)
+  /**
+   * نشست ۲۲۳ · مورد ۶/ب — دریافت مابه‌التفاوت با چک: چکِ جدیدِ مخصوص همین تفاوت.
+   * چکِ قبلیِ فاکتور با مبلغ بزرگ‌تر جایگزین نمی‌شود؛ برای تفاوت، چک جداگانه گرفته می‌شود.
+   */
+  const [exChequeNo, setExChequeNo] = useState('')
+  const [exChequeBank, setExChequeBank] = useState('')
+  const [exChequeDue, setExChequeDue] = useState('')
   /** پرداخت مثبت تعویض با دو ردیف واقعی نقد و کارت، نه یک پرداخت مصنوعی. */
   const [exSplitPayment, setExSplitPayment] = useState(false)
   const [exSplitCash, setExSplitCash] = useState('')
@@ -463,6 +470,9 @@ export default function SalesReturn() {
       setLookup(res)
       // Settlement/tender choices are explicit for each new lookup, never inherited.
       setMethodId(null)
+      setExChequeNo('')
+      setExChequeBank('')
+      setExChequeDue('')
       setExSplitPayment(false)
       setExSplitCashMethodId(null)
       setExSplitCardMethodId(null)
@@ -1003,6 +1013,9 @@ export default function SalesReturn() {
           expectedDiscountTransferAmount: Number(exFundingPreview.discountTransfer?.selectedAmount ?? 0),
           note: note.trim() || undefined, allowRemoved: allowRemoved || undefined, force: force || undefined,
           exchangeCreditCode: exCreditCode.trim() || undefined, methodId,
+          chequeNo: exChequeNo.trim() || undefined,
+          bankName: exChequeBank.trim() || undefined,
+          dueDateJalali: exChequeDue.trim() || undefined,
           splitPayment: exSettlementDiff > 0 && exCashDuePreview > 0 && exSplitPayment ? true : undefined,
           payments: exSettlementDiff > 0 && exCashDuePreview > 0 && exSplitPayment
             ? [{ methodId: exSplitCashMethodId, amount: exSplitCashAmount, destination: 'CASH' }, { methodId: exSplitCardMethodId, amount: exSplitCardAmount, destination: 'CARD' }]
@@ -2273,6 +2286,40 @@ export default function SalesReturn() {
                                 </option>
                               ))}
                             </select>
+                            {(() => {
+                              const chosen = methods.find((m) => m.id === methodId)
+                              const isCheque = !!chosen && (chosen.key === 'CHEQUE' || chosen.kind === 'CHEQUE')
+                              if (!isCheque) return null
+                              return (
+                                <div className="mt-2 border rounded p-2 bg-amber-50 space-y-2">
+                                  <div className="kbd leading-6">
+                                    برای مابه‌التفاوت، چکِ <b>جدید</b> با همین مبلغ بگیرید. چکِ قبلیِ فاکتور
+                                    فقط با مبلغِ <b>دقیقاً برابر</b> قابل جایگزینی است و روی آن نمی‌توان مابه‌التفاوت
+                                    اضافه کرد؛ چک قبلی هم بی‌دلیل تغییر نمی‌کند (مجموع پرداخت یکی است، فقط دو برگه
+                                    می‌شود).
+                                  </div>
+                                  <label className="block">
+                                    <div className="kbd">شمارهٔ چک (اجباری)</div>
+                                    <input className="inp" dir="ltr" value={exChequeNo} onChange={(e) => setExChequeNo(e.target.value)} />
+                                  </label>
+                                  <label className="block">
+                                    <div className="kbd">بانک</div>
+                                    <input className="inp" value={exChequeBank} onChange={(e) => setExChequeBank(e.target.value)} />
+                                  </label>
+                                  <label className="block">
+                                    <div className="kbd">سررسید شمسی (اجباری)</div>
+                                    <input
+                                      className="inp"
+                                      dir="ltr"
+                                      placeholder="1405/09/01"
+                                      value={exChequeDue}
+                                      onChange={(e) => setExChequeDue(e.target.value)}
+                                    />
+                                  </label>
+                                  <div className="kbd">این چک «در جریان» ثبت می‌شود و پولی به صندوق نمی‌آید.</div>
+                                </div>
+                              )
+                            })()}
                           </label>
                         ) : (
                           <>
