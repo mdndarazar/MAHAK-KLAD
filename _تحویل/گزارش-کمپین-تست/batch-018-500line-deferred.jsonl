@@ -1,0 +1,4 @@
+{"id":"A1","kind":"500-lines-paid","expectedTotal":1725000,"actualTotal":1725000,"remaining":0,"match":true}
+{"id":"B1","kind":"500-lines-credit","expectedTotal":1725000,"actualTotal":1725000,"remaining":1725000,"match":true}
+{"id":"C1","kind":"return-1-of-500","expected":1000,"actual":1000,"ok":true}
+{"id":"D1","kind":"deferred-return-no-refund","grandTotal":2100,"lineValue":1000,"expectedDebtAfter":1100,"refundAmount":0}
