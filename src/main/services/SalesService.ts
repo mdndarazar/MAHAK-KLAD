@@ -82,7 +82,7 @@ import {
 } from '@shared/discountTransfer'
 import { remainingOf, exchangeRefundPartOf, refundFromReceivedOf } from '@shared/settlement'
 import { planCreditReturn, restoreCreditReturnSources } from './CreditReturnService'
-import { planReturnCreditSources, RETURN_CREDIT_POLICY_VERSION } from '@shared/returnCreditPolicy'
+import { planReturnCreditSources, returnCreditSourceMatchesLine, RETURN_CREDIT_POLICY_VERSION } from '@shared/returnCreditPolicy'
 import { assertCreditScopeUnchangedSinceRedemption } from './creditScopeHistory'
 import { planReplacementSourceCredit } from './exchangeReplacementFunding'
 import { nextReceiptNo } from './receiptNo'
@@ -2344,6 +2344,79 @@ async function planExchangeReturnFunding(
   ]
 }
 
+/**
+ * نشست ۲۲۳ · مورد ۵ — آیا «صفر بودن سهم اعتبار» برای این برگشت قابل اثبات است؟
+ *
+ * اثبات فقط از روی scope خودِ منابع و اقلام همان برگشت انجام می‌شود:
+ *   • هر منبع ALL (یا poolشده در فاکتور تعویض) برای هر قلمی قابل استفاده است
+ *     ⇒ اگر یکی باشد، تخصیص نامعلوم است ⇒ false.
+ *   • منبع VARIANTS فقط با همان variantId و منبع CATEGORY فقط با دستهٔ همان قلم
+ *     (با نیاکان) تطبیق می‌شود؛ اگر هیچ‌کدام با هیچ قلمی نخواند ⇒ true.
+ * این تابع هیچ allocation یا صفر مصنوعی نمی‌سازد و فقط guard را برای حالت
+ * قابل‌اثبات باز می‌کند؛ بقیهٔ حالت‌ها همچنان fail-closed می‌مانند.
+ */
+async function priorReturnCreditShareProvenZero(
+  tx: Prisma.TransactionClient,
+  items: Array<{ saleItemId: number; variantId: number; lineTotal: any }>,
+  creditBuckets: Array<Extract<ExchangeFundingBucket, { kind: 'CREDIT' }>>
+): Promise<boolean> {
+  if (!creditBuckets.length) return true
+  const variantIds = [...new Set(items.map((item) => Number(item.variantId)).filter((id) => Number.isSafeInteger(id) && id > 0))]
+  const variants = variantIds.length
+    ? await tx.productVariant.findMany({
+        where: { id: { in: variantIds } },
+        select: { id: true, product: { select: { categoryId: true } } }
+      })
+    : []
+  const variantById = new Map((variants as any[]).map((row) => [Number(row.id), row]))
+  const hasCategory = creditBuckets.some((bucket) =>
+    !bucket.pooledOnExchangeInvoice &&
+    String(bucket.credit?.restrictScope ?? 'ALL').toUpperCase() === 'CATEGORY'
+  )
+  let parentById = new Map<number, number | null>()
+  if (hasCategory) {
+    const categories = await tx.category.findMany({ select: { id: true, parentId: true } })
+    try {
+      parentById = categoryParentMap(categories as Array<{ id: number; parentId: number | null }>)
+    } catch {
+      // زنجیرهٔ دسته‌های خراب ⇒ اثبات ممکن نیست ⇒ fail-closed.
+      return false
+    }
+  }
+  const lines = items.map((item) => {
+    const variant = variantById.get(Number(item.variantId))
+    const categoryId = variant?.product?.categoryId
+    let categoryPath: number[] = []
+    if (hasCategory && categoryId != null) {
+      try {
+        categoryPath = categoryAncestryPath(Number(categoryId), parentById)
+      } catch {
+        categoryPath = []
+      }
+    }
+    return {
+      saleItemId: Number(item.saleItemId),
+      variantId: Number(item.variantId),
+      value: Math.max(0, toNumberRial(item.lineTotal)),
+      categoryPath
+    }
+  })
+  const malformedCategory = hasCategory && lines.some((line) => line.categoryPath.length === 0)
+  return !malformedCategory && !creditBuckets.some((bucket) => {
+    const pooled = bucket.pooledOnExchangeInvoice === true
+    const scope = String(pooled ? 'ALL' : bucket.credit?.restrictScope ?? 'ALL').toUpperCase()
+    const source = {
+      redemptionId: 1,
+      creditId: Number(bucket.credit?.id ?? 1),
+      amount: bucket.amount,
+      restrictScope: scope,
+      restrictVariantIdsJson: pooled ? null : bucket.credit?.restrictVariantIdsJson ?? null,
+      restrictCategoryIdsJson: pooled ? null : bucket.credit?.restrictCategoryIdsJson ?? null
+    }
+    return lines.some((line) => returnCreditSourceMatchesLine(source, line))
+  })
+}
+
 async function exchangeLineageUsesOnlyInvoicePooledCredits(
   tx: Prisma.TransactionClient,
   startingInvoiceId: number
@@ -2453,15 +2526,27 @@ async function exchangeReturnFundingBuckets(
     if (fundedReturn > creditRemoved && remaining.some((bucket) => bucket.kind === 'CREDIT') && creditAllocations.length === 0) {
       const remainingCredits = remaining.filter((bucket): bucket is Extract<ExchangeFundingBucket, { kind: 'CREDIT' }> =>
         bucket.kind === 'CREDIT')
-      const scopes = [...new Set(remainingCredits.map((bucket) =>
-        String(bucket.credit?.restrictScope ?? 'ALL').toUpperCase()))]
-      if (scopes.length && scopes.every((scope) => scope !== 'ALL'))
-        throw new BusinessError(
-          `برگشت قبلی #${priorId} سهم اعتبارِ قابل‌ردیابی ندارد؛ اعتبارهای باقی‌مانده محدود به scope «${scopes.join('، ')}» هستند. ` +
-          'مشخص نیست کدام سهم به کالای برگشتی تعلق دارد؛ اعتبار به کالای خارج از محدوده منتقل نمی‌شود و تعویض مستقیم متوقف شد. ' +
-          'سابقهٔ اقلام و اعتبار را بررسی کنید؛ هیچ تغییری ثبت نشد.'
-        )
-      throw new BusinessError(`برگشت قبلی #${priorId} تخصیص منشأ اعتبار ندارد؛ هیچ تعویضی ثبت نشد تا منبع مالی با حدس جابه‌جا نشود.`)
+      /**
+       * نشست ۲۲۳ · مورد ۵ — تفکیک «صفرِ اثبات‌شده» از «منشأ نامعلوم».
+       *
+       * اگر هیچ اعتبارِ باقی‌مانده‌ای — با توجه به scope/قلم — نمی‌توانست به اقلام
+       * همین برگشت تعلق بگیرد، سهم اعتبارِ صفر *اثبات‌شده* است (مثل A→A1 که A
+       * هیچ‌گاه از اعتبارهای محدود B/C/D مصرف نکرده بود) و نباید عملیات بعدی
+       * C/D را متوقف کند. اگر حتی یک منبع ALL/هم‌خوان وجود داشته باشد، تخصیص
+       * نامعلوم است و مانند قبل fail-closed متوقف می‌شود.
+       */
+      const provenZero = await priorReturnCreditShareProvenZero(tx, prior.items, remainingCredits)
+      if (!provenZero) {
+        const scopes = [...new Set(remainingCredits.map((bucket) =>
+          String(bucket.pooledOnExchangeInvoice ? 'ALL' : bucket.credit?.restrictScope ?? 'ALL').toUpperCase()))]
+        if (scopes.length && scopes.every((scope) => scope !== 'ALL'))
+          throw new BusinessError(
+            `برگشت قبلی #${priorId} سهم اعتبارِ قابل‌ردیابی ندارد؛ اعتبارهای باقی‌مانده محدود به scope «${scopes.join('، ')}» هستند. ` +
+            'مشخص نیست کدام سهم به کالای برگشتی تعلق دارد؛ اعتبار به کالای خارج از محدوده منتقل نمی‌شود و تعویض مستقیم متوقف شد. ' +
+            'سابقهٔ اقلام و اعتبار را بررسی کنید؛ هیچ تغییری ثبت نشد.'
+          )
+        throw new BusinessError(`برگشت قبلی #${priorId} تخصیص منشأ اعتبار ندارد؛ هیچ تعویضی ثبت نشد تا منبع مالی با حدس جابه‌جا نشود.`)
+      }
     }
 
     const removeBySource = new Map<string, number>()
