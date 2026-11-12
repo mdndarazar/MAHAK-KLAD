@@ -4944,6 +4944,20 @@ async function runReturn(
     const realMoneyEntitlement = isExchangeChildReturn
       ? realMoneyEntitlementBeforeExchangeDebt
       : Math.max(0, realMoneyEntitlementBeforeExchangeDebt - exchangeCreditReversalCandidate)
+    /**
+     * نشست ۲۲۳ · یافتهٔ ۱ — نبودِ تصمیم یعنی «انتخاب نشده»، نه اعتبار خودکار.
+     *
+     * قرارداد جدید UI همیشه `refundDecision` را صریح می‌فرستد. فراخوان‌های قدیمیِ
+     * بدون تصمیم اجازه دارند بدون بازپرداخت ثبت شوند (رفتار NONE)، ولی هیچ‌گاه
+     * اعتبار خودکار نمی‌گیرند؛ اعتبار فقط با انتخاب صریح `overpayAsCredit`
+     * ساخته می‌شود. برای گیت مبلغ دقیق، «روش صریح غیر NONE» همان METHOD است.
+     */
+    const refundDecisionEffective: 'UNSELECTED' | 'METHOD' | 'DECLINED' | null =
+      input.refundDecision === 'METHOD' || input.refundDecision === 'DECLINED' || input.refundDecision === 'UNSELECTED'
+        ? input.refundDecision
+        : input.refundMethod != null && String(input.refundMethod).toUpperCase() !== RefundMethod.NONE
+          ? 'METHOD'
+          : null
     if (opts.applyRefund && input.refundDecision === 'UNSELECTED' && realMoneyEntitlement > 0)
       throw new BusinessError(
         `برای این برگشت ${money(realMoneyEntitlement)} ریال حق وجه واقعی وجود دارد، اما روش بازپرداخت انتخاب نشده است. ` +
@@ -5094,20 +5108,28 @@ async function runReturn(
         }
       }
     }
-    // Only the current seller contract (`refundDecision: METHOD`) is subject to
-    // this note gate; unmarked legacy service callers retain their old behavior.
+    /**
+     * نشست ۲۲۳ · مورد ۴ — بازپرداخت برگشت عادی باید **دقیقاً** برابر حق امن
+     * باشد؛ مبلغ کمتر هم پذیرفته نمی‌شود و دلیل/تأیید این قاعده را باز نمی‌کند.
+     * (این بند §۲.۲ سند سیاست بدهی را که «کمتر با popup دلیل» را مجاز می‌دانست
+     * نسخ می‌کند؛ S223-D2.) مبلغ بیشتر از حق امن هم در `resolveRefund` رد
+     * می‌شود. استثنای مورد ۳ (split صریح نقد/کارت در تعویض) مسیر جداگانه دارد.
+     */
     if (
       opts.applyRefund &&
-      input.refundDecision === 'METHOD' &&
+      refundDecisionEffective === 'METHOD' &&
       refund &&
       refund.method !== RefundMethod.NONE &&
-      refund.amount < refund.safeAmount &&
-      String(input.refundNote ?? '').trim().length < 3
-    )
+      refund.amount !== refund.safeAmount
+    ) {
+      const diff = refund.safeAmount - refund.amount
       throw new BusinessError(
-        `مبلغ بازپرداخت کمتر از مبلغ امنِ محاسبه‌شده است (${money(refund.amount)} از ${money(refund.safeAmount)} ریال). ` +
-        'علت کاهش مبلغ را در توضیح بازپرداخت بنویسید (حداقل ۳ نویسه). هیچ تغییری ثبت نشد.'
+        (diff > 0
+          ? `مبلغ بازپرداخت از حق امن کم‌تر است: ${money(refund.amount)} در برابر ${money(refund.safeAmount)} ریال (اختلاف ${money(diff)} ریال). `
+          : `مبلغ بازپرداخت از حق امن بیشتر است: ${money(refund.amount)} در برابر ${money(refund.safeAmount)} ریال (اختلاف ${money(-diff)} ریال). `) +
+        'بازپرداخت باید دقیقاً برابر مبلغ امن محاسبه‌شده باشد؛ مبلغ امن را کامل تسویه کنید یا عملیات را متوقف بگذارید. هیچ تغییری ثبت نشد.'
       )
+    }
     // Only exchange-child returns participate in lineage reversal. Keep legacy
     // parent-return behavior intact by leaving unrelated new returns NULL.
     const exchangeCreditReversed = isExchangeChildReturn ? exchangeCreditReversalCandidate : null
@@ -5480,12 +5502,14 @@ async function runReturn(
       why: `ثبت برگشت ${faDigits(ret.id)}`
     })
     let overpayCredit: Awaited<ReturnType<typeof issueOverpayCreditTx>> | null = null
-    const noRealRefundMethod = input.refundMethod == null ||
-      String(input.refundMethod).toUpperCase() === RefundMethod.NONE
     // New UI payloads must never turn an unselected/declined settlement into
     // an automatic barcode. Keep compatibility only for old, unversioned callers.
-    const shouldAutoCreditBackedOverpay = opts.applyRefund && input.refundDecision == null && noRealRefundMethod
-    if (opts.applyRefund && (input.overpayAsCredit === true || shouldAutoCreditBackedOverpay) && returnOverpayIncrease > 0) {
+    /**
+     * نشست ۲۲۳ · یافتهٔ ۱ — حذف اعتبار خودکارِ مسیر legacy: قبلاً فراخوانِ بدون
+     * `refundDecision` و بدون روش، اضافه‌دریافت را بی‌صدا به اعتبار تبدیل می‌کرد.
+     * اکنون فقط انتخاب صریح `overpayAsCredit` (با تأیید مدیر) این کار را می‌کند.
+     */
+    if (opts.applyRefund && input.overpayAsCredit === true && returnOverpayIncrease > 0) {
       const backing = await overpayCreditBacking(tx, invoice.id)
       const creditAmt = Math.min(backing.available, returnOverpayIncrease)
       if (creditAmt > 0)
@@ -7801,14 +7825,8 @@ export const salesService = {
       managerPassword: (input as any).managerPassword ?? null,
       overrideReason: (input as any).overrideReason ?? null
     })
-    const noRealRefundMethod =
-      input.refundMethod == null || String(input.refundMethod).toUpperCase() === RefundMethod.NONE
-    // Preserve the historical implicit gate only for unversioned callers. The
-    // new UI's UNSELECTED/DECLINED states never invoke a credit-issuance gate
-    // unless the seller explicitly starts the overpay-credit flow.
-    const legacyImplicitNoMethod = input.refundDecision == null && noRealRefundMethod
     const overpayManagerApproved =
-      (input.overpayAsCredit === true || legacyImplicitNoMethod)
+      input.overpayAsCredit === true
         ? await preverifyOverpayManager(
             { managerPassword: input.overpayManagerPassword },
             'صدور اعتبار از اضافه‌دریافت برگشت (بالاتر از سقف اعتبار)'
