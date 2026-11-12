@@ -134,6 +134,7 @@ import {
 } from '@shared/enums'
 import {
   toJalaliDate,
+  fromJalaliDate,
   jalaliToDateTime,
   isValidJalaliDate,
   faDigits,
@@ -9289,31 +9290,87 @@ export const salesService = {
             const methodId = methodRow?.id
             if (!methodId)
               throw new BusinessError('روش پرداخت انتخاب‌شده پیدا نشد؛ روش فعال دیگری را صریح انتخاب کنید.')
-            await assertPaymentMethodExists(tx, methodId)
-            const destination = assertDestination(
-              input.destination ?? destinationFromMethodKind(methodRow?.kind ?? null),
-              methodRow?.kind,
-              'PAYMENT'
-            )
-            await tx.payment.create({
-              data: {
-                invoiceId: exchangeInvoice.id,
-                methodId,
-                amount: cashDue,
-                kind: PaymentEntryKind.CASH,
-                destination,
-                seq: ++seq,
-                paidAt: now,
-                paidAtJalali: toJalaliDate(now),
-                paidAtTime: toClock(now),
-                createdAt: now,
-                createdByUserId: input.userId ?? null,
-                createdShiftId: shiftId,
-                note: `مابه‌التفاوت تعویض کالا پس از اعتبار (دریافت از مشتری${destination === PaymentDestination.CARD ? ' — کارت‌خوان' : ''})`
-              }
-            })
-            if (destination === PaymentDestination.CARD) cardReceived = cashDue
-            else cashReceived = cashDue
+            /**
+             * =================================================================
+             * نشست ۲۲۳ · مورد ۶/ب (S223-D9) — مابه‌التفاوت تعویض با چک.
+             *
+             * قبلاً هر پرداختی که این‌جا ساخته می‌شد `kind: CASH` بود، حتی اگر روش
+             * انتخاب‌شده «چک» باشد؛ نتیجه: پولِ وصول‌نشده به‌عنوان نقدِ کشو ثبت
+             * می‌شد (کسری/اضافیِ الکیِ صندوق) و چک در فهرست چک‌ها و یادآوری
+             * سررسید هیچ ردی نداشت و حساب مشتری «تسویه» دیده می‌شد.
+             *
+             * حالا: برای روش چک، یک پرداخت چکِ واقعی با شماره/بانک/سررسید و
+             * وضعیت `PENDING` ثبت می‌شود؛ مقصد پول `null` است (چکِ در جریان تا
+             * لحظهٔ «پاس شد» پول کشو/کارت‌خوان نیست) و هیچ حرکتی در کشو نمی‌آید.
+             * =================================================================
+             */
+            const isChequeTender =
+              methodRow?.key === CHEQUE_METHOD_KEY || methodRow?.kind === PaymentKind.CHEQUE
+            if (isChequeTender) {
+              const chequeNo = String(input.chequeNo ?? '').trim()
+              if (chequeNo.length < 3)
+                throw new BusinessError(
+                  'برای دریافت مابه‌التفاوت با چک، شمارهٔ چک الزامی است (دست‌کم ۳ نویسه). هیچ تغییری ثبت نشد.'
+                )
+              const dueDateJalali = String(input.dueDateJalali ?? '').trim()
+              if (!isValidJalaliDate(dueDateJalali))
+                throw new BusinessError(
+                  'برای دریافت مابه‌التفاوت با چک، تاریخ سررسید شمسی معتبر (مثلاً ۱۴۰۵/۰۹/۰۱) الزامی است. هیچ تغییری ثبت نشد.'
+                )
+              // همان مبدلِ مسیر چکِ فروش؛ اگر رشته با ارقام فارسی آمده باشد هم درست کار می‌کند
+              const dueDate = jalaliToDateTime(toLatinDigits(dueDateJalali))
+              await tx.payment.create({
+                data: {
+                  invoiceId: exchangeInvoice.id,
+                  methodId,
+                  amount: cashDue,
+                  kind: PaymentEntryKind.CHEQUE,
+                  // چکِ در جریان پول کشو/کارت‌خوان نیست؛ مقصد فقط پس از «پاس شد» تعیین می‌شود
+                  destination: null,
+                  seq: ++seq,
+                  paidAt: now,
+                  paidAtJalali: toJalaliDate(now),
+                  paidAtTime: toClock(now),
+                  createdAt: now,
+                  createdByUserId: input.userId ?? null,
+                  createdShiftId: shiftId,
+                  chequeNo,
+                  bankName: String(input.bankName ?? '').trim() || null,
+                  dueDate,
+                  dueDateJalali,
+                  chequeStatus: ChequeStatus.PENDING,
+                  note: `مابه‌التفاوت تعویض کالا با چک (در جریان — وصول نشده؛ هیچ پولی به صندوق نیامد)`
+                }
+              })
+              // عمداً هیچ `cashReceived/cardReceived` ست نمی‌شود.
+            } else {
+              // روش‌های نقدی/کارتی/سفارشی همان اعتبارسنجی قبلی را دارند (چک جداگانه بالا سنجیده شد)
+              await assertPaymentMethodExists(tx, methodId)
+              const destination = assertDestination(
+                input.destination ?? destinationFromMethodKind(methodRow?.kind ?? null),
+                methodRow?.kind,
+                'PAYMENT'
+              )
+              await tx.payment.create({
+                data: {
+                  invoiceId: exchangeInvoice.id,
+                  methodId,
+                  amount: cashDue,
+                  kind: PaymentEntryKind.CASH,
+                  destination,
+                  seq: ++seq,
+                  paidAt: now,
+                  paidAtJalali: toJalaliDate(now),
+                  paidAtTime: toClock(now),
+                  createdAt: now,
+                  createdByUserId: input.userId ?? null,
+                  createdShiftId: shiftId,
+                  note: `مابه‌التفاوت تعویض کالا پس از اعتبار (دریافت از مشتری${destination === PaymentDestination.CARD ? ' — کارت‌خوان' : ''})`
+                }
+              })
+              if (destination === PaymentDestination.CARD) cardReceived = cashDue
+              else cashReceived = cashDue
+            }
           }
         } else if (input.splitPayment === true || (input.payments?.length ?? 0) > 0) {
           throw new BusinessError('بارکد اعتبار کل مابه‌التفاوت را پوشش می‌دهد؛ پرداخت نقدی/کارتی اضافه ارسال نکنید.')

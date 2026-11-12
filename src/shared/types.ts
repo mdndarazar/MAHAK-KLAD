@@ -2047,6 +2047,14 @@ export interface ExchangeSaleInput {
    * روش CUSTOM بدون این فیلد رد می‌شود (همان قاعده‌ی `addPayment`).
    */
   destination?: string | null
+  /**
+   * نشست ۲۲۳ · مورد ۶/ب (S223-D9) — مشخصات چکِ مابه‌التفاوت تعویض.
+   * فقط وقتی روش پرداخت از نوع CHEQUE باشد خوانده می‌شود؛ آن‌وقت شمارهٔ چک
+   * و تاریخ سررسید شمسی اجباری‌اند و پرداخت با وضعیت «در جریان» ثبت می‌شود.
+   */
+  chequeNo?: string | null
+  bankName?: string | null
+  dueDateJalali?: string | null
   /** تخفیف ریالی روی سند تعویض */
   invoiceDiscount?: number
   /** عوارض و مالیات سطح سند تعویض */
