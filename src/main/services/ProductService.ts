@@ -55,6 +55,14 @@ export interface ProductInput {
 export interface StockAdjustInput {
   variantId: number
   newQty: number
+  /**
+   * مورد ۱۱ — علت اجباریِ کاهش دستی:
+   *   DAMAGE     = خرابی/کسری   ⇒ زیان موجودی با بهای FIFO
+   *   CORRECTION = اصلاح اشتباه ⇒ بدون زیان
+   * افزایش دستی از این مسیر مجاز نیست (مازاد فقط با مسیر انبارگردانی و
+   * تأیید مدیر ثبت می‌شود).
+   */
+  kind?: 'DAMAGE' | 'CORRECTION' | null
   note?: string | null
   /** actor؛ در IPC همیشه از نشست باز main بازنویسی می‌شود، نه از renderer. */
   userId?: number | null
@@ -739,8 +747,30 @@ export const productService = {
   async adjustStock(input: StockAdjustInput): Promise<void> {
     const variantId = assertStockInteger(input?.variantId, 'شناسه‌ی کالا', { positive: true })
     const newQty = assertStockInteger(input?.newQty, 'موجودی جدید', { allowNegative: true })
+    /**
+     * مورد ۱۱ — «کاهش دستی» بدون علتِ معتبر و شرح، ممنوع است و «افزایش دستی»
+     * از این مسیر اصلاً مجاز نیست. قبل از هر رمز/تراکنش سنجیده می‌شود تا هیچ
+     * حرکتی نوشته نشود.
+     */
+    const kind = String(input?.kind ?? '').toUpperCase()
+    if (kind !== 'DAMAGE' && kind !== 'CORRECTION')
+      throw new BusinessError(
+        'برای کاهش دستی موجودی، علت را صریح انتخاب کنید: «خرابی/کسری» (زیان موجودی) یا «اصلاح اشتباه» (بدون زیان).'
+      )
+    const note = String(input?.note ?? '').trim()
+    if (note.length < 3)
+      throw new BusinessError('شرح علت کاهش دستی موجودی الزامی است (دست‌کم ۳ نویسه).')
     const scope = await assertPanelPassword(PANEL_KEYS.products, input?.managerPassword ?? null, 'اصلاح دستی موجودی')
-    const note = input?.note == null ? undefined : String(input.note)
+    /**
+     * افزایش از این مسیر بسته است: مازاد فقط در مسیر جدای انبارگردانی با مجوز
+     * مدیر، دلیل و بهای صریح ثبت می‌شود (نه با «اصلاح دستی» بی‌سند).
+     */
+    const currentQty = await inventoryService.getStock(variantId)
+    if (newQty > currentQty)
+      throw new BusinessError(
+        `افزایش دستی موجودی مجاز نیست (موجودی فعلی ${faDigits(String(currentQty))}، عدد واردشده ${faDigits(String(newQty))}). ` +
+          'مازاد فقط از مسیر «انبارگردانی» با مجوز مدیر، دلیل و بهای صریح ثبت می‌شود؛ ورود کالا هم از فاکتور خرید واقعی.'
+      )
     await prisma.$transaction(
       async (tx) => {
         if (input.custodyFence) await custodyService.assertFenceInTx(tx, input.custodyFence)
@@ -752,7 +782,8 @@ export const productService = {
             refType: 'Manual',
             userId: input?.userId ?? null,
             note,
-            auditNote: productApprovalNote(scope)
+            lossKind: kind === 'DAMAGE' ? 'DAMAGE' : 'CORRECTION',
+            auditNote: `${productApprovalNote(scope)} · علت: ${kind === 'DAMAGE' ? 'خرابی/کسری' : 'اصلاح اشتباه'}`
           },
           tx
         )

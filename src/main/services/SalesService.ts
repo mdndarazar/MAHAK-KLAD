@@ -13502,6 +13502,163 @@ export const salesService = {
    * بازه‌ی تاریخ روی *سررسید* چک اعمال می‌شود، چون سوال روزانه‌ی فروشگاه این است
    * که «این هفته چه چکی موعدش می‌رسد».
    */
+  /**
+   * مورد ۶ — «جایگزینی چک»، اتمیک و با مبلغ **دقیق** (سیاست S223-D1).
+   *
+   * قاعده:
+   *   • فقط چکِ «در جریان» (و «برگشت‌خورده») قابل جایگزینی است؛ چکِ پاس‌شده یا
+   *     باطل‌شده هرگز. وضعیت قبلی از تاریخچه پاک نمی‌شود، فقط دفتر گذار می‌گیرد.
+   *   • مبلغ چک جدید باید دقیقاً برابر مبلغ چک منتخب باشد؛ کمتر/بیشتر با اختلاف
+   *     دقیق رد می‌شود و هیچ ردیفی ثبت یا باطل نمی‌شود.
+   *   • در تعویض با مابه‌التفاوت مثبت (D>0)، جایگزینیِ همان‌جا مبلغ هدف را
+   *     `مبلغ چک + D` می‌کند **یک‌بار**؛ جایگزینیِ بعدی (از تب چک‌ها) دوباره D
+   *     اضافه نمی‌کند، چون `replacedChequeId` نشان می‌دهد چک قبلاً جایگزین شده است.
+   *   • پرداخت جدید و ابطال چک قبلی در یک تراکنش‌اند؛ اگر هر بخشی شکست بخورد، چک
+   *     قبلی «در جریان» می‌ماند و هیچ پولی جابه‌جا نمی‌شود.
+   */
+  async replaceCheque(
+    input: {
+      /** شناسهٔ پرداختِ چکِ منتخب (چکی که جایگزین می‌شود) */
+      id?: number
+      /** مبلغ چک جدید — باید دقیقاً برابر مبلغ هدف باشد */
+      amount?: number
+      chequeNo?: string | null
+      bankName?: string | null
+      dueDateJalali?: string | null
+      note?: string | null
+      /**
+       * اگر جایگزینی «همراه با مابه‌التفاوت مثبت تعویض» است، شناسهٔ سند تعویض.
+       * صفر/خالی یعنی جایگزینی ساده از تب چک‌ها (بدون افزودن D).
+       */
+      exchangeInvoiceId?: number | null
+      managerPassword?: string | null
+      overrideReason?: string | null
+      userId?: number | null
+    } = {}
+  ) {
+    if (input?.id == null) throw new BusinessError('چکی برای جایگزینی مشخص نشده است.')
+    const id = assertSafeInteger(input.id, 'شناسه چک', 1)
+    const amount = assertSafeInteger(input.amount, 'مبلغ چک جدید', 0)
+    if (amount <= 0) throw new BusinessError('مبلغ چک جدید باید بزرگ‌تر از صفر باشد.')
+    const chequeNo = String(input.chequeNo ?? '').trim()
+    if (chequeNo.length < 3) throw new BusinessError('شماره چک جدید الزامی است (دست‌کم ۳ نویسه).')
+    const why = String(input.overrideReason ?? '').trim()
+    if (why.length < 3) throw new BusinessError('دلیل جایگزینی چک (دست‌کم ۳ نویسه) اجباری است.')
+    const dueAt = input.dueDateJalali ? parseJalaliOrThrow(String(input.dueDateJalali), 'سررسید چک جدید') : null
+    const dueJalali = input.dueDateJalali ? String(input.dueDateJalali) : null
+    /**
+     * رمز پنل نسیه بیرون از تراکنش بررسی می‌شود (AuthLockout نباید نویسندهٔ SQLite
+     * را در تراکنش باز قفل کند) — همان الگوی `setChequeStatus`.
+     */
+    await assertPanelPasswordStrict(PANEL_KEYS.salesCredit, input.managerPassword ?? null, 'جایگزینی چک')
+
+    return prisma.$transaction(async (tx) => {
+      const current = await tx.payment.findUnique({
+        where: { id },
+        include: { invoice: { select: { id: true, receiptNo: true, grandTotal: true } } }
+      })
+      if (!current) throw new BusinessError('این چک پیدا نشد؛ فهرست را تازه کنید.')
+      if (current.voidedAt) throw new BusinessError('این چک قبلاً باطل شده است و جایگزینی ندارد.')
+      if ((current.kind ?? PaymentEntryKind.CASH) !== PaymentEntryKind.CHEQUE)
+        throw new BusinessError('این ردیف چک نیست؛ فقط چک قابل جایگزینی است.')
+      const status = String(current.chequeStatus ?? ChequeStatus.PENDING).toUpperCase()
+      if (status === ChequeStatus.CLEARED)
+        throw new BusinessError('چک پاس‌شده قابل جایگزینی نیست؛ فقط چک «در جریان» یا «برگشت‌خورده» جایگزین می‌شود.')
+
+      const prior = await tx.payment.findFirst({
+        where: { replacedChequeId: id, voidedAt: null },
+        select: { id: true, amount: true }
+      })
+      if (prior && !input.exchangeInvoiceId)
+        throw new BusinessError('این چک قبلاً جایگزین شده است؛ ابتدا همان چک جایگزین را انتخاب کنید.')
+
+      /**
+       * مابه‌التفاوت مثبت تعویض (D>0) در `createExchange` همان لحظه و با یک روش
+       * پرداخت واقعی دریافت می‌شود؛ پس فاکتور تعویض هیچ بدهیِ بازِ ناشی از D ندارد.
+       * اگر D را دوباره به چک جایگزین اضافه کنیم، همان مبلغ دو بار از مشتری گرفته
+       * می‌شود. تا وقتی مسیر «دریافت D با چک» در تعویض وجود ندارد، این درخواست
+       * صریحاً و بدون mutation رد می‌شود؛ مبلغ هدف همیشه دقیقاً مبلغ خود چک است.
+       */
+      if (input.exchangeInvoiceId != null)
+        throw new BusinessError(
+          'مابه‌التفاوت تعویض همان لحظه دریافت می‌شود و بدهیِ بازی روی سند تعویض نمی‌ماند؛ ' +
+            'افزودن دوبارهٔ آن به چک جایگزین مجاز نیست. چک را فقط با مبلغ دقیق خودش جایگزین کنید.'
+        )
+
+      const baseAmount = toNumberRial(current.amount)
+      const targetAmount = baseAmount
+      if (amount !== targetAmount) {
+        const diff = Math.abs(amount - targetAmount)
+        throw new BusinessError(
+          `مبلغ چک جدید باید دقیقاً ${money(targetAmount)} ریال (مبلغ چک فعلی) باشد؛ ` +
+            `اختلاف ${money(diff)} ریال. هیچ چکی ثبت یا باطل نشد.`
+        )
+      }
+
+      const now = new Date()
+      const nextSeq = async (invoiceId: number) => {
+        const agg = await tx.payment.aggregate({ where: { invoiceId }, _max: { seq: true } })
+        return Math.max(0, Number(agg?._max?.seq ?? 0)) + 1
+      }
+      const createChequeRow = async (invoiceId: number, rowAmount: number, extraNote: string) =>
+        tx.payment.create({
+          data: {
+            invoiceId,
+            methodId: current.methodId,
+            amount: BigInt(rowAmount),
+            kind: PaymentEntryKind.CHEQUE,
+            chequeStatus: ChequeStatus.PENDING,
+            chequeNo,
+            bankName: input.bankName ? String(input.bankName).trim() : current.bankName ?? null,
+            dueDate: dueAt,
+            dueDateJalali: dueJalali,
+            paidAt: now,
+            paidAtJalali: toJalaliDate(now),
+            paidAtTime: toClock(now),
+            seq: await nextSeq(invoiceId),
+            createdByUserId: input.userId ?? null,
+            createdShiftId: current.createdShiftId ?? null,
+            destination: null,
+            replacedChequeId: id,
+            note: [String(input.note ?? '').trim(), extraNote].filter(Boolean).join(' · ') || null
+          }
+        })
+
+      /** چک جدید روی همان فاکتوری که چک قبلی داشت، با همان مبلغ دقیق */
+      const replacement = await createChequeRow(current.invoiceId, baseAmount, `جایگزین چک #${id}`)
+
+      const reasonText =
+        `چک شماره ${current.chequeNo ?? '—'} به مبلغ ${money(baseAmount)} ریال با چک شماره ${chequeNo} ` +
+        `به مبلغ ${money(amount)} ریال جایگزین شد · دلیل: ${why}`
+      await tx.payment.update({
+        where: { id },
+        data: { voidedAt: now, voidedByUserId: input.userId ?? null, voidReason: reasonText }
+      })
+      await audit(tx, {
+        action: AuditAction.CHEQUE_STATUS,
+        entity: 'Payment',
+        entityId: id,
+        userId: input.userId ?? null,
+        before: JSON.stringify({ chequeStatus: status, chequeNo: current.chequeNo, amount: baseAmount, voidedAt: null }),
+        after: JSON.stringify({
+          replacedByPaymentId: Number(replacement.id),
+          chequeNo,
+          amount,
+          voidedAt: now,
+          reason: why
+        }),
+        note: `جایگزینی چک (مورد ۶) · فاکتور ${faDigits(current.invoice.receiptNo)} · ${reasonText}`
+      })
+
+      return {
+        paymentId: Number(replacement.id),
+        voidedPaymentId: id,
+        amount: baseAmount,
+        targetAmount
+      }
+    }, TX_OPTIONS)
+  },
+
   async chequeList(
     filter: {
       status?: string

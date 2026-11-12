@@ -656,7 +656,7 @@ export const profitService = {
           createdAt: { gte: jalaliStartOfDay(from), lte: jalaliEndOfDay(to) },
           reason: { notIn: ['SALE', 'SALE_EDIT', 'SALE_RETURN', 'PURCHASE', 'PURCHASE_EDIT', 'WOO_SYNC_OUT', 'WOO_SYNC_IN', 'WOO_SYNC_ADJUST'] }
         },
-        select: { id: true, reason: true, delta: true },
+        select: { id: true, reason: true, delta: true, lossKind: true },
         take: 5001
       })
       const movesTruncated = moves.length > 5000
@@ -675,9 +675,17 @@ export const profitService = {
         }
       }
       const byMove = new Map<number, string>()
+      /**
+       * مورد ۱۱ — کلید گروه دیگر فقط «reason» نیست: کاهش دستیِ «خرابی/کسری»
+       * (زیان) و «اصلاح اشتباه» (بدون زیان) هر دو reason = ADJUSTMENT دارند و
+       * اگر با هم جمع شوند، زیانِ ثبت‌شده با اصلاح اشتباه قاطی می‌شود.
+       */
+      const byLossKind = new Map<number, string>()
       const qtyByMove = new Map<number, number>()
       for (const m of moves) {
-        byMove.set(Number(m.id), String(m.reason || ''))
+        const kind = String((m as any).lossKind ?? '')
+        byMove.set(Number(m.id), kind ? `${String(m.reason || '')}|${kind}` : String(m.reason || ''))
+        byLossKind.set(Number(m.id), kind)
         qtyByMove.set(Number(m.id), Math.abs(Number(m.delta)))
       }
       const ids = [...byMove.keys()]
@@ -698,6 +706,10 @@ export const profitService = {
         }
       }
       const LABEL: Record<string, string> = {
+        'ADJUSTMENT|DAMAGE': 'خرابی/کسری (زیان موجودی)',
+        'ADJUSTMENT|CORRECTION': 'اصلاح اشتباه (بدون زیان)',
+        'STOCKTAKE|DAMAGE': 'کسری انبارگردانی (زیان)',
+        'STOCKTAKE|CORRECTION': 'اصلاح انبارگردانی (بدون زیان)',
         ADJUSTMENT: 'اصلاح دستی موجودی',
         STOCKTAKE: 'کسری انبارگردانی',
         SHRINK: 'ضایعات/کسری ثبت‌شده',
@@ -706,6 +718,15 @@ export const profitService = {
       let qty = 0
       let cost = 0
       let count = 0
+      /** زیانِ طبقه‌بندی‌شده (فقط «خرابی/کسری») */
+      let damageCost = 0
+      let damageQty = 0
+      /** اصلاح اشتباهِ طبقه‌بندی‌شده — زیان نیست */
+      let correctionCost = 0
+      let correctionQty = 0
+      /** حرکات قدیمی/بی‌علت — «نامشخص»، بیرون از جمع زیان */
+      let unknownCost = 0
+      let unknownQty = 0
       const rows: {
         reason: string
         label: string
@@ -715,14 +736,30 @@ export const profitService = {
         gain: number
         net: number
       }[] = []
-      for (const [reason, v] of per) {
-        const gain = gainByReason.get(reason)?.qty ?? 0
+      for (const [reasonKey, v] of per) {
+        const gainKey = reasonKey.split('|')[0]
+        const gain = gainByReason.get(gainKey)?.qty ?? 0
+        const kind = reasonKey.includes('|') ? reasonKey.split('|')[1] : ''
         qty += v.qty
         cost += v.cost
         count += v.moves.size
+        if (kind === 'DAMAGE') {
+          damageCost += v.cost
+          damageQty += v.qty
+        } else if (kind === 'CORRECTION') {
+          correctionCost += v.cost
+          correctionQty += v.qty
+        } else if (reasonKey === 'ADJUSTMENT' || reasonKey === 'STOCKTAKE') {
+          // دادهٔ قدیمیِ بی‌علت/بی‌طبقه‌بندی: زیانِ قطعی شمرده نمی‌شود.
+          unknownCost += v.cost
+          unknownQty += v.qty
+        } else {
+          damageCost += v.cost
+          damageQty += v.qty
+        }
         rows.push({
-          reason,
-          label: LABEL[reason] || 'خروج بدون فروش',
+          reason: reasonKey,
+          label: LABEL[reasonKey] || 'خروج بدون فروش',
           moves: v.moves.size,
           qty: v.qty,
           cost: v.cost,
@@ -739,6 +776,16 @@ export const profitService = {
         gainMoves,
         gainQty,
         truncated,
+        /**
+         * مورد ۱۱ — سه سبد جدا: «زیانِ ثبت‌شده» فقط خرابی/کسری، «بدون زیان»
+         * اصلاح اشتباه، و «نامشخص» دادهٔ قدیمی. فقط سبد اول از سود کم می‌شود.
+         */
+        damageCost,
+        damageQty,
+        correctionCost,
+        correctionQty,
+        unknownCost,
+        unknownQty,
         rows: rows.slice(0, 8),
         note:
           'بهای تمام‌شدهٔ این خروج‌ها از لات FIFO همان حرکت برداشته می‌شود؛ داخل سود نیست و به‌عنوان ضرر هم از سود کم نشده — کنار سود دیده می‌شود. ' +
@@ -785,6 +832,11 @@ export const profitService = {
       returnRevenue,
       returnCostKept,
       nonRestockedReturns,
+      /**
+       * مورد ۱۱ — «سود پس از کسر زیان موجودیِ ثبت‌شده»: سود ناخالص دست‌نخورده
+       * می‌ماند و تنها زیانِ طبقه‌بندی‌شده (خرابی/کسری) جداگانه کم می‌شود.
+       */
+      profitAfterLoss: realProfit - Number((losses as any)?.damageCost ?? 0),
       losses,
       byCategory: [...byCat.values()]
         .map((c) => ({
