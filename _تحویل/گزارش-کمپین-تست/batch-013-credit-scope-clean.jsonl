@@ -1,0 +1,9 @@
+{"id":"V-other","kind":"variant:A → other product","scope":"VARIANT","restriction":null,"code":"CRV2VH42","ok":true,"invId":1,"creditStatus":"USED","usedAmount":100000,"CONSUMED":true}
+{"id":"V-same","kind":"variant:A → same product","scope":"VARIANT","restriction":null,"code":"CRE2KDLA","ok":true,"invId":2,"creditStatus":"USED","usedAmount":100000,"CONSUMED":true}
+{"id":"V2-ok","kind":"variants:A+B → B","scope":"VARIANT","restriction":null,"code":"CRKM6EHZ","ok":true,"invId":3,"creditStatus":"USED","usedAmount":100000,"CONSUMED":true}
+{"id":"V2-bad","kind":"variants:A+B → C","scope":"VARIANT","restriction":null,"code":"CRQZ7Y7G","ok":true,"invId":4,"creditStatus":"USED","usedAmount":100000,"CONSUMED":true}
+{"id":"C-other","kind":"category:1 → other category","scope":"CATEGORY","restriction":"[1]","code":"CRRNX8FF","ok":true,"invId":5,"creditStatus":"ACTIVE","usedAmount":0,"CONSUMED":false}
+{"id":"C-same","kind":"category:1 → same category","scope":"CATEGORY","restriction":"[1]","code":"CRBWRULC","ok":true,"invId":6,"creditStatus":"USED","usedAmount":100000,"CONSUMED":true}
+{"id":"C2-ok","kind":"categories:1+2 → cat2","scope":"CATEGORY","restriction":"[1,2]","code":"CRZVC9WG","ok":true,"invId":7,"creditStatus":"USED","usedAmount":100000,"CONSUMED":true}
+{"id":"C2-bad","kind":"categories:1+2 → cat3","scope":"CATEGORY","restriction":"[1,2]","code":"CRMNFPKN","ok":true,"invId":8,"creditStatus":"ACTIVE","usedAmount":0,"CONSUMED":false}
+{"id":"ALL","kind":"ALL → any","scope":"ALL","restriction":null,"code":"CRDUZZGP","ok":true,"invId":9,"creditStatus":"USED","usedAmount":100000,"CONSUMED":true}
