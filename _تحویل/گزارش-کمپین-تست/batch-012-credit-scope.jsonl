@@ -1,0 +1,6 @@
+{"id":"V1","kind":"issue-variant-A","code":"CRHFKT7G"}
+{"id":"V2","kind":"use-on-OTHER-product(vB)","ok":true,"invId":1,"creditStatus":"USED","usedAmount":100000}
+{"id":"V3","kind":"use-on-SAME-product(vA)","ok":true,"invId":2,"creditStatus":"USED","usedAmount":100000}
+{"id":"C1","kind":"issue-category-A","code":"CR9C96KZ"}
+{"id":"C2","kind":"use-on-OTHER-category(vB)","ok":true,"invId":3,"creditStatus":"ACTIVE","usedAmount":0}
+{"id":"C3","kind":"use-on-SAME-category(vA)","ok":true,"invId":4,"creditStatus":"USED","usedAmount":100000}
