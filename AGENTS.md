@@ -34,3 +34,7 @@
 
 ## استقرار افزونه‌ی WooCommerce
 هر تغییری در `resources/woocommerce/mahak-stock-sync.php` نیازمند بازسازی zip (`resources/woocommerce/mahak-stock-sync.zip`) و یکنواختی محتوا (`unzip -p … | cmp - … .php`) است؛ zip در `.gitignore` است و با `git add -f` اضافه می‌شود.
+
+## ⚠️ روند اجباری کار
+
+قبل از هر تغییر، `AGENT-WORKFLOW.md` را بخوانید: هر طرح روی **آخرین شاخهٔ GitHub** (نه ZIP/پوشهٔ محلی کهنه)، push در پایان هر گام، تأیید برابری SHA، و merge فقط با PR پس از build موفق ویندوز.
