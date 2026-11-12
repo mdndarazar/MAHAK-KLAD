@@ -1002,6 +1002,13 @@ export interface CreditDocData {
   usesLabel: string
   maxUses: number
   usedCount: number
+  /**
+   * نشست ۲۲۳ · مورد ۱۲ — فقط برای سندی که با انتخاب صریح **به‌جای وجه بازپرداخت**
+   * صادر شده است. در این سند «یک‌بارمصرف/چندبارمصرف/دفعات مجاز» چاپ نمی‌شود.
+   * مبلغ، وضعیت، انقضا و رفتار مصرف تغییر نمی‌کنند و این پرچم هیچ متن جانشینی
+   * دربارهٔ تعداد دفعات اضافه نمی‌کند.
+   */
+  hideUsageCounts?: boolean
   restrictLabel: string | null
   minPurchase: number
   maxPerTransaction: number
@@ -1131,7 +1138,9 @@ function creditDocBody(d: CreditDocData, t: ReceiptTemplate): string {
   rows.push(row('تاریخ انقضا', d.expiresJalali ? faDigits(d.expiresJalali) : 'بدون انقضا'))
   rows.push(row('وضعیت', escapeHtml(d.statusLabel)))
   parts.push('<div class="reprint">اعتبار از لحظه‌ی صدور قابل استفاده است؛ چاپ و تحویل فقط سابقه‌ی تحویل به مشتری را ثبت می‌کنند.</div>')
-  rows.push(row('دفعات مجاز', `${escapeHtml(d.usesLabel)} · استفاده‌شده ${faDigits(d.usedCount)}`))
+  // نشست ۲۲۳ · مورد ۱۲ — سندِ اعتبارِ جایگزینِ وجه، متن دفعات مصرف را چاپ نمی‌کند.
+  if (!d.hideUsageCounts)
+    rows.push(row('دفعات مجاز', `${escapeHtml(d.usesLabel)} · استفاده‌شده ${faDigits(d.usedCount)}`))
   if (d.showRemaining) rows.push(row('باقی‌مانده', `${money(d.remaining)} ریال`))
   if (d.restrictLabel) rows.push(row('محدودیت استفاده', escapeHtml(d.restrictLabel)))
   if (d.minPurchase > 0) rows.push(row('حداقل مبلغ خرید', `${money(d.minPurchase)} ریال`))
