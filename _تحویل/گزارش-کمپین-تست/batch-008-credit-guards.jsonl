@@ -1,0 +1,9 @@
+{"id":"A1","kind":"first-use","invId":2,"grandTotal":100000,"paymentsSum":100000,"creditStatus":"USED","usedAmount":100000,"usedCount":1}
+{"id":"A2","kind":"second-use","ok":true,"invId":3}
+{"id":"A2b","kind":"second-use-effect","invId":3,"grandTotal":100000,"paymentsSum":0,"creditStatus":"USED","usedAmount":100000,"usedCount":1}
+{"id":"B1","kind":"expired-use","ok":true,"invId":5}
+{"id":"B2","kind":"expired-effect","invId":5,"grandTotal":100000,"paymentsSum":0,"creditStatus":"ACTIVE","usedAmount":0,"usedCount":0}
+{"id":"C1","kind":"wrong-variant","ok":true,"invId":7}
+{"id":"C2","kind":"wrong-variant-effect","invId":7,"grandTotal":100000,"paymentsSum":100000,"creditStatus":"USED","usedAmount":100000,"usedCount":1}
+{"id":"D1","kind":"below-min","ok":true,"invId":9}
+{"id":"D2","kind":"below-min-effect","invId":9,"grandTotal":100000,"paymentsSum":0,"creditStatus":"ACTIVE","usedAmount":0,"usedCount":0}
