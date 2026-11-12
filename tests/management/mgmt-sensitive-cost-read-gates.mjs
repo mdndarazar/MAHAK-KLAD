@@ -97,9 +97,12 @@ eq('پس از بازشدن سروریِ پنل خرید، جزئیات فاکت�
 eq('پس از بازشدن سروریِ پنل خرید، فهرست فاکتور خوانده می‌شود', (await invoke(IPC.purchaseList, {}))?.ok, true)
 
 notePanelUnlocked(PANEL_KEYS.priceAdjust, 'PANEL')
+// نشست ۲۲۳ · مورد ۱۱ (S223-D8) — هدف گروهی «قیمت خرید» بسته است: حتی با دسترسی کامل،
+// پیش‌نمایش/اعمال آن رد می‌شود و هیچ قیمتی خوانده یا نوشته نمی‌شود.
 const pricePreview = await invoke(IPC.priceAdjustPreview, purchasePreviewInput)
-eq('پس از بازشدن سروریِ ماژول تغییر قیمت، پیش‌نمایش قیمت خرید باز می‌شود', pricePreview?.ok, true)
-eq('پیش‌نمایش مجاز دقیقاً قیمت خرید کارت را نشان می‌دهد', Number(readData(pricePreview)?.lines?.[0]?.oldPrice), 123456)
+eq('پیش‌نمایش قیمت خرید گروهی حتی با دسترسی کامل هم رد می‌شود', pricePreview?.ok, false)
+// بازبودنِ هدف «قیمت فروش» جداگانه در
+// tests/audit-fixes/fix-s223-item11b-purchase-target-closed.mjs آزموده می‌شود.
 eq('پس از بازشدن ماژول، تاریخچهٔ تغییر قیمت خوانده می‌شود', (await invoke(IPC.priceAdjustBatches, {}))?.ok, true)
 eq('پس از بازشدن ماژول، ردیف‌های تاریخچه خوانده می‌شوند', (await invoke(IPC.priceAdjustBatchLines, { batchId: 1 }))?.ok, true)
 

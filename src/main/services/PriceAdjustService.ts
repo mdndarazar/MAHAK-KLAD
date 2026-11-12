@@ -120,6 +120,31 @@ const normalizeScope = (v: unknown): PriceAdjustScope =>
   v === 'CATEGORY' ? 'CATEGORY' : v === 'VARIANTS' ? 'VARIANTS' : 'ALL'
 const normalizeTarget = (v: unknown): PriceAdjustTarget => (v === 'PURCHASE' ? 'PURCHASE' : 'SALE')
 
+/**
+ * ---------------------------------------------------------------------------
+ * نشست ۲۲۳ · مورد ۱۱ (S223-D8) — هدف گروهیِ «قیمت خرید» بسته است.
+ *
+ * چرا: `ProductVariant.purchasePrice` یعنی «آخرین بهای واقعیِ خرید» و فقط باید از
+ * فاکتور خرید بیاید (`PurchaseService`). تغییر گروهی آن، یک بهای ساختگی می‌سازد
+ * که: (۱) در گزارش، «ارزش جایگزینی» و `paperWealth` را جابه‌جا می‌کند
+ * (`ProfitService` → `lastPurchaseUnit` با منبع `PRODUCT_CARD`)، (۲) با ثبت
+ * فاکتور خرید بعدی بی‌صدا پاک می‌شود، و (۳) سود تورمیِ لات‌های قدیمی را از بین
+ * می‌برد (چون هزینهٔ همان لات را بالا می‌برد).
+ *
+ * دامنهٔ این بستن فقط «ایجاد/اعمال» است: `normalizeTarget` دست‌نخورده مانده تا
+ * دیدن تاریخچه و «بازگردانی» دسته‌های قدیمی (که قیمت را به قبل برمی‌گرداند)
+ * همچنان کار کند. دستهٔ زمان‌بندی‌شدهٔ قدیمی هم به‌جای اجرا، لغو می‌شود.
+ * ---------------------------------------------------------------------------
+ */
+export const BULK_PURCHASE_CLOSED_MESSAGE =
+  'تغییر گروهی «قیمت خرید» بسته است: بهای خرید فقط از فاکتور خرید واقعی می‌آید. ' +
+  'برای اصلاح بهای یک کالا، فاکتور خریدش را اصلاح کنید؛ برای بالا/پایین بردن قیمت مغازه از هدف «قیمت فروش» استفاده کنید. ' +
+  'هیچ تغییری ثبت نشد.'
+
+function assertBulkTargetAllowed(target: PriceAdjustTarget): void {
+  if (target === 'PURCHASE') throw new BusinessError(BULK_PURCHASE_CLOSED_MESSAGE)
+}
+
 /** نام کامل نمایشی یک واریانت (همان چیزی که در فاکتور و گزارش دیده می‌شود). */
 function variantTitle(v: {
   size: string | null
@@ -516,8 +541,10 @@ export const priceAdjustService = {
    */
   async preview(input: PriceAdjustInput): Promise<PriceAdjustPreview> {
     const rule = ruleOf(input)
-    const { where, scope, categoryName } = await scopeWhere(input)
     const target = rule.target ?? 'SALE'
+    // مورد ۱۱ — پیش از خواندن هیچ قیمت خریدی رد می‌شود (نه فقط پیش از نوشتن)
+    assertBulkTargetAllowed(target)
+    const { where, scope, categoryName } = await scopeWhere(input)
 
     const variants = await loadAllProductVariants(prisma, where, {
       id: true,
@@ -635,6 +662,8 @@ export const priceAdjustService = {
         : []
     // نشست ۱۵۰ · بند ۴-۳۹ — بعد از validation ورودی، پیش از هر نوشتن/تراکنش
     const gate = await adjustGate(input?.password, 'تغییر گروهی قیمت')
+    // نشست ۲۲۳ · مورد ۱۱ — هدف گروهی «قیمت خرید» بسته است (پس از گیت، پیش از هر نوشتن)
+    assertBulkTargetAllowed(target)
 
     /**
      * -----------------------------------------------------------------------
@@ -1144,6 +1173,11 @@ export const priceAdjustService = {
     if (!batchId) throw new BusinessError('دسته‌ی تغییر قیمت مشخص نشده است.')
     const scope = normalizeScope(input?.scope)
     const gate = await adjustGate(input?.password, 'ویرایش دامنه‌ی تغییر گروهی قیمت')
+    // نشست ۲۲۳ · مورد ۱۱ — دستهٔ قدیمیِ «قیمت خرید» قابل ویرایش دامنه نیست (بسته است)
+    {
+      const b = await prisma.priceChangeBatch.findUnique({ where: { id: batchId }, select: { target: true } })
+      if (b && normalizeTarget(b.target) === 'PURCHASE') throw new BusinessError(BULK_PURCHASE_CLOSED_MESSAGE)
+    }
 
     return prisma.$transaction(async (tx) => {
       const batch = await tx.priceChangeBatch.findUnique({ where: { id: batchId }, include: { items: true } })
@@ -1550,6 +1584,28 @@ async function startScheduledBatch(batchId: number): Promise<number> {
     const batch = await tx.priceChangeBatch.findUnique({ where: { id: batchId } })
     if (!batch) return 0
     if (normalizeAdjustState(batch.state, batch.revertedAt) !== 'SCHEDULED') return 0
+
+    /**
+     * نشست ۲۲۳ · مورد ۱۱ (S223-D8) — قرارِ زمان‌بندی‌شدهٔ «قیمت خرید» که از
+     * نسخهٔ قدیمی مانده است، سر ساعت اجرا *نمی‌شود*؛ به‌جای آن با دلیل لغو
+     * می‌گردد تا نه بهای ساختگی بسازد و نه بی‌صدا ناپدید شود.
+     */
+    if (normalizeTarget(batch.target) === 'PURCHASE') {
+      const at = new Date()
+      await tx.priceChangeBatch.update({
+        where: { id: batch.id },
+        data: { state: 'CANCELLED', endAt: at, endAtJalali: toJalaliDate(at), endAtTime: toClock(at) }
+      })
+      await audit(tx, {
+        action: AuditAction.PRICE_SCHEDULE_END,
+        entity: 'PriceChangeBatch',
+        entityId: batch.id,
+        userId: null,
+        after: JSON.stringify({ batchId: batch.id, state: 'CANCELLED', reason: 'PURCHASE_TARGET_CLOSED' }),
+        note: `قرار «${batch.title}» لغو شد: تغییر گروهی قیمت خرید بسته است (مورد ۱۱ · S223-D8). هیچ قیمتی عوض نشد.`
+      }).catch(() => undefined)
+      return 0
+    }
 
     const rule = ruleOfBatch(batch)
     const target = normalizeTarget(batch.target)

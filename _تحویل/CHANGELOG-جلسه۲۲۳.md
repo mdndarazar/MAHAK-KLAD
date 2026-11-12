@@ -57,6 +57,16 @@
 | مورد ۶ | `9226f88` | `replaceCheque` اتمیک با مبلغ دقیق، `Payment.replacedChequeId`، IPC `sale:cheque:replace`، رد افزودن دوبارهٔ D | `fix-s223-item6-cheque-replacement` ۲۰/۰ |
 | مورد ۱۱ | `9226f88` | `StockMovement.lossKind`، ممنوعیت افزایش دستی، علت+شرح اجباری، تفکیک زیان/اصلاح/نامشخص و `profitAfterLoss` | `fix-s223-item11-stock-loss-classification` ۲۰/۰ · `mgmt-losses-net-adjust` ۱۵/۰ |
 
+## تکمیل بندِ باقی‌ماندهٔ مورد ۱۱ — «هدف گروهی قیمت خرید»
+
+- `PriceAdjustService`: `preview`/`apply` برای `PURCHASE` رد می‌شوند (پیام فارسی روشن، بدون هیچ تغییر)؛
+  قرار زمان‌بندی‌شدهٔ قدیمیِ `PURCHASE` به‌جای اجرا `CANCELLED` می‌شود؛ ویرایش دامنهٔ آن هم بسته است.
+- `PriceAdjust.tsx`: گزینهٔ «قیمت خرید» از منو حذف و راهنما اضافه شد؛ وضعیت تازهٔ `CANCELLED` برچسب/رنگ گرفت.
+- حالت تازهٔ `CANCELLED` در `shared/priceAdjust.ts` (تایپ، برچسب، `normalizeAdjustState`).
+- آزمون: `fix-s223-item11b-purchase-target-closed` **۱۸/۰**؛ آزمون‌های مرتبط قیمت گروهی بدون تغییر:
+  `fix-s118` ۵/۰ · `fix-s120` ۵/۰ · `fix-s176-in-chunk` ۴۰/۰ · `fix-s176-schedule-end` ۱۵/۰ ·
+  `audit-s118` ۱۴/۰ · `audit-s120` ۱۱/۰ · `fix-s185` ۴۳/۰ · `fix-s150` همچنان ۵۴/۲۰ (قرمزِ از قبل).
+
 ## کارهای بازِ باقی‌مانده (تصمیم مالک لازم است)
 
 - **مورد ۶ · دریافت مابه‌التفاوت تعویض با چک:** امروز `createExchange` مبلغ D را همان لحظه با نقد/کارت
@@ -64,7 +74,6 @@
   عمداً رد می‌شود (S223-D6). اگر مالک می‌خواهد D با چک گرفته شود، اول باید tender چک در تعویض طراحی شود.
 - **مورد ۱۱ · انتقال از انبار مرکزی با بهای نامعلوم:** مسیر هزینهٔ `CENTRAL_WITHDRAW` همچنان در
   `CostEngine.applyOne` بهای تقریبی می‌گیرد و باید به `UNKNOWN/NO_INVOICE` تبدیل شود.
-- **مورد ۱۱ · تغییر گروهی قیمت خرید:** هدف `PURCHASE` در `PriceAdjustService` باید بسته شود
-  (فقط `salePrice` گروهی مجاز باشد).
+- **مورد ۱۱ · تغییر گروهی قیمت خرید:** ✅ بسته شد (S223-D8).
 - **یافتهٔ ۱ (بخش legacy):** فقط مسیر `refundDecision` صریح بسته شد؛ رفتار سایر فراخوان‌های قدیمی
   بدون تغییر و آزمون‌شده باقی مانده است.
