@@ -2109,6 +2109,49 @@ async function exchangeInvoiceFundingBuckets(
           String(credit.restrictScope ?? 'ALL').toUpperCase() === 'ALL'
       })
   }
+  /**
+   * نشست ۲۲۳ · یافتهٔ ۲ — بازسازی funding پس از `invoice 2`.
+   *
+   * وقتی برگشتی روی همین فاکتور، سهم اعتبار منبع را به مشتری برگرداند،
+   * `StoreCreditRedemption.reversedAt` پر می‌شود و حلقهٔ بالا دیگر آن سهم را
+   * نمی‌بیند؛ در نتیجه بازسازی نسل بعد کل برگشت را «پول واقعی» فرض می‌کند و
+   * ورشکستگی جعلی می‌سازد (۱٬۰۰۰٬۰۰۰ حق پول در برابر ۹۰۰٬۰۰۰ وجه واقعی).
+   *
+   * آن سهم در لحظهٔ همان برگشت واقعاً بخشی از funding این فاکتور بود؛ پس از
+   * `CreditReturnAllocation` (که تغییرناپذیر و دارای `eventKey` یکتاست) و فقط
+   * برای allocationهایی که واقعاً اعتبار را برگردانده‌اند بازسازی می‌شود.
+   * اگر مصرف اصلی برگشت نخورده باشد، bucket خودش از قبل هست و دوباره اضافه
+   * نمی‌شود؛ اگر بازگشت بی‌ارتباط با اعتبار باشد (ابطال فاکتور و…)، allocation
+   * وجود ندارد و چیزی ساخته نمی‌شود.
+   */
+  const restoredCreditAllocations = await tx.creditReturnAllocation.findMany({
+    where: { invoiceId, creditRestored: true },
+    select: {
+      redemptionId: true, amount: true, sourceCreditId: true,
+      restoredCreditId: true, saleItemId: true
+    },
+    orderBy: { id: 'asc' }
+  })
+  const knownCreditSources = new Set(
+    buckets.filter((bucket) => bucket.kind === 'CREDIT')
+      .map((bucket) => (bucket as Extract<ExchangeFundingBucket, { kind: 'CREDIT' }>).sourceKey)
+  )
+  for (const allocation of restoredCreditAllocations as any[]) {
+    const sourceKey = `redemption:${Number(allocation.redemptionId)}`
+    if (knownCreditSources.has(sourceKey)) continue
+    const amount = Math.max(0, toNumberRial(allocation.amount))
+    if (amount <= 0) continue
+    const credit = await tx.storeCredit.findUnique({ where: { id: Number(allocation.sourceCreditId) } })
+    if (!credit) continue
+    buckets.push({
+      kind: 'CREDIT', amount, credit, sourceKey,
+      sourceRedemptionId: Number(allocation.redemptionId),
+      allocationSaleItemId: allocation.saleItemId ?? null,
+      pooledOnExchangeInvoice: invoice.exchangeReturnId != null &&
+        String(credit.restrictScope ?? 'ALL').toUpperCase() === 'ALL'
+    })
+    knownCreditSources.add(sourceKey)
+  }
   for (const payment of payments) {
     const methodKind = String(payment.method?.kind ?? '')
     if (methodKind === PaymentKind.STORE_CREDIT || methodKind === PaymentKind.EXCHANGE_CREDIT) continue
@@ -2374,14 +2417,6 @@ async function exchangeReturnFundingBuckets(
         select: { returnId: true, redemptionId: true, amount: true }
       })
     : []
-  const priorRedemptionIds = [...new Set((priorCreditAllocations as any[]).map((row) => Number(row.redemptionId)))]
-  const priorRedemptions = priorRedemptionIds.length
-    ? await tx.storeCreditRedemption.findMany({
-        where: { id: { in: priorRedemptionIds } }, select: { id: true, reversedAt: true }
-      })
-    : []
-  const reversedRedemptionIds = new Set((priorRedemptions as any[])
-    .filter((row) => row.reversedAt != null).map((row) => Number(row.id)))
   const allocationsByReturn = new Map<number, Array<{ redemptionId: number; amount: number }>>()
   let unbucketedPriorDebtFunding = 0
   for (const row of priorCreditAllocations as any[]) {
@@ -2434,9 +2469,11 @@ async function exchangeReturnFundingBuckets(
       removeBySource.set(`redemption:${redemptionId}`, amount)
     for (const [sourceKey, amount] of removeBySource) {
       const redemptionId = Number(sourceKey.slice('redemption:'.length))
-      // A fully reversed redemption was already removed by
-      // exchangeInvoiceFundingBuckets (reversedAt IS NULL); do not subtract it twice.
-      if (reversedRedemptionIds.has(redemptionId)) continue
+      // If this source is not part of the reconstructed funding, its redemption
+      // was reversed by a path that did not restore credit to the customer
+      // (void/cancel). There is nothing to subtract; the allocation stays
+      // documented but never creates a synthetic bucket.
+      if (!remaining.some((bucket) => bucket.kind === 'CREDIT' && bucket.sourceKey === sourceKey)) continue
       let left = amount
       remaining = remaining.flatMap((bucket) => {
         if (bucket.kind !== 'CREDIT' || bucket.sourceKey !== sourceKey || left <= 0)
