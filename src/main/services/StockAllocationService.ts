@@ -7,7 +7,10 @@ import { faDigits, toClock, toJalaliDate } from '@shared/jalali'
 import { AuditAction, SecondaryStockAction } from '@shared/enums'
 import {
   DEFAULT_CENTRAL_WAREHOUSE_LABEL,
+  MATCH_REASON_LABELS,
   MATCH_REASON_LABELS_FALLBACK,
+  matchRank,
+  variantTitle,
   STOCK_PLAN_STALE_CODE,
   STORE_SOURCE_LABEL,
   StockSourceKind,
@@ -29,7 +32,6 @@ import type {
   StockSourcePreview,
   StockSourceRowInfo
 } from '@shared/stockSource'
-import { MATCH_REASON_LABELS, matchRank, variantTitle } from './SecondaryStockService'
 
 type Client = Prisma.TransactionClient | typeof prisma
 

@@ -490,15 +490,69 @@ export function summaryTextLines(
 }
 
 /**
- * توضیح تطبیق متنی، برای وقتی که سمت main در دسترس نیست (فقط پشتیبان نمایشی).
- * منبع اصلی همان `MATCH_REASON_LABELS` در `SecondaryStockService` است.
+ * ---------------------------------------------------------------------------
+ * نشست ۲۲۳ · مورد ۹ — منطق خالص تطبیق در لایهٔ shared
+ *
+ * این ثابت/توابع قبلاً در `SecondaryStockService` تعریف شده بودند و
+ * `StockAllocationService` آن‌ها را در سطح ماژول می‌خواند؛ زنجیرهٔ
+ * `StockAllocationService → SecondaryStockService → ProductService → CustodyService
+ * → CustodyAggregateService → SalesService → StockAllocationService` باعث
+ * `ReferenceError: Cannot access 'MATCH_REASON_LABELS' before initialization`
+ * (TDZ) در مسیرهای تست مستقیم می‌شد.
+ *
+ * متن برچسب‌ها، رتبه‌بندی و الگوریتم تطبیق **عیناً** همان قبلی است؛ فقط جای
+ * تعریف به لایهٔ خالص و بدون سرویس منتقل شد. `SecondaryStockService` همان
+ * نام‌ها را دوباره export می‌کند تا API موجود تغییر نکند.
+ * ---------------------------------------------------------------------------
  */
-export const MATCH_REASON_LABELS_FALLBACK: Record<number, string> = {
+
+/** نرمال‌سازی برای تطبیق نام/کد: ارقام فارسی → لاتین، فاصله‌های اضافه حذف. */
+function normalizationKey(v: unknown): string {
+  return String(v ?? '')
+    .replace(/[\u06F0-\u06F9]/g, (d) => String('\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9'.indexOf(d)))
+    .replace(/[\u064A]/g, '\u06CC')
+    .replace(/[\u0643]/g, '\u06A9')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
+/** نام کامل نمایشی یک واریانت فروشگاه (همان چیزی که در فاکتور دیده می‌شود). */
+export function variantTitle(v: { size: string | null; color: string | null; product: { name: string } | null }): string {
+  return `${v.product?.name ?? 'کالا'}${v.size ? ' سایز ' + v.size : ''}${v.color ? ' - ' + v.color : ''}`
+}
+
+/**
+ * رتبه‌ی تطبیق یک ردیف انبار مرکزی با یک کالای فروشگاه (۰ = تطبیق نخورد؛
+ * عددِ کمتر = تطبیق قوی‌تر).
+ */
+export function matchRank(
+  r: { name: string; code: string | null },
+  v: { code: string; barcode: string | null; size: string | null; color: string | null; product: { name: string } | null }
+): number {
+  const c = normalizationKey(r.code)
+  const n = normalizationKey(r.name)
+  const byCode = normalizationKey(v.code)
+  const byBarcode = normalizationKey(v.barcode)
+  const full = normalizationKey(variantTitle(v))
+  const base = normalizationKey(v.product?.name)
+  if (c && byCode && c === byCode) return 1
+  if (c && byBarcode && c === byBarcode) return 2
+  if (n && full && n === full) return 3
+  if (n && base && n === base) return 4
+  return 0
+}
+
+/** توضیح فارسیِ «چرا این ردیف همین کالا شمرده شد» (برای نمایش در پنجره). */
+export const MATCH_REASON_LABELS: Record<number, string> = {
   1: 'کد ردیف = کد کالا',
   2: 'کد ردیف = بارکد کالا',
   3: 'نام ردیف = نام کامل کالا',
   4: 'نام ردیف = نام پایه‌ی کالا'
 }
+
+/** نام تاریخیِ همان ثابت؛ برای سازگاری importهای قدیمی نگه داشته شده است. */
+export const MATCH_REASON_LABELS_FALLBACK: Record<number, string> = MATCH_REASON_LABELS
 
 /** یک خط کوتاه برای ستون جدول/رسید: «فروشگاه ۳ · انبار شعبه ۲ ⚠» */
 export function summaryShortLine(

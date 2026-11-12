@@ -275,58 +275,13 @@ function shape(row: any): SecondaryStockRow {
   }
 }
 
-/** نرمال‌سازی برای تطبیق نام/کد: ارقام فارسی → لاتین، فاصله‌های اضافه حذف. */
-function key(v: unknown): string {
-  return String(v ?? '')
-    .replace(/[\u06F0-\u06F9]/g, (d) => String('\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9'.indexOf(d)))
-    .replace(/[\u064A]/g, '\u06CC')
-    .replace(/[\u0643]/g, '\u06A9')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase()
-}
-
-/** نام کامل نمایشی یک واریانت فروشگاه (همان چیزی که در فاکتور دیده می‌شود). */
-export function variantTitle(v: { size: string | null; color: string | null; product: { name: string } | null }): string {
-  return `${v.product?.name ?? 'کالا'}${v.size ? ' سایز ' + v.size : ''}${v.color ? ' - ' + v.color : ''}`
-}
-
 /**
- * ---------------------------------------------------------------------------
- * جلسه ۴۷ — رتبه‌ی تطبیق یک ردیف انبار مرکزی با یک کالای فروشگاه.
- *
- * این تابع **تنها پیاده‌سازی تطبیق متنی در کل برنامه** است: هم `matchRows`
- * (مسیر تیک «برداشت خودکار») و هم `StockAllocationService` (مسیر «از کدام انبار
- * کسر شود؟») از همین یکی استفاده می‌کنند. اگر فردا قاعده‌ی تطبیق عوض شود، هر دو
- * مسیر با هم عوض می‌شوند و هیچ‌وقت دو جواب متفاوت نمی‌دهند.
- *
- * ۰ = تطبیق نخورد. عددِ کمتر = تطبیق قوی‌تر.
- * ---------------------------------------------------------------------------
+ * نشست ۲۲۳ · مورد ۹ — منطق خالص تطبیق/برچسب‌ها به `@shared/stockSource` منتقل شد
+ * تا `StockAllocationService` دیگر در سطح ماژول به این سرویس وابسته نباشد
+ * (شکستن چرخهٔ import و TDZ). همین نام‌ها برای سازگاری API دوباره export می‌شوند
+ * و متن/رتبه‌بندی تغییر نکرده است.
  */
-export function matchRank(
-  r: { name: string; code: string | null },
-  v: { code: string; barcode: string | null; size: string | null; color: string | null; product: { name: string } | null }
-): number {
-  const c = key(r.code)
-  const n = key(r.name)
-  const byCode = key(v.code)
-  const byBarcode = key(v.barcode)
-  const full = key(variantTitle(v))
-  const base = key(v.product?.name)
-  if (c && byCode && c === byCode) return 1
-  if (c && byBarcode && c === byBarcode) return 2
-  if (n && full && n === full) return 3
-  if (n && base && n === base) return 4
-  return 0
-}
-
-/** توضیح فارسیِ «چرا این ردیف همین کالا شمرده شد» (برای نمایش در پنجره). */
-export const MATCH_REASON_LABELS: Record<number, string> = {
-  1: 'کد ردیف = کد کالا',
-  2: 'کد ردیف = بارکد کالا',
-  3: 'نام ردیف = نام کامل کالا',
-  4: 'نام ردیف = نام پایه‌ی کالا'
-}
+export { MATCH_REASON_LABELS, matchRank, variantTitle } from '@shared/stockSource'
 
 /**
  * ردیف‌های انبار مرکزی که «همین کالا» شمرده می‌شوند.
