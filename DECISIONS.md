@@ -1680,3 +1680,18 @@ S142-6 — سؤال: گیت نبودن رمز مدیر روی issueManual/bulkIs
   نام/نام خانوادگی/تلفن بدهکار را هم می‌گردد (`customerOrDebtorSearch`).
 - وضعیت پیاده‌سازی: **اعمال شد** — مورد ۷. آزمون:
   `tests/audit-fixes/fix-s223-item7-debtor-snapshot.mjs` (۱۸/۰).
+
+### S223-D5 — پیش‌نمایش «پرداخت/تبدیل به اعتبار» تعویض از همان plan سرور
+
+- سؤال: آیا UI می‌تواند سهم وجه پرداختی و ماندهٔ تبدیل‌شده به بارکد اعتبار را خودش حساب کند؟
+- تریاج: امروز `SalesReturn.tsx` بعد از ثبت (`flash`) عدد نهایی را اعلام می‌کرد و پیش از ثبت فقط
+  می‌گفت «در سرور محاسبه می‌شود»؛ عدد سمت UI هم از `saleTotals` می‌آمد که منشأ پرداخت (وجه واقعی
+  در برابر اعتبار منشأدار) و بدهی قابل‌کسر را نمی‌شناسد.
+- تصمیم: عدد فقط از `previewExchangeFunding` می‌آید — همان تابعی که `createExchange` هم قبل از
+  تراکنش خودش صدا می‌زند — و خروجی‌اش `settlementSplit` است: `moneySurplus`، `requestedPayout`،
+  `payoutAmount`، `remainderAsCredit`، `overRequested`، `invalidReason`. فرمول دقیقاً همان دو خط
+  commit است (`payout = requested ?? moneySurplus` و `credit = max(0, moneySurplus − payout)`).
+- دست‌نخورده: پیش‌نمایش هیچ چیزی نمی‌نویسد؛ ثبت نهایی plan را دوباره اعتبارسنجی می‌کند و اختلاف را
+  رد می‌کند. مبلغ بیشتر از سهم، هیچ‌وقت در پیش‌نمایش به پرداخت بزرگ‌تر تبدیل نمی‌شود.
+- وضعیت پیاده‌سازی: **اعمال شد** — مورد ۳. آزمون:
+  `tests/audit-fixes/fix-s223-item3-settlement-split-preview.mjs` (۱۴/۰).
