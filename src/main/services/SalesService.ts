@@ -5282,6 +5282,12 @@ async function runReturn(
         refundFromReceived: debtBefore.refundFromReceived
       })
       returnOverpayIncrease = Math.max(0, after.overpaid - beforeOverpay.overpaid)
+      /**
+       * نشست ۲۲۴ — در برگشت، «اضافه‌دریافت» می‌تواند صرفاً اثر انتخاب روش (اعتبار
+       * خرید) باشد و با قاعدهٔ سقف بازپرداخت سنجیده می‌شود؛ پس منع سراسری اینجا
+       * اعمال نمی‌شود و همان گیت تأیید صریح می‌ماند (مورد ۴ فقط مسیرهای دریافت پول:
+       * فروش، ویرایش فاکتور، وصول بدهی را می‌بندد).
+       */
       if (returnOverpayIncrease > 0 && input.confirmOverpay !== true)
         throw new BusinessError(
           `با این برگشت، ${money(returnOverpayIncrease)} ریال اضافه‌دریافت روی فاکتور ${faDigits(invoice.receiptNo)} ساخته می‌شود ` +
@@ -5984,12 +5990,11 @@ export const salesService = {
       overrideReason: (input as any).overrideReason ?? null,
       alreadyVerified: chargeApproved
     })
-    const overpayManagerApproved =
-      input.overpayAsCredit === true
-        ? periodApproved ||
-          chargeApproved ||
-          (await preverifyOverpayManager(input, 'صدور اعتبار از اضافه‌دریافت فروش (بالاتر از سقف اعتبار)'))
-        : false
+    /**
+     * نشست ۲۲۴ — مسیر «صدور اعتبار از اضافه‌دریافت» در فروش بسته شد؛ پس هیچ رمزی
+     * برای آن پرسیده نمی‌شود. پرچم برای سازگاری IPC و دادهٔ تاریخی باقی است.
+     */
+    const overpayManagerApproved = false
 
     return prisma.$transaction(async (tx) => {
       /**
@@ -6032,12 +6037,16 @@ export const salesService = {
        * =====================================================================
        */
       const saleOverpay = Math.max(0, Math.round(t.paidTotal) - Math.round(t.grandTotal))
-      if (saleOverpay > 0 && input.confirmOverpay !== true)
+      /**
+       * نشست ۲۲۴ — مورد ۴ «طرح نهایی رفع ابهام» (تصمیم موخر): منع سراسری اضافه‌پرداخت.
+       * `confirmOverpay`، `overpayAsCredit`، رمز مدیر و دلیل، هیچ‌کدام مبلغ بیش‌ازحد را
+       * مجاز نمی‌کنند؛ اختلاف دقیق گفته می‌شود و هیچ سندی ساخته نمی‌شود.
+       */
+      if (saleOverpay > 0)
         throw new BusinessError(
           `مبلغ دریافتی (${money(t.paidTotal)} ریال) از جمع کل این فاکتور (${money(t.grandTotal)} ریال) ` +
-            `${money(saleOverpay)} ریال بیشتر است.\n` +
-            'اگر آگاهانه می‌خواهید همین مبلغ کامل ثبت شود، «بله ثبت کن» را بزنید؛ مبلغ اضافه به‌صورت جدا ' +
-            '(ردیف «دریافت پول اضافه») در گزارش فاکتور و گزارشات فروش نمایش داده می‌شود.'
+            `${money(saleOverpay)} ریال بیشتر است. اضافه‌پرداخت در هیچ حالتی مجاز نیست؛ رمز مدیر، دلیل یا تأیید «بله ثبت کن» هم آن را مجاز نمی‌کند. ` +
+            'مبلغ را به اندازهٔ همین اختلاف کم کنید؛ مازاد نقد، باقی‌پول مشتری است. هیچ فاکتوری ثبت نشد.'
         )
       if (input.overpayAsCredit === true && saleOverpay <= 0)
         throw new BusinessError(
@@ -7065,13 +7074,13 @@ export const salesService = {
         .filter((p: any) => p.voidedAt == null)
         .reduce((sum: number, p: any) => sum + Math.max(0, toNumberRial(p.overpayAmount ?? 0)), 0)
       const overpayIncrease = Math.max(0, Math.round(settle.overpayTotal) - prevOverpay)
-      if (overpayIncrease > 0 && input.confirmOverpay !== true)
+      if (overpayIncrease > 0)
         throw new BusinessError(
           `بعد از این ویرایش، جمع دریافتی فاکتور ${faDigits(current.receiptNo)} (${money(settle.paidTotal)} ریال) ` +
             `از جمع تازه‌ی فاکتور (${money(settle.grandTotal)} ریال) بیشتر می‌شود: ${money(overpayIncrease)} ریال ` +
             'اضافه‌دریافت تازه.\n' +
-            'اگر آگاهانه می‌خواهید ویرایش با همین مبالغ ثبت شود، «بله ثبت کن» را بزنید؛ مبلغ اضافه به‌صورت جدا ' +
-            '(ردیف «دریافت پول اضافه») در گزارش فاکتور و گزارشات فروش نمایش داده می‌شود.'
+            'اضافه‌پرداخت در هیچ حالتی مجاز نیست؛ رمز مدیر، دلیل یا تأیید «بله ثبت کن» هم آن را مجاز نمی‌کند. ' +
+            'مبلغ پرداخت‌ها را به اندازهٔ همین اختلاف کم کنید؛ مازاد نقد، باقی‌پول مشتری است. هیچ ویرایشی ثبت نشد.'
         )
       if (input.overpayAsCredit === true && overpayIncrease <= 0)
         throw new BusinessError(
@@ -12671,10 +12680,8 @@ export const salesService = {
       )
 
     /** نشست ۶۲ (S62-2) — رمز سقف اعتبار، بیرون از تراکنش */
-    const overpayManagerApproved =
-      input?.overpayAsCredit === true
-        ? await preverifyOverpayManager(input, 'صدور اعتبار از اضافه‌دریافت (بالاتر از سقف اعتبار)')
-        : false
+    /** نشست ۲۲۴ — مسیر اعتبار از اضافه‌دریافت در وصول بدهی بسته شد؛ رمزی پرسیده نمی‌شود. */
+    const overpayManagerApproved = false
 
     /** نشست ۱۳۶ (S136-2) — پرداخت با تاریخ روزِ بسته، رمز مدیر + دلیل (بیرون از تراکنش) */
     const periodGate: PaymentPeriodGate = {
@@ -12789,18 +12796,17 @@ export const salesService = {
       const debtBefore = await invoiceRemaining(tx, invoiceId, grandTotalNow, receivedTotalOf(priorRows))
       const remainingBefore = debtBefore.remaining
       const overpayAmount = isCheque ? 0 : Math.max(0, amount - remainingBefore)
-      if (overpayAmount > 0 && input?.confirmOverpay !== true)
+      if (overpayAmount > 0)
         throw new BusinessError(
           `مبلغ واردشده (${money(amount)} ریال) از باقی‌ماندهٔ بدهی این فاکتور (${money(remainingBefore)} ریال) ` +
-            `${money(overpayAmount)} ریال بیشتر است.\n` +
+            `${money(overpayAmount)} ریال بیشتر است. اضافه‌پرداخت در هیچ حالتی مجاز نیست؛ رمز مدیر، دلیل یا تأیید «بله ثبت کن» هم آن را مجاز نمی‌کند. ` +
             `فاکتور شماره ${faDigits(inv.receiptNo)} · جمع کل ${money(grandTotalNow)} ریال` +
             (debtBefore.returnedValue > 0
               ? ` · برگشت‌خورده ${money(debtBefore.returnedValue)} ریال` +
                 (debtBefore.refundFromReceived > 0 ? ` (بازپرداخت‌شده ${money(debtBefore.refundFromReceived)} ریال)` : '')
               : '') +
             ` · دریافت‌شده تا الان ${money(debtBefore.received)} ریال.\n` +
-            'اگر آگاهانه می‌خواهید همین مبلغ کامل ثبت شود، «بله ثبت کن» را بزنید؛ مبلغ اضافه به‌صورت جدا در گزارش ' +
-            'فاکتور نمایش داده می‌شود.'
+            'مبلغ را به اندازهٔ همین اختلاف کم کنید؛ مازاد نقد، باقی‌پول مشتری است. هیچ پرداختی ثبت نشد.'
         )
 
       /**
