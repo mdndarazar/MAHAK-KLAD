@@ -1,0 +1,7 @@
+{"id":"A-setup","kind":"create-today","returnCodeExpiresAt":1794601799999,"hasCode":true,"note":"مهلت ثبت شد"}
+{"id":"A-overdue-set","kind":"set-expiry-yesterday","value":1794422091680}
+{"id":"A1","kind":"return","ok":false,"err":"مهلت برگشت فاکتور به پایان رسیده است (تا پایان روز ۱۴۰۵/۰۸/۲۰ به وقت تهران). هیچ تغییری ثبت نشد."}
+{"id":"A2","kind":"exchange","ok":false,"err":"مهلت برگشت فاکتور به پایان رسیده است (تا پایان روز ۱۴۰۵/۰۸/۲۰ به وقت تهران). هیچ تغییری ثبت نشد."}
+{"id":"B1","kind":"return","ok":true,"err":""}
+{"id":"B2","kind":"exchange","ok":true,"err":""}
+{"id":"C1","kind":"return","ok":true,"err":"","expiryWasNull":false}
