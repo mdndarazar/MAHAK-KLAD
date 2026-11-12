@@ -1,0 +1,5 @@
+{"id":"A1","kind":"credit-invoice","remaining":100000}
+{"id":"A2","kind":"add-cheque-pending","chequeStatus":"PENDING","amount":100000,"resultRemaining":100000}
+{"id":"A3","kind":"debt-while-pending","grandTotal":100000,"expectedRemaining":100000}
+{"id":"B1","kind":"cheque-cleared","chequeStatus":"CLEARED","resultRemaining":0}
+{"id":"C1","kind":"cheque-bounced","chequeStatus":"BOUNCED","resultRemaining":100000}
