@@ -1,0 +1,8 @@
+{"id":"cols","kind":"schema","columns":["id","code","legacyCode","amount","source","usedAmount","usedCount","maxUses","multiUse","settingsOverride","overrideReason","issuedDays","restrictScope","restrictCategoryIdsJson","restrictVariantIdsJson","minPurchase","maxPerTransaction","customerLocked","holderCompany","holderNationalId","holderPhone","holderAddress","holderAgent","holderNote","batchId","prefix","printCount","lastPrintedAt","reminderOptOut","reminderCount","lastReminderAt","lastReminderKind","voidedAt","voidedReason","suspendedAt","deletedAt","issuedAt","issuedAtJalali","issuedAtTime","expiresAt","expiresAtJalali","status","returnId","exchangeInvoiceId","sourceInvoiceId","customerId","customerName","usedAt","usedAtJalali","usedAtTime","usedInvoiceId","usedReceiptNo","usedPaymentId","remainderCreditId","note","userId","createdAt","updatedAt","carryRemainder","lineageId"]}
+{"id":"issue","kind":"issue-credit-from-return","code":"EQN8AQ","amount":100000,"status":"ACTIVE","expiresAt":null,"err":""}
+{"id":"redeem-creditCode","kind":"redeem-once","field":"creditCode","ok":true,"invId":2}
+{"id":"status-creditCode","kind":"after-redeem","status":"ACTIVE","usedAmount":0,"usedCount":0}
+{"id":"redeem-storeCreditCode","kind":"redeem-once","field":"storeCreditCode","ok":true,"invId":3}
+{"id":"status-storeCreditCode","kind":"after-redeem","status":"ACTIVE","usedAmount":0,"usedCount":0}
+{"id":"double-use","kind":"redeem-twice","ok":true,"invId":4}
+{"id":"expired","kind":"redeem-expired","rejected":false,"msg":""}
