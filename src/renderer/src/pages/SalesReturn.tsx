@@ -586,7 +586,9 @@ export default function SalesReturn() {
   const lookupExpiryLabel = !lookup
     ? '—'
     : lookup.expiryState === 'VALID'
-      ? `${lookup.daysLeft == null ? '' : `${faDigits(lookup.daysLeft)} روز مانده`}${lookup.expiresAtJalali ? ` (تا ${faDigits(lookup.expiresAtJalali)})` : ''}`
+      ? lookup.expiresAtJalali == null
+        ? 'بدون انقضا — کد معتبر است'
+        : `${lookup.daysLeft == null ? '' : `${faDigits(lookup.daysLeft)} روز مانده`} (تا ${faDigits(lookup.expiresAtJalali)})`
       : lookup.expiryState === 'EXPIRED'
         ? `منقضی شده${lookup.expiresAtJalali ? ` · تا ${faDigits(lookup.expiresAtJalali)}` : ''}`
         : lookup.expiryState === 'UNPROVEN'

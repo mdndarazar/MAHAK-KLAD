@@ -2830,7 +2830,7 @@ export default function Settings() {
                       max={365}
                       className="inp"
                       value={sale.returnCodeDays}
-                      onChange={(e) => setS({ returnCodeDays: Math.min(365, Math.max(1, +e.target.value || 7)) })}
+                      onChange={(e) => setS({ returnCodeDays: Math.min(365, Math.max(1, +e.target.value || 1)) })}
                     />
                   </Field>
                   <Field label="مهلت برگشت — مشتری راه دور (روز)">
@@ -2840,7 +2840,7 @@ export default function Settings() {
                       max={365}
                       className="inp"
                       value={sale.returnCodeDaysRemote}
-                      onChange={(e) => setS({ returnCodeDaysRemote: Math.min(365, Math.max(1, +e.target.value || 14)) })}
+                      onChange={(e) => setS({ returnCodeDaysRemote: Math.min(365, Math.max(1, +e.target.value || 7)) })}
                     />
                   </Field>
                 </div>

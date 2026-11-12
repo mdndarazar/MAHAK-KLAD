@@ -3835,11 +3835,16 @@ async function rootReturnCodeInfo(client: Client, invoiceId: number): Promise<{
     id = root.sourceInvoiceId == null ? null : Number(root.sourceInvoiceId)
   }
   const codedNodes = chain.filter((node) => node.returnCode != null)
-  // All issued codes in a chain must have a deadline. Use the earliest recorded
-  // deadline so a malformed child can never extend its source invoice's policy.
-  const codedDeadlines = codedNodes.map((node) => node.returnCodeExpiresAt).filter((d: unknown): d is Date => d != null)
-  const hasUnprovenDeadline = codedNodes.some((node) => node.returnCodeExpiresAt == null)
-  const deadline = hasUnprovenDeadline || codedDeadlines.length === 0
+  /**
+   * نشست ۲۲۳ · مورد ۸ — کدِ غیرخالی همراه `returnCodeExpiresAt = null` یعنی
+   * «بدون انقضا»، نه «مهلت نامعلوم». اگر در زنجیره هیچ تاریخ صریحی نباشد،
+   * کد بدون انقضا معتبر است؛ اگر تاریخ صریح وجود داشته باشد، سخت‌گیرانه‌ترین
+   * (زودترین) تاریخ حاکم است تا یک گرهٔ تهی مهلت فرزند را تمدید یا حذف نکند.
+   */
+  const codedDeadlines = codedNodes
+    .map((node) => node.returnCodeExpiresAt)
+    .filter((d: unknown): d is Date => d != null)
+  const deadline = codedDeadlines.length === 0
     ? null
     : new Date(Math.min(...codedDeadlines.map((d: Date) => new Date(d).getTime())))
   return {
@@ -3858,8 +3863,9 @@ async function rootReturnCodeExpiry(client: Client, invoiceId: number): Promise<
 async function assertReturnDeadline(client: Client, invoiceId: number, now = new Date()): Promise<Date | null> {
   const root = await rootReturnCodeInfo(client, invoiceId)
   const deadline = root.returnCodeExpiresAt
-  if (root.hasReturnCode && deadline == null)
-    throw new BusinessError('مهلت کد برگشت این فاکتور در سابقه ثبت نشده است؛ برای جلوگیری از برگشت خارج از مهلت، عملیات ثبت نشد.')
+  // نشست ۲۲۳ · مورد ۸ — کدِ بدون تاریخ انقضا معتبر است؛ فقط کدِ خالی معتبر نیست.
+  if (!root.hasReturnCode)
+    throw new BusinessError('این فاکتور کد برگشت معتبر ندارد؛ برگشت با کد انجام نشد.')
   if (deadline != null && isPastTehranExpiryDate(deadline, now))
     throw new BusinessError(
       `مهلت برگشت فاکتور به پایان رسیده است (تا پایان روز ${faDigits(toJalaliDate(deadline))} به وقت تهران). هیچ تغییری ثبت نشد.`
@@ -7539,9 +7545,10 @@ export const salesService = {
       policy: await rootReturnCodeInfo(prisma, Number(row.id))
     })))
     // Expiry is date-based in Tehran: the code remains valid through its expiry day.
+    // نشست ۲۲۳ · مورد ۸ — کدِ غیرخالی با تاریخ تهی، بدون انقضا معتبر است.
     const validCodeCandidate = codeCandidates.find(({ policy }) =>
-      policy.hasReturnCode && policy.returnCodeExpiresAt != null &&
-      !isPastTehranExpiryDate(policy.returnCodeExpiresAt, now)
+      policy.hasReturnCode &&
+      (policy.returnCodeExpiresAt == null || !isPastTehranExpiryDate(policy.returnCodeExpiresAt, now))
     )
 
     let invoice = validCodeCandidate?.row ?? null
@@ -7567,13 +7574,17 @@ export const salesService = {
     }
 
     if (!invoice) {
+      /**
+       * نشست ۲۲۳ · مورد ۸ — فقط نبودِ کد یا انقضای صریحِ گذشته «نامعتبر» است؛
+       * کدِ غیرخالی با تاریخ تهی، بدون انقضا معتبر می‌ماند.
+       */
       const invalidCode = codeCandidates.find(({ policy }) =>
-        !policy.hasReturnCode || policy.returnCodeExpiresAt == null ||
-        isPastTehranExpiryDate(policy.returnCodeExpiresAt, now)
+        !policy.hasReturnCode ||
+        (policy.returnCodeExpiresAt != null && isPastTehranExpiryDate(policy.returnCodeExpiresAt, now))
       )
       if (invalidCode) {
         const deadline = invalidCode.policy.returnCodeExpiresAt
-        if (deadline == null || !invalidCode.policy.hasReturnCode)
+        if (!invalidCode.policy.hasReturnCode)
           throw new BusinessError(
             `برای کد «${code}» مهلت معتبر در سابقه ثبت نشده است؛ ثبت برگشت مسدود شد. ` +
               'اگر رسید را دارید، شمارهٔ رسید را جداگانه وارد کنید تا وضعیت فاکتور بررسی شود.'
@@ -7648,10 +7659,15 @@ export const salesService = {
     })
 
     const expiresAt = deadlinePolicy.returnCodeExpiresAt
+    /**
+     * نشست ۲۲۳ · مورد ۸ — کد غیرخالی با تاریخ تهی «بدون انقضا» است
+     * (`VALID`)؛ `UNPROVEN` فقط برای سازگاری نوع باقی مانده و دیگر ساخته
+     * نمی‌شود.
+     */
     const expiryState: ReturnLookup['expiryState'] = !deadlinePolicy.hasReturnCode
       ? 'NOT_APPLICABLE'
       : expiresAt == null
-        ? 'UNPROVEN'
+        ? 'VALID'
         : isPastTehranExpiryDate(expiresAt, now)
           ? 'EXPIRED'
           : 'VALID'
