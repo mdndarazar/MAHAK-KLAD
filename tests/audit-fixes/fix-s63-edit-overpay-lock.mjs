@@ -131,7 +131,7 @@ const closed = (s, label = 'پل تطبیق بسته است (مانده‌ی ب�
 const line = (variantId, price) => ({ variantId, qty: 1, unitPrice: price, discount: 0, tax: 0 })
 const mk = async (price, paid, extra = {}) => {
   const v = variant(price)
-  const inv = await salesService.create({ userId, shiftId, lines: [line(v, price)], payments: paid > 0 ? [{ methodId: cash, amount: paid }] : [], ...extra })
+  const inv = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(v, price)], payments: paid > 0 ? [{ methodId: cash, amount: paid }] : [], ...extra })
   return { inv, v }
 }
 
@@ -190,20 +190,20 @@ eq('اضافه‌دریافت همان ۳۰۰', overpaySum(b.inv.id), 300)
 console.log('\n۲-الف) قفل دوره‌ی بسته: رمز مدیر قبل از تراکنش (ثبت فاکتور با تاریخ دیروز)')
 // یک فاکتور دیروز برای ویرایش، قبل از بستن دوره
 const oldV = variant(1000)
-const oldInv = await safe('فاکتور دیروز', () => salesService.create({ userId, shiftId, issuedAtJalali: yesterday, lines: [line(oldV, 1000)], payments: [{ methodId: cash, amount: 1000 }] }))
+const oldInv = await safe('فاکتور دیروز', () => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, issuedAtJalali: yesterday, lines: [line(oldV, 1000)], payments: [{ methodId: cash, amount: 1000 }] }))
 seed.insert('CashSession', {
   fromDate: jalaliStartOfDay(yesterday).getTime(), toDate: jalaliEndOfDay(yesterday).getTime(),
   dayJalali: yesterday, closedAt: Date.now() - 1000, createdAt: Date.now() - 1000
 })
 await throwsWith('بدون رمز ⇒ همان پیام دوره‌ی بسته',
-  () => salesService.create({ userId, shiftId, issuedAtJalali: yesterday, lines: [line(variant(500), 500)], payments: [] }), 'دوره')
+  () => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, issuedAtJalali: yesterday, lines: [line(variant(500), 500)], payments: [] }), 'دوره')
 const fails0 = Number(seed.one(`SELECT failCount FROM "AuthLockout" WHERE gate LIKE '%manager%'`)?.failCount ?? 0)
-const w = await probe('رمز غلط', () => salesService.create({ userId, shiftId, issuedAtJalali: yesterday, lines: [line(variant(500), 500)], payments: [], managerPassword: 'غلط-غلط', overrideReason: 'اصلاح تست' }))
+const w = await probe('رمز غلط', () => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, issuedAtJalali: yesterday, lines: [line(variant(500), 500)], payments: [], managerPassword: 'غلط-غلط', overrideReason: 'اصلاح تست' }))
 truthy('رمز غلط رد شد', !!w.err && String(w.err.message).includes('رمز'), String(w.err?.message))
 const fails1 = Number(seed.one(`SELECT failCount FROM "AuthLockout" WHERE gate LIKE '%manager%'`)?.failCount ?? 0)
 eq('شمارنده‌ی رمز اشتباه با rollback پاک نشد (ضد brute-force)', fails1, fails0 + 1)
 const g = await probe('ثبت فاکتور در دوره‌ی بسته با رمز درست', () =>
-  salesService.create({ userId, shiftId, issuedAtJalali: yesterday, lines: [line(variant(500), 500)], payments: [], managerPassword: PW, overrideReason: 'اصلاح تست' }))
+  salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, issuedAtJalali: yesterday, lines: [line(variant(500), 500)], payments: [], managerPassword: PW, overrideReason: 'اصلاح تست' }))
 truthy('ثبت شد', !!g.res?.id, String(g.err?.message))
 eq('Audit عبور از دوره‌ی بسته ثبت شد', seed.rows(`SELECT id FROM "AuditLog" WHERE action = 'CLOSED_PERIOD_OVERRIDE' AND entity = 'SaleInvoice'`).length >= 1, true)
 const u = await probe('ویرایش فاکتور دوره‌ی بسته با رمز درست', () =>
@@ -213,7 +213,7 @@ truthy('ویرایش شد', !!u.res?.id, String(u.err?.message))
 console.log('\n۲-ب) ویرایش/حذف سند برگشتِ دوره‌ی بسته')
 const rInv = await safe('فاکتور دو قلمی امروز', async () => {
   const v1 = variant(300), v2 = variant(300)
-  return salesService.create({ userId, shiftId, lines: [line(v1, 300), line(v2, 300)], payments: [{ methodId: cash, amount: 600 }] })
+  return salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(v1, 300), line(v2, 300)], payments: [{ methodId: cash, amount: 600 }] })
 })
 const items = seed.rows('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId = ? ORDER BY id', rInv.id)
 const r1 = await safe('برگشت قلم اول', () => salesService.createReturn({ invoiceId: rInv.id, full: false, lines: [{ saleItemId: items[0].id, qty: 1 }], refundMethod: 'NONE', confirmOverpay: true, userId }))
@@ -237,7 +237,7 @@ console.log('\n۲-ج) تعویض: سقف اعتبار با رمز مدیر، ق�
 await settingsService.setAccountingPolicy({ policy: { ...(await settingsService.accountingPolicy()), storeCreditLimit: 100 }, userId, managerPassword: PW }) // نشست ۱۵۴ (S153-D1): گیت رمز سیاست حسابداری در سرویس؛ فقط setup
 const xInv = await safe('فاکتور پرداخت‌شده‌ی ۶۰۰+۴۰۰', async () => {
   const v1 = variant(600), v2 = variant(400)
-  return salesService.create({ userId, shiftId, lines: [line(v1, 600), line(v2, 400)], payments: [{ methodId: cash, amount: 1000, destination: 'CASH' }] })
+  return salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(v1, 600), line(v2, 400)], payments: [{ methodId: cash, amount: 1000, destination: 'CASH' }] })
 })
 const xItems = seed.rows('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId = ? ORDER BY id', xInv.id)
 const xGateBefore = { returns: seed.count('SaleReturn'), credits: seed.count('StoreCredit'), payments: seed.count('Payment') }

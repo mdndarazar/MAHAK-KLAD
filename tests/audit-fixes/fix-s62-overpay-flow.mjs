@@ -83,6 +83,7 @@ const creditsOf = (invoiceId) => seed.rows('SELECT * FROM "StoreCredit" WHERE so
 const sale = (paid, extra = {}, methodId = cash) => {
   const v = variant(1000)
   return salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId, shiftId,
     lines: [{ variantId: v, qty: 1, unitPrice: 1000, discount: 0, tax: 0 }],
     payments: paid > 0 ? [{ methodId, amount: paid }] : [],
@@ -157,7 +158,7 @@ eq('نسیه‌ی جزئی: بدهی ۶۰۰', r4b?.remaining, 600)
 const r4c = await safe('دو پرداخت نقد+کارت با جمع ۱٬۲۰۰ فقط با تأیید', async () => {
   const v = variant(1000)
   try {
-    await salesService.create({ userId, shiftId, lines: [{ variantId: v, qty: 1, unitPrice: 1000, discount: 0, tax: 0 }],
+    await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [{ variantId: v, qty: 1, unitPrice: 1000, discount: 0, tax: 0 }],
       payments: [{ methodId: cash, amount: 700 }, { methodId: card, amount: 500 }] })
     return 'silent'
   } catch (e) { return String(e.message).includes('بله ثبت کن') ? 'warned' : 'other:' + e.message }

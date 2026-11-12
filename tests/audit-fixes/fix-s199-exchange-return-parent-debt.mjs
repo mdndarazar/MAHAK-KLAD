@@ -56,6 +56,7 @@ const remainingOf = async (id) => Number((await salesService.payments({ invoiceI
 const a = variant(600)
 const b = variant(400)
 const sale = await safe('فروش نسیه ۱۰۰۰', () => salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId,
   lines: [
     { variantId: a, qty: 1, unitPrice: 600, discount: 0, tax: 0 },

@@ -35,6 +35,7 @@ const readLineage = (id) => seed.one('SELECT * FROM "StoreCreditLineage" WHERE i
 const redemption = (invoiceId) => seed.one('SELECT * FROM "StoreCreditRedemption" WHERE invoiceId=? ORDER BY id LIMIT 1', invoiceId)
 const saleItems = (invoiceId) => seed.rows('SELECT id,variantId,lineTotal FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id', invoiceId)
 const createSale = ({ lines, cash = 0, code = null }) => salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId,
   shiftId,
   lines: lines.map((line) => ({ variantId: line.variantId, qty: 1, unitPrice: line.amount, discount: 0, tax: 0 })),

@@ -85,7 +85,7 @@ const invoices = () => seed.count('SaleInvoice')
 const overrideAudits = () => seed.count('AuditLog', 'action = ?', 'SALE_PRICE_OVERRIDE')
 const lastOverride = () => seed.one('SELECT entityId, userId, before, after, note FROM "AuditLog" WHERE action = ? ORDER BY id DESC LIMIT 1', 'SALE_PRICE_OVERRIDE')
 const line = (o = {}) => ({ variantId: v1, code: 'P152-1', barcode: 'B152-1', name: 'شلوار جین ۱۵۲', qty: 1, unitPrice: 1_000_000, discount: 0, tax: 0, ...o })
-const sale = (o = {}) => ({ userId: actor, shiftId, deductInventory: false, lines: [line()], payments: [], ...o })
+const sale = (o = {}) => ({ userId: actor, shiftId, deductInventory: false, lines: [line()], payments: [], debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' }, ...o })
 const setDiscount = (p) => seed.setting(SETTING_KEYS.discountPolicy, { mode: 'FREE', fixedMode: 'PERCENT', fixedValue: 0, allowLine: true, allowInvoice: true, maxPercent: 100, maxAmount: 0, ...p })
 const setAccounting = async (patch) => seed.setting(SETTING_KEYS.accountingPolicy, { ...(await settingsService.accountingPolicy()), ...patch })
 

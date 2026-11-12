@@ -77,6 +77,7 @@ const creditCount = () => Number(seed.one('SELECT COUNT(*) AS c FROM "StoreCredi
 const twoItemSale = async (paid) => {
   const a = variant(600); const b = variant(400)
   return salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId, shiftId,
     lines: [{ variantId: a, qty: 1, unitPrice: 600, discount: 0, tax: 0 }, { variantId: b, qty: 1, unitPrice: 400, discount: 0, tax: 0 }],
     payments: paid > 0 ? [{ methodId: cash, amount: paid, destination: 'CASH' }] : []

@@ -103,6 +103,7 @@ console.log('\nP1-8) mode نامعتبر بکاپ رد می‌شود، جایگ�
 console.log('\nP1-6) مابه‌التفاوت تعویض با چک رد می‌شود')
 {
   const sale = await safe('فروش نقد ۱M', () => salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId, shiftId,
     lines: [{ variantId: variant(1_000_000), qty: 1, unitPrice: 1_000_000, discount: 0, tax: 0 }],
     payments: [{ methodId: cash, amount: 1_000_000, destination: 'CASH' }]
@@ -166,6 +167,7 @@ console.log('\nP1-7) TTL نشست پنل ۵ دقیقه است')
 console.log('\nP1-13) آخرین پرداختی بر اساس paidAt است نه seq')
 {
   const sale = await safe('نسیه ۷۰۰k', () => salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId, shiftId,
     lines: [{ variantId: variant(700_000), qty: 1, unitPrice: 700_000, discount: 0, tax: 0 }],
     payments: []

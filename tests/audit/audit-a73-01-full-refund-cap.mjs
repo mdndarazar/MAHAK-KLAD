@@ -40,6 +40,7 @@ const itemIds = (invoiceId) => sql.prepare('SELECT id FROM "SaleInvoiceItem" WHE
 const drawerOut = () => Number(sql.prepare(`SELECT COALESCE(SUM(amount),0) AS n FROM "CashMovement" WHERE type <> 'OPENING_FLOAT'`).get().n)
 
 const inv = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId,
   lines: [{ variantId: v1, qty: 1, unitPrice: 1000000, discount: 0, tax: 0 }, { variantId: v2, qty: 1, unitPrice: 1000000, discount: 0, tax: 0 }],
   invoiceDiscount: 200000, discountTotal: 200000, orderDiscount: 200000,
@@ -64,7 +65,7 @@ eq('A73-01: پیام فارسی توضیح می‌دهد override فقط کسر 
 eq('A73-01: کل خروج نقد از کشو تا اینجا ۱٬۰۰۰٬۰۰۰ (≤ ۱٬۸۰۰٬۰۰۰ دریافتی)', Math.abs(drawerOut()), 1000000)
 
 // فاکتور نسیه‌ی کاملاً پرداخت‌نشده
-const credit = await salesService.create({ userId, shiftId, lines: [{ variantId: v1, qty: 1, unitPrice: 1000000, discount: 100000, tax: 0 }], payments: [] })
+const credit = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [{ variantId: v1, qty: 1, unitPrice: 1000000, discount: 100000, tax: 0 }], payments: [] })
 const [c1] = itemIds(credit.id)
 const before = drawerOut()
 const r3 = await attempt(() => salesService.createReturn({ invoiceId: credit.id, full: false, lines: [{ saleItemId: c1, qty: 1 }], refundMethod: RefundMethod.CASH, ...pw }))

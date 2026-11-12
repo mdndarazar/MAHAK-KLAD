@@ -69,6 +69,7 @@ console.log('\n۰) قاعده نمایش')
 console.log('\n۱) نسیهٔ دیروز پرداخت‌نشده → هشدار')
 {
   const sale = await salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId, shiftId,
     lines: [{ variantId, qty: 1, unitPrice: 1_000_000, discount: 0, tax: 0 }],
     payments: []
@@ -86,6 +87,7 @@ console.log('\n۲) چک سررسید گذشته')
 {
   sql.prepare('DELETE FROM "Setting" WHERE key = ?').run('debtReminder.log')
   const sale = await salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId, shiftId,
     lines: [{ variantId, qty: 1, unitPrice: 1_000_000, discount: 0, tax: 0 }],
     payments: []

@@ -85,7 +85,7 @@ const creditCount = () => seed.count('StoreCredit')
 
 // ------------------------- داده‌ی پایه -------------------------
 const inv1 = await safe('فاکتور ۱٬۰۰۰ با پرداخت نقدی ۳۰۰', () =>
-  salesService.create({ userId, shiftId, lines: [line(variant(1000), 1000)], payments: [{ methodId: cash, amount: 300, destination: 'CASH' }] }))
+  salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(variant(1000), 1000)], payments: [{ methodId: cash, amount: 300, destination: 'CASH' }] }))
 const p1 = seed.one('SELECT id, amount, methodId FROM "Payment" WHERE invoiceId = ? ORDER BY id', inv1?.id ?? -1)
 truthy('پرداخت ۳۰۰ ثبت شد', p1?.amount === 300)
 const chq = await safe('چک ۲۰۰ در جریان روی همان فاکتور', () =>
@@ -94,7 +94,7 @@ const chqId = chq?.payment?.id ?? seed.one(`SELECT id FROM "Payment" WHERE invoi
 truthy('چک ثبت شد', !!chqId)
 
 const inv2 = await safe('فاکتور ۱٬۰۰۰ تسویه‌شده', () =>
-  salesService.create({ userId, shiftId, lines: [line(variant(1000), 1000)], payments: [{ methodId: cash, amount: 1000, destination: 'CASH' }] }))
+  salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(variant(1000), 1000)], payments: [{ methodId: cash, amount: 1000, destination: 'CASH' }] }))
 await safe('اضافه‌دریافت آگاهانه‌ی ۵۰۰ روی فاکتور تسویه‌شده', () =>
   salesService.addPayment({ userId, invoiceId: inv2.id, amount: 500, methodId: cash, destination: 'CASH', confirmOverpay: true }))
 truthy('اضافه‌دریافت ۵۰۰ ثبت شد', seed.one('SELECT SUM(overpayAmount) AS s FROM "Payment" WHERE invoiceId = ?', inv2?.id ?? -1)?.s === 500)

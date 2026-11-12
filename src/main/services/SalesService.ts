@@ -1337,6 +1337,22 @@ export function saleWhere(f: SaleReportFilter): Prisma.SaleInvoiceWhereInput {
  * این تابع عمداً همان جستجوی `saleWhere` را مصرف نمی‌کند، چون بازه‌ی زمانیِ این
  * تب‌ها تاریخ رویداد خودشان است، نه تاریخ صدور فاکتور.
  */
+/**
+ * مورد ۷ — یک عبارت جستجو، هم روی مشتری سراسری هم روی هویت بدهکارِ snapshot.
+ * `undefined` یعنی فیلتر نگذار (نه «هیچ‌کس»).
+ */
+export function customerOrDebtorSearch(term: string | null | undefined): Prisma.SaleInvoiceWhereInput['OR'] {
+  const q = String(term ?? '').trim()
+  if (!q) return undefined
+  return [
+    { customer: { name: { contains: q } } },
+    { customer: { phone: { contains: q } } },
+    { debtorFirstName: { contains: q } },
+    { debtorLastName: { contains: q } },
+    { debtorPhone: { contains: q } }
+  ]
+}
+
 export function reportInvoiceRelationWhere(
   f: Pick<SaleReportFilter, 'receiptNo' | 'customerSearch' | 'productSearch' | 'userId' | 'shiftId'>
 ): Prisma.SaleInvoiceWhereInput {
@@ -1348,7 +1364,11 @@ export function reportInvoiceRelationWhere(
     receiptNo: f.receiptNo ?? undefined,
     userId: f.userId ?? undefined,
     shiftId: f.shiftId ?? undefined,
-    customer: f.customerSearch ? { name: { contains: f.customerSearch } } : undefined,
+    /**
+     * مورد ۷ — جستجوی «مشتری» حالا هویت بدهکارِ snapshot را هم می‌گیرد؛ وگرنه
+     * بدهکاری که کارت مشتری سراسری ندارد در تب نسیه با نامش پیدا نمی‌شد.
+     */
+    OR: customerOrDebtorSearch(f.customerSearch),
     items: ps
       ? {
           some: {
@@ -5739,6 +5759,48 @@ async function replaySaleRequest(key: string, fingerprint: string): Promise<any 
   }
 }
 
+/**
+ * نشست ۲۲۳ · مورد ۷ — نرمال‌سازی و اعتبارسنجی snapshot بدهکار.
+ * تلفن: فقط ارقام لاتین/فارسی با حداقل ۸ رقم. خروجی null یعنی اطلاعات ناقص
+ * است و بدهی نباید ساخته شود.
+ */
+function normalizeDebtorSnapshot(raw: any): {
+  firstName: string
+  lastName: string
+  phone: string
+  nationalId: string | null
+} | null {
+  if (!raw || typeof raw !== 'object') return null
+  const text = (value: unknown) => String(value ?? '').trim().replace(/\s+/g, ' ')
+  const digits = (value: unknown) => String(value ?? '')
+    .replace(/[\u06F0-\u06F9]/g, (d) => String('\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9'.indexOf(d)))
+    .replace(/\D/g, '')
+  const firstName = text(raw.firstName)
+  const lastName = text(raw.lastName)
+  const phone = digits(raw.phone)
+  const nationalId = digits(raw.nationalId)
+  if (firstName.length < 2 || lastName.length < 2 || phone.length < 8) return null
+  return {
+    firstName: firstName.slice(0, 80),
+    lastName: lastName.slice(0, 80),
+    phone: phone.slice(0, 20),
+    nationalId: nationalId.length >= 8 ? nationalId.slice(0, 20) : null
+  }
+}
+
+/** مورد ۷ — «نام بدهکار» از snapshot همان فاکتور، یا `null` اگر ثبت نشده باشد. */
+export function debtorSnapshotName(inv: {
+  debtorFirstName?: string | null
+  debtorLastName?: string | null
+}): string | null {
+  const name = [inv.debtorFirstName, inv.debtorLastName]
+    .map((part) => String(part ?? '').trim())
+    .filter(Boolean)
+    .join(' ')
+    .trim()
+  return name || null
+}
+
 export const salesService = {
   /**
    * ثبت فاکتور فروش (POS و فاکتور فروش عمده).
@@ -5758,6 +5820,15 @@ export const salesService = {
    */
   async create(input: CreateSaleInput) {
     validateSaleInput(input)
+    /**
+     * مورد ۷ — شکل هویت بدهکار پیش از هر نوشتنی سنجیده می‌شود (همان قاعده‌ای
+     * که UI هم دارد): اگر `debtor` آمده ولی ناقص است، همان اول رد می‌شود تا
+     * هیچ تراکنشی باز نشود. نبودِ آن فقط وقتی مانع است که واقعاً بدهی بسازد.
+     */
+    if (input.debtor != null && !normalizeDebtorSnapshot(input.debtor))
+      throw new BusinessError(
+        'مشخصات بدهکار ناقص است: نام، نام خانوادگی و شماره تلفن (دست‌کم ۸ رقم) الزامی است.'
+      )
     const orderType = input.orderType ?? OrderType.INTERNAL
     const creditTenders = normalizeSaleCreditTenders(input, orderType)
     const saleRequestKey = String(input.saleRequestIdempotencyKey ?? '').trim() || null
@@ -6360,6 +6431,37 @@ export const salesService = {
       if (storeCreditApplied > 0) {
         const settle = await recalcSettlement(tx, invoice.id)
         settledPaidTotal = settle.paidTotal
+      }
+      /**
+       * نشست ۲۲۳ · مورد ۷ — هر بدهیِ نسیه باید هویت بدهکار را روی همان فاکتور
+       * داشته باشد: نام، نام خانوادگی و تلفن اجباری؛ کد ملی اختیاری. مبلغ بدهی
+       * فقط پس از اعمال نقد/کارت/اعتبار روشن است، پس همان‌جا (داخل تراکنش، پیش
+       * از commit) سنجیده می‌شود و در صورت نبود، کل فروش rollback می‌شود؛ هیچ
+       * بدهیِ بی‌هویت ساخته نمی‌شود.
+       *
+       * ⚠️ عمداً فقط حالت «بدهی > ۰» سخت‌گیر است (S223-D4): اگر فاکتور کامل
+       * تسویه شده باشد، `debtor` نادیده گرفته می‌شود و هیچ snapshotی نوشته
+       * نمی‌شود. دلیلش این است که فراخوان‌های قدیمی/داخلی که مبلغ کامل را
+       * می‌پردازند نباید به‌خاطر یک فیلد اختیاری بشکنند؛ و «مشخصات بدهکار
+       * بدون بدهی» هرگز داده‌ی مالی نمی‌سازد.
+       */
+      const debtorDebt = Math.max(0, Math.round(t.grandTotal - settledPaidTotal))
+      if (debtorDebt > 0) {
+        const debtor = normalizeDebtorSnapshot(input.debtor)
+        if (!debtor)
+          throw new BusinessError(
+            `این فروش ${money(debtorDebt)} ریال بدهی می‌سازد؛ نام، نام خانوادگی و شماره تلفن بدهکار الزامی است. ` +
+            'هیچ فاکتور، بدهی یا حرکتی ثبت نشد.'
+          )
+        await tx.saleInvoice.update({
+          where: { id: invoice.id },
+          data: {
+            debtorFirstName: debtor.firstName,
+            debtorLastName: debtor.lastName,
+            debtorPhone: debtor.phone,
+            debtorNationalId: debtor.nationalId
+          }
+        })
       }
 
       /**
@@ -10065,6 +10167,12 @@ export const salesService = {
         orderTypeLabel: ORDER_TYPE_LABELS[inv.orderType] ?? inv.orderType,
         customerName: inv.customer?.name ?? 'مشتری عمومی',
         customerPhone: inv.customer?.phone ?? null,
+        /**
+         * مورد ۷ — بدهی بی‌نام بی‌صاحب نمی‌ماند: هر فاکتور نسیه هویت بدهکارش را
+         * روی خودش دارد. فاکتورهای پیش از این تغییر (یا نقدی) `null` می‌دهند.
+         */
+        debtorName: debtorSnapshotName(inv),
+        debtorPhone: (inv as any).debtorPhone ?? null,
         grandTotal,
         paidTotal,
         remaining,

@@ -71,7 +71,7 @@ const variant = (price) => {
 }
 const line = (variantId, price) => ({ variantId, qty: 1, unitPrice: price, discount: 0, tax: 0 })
 const yesterdaySale = async (price) => {
-  const inv = await salesService.create({ userId, shiftId, lines: [line(variant(price), price)], payments: [] })
+  const inv = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(variant(price), price)], payments: [] })
   sql.prepare('UPDATE "SaleInvoice" SET issuedAt = ?, issuedAtJalali = ?, shiftId = ? WHERE id = ?').run(Yat, yday, yShift, inv.id)
   return inv
 }
@@ -92,7 +92,7 @@ await safe('چک الف (مدیر)', () => chequeClearedToday(A, 1000, 'MANAGER'
 await safe('چک ب (بی‌مقصد)', () => chequeClearedToday(B, 1000, null))
 await safe('چک ج (CASH قدیمی)', () => chequeClearedToday(C, 1000, 'CASH'))
 await safe('وصول نقدی ۳۰۰ فاکتور د', () => salesService.addPayment({ invoiceId: D.id, amount: 300, methodId: cash, destination: 'CASH', userId }))
-await safe('فروش نقدی امروز ۵۰۰', () => salesService.create({ userId, shiftId, lines: [line(variant(500), 500)], payments: [{ methodId: cash, amount: 500, destination: 'CASH' }] }))
+await safe('فروش نقدی امروز ۵۰۰', () => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(variant(500), 500)], payments: [{ methodId: cash, amount: 500, destination: 'CASH' }] }))
 
 const rep = await safe('گزارش امروز', () => salesService.reportRows({ fromJalali: today, toJalali: today, withDrillDown: true, bridgeSourceTake: 2000 }))
 const cr = rep?.accounting?.credit

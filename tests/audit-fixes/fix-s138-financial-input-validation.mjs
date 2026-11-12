@@ -77,6 +77,7 @@ const saleInput = (overrides = {}) => ({
   deductInventory: false,
   lines: [line()],
   payments: [],
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   ...overrides
 })
 

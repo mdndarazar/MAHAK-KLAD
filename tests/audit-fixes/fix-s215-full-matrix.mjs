@@ -78,27 +78,30 @@ const payK = (n) => [{ methodId: card, amount: n, destination: 'CARD' }]
 const recNo = (id) => Number(sql.prepare('SELECT receiptNo FROM "SaleInvoice" WHERE id = ?').get(id)?.receiptNo)
 
 console.log('\nA) فروش')
-const a1 = await salesService.create({ userId, shiftId, lines: [L(vA, 1_000_000)], payments: payC(1_000_000) })
+const a1 = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vA, 1_000_000)], payments: payC(1_000_000) })
 eq('نقد ۱M', await exp(), 1_000_000)
 eq('موجودی کت ۱۹۹', stock(vA), 199)
-const a2 = await salesService.create({ userId, shiftId, lines: [L(vB, 700_000)], payments: payK(700_000) })
+const a2 = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vB, 700_000)], payments: payK(700_000) })
 eq('کارت صندوق را عوض نکرد', await exp(), 1_000_000)
 const a3 = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [L(vA, 1_000_000)],
   payments: [{ methodId: cash, amount: 400_000, destination: 'CASH' }, { methodId: card, amount: 600_000, destination: 'CARD' }]
 })
 eq('ترکیبی نقد ۱٫۴M', await exp(), 1_400_000)
-const a4 = await salesService.create({ userId, shiftId, lines: [L(vC, 400_000)], payments: [] })
+const a4 = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vC, 400_000)], payments: [] })
 eq('نسیه صندوق را عوض نکرد', await exp(), 1_400_000)
-const a5 = await salesService.create({ userId, shiftId, lines: [L(vA, 1_000_000), L(vB, 700_000)], payments: payC(1_700_000) })
+const a5 = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vA, 1_000_000), L(vB, 700_000)], payments: payC(1_700_000) })
 eq('چندقلم نقد ۳٫۱M', await exp(), 3_100_000)
-const a6 = await salesService.create({ userId, shiftId, lines: [L(vC, 400_000, 3)], payments: payC(1_200_000) })
+const a6 = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vC, 400_000, 3)], payments: payC(1_200_000) })
 eq('۳ عدد پیراهن', stock(vC), 196)
 const a7 = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [L(vA, 1_000_000, 1, 100_000)], payments: payC(900_000)
 })
 eq('تخفیف ردیف ۱۰۰k ثبت شد', Number(sql.prepare('SELECT grandTotal FROM "SaleInvoice" WHERE id = ?').get(a7.id)?.grandTotal), 900_000)
 const a8 = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [L(vA, 800_000)], payments: payC(800_000), managerPassword: PW
 })
 eq('قیمت دستی ۸۰۰k با رمز', typeof a8.id, 'number')
@@ -107,22 +110,22 @@ eq('شماره فیش یکتا', new Set(nos).size, nos.length)
 eq('شماره‌ها صعودی', nos.slice().sort((a, b) => a - b).join(), nos.join())
 
 console.log('\nB) ردها')
-await rejects('اعشار', () => salesService.create({ userId, shiftId, lines: [L(vA, 1_000_000, 1.5)], payments: [] }), null)
-await rejects('qty صفر', () => salesService.create({ userId, shiftId, lines: [L(vA, 1_000_000, 0)], payments: [] }), null)
-await rejects('قیمت منفی', () => salesService.create({ userId, shiftId, lines: [L(vA, -1)], payments: [] }), null)
-await rejects('پرداخت منفی', () => salesService.create({ userId, shiftId, lines: [L(vA, 1_000_000)], payments: payC(-1) }), null)
-await rejects('نقد به مدیر', () => salesService.create({ userId, shiftId, lines: [L(vA, 1_000_000)], payments: [{ methodId: cash, amount: 1_000_000, destination: 'MANAGER' }] }), 'نقد')
-await rejects('زیر مرجع بی‌رمز', () => salesService.create({ userId, shiftId, lines: [L(vA, 300_000)], payments: payC(300_000) }), 'رمز')
-await rejects('variant ناموجود', () => salesService.create({ userId, shiftId, lines: [L(999999, 1000)], payments: [] }), null)
+await rejects('اعشار', () => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vA, 1_000_000, 1.5)], payments: [] }), null)
+await rejects('qty صفر', () => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vA, 1_000_000, 0)], payments: [] }), null)
+await rejects('قیمت منفی', () => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vA, -1)], payments: [] }), null)
+await rejects('پرداخت منفی', () => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vA, 1_000_000)], payments: payC(-1) }), null)
+await rejects('نقد به مدیر', () => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vA, 1_000_000)], payments: [{ methodId: cash, amount: 1_000_000, destination: 'MANAGER' }] }), 'نقد')
+await rejects('زیر مرجع بی‌رمز', () => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vA, 300_000)], payments: payC(300_000) }), 'رمز')
+await rejects('variant ناموجود', () => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(999999, 1000)], payments: [] }), null)
 const last = seed.variant(pA, 'LAST')
 sql.prepare('UPDATE "ProductVariant" SET stock = 1, salePrice = 1000 WHERE id = ?').run(last)
-await salesService.create({ userId, shiftId, lines: [L(last, 1000)], payments: payC(1000) })
-const over = await salesService.create({ userId, shiftId, lines: [L(last, 1000)], payments: payC(1000) })
+await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(last, 1000)], payments: payC(1000) })
+const over = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(last, 1000)], payments: payC(1000) })
 eq('فروش بیش از موجودی ثبت شد (هشدار نه دیوار)', typeof over?.id, 'number')
 eq('موجودی آخرین کالا منفی یا صفر شد', stock(last) <= 0, true)
 
 console.log('\nC) برگشت')
-const bFull = await salesService.create({ userId, shiftId, lines: [L(vB, 700_000)], payments: payC(700_000) })
+const bFull = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vB, 700_000)], payments: payC(700_000) })
 const cash0 = await exp()
 const rFull = await salesService.createReturn({
   invoiceId: bFull.id, full: true, lines: [{ saleItemId: itemsOf(bFull.id)[0].id, qty: 1 }],
@@ -136,6 +139,7 @@ await rejects('برگشت دوباره کامل', () => salesService.createRetur
 }), null)
 
 const bTwo = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [L(vA, 1_000_000), L(vC, 400_000)], payments: payC(1_400_000)
 })
 const it2 = itemsOf(bTwo.id)
@@ -153,20 +157,21 @@ await rejects('ردیف تکراری بیش از فروخته', () => salesServi
   refundMethod: 'NONE', userId
 }), null)
 
-const bNas = await salesService.create({ userId, shiftId, lines: [L(vC, 400_000)], payments: [] })
+const bNas = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vC, 400_000)], payments: [] })
 const rNas = await salesService.createReturn({
   invoiceId: bNas.id, full: true, lines: [{ saleItemId: itemsOf(bNas.id)[0].id, qty: 1 }],
   refundMethod: 'CASH', userId
 })
 eq('برگشت نسیه نقد نداد', Number(rNas.refundAmount ?? 0), 0)
 
-const bHalf = await salesService.create({ userId, shiftId, lines: [L(vA, 1_000_000)], payments: payC(300_000) })
+const bHalf = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vA, 1_000_000)], payments: payC(300_000) })
 await rejects('برگشت کامل نیمه‌پرداخت بدون تأیید اضافه', () => salesService.createReturn({
   invoiceId: bHalf.id, full: true, lines: [{ saleItemId: itemsOf(bHalf.id)[0].id, qty: 1 }],
   refundMethod: 'NONE', userId
 }), 'اضافه‌دریافت')
 
 const bDisc = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [L(vA, 1_000_000, 1, 100_000)], payments: payC(900_000)
 })
 const cashD = await exp()
@@ -181,7 +186,7 @@ await rejects('برگشت فاکتور ناموجود', () => salesService.creat
 }), null)
 
 console.log('\nD) تعویض')
-const e1 = await salesService.create({ userId, shiftId, lines: [L(vA, 1_000_000)], payments: payC(1_000_000) })
+const e1 = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vA, 1_000_000)], payments: payC(1_000_000) })
 const c1 = await exp()
 sql.prepare('UPDATE "ProductVariant" SET salePrice = 1300000 WHERE id = ?').run(vB)
 await salesService.createExchange({
@@ -193,7 +198,7 @@ await salesService.createExchange({
 eq('تعویض گران +۳۰۰k نقد', await exp(), c1 + 300_000)
 sql.prepare('UPDATE "ProductVariant" SET salePrice = 700000 WHERE id = ?').run(vB)
 
-const e2 = await salesService.create({ userId, shiftId, lines: [L(vA, 1_000_000)], payments: payC(1_000_000) })
+const e2 = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vA, 1_000_000)], payments: payC(1_000_000) })
 const c2 = await exp()
 await salesService.createExchange({
   invoiceId: e2.id, userId, shiftId,
@@ -203,7 +208,7 @@ await salesService.createExchange({
 })
 eq('تعویض ارزان −۳۰۰k نقد', await exp(), c2 - 300_000)
 
-const e3 = await salesService.create({ userId, shiftId, lines: [L(vA, 1_000_000)], payments: payC(1_000_000) })
+const e3 = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vA, 1_000_000)], payments: payC(1_000_000) })
 const c3 = await exp()
 sql.prepare('UPDATE "ProductVariant" SET salePrice = 1000000 WHERE id = ?').run(vC)
 await salesService.createExchange({
@@ -215,7 +220,7 @@ eq('تعویض هم‌قیمت نقد عوض نشد', await exp(), c3)
 sql.prepare('UPDATE "ProductVariant" SET salePrice = 400000 WHERE id = ?').run(vC)
 
 console.log('\nE) اعتبار')
-const credInv = await salesService.create({ userId, shiftId, lines: [L(vB, 700_000)], payments: payC(700_000) })
+const credInv = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vB, 700_000)], payments: payC(700_000) })
 const credRet = await salesService.createReturn({
   invoiceId: credInv.id, full: true, lines: [{ saleItemId: itemsOf(credInv.id)[0].id, qty: 1 }],
   refundMethod: 'STORE_CREDIT', userId
@@ -226,6 +231,7 @@ const code = credRet.storeCreditCode || credRet.creditCode || seed.one(
 truthy('بارکد اعتبار برگشت صادر شد', !!code)
 const cashBeforeCreditSale = await exp()
 const credSale = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [L(vC, 400_000)], payments: [],
   storeCreditCode: code
 })
@@ -237,14 +243,14 @@ const manual = await storeCreditService.issueManual({ amount: 50_000, userId, ma
 truthy('صدور دستی با رمز فقط مرجع امن دارد', !!manual?.id && !!manual?.publicReference && !('code' in manual))
 
 console.log('\nF) پرداخت / چک / ابطال')
-const f1 = await salesService.create({ userId, shiftId, lines: [L(vC, 400_000)], payments: [] })
+const f1 = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vC, 400_000)], payments: [] })
 await salesService.addPayment({ invoiceId: f1.id, userId, methodId: cash, amount: 400_000, destination: 'CASH' })
 eq('وصول نسیه نقد را بالا برد', true, true)
 await rejects('اضافه‌دریافت بی‌تأیید', () => salesService.addPayment({
   invoiceId: f1.id, userId, methodId: cash, amount: 100_000, destination: 'CASH'
 }), 'اضافه')
 
-const f2 = await salesService.create({ userId, shiftId, lines: [L(vC, 400_000)], payments: [] })
+const f2 = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vC, 400_000)], payments: [] })
 await salesService.addPayment({
   invoiceId: f2.id, kind: 'CHEQUE', amount: 400_000, chequeNo: 'M215', bankName: 'ملت',
   dueDateJalali: today, userId
@@ -258,7 +264,7 @@ await rejects('saleUpdate پاک کردن چک پاس', () => salesService.updat
   id: f2.id, userId, shiftId, lines: [L(vC, 400_000)], payments: []
 }), 'پرداختی‌ها')
 
-const f3 = await salesService.create({ userId, shiftId, lines: [L(vC, 400_000)], payments: payC(400_000) })
+const f3 = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(vC, 400_000)], payments: payC(400_000) })
 const live = seed.one('SELECT id FROM "Payment" WHERE invoiceId = ? AND voidedAt IS NULL', f3.id)
 await rejects('ابطال نقد بی‌رمز', () => salesService.deletePayment({ id: live.id, userId, reason: 'تست' }), 'رمز')
 await salesService.deletePayment({ id: live.id, userId, reason: 'ثبت اشتباه', managerPassword: PW, overrideReason: 'ثبت اشتباه' })
@@ -284,6 +290,7 @@ eq('Audit رمز userId جعلی ندارد', aud.some((a) => Number(a.userId) =
 console.log('\nH) مبلغ بزرگ و تاریخچه انبار')
 sql.prepare('UPDATE "ProductVariant" SET salePrice = 1000000000, stock = 5 WHERE id = ?').run(vA)
 const big = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [L(vA, 1_000_000_000)], payments: payC(1_000_000_000)
 })
 eq('فاکتور ۱ میلیارد', Number(sql.prepare('SELECT grandTotal FROM "SaleInvoice" WHERE id = ?').get(big.id)?.grandTotal), 1_000_000_000)
@@ -293,8 +300,8 @@ truthy('حرکت انبار برای کت ثبت شده', moves.length > 0)
 console.log('\nI) همزمانی موجودی ۱')
 const raceV = seed.variant(pB, 'RACE')
 sql.prepare('UPDATE "ProductVariant" SET stock = 1, salePrice = 1000 WHERE id = ?').run(raceV)
-const r1 = salesService.create({ userId, shiftId, lines: [L(raceV, 1000)], payments: payC(1000) })
-const r2 = salesService.create({ userId, shiftId, lines: [L(raceV, 1000)], payments: payC(1000) })
+const r1 = salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(raceV, 1000)], payments: payC(1000) })
+const r2 = salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [L(raceV, 1000)], payments: payC(1000) })
 const raced = await Promise.allSettled([r1, r2])
 const raceOk = raced.filter((x) => x.status === 'fulfilled').length
 const raceStock = stock(raceV)
@@ -307,6 +314,7 @@ sql.prepare('UPDATE "ProductVariant" SET stock = 20000, salePrice = 1000 WHERE i
 const t0 = Date.now()
 for (let i = 0; i < 1000; i++) {
   await salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId, shiftId, deductInventory: false,
     lines: [L(vC, 1000)], payments: payC(1000)
   })

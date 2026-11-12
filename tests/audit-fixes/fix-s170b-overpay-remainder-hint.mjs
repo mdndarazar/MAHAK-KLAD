@@ -61,6 +61,7 @@ const variant = (price) => {
 }
 const itemsOf = (invoiceId) => seed.rows('SELECT id, qty, lineTotal FROM "SaleInvoiceItem" WHERE invoiceId = ? ORDER BY id', invoiceId)
 const sale = (price, paid, extra = {}) => salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId,
   lines: [{ variantId: variant(price), qty: 1, unitPrice: price, discount: 0, tax: 0 }],
   payments: paid > 0 ? [{ methodId: cash, amount: paid, destination: 'CASH' }] : [],

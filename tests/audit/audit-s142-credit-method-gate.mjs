@@ -58,7 +58,7 @@ const payCount = (id) => seed.count('Payment', 'invoiceId = ?', id)
 
 console.log('\n— ۱) addPayment با روش STORE_CREDIT بی‌کد اعتبار (IPC)')
 {
-  const inv = await salesService.create({ userId: A, shiftId, lines: [line(v1)], payments: [] })
+  const inv = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId: A, shiftId, lines: [line(v1)], payments: [] })
   const r = await safe(() => ipc(IPC.salePaymentAdd, { invoiceId: inv.id, amount: 500_000, methodId: sc, destination: 'MANAGER' }))
   eq('رد با پیام هدف', TARGET.test(errOf(r) ?? ''), true)
   eq('هیچ ردیف پرداختی ساخته نشد', payCount(inv.id), 0)
@@ -77,7 +77,7 @@ console.log('\n— ۱) addPayment با روش STORE_CREDIT بی‌کد اعتب�
 
 console.log('\n— ۲) updatePayment نقدی ⇒ STORE_CREDIT / EXCHANGE_CREDIT')
 {
-  const inv = await salesService.create({ userId: A, shiftId, lines: [line(v1)], payments: [{ methodId: cash, amount: 500_000, destination: 'CASH' }] })
+  const inv = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId: A, shiftId, lines: [line(v1)], payments: [{ methodId: cash, amount: 500_000, destination: 'CASH' }] })
   const pay = seed.one('SELECT id FROM "Payment" WHERE invoiceId = ?', inv.id).id
   const r = await safe(() => ipc(IPC.salePaymentUpdate, { id: pay, methodId: sc, destination: 'MANAGER', ...GATE }))
   eq('نقدی ⇒ STORE_CREDIT رد با پیام هدف', TARGET.test(errOf(r) ?? ''), true)
@@ -91,7 +91,7 @@ console.log('\n— ۲) updatePayment نقدی ⇒ STORE_CREDIT / EXCHANGE_CREDIT
 
 console.log('\n— ۳) ردیف EXCHANGE_CREDIT سند تعویض (بی storeCreditId)')
 {
-  const src = await salesService.create({ userId: A, shiftId, lines: [line(v1), line(v2)], payments: [{ methodId: cash, amount: 1_000_000, destination: 'CASH' }] })
+  const src = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId: A, shiftId, lines: [line(v1), line(v2)], payments: [{ methodId: cash, amount: 1_000_000, destination: 'CASH' }] })
   const items = seed.rows('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId = ? ORDER BY id', src.id).map((r) => Number(r.id))
   const exr = await safe(() => salesService.createExchange({ invoiceId: src.id, lines: [{ saleItemId: items[0], qty: 1 }], replacements: [{ variantId: vr, qty: 1 }], userId: A, shiftId }))
   eq('تعویض هم‌ارزش ثبت شد', errOf(exr), null)
@@ -133,7 +133,7 @@ console.log('\n— ۴) پرداخت اولیه‌ی فروش با روش STORE_C
   const before = seed.count('SaleInvoice', '1 = 1')
   const r = await safe(() => ipc(IPC.saleCreate, { shiftId, lines: [line(v1)], payments: [{ methodId: sc, amount: 500_000, destination: 'MANAGER' }] }))
   eq('فروش با روش STORE_CREDIT بی‌کد رد با پیام هدف', TARGET.test(errOf(r) ?? ''), true)
-  const r2 = await safe(() => salesService.create({ userId: A, shiftId, lines: [line(v1)], payments: [{ methodId: ex, amount: 500_000 }] }))
+  const r2 = await safe(() => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId: A, shiftId, lines: [line(v1)], payments: [{ methodId: ex, amount: 500_000 }] }))
   eq('فروش با روش EXCHANGE_CREDIT رد با پیام هدف', TARGET.test(errOf(r2) ?? ''), true)
   eq('هیچ فاکتوری ساخته نشد', seed.count('SaleInvoice', '1 = 1'), before)
 }
@@ -141,7 +141,7 @@ console.log('\n— ۴) پرداخت اولیه‌ی فروش با روش STORE_C
 console.log('\n— ۵) مسیر واقعی اعتبار خرید سالم')
 {
   seed.insert('StoreCredit', { code: 'SC142', amount: 300_000, status: 'ACTIVE', source: 'MANUAL', issuedAt: Date.now() - 60_000 })
-  const r = await safe(() => salesService.create({ userId: A, shiftId, lines: [line(v2)], payments: [{ methodId: cash, amount: 200_000, destination: 'CASH' }], storeCreditCode: 'SC142' }))
+  const r = await safe(() => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId: A, shiftId, lines: [line(v2)], payments: [{ methodId: cash, amount: 200_000, destination: 'CASH' }], storeCreditCode: 'SC142' }))
   eq('فروش با کد اعتبار ثبت شد', errOf(r), null)
   const invId = r?.id ?? r?.invoice?.id
   const scRow = seed.one('SELECT amount, storeCreditId FROM "Payment" WHERE invoiceId = ? AND methodId = ?', invId, sc)
@@ -151,7 +151,7 @@ console.log('\n— ۵) مسیر واقعی اعتبار خرید سالم')
 
 console.log('\n— ۶) صدور اعتبار اضافه‌دریافت: سقف available و «خالی = کل»')
 {
-  const inv = await salesService.create({ userId: A, shiftId, lines: [line(v1)], payments: [] })
+  const inv = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId: A, shiftId, lines: [line(v1)], payments: [] })
   await salesService.addPayment({ invoiceId: inv.id, amount: 700_000, methodId: cash, destination: 'CASH', userId: A, confirmOverpay: true })
   const over = await safe(() => ipc(IPC.saleOverpayCredit, { invoiceId: inv.id, amount: 200_001 }))
   eq('۲۰۰٬۰۰۱ بیش از آزاد ۲۰۰٬۰۰۰ رد با پیام سقف', /اضافه‌دریافتِ آزاد فاکتور .* ۲۰۰٬۰۰۰ ریال است/.test(errOf(over) ?? ''), true)

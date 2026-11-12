@@ -65,6 +65,7 @@ const itemRows = (invoiceId) => seed.rows('SELECT id FROM "SaleInvoiceItem" WHER
 const returnItemCount = (returnId) => Number(seed.one('SELECT COUNT(*) AS c FROM "SaleReturnItem" WHERE returnId = ?', returnId)?.c ?? -1)
 
 const invoice = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId,
   shiftId,
   lines: [

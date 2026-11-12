@@ -70,6 +70,7 @@ console.log('\n۰) قرارداد منبع: سقف برگشت از پول واق
 const exchangeThenReturnCash = async (label, paid) => {
   const srcVar = variant(1_000_000)
   const sale = await safe(`${label}: فروش ${paid ? 'نقد' : 'نسیه'} ۱M`, () => salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId, shiftId,
     lines: [{ variantId: srcVar, qty: 1, unitPrice: 1_000_000, discount: 0, tax: 0 }],
     payments: paid ? [{ methodId: cash, amount: 1_000_000, destination: 'CASH' }] : []

@@ -60,6 +60,7 @@ const a = variant(1_000)
 const b = variant(1_000)
 const c = variant(1_500)
 const original = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId,
   shiftId,
   lines: [
@@ -181,6 +182,7 @@ const rootCreditId = makeCredit('S1ROOTCREDIT', 2_000_000, { expiresAt: rootExpi
 const originalS1Variant = variant(15_980_000)
 const replacementS1Variant = variant(15_000_000)
 const originalS1 = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId,
   shiftId,
   lines: [{ variantId: originalS1Variant, qty: 1, unitPrice: 15_980_000, discount: 0, tax: 0 }],
@@ -216,6 +218,7 @@ const cVariant = variant(5_000_000)
 const gVariant = variant(5_000_000)
 const gReplacement = variant(4_000_000)
 const pSale = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId,
   shiftId,
   lines: [{ variantId: pVariant, qty: 1, unitPrice: 15_000_000, discount: 0, tax: 0 }],
@@ -282,6 +285,7 @@ console.log('۷) S11: بدهی ۳۰۰٬۰۰۰ اول کم می‌شود؛ فقط
 const s11OriginalVariant = variant(1_000_000)
 const s11ReplacementVariant = variant(500_000)
 const s11Sale = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId,
   shiftId,
   lines: [{ variantId: s11OriginalVariant, qty: 1, unitPrice: 1_000_000, discount: 0, tax: 0 }],
@@ -313,6 +317,7 @@ console.log('۸) برگشت کالای پول‌داده‌شده از چکِ و
 const cashPaid = variant(2_000_000)
 const chequeKept = variant(2_000_000)
 const mixedSale = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId,
   shiftId,
   lines: [

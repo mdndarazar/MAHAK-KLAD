@@ -69,6 +69,7 @@ const exp = async () => Number((await cashboxService.expected({ shiftId })).expe
 
 console.log('\\n۱) پرداخت روی فاکتور لغوشده')
 const inv = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId,
   shiftId,
   lines: [{ variantId: v, qty: 1, unitPrice: 1000, discount: 0, tax: 0 }],
@@ -105,6 +106,7 @@ const code = issued?.id == null ? null : sql.prepare('SELECT code FROM "StoreCre
 truthy('اعتبار ۲۰۰۰ با DTO امن صادر شد', !!issued?.id && !('code' in issued) && !!code)
 const KEY = 'replay-key-212'
 const a = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId,
   shiftId,
   lines: [{ variantId: v, qty: 1, unitPrice: 1000, discount: 0, tax: 0 }],
@@ -119,6 +121,7 @@ eq('فاکتور اول پرداخت اعتبار دارد', Number(sql.prepare(
 await rejects(
   'فاکتور دوم با همان کلید رد می‌شود',
   () => salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId,
     shiftId,
     lines: [{ variantId: v, qty: 1, unitPrice: 1000, discount: 0, tax: 0 }],
@@ -130,6 +133,7 @@ await rejects(
 )
 eq('اعتبار بعد از تلاش دوم همان ۱۰۰۰ مانده', Number(sql.prepare('SELECT usedAmount FROM "StoreCredit" WHERE code = ?').get(code)?.usedAmount ?? -1), 1000)
 const sameKeyReplay = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId,
   shiftId,
   lines: [{ variantId: v, qty: 1, unitPrice: 1000, discount: 0, tax: 0 }],

@@ -34,7 +34,7 @@ const cash = seed.insert('PaymentMethod', { key: 'CASH', label: 'نقدی', kind
 const shiftId = seed.insert('Shift', { name: 'صبح', number: 1, dayJalali: today, openedAt: Date.now() - 3600_000, userId: A })
 
 // (۱) addPayment بعد از ابطال: فاکتور ۱٬۰۰۰٬۰۰۰ تمام‌نقد، پرداخت باطل، پرداخت درستِ ۱٬۰۰۰٬۰۰۰
-const inv = await salesService.create({ userId: A, shiftId, lines: [{ variantId: v1, qty: 1, unitPrice: 1000000, discount: 0, tax: 0 }], payments: [{ methodId: cash, amount: 1000000, destination: 'CASH' }] })
+const inv = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId: A, shiftId, lines: [{ variantId: v1, qty: 1, unitPrice: 1000000, discount: 0, tax: 0 }], payments: [{ methodId: cash, amount: 1000000, destination: 'CASH' }] })
 const pay1 = seed.rows('SELECT id FROM "Payment" WHERE invoiceId = ?', inv.id)[0]
 await salesService.deletePayment({ id: pay1.id, userId: A, reason: 'مبلغ اشتباه', ...GATE })
 const added = await tryDo('ثبت دوباره‌ی ۱٬۰۰۰٬۰۰۰ بعد از ابطال بدون هشدار اضافه‌دریافت', () => salesService.addPayment({ invoiceId: inv.id, methodId: cash, amount: 1000000, destination: 'CASH', userId: A }))
@@ -43,7 +43,7 @@ const lastPay = seed.rows('SELECT overpayAmount FROM "Payment" WHERE invoiceId =
 eq('پرداخت تازه اضافه‌دریافت ندارد (۰، نه ۱٬۰۰۰٬۰۰۰)', lastPay.map((r) => r.overpayAmount), [0])
 
 // (۲) وصول نسیه‌ی دوره‌ی قبل که باطل شد: فاکتور نسیه‌ی سه روز قبل، وصول ۵۰۰٬۰۰۰ امروز، سپس ابطال
-const old = await salesService.create({ userId: A, shiftId, lines: [{ variantId: v1, qty: 1, unitPrice: 1000000, discount: 0, tax: 0 }], payments: [] })
+const old = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId: A, shiftId, lines: [{ variantId: v1, qty: 1, unitPrice: 1000000, discount: 0, tax: 0 }], payments: [] })
 const past = Date.now() - 3 * 86400_000
 sql.prepare('UPDATE "SaleInvoice" SET issuedAt = ?, issuedAtJalali = ? WHERE id = ?').run(past, toJalaliDate(new Date(past)), old.id)
 await salesService.addPayment({ invoiceId: old.id, methodId: cash, amount: 500000, destination: 'CASH', userId: A })

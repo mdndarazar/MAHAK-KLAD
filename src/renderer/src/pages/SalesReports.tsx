@@ -3898,8 +3898,8 @@ function creditRowValues(r: CreditInvoiceRow): (string | number)[] {
     r.dateJalali,
     r.time,
     r.orderTypeLabel,
-    r.customerName,
-    r.customerPhone ?? '',
+    r.debtorName ?? r.customerName,
+    r.debtorPhone ?? r.customerPhone ?? '',
     r.grandTotal,
     r.paidTotal,
     r.remaining,
@@ -3979,8 +3979,15 @@ function CreditTables({
               <td>{faDigits(r.dateJalali)}</td>
               <td>{faDigits(r.time)}</td>
               <td>{r.orderTypeLabel}</td>
-              <td>{r.customerName}</td>
-              <td dir="ltr">{r.customerPhone ? faDigits(r.customerPhone) : '—'}</td>
+              {/*
+                مورد ۷ — ستون «مشتری» برای فاکتور نسیه همان بدهکار است؛ اگر
+                snapshot ثبت نشده باشد (فاکتور قدیمی) به مشتری سراسری برمی‌گردیم.
+              */}
+              <td title={r.customerName}>
+                {r.debtorName ?? r.customerName}
+                {r.debtorName ? <span className="text-slate-500 text-xs"> · بدهکار</span> : null}
+              </td>
+              <td dir="ltr">{(r.debtorPhone ?? r.customerPhone) ? faDigits(String(r.debtorPhone ?? r.customerPhone)) : '—'}</td>
               <td className="font-bold">{money(r.grandTotal)}</td>
               <td>{money(r.paidTotal)}</td>
               <td className={`font-bold ${r.remaining > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>

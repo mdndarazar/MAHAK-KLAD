@@ -38,7 +38,8 @@ const input = (payments) => ({
   userId,
   shiftId,
   lines: [{ variantId, qty: 1, unitPrice: 1_000, discount: 0, tax: 0 }],
-  payments
+  payments,
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
 })
 
 console.log('--- ۱. CASH + CARD دو Payment مستقل و مقصد مستقل می‌سازند ---')

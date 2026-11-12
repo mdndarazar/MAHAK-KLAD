@@ -57,7 +57,7 @@ const METHOD = {
 const HOUR = 3_600_000
 const TOTAL = 20_000_000
 const shiftId = seed.insert('Shift', { name: 'نشست Y19', number: 1, dayJalali: toJalaliDate(new Date()), openedAt: Date.now() - HOUR, userId })
-const sale = (over = {}) => salesService.create({ userId, shiftId, lines: [{ variantId: variant, qty: 1, unitPrice: TOTAL, discount: 0, tax: 0 }], payments: [], ...over })
+const sale = (over = {}) => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [{ variantId: variant, qty: 1, unitPrice: TOTAL, discount: 0, tax: 0 }], payments: [], ...over })
 /** پرداخت داده‌ی تحت آزمون + همگام‌سازی paidTotal فاکتور مثل مسیر واقعی (recalcSettlement ⇒ receivedTotalOf) */
 const pay = (invoiceId, row) => {
   const now = Date.now()

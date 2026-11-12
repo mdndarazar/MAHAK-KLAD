@@ -82,6 +82,7 @@ const line = (v, price, qty = 1, discount = 0) => ({ variantId: v, qty, unitPric
 
 console.log('\n۱) فروش نقد / کارت / نسیه / ترکیبی')
 const sCash = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [line(vA, 1_000_000)],
   payments: [{ methodId: cash, amount: 1_000_000, destination: 'CASH' }]
 })
@@ -89,12 +90,14 @@ eq('نقد صندوق بعد از فروش نقد ۱٬۰۰۰٬۰۰۰', await exp
 eq('موجودی کت ۴۹', stock(vA), 49)
 
 const sCard = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [line(vB, 700_000)],
   payments: [{ methodId: card, amount: 700_000, destination: 'CARD' }]
 })
 eq('نقد صندوق با فروش کارت عوض نشد', await exp(), 1_000_000)
 
 const sMix = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [line(vA, 1_000_000)],
   payments: [
     { methodId: cash, amount: 400_000, destination: 'CASH' },
@@ -106,12 +109,14 @@ const remMix = await remaining(sMix.id)
 eq('مانده ترکیبی ۰', remMix.remaining, 0)
 
 const sNasiye = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [line(vA, 1_000_000)], payments: []
 })
 eq('نسیه نقد صندوق را عوض نکرد', await exp(), 1_400_000)
 eq('مانده نسیه ۱٬۰۰۰٬۰۰۰', (await remaining(sNasiye.id)).remaining, 1_000_000)
 
 const sPart = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [line(vA, 1_000_000)],
   payments: [{ methodId: cash, amount: 300_000, destination: 'CASH' }]
 })
@@ -120,24 +125,30 @@ eq('نقد ۱٬۷۰۰٬۰۰۰', await exp(), 1_700_000)
 
 console.log('\n۲) مرزها و سوءاستفاده')
 await rejects('تعداد اعشاری', () => salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [line(vA, 1_000_000, 1.5)], payments: []
 }), 'عدد')
 await rejects('قیمت منفی', () => salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [{ variantId: vA, qty: 1, unitPrice: -1, discount: 0, tax: 0 }], payments: []
 }), null)
 await rejects('پرداخت منفی', () => salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [line(vA, 1_000_000)],
   payments: [{ methodId: cash, amount: -100, destination: 'CASH' }]
 }), null)
 await rejects('نقد به حساب مدیر', () => salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [line(vA, 1_000_000)],
   payments: [{ methodId: cash, amount: 1_000_000, destination: 'MANAGER' }]
 }), 'نقد')
 await rejects('قیمت دستی زیر مرجع بی‌رمز', () => salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [line(vA, 300_000)],
   payments: [{ methodId: cash, amount: 300_000, destination: 'CASH' }]
 }), 'رمز')
 const cheapDisc = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [line(vA, 1_000_000, 1, 990_000)],
   payments: [{ methodId: cash, amount: 10_000, destination: 'CASH' }]
 })
@@ -188,6 +199,7 @@ await rejects('برگشت دوباره همان قلم کامل', () => salesSer
 
 console.log('\n۵) تعویض گران و ارزان')
 const invEx = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [line(vA, 1_000_000)],
   payments: [{ methodId: cash, amount: 1_000_000, destination: 'CASH' }]
 })
@@ -204,6 +216,7 @@ eq('تعویض رو به بالا ثبت شد', !!up, true)
 eq('نقد دقیقاً ۳۰۰٬۰۰۰ اضافه شد', await exp(), cashBeforeEx + 300_000)
 
 const invEx2 = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [line(vA, 1_000_000)],
   payments: [{ methodId: cash, amount: 1_000_000, destination: 'CASH' }]
 })
@@ -221,6 +234,7 @@ eq('نقد دقیقاً ۳۰۰٬۰۰۰ کم شد', await exp(), cashBeforeDown -
 
 console.log('\n۶) اضافه‌دریافت')
 const invOv = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [line(vB, 700_000)],
   payments: [{ methodId: cash, amount: 700_000, destination: 'CASH' }]
 })
@@ -230,6 +244,7 @@ await rejects('وصول ۷۰۰ روی مانده ۰ بدون تأیید', () => 
 
 console.log('\n۷) چک و بستن صندوق')
 const invCh = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [line(vB, 700_000)], payments: []
 })
 await salesService.addPayment({
@@ -257,6 +272,7 @@ const t0 = Date.now()
 sql.prepare('UPDATE "ProductVariant" SET stock = 5000, salePrice = 1000 WHERE id = ?').run(vB)
 for (let i = 0; i < 500; i++) {
   await salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId, shiftId, deductInventory: false,
     lines: [line(vB, 1000)],
     payments: [{ methodId: cash, amount: 1000, destination: 'CASH' }]

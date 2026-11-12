@@ -58,7 +58,7 @@ const TOTAL = 20_000_000
 const HOUR = 3_600_000
 let shiftSeq = 0
 const makeShift = (name) => seed.insert('Shift', { name, number: ++shiftSeq, dayJalali: toJalaliDate(new Date()), openedAt: Date.now() - HOUR, userId })
-const sale = (over = {}) => salesService.create({ userId, lines: [{ variantId: variant, qty: 1, unitPrice: TOTAL, discount: 0, tax: 0 }], payments: [], ...over })
+const sale = (over = {}) => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, lines: [{ variantId: variant, qty: 1, unitPrice: TOTAL, discount: 0, tax: 0 }], payments: [], ...over })
 /**
  * نشست ۱۶۱ (S161-D3) — در داده‌ی واقعی چکِ پاس‌شده داخل paidTotal فاکتور است (recalcSettlement ⇒
  * receivedTotalOf). نسخه‌ی ۱۶۰ این تست paidTotal را همگام نمی‌کرد و «نسیه‌ی وصول‌نشده» را به اندازه‌ی

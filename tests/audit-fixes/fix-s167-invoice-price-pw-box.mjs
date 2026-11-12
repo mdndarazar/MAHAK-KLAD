@@ -41,7 +41,7 @@ const actor = seed.user('فروشنده ۱۶۷ج')
 const shiftId = seed.insert('Shift', { name: 'صبح', number: 1, dayJalali: jalaliToday(), openedAt: Date.now() - 3600_000, userId: actor, staffConfirmed: 1 })
 const pid = seed.product('کت ۱۶۷', seed.category('پوشاک ۱۶۷ج'))
 const v = seed.insert('ProductVariant', { productId: pid, code: 'PW-1', barcode: 'BPW-1', salePrice: 1_000_000, stock: 100 })
-const sale = (o = {}) => ({ userId: actor, shiftId, deductInventory: false, payments: [], lines: [{ variantId: v, code: 'PW-1', barcode: 'BPW-1', name: 'کت', qty: 1, unitPrice: 800_000, discount: 0, tax: 0 }], ...o })
+const sale = (o = {}) => ({ userId: actor, shiftId, deductInventory: false, payments: [], debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' }, lines: [{ variantId: v, code: 'PW-1', barcode: 'BPW-1', name: 'کت', qty: 1, unitPrice: 800_000, discount: 0, tax: 0 }], ...o })
 let msg = ''
 try { await salesService.create(sale()); } catch (e) { msg = String(e?.message ?? e) }
 truthy(`بی‌رمز رد شد (${msg.slice(0, 90)})`, msg.length > 0)

@@ -65,6 +65,7 @@ console.log('\n۲) ثبت پرداخت بدون تیک چاپ: remaining و Audi
 {
   const vid = variant(300_000)
   const inv = await safe('فروش نسیه ۳۰۰ با ۱۰۰ نقد', () => salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId, shiftId,
     lines: [{ variantId: vid, qty: 1, unitPrice: 300_000, discount: 0, tax: 0, name: 'کت' }],
     payments: [{ methodId: cash, amount: 100_000, destination: 'CASH' }]
@@ -123,6 +124,7 @@ console.log('\n۵) چک: تسویه نشود و متن در جریان بیای�
 {
   const vid = variant(200_000)
   const inv = await safe('فروش برای چک', () => salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId, shiftId,
     lines: [{ variantId: vid, qty: 1, unitPrice: 200_000, discount: 0, tax: 0, name: 'کت چک' }],
     payments: [{ methodId: cash, amount: 50_000, destination: 'CASH' }]
@@ -143,6 +145,7 @@ console.log('\n۶) مشتری بی‌نام: خط مشتری در HTML نیست'
 {
   const vid = variant(100_000)
   const inv = await safe('فروش بی‌نام', () => salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId, shiftId,
     lines: [{ variantId: vid, qty: 1, unitPrice: 100_000, discount: 0, tax: 0, name: 'کت' }],
     payments: [{ methodId: cash, amount: 40_000, destination: 'CASH' }]
@@ -160,6 +163,7 @@ console.log('\n۷) عمده و خرد یکسان')
 {
   const vid = variant(80_000)
   const inv = await safe('فروش عمده', () => salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId, shiftId, orderType: OrderType.WHOLESALE,
     lines: [{ variantId: vid, qty: 1, unitPrice: 80_000, discount: 0, tax: 0, name: 'کت عمده' }],
     payments: [{ methodId: cash, amount: 20_000, destination: 'CASH' }]

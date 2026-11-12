@@ -46,6 +46,7 @@ const manualCredit = async ({ amount, scope = 'ALL', variants = [], categories =
   return { id: row.id, code: seed.one('SELECT code FROM "StoreCredit" WHERE id=?', row.id).code }
 }
 const createSale = (lines, payments, credit) => salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId,
   lines: lines.map((line) => ({ variantId: line.variantId, qty: 1, unitPrice: line.value, discount: 0, tax: 0 })),
   payments: payments > 0 ? [{ methodId: cashMethod, amount: payments, destination: 'CASH' }] : [],

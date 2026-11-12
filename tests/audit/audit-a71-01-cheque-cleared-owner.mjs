@@ -27,7 +27,7 @@ sql.prepare('UPDATE "ProductVariant" SET stock = 5, salePrice = 1000000 WHERE id
 const cash = seed.insert('PaymentMethod', { key: 'CASH', label: 'نقدی', kind: 'CASH', isActive: 1, sortOrder: 1 })
 const cheque = seed.insert('PaymentMethod', { key: 'CHEQUE', label: 'چک', kind: 'CUSTOM', isActive: 1, sortOrder: 2 })
 const shiftA = seed.insert('Shift', { name: 'صبح', number: 1, dayJalali: today, openedAt: Date.now() - 3_600_000, userId: userA })
-const sale = await salesService.create({ userId: userA, shiftId: shiftA, lines: [{ variantId, qty: 1, unitPrice: 1000000, discount: 0, tax: 0 }], payments: [{ methodId: cash, amount: 100000, destination: 'CASH' }] })
+const sale = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId: userA, shiftId: shiftA, lines: [{ variantId, qty: 1, unitPrice: 1000000, discount: 0, tax: 0 }], payments: [{ methodId: cash, amount: 100000, destination: 'CASH' }] })
 const pay = await salesService.addPayment({ invoiceId: sale.id, userId: userA, methodId: cheque, kind: 'CHEQUE', amount: 900000, chequeNo: 'A71', bankName: 'تست', dueDateJalali: today })
 const pid = pay.payment.id
 await salesService.setChequeStatus({ id: pid, userId: userA, status: 'CLEARED', destination: 'MANAGER', managerPassword: PW })

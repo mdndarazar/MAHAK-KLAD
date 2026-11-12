@@ -31,8 +31,8 @@ const shiftId = seed.insert('Shift', { name: 'صبح', number: 1, dayJalali: tod
 const line = [{ variantId: v1, qty: 1, unitPrice: 1000000, discount: 0, tax: 0 }]
 // ۳ فاکتور تسویه‌شده با پرداخت نقدی (createdByUserId، voidedAt=null) + ۱ فاکتور نسیه
 for (let i = 0; i < 3; i++)
-  await salesService.create({ userId: A, shiftId, lines: line, payments: [{ methodId: cash, amount: 1000000, destination: 'CASH' }] })
-await salesService.create({ userId: A, shiftId, lines: line, payments: [] })
+  await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId: A, shiftId, lines: line, payments: [{ methodId: cash, amount: 1000000, destination: 'CASH' }] })
+await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId: A, shiftId, lines: line, payments: [] })
 const payRows = seed.rows('SELECT createdByUserId, voidedAt FROM "Payment"')
 eq('پیش‌شرط: ۳ پرداخت نقدی با ثبت‌کننده و بدون ابطال', payRows.filter((r) => r.createdByUserId === A && r.voidedAt == null).length, 3)
 

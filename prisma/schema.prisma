@@ -560,6 +560,16 @@ model SaleInvoice {
   voidedByUserId Int?
   voidReason     String?
 
+  /// ------------------- نشست ۲۲۳ · مورد ۷ — شناسهٔ بدهکار -------------------
+  /// هنگام ایجاد بدهی نسیه روی همین فاکتور، نام/نام خانوادگی/تلفن اجباری و
+  /// کد ملی اختیاری است. اطلاعات به‌شکل **snapshot روی همان فاکتور** می‌ماند
+  /// (نه یک Customer سراسری تازه) تا تغییر پروفایل بعدی، سابقهٔ این بدهی را
+  /// عوض نکند. فاکتورهای بدون بدهی و دادهٔ قدیمی تهی می‌مانند.
+  debtorFirstName  String?
+  debtorLastName   String?
+  debtorPhone      String?
+  debtorNationalId String?
+
   note String?
 
   /// POS request idempotency: one successful logical checkout maps to one invoice.

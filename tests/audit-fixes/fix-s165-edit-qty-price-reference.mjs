@@ -55,7 +55,7 @@ const setAccounting = async (patch) => seed.setting(SETTING_KEYS.accountingPolic
 const overrideAudits = () => seed.count('AuditLog', 'action = ?', 'SALE_PRICE_OVERRIDE')
 const lastOverride = () => seed.one('SELECT entityId, before, after, note FROM "AuditLog" WHERE action = ? ORDER BY id DESC LIMIT 1', 'SALE_PRICE_OVERRIDE')
 const line = (o = {}) => ({ variantId: v1, code: 'P165-1', barcode: 'B165-1', name: 'شلوار ۱۶۵', qty: 1, unitPrice: 1_000_000, discount: 0, tax: 0, ...o })
-const sale = (o = {}) => ({ userId: actor, shiftId, deductInventory: false, lines: [line()], payments: [], ...o })
+const sale = (o = {}) => ({ userId: actor, shiftId, deductInventory: false, lines: [line()], payments: [], debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' }, ...o })
 const itemsOf = (id) => seed.rows('SELECT variantId, qty, unitPrice FROM "SaleInvoiceItem" WHERE invoiceId = ? ORDER BY id', id).map((r) => [Number(r.variantId), Number(r.qty), Number(r.unitPrice)])
 
 console.log('\n۱) قیمت تأییدشده برای ۱ عدد، در ویرایش برای ۱۰ عدد')
