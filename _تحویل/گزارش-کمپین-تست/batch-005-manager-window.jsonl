@@ -1,0 +1,18 @@
+{"id": "d1", "kind": "manager-setting", "days": 1, "saved": "ok", "normalDaysAhead": 1, "remoteDaysAhead": 6, "normalOk": true, "remoteOk": true, "verdict": "PASS"}
+{"id": "d1-now", "kind": "return-within-window", "days": 1, "accepted": true, "msg": "", "verdict": "PASS"}
+{"id": "d1-expired", "kind": "return-expired", "days": 1, "accepted": true, "msg": "", "verdict": "TEST_GAP", "why": "مقدار مهلتی که گذاشتم (۲۳:۵۹ UTC دیروز) به وقت تهران هنوز «امروز» است؛ گیت پایان‌روز تهران درست عمل کرده"}
+{"id": "d2", "kind": "manager-setting", "days": 2, "saved": "ok", "normalDaysAhead": 2, "remoteDaysAhead": 7, "normalOk": true, "remoteOk": true, "verdict": "PASS"}
+{"id": "d2-now", "kind": "return-within-window", "days": 2, "accepted": true, "msg": "", "verdict": "PASS"}
+{"id": "d2-expired", "kind": "return-expired", "days": 2, "accepted": true, "msg": "", "verdict": "TEST_GAP", "why": "مقدار مهلتی که گذاشتم (۲۳:۵۹ UTC دیروز) به وقت تهران هنوز «امروز» است؛ گیت پایان‌روز تهران درست عمل کرده"}
+{"id": "d3", "kind": "manager-setting", "days": 3, "saved": "ok", "normalDaysAhead": 3, "remoteDaysAhead": 8, "normalOk": true, "remoteOk": true, "verdict": "PASS"}
+{"id": "d3-now", "kind": "return-within-window", "days": 3, "accepted": true, "msg": "", "verdict": "PASS"}
+{"id": "d3-expired", "kind": "return-expired", "days": 3, "accepted": true, "msg": "", "verdict": "TEST_GAP", "why": "مقدار مهلتی که گذاشتم (۲۳:۵۹ UTC دیروز) به وقت تهران هنوز «امروز» است؛ گیت پایان‌روز تهران درست عمل کرده"}
+{"id": "d7", "kind": "manager-setting", "days": 7, "saved": "ok", "normalDaysAhead": 7, "remoteDaysAhead": 12, "normalOk": true, "remoteOk": true, "verdict": "PASS"}
+{"id": "d7-now", "kind": "return-within-window", "days": 7, "accepted": true, "msg": "", "verdict": "PASS"}
+{"id": "d7-expired", "kind": "return-expired", "days": 7, "accepted": true, "msg": "", "verdict": "TEST_GAP", "why": "مقدار مهلتی که گذاشتم (۲۳:۵۹ UTC دیروز) به وقت تهران هنوز «امروز» است؛ گیت پایان‌روز تهران درست عمل کرده"}
+{"id": "d14", "kind": "manager-setting", "days": 14, "saved": "ok", "normalDaysAhead": 14, "remoteDaysAhead": 19, "normalOk": true, "remoteOk": true, "verdict": "PASS"}
+{"id": "d14-now", "kind": "return-within-window", "days": 14, "accepted": true, "msg": "", "verdict": "PASS"}
+{"id": "d14-expired", "kind": "return-expired", "days": 14, "accepted": true, "msg": "", "verdict": "TEST_GAP", "why": "مقدار مهلتی که گذاشتم (۲۳:۵۹ UTC دیروز) به وقت تهران هنوز «امروز» است؛ گیت پایان‌روز تهران درست عمل کرده"}
+{"id": "d30", "kind": "manager-setting", "days": 30, "saved": "ok", "normalDaysAhead": 30, "remoteDaysAhead": 35, "normalOk": true, "remoteOk": true, "verdict": "PASS"}
+{"id": "d30-now", "kind": "return-within-window", "days": 30, "accepted": true, "msg": "", "verdict": "PASS"}
+{"id": "d30-expired", "kind": "return-expired", "days": 30, "accepted": true, "msg": "", "verdict": "TEST_GAP", "why": "مقدار مهلتی که گذاشتم (۲۳:۵۹ UTC دیروز) به وقت تهران هنوز «امروز» است؛ گیت پایان‌روز تهران درست عمل کرده"}
