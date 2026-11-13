@@ -12800,6 +12800,7 @@ export const salesService = {
       const debtBefore = await invoiceRemaining(tx, invoiceId, grandTotalNow, receivedTotalOf(priorRows))
       const remainingBefore = debtBefore.remaining
       const overpayAmount = isCheque ? 0 : Math.max(0, amount - remainingBefore)
+      const overpayAmount = isCheque ? 0 : Math.max(0, amount - remainingBefore)
       if (overpayAmount > 0)
         throw new BusinessError(
           `مبلغ واردشده (${money(amount)} ریال) از باقی‌ماندهٔ بدهی این فاکتور (${money(remainingBefore)} ریال) ` +
@@ -12813,7 +12814,21 @@ export const salesService = {
             'مبلغ را به اندازهٔ همین اختلاف کم کنید؛ مازاد نقد، باقی‌پول مشتری است. هیچ پرداختی ثبت نشد.'
         )
 
-      /**
+      // مورد ۲الف — گارد رزرو چک PENDING (فقط نقد/کارت، فقط وقتی PENDING دارد)
+      if (!isCheque) {
+        const pending = pendingChequeTotalOf(priorRows as any[])
+        if (pending > 0) {
+          const cap = Math.max(0, remainingBefore - Math.min(pending, remainingBefore))
+          if (amount > cap) {
+            throw new BusinessError(
+              `${money(pending)} ریال از بدهی این فاکتور در چک‌های «در جریان» رزرو شده است؛ سقف نقد/کارت ${money(cap)} ریال است. ` +
+                `مبلغ ${money(amount)} ریال ${money(amount - cap)} ریال از سقف بیشتر است. برای تبدیل چک به نقد از «جایگزینی با نقد/کارت» در بخش چک‌ها استفاده کنید. هیچ پرداختی ثبت نشد.`
+            )
+          }
+        }
+      }
+
+            /**
        * نشست ۶۱ · بند ۴-۳۵ مرحله ۲/۳ — «کد اعتبار خرید برای مبلغ اضافه صادر بشود؟ بله».
        * فقط برای پول واقعی و فقط وقتی واقعاً مبلغ اضافه‌ای هست؛ هر درخواست دیگر
        * صریح رد می‌شود (نه نادیده‌گرفتن بی‌صدا).
