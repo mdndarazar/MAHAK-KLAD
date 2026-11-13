@@ -304,11 +304,7 @@ export const printService = {
       deliveryFee: toNumberRial(inv.deliveryFee),
       grandTotal: toNumberRial(inv.grandTotal),
       paidTotal: toNumberRial(inv.paidTotal),
-      remaining: remainingOf({
-        grandTotal: toNumberRial(inv.grandTotal),
-        received: toNumberRial(inv.paidTotal),
-        ...debtAdjustmentsOf(inv.returns ?? [])
-      }).remaining,
+      remaining: (await invoiceRemaining(prisma, inv.id, toNumberRial(inv.grandTotal), toNumberRial(inv.paidTotal))).remaining,
       /**
        * ---- کار الف: پرداختیِ «به حساب مدیر» روی رسید مشخص می‌شود ----
        * فقط یک برچسب متنی است و هیچ عددی را عوض نمی‌کند (جمع رسید همان جمع
