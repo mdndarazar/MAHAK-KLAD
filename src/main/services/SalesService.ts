@@ -3163,6 +3163,10 @@ async function initialPaymentRows(
     where: { id: { in: methodIds } },
     select: { id: true, kind: true, key: true }
   })
+  if (methods.length !== methodIds.length)
+    throw new BusinessError(
+      'روش پرداخت انتخاب‌شده پیدا نشد؛ فهرست روش‌های پرداخت را تازه کنید و دوباره انتخاب کنید. هیچ تغییری ذخیره نشد.'
+    )
   if (methods.some((m) => m.key === CHEQUE_METHOD_KEY))
     throw new BusinessError(
       'چک را نمی‌توان در پرداخت اولیه‌ی فاکتور ثبت کرد؛ چک باید با شماره، سررسید و وضعیت «در جریان» از بخش پرداختی‌ها ثبت شود.'
