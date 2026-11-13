@@ -13175,6 +13175,25 @@ export const salesService = {
 
       if (!Object.keys(data).length) throw new BusinessError('چیزی برای تغییر فرستاده نشده است.')
 
+      // مورد ۴ — سقف افزایش مبلغ (فقط نقد/کارت، فقط افزایش)
+      if (input.amount != null && !isCheque && input.amount > Number(current.amount)) {
+        const others = await tx.payment.findMany({
+          where: { invoiceId: current.invoiceId, voidedAt: null, id: { not: id } },
+          select: { amount: true, kind: true, chequeStatus: true }
+        })
+        const invForCap = await tx.saleInvoice.findUnique({ where: { id: current.invoiceId }, select: { grandTotal: true } })
+        if (!invForCap) throw new BusinessError('فاکتور مربوط به این پرداختی پیدا نشد.')
+        const debt = await invoiceRemaining(tx, current.invoiceId, toNumberRial(invForCap.grandTotal), receivedTotalOf(others as any[]))
+        const cap = Math.max(0, debt.remaining - pendingChequeTotalOf(others as any[]))
+        const increase = input.amount - Number(current.amount)
+        if (increase > cap) {
+          throw new BusinessError(
+            `افزایش به ${money(input.amount)} ریال، ${money(increase - cap)} ریال از سقف مجاز (${money(cap)} ریال) بیشتر است. ` +
+              `سقف فعلی پس از کسر چک‌های در جریان ${money(cap)} ریال است. هیچ تغییری ذخیره نشد.`
+          )
+        }
+      }
+
       await tx.payment.update({ where: { id }, data })
       const settle = await recalcSettlement(tx, current.invoiceId)
       // نشست ۵۸ · C3 — ردیف را *بعد از* بازسازی اضافه‌دریافت می‌خوانیم تا عدد پنل درست باشد
