@@ -863,3 +863,8 @@ export function normalizeStaffRole(raw: unknown): StaffRole {
   const v = String(raw ?? '').trim().toUpperCase()
   return (STAFF_ROLES as readonly string[]).includes(v) ? (v as StaffRole) : 'CASHIER'
 }
+
+// فاز راه دور — فقط افزودنی
+export const REMOTE_GRANT_TIER = ['NORMAL', 'SENSITIVE_MONEY'] as const
+export const REMOTE_GRANT_STATE = ['PENDING', 'ACTIVE', 'CONSUMED', 'EXPIRED', 'REVOKED'] as const
+export const REMOTE_AUTH_MODE = ['SELLER_REQUESTED', 'OWNER_PUSHED'] as const

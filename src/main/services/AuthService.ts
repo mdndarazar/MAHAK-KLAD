@@ -1044,6 +1044,25 @@ export const authService = {
       await assertGateOpen(panel)
 
       const password = normalize(input.password)
+      // هاب راه دور — فقط gt- : قبل از شمارش قفل، اگر مجوز فعال باشد بپذیر
+      if (password.startsWith('gt-')) {
+        const { consumeOneShot } = await import('./RemoteGrantRegistry')
+        // owner از panelSession — اگر 0 بود LEGACY_OWNER است
+        let owner: number | null = null
+        try {
+          const ps: any = await import('./panelSession')
+          owner = ps.currentPanelOwner?.() ?? null
+        } catch {}
+        if (owner != null && consumeOneShot(owner, panel, password.slice(3))) {
+          // Audit ردیف جدا برای حسابرسی (تصمیم ۸ با شرط)
+          try {
+            const { audit } = await import('./AuditService')
+            await audit(prisma as any, { action: 'REMOTE_GRANT_CONSUMED', entity: 'RemoteGrant', note: JSON.stringify({ panel, owner }) } as any)
+          } catch {}
+          return { ok: true, scope: 'PANEL' as const, panel, isDefault: false }
+        }
+        throw new BusinessError('مجوز راه دور نامعتبر یا منقضی شده است.')
+      }
     if (!password) throw new BusinessError('رمز را وارد کنید.')
 
     // ۱) رمز مدیر: همیشه و برای همه‌ی پنل‌ها معتبر است

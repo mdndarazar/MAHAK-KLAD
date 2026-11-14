@@ -21,7 +21,9 @@
     "@prisma/client": "^5.22.0",
     "bwip-js": "^4.5.1",
     "jalaali-js": "^1.2.7",
-    "electron-updater": "^6.3.9"
+    "electron-updater": "^6.3.9",
+    "ws": "^8.18.0",
+    "better-sqlite3": "^9.2.2"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
@@ -45,8 +47,28 @@
   "build": {
     "appId": "ir.shop.mahakpos",
     "productName": "MahakPOS",
-    "files": ["out/**/*", "prisma/schema.prisma", "resources/**/*"],
-    "extraResources": [{ "from": "prisma", "to": "prisma" }, { "from": "resources/print", "to": "print" }],
-    "win": { "target": ["nsis"] }
+    "files": [
+      "out/**/*",
+      "prisma/schema.prisma",
+      "resources/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "prisma",
+        "to": "prisma"
+      },
+      {
+        "from": "resources/print",
+        "to": "print"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "asarUnpack": [
+      "**/*.node"
+    ]
   }
 }

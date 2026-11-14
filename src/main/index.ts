@@ -140,6 +140,11 @@ app.whenReady().then(async () => {
   scheduleBackup()
   // همگام‌سازی خودکار موجودی سایت WooCommerce (فقط stock_quantity؛ خطایش فروشگاه را نمی‌خواباند)
   startWooSyncScheduler()
+  // هاب راه دور (فقط افزودنی — خطایش فروشگاه را نمی‌خواباند)
+  try {
+    const { startCloudSync } = await import('./services/CloudSyncService')
+    startCloudSync()
+  } catch {}
   // زمان‌بندی خودکار تغییر قیمت گروهی (شروع/پایان سر وقت)
   schedulePriceAdjust()
   /**

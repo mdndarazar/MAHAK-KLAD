@@ -92,6 +92,13 @@ export function ManagerSessionProvider({ children }: { children: ReactNode }) {
     return status
   }, [applyMainStatus])
 
+  // راه دور — فقط افزودنی (≤۴ خط تاییدشده)
+  useEffect(() => {
+    const h = () => void syncFromMain()
+    window.addEventListener('mahak-remote-sync', h as any)
+    return () => window.removeEventListener('mahak-remote-sync', h as any)
+  }, [syncFromMain])
+
   /**
    * تمدید نشست فقط پس از فعالیت واقعی کاربر و فقط برای مدیرِ از پیش واردشده.
    * اگر Main آن را منقضی کرده باشد، پاسخ false است و UI دسترسی را بازسازی
