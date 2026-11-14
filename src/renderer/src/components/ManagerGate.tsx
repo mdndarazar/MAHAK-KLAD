@@ -7,6 +7,7 @@ import { call, CH } from '../lib/api'
 import { faDigits, toLatinDigits } from '@shared/jalali'
 import { panelTitle, type PanelKey } from '@shared/panels'
 import type { PanelAuthState, PanelGateStatus } from '@shared/types'
+import { RemoteRequestBox } from './RemoteRequestBox'
 
 /** ثانیه ⇒ «۲:۳۵» (یا «۱:۰۵:۰۰» برای قفل‌های بلند). */
 function countdownLabel(total: number): string {
@@ -210,6 +211,8 @@ export default function ManagerGate({
             </button>
           )}
         </div>
+        {/* راه دور — فقط افزودنی */}
+        <RemoteRequestBox panel={panel} />
 
         <div className="kbd leading-6">
           پیش‌فرض برنامه این است که «کارمند پشت سیستم است»، پس پنل‌های حساس قفل‌اند. با <b>رمز مدیر</b> همه‌ی این پنل‌ها

@@ -1,0 +1,5 @@
+{"id":"A1","kind":"sale-3-lines-discount","expected":570000,"actual":570000,"match":true}
+{"id":"A2","kind":"return-line1-to-credit","refund":90000,"creditAmount":90000,"expectedCredit":90000,"ok":true}
+{"id":"A3","kind":"buy-with-credit","cashPaid":300000,"creditUsed":90000,"remaining":0,"creditStatus":"USED","ok":true}
+{"id":"B1","kind":"chain3-return-to-credit","refund":200000,"credit":200000,"expected":200000,"ok":true}
+{"id":"C1","kind":"eight-credits-one-invoice","remaining":0,"used":[50000,50000,50000,50000,50000,50000,50000,50000],"allUsed":true,"ok":true}

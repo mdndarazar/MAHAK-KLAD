@@ -82,7 +82,7 @@ const line = (variantId, price) => ({ variantId, qty: 1, unitPrice: price, disco
 /** فاکتور دو قلمی ۶۰۰+۴۰۰ که با همه‌ی پرداخت‌هایش به دیروز منتقل می‌شود (فروش دوره‌ی قبل) */
 const yesterdaySale = async (paid) => {
   const a = variant(600), b = variant(400)
-  const inv = await salesService.create({ userId, shiftId, lines: [line(a, 600), line(b, 400)], payments: paid > 0 ? [{ methodId: cash, amount: paid, destination: 'CASH' }] : [] })
+  const inv = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(a, 600), line(b, 400)], payments: paid > 0 ? [{ methodId: cash, amount: paid, destination: 'CASH' }] : [] })
   sql.prepare('UPDATE "SaleInvoice" SET issuedAt = ?, issuedAtJalali = ?, settledAt = CASE WHEN settledAt IS NULL THEN NULL ELSE ? END WHERE id = ?').run(Yat, yday, Yat, inv.id)
   sql.prepare('UPDATE "Payment" SET paidAt = ?, paidAtJalali = ?, createdAt = ? WHERE invoiceId = ?').run(Yat, yday, Yat, inv.id)
   return { inv, items: itemsOf(inv.id) }
@@ -232,16 +232,17 @@ await extInvariants('ی')
 
 // ===========================================================================
 console.log('\nک) اضافه‌دریافت با تبدیل به اعتبار خرید روی نسیه‌ی دیروز (۴-۳۵/۴-۳۷)')
-const pK = await safe('دریافت ۱٬۳۰۰ با تأیید و اعتبار', () => pay(K.inv.id, 1300, { confirmOverpay: true, overpayAsCredit: true }))
-eq('اضافه‌دریافت ۳۰۰', pK?.overpayAmount, 300)
-eq('بدهی ۰ همه‌جا', await remainingEverywhere(K.inv.id, yday), [0, 0, 0])
+// نشست ۲۲۴ — مورد ۴ (تصمیم موخر): اضافه‌پرداخت و اعتبار از آن منسوخ شده است.
+let payMsg2 = ''
+try { await pay(K.inv.id, 1300, { confirmOverpay: true, overpayAsCredit: true }) } catch (e) { payMsg2 = String(e?.message ?? e) }
+eq('دریافت ۱٬۳۰۰ رد می‌شود (سیاست مورد ۴)', payMsg2.includes('بیشتر است'), true)
 {
-  const cr = seed.one('SELECT COALESCE(SUM(amount),0) AS s, COUNT(*) AS n FROM "StoreCredit" WHERE sourceInvoiceId = ? AND deletedAt IS NULL', K.inv.id)
-  eq('یک اعتبار ۳۰۰ صادر شد', [Number(cr?.n ?? 0), Number(cr?.s ?? 0)], [1, 300])
-  const t = await extInvariants('ک')
-  // طراحی نشست ۶۱ (S61-2): اعتبار اضافه‌دریافت در ردیف پل «اعتبار صادرشده» نمی‌آید (داخل وصول/اضافه‌دریافت توضیح داده شده)
-  eq('اعتبار صادرشده‌ی امروز ۳۰۰ و سهم اضافه‌دریافت ۳۰۰', [t?.storeCredits?.issued, t?.storeCredits?.issuedFromOverpay], [300, 300])
-  eq('ردیف پل «اعتبار صادرشده» بدون سهم اضافه‌دریافت ۰ (S61-2)', Number(rowAmt(t, 'storeCreditIssued') ?? 0), 0)
+  const cr = seed.one('SELECT COALESCE(SUM(amount),0) AS s, COUNT(*) AS n FROM "StoreCredit" WHERE sourceInvoiceId = ?', K.inv.id)
+  eq('هیچ اعتباری از اضافه‌دریافت صادر نشد', [Number(cr?.n ?? 0), Number(cr?.s ?? 0)], [0, 0])
+}
+{
+  const t2 = await extInvariants('ک')
+  eq('ردیف پل «اعتبار صادرشده» بدون سهم اضافه‌دریافت ۰ (S61-2)', Number(rowAmt(t2, 'storeCreditIssued') ?? 0), 0)
 }
 
 // ===========================================================================

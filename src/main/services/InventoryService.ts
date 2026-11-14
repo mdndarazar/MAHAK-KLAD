@@ -73,6 +73,12 @@ export interface StockChange {
   qty: number // همیشه مثبت؛ جهت را reason/متد تعیین می‌کند
 }
 
+/**
+ * مورد ۱۱ — علتِ طبقه‌بندی‌شدهٔ کاهش دستی موجودی.
+ * `DAMAGE` = خرابی/کسری (زیان با بهای FIFO) · `CORRECTION` = اصلاح اشتباه (بدون زیان).
+ */
+export type StockLossKind = 'DAMAGE' | 'CORRECTION'
+
 export interface MovementContext {
   reason: keyof typeof StockReason
   refType?: string
@@ -88,6 +94,12 @@ export interface MovementContext {
   auditNote?: string | null
   /** PENDING فقط برای فروش روزانه؛ با «تجمیع و انتقال» FINAL می‌شود. */
   state?: keyof typeof StockState
+  /**
+   * مورد ۱۱ — طبقه‌بندی علت کاهش دستی: `DAMAGE` (خرابی/کسری) زیان موجودی
+   * می‌سازد، `CORRECTION` (اصلاح اشتباه) نمی‌سازد. فقط مسیر اصلاح دستی آن را
+   * می‌فرستد؛ بقیهٔ حرکت‌ها `null` می‌مانند و در گزارش «نامشخص» شمرده می‌شوند.
+   */
+  lossKind?: StockLossKind | null
 }
 
 export interface IInventoryService {
@@ -332,7 +344,8 @@ class LocalInventoryService implements IInventoryService {
             state: ctx.state ?? StockState.FINAL,
             refType: ctx.refType,
             refId: ctx.refId,
-            note: ctx.note
+            note: ctx.note,
+            lossKind: ctx.lossKind ?? null
           }
         })
         const updated = await client.productVariant.update({

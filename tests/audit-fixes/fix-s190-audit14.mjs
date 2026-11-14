@@ -140,6 +140,7 @@ const line = (price, extra = {}) => ({ variantId, qty: 1, unitPrice: price, disc
 console.log('\n۱۲ب) snapshot فروش فقط از دیتابیس main ساخته می‌شود، نه payload قابل جعل')
 {
   const sale = await salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId: user,
     shiftId,
     // این دو مقدار renderer عمداً جعلی‌اند و نباید روی سند بنشینند.
@@ -156,6 +157,7 @@ console.log('\n۱۲ب) snapshot فروش فقط از دیتابیس main ساخ�
 console.log('\n۲) تعویض CUSTOM بدون مقصد')
 {
   const sale = await salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId: user,
     shiftId,
     lines: [line(10_000)],
@@ -204,6 +206,7 @@ console.log('\n۳) کارت‌به‌کارت مبلغ بیشتر')
 console.log('\n۶) رسید پرداخت باطل')
 {
   const sale = await salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId: user,
     shiftId,
     lines: [line(10_000)],
@@ -218,6 +221,7 @@ console.log('\n۶) رسید پرداخت باطل')
 console.log('\n۵) گزارش کارمند DRAFT')
 {
   const sale = await salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId: user,
     shiftId,
     lines: [line(10_000)],
@@ -239,6 +243,7 @@ console.log('\n۵) گزارش کارمند DRAFT')
 console.log('\n۱) بستن دوباره بدون تأیید')
 {
   await salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId: user,
     shiftId,
     lines: [line(10_000)],

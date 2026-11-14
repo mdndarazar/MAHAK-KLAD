@@ -39,6 +39,7 @@ await shiftService.openSession({ staffId: userId, name: 'شیفت تست' })
 // ۱) فاکتور ۱: نسیه کامل (CREDIT_ONLY)
 // ---------------------------------------------------------------------------
 const invCredit = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId,
   customerId: custId,
   orderType: 'INTERNAL',
@@ -57,6 +58,7 @@ eq('فاکتور نسیه: isExchangeDoc = false', lookCredit.settlementProfile?
 // ۲) فاکتور ۲: نقدی کامل (PAID_CASHLIKE)
 // ---------------------------------------------------------------------------
 const invCash = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId,
   customerId: custId,
   orderType: 'INTERNAL',
@@ -73,6 +75,7 @@ eq('فاکتور نقدی: remainingDebt = 0', lookCash.settlementProfile?.remai
 // ۳) فاکتور ۳: ترکیبی نقد و نسیه (MIXED)
 // ---------------------------------------------------------------------------
 const invMixed = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId,
   customerId: custId,
   orderType: 'INTERNAL',
@@ -96,6 +99,7 @@ const creditId = seed.insert('StoreCredit', {
   customerName: 'مشتری آزمایشی'
 })
 const invCreditFunded = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId,
   customerId: custId,
   orderType: 'INTERNAL',

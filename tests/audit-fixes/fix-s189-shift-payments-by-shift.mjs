@@ -56,6 +56,7 @@ const shiftB = seed.insert('Shift', {
 })
 
 const sale = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId: user,
   shiftId: shiftB,
   lines: [{ variantId, qty: 1, unitPrice: 10_000, discount: 0, tax: 0 }],

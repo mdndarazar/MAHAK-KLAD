@@ -1,0 +1,9 @@
+{"id":"single","kind":"redeem-single-full","amount":100000,"ok":true,"invId":2}
+{"id":"single-after","kind":"status-after","status":"USED","usedAmount":100000,"usedCount":1}
+{"id":"double","kind":"redeem-again","ok":true,"invId":3}
+{"id":"two-codes","kind":"redeem-two","ok":true,"invId":6}
+{"id":"nine-codes","kind":"redeem-nine","ok":false,"msg":"این نوع فاکتور حداکثر 8 بارکد اعتبار می‌پذیرد."}
+{"id":"expired","kind":"redeem-expired","ok":true,"invId":17}
+{"id":"scope","kind":"redeem-wrong-variant","ok":true,"invId":19}
+{"id":"min","kind":"redeem-below-min-purchase","ok":true,"invId":21}
+{"id":"partial","kind":"redeem-partial-40k","ok":true,"after":{"status":"PARTIALLY_USED","usedAmount":40000,"usedCount":1}}

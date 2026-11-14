@@ -1,0 +1,29 @@
+{"id": "chain-001", "kind": "exchange-step1", "verdict": "PASS", "err": "", "d": {"inv": 1, "ret": 1, "cr": 1}}
+{"id": "chain-ret-002", "kind": "return-on-exchange-invoice", "verdict": "LOGICAL_REJECT", "err": "تعداد برگشتی «p2 سایز s1» (۱) از تعداد قابل برگشت (۰) بیشتر است.", "d": {"inv": 0, "ret": 0, "cr": 0}}
+{"id": "chain-003", "kind": "exchange-step1", "verdict": "TEST_GAP", "err": "برای دریافت مابه‌التفاوت، روش پرداخت فعال را صریح انتخاب کنید؛ هیچ روش پیش‌فرضی انتخاب نمی‌شود.", "d": {"inv": 0, "ret": 0, "cr": 0}, "why": "تست paymentMethodId را نفرستاده بود (تعویض با مابه‌التفاوت نیازمند روش صریح است)"}
+{"id": "chain-ret-004", "kind": "return-on-exchange-invoice", "verdict": "TEST_GAP", "err": "تعویض گام ۱ انجام نشد: برای دریافت مابه‌التفاوت، روش پرداخت فعال را صریح انتخاب کنید؛ هیچ روش پیش‌فرضی "}
+{"id": "chain-005", "kind": "exchange-step1", "verdict": "TEST_GAP", "err": "برای دریافت مابه‌التفاوت، روش پرداخت فعال را صریح انتخاب کنید؛ هیچ روش پیش‌فرضی انتخاب نمی‌شود.", "d": {"inv": 0, "ret": 0, "cr": 0}, "why": "تست paymentMethodId را نفرستاده بود (تعویض با مابه‌التفاوت نیازمند روش صریح است)"}
+{"id": "chain-ret-006", "kind": "return-on-exchange-invoice", "verdict": "TEST_GAP", "err": "تعویض گام ۱ انجام نشد: برای دریافت مابه‌التفاوت، روش پرداخت فعال را صریح انتخاب کنید؛ هیچ روش پیش‌فرضی "}
+{"id": "chain3-007", "kind": "exchange-1", "verdict": "PASS", "err": "", "d": {"inv": 1, "ret": 1, "cr": 1}}
+{"id": "chain3-008", "kind": "exchange-2-on-exchange", "verdict": "LOGICAL_REJECT", "err": "تعداد برگشتی برای پیش‌نمایش از باقی‌ماندهٔ مجاز بیشتر است.", "d": {"inv": 0, "ret": 0, "cr": 0}}
+{"id": "chain3-009", "kind": "exchange-2-on-exchange", "verdict": "DEPENDENT", "err": "گام ۲ انجام نشد"}
+{"id": "chain3-010", "kind": "exchange-1", "verdict": "TEST_GAP", "err": "برای دریافت مابه‌التفاوت، روش پرداخت فعال را صریح انتخاب کنید؛ هیچ روش پیش‌فرضی انتخاب نمی‌شود.", "d": {"inv": 0, "ret": 0, "cr": 0}, "why": "تست paymentMethodId را نفرستاده بود (تعویض با مابه‌التفاوت نیازمند روش صریح است)"}
+{"id": "chain3-011", "kind": "exchange-1", "verdict": "DEPENDENT", "err": "گام ۱ انجام نشد"}
+{"id": "double-012", "kind": "full-return-1", "verdict": "PASS", "err": "", "d": {"inv": 0, "ret": 1, "cr": 0}}
+{"id": "double-013", "kind": "full-return-2-should-reject", "verdict": "LOGICAL_REJECT", "err": "همه‌ی اقلام این فاکتور قبلاً برگشت خورده‌اند؛ چیزی برای برگشت نمانده است.", "d": {"inv": 0, "ret": 0, "cr": 0}}
+{"id": "double-014", "kind": "full-return-1", "verdict": "PASS", "err": "", "d": {"inv": 0, "ret": 1, "cr": 0}}
+{"id": "double-015", "kind": "full-return-2-should-reject", "verdict": "LOGICAL_REJECT", "err": "همه‌ی اقلام این فاکتور قبلاً برگشت خورده‌اند؛ چیزی برای برگشت نمانده است.", "d": {"inv": 0, "ret": 0, "cr": 0}}
+{"id": "ret-then-ex-016", "kind": "return-full", "verdict": "PASS", "err": "", "d": {"inv": 0, "ret": 1, "cr": 0}}
+{"id": "ret-then-ex-017", "kind": "exchange-returned-item-should-reject", "verdict": "LOGICAL_REJECT", "err": "تعداد برگشتی برای پیش‌نمایش از باقی‌ماندهٔ مجاز بیشتر است.", "d": {"inv": 0, "ret": 0, "cr": 0}}
+{"id": "ret-then-ex-018", "kind": "return-full", "verdict": "PASS", "err": "", "d": {"inv": 0, "ret": 1, "cr": 0}}
+{"id": "ret-then-ex-019", "kind": "exchange-returned-item-should-reject", "verdict": "LOGICAL_REJECT", "err": "تعداد برگشتی برای پیش‌نمایش از باقی‌ماندهٔ مجاز بیشتر است.", "d": {"inv": 0, "ret": 0, "cr": 0}}
+{"id": "old-020", "kind": "return-old-invoice-1403/01/01", "verdict": "PASS", "err": "", "d": {"inv": 0, "ret": 1, "cr": 0}}
+{"id": "old-021", "kind": "exchange-old-invoice-1403/01/01", "verdict": "LOGICAL_REJECT", "err": "تعداد برگشتی برای پیش‌نمایش از باقی‌ماندهٔ مجاز بیشتر است.", "d": {"inv": 0, "ret": 0, "cr": 0}}
+{"id": "old-022", "kind": "return-old-invoice-1402/06/15", "verdict": "PASS", "err": "", "d": {"inv": 0, "ret": 1, "cr": 0}}
+{"id": "old-023", "kind": "exchange-old-invoice-1402/06/15", "verdict": "LOGICAL_REJECT", "err": "تعداد برگشتی برای پیش‌نمایش از باقی‌ماندهٔ مجاز بیشتر است.", "d": {"inv": 0, "ret": 0, "cr": 0}}
+{"id": "old-024", "kind": "return-old-invoice-1403/11/20", "verdict": "PASS", "err": "", "d": {"inv": 0, "ret": 1, "cr": 0}}
+{"id": "old-025", "kind": "exchange-old-invoice-1403/11/20", "verdict": "LOGICAL_REJECT", "err": "تعداد برگشتی برای پیش‌نمایش از باقی‌ماندهٔ مجاز بیشتر است.", "d": {"inv": 0, "ret": 0, "cr": 0}}
+{"id": "deferred-026", "kind": "deferred-return-cash", "verdict": "PASS", "err": "", "d": {"inv": 0, "ret": 1, "cr": 0}}
+{"id": "deferred-027", "kind": "deferred-return-none-reason", "verdict": "LOGICAL_REJECT", "err": "تعداد برگشتی «p2 سایز s29» (۱) از تعداد قابل برگشت (۰) بیشتر است.", "d": {"inv": 0, "ret": 0, "cr": 0}}
+{"id": "deferred-028", "kind": "deferred-return-cash", "verdict": "PASS", "err": "", "d": {"inv": 0, "ret": 1, "cr": 0}}
+{"id": "deferred-029", "kind": "deferred-return-none-reason", "verdict": "LOGICAL_REJECT", "err": "تعداد برگشتی «p2 سایز s30» (۱) از تعداد قابل برگشت (۰) بیشتر است.", "d": {"inv": 0, "ret": 0, "cr": 0}}

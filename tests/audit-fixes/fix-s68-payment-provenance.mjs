@@ -58,6 +58,7 @@ const shiftA = seed.insert('Shift', { name: 'صبح', number: 1, dayJalali: toda
 
 const oldPaidAt = new Date(Date.now() - 3 * 86_400_000)
 const sale = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId: userA,
   shiftId: shiftA,
   issuedAtJalali: toJalaliDate(oldPaidAt),

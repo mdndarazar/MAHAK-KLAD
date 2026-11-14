@@ -92,6 +92,7 @@ const oldWay = wanted.map((d) => Math.round(d * lineScale))
 eq('فرمول قدیم جمع ۵۰۱ می‌داد (بازتولید Y11)', S(oldWay), 501)
 const mk = (discs) => ({
   userId: actor, shiftId, deductInventory: false, payments: [],
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   lines: [
     { variantId: va, code: 'Y11-A', barcode: 'BY11-A', name: 'الف', qty: 1, unitPrice: 1000, discount: discs[0], tax: 0 },
     { variantId: vb, code: 'Y11-B', barcode: 'BY11-B', name: 'ب', qty: 1, unitPrice: 1000, discount: discs[1], tax: 0 },

@@ -1,0 +1,5 @@
+{"id":"A1","kind":"return-over-qty","accepted":false,"msg":"تعداد برگشتی «p25 سایز v1» (۲) از تعداد قابل برگشت (۱) بیشتر است."}
+{"id":"B1","kind":"nine-credits","accepted":false,"msg":"این نوع فاکتور حداکثر 8 بارکد اعتبار می‌پذیرد."}
+{"id":"C1","kind":"credit-partial-then-rest","amount":90000,"after1":"PARTIALLY_USED/50000","after2":"USED/90000","remaining2":0,"ok":true}
+{"id":"D1","kind":"exchange-same-price","diff":0,"ok":true}
+{"id":"E1","kind":"full-discount","grandTotal":0,"remaining":0,"ok":true}

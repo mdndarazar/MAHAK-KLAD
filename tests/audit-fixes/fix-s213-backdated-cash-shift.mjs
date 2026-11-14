@@ -50,6 +50,7 @@ const exp = async () => Number((await cashboxService.expected({ shiftId })).expe
 
 console.log('\\n۱) فروش نقدی با تاریخ دیروز در نشست امروز')
 const nasiyeh = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId,
   shiftId,
   lines: [{ variantId: v, qty: 1, unitPrice: 1000, discount: 0, tax: 0 }],
@@ -57,6 +58,7 @@ const nasiyeh = await salesService.create({
 })
 eq('نسیه بدون پرداخت نقد صندوق را عوض نمی‌کند', await exp(), 0)
 await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId,
   shiftId,
   issuedAtJalali: yesterday,

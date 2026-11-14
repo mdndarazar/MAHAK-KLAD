@@ -31,7 +31,7 @@ const replacement=variant('replacement-different-product',replacementPrice,repla
 const totalGross=originals.reduce((s,x)=>s+x.unitPrice,0),netTotal=totalGross-invoiceDiscount
 const out={scenario,isolatedDatabase:process.env.HARNESS_DB,status:'RUNNING',setup:{lineCount:originals.length,totalGross,invoiceDiscount,netTotal,sourceUnitPrice:base,replacementPrice,replacementIsDifferentProduct:true,replacementIsDifferentCategory:true}}
 try{
- const sale=await salesService.create({userId,shiftId,lines:originals.map(x=>({variantId:x.variantId,qty:1,unitPrice:x.unitPrice,discount:0,tax:0})),invoiceDiscount,payments:[{methodId:cash,amount:netTotal,destination:'CASH'}]})
+ const sale=await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' }, userId,shiftId,lines:originals.map(x=>({variantId:x.variantId,qty:1,unitPrice:x.unitPrice,discount:0,tax:0})),invoiceDiscount,payments:[{methodId:cash,amount:netTotal,destination:'CASH'}]})
  const root=seed.one('SELECT id,grandTotal,paidTotal,discountTotal,settledAt FROM "SaleInvoice" WHERE id=?',sale.id)
  const items=seed.rows('SELECT id,variantId,qty,unitPrice,discount,lineTotal FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id',sale.id)
  assert.equal(items.length,originals.length)

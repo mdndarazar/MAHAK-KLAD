@@ -89,6 +89,19 @@ export interface CreateSaleInput {
   splitPayment?: boolean
   /** فقط همراه splitPayment: کمبود مبلغ آگاهانه به نسیه تبدیل شود. */
   allowPartial?: boolean
+  /**
+   * نشست ۲۲۳ · مورد ۷ — هویت بدهکار برای فاکتور نسیه.
+   *
+   * وقتی از این فاکتور بدهی ساخته می‌شود، نام و نام خانوادگی و تلفن اجباری و
+   * کد ملی اختیاری است. اطلاعات به‌شکل snapshot روی همان فاکتور ذخیره می‌شود
+   * (Customer سراسری ساخته نمی‌شود) و فاکتور بدون بدهی آن را نمی‌پذیرد.
+   */
+  debtor?: {
+    firstName?: string | null
+    lastName?: string | null
+    phone?: string | null
+    nationalId?: string | null
+  } | null
   note?: string
   /** تاریخ شمسی دلخواه (yyyy/MM/dd). خالی = امروز. */
   issuedAtJalali?: string
@@ -2034,6 +2047,14 @@ export interface ExchangeSaleInput {
    * روش CUSTOM بدون این فیلد رد می‌شود (همان قاعده‌ی `addPayment`).
    */
   destination?: string | null
+  /**
+   * نشست ۲۲۳ · مورد ۶/ب (S223-D9) — مشخصات چکِ مابه‌التفاوت تعویض.
+   * فقط وقتی روش پرداخت از نوع CHEQUE باشد خوانده می‌شود؛ آن‌وقت شمارهٔ چک
+   * و تاریخ سررسید شمسی اجباری‌اند و پرداخت با وضعیت «در جریان» ثبت می‌شود.
+   */
+  chequeNo?: string | null
+  bankName?: string | null
+  dueDateJalali?: string | null
   /** تخفیف ریالی روی سند تعویض */
   invoiceDiscount?: number
   /** عوارض و مالیات سطح سند تعویض */
@@ -2723,6 +2744,13 @@ export interface CreditInvoiceRow {
   orderTypeLabel: string
   customerName: string
   customerPhone: string | null
+  /**
+   * مورد ۷ — هویت بدهکار همان لحظه‌ی فروش نسیه (snapshot روی فاکتور).
+   * این دو فیلد جدا از «مشتری» هستند: ممکن است فاکتور مشتری سراسری نداشته باشد
+   * ولی معلوم باشد چه کسی بدهکار است. `null` = فاکتور قدیمی یا فروش نقدی.
+   */
+  debtorName: string | null
+  debtorPhone: string | null
   grandTotal: number
   paidTotal: number
   remaining: number

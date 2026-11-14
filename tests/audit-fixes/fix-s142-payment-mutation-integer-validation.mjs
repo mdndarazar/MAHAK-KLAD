@@ -85,7 +85,7 @@ const creditCount = () => seed.count('StoreCredit')
 
 // ------------------------- داده‌ی پایه -------------------------
 const inv1 = await safe('فاکتور ۱٬۰۰۰ با پرداخت نقدی ۳۰۰', () =>
-  salesService.create({ userId, shiftId, lines: [line(variant(1000), 1000)], payments: [{ methodId: cash, amount: 300, destination: 'CASH' }] }))
+  salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(variant(1000), 1000)], payments: [{ methodId: cash, amount: 300, destination: 'CASH' }] }))
 const p1 = seed.one('SELECT id, amount, methodId FROM "Payment" WHERE invoiceId = ? ORDER BY id', inv1?.id ?? -1)
 truthy('پرداخت ۳۰۰ ثبت شد', p1?.amount === 300)
 const chq = await safe('چک ۲۰۰ در جریان روی همان فاکتور', () =>
@@ -94,10 +94,11 @@ const chqId = chq?.payment?.id ?? seed.one(`SELECT id FROM "Payment" WHERE invoi
 truthy('چک ثبت شد', !!chqId)
 
 const inv2 = await safe('فاکتور ۱٬۰۰۰ تسویه‌شده', () =>
-  salesService.create({ userId, shiftId, lines: [line(variant(1000), 1000)], payments: [{ methodId: cash, amount: 1000, destination: 'CASH' }] }))
-await safe('اضافه‌دریافت آگاهانه‌ی ۵۰۰ روی فاکتور تسویه‌شده', () =>
-  salesService.addPayment({ userId, invoiceId: inv2.id, amount: 500, methodId: cash, destination: 'CASH', confirmOverpay: true }))
-truthy('اضافه‌دریافت ۵۰۰ ثبت شد', seed.one('SELECT SUM(overpayAmount) AS s FROM "Payment" WHERE invoiceId = ?', inv2?.id ?? -1)?.s === 500)
+  salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(variant(1000), 1000)], payments: [{ methodId: cash, amount: 1000, destination: 'CASH' }] }))
+// نشست ۲۲۴ — مورد ۴ (تصمیم موخر): اضافه‌پرداخت حتی با `confirmOverpay` پذیرفته نمی‌شود.
+await rejects('اضافه‌دریافت آگاهانه‌ی ۵۰۰ روی فاکتور تسویه‌شده رد می‌شود (سیاست مورد ۴)',
+  () => salesService.addPayment({ userId, invoiceId: inv2.id, amount: 500, methodId: cash, destination: 'CASH', confirmOverpay: true }), 'بیشتر است')
+truthy('هیچ ردیف اضافه‌دریافتی ثبت نشد', (seed.one('SELECT SUM(overpayAmount) AS s FROM "Payment" WHERE invoiceId = ?', inv2?.id ?? -1)?.s ?? 0) === 0)
 
 // ===========================================================================
 console.log('\n۱) updatePayment — مبلغ اعشاری/خارج از سقف/متن، شناسه و روش پرداخت')
@@ -129,8 +130,10 @@ await rejects('مبلغ اعتبار ۱۰۰٫۴ رد می‌شود (نه گرد 
 await rejects('مبلغ اعتبار منفی رد می‌شود', () => salesService.overpayCreditIssue({ invoiceId: inv2.id, amount: -100, userId }), 'عدد صحیح')
 await rejects('شناسه‌ی فاکتور اعشاری رد می‌شود', () => salesService.overpayCreditIssue({ invoiceId: inv2.id + 0.5, userId }), 'عدد صحیح')
 eq('هیچ کد اعتبار خریدی برای ورودی نامعتبر صادر نشد', creditCount(), credit0)
-const okCredit = await safe('صدور معتبر اعتبار ۱۰۰ از اضافه‌دریافت', () => salesService.overpayCreditIssue({ invoiceId: inv2.id, amount: 100, userId }))
-truthy('صدور معتبر همچنان کار می‌کند (رگرسیون)', okCredit?.amount === 100 && creditCount() === credit0 + 1)
+// نشست ۲۲۴ — چون اضافه‌دریافت ساخته نمی‌شود، «صدور اعتبار از آن» هم منبعی ندارد.
+await rejects('صدور اعتبار از اضافه‌دریافتِ ناموجود رد می‌شود',
+  () => salesService.overpayCreditIssue({ invoiceId: inv2.id, amount: 100, userId }), 'اضافه')
+truthy('هیچ اعتباری از این مسیر صادر نشد', creditCount() === credit0)
 
 console.log('\n۴) addPayment — methodId نامعتبر')
 const n0 = payCount(inv1.id)

@@ -1,0 +1,6 @@
+{"id":"A1","kind":"stock-after-sale","expected":2,"actual":2}
+{"id":"A2","kind":"stock-after-return","expected":3,"actual":3}
+{"id":"A3","kind":"stock-after-exchange","sourceExpected":4,"sourceActual":4,"targetExpected":3,"targetActual":3,"ok":true}
+{"id":"B1","kind":"partial-cash-on-credit","expectedRemaining":150000,"actual":150000,"ok":true}
+{"id":"C1","kind":"payment-sums","grandTotal":650000,"paid":500000,"negative":0,"overpayRows":0,"balanced":false}
+{"id":"D1","kind":"two-credit-invoices","sumRemaining":100000,"expected":100000,"ok":true}

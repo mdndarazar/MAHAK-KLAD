@@ -1,0 +1,3 @@
+{"id":"S1","kind":"credit-sale","remaining":100000}
+{"id":"S2","kind":"add-cheque","ok":false,"err":"no such column: status"}
+{"id":"S3","kind":"cheque-without-due","rejected":true,"msg":"برای ثبت چک، تاریخ سررسید (موعد) چک را وارد کنید."}

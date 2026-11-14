@@ -84,7 +84,7 @@ const overrides = () => seed.rows(`SELECT * FROM "AuditLog" WHERE action = 'CLOS
 
 // ---------------- داده‌ی دیروز، قبل از بستن صندوق دیروز ----------------
 const invY = await safe('فاکتور نسیه‌ی ۱٬۰۰۰ دیروز با پرداخت نقدی ۳۰۰', () =>
-  salesService.create({ userId, shiftId, issuedAtJalali: yesterday, lines: [line(variant(1000), 1000)], payments: [{ methodId: cash, amount: 300, destination: 'CASH' }] }))
+  salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, issuedAtJalali: yesterday, lines: [line(variant(1000), 1000)], payments: [{ methodId: cash, amount: 300, destination: 'CASH' }] }))
 const payY = seed.one('SELECT id, paidAt FROM "Payment" WHERE invoiceId = ? ORDER BY id', invY?.id ?? -1)
 truthy('پرداخت ۳۰۰ دیروز ثبت شد', !!payY?.id)
 const chqY = await safe('چک ۲۰۰ روی همان فاکتور (در جریان)', () =>

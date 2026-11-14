@@ -11,7 +11,7 @@ export default defineConfig({
         '@main': resolve('src/main')
       }
     },
-    build: { rollupOptions: { input: resolve('src/main/index.ts') } }
+    build: { rollupOptions: { input: { index: resolve('src/main/index.ts') } } }
   },
   preload: {
     plugins: [externalizeDepsPlugin()],

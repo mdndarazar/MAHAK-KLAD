@@ -56,6 +56,7 @@ console.log('\n۱) مبلغ تعویض = کالای جایگزین')
 console.log('\n۲) چک سررسید امروز معوق نیست؛ دیروز معوق است')
 {
   const sale = await salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId: user, shiftId,
     lines: [{ variantId, qty: 1, unitPrice: 10_000, discount: 0, tax: 0 }],
     payments: []
@@ -64,6 +65,7 @@ console.log('\n۲) چک سررسید امروز معوق نیست؛ دیروز �
     invoiceId: sale.id, amount: 4_000, kind: 'CHEQUE', dueDateJalali: today, userId: user
   })
   const sale2 = await salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId: user, shiftId,
     lines: [{ variantId, qty: 1, unitPrice: 10_000, discount: 0, tax: 0 }],
     payments: []
@@ -80,6 +82,7 @@ console.log('\n۲) چک سررسید امروز معوق نیست؛ دیروز �
 console.log('\n۳) ساعت پرداخت داخل paidAt')
 {
   const sale = await salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId: user, shiftId,
     lines: [{ variantId, qty: 1, unitPrice: 10_000, discount: 0, tax: 0 }],
     payments: []

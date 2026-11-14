@@ -1,0 +1,5 @@
+{"kind":"issue-failed","input":"{\"restrictScope\":\"VARIANT\",\"restrictVariantIds\":[1]}","err":"Provided value cannot be bound to SQLite parameter 1."}
+{"kind":"issue-failed","input":"{\"restrictScope\":\"VARIANT\",\"restrictVariantIds\":[1]}","err":"Provided value cannot be bound to SQLite parameter 1."}
+{"kind":"issue-failed","input":"{\"restrictScope\":\"CATEGORY\",\"restrictCategoryIds\":[1]}","err":"Provided value cannot be bound to SQLite parameter 1."}
+{"kind":"issue-failed","input":"{\"restrictScope\":\"CATEGORY\",\"restrictCategoryIds\":[1]}","err":"Provided value cannot be bound to SQLite parameter 1."}
+{"kind":"issue-failed","input":"{\"restrictScope\":\"ALL\"}","err":"Provided value cannot be bound to SQLite parameter 1."}

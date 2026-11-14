@@ -65,6 +65,7 @@ const errorOf = async (fn) => {
 const saleWithCredit = async (amount, code) => {
   const v = variant(amount)
   return salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId,
     shiftId,
     lines: [{ variantId: v, qty: 1, unitPrice: amount, discount: 0, tax: 0 }],
@@ -76,6 +77,7 @@ const saleWithCredit = async (amount, code) => {
 const cashSale = async (amount) => {
   const v = variant(amount)
   return salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId,
     shiftId,
     lines: [{ variantId: v, qty: 1, unitPrice: amount, discount: 0, tax: 0 }],

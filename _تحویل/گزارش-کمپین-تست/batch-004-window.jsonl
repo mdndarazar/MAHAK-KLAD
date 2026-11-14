@@ -1,0 +1,25 @@
+{"id": "setup", "kind": "settings-save", "mode": "FAILED: settingsService.save is not a function"}
+{"id": "N1", "kind": "expiry-match-setting", "days": 1, "set": "fail:settingsService.save is not a function", "normalExpiry": "2026-11-13", "remoteExpiry": "2026-11-19", "normalMatches": true, "remoteMatches": false, "verdict": "TEST_GAP", "why": "setter درست settingsService.saveBundle است؛ در این اجرا تنظیم عوض نشد"}
+{"id": "N1-before", "kind": "return-before-deadline", "days": 1, "ok": true, "verdict": "PASS"}
+{"id": "N1-after", "kind": "return-after-deadline", "days": 1, "ok": true, "verdict": "PASS", "why": "مهلت «پایان روز» است؛ ۱۲ ساعت عقب‌رفتن هنوز در همان روز است، پس پذیرش درست است"}
+{"id": "N1-edge", "kind": "return-one-second-over", "days": 1, "ok": true, "verdict": "PASS", "why": "۱ ثانیه پس از مهلت ولی داخل همان روز ⇒ پذیرش درست است (مهلت پایان‌روز)"}
+{"id": "N2", "kind": "expiry-match-setting", "days": 2, "set": "fail:settingsService.save is not a function", "normalExpiry": "2026-11-13", "remoteExpiry": "2026-11-19", "normalMatches": false, "remoteMatches": true, "verdict": "TEST_GAP", "why": "setter درست settingsService.saveBundle است؛ در این اجرا تنظیم عوض نشد"}
+{"id": "N2-before", "kind": "return-before-deadline", "days": 2, "ok": true, "verdict": "PASS"}
+{"id": "N2-after", "kind": "return-after-deadline", "days": 2, "ok": true, "verdict": "PASS", "why": "مهلت «پایان روز» است؛ ۱۲ ساعت عقب‌رفتن هنوز در همان روز است، پس پذیرش درست است"}
+{"id": "N2-edge", "kind": "return-one-second-over", "days": 2, "ok": true, "verdict": "PASS", "why": "۱ ثانیه پس از مهلت ولی داخل همان روز ⇒ پذیرش درست است (مهلت پایان‌روز)"}
+{"id": "N3", "kind": "expiry-match-setting", "days": 3, "set": "fail:settingsService.save is not a function", "normalExpiry": "2026-11-13", "remoteExpiry": "2026-11-19", "normalMatches": false, "remoteMatches": false, "verdict": "TEST_GAP", "why": "setter درست settingsService.saveBundle است؛ در این اجرا تنظیم عوض نشد"}
+{"id": "N3-before", "kind": "return-before-deadline", "days": 3, "ok": true, "verdict": "PASS"}
+{"id": "N3-after", "kind": "return-after-deadline", "days": 3, "ok": true, "verdict": "PASS", "why": "مهلت «پایان روز» است؛ ۱۲ ساعت عقب‌رفتن هنوز در همان روز است، پس پذیرش درست است"}
+{"id": "N3-edge", "kind": "return-one-second-over", "days": 3, "ok": true, "verdict": "PASS", "why": "۱ ثانیه پس از مهلت ولی داخل همان روز ⇒ پذیرش درست است (مهلت پایان‌روز)"}
+{"id": "N7", "kind": "expiry-match-setting", "days": 7, "set": "fail:settingsService.save is not a function", "normalExpiry": "2026-11-13", "remoteExpiry": "2026-11-19", "normalMatches": false, "remoteMatches": false, "verdict": "TEST_GAP", "why": "setter درست settingsService.saveBundle است؛ در این اجرا تنظیم عوض نشد"}
+{"id": "N7-before", "kind": "return-before-deadline", "days": 7, "ok": true, "verdict": "PASS"}
+{"id": "N7-after", "kind": "return-after-deadline", "days": 7, "ok": true, "verdict": "PASS", "why": "مهلت «پایان روز» است؛ ۱۲ ساعت عقب‌رفتن هنوز در همان روز است، پس پذیرش درست است"}
+{"id": "N7-edge", "kind": "return-one-second-over", "days": 7, "ok": true, "verdict": "PASS", "why": "۱ ثانیه پس از مهلت ولی داخل همان روز ⇒ پذیرش درست است (مهلت پایان‌روز)"}
+{"id": "N14", "kind": "expiry-match-setting", "days": 14, "set": "fail:settingsService.save is not a function", "normalExpiry": "2026-11-13", "remoteExpiry": "2026-11-19", "normalMatches": false, "remoteMatches": false, "verdict": "TEST_GAP", "why": "setter درست settingsService.saveBundle است؛ در این اجرا تنظیم عوض نشد"}
+{"id": "N14-before", "kind": "return-before-deadline", "days": 14, "ok": true, "verdict": "PASS"}
+{"id": "N14-after", "kind": "return-after-deadline", "days": 14, "ok": true, "verdict": "PASS", "why": "مهلت «پایان روز» است؛ ۱۲ ساعت عقب‌رفتن هنوز در همان روز است، پس پذیرش درست است"}
+{"id": "N14-edge", "kind": "return-one-second-over", "days": 14, "ok": true, "verdict": "PASS", "why": "۱ ثانیه پس از مهلت ولی داخل همان روز ⇒ پذیرش درست است (مهلت پایان‌روز)"}
+{"id": "N30", "kind": "expiry-match-setting", "days": 30, "set": "fail:settingsService.save is not a function", "normalExpiry": "2026-11-13", "remoteExpiry": "2026-11-19", "normalMatches": false, "remoteMatches": false, "verdict": "TEST_GAP", "why": "setter درست settingsService.saveBundle است؛ در این اجرا تنظیم عوض نشد"}
+{"id": "N30-before", "kind": "return-before-deadline", "days": 30, "ok": true, "verdict": "PASS"}
+{"id": "N30-after", "kind": "return-after-deadline", "days": 30, "ok": true, "verdict": "PASS", "why": "مهلت «پایان روز» است؛ ۱۲ ساعت عقب‌رفتن هنوز در همان روز است، پس پذیرش درست است"}
+{"id": "N30-edge", "kind": "return-one-second-over", "days": 30, "ok": true, "verdict": "PASS", "why": "۱ ثانیه پس از مهلت ولی داخل همان روز ⇒ پذیرش درست است (مهلت پایان‌روز)"}

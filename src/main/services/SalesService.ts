@@ -82,7 +82,7 @@ import {
 } from '@shared/discountTransfer'
 import { remainingOf, exchangeRefundPartOf, refundFromReceivedOf } from '@shared/settlement'
 import { planCreditReturn, restoreCreditReturnSources } from './CreditReturnService'
-import { planReturnCreditSources, RETURN_CREDIT_POLICY_VERSION } from '@shared/returnCreditPolicy'
+import { planReturnCreditSources, returnCreditSourceMatchesLine, RETURN_CREDIT_POLICY_VERSION } from '@shared/returnCreditPolicy'
 import { assertCreditScopeUnchangedSinceRedemption } from './creditScopeHistory'
 import { planReplacementSourceCredit } from './exchangeReplacementFunding'
 import { nextReceiptNo } from './receiptNo'
@@ -134,6 +134,7 @@ import {
 } from '@shared/enums'
 import {
   toJalaliDate,
+  fromJalaliDate,
   jalaliToDateTime,
   isValidJalaliDate,
   faDigits,
@@ -1337,6 +1338,22 @@ export function saleWhere(f: SaleReportFilter): Prisma.SaleInvoiceWhereInput {
  * این تابع عمداً همان جستجوی `saleWhere` را مصرف نمی‌کند، چون بازه‌ی زمانیِ این
  * تب‌ها تاریخ رویداد خودشان است، نه تاریخ صدور فاکتور.
  */
+/**
+ * مورد ۷ — یک عبارت جستجو، هم روی مشتری سراسری هم روی هویت بدهکارِ snapshot.
+ * `undefined` یعنی فیلتر نگذار (نه «هیچ‌کس»).
+ */
+export function customerOrDebtorSearch(term: string | null | undefined): Prisma.SaleInvoiceWhereInput['OR'] {
+  const q = String(term ?? '').trim()
+  if (!q) return undefined
+  return [
+    { customer: { name: { contains: q } } },
+    { customer: { phone: { contains: q } } },
+    { debtorFirstName: { contains: q } },
+    { debtorLastName: { contains: q } },
+    { debtorPhone: { contains: q } }
+  ]
+}
+
 export function reportInvoiceRelationWhere(
   f: Pick<SaleReportFilter, 'receiptNo' | 'customerSearch' | 'productSearch' | 'userId' | 'shiftId'>
 ): Prisma.SaleInvoiceWhereInput {
@@ -1348,7 +1365,11 @@ export function reportInvoiceRelationWhere(
     receiptNo: f.receiptNo ?? undefined,
     userId: f.userId ?? undefined,
     shiftId: f.shiftId ?? undefined,
-    customer: f.customerSearch ? { name: { contains: f.customerSearch } } : undefined,
+    /**
+     * مورد ۷ — جستجوی «مشتری» حالا هویت بدهکارِ snapshot را هم می‌گیرد؛ وگرنه
+     * بدهکاری که کارت مشتری سراسری ندارد در تب نسیه با نامش پیدا نمی‌شد.
+     */
+    OR: customerOrDebtorSearch(f.customerSearch),
     items: ps
       ? {
           some: {
@@ -2109,6 +2130,49 @@ async function exchangeInvoiceFundingBuckets(
           String(credit.restrictScope ?? 'ALL').toUpperCase() === 'ALL'
       })
   }
+  /**
+   * نشست ۲۲۳ · یافتهٔ ۲ — بازسازی funding پس از `invoice 2`.
+   *
+   * وقتی برگشتی روی همین فاکتور، سهم اعتبار منبع را به مشتری برگرداند،
+   * `StoreCreditRedemption.reversedAt` پر می‌شود و حلقهٔ بالا دیگر آن سهم را
+   * نمی‌بیند؛ در نتیجه بازسازی نسل بعد کل برگشت را «پول واقعی» فرض می‌کند و
+   * ورشکستگی جعلی می‌سازد (۱٬۰۰۰٬۰۰۰ حق پول در برابر ۹۰۰٬۰۰۰ وجه واقعی).
+   *
+   * آن سهم در لحظهٔ همان برگشت واقعاً بخشی از funding این فاکتور بود؛ پس از
+   * `CreditReturnAllocation` (که تغییرناپذیر و دارای `eventKey` یکتاست) و فقط
+   * برای allocationهایی که واقعاً اعتبار را برگردانده‌اند بازسازی می‌شود.
+   * اگر مصرف اصلی برگشت نخورده باشد، bucket خودش از قبل هست و دوباره اضافه
+   * نمی‌شود؛ اگر بازگشت بی‌ارتباط با اعتبار باشد (ابطال فاکتور و…)، allocation
+   * وجود ندارد و چیزی ساخته نمی‌شود.
+   */
+  const restoredCreditAllocations = await tx.creditReturnAllocation.findMany({
+    where: { invoiceId, creditRestored: true },
+    select: {
+      redemptionId: true, amount: true, sourceCreditId: true,
+      restoredCreditId: true, saleItemId: true
+    },
+    orderBy: { id: 'asc' }
+  })
+  const knownCreditSources = new Set(
+    buckets.filter((bucket) => bucket.kind === 'CREDIT')
+      .map((bucket) => (bucket as Extract<ExchangeFundingBucket, { kind: 'CREDIT' }>).sourceKey)
+  )
+  for (const allocation of restoredCreditAllocations as any[]) {
+    const sourceKey = `redemption:${Number(allocation.redemptionId)}`
+    if (knownCreditSources.has(sourceKey)) continue
+    const amount = Math.max(0, toNumberRial(allocation.amount))
+    if (amount <= 0) continue
+    const credit = await tx.storeCredit.findUnique({ where: { id: Number(allocation.sourceCreditId) } })
+    if (!credit) continue
+    buckets.push({
+      kind: 'CREDIT', amount, credit, sourceKey,
+      sourceRedemptionId: Number(allocation.redemptionId),
+      allocationSaleItemId: allocation.saleItemId ?? null,
+      pooledOnExchangeInvoice: invoice.exchangeReturnId != null &&
+        String(credit.restrictScope ?? 'ALL').toUpperCase() === 'ALL'
+    })
+    knownCreditSources.add(sourceKey)
+  }
   for (const payment of payments) {
     const methodKind = String(payment.method?.kind ?? '')
     if (methodKind === PaymentKind.STORE_CREDIT || methodKind === PaymentKind.EXCHANGE_CREDIT) continue
@@ -2301,6 +2365,79 @@ async function planExchangeReturnFunding(
   ]
 }
 
+/**
+ * نشست ۲۲۳ · مورد ۵ — آیا «صفر بودن سهم اعتبار» برای این برگشت قابل اثبات است؟
+ *
+ * اثبات فقط از روی scope خودِ منابع و اقلام همان برگشت انجام می‌شود:
+ *   • هر منبع ALL (یا poolشده در فاکتور تعویض) برای هر قلمی قابل استفاده است
+ *     ⇒ اگر یکی باشد، تخصیص نامعلوم است ⇒ false.
+ *   • منبع VARIANTS فقط با همان variantId و منبع CATEGORY فقط با دستهٔ همان قلم
+ *     (با نیاکان) تطبیق می‌شود؛ اگر هیچ‌کدام با هیچ قلمی نخواند ⇒ true.
+ * این تابع هیچ allocation یا صفر مصنوعی نمی‌سازد و فقط guard را برای حالت
+ * قابل‌اثبات باز می‌کند؛ بقیهٔ حالت‌ها همچنان fail-closed می‌مانند.
+ */
+async function priorReturnCreditShareProvenZero(
+  tx: Prisma.TransactionClient,
+  items: Array<{ saleItemId: number; variantId: number; lineTotal: any }>,
+  creditBuckets: Array<Extract<ExchangeFundingBucket, { kind: 'CREDIT' }>>
+): Promise<boolean> {
+  if (!creditBuckets.length) return true
+  const variantIds = [...new Set(items.map((item) => Number(item.variantId)).filter((id) => Number.isSafeInteger(id) && id > 0))]
+  const variants = variantIds.length
+    ? await tx.productVariant.findMany({
+        where: { id: { in: variantIds } },
+        select: { id: true, product: { select: { categoryId: true } } }
+      })
+    : []
+  const variantById = new Map((variants as any[]).map((row) => [Number(row.id), row]))
+  const hasCategory = creditBuckets.some((bucket) =>
+    !bucket.pooledOnExchangeInvoice &&
+    String(bucket.credit?.restrictScope ?? 'ALL').toUpperCase() === 'CATEGORY'
+  )
+  let parentById = new Map<number, number | null>()
+  if (hasCategory) {
+    const categories = await tx.category.findMany({ select: { id: true, parentId: true } })
+    try {
+      parentById = categoryParentMap(categories as Array<{ id: number; parentId: number | null }>)
+    } catch {
+      // زنجیرهٔ دسته‌های خراب ⇒ اثبات ممکن نیست ⇒ fail-closed.
+      return false
+    }
+  }
+  const lines = items.map((item) => {
+    const variant = variantById.get(Number(item.variantId))
+    const categoryId = variant?.product?.categoryId
+    let categoryPath: number[] = []
+    if (hasCategory && categoryId != null) {
+      try {
+        categoryPath = categoryAncestryPath(Number(categoryId), parentById)
+      } catch {
+        categoryPath = []
+      }
+    }
+    return {
+      saleItemId: Number(item.saleItemId),
+      variantId: Number(item.variantId),
+      value: Math.max(0, toNumberRial(item.lineTotal)),
+      categoryPath
+    }
+  })
+  const malformedCategory = hasCategory && lines.some((line) => line.categoryPath.length === 0)
+  return !malformedCategory && !creditBuckets.some((bucket) => {
+    const pooled = bucket.pooledOnExchangeInvoice === true
+    const scope = String(pooled ? 'ALL' : bucket.credit?.restrictScope ?? 'ALL').toUpperCase()
+    const source = {
+      redemptionId: 1,
+      creditId: Number(bucket.credit?.id ?? 1),
+      amount: bucket.amount,
+      restrictScope: scope,
+      restrictVariantIdsJson: pooled ? null : bucket.credit?.restrictVariantIdsJson ?? null,
+      restrictCategoryIdsJson: pooled ? null : bucket.credit?.restrictCategoryIdsJson ?? null
+    }
+    return lines.some((line) => returnCreditSourceMatchesLine(source, line))
+  })
+}
+
 async function exchangeLineageUsesOnlyInvoicePooledCredits(
   tx: Prisma.TransactionClient,
   startingInvoiceId: number
@@ -2374,14 +2511,6 @@ async function exchangeReturnFundingBuckets(
         select: { returnId: true, redemptionId: true, amount: true }
       })
     : []
-  const priorRedemptionIds = [...new Set((priorCreditAllocations as any[]).map((row) => Number(row.redemptionId)))]
-  const priorRedemptions = priorRedemptionIds.length
-    ? await tx.storeCreditRedemption.findMany({
-        where: { id: { in: priorRedemptionIds } }, select: { id: true, reversedAt: true }
-      })
-    : []
-  const reversedRedemptionIds = new Set((priorRedemptions as any[])
-    .filter((row) => row.reversedAt != null).map((row) => Number(row.id)))
   const allocationsByReturn = new Map<number, Array<{ redemptionId: number; amount: number }>>()
   let unbucketedPriorDebtFunding = 0
   for (const row of priorCreditAllocations as any[]) {
@@ -2418,15 +2547,27 @@ async function exchangeReturnFundingBuckets(
     if (fundedReturn > creditRemoved && remaining.some((bucket) => bucket.kind === 'CREDIT') && creditAllocations.length === 0) {
       const remainingCredits = remaining.filter((bucket): bucket is Extract<ExchangeFundingBucket, { kind: 'CREDIT' }> =>
         bucket.kind === 'CREDIT')
-      const scopes = [...new Set(remainingCredits.map((bucket) =>
-        String(bucket.credit?.restrictScope ?? 'ALL').toUpperCase()))]
-      if (scopes.length && scopes.every((scope) => scope !== 'ALL'))
-        throw new BusinessError(
-          `برگشت قبلی #${priorId} سهم اعتبارِ قابل‌ردیابی ندارد؛ اعتبارهای باقی‌مانده محدود به scope «${scopes.join('، ')}» هستند. ` +
-          'مشخص نیست کدام سهم به کالای برگشتی تعلق دارد؛ اعتبار به کالای خارج از محدوده منتقل نمی‌شود و تعویض مستقیم متوقف شد. ' +
-          'سابقهٔ اقلام و اعتبار را بررسی کنید؛ هیچ تغییری ثبت نشد.'
-        )
-      throw new BusinessError(`برگشت قبلی #${priorId} تخصیص منشأ اعتبار ندارد؛ هیچ تعویضی ثبت نشد تا منبع مالی با حدس جابه‌جا نشود.`)
+      /**
+       * نشست ۲۲۳ · مورد ۵ — تفکیک «صفرِ اثبات‌شده» از «منشأ نامعلوم».
+       *
+       * اگر هیچ اعتبارِ باقی‌مانده‌ای — با توجه به scope/قلم — نمی‌توانست به اقلام
+       * همین برگشت تعلق بگیرد، سهم اعتبارِ صفر *اثبات‌شده* است (مثل A→A1 که A
+       * هیچ‌گاه از اعتبارهای محدود B/C/D مصرف نکرده بود) و نباید عملیات بعدی
+       * C/D را متوقف کند. اگر حتی یک منبع ALL/هم‌خوان وجود داشته باشد، تخصیص
+       * نامعلوم است و مانند قبل fail-closed متوقف می‌شود.
+       */
+      const provenZero = await priorReturnCreditShareProvenZero(tx, prior.items, remainingCredits)
+      if (!provenZero) {
+        const scopes = [...new Set(remainingCredits.map((bucket) =>
+          String(bucket.pooledOnExchangeInvoice ? 'ALL' : bucket.credit?.restrictScope ?? 'ALL').toUpperCase()))]
+        if (scopes.length && scopes.every((scope) => scope !== 'ALL'))
+          throw new BusinessError(
+            `برگشت قبلی #${priorId} سهم اعتبارِ قابل‌ردیابی ندارد؛ اعتبارهای باقی‌مانده محدود به scope «${scopes.join('، ')}» هستند. ` +
+            'مشخص نیست کدام سهم به کالای برگشتی تعلق دارد؛ اعتبار به کالای خارج از محدوده منتقل نمی‌شود و تعویض مستقیم متوقف شد. ' +
+            'سابقهٔ اقلام و اعتبار را بررسی کنید؛ هیچ تغییری ثبت نشد.'
+          )
+        throw new BusinessError(`برگشت قبلی #${priorId} تخصیص منشأ اعتبار ندارد؛ هیچ تعویضی ثبت نشد تا منبع مالی با حدس جابه‌جا نشود.`)
+      }
     }
 
     const removeBySource = new Map<string, number>()
@@ -2434,9 +2575,11 @@ async function exchangeReturnFundingBuckets(
       removeBySource.set(`redemption:${redemptionId}`, amount)
     for (const [sourceKey, amount] of removeBySource) {
       const redemptionId = Number(sourceKey.slice('redemption:'.length))
-      // A fully reversed redemption was already removed by
-      // exchangeInvoiceFundingBuckets (reversedAt IS NULL); do not subtract it twice.
-      if (reversedRedemptionIds.has(redemptionId)) continue
+      // If this source is not part of the reconstructed funding, its redemption
+      // was reversed by a path that did not restore credit to the customer
+      // (void/cancel). There is nothing to subtract; the allocation stays
+      // documented but never creates a synthetic bucket.
+      if (!remaining.some((bucket) => bucket.kind === 'CREDIT' && bucket.sourceKey === sourceKey)) continue
       let left = amount
       remaining = remaining.flatMap((bucket) => {
         if (bucket.kind !== 'CREDIT' || bucket.sourceKey !== sourceKey || left <= 0)
@@ -3020,6 +3163,10 @@ async function initialPaymentRows(
     where: { id: { in: methodIds } },
     select: { id: true, kind: true, key: true }
   })
+  if (methods.length !== methodIds.length)
+    throw new BusinessError(
+      'روش پرداخت انتخاب‌شده پیدا نشد؛ فهرست روش‌های پرداخت را تازه کنید و دوباره انتخاب کنید. هیچ تغییری ذخیره نشد.'
+    )
   if (methods.some((m) => m.key === CHEQUE_METHOD_KEY))
     throw new BusinessError(
       'چک را نمی‌توان در پرداخت اولیه‌ی فاکتور ثبت کرد؛ چک باید با شماره، سررسید و وضعیت «در جریان» از بخش پرداختی‌ها ثبت شود.'
@@ -3798,11 +3945,16 @@ async function rootReturnCodeInfo(client: Client, invoiceId: number): Promise<{
     id = root.sourceInvoiceId == null ? null : Number(root.sourceInvoiceId)
   }
   const codedNodes = chain.filter((node) => node.returnCode != null)
-  // All issued codes in a chain must have a deadline. Use the earliest recorded
-  // deadline so a malformed child can never extend its source invoice's policy.
-  const codedDeadlines = codedNodes.map((node) => node.returnCodeExpiresAt).filter((d: unknown): d is Date => d != null)
-  const hasUnprovenDeadline = codedNodes.some((node) => node.returnCodeExpiresAt == null)
-  const deadline = hasUnprovenDeadline || codedDeadlines.length === 0
+  /**
+   * نشست ۲۲۳ · مورد ۸ — کدِ غیرخالی همراه `returnCodeExpiresAt = null` یعنی
+   * «بدون انقضا»، نه «مهلت نامعلوم». اگر در زنجیره هیچ تاریخ صریحی نباشد،
+   * کد بدون انقضا معتبر است؛ اگر تاریخ صریح وجود داشته باشد، سخت‌گیرانه‌ترین
+   * (زودترین) تاریخ حاکم است تا یک گرهٔ تهی مهلت فرزند را تمدید یا حذف نکند.
+   */
+  const codedDeadlines = codedNodes
+    .map((node) => node.returnCodeExpiresAt)
+    .filter((d: unknown): d is Date => d != null)
+  const deadline = codedDeadlines.length === 0
     ? null
     : new Date(Math.min(...codedDeadlines.map((d: Date) => new Date(d).getTime())))
   return {
@@ -3821,8 +3973,9 @@ async function rootReturnCodeExpiry(client: Client, invoiceId: number): Promise<
 async function assertReturnDeadline(client: Client, invoiceId: number, now = new Date()): Promise<Date | null> {
   const root = await rootReturnCodeInfo(client, invoiceId)
   const deadline = root.returnCodeExpiresAt
-  if (root.hasReturnCode && deadline == null)
-    throw new BusinessError('مهلت کد برگشت این فاکتور در سابقه ثبت نشده است؛ برای جلوگیری از برگشت خارج از مهلت، عملیات ثبت نشد.')
+  // نشست ۲۲۳ · مورد ۸ — کدِ بدون تاریخ انقضا معتبر است؛ فقط کدِ خالی معتبر نیست.
+  if (!root.hasReturnCode)
+    throw new BusinessError('این فاکتور کد برگشت معتبر ندارد؛ برگشت با کد انجام نشد.')
   if (deadline != null && isPastTehranExpiryDate(deadline, now))
     throw new BusinessError(
       `مهلت برگشت فاکتور به پایان رسیده است (تا پایان روز ${faDigits(toJalaliDate(deadline))} به وقت تهران). هیچ تغییری ثبت نشد.`
@@ -4907,6 +5060,20 @@ async function runReturn(
     const realMoneyEntitlement = isExchangeChildReturn
       ? realMoneyEntitlementBeforeExchangeDebt
       : Math.max(0, realMoneyEntitlementBeforeExchangeDebt - exchangeCreditReversalCandidate)
+    /**
+     * نشست ۲۲۳ · یافتهٔ ۱ — نبودِ تصمیم یعنی «انتخاب نشده»، نه اعتبار خودکار.
+     *
+     * قرارداد جدید UI همیشه `refundDecision` را صریح می‌فرستد. فراخوان‌های قدیمیِ
+     * بدون تصمیم اجازه دارند بدون بازپرداخت ثبت شوند (رفتار NONE)، ولی هیچ‌گاه
+     * اعتبار خودکار نمی‌گیرند؛ اعتبار فقط با انتخاب صریح `overpayAsCredit`
+     * ساخته می‌شود. برای گیت مبلغ دقیق، «روش صریح غیر NONE» همان METHOD است.
+     */
+    const refundDecisionEffective: 'UNSELECTED' | 'METHOD' | 'DECLINED' | null =
+      input.refundDecision === 'METHOD' || input.refundDecision === 'DECLINED' || input.refundDecision === 'UNSELECTED'
+        ? input.refundDecision
+        : input.refundMethod != null && String(input.refundMethod).toUpperCase() !== RefundMethod.NONE
+          ? 'METHOD'
+          : null
     if (opts.applyRefund && input.refundDecision === 'UNSELECTED' && realMoneyEntitlement > 0)
       throw new BusinessError(
         `برای این برگشت ${money(realMoneyEntitlement)} ریال حق وجه واقعی وجود دارد، اما روش بازپرداخت انتخاب نشده است. ` +
@@ -5057,20 +5224,28 @@ async function runReturn(
         }
       }
     }
-    // Only the current seller contract (`refundDecision: METHOD`) is subject to
-    // this note gate; unmarked legacy service callers retain their old behavior.
+    /**
+     * نشست ۲۲۳ · مورد ۴ — بازپرداخت برگشت عادی باید **دقیقاً** برابر حق امن
+     * باشد؛ مبلغ کمتر هم پذیرفته نمی‌شود و دلیل/تأیید این قاعده را باز نمی‌کند.
+     * (این بند §۲.۲ سند سیاست بدهی را که «کمتر با popup دلیل» را مجاز می‌دانست
+     * نسخ می‌کند؛ S223-D2.) مبلغ بیشتر از حق امن هم در `resolveRefund` رد
+     * می‌شود. استثنای مورد ۳ (split صریح نقد/کارت در تعویض) مسیر جداگانه دارد.
+     */
     if (
       opts.applyRefund &&
-      input.refundDecision === 'METHOD' &&
+      refundDecisionEffective === 'METHOD' &&
       refund &&
       refund.method !== RefundMethod.NONE &&
-      refund.amount < refund.safeAmount &&
-      String(input.refundNote ?? '').trim().length < 3
-    )
+      refund.amount !== refund.safeAmount
+    ) {
+      const diff = refund.safeAmount - refund.amount
       throw new BusinessError(
-        `مبلغ بازپرداخت کمتر از مبلغ امنِ محاسبه‌شده است (${money(refund.amount)} از ${money(refund.safeAmount)} ریال). ` +
-        'علت کاهش مبلغ را در توضیح بازپرداخت بنویسید (حداقل ۳ نویسه). هیچ تغییری ثبت نشد.'
+        (diff > 0
+          ? `مبلغ بازپرداخت از حق امن کم‌تر است: ${money(refund.amount)} در برابر ${money(refund.safeAmount)} ریال (اختلاف ${money(diff)} ریال). `
+          : `مبلغ بازپرداخت از حق امن بیشتر است: ${money(refund.amount)} در برابر ${money(refund.safeAmount)} ریال (اختلاف ${money(-diff)} ریال). `) +
+        'بازپرداخت باید دقیقاً برابر مبلغ امن محاسبه‌شده باشد؛ مبلغ امن را کامل تسویه کنید یا عملیات را متوقف بگذارید. هیچ تغییری ثبت نشد.'
       )
+    }
     // Only exchange-child returns participate in lineage reversal. Keep legacy
     // parent-return behavior intact by leaving unrelated new returns NULL.
     const exchangeCreditReversed = isExchangeChildReturn ? exchangeCreditReversalCandidate : null
@@ -5111,6 +5286,12 @@ async function runReturn(
         refundFromReceived: debtBefore.refundFromReceived
       })
       returnOverpayIncrease = Math.max(0, after.overpaid - beforeOverpay.overpaid)
+      /**
+       * نشست ۲۲۴ — در برگشت، «اضافه‌دریافت» می‌تواند صرفاً اثر انتخاب روش (اعتبار
+       * خرید) باشد و با قاعدهٔ سقف بازپرداخت سنجیده می‌شود؛ پس منع سراسری اینجا
+       * اعمال نمی‌شود و همان گیت تأیید صریح می‌ماند (مورد ۴ فقط مسیرهای دریافت پول:
+       * فروش، ویرایش فاکتور، وصول بدهی را می‌بندد).
+       */
       if (returnOverpayIncrease > 0 && input.confirmOverpay !== true)
         throw new BusinessError(
           `با این برگشت، ${money(returnOverpayIncrease)} ریال اضافه‌دریافت روی فاکتور ${faDigits(invoice.receiptNo)} ساخته می‌شود ` +
@@ -5443,12 +5624,14 @@ async function runReturn(
       why: `ثبت برگشت ${faDigits(ret.id)}`
     })
     let overpayCredit: Awaited<ReturnType<typeof issueOverpayCreditTx>> | null = null
-    const noRealRefundMethod = input.refundMethod == null ||
-      String(input.refundMethod).toUpperCase() === RefundMethod.NONE
     // New UI payloads must never turn an unselected/declined settlement into
     // an automatic barcode. Keep compatibility only for old, unversioned callers.
-    const shouldAutoCreditBackedOverpay = opts.applyRefund && input.refundDecision == null && noRealRefundMethod
-    if (opts.applyRefund && (input.overpayAsCredit === true || shouldAutoCreditBackedOverpay) && returnOverpayIncrease > 0) {
+    /**
+     * نشست ۲۲۳ · یافتهٔ ۱ — حذف اعتبار خودکارِ مسیر legacy: قبلاً فراخوانِ بدون
+     * `refundDecision` و بدون روش، اضافه‌دریافت را بی‌صدا به اعتبار تبدیل می‌کرد.
+     * اکنون فقط انتخاب صریح `overpayAsCredit` (با تأیید مدیر) این کار را می‌کند.
+     */
+    if (opts.applyRefund && input.overpayAsCredit === true && returnOverpayIncrease > 0) {
       const backing = await overpayCreditBacking(tx, invoice.id)
       const creditAmt = Math.min(backing.available, returnOverpayIncrease)
       if (creditAmt > 0)
@@ -5587,6 +5770,48 @@ async function replaySaleRequest(key: string, fingerprint: string): Promise<any 
   }
 }
 
+/**
+ * نشست ۲۲۳ · مورد ۷ — نرمال‌سازی و اعتبارسنجی snapshot بدهکار.
+ * تلفن: فقط ارقام لاتین/فارسی با حداقل ۸ رقم. خروجی null یعنی اطلاعات ناقص
+ * است و بدهی نباید ساخته شود.
+ */
+function normalizeDebtorSnapshot(raw: any): {
+  firstName: string
+  lastName: string
+  phone: string
+  nationalId: string | null
+} | null {
+  if (!raw || typeof raw !== 'object') return null
+  const text = (value: unknown) => String(value ?? '').trim().replace(/\s+/g, ' ')
+  const digits = (value: unknown) => String(value ?? '')
+    .replace(/[\u06F0-\u06F9]/g, (d) => String('\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9'.indexOf(d)))
+    .replace(/\D/g, '')
+  const firstName = text(raw.firstName)
+  const lastName = text(raw.lastName)
+  const phone = digits(raw.phone)
+  const nationalId = digits(raw.nationalId)
+  if (firstName.length < 2 || lastName.length < 2 || phone.length < 8) return null
+  return {
+    firstName: firstName.slice(0, 80),
+    lastName: lastName.slice(0, 80),
+    phone: phone.slice(0, 20),
+    nationalId: nationalId.length >= 8 ? nationalId.slice(0, 20) : null
+  }
+}
+
+/** مورد ۷ — «نام بدهکار» از snapshot همان فاکتور، یا `null` اگر ثبت نشده باشد. */
+export function debtorSnapshotName(inv: {
+  debtorFirstName?: string | null
+  debtorLastName?: string | null
+}): string | null {
+  const name = [inv.debtorFirstName, inv.debtorLastName]
+    .map((part) => String(part ?? '').trim())
+    .filter(Boolean)
+    .join(' ')
+    .trim()
+  return name || null
+}
+
 export const salesService = {
   /**
    * ثبت فاکتور فروش (POS و فاکتور فروش عمده).
@@ -5606,6 +5831,15 @@ export const salesService = {
    */
   async create(input: CreateSaleInput) {
     validateSaleInput(input)
+    /**
+     * مورد ۷ — شکل هویت بدهکار پیش از هر نوشتنی سنجیده می‌شود (همان قاعده‌ای
+     * که UI هم دارد): اگر `debtor` آمده ولی ناقص است، همان اول رد می‌شود تا
+     * هیچ تراکنشی باز نشود. نبودِ آن فقط وقتی مانع است که واقعاً بدهی بسازد.
+     */
+    if (input.debtor != null && !normalizeDebtorSnapshot(input.debtor))
+      throw new BusinessError(
+        'مشخصات بدهکار ناقص است: نام، نام خانوادگی و شماره تلفن (دست‌کم ۸ رقم) الزامی است.'
+      )
     const orderType = input.orderType ?? OrderType.INTERNAL
     const creditTenders = normalizeSaleCreditTenders(input, orderType)
     const saleRequestKey = String(input.saleRequestIdempotencyKey ?? '').trim() || null
@@ -5672,7 +5906,13 @@ export const salesService = {
       }
     }
     const expiryValue = (row: any) => row?.expiresAt == null ? Number.POSITIVE_INFINITY : new Date(row.expiresAt).getTime()
-    candidates.sort((a, b) => expiryValue(a.credit) - expiryValue(b.credit) || a.tender.code.localeCompare(b.tender.code))
+    /**
+     * نشست ۲۲۳ · مورد ۱۰ — FEFO حفظ می‌شود؛ فقط در انقضای برابر، ترتیب ورود
+     * فروشنده تعیین‌کننده است (نه کد/شناسه). `inputIndex` همان ترتیب آرایهٔ
+     * درخواست است و تا commit دست‌نخورده می‌ماند. fingerprint عمداً
+     * ترتیب‌ناوابسته است، پس retry با ترتیب متفاوت همان فاکتور را replay می‌کند.
+     */
+    candidates.sort((a, b) => expiryValue(a.credit) - expiryValue(b.credit) || a.tender.inputIndex - b.tender.inputIndex)
 
     const deductInventory = input.deductInventory !== false
     const issuedAt = input.issuedAtJalali ? jalaliToDateTime(input.issuedAtJalali) : new Date()
@@ -5754,12 +5994,11 @@ export const salesService = {
       overrideReason: (input as any).overrideReason ?? null,
       alreadyVerified: chargeApproved
     })
-    const overpayManagerApproved =
-      input.overpayAsCredit === true
-        ? periodApproved ||
-          chargeApproved ||
-          (await preverifyOverpayManager(input, 'صدور اعتبار از اضافه‌دریافت فروش (بالاتر از سقف اعتبار)'))
-        : false
+    /**
+     * نشست ۲۲۴ — مسیر «صدور اعتبار از اضافه‌دریافت» در فروش بسته شد؛ پس هیچ رمزی
+     * برای آن پرسیده نمی‌شود. پرچم برای سازگاری IPC و دادهٔ تاریخی باقی است.
+     */
+    const overpayManagerApproved = false
 
     return prisma.$transaction(async (tx) => {
       /**
@@ -5802,12 +6041,16 @@ export const salesService = {
        * =====================================================================
        */
       const saleOverpay = Math.max(0, Math.round(t.paidTotal) - Math.round(t.grandTotal))
-      if (saleOverpay > 0 && input.confirmOverpay !== true)
+      /**
+       * نشست ۲۲۴ — مورد ۴ «طرح نهایی رفع ابهام» (تصمیم موخر): منع سراسری اضافه‌پرداخت.
+       * `confirmOverpay`، `overpayAsCredit`، رمز مدیر و دلیل، هیچ‌کدام مبلغ بیش‌ازحد را
+       * مجاز نمی‌کنند؛ اختلاف دقیق گفته می‌شود و هیچ سندی ساخته نمی‌شود.
+       */
+      if (saleOverpay > 0)
         throw new BusinessError(
           `مبلغ دریافتی (${money(t.paidTotal)} ریال) از جمع کل این فاکتور (${money(t.grandTotal)} ریال) ` +
-            `${money(saleOverpay)} ریال بیشتر است.\n` +
-            'اگر آگاهانه می‌خواهید همین مبلغ کامل ثبت شود، «بله ثبت کن» را بزنید؛ مبلغ اضافه به‌صورت جدا ' +
-            '(ردیف «دریافت پول اضافه») در گزارش فاکتور و گزارشات فروش نمایش داده می‌شود.'
+            `${money(saleOverpay)} ریال بیشتر است. اضافه‌پرداخت در هیچ حالتی مجاز نیست؛ رمز مدیر، دلیل یا تأیید «بله ثبت کن» هم آن را مجاز نمی‌کند. ` +
+            'مبلغ را به اندازهٔ همین اختلاف کم کنید؛ مازاد نقد، باقی‌پول مشتری است. هیچ فاکتوری ثبت نشد.'
         )
       if (input.overpayAsCredit === true && saleOverpay <= 0)
         throw new BusinessError(
@@ -6202,6 +6445,37 @@ export const salesService = {
       if (storeCreditApplied > 0) {
         const settle = await recalcSettlement(tx, invoice.id)
         settledPaidTotal = settle.paidTotal
+      }
+      /**
+       * نشست ۲۲۳ · مورد ۷ — هر بدهیِ نسیه باید هویت بدهکار را روی همان فاکتور
+       * داشته باشد: نام، نام خانوادگی و تلفن اجباری؛ کد ملی اختیاری. مبلغ بدهی
+       * فقط پس از اعمال نقد/کارت/اعتبار روشن است، پس همان‌جا (داخل تراکنش، پیش
+       * از commit) سنجیده می‌شود و در صورت نبود، کل فروش rollback می‌شود؛ هیچ
+       * بدهیِ بی‌هویت ساخته نمی‌شود.
+       *
+       * ⚠️ عمداً فقط حالت «بدهی > ۰» سخت‌گیر است (S223-D4): اگر فاکتور کامل
+       * تسویه شده باشد، `debtor` نادیده گرفته می‌شود و هیچ snapshotی نوشته
+       * نمی‌شود. دلیلش این است که فراخوان‌های قدیمی/داخلی که مبلغ کامل را
+       * می‌پردازند نباید به‌خاطر یک فیلد اختیاری بشکنند؛ و «مشخصات بدهکار
+       * بدون بدهی» هرگز داده‌ی مالی نمی‌سازد.
+       */
+      const debtorDebt = Math.max(0, Math.round(t.grandTotal - settledPaidTotal))
+      if (debtorDebt > 0) {
+        const debtor = normalizeDebtorSnapshot(input.debtor)
+        if (!debtor)
+          throw new BusinessError(
+            `این فروش ${money(debtorDebt)} ریال بدهی می‌سازد؛ نام، نام خانوادگی و شماره تلفن بدهکار الزامی است. ` +
+            'هیچ فاکتور، بدهی یا حرکتی ثبت نشد.'
+          )
+        await tx.saleInvoice.update({
+          where: { id: invoice.id },
+          data: {
+            debtorFirstName: debtor.firstName,
+            debtorLastName: debtor.lastName,
+            debtorPhone: debtor.phone,
+            debtorNationalId: debtor.nationalId
+          }
+        })
       }
 
       /**
@@ -6804,13 +7078,13 @@ export const salesService = {
         .filter((p: any) => p.voidedAt == null)
         .reduce((sum: number, p: any) => sum + Math.max(0, toNumberRial(p.overpayAmount ?? 0)), 0)
       const overpayIncrease = Math.max(0, Math.round(settle.overpayTotal) - prevOverpay)
-      if (overpayIncrease > 0 && input.confirmOverpay !== true)
+      if (overpayIncrease > 0)
         throw new BusinessError(
           `بعد از این ویرایش، جمع دریافتی فاکتور ${faDigits(current.receiptNo)} (${money(settle.paidTotal)} ریال) ` +
             `از جمع تازه‌ی فاکتور (${money(settle.grandTotal)} ریال) بیشتر می‌شود: ${money(overpayIncrease)} ریال ` +
             'اضافه‌دریافت تازه.\n' +
-            'اگر آگاهانه می‌خواهید ویرایش با همین مبالغ ثبت شود، «بله ثبت کن» را بزنید؛ مبلغ اضافه به‌صورت جدا ' +
-            '(ردیف «دریافت پول اضافه») در گزارش فاکتور و گزارشات فروش نمایش داده می‌شود.'
+            'اضافه‌پرداخت در هیچ حالتی مجاز نیست؛ رمز مدیر، دلیل یا تأیید «بله ثبت کن» هم آن را مجاز نمی‌کند. ' +
+            'مبلغ پرداخت‌ها را به اندازهٔ همین اختلاف کم کنید؛ مازاد نقد، باقی‌پول مشتری است. هیچ ویرایشی ثبت نشد.'
         )
       if (input.overpayAsCredit === true && overpayIncrease <= 0)
         throw new BusinessError(
@@ -7472,9 +7746,10 @@ export const salesService = {
       policy: await rootReturnCodeInfo(prisma, Number(row.id))
     })))
     // Expiry is date-based in Tehran: the code remains valid through its expiry day.
+    // نشست ۲۲۳ · مورد ۸ — کدِ غیرخالی با تاریخ تهی، بدون انقضا معتبر است.
     const validCodeCandidate = codeCandidates.find(({ policy }) =>
-      policy.hasReturnCode && policy.returnCodeExpiresAt != null &&
-      !isPastTehranExpiryDate(policy.returnCodeExpiresAt, now)
+      policy.hasReturnCode &&
+      (policy.returnCodeExpiresAt == null || !isPastTehranExpiryDate(policy.returnCodeExpiresAt, now))
     )
 
     let invoice = validCodeCandidate?.row ?? null
@@ -7500,13 +7775,17 @@ export const salesService = {
     }
 
     if (!invoice) {
+      /**
+       * نشست ۲۲۳ · مورد ۸ — فقط نبودِ کد یا انقضای صریحِ گذشته «نامعتبر» است؛
+       * کدِ غیرخالی با تاریخ تهی، بدون انقضا معتبر می‌ماند.
+       */
       const invalidCode = codeCandidates.find(({ policy }) =>
-        !policy.hasReturnCode || policy.returnCodeExpiresAt == null ||
-        isPastTehranExpiryDate(policy.returnCodeExpiresAt, now)
+        !policy.hasReturnCode ||
+        (policy.returnCodeExpiresAt != null && isPastTehranExpiryDate(policy.returnCodeExpiresAt, now))
       )
       if (invalidCode) {
         const deadline = invalidCode.policy.returnCodeExpiresAt
-        if (deadline == null || !invalidCode.policy.hasReturnCode)
+        if (!invalidCode.policy.hasReturnCode)
           throw new BusinessError(
             `برای کد «${code}» مهلت معتبر در سابقه ثبت نشده است؛ ثبت برگشت مسدود شد. ` +
               'اگر رسید را دارید، شمارهٔ رسید را جداگانه وارد کنید تا وضعیت فاکتور بررسی شود.'
@@ -7581,10 +7860,15 @@ export const salesService = {
     })
 
     const expiresAt = deadlinePolicy.returnCodeExpiresAt
+    /**
+     * نشست ۲۲۳ · مورد ۸ — کد غیرخالی با تاریخ تهی «بدون انقضا» است
+     * (`VALID`)؛ `UNPROVEN` فقط برای سازگاری نوع باقی مانده و دیگر ساخته
+     * نمی‌شود.
+     */
     const expiryState: ReturnLookup['expiryState'] = !deadlinePolicy.hasReturnCode
       ? 'NOT_APPLICABLE'
       : expiresAt == null
-        ? 'UNPROVEN'
+        ? 'VALID'
         : isPastTehranExpiryDate(expiresAt, now)
           ? 'EXPIRED'
           : 'VALID'
@@ -7758,14 +8042,8 @@ export const salesService = {
       managerPassword: (input as any).managerPassword ?? null,
       overrideReason: (input as any).overrideReason ?? null
     })
-    const noRealRefundMethod =
-      input.refundMethod == null || String(input.refundMethod).toUpperCase() === RefundMethod.NONE
-    // Preserve the historical implicit gate only for unversioned callers. The
-    // new UI's UNSELECTED/DECLINED states never invoke a credit-issuance gate
-    // unless the seller explicitly starts the overpay-credit flow.
-    const legacyImplicitNoMethod = input.refundDecision == null && noRealRefundMethod
     const overpayManagerApproved =
-      (input.overpayAsCredit === true || legacyImplicitNoMethod)
+      input.overpayAsCredit === true
         ? await preverifyOverpayManager(
             { managerPassword: input.overpayManagerPassword },
             'صدور اعتبار از اضافه‌دریافت برگشت (بالاتر از سقف اعتبار)'
@@ -7919,7 +8197,7 @@ export const salesService = {
    */
   /** Read-only settlement preview. It uses the same return lineage and scope planner as createExchange. */
   async previewExchangeFunding(input: Pick<ExchangeSaleInput,
-    'invoiceId' | 'lines' | 'replacements' | 'full' | 'invoiceDiscount' | 'invoiceTax' | 'serviceCharge' | 'discountTransferOption'>): Promise<{
+    'invoiceId' | 'lines' | 'replacements' | 'full' | 'invoiceDiscount' | 'invoiceTax' | 'serviceCharge' | 'discountTransferOption' | 'refundAmount'>): Promise<{
       ok: boolean
       error?: string
       returnTotal?: number
@@ -7939,6 +8217,25 @@ export const salesService = {
       sourceCreditRestoration?: number
       sourceCreditClosedExpired?: number
       finalRefundValue?: number
+      /**
+       * مورد ۳ — تفکیک read-only «چه مقدار وجه واقعی پرداخت می‌شود و چه مقدار به
+       * اعتبار خرید تبدیل می‌شود» با همان اعدادی که commit استفاده می‌کند. این
+       * پیش‌نمایش هیچ چیزی نمی‌نویسد؛ فقط برای تأیید آگاهانهٔ فروشنده پیش از ثبت است.
+       */
+      settlementSplit?: {
+        /** سهم وجه واقعیِ قابل‌پرداخت پس از برگشت اعتبار منشأدار و کسر بدهی */
+        moneySurplus: number
+        /** مبلغی که فروشنده وارد کرده است (null = خالی، یعنی کل سهم) */
+        requestedPayout: number | null
+        /** مبلغی که واقعاً نقد/کارت خارج می‌شود */
+        payoutAmount: number
+        /** بخشی از سهم وجه که به بارکد اعتبار خرید تبدیل می‌شود */
+        remainderAsCredit: number
+        /** مبلغ درخواستی از سهم قابل‌پرداخت بیشتر است ⇒ سرور ثبت را رد می‌کند */
+        overRequested: boolean
+        /** دلیل نامعتبر بودن مبلغ درخواستی (اگر باشد) */
+        invalidReason: string | null
+      }
       discountTransfer?: {
         historicalDiscount: number
         capacity: number
@@ -8111,6 +8408,29 @@ export const salesService = {
           : selectedOption === 'YES'
             ? fullOutcome
             : zeroOutcome
+        /**
+         * مورد ۳ — همان فرمول commit در `createExchange`:
+         *   `cashPayoutAmount = requested ?? moneySurplus`
+         *   `newStoreCreditAmount = max(0, moneySurplus - cashPayoutAmount)`
+         * عددی اینجا ساخته نمی‌شود؛ فقط پیش از ثبت به فروشنده نشان داده می‌شود.
+         */
+        const rawRequested = input.refundAmount == null ? null : Number(input.refundAmount)
+        const requestedValid = rawRequested == null ||
+          (Number.isSafeInteger(rawRequested) && rawRequested >= 0)
+        const moneySurplus = Math.max(0, Math.round(Number(selected.refund.realMoneySurplus ?? 0)))
+        const requestedPayout = requestedValid && rawRequested != null ? rawRequested : null
+        const payoutAmount = requestedPayout == null ? moneySurplus : Math.min(requestedPayout, moneySurplus)
+        const overRequested = requestedPayout != null && requestedPayout > moneySurplus
+        const settlementSplit = {
+          moneySurplus,
+          requestedPayout,
+          payoutAmount,
+          remainderAsCredit: Math.max(0, moneySurplus - payoutAmount),
+          overRequested,
+          invalidReason: requestedValid
+            ? null
+            : 'مبلغ بازپرداخت باید عدد صحیح ریالیِ نامنفی باشد.'
+        }
         return {
           ok: true,
           returnTotal,
@@ -8130,6 +8450,7 @@ export const salesService = {
           sourceCreditRestoration: selected.refund.sourceCreditRestoration,
           sourceCreditClosedExpired: selected.refund.sourceCreditClosedExpired,
           finalRefundValue: selected.refund.finalRefundValue,
+          settlementSplit,
           discountTransfer: historicalDiscount > 0 ? {
             historicalDiscount,
             capacity,
@@ -8982,31 +9303,87 @@ export const salesService = {
             const methodId = methodRow?.id
             if (!methodId)
               throw new BusinessError('روش پرداخت انتخاب‌شده پیدا نشد؛ روش فعال دیگری را صریح انتخاب کنید.')
-            await assertPaymentMethodExists(tx, methodId)
-            const destination = assertDestination(
-              input.destination ?? destinationFromMethodKind(methodRow?.kind ?? null),
-              methodRow?.kind,
-              'PAYMENT'
-            )
-            await tx.payment.create({
-              data: {
-                invoiceId: exchangeInvoice.id,
-                methodId,
-                amount: cashDue,
-                kind: PaymentEntryKind.CASH,
-                destination,
-                seq: ++seq,
-                paidAt: now,
-                paidAtJalali: toJalaliDate(now),
-                paidAtTime: toClock(now),
-                createdAt: now,
-                createdByUserId: input.userId ?? null,
-                createdShiftId: shiftId,
-                note: `مابه‌التفاوت تعویض کالا پس از اعتبار (دریافت از مشتری${destination === PaymentDestination.CARD ? ' — کارت‌خوان' : ''})`
-              }
-            })
-            if (destination === PaymentDestination.CARD) cardReceived = cashDue
-            else cashReceived = cashDue
+            /**
+             * =================================================================
+             * نشست ۲۲۳ · مورد ۶/ب (S223-D9) — مابه‌التفاوت تعویض با چک.
+             *
+             * قبلاً هر پرداختی که این‌جا ساخته می‌شد `kind: CASH` بود، حتی اگر روش
+             * انتخاب‌شده «چک» باشد؛ نتیجه: پولِ وصول‌نشده به‌عنوان نقدِ کشو ثبت
+             * می‌شد (کسری/اضافیِ الکیِ صندوق) و چک در فهرست چک‌ها و یادآوری
+             * سررسید هیچ ردی نداشت و حساب مشتری «تسویه» دیده می‌شد.
+             *
+             * حالا: برای روش چک، یک پرداخت چکِ واقعی با شماره/بانک/سررسید و
+             * وضعیت `PENDING` ثبت می‌شود؛ مقصد پول `null` است (چکِ در جریان تا
+             * لحظهٔ «پاس شد» پول کشو/کارت‌خوان نیست) و هیچ حرکتی در کشو نمی‌آید.
+             * =================================================================
+             */
+            const isChequeTender =
+              methodRow?.key === CHEQUE_METHOD_KEY || methodRow?.kind === PaymentKind.CHEQUE
+            if (isChequeTender) {
+              const chequeNo = String(input.chequeNo ?? '').trim()
+              if (chequeNo.length < 3)
+                throw new BusinessError(
+                  'برای دریافت مابه‌التفاوت با چک، شمارهٔ چک الزامی است (دست‌کم ۳ نویسه). هیچ تغییری ثبت نشد.'
+                )
+              const dueDateJalali = String(input.dueDateJalali ?? '').trim()
+              if (!isValidJalaliDate(dueDateJalali))
+                throw new BusinessError(
+                  'برای دریافت مابه‌التفاوت با چک، تاریخ سررسید شمسی معتبر (مثلاً ۱۴۰۵/۰۹/۰۱) الزامی است. هیچ تغییری ثبت نشد.'
+                )
+              // همان مبدلِ مسیر چکِ فروش؛ اگر رشته با ارقام فارسی آمده باشد هم درست کار می‌کند
+              const dueDate = jalaliToDateTime(toLatinDigits(dueDateJalali))
+              await tx.payment.create({
+                data: {
+                  invoiceId: exchangeInvoice.id,
+                  methodId,
+                  amount: cashDue,
+                  kind: PaymentEntryKind.CHEQUE,
+                  // چکِ در جریان پول کشو/کارت‌خوان نیست؛ مقصد فقط پس از «پاس شد» تعیین می‌شود
+                  destination: null,
+                  seq: ++seq,
+                  paidAt: now,
+                  paidAtJalali: toJalaliDate(now),
+                  paidAtTime: toClock(now),
+                  createdAt: now,
+                  createdByUserId: input.userId ?? null,
+                  createdShiftId: shiftId,
+                  chequeNo,
+                  bankName: String(input.bankName ?? '').trim() || null,
+                  dueDate,
+                  dueDateJalali,
+                  chequeStatus: ChequeStatus.PENDING,
+                  note: `مابه‌التفاوت تعویض کالا با چک (در جریان — وصول نشده؛ هیچ پولی به صندوق نیامد)`
+                }
+              })
+              // عمداً هیچ `cashReceived/cardReceived` ست نمی‌شود.
+            } else {
+              // روش‌های نقدی/کارتی/سفارشی همان اعتبارسنجی قبلی را دارند (چک جداگانه بالا سنجیده شد)
+              await assertPaymentMethodExists(tx, methodId)
+              const destination = assertDestination(
+                input.destination ?? destinationFromMethodKind(methodRow?.kind ?? null),
+                methodRow?.kind,
+                'PAYMENT'
+              )
+              await tx.payment.create({
+                data: {
+                  invoiceId: exchangeInvoice.id,
+                  methodId,
+                  amount: cashDue,
+                  kind: PaymentEntryKind.CASH,
+                  destination,
+                  seq: ++seq,
+                  paidAt: now,
+                  paidAtJalali: toJalaliDate(now),
+                  paidAtTime: toClock(now),
+                  createdAt: now,
+                  createdByUserId: input.userId ?? null,
+                  createdShiftId: shiftId,
+                  note: `مابه‌التفاوت تعویض کالا پس از اعتبار (دریافت از مشتری${destination === PaymentDestination.CARD ? ' — کارت‌خوان' : ''})`
+                }
+              })
+              if (destination === PaymentDestination.CARD) cardReceived = cashDue
+              else cashReceived = cashDue
+            }
           }
         } else if (input.splitPayment === true || (input.payments?.length ?? 0) > 0) {
           throw new BusinessError('بارکد اعتبار کل مابه‌التفاوت را پوشش می‌دهد؛ پرداخت نقدی/کارتی اضافه ارسال نکنید.')
@@ -9903,6 +10280,12 @@ export const salesService = {
         orderTypeLabel: ORDER_TYPE_LABELS[inv.orderType] ?? inv.orderType,
         customerName: inv.customer?.name ?? 'مشتری عمومی',
         customerPhone: inv.customer?.phone ?? null,
+        /**
+         * مورد ۷ — بدهی بی‌نام بی‌صاحب نمی‌ماند: هر فاکتور نسیه هویت بدهکارش را
+         * روی خودش دارد. فاکتورهای پیش از این تغییر (یا نقدی) `null` می‌دهند.
+         */
+        debtorName: debtorSnapshotName(inv),
+        debtorPhone: (inv as any).debtorPhone ?? null,
         grandTotal,
         paidTotal,
         remaining,
@@ -12301,10 +12684,8 @@ export const salesService = {
       )
 
     /** نشست ۶۲ (S62-2) — رمز سقف اعتبار، بیرون از تراکنش */
-    const overpayManagerApproved =
-      input?.overpayAsCredit === true
-        ? await preverifyOverpayManager(input, 'صدور اعتبار از اضافه‌دریافت (بالاتر از سقف اعتبار)')
-        : false
+    /** نشست ۲۲۴ — مسیر اعتبار از اضافه‌دریافت در وصول بدهی بسته شد؛ رمزی پرسیده نمی‌شود. */
+    const overpayManagerApproved = false
 
     /** نشست ۱۳۶ (S136-2) — پرداخت با تاریخ روزِ بسته، رمز مدیر + دلیل (بیرون از تراکنش) */
     const periodGate: PaymentPeriodGate = {
@@ -12419,21 +12800,34 @@ export const salesService = {
       const debtBefore = await invoiceRemaining(tx, invoiceId, grandTotalNow, receivedTotalOf(priorRows))
       const remainingBefore = debtBefore.remaining
       const overpayAmount = isCheque ? 0 : Math.max(0, amount - remainingBefore)
-      if (overpayAmount > 0 && input?.confirmOverpay !== true)
+      if (overpayAmount > 0)
         throw new BusinessError(
           `مبلغ واردشده (${money(amount)} ریال) از باقی‌ماندهٔ بدهی این فاکتور (${money(remainingBefore)} ریال) ` +
-            `${money(overpayAmount)} ریال بیشتر است.\n` +
+            `${money(overpayAmount)} ریال بیشتر است. اضافه‌پرداخت در هیچ حالتی مجاز نیست؛ رمز مدیر، دلیل یا تأیید «بله ثبت کن» هم آن را مجاز نمی‌کند. ` +
             `فاکتور شماره ${faDigits(inv.receiptNo)} · جمع کل ${money(grandTotalNow)} ریال` +
             (debtBefore.returnedValue > 0
               ? ` · برگشت‌خورده ${money(debtBefore.returnedValue)} ریال` +
                 (debtBefore.refundFromReceived > 0 ? ` (بازپرداخت‌شده ${money(debtBefore.refundFromReceived)} ریال)` : '')
               : '') +
             ` · دریافت‌شده تا الان ${money(debtBefore.received)} ریال.\n` +
-            'اگر آگاهانه می‌خواهید همین مبلغ کامل ثبت شود، «بله ثبت کن» را بزنید؛ مبلغ اضافه به‌صورت جدا در گزارش ' +
-            'فاکتور نمایش داده می‌شود.'
+            'مبلغ را به اندازهٔ همین اختلاف کم کنید؛ مازاد نقد، باقی‌پول مشتری است. هیچ پرداختی ثبت نشد.'
         )
 
-      /**
+      // مورد ۲الف — گارد رزرو چک PENDING (فقط نقد/کارت، فقط وقتی PENDING دارد)
+      if (!isCheque) {
+        const pending = pendingChequeTotalOf(priorRows as any[])
+        if (pending > 0) {
+          const cap = Math.max(0, remainingBefore - Math.min(pending, remainingBefore))
+          if (amount > cap) {
+            throw new BusinessError(
+              `${money(pending)} ریال از بدهی این فاکتور در چک‌های «در جریان» رزرو شده است؛ سقف نقد/کارت ${money(cap)} ریال است. ` +
+                `مبلغ ${money(amount)} ریال ${money(amount - cap)} ریال از سقف بیشتر است. برای تبدیل چک به نقد از «جایگزینی با نقد/کارت» در بخش چک‌ها استفاده کنید. هیچ پرداختی ثبت نشد.`
+            )
+          }
+        }
+      }
+
+            /**
        * نشست ۶۱ · بند ۴-۳۵ مرحله ۲/۳ — «کد اعتبار خرید برای مبلغ اضافه صادر بشود؟ بله».
        * فقط برای پول واقعی و فقط وقتی واقعاً مبلغ اضافه‌ای هست؛ هر درخواست دیگر
        * صریح رد می‌شود (نه نادیده‌گرفتن بی‌صدا).
@@ -12794,6 +13188,25 @@ export const salesService = {
       }
 
       if (!Object.keys(data).length) throw new BusinessError('چیزی برای تغییر فرستاده نشده است.')
+
+      // مورد ۴ — سقف افزایش مبلغ (فقط نقد/کارت، فقط افزایش)
+      if (input.amount != null && !isCheque && input.amount > Number(current.amount)) {
+        const others = await tx.payment.findMany({
+          where: { invoiceId: current.invoiceId, voidedAt: null, id: { not: id } },
+          select: { amount: true, kind: true, chequeStatus: true }
+        })
+        const invForCap = await tx.saleInvoice.findUnique({ where: { id: current.invoiceId }, select: { grandTotal: true } })
+        if (!invForCap) throw new BusinessError('فاکتور مربوط به این پرداختی پیدا نشد.')
+        const debt = await invoiceRemaining(tx, current.invoiceId, toNumberRial(invForCap.grandTotal), receivedTotalOf(others as any[]))
+        const cap = Math.max(0, debt.remaining - pendingChequeTotalOf(others as any[]))
+        const increase = input.amount - Number(current.amount)
+        if (increase > cap) {
+          throw new BusinessError(
+            `افزایش به ${money(input.amount)} ریال، ${money(increase - cap)} ریال از سقف مجاز (${money(cap)} ریال) بیشتر است. ` +
+              `سقف فعلی پس از کسر چک‌های در جریان ${money(cap)} ریال است. هیچ تغییری ذخیره نشد.`
+          )
+        }
+      }
 
       await tx.payment.update({ where: { id }, data })
       const settle = await recalcSettlement(tx, current.invoiceId)
@@ -13189,6 +13602,163 @@ export const salesService = {
    * بازه‌ی تاریخ روی *سررسید* چک اعمال می‌شود، چون سوال روزانه‌ی فروشگاه این است
    * که «این هفته چه چکی موعدش می‌رسد».
    */
+  /**
+   * مورد ۶ — «جایگزینی چک»، اتمیک و با مبلغ **دقیق** (سیاست S223-D1).
+   *
+   * قاعده:
+   *   • فقط چکِ «در جریان» (و «برگشت‌خورده») قابل جایگزینی است؛ چکِ پاس‌شده یا
+   *     باطل‌شده هرگز. وضعیت قبلی از تاریخچه پاک نمی‌شود، فقط دفتر گذار می‌گیرد.
+   *   • مبلغ چک جدید باید دقیقاً برابر مبلغ چک منتخب باشد؛ کمتر/بیشتر با اختلاف
+   *     دقیق رد می‌شود و هیچ ردیفی ثبت یا باطل نمی‌شود.
+   *   • در تعویض با مابه‌التفاوت مثبت (D>0)، جایگزینیِ همان‌جا مبلغ هدف را
+   *     `مبلغ چک + D` می‌کند **یک‌بار**؛ جایگزینیِ بعدی (از تب چک‌ها) دوباره D
+   *     اضافه نمی‌کند، چون `replacedChequeId` نشان می‌دهد چک قبلاً جایگزین شده است.
+   *   • پرداخت جدید و ابطال چک قبلی در یک تراکنش‌اند؛ اگر هر بخشی شکست بخورد، چک
+   *     قبلی «در جریان» می‌ماند و هیچ پولی جابه‌جا نمی‌شود.
+   */
+  async replaceCheque(
+    input: {
+      /** شناسهٔ پرداختِ چکِ منتخب (چکی که جایگزین می‌شود) */
+      id?: number
+      /** مبلغ چک جدید — باید دقیقاً برابر مبلغ هدف باشد */
+      amount?: number
+      chequeNo?: string | null
+      bankName?: string | null
+      dueDateJalali?: string | null
+      note?: string | null
+      /**
+       * اگر جایگزینی «همراه با مابه‌التفاوت مثبت تعویض» است، شناسهٔ سند تعویض.
+       * صفر/خالی یعنی جایگزینی ساده از تب چک‌ها (بدون افزودن D).
+       */
+      exchangeInvoiceId?: number | null
+      managerPassword?: string | null
+      overrideReason?: string | null
+      userId?: number | null
+    } = {}
+  ) {
+    if (input?.id == null) throw new BusinessError('چکی برای جایگزینی مشخص نشده است.')
+    const id = assertSafeInteger(input.id, 'شناسه چک', 1)
+    const amount = assertSafeInteger(input.amount, 'مبلغ چک جدید', 0)
+    if (amount <= 0) throw new BusinessError('مبلغ چک جدید باید بزرگ‌تر از صفر باشد.')
+    const chequeNo = String(input.chequeNo ?? '').trim()
+    if (chequeNo.length < 3) throw new BusinessError('شماره چک جدید الزامی است (دست‌کم ۳ نویسه).')
+    const why = String(input.overrideReason ?? '').trim()
+    if (why.length < 3) throw new BusinessError('دلیل جایگزینی چک (دست‌کم ۳ نویسه) اجباری است.')
+    const dueAt = input.dueDateJalali ? parseJalaliOrThrow(String(input.dueDateJalali), 'سررسید چک جدید') : null
+    const dueJalali = input.dueDateJalali ? String(input.dueDateJalali) : null
+    /**
+     * رمز پنل نسیه بیرون از تراکنش بررسی می‌شود (AuthLockout نباید نویسندهٔ SQLite
+     * را در تراکنش باز قفل کند) — همان الگوی `setChequeStatus`.
+     */
+    await assertPanelPasswordStrict(PANEL_KEYS.salesCredit, input.managerPassword ?? null, 'جایگزینی چک')
+
+    return prisma.$transaction(async (tx) => {
+      const current = await tx.payment.findUnique({
+        where: { id },
+        include: { invoice: { select: { id: true, receiptNo: true, grandTotal: true } } }
+      })
+      if (!current) throw new BusinessError('این چک پیدا نشد؛ فهرست را تازه کنید.')
+      if (current.voidedAt) throw new BusinessError('این چک قبلاً باطل شده است و جایگزینی ندارد.')
+      if ((current.kind ?? PaymentEntryKind.CASH) !== PaymentEntryKind.CHEQUE)
+        throw new BusinessError('این ردیف چک نیست؛ فقط چک قابل جایگزینی است.')
+      const status = String(current.chequeStatus ?? ChequeStatus.PENDING).toUpperCase()
+      if (status === ChequeStatus.CLEARED)
+        throw new BusinessError('چک پاس‌شده قابل جایگزینی نیست؛ فقط چک «در جریان» یا «برگشت‌خورده» جایگزین می‌شود.')
+
+      const prior = await tx.payment.findFirst({
+        where: { replacedChequeId: id, voidedAt: null },
+        select: { id: true, amount: true }
+      })
+      if (prior && !input.exchangeInvoiceId)
+        throw new BusinessError('این چک قبلاً جایگزین شده است؛ ابتدا همان چک جایگزین را انتخاب کنید.')
+
+      /**
+       * مابه‌التفاوت مثبت تعویض (D>0) در `createExchange` همان لحظه و با یک روش
+       * پرداخت واقعی دریافت می‌شود؛ پس فاکتور تعویض هیچ بدهیِ بازِ ناشی از D ندارد.
+       * اگر D را دوباره به چک جایگزین اضافه کنیم، همان مبلغ دو بار از مشتری گرفته
+       * می‌شود. تا وقتی مسیر «دریافت D با چک» در تعویض وجود ندارد، این درخواست
+       * صریحاً و بدون mutation رد می‌شود؛ مبلغ هدف همیشه دقیقاً مبلغ خود چک است.
+       */
+      if (input.exchangeInvoiceId != null)
+        throw new BusinessError(
+          'مابه‌التفاوت تعویض همان لحظه دریافت می‌شود و بدهیِ بازی روی سند تعویض نمی‌ماند؛ ' +
+            'افزودن دوبارهٔ آن به چک جایگزین مجاز نیست. چک را فقط با مبلغ دقیق خودش جایگزین کنید.'
+        )
+
+      const baseAmount = toNumberRial(current.amount)
+      const targetAmount = baseAmount
+      if (amount !== targetAmount) {
+        const diff = Math.abs(amount - targetAmount)
+        throw new BusinessError(
+          `مبلغ چک جدید باید دقیقاً ${money(targetAmount)} ریال (مبلغ چک فعلی) باشد؛ ` +
+            `اختلاف ${money(diff)} ریال. هیچ چکی ثبت یا باطل نشد.`
+        )
+      }
+
+      const now = new Date()
+      const nextSeq = async (invoiceId: number) => {
+        const agg = await tx.payment.aggregate({ where: { invoiceId }, _max: { seq: true } })
+        return Math.max(0, Number(agg?._max?.seq ?? 0)) + 1
+      }
+      const createChequeRow = async (invoiceId: number, rowAmount: number, extraNote: string) =>
+        tx.payment.create({
+          data: {
+            invoiceId,
+            methodId: current.methodId,
+            amount: BigInt(rowAmount),
+            kind: PaymentEntryKind.CHEQUE,
+            chequeStatus: ChequeStatus.PENDING,
+            chequeNo,
+            bankName: input.bankName ? String(input.bankName).trim() : current.bankName ?? null,
+            dueDate: dueAt,
+            dueDateJalali: dueJalali,
+            paidAt: now,
+            paidAtJalali: toJalaliDate(now),
+            paidAtTime: toClock(now),
+            seq: await nextSeq(invoiceId),
+            createdByUserId: input.userId ?? null,
+            createdShiftId: current.createdShiftId ?? null,
+            destination: null,
+            replacedChequeId: id,
+            note: [String(input.note ?? '').trim(), extraNote].filter(Boolean).join(' · ') || null
+          }
+        })
+
+      /** چک جدید روی همان فاکتوری که چک قبلی داشت، با همان مبلغ دقیق */
+      const replacement = await createChequeRow(current.invoiceId, baseAmount, `جایگزین چک #${id}`)
+
+      const reasonText =
+        `چک شماره ${current.chequeNo ?? '—'} به مبلغ ${money(baseAmount)} ریال با چک شماره ${chequeNo} ` +
+        `به مبلغ ${money(amount)} ریال جایگزین شد · دلیل: ${why}`
+      await tx.payment.update({
+        where: { id },
+        data: { voidedAt: now, voidedByUserId: input.userId ?? null, voidReason: reasonText }
+      })
+      await audit(tx, {
+        action: AuditAction.CHEQUE_STATUS,
+        entity: 'Payment',
+        entityId: id,
+        userId: input.userId ?? null,
+        before: JSON.stringify({ chequeStatus: status, chequeNo: current.chequeNo, amount: baseAmount, voidedAt: null }),
+        after: JSON.stringify({
+          replacedByPaymentId: Number(replacement.id),
+          chequeNo,
+          amount,
+          voidedAt: now,
+          reason: why
+        }),
+        note: `جایگزینی چک (مورد ۶) · فاکتور ${faDigits(current.invoice.receiptNo)} · ${reasonText}`
+      })
+
+      return {
+        paymentId: Number(replacement.id),
+        voidedPaymentId: id,
+        amount: baseAmount,
+        targetAmount
+      }
+    }, TX_OPTIONS)
+  },
+
   async chequeList(
     filter: {
       status?: string

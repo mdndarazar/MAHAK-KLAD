@@ -38,7 +38,7 @@ const target=variant('replacement',targetPrice)
 const result={caseName,single,refundMode,targetToman,isolatedDatabase:process.env.HARNESS_DB,status:'RUNNING'}
 try{
  const gross=originalLinePrice*originalCount,net=gross-invoiceDiscount,sourceShare=Math.round(invoiceDiscount*originalLinePrice/gross),sourceNet=originalLinePrice-sourceShare,diff=targetPrice-sourceNet
- const sale=await salesService.create({userId,shiftId,lines:originals.map(x=>({variantId:x.variantId,qty:1,unitPrice:originalLinePrice,discount:0,tax:0})),invoiceDiscount,payments:[{methodId:cash,amount:net,destination:'CASH'}]})
+ const sale=await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' }, userId,shiftId,lines:originals.map(x=>({variantId:x.variantId,qty:1,unitPrice:originalLinePrice,discount:0,tax:0})),invoiceDiscount,payments:[{methodId:cash,amount:net,destination:'CASH'}]})
  const root=seed.one('SELECT id,grandTotal,paidTotal,discountTotal,settledAt FROM "SaleInvoice" WHERE id=?',sale.id)
  const items=seed.rows('SELECT id,variantId,qty,unitPrice,lineTotal FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id',sale.id)
  const sourceItem=items.find(x=>n(x.variantId)===originals[0].variantId)

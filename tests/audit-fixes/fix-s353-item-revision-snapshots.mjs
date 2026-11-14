@@ -64,7 +64,7 @@ const variant = (price) => {
   return id
 }
 const line = (variantId, qty, unitPrice, discount = 0, tax = 0) => ({ variantId, qty, unitPrice, discount, tax })
-const sale = async (lines) => salesService.create({ userId, shiftId, lines, payments: [] })
+const sale = async (lines) => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines, payments: [] })
 const invoiceItems = (invoiceId) => seed.rows(
   'SELECT id, invoiceId, variantId, variantName, variantCode, qty, unitPrice, discount, tax, lineTotal FROM "SaleInvoiceItem" WHERE invoiceId = ? ORDER BY id',
   invoiceId

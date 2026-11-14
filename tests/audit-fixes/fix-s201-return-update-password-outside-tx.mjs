@@ -68,6 +68,7 @@ const cash = seed.insert('PaymentMethod', { key: 'CASH', label: 'نقدی', kind
 const shiftId = seed.insert('Shift', { name: 'صبح', number: 1, dayJalali: today, openedAt: Date.now() - 3600_000, userId })
 
 const sale = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId,
   shiftId,
   lines: [

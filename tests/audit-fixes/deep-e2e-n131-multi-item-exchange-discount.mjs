@@ -29,7 +29,7 @@ sql.prepare('UPDATE "ProductVariant" SET stock=10,salePrice=? WHERE id=?').run(r
 const line=(variantId,unitPrice,discount=0)=>({variantId,qty:1,unitPrice,discount,tax:0})
 const out={scenario:`two-line discounted source; exchange A for ${replacementPrice}; replacement receives no explicit discount`,isolatedDatabase:process.env.HARNESS_DB,status:'RUNNING'}
 try{
- const sale=await salesService.create({userId,shiftId,lines:[line(sourceA,100_000),line(sourceB,200_000)],invoiceDiscount:30_000,payments:[{methodId:cash,amount:270_000,destination:'CASH'}]})
+ const sale=await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' }, userId,shiftId,lines:[line(sourceA,100_000),line(sourceB,200_000)],invoiceDiscount:30_000,payments:[{methodId:cash,amount:270_000,destination:'CASH'}]})
  const root=seed.one('SELECT id,grandTotal,paidTotal,discountTotal,status,settledAt FROM "SaleInvoice" WHERE id=?',sale.id)
  const items=seed.rows('SELECT id,variantId,qty,unitPrice,lineTotal FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id',sale.id)
  const sourceItem=items.find(x=>n(x.variantId)===sourceA)

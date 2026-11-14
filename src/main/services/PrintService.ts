@@ -304,11 +304,7 @@ export const printService = {
       deliveryFee: toNumberRial(inv.deliveryFee),
       grandTotal: toNumberRial(inv.grandTotal),
       paidTotal: toNumberRial(inv.paidTotal),
-      remaining: remainingOf({
-        grandTotal: toNumberRial(inv.grandTotal),
-        received: toNumberRial(inv.paidTotal),
-        ...debtAdjustmentsOf(inv.returns ?? [])
-      }).remaining,
+      remaining: (await invoiceRemaining(prisma, inv.id, toNumberRial(inv.grandTotal), toNumberRial(inv.paidTotal))).remaining,
       /**
        * ---- کار الف: پرداختیِ «به حساب مدیر» روی رسید مشخص می‌شود ----
        * فقط یک برچسب متنی است و هیچ عددی را عوض نمی‌کند (جمع رسید همان جمع
@@ -933,8 +929,27 @@ export const printService = {
     const detail = await storeCreditService.detail({ id })
     const c = detail.credit
     // DTO جزئیات عمداً credential ندارد؛ فقط ساخت سند در main رکورد اصلی را می‌خواند.
-    const credit = await prisma.storeCredit.findUnique({ where: { id }, select: { code: true } })
+    const credit = await prisma.storeCredit.findUnique({
+      where: { id },
+      select: { code: true, returnId: true, exchangeInvoiceId: true, source: true }
+    })
     const code = credit?.code ?? ''
+    /**
+     * نشست ۲۲۳ · مورد ۱۲ — دامنهٔ دقیق سند:
+     * فقط اعتباری که با انتخاب صریح **به‌جای وجه بازپرداخت** صادر شده
+     * (`SaleReturn.refundMethod = STORE_CREDIT` یا تسویهٔ تعویض `CREDIT`)
+     * متن دفعات مصرف را روی کاغذ نشان نمی‌دهد. منبع از دیتابیس خوانده می‌شود،
+     * نه از state صفحه (§۷)، و هیچ متن جانشینی اضافه نمی‌شود.
+     */
+    const hideUsageCounts = await (async (): Promise<boolean> => {
+      if (credit?.returnId == null) return false
+      const ret = await prisma.saleReturn.findUnique({
+        where: { id: Number(credit.returnId) },
+        select: { refundMethod: true, exchangeSettlement: true, kind: true }
+      })
+      const method = String(ret?.refundMethod ?? ret?.exchangeSettlement ?? '').toUpperCase()
+      return method === 'STORE_CREDIT' || method === 'CREDIT'
+    })()
     const scope = normalizeRestrictScope(c.restrictScope)
     let barcodeDataUrl: string | null = null
     try {
@@ -961,6 +976,7 @@ export const printService = {
       usesLabel: c.usesLabel,
       maxUses: c.maxUses,
       usedCount: c.usedCount,
+      hideUsageCounts,
       restrictLabel:
         scope === CreditRestrictScope.ALL
           ? null

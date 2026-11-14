@@ -74,6 +74,8 @@ export const IPC = {
   saleOverpayCredit: 'sale:overpay:credit',
   /** تغییر وضعیت یک چک: پاس شد / برگشت خورد / در جریان */
   saleChequeStatus: 'sale:cheque:status',
+  /** مورد ۶ — جایگزینی اتمیک چک با مبلغ دقیق (رمز پنل نسیه) */
+  saleChequeReplace: 'sale:cheque:replace',
   /** فهرست چک‌های ثبت‌شده (سررسید، وضعیت، فاکتور) */
   saleChequeList: 'sale:cheque:list',
   /**

@@ -28,7 +28,7 @@ const replacement=key==='DIRECT-RETURN'?null:variant(`replacement-${replacementB
 const result={case:key,isolatedDatabase:process.env.HARNESS_DB,status:'RUNNING'}
 try{
  const gross=30_000_000,invoiceDiscount=3_000_000,netPaid=27_000_000
- const sale=await salesService.create({userId,shiftId,lines:[{variantId:source,qty:1,unitPrice:10_000_000,discount:0,tax:0},{variantId:kept,qty:1,unitPrice:20_000_000,discount:0,tax:0}],invoiceDiscount,payments:[{methodId:cash,amount:netPaid,destination:'CASH'}]})
+ const sale=await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' }, userId,shiftId,lines:[{variantId:source,qty:1,unitPrice:10_000_000,discount:0,tax:0},{variantId:kept,qty:1,unitPrice:20_000_000,discount:0,tax:0}],invoiceDiscount,payments:[{methodId:cash,amount:netPaid,destination:'CASH'}]})
  const inv=seed.one('SELECT id,goodsTotal,discountTotal,grandTotal,paidTotal FROM "SaleInvoice" WHERE id=?',sale.id)
  const items=seed.rows('SELECT id,variantId,qty,unitPrice,discount,lineTotal FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id',sale.id)
  const sourceItem=items.find(i=>n(i.variantId)===source)

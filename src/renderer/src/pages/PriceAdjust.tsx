@@ -111,7 +111,8 @@ const STATE_CLASS: Record<PriceAdjustState, string> = {
   SCHEDULED: 'bg-sky-100 text-sky-800 border-sky-300',
   APPLIED: 'bg-emerald-100 text-emerald-800 border-emerald-300',
   ENDED: 'bg-slate-100 text-slate-600 border-slate-300',
-  REVERTED: 'bg-slate-100 text-slate-500 border-slate-300'
+  REVERTED: 'bg-slate-100 text-slate-500 border-slate-300',
+  CANCELLED: 'bg-amber-100 text-amber-800 border-amber-300'
 }
 
 /** درصد تغییر با علامت، برای ستون آخرِ جدول پیش‌نمایش. */
@@ -553,6 +554,10 @@ function PriceAdjustInner() {
                 </option>
               ))}
             </select>
+            <span className="kbd leading-5">
+              فقط قیمت فروش گروهی تغییر می‌کند. بهای خرید از فاکتور خرید واقعی خوانده می‌شود و دستی/گروهی عوض
+              نمی‌شود تا سود لات‌های قدیمی و ارزش انبار واقعی بماند.
+            </span>
           </label>
 
           <label className="flex flex-col gap-1">
@@ -595,7 +600,11 @@ function PriceAdjustInner() {
               value={target}
               onChange={(e) => setTarget(e.target.value as PriceAdjustTarget)}
             >
-              {(Object.keys(TARGET_LABELS) as PriceAdjustTarget[]).map((t) => (
+              {/*
+                نشست ۲۲۳ · مورد ۱۱ (S223-D8) — «قیمت خرید» عمداً در این فهرست نیست:
+                بهای خرید فقط از فاکتور خرید واقعی می‌آید. سرویس هم مستقیم رد می‌کند.
+              */}
+              {(['SALE'] as PriceAdjustTarget[]).map((t) => (
                 <option key={t} value={t}>
                   {TARGET_LABELS[t]}
                 </option>
@@ -886,7 +895,7 @@ function PriceAdjustInner() {
             <tbody>
               {batches.map((b) => {
                 const state = normalizeAdjustState(b.state, b.reverted ? 'x' : null)
-                const dim = state === 'REVERTED' || state === 'ENDED'
+                const dim = state === 'REVERTED' || state === 'ENDED' || state === 'CANCELLED'
                 return (
                   <tr key={b.id} className={`${dim ? 'text-slate-400' : ''} ${selected.includes(b.id) ? 'sel' : ''}`}>
                     <td className="text-center">

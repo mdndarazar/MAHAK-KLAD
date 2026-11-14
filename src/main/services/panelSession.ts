@@ -53,6 +53,16 @@ function ownerOf(explicit?: number): number {
   return ownerContext.getStore() ?? LEGACY_OWNER
 }
 
+// برای هاب راه دور — فقط افزودنی (۶ خط تاییدشده)
+export function currentPanelOwner(): number {
+  return ownerOf()
+}
+export function peekPanelExpiry(panel: string, explicitOwner?: number): number | null {
+  const owner = ownerOf(explicitOwner)
+  const key = normalizePanelKey(panel) ?? panel
+  return bucket(owner)?.get(key)?.expiresAt ?? null
+}
+
 function bucket(owner: number, create = false): Map<string, Entry> | undefined {
   let found = sessionsByOwner.get(owner)
   if (!found && create) {

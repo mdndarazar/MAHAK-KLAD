@@ -41,6 +41,7 @@ sql.prepare('UPDATE "ProductVariant" SET stock = 10, salePrice = 1000 WHERE id =
 const shiftId = seed.insert('Shift', { name: 'صبح', number: 1, dayJalali: today, openedAt: Date.now(), userId: user })
 
 await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId: user,
   shiftId,
   lines: [{ variantId, qty: 1, unitPrice: 1000, discount: 0, tax: 0 }],

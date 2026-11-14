@@ -571,14 +571,15 @@ export interface SaleDefaults {
 export const DEFAULT_SALE_DEFAULTS: SaleDefaults = {
   serviceChargePercent: 0,
   taxPercent: 0,
-  returnCodeDays: 7,
-  returnCodeDaysRemote: 14,
+  // نشست ۲۲۳ · مورد ۸ — پیش‌فرض هدف: عادی ۱ روز، مشتری راه دور ۷ روز
+  returnCodeDays: 1,
+  returnCodeDaysRemote: 7,
   returnCodeLength: 6,
   cashierName: 'مدیر',
   // مورد ۷: فاکتور فروش عمده هم مثل فروش تکی کد برگشت می‌گیرد
   wholesaleReturnCode: true,
-  wholesaleReturnCodeDays: 7,
-  wholesaleReturnCodeDaysRemote: 14,
+  wholesaleReturnCodeDays: 1,
+  wholesaleReturnCodeDaysRemote: 7,
   wholesaleReturnCodeLength: 6,
   // مورد ۳: پیش‌فرض = همان رفتار فعلی (فاکتور چاپ می‌شود)
   printEnabled: true,

@@ -99,19 +99,24 @@ export const PRICE_ROUND_LABELS: Record<number, string> = {
  * نباید ناگهان «زمان‌بندی‌شده» تفسیر شود و دوباره روی قیمت‌ها بنشیند.
  * ===========================================================================
  */
-export type PriceAdjustState = 'SCHEDULED' | 'APPLIED' | 'ENDED' | 'REVERTED'
+/**
+ * `CANCELLED` (نشست ۲۲۳ · مورد ۱۱) = قرارِ زمان‌بندی‌شده‌ای که عمداً اجرا نشد
+ * (مثلاً هدف «قیمت خرید» که بسته شد). هیچ قیمتی با آن عوض نشده است.
+ */
+export type PriceAdjustState = 'SCHEDULED' | 'APPLIED' | 'ENDED' | 'REVERTED' | 'CANCELLED'
 
 export const PRICE_ADJUST_STATE_LABELS: Record<PriceAdjustState, string> = {
   SCHEDULED: 'زمان‌بندی‌شده — هنوز اعمال نشده',
   APPLIED: 'اعمال‌شده',
   ENDED: 'پایان خودکار طبق زمان‌بندی',
-  REVERTED: 'بازگردانی شده'
+  REVERTED: 'بازگردانی شده',
+  CANCELLED: 'لغوشده — هیچ قیمتی عوض نشد'
 }
 
 /** ورودی ناشناس ⇒ یک وضعیت معتبر (پیش‌فرض ایمن: اعمال‌شده). */
 export function normalizeAdjustState(raw: unknown, revertedAt?: unknown): PriceAdjustState {
   const v = String(raw ?? '').trim().toUpperCase()
-  if (v === 'SCHEDULED' || v === 'APPLIED' || v === 'ENDED' || v === 'REVERTED') return v
+  if (v === 'SCHEDULED' || v === 'APPLIED' || v === 'ENDED' || v === 'REVERTED' || v === 'CANCELLED') return v
   return revertedAt ? 'REVERTED' : 'APPLIED'
 }
 

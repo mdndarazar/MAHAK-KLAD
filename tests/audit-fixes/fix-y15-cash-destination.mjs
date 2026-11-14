@@ -65,13 +65,13 @@ eq('روش سفارشی/بانکی: هر سه (بدون تغییر)', [...allowe
 
 console.log('\n۲) پرداخت اولیه‌ی فروش: نقدی ⇐ حساب مدیر')
 let before = seed.count('SaleInvoice')
-await rejects('فروش با پرداخت نقدی به مقصد حساب مدیر ⇒ رد', () => salesService.create({ userId: A, shiftId, lines: [line()], payments: [{ methodId: cash, amount: 500_000, destination: 'MANAGER' }] }), HINT)
+await rejects('فروش با پرداخت نقدی به مقصد حساب مدیر ⇒ رد', () => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId: A, shiftId, lines: [line()], payments: [{ methodId: cash, amount: 500_000, destination: 'MANAGER' }] }), HINT)
 eq('هیچ فاکتوری ساخته نشد', seed.count('SaleInvoice'), before)
-const s1 = await safe('کنترل: نقدی ⇐ نقد در صندوق پذیرفته', () => salesService.create({ userId: A, shiftId, lines: [line()], payments: [{ methodId: cash, amount: 500_000, destination: 'CASH' }] }))
-await safe('کنترل: کارت‌به‌کارت ⇐ حساب مدیر پذیرفته', () => salesService.create({ userId: A, shiftId, lines: [line()], payments: [{ methodId: bank, amount: 500_000, destination: 'MANAGER' }] }))
+const s1 = await safe('کنترل: نقدی ⇐ نقد در صندوق پذیرفته', () => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId: A, shiftId, lines: [line()], payments: [{ methodId: cash, amount: 500_000, destination: 'CASH' }] }))
+await safe('کنترل: کارت‌به‌کارت ⇐ حساب مدیر پذیرفته', () => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId: A, shiftId, lines: [line()], payments: [{ methodId: bank, amount: 500_000, destination: 'MANAGER' }] }))
 
 console.log('\n۳) addPayment (مسیر عمومی دریافت)')
-const inv = await salesService.create({ userId: A, shiftId, lines: [line()], payments: [] })
+const inv = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId: A, shiftId, lines: [line()], payments: [] })
 await rejects('addPayment نقدی ⇐ حساب مدیر ⇒ رد', () => salesService.addPayment({ invoiceId: inv.id, amount: 200_000, methodId: cash, destination: 'MANAGER', userId: A }), HINT)
 eq('هیچ ردیف پرداختی ساخته نشد', payCount(inv.id), 0)
 eq('بدهی دست‌نخورده', paid(inv.id), 0)

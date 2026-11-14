@@ -76,7 +76,7 @@ truthy('خالی کردن هم به پرداختی‌ها اشاره دارد', 
 eq('نقد بعد از تلاش نسیه همان ۲٬۰۰۰٬۰۰۰ است', await exp(), 2_000_000)
 
 console.log('\nC1-چک · IPC) ابطال چک پاس‌شده از ویرایش فاکتور')
-const r5 = await ipc(IPC.saleCreate, { lines: [line], payments: [] })
+const r5 = await ipc(IPC.saleCreate, { lines: [line], payments: [], debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' }, })
 eq('فاکتور نسیه برای چک', r5.ok, true)
 const ip = await ipc(IPC.salePaymentAdd, {
   invoiceId: r5.data.id, kind: 'CHEQUE', amount: 1_000_000, chequeNo: 'C1', bankName: 'ملی', dueDateJalali: today

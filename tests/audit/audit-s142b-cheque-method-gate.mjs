@@ -53,7 +53,7 @@ const payCount = (id) => seed.count('Payment', 'invoiceId = ?', id)
 
 console.log('\n— ۱) addPayment غیرچک با روش سیستمی چک')
 {
-  const inv = await salesService.create({ userId: A, shiftId, lines: [line], payments: [] })
+  const inv = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId: A, shiftId, lines: [line], payments: [] })
   const r = await safe(() => ipc(IPC.salePaymentAdd, { invoiceId: inv.id, amount: 500_000, methodId: chq, destination: 'CASH' }))
   eq('روش چک با مقصد نقد کشو رد شد', TARGET.test(errOf(r) ?? ''), true)
   const r2 = await safe(() => salesService.addPayment({ invoiceId: inv.id, amount: 500_000, methodId: chq, destination: 'MANAGER', userId: A }))
@@ -69,7 +69,7 @@ console.log('\n— ۱) addPayment غیرچک با روش سیستمی چک')
 
 console.log('\n— ۲) updatePayment نقدی ⇒ روش چک')
 {
-  const inv = await salesService.create({ userId: A, shiftId, lines: [line], payments: [{ methodId: cash, amount: 500_000, destination: 'CASH' }] })
+  const inv = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId: A, shiftId, lines: [line], payments: [{ methodId: cash, amount: 500_000, destination: 'CASH' }] })
   const pay = seed.one('SELECT id FROM "Payment" WHERE invoiceId = ?', inv.id).id
   const r = await safe(() => ipc(IPC.salePaymentUpdate, { id: pay, methodId: chq, destination: 'MANAGER', ...GATE }))
   eq('نقدی ⇒ «چک · حساب مدیر» رد شد', TARGET.test(errOf(r) ?? ''), true)

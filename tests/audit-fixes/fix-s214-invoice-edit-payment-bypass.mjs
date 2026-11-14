@@ -85,6 +85,7 @@ const liveAmt = (invoiceId) =>
 
 console.log('\nC1) تبدیل نقد→کارت و خالی کردن پرداخت از ویرایش اقلام')
 const inv = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [line()],
   payments: [{ methodId: cash, amount: 1_000_000, destination: 'CASH' }]
 })
@@ -115,6 +116,7 @@ eq('پرداخت زنده دست‌نخورده', liveAmt(inv.id), 1_000_000)
 
 console.log('\nC1-چک) چک پاس‌شده از ویرایش اقلام باطل نمی‌شود')
 const inv2 = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId, lines: [line()],
   payments: [{ methodId: cash, amount: 100_000, destination: 'CASH' }]
 })

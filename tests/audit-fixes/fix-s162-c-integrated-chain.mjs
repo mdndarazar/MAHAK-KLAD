@@ -85,7 +85,7 @@ const line = (variantId, price) => ({ variantId, qty: 1, unitPrice: price, disco
 /** فاکتور دو قلمی ۶۰۰+۴۰۰ که با همه‌ی پرداخت‌هایش به دیروز منتقل می‌شود (فروش دوره‌ی قبل) */
 const yesterdaySale = async (paid) => {
   const a = variant(600), b = variant(400)
-  const inv = await salesService.create({ userId, shiftId, lines: [line(a, 600), line(b, 400)], payments: paid > 0 ? [{ methodId: cash, amount: paid, destination: 'CASH' }] : [] })
+  const inv = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(a, 600), line(b, 400)], payments: paid > 0 ? [{ methodId: cash, amount: paid, destination: 'CASH' }] : [] })
   sql.prepare('UPDATE "SaleInvoice" SET issuedAt = ?, issuedAtJalali = ?, settledAt = CASE WHEN settledAt IS NULL THEN NULL ELSE ? END WHERE id = ?').run(Yat, yday, Yat, inv.id)
   sql.prepare('UPDATE "Payment" SET paidAt = ?, paidAtJalali = ?, createdAt = ? WHERE invoiceId = ?').run(Yat, yday, Yat, inv.id)
   return { inv, items: itemsOf(inv.id) }
@@ -144,18 +144,15 @@ eq('بدهی ۱۰۰ همه‌جا (پرداختی‌ها/نسیه/گزارش د�
 }
 await throwsWith('دریافت ۷۰۰ بدون تأیید اضافه‌دریافت رد', () => pay(A.inv.id, 700), 'بیشتر')
 eq('پرداخت ردشده ثبت نشد', payRows(A.inv.id).length, 1)
-const pA = await safe('دریافت ۷۰۰ با تأیید', () => pay(A.inv.id, 700, { confirmOverpay: true }))
-eq('اضافه‌دریافت ۶۰۰', pA?.overpayAmount, 600)
-eq('بدهی ۰ همه‌جا', await remainingEverywhere(A.inv.id, yday), [0, 0, 0])
-{
-  const t = await invariants('الف-۲')
-  // S162-D3: اضافه‌دریافت ۶۰۰ روی فاکتور دیروز داخل «وصول نسیه‌ی دوره‌ی قبل» ۷۰۰ است (نشست ۵۸ · C4، بدون دوبار کسر)
-  eq('ردیف overpayReceived امروز ۰ (اضافه‌دریافت فاکتور دیروز جدا کم نمی‌شود)', Number(rowAmt(t, 'overpayReceived') ?? 0), 0)
-  eq('وصول نسیه‌ی دوره‌ی قبل ۷۰۰ (شامل ۶۰۰ اضافه)', rowAmt(t, 'priorCreditSettlements'), 700)
-}
-await safe('ویرایش ۷۰۰ ⇒ ۵۰', () => salesService.updatePayment({ id: pA?.payment?.id, amount: 50, userId, ...GATE }))
-eq('اضافه‌دریافت بعد از ویرایش ۰', payRows(A.inv.id).reduce((s, p) => s + Number(p.overpayAmount ?? 0), 0), 0)
-eq('بدهی ۵۰ همه‌جا', await remainingEverywhere(A.inv.id, yday), [50, 50, 50])
+// نشست ۲۲۴ — مورد ۴ (تصمیم موخر): اضافه‌پرداخت در وصول بدهی هم رد می‌شود.
+// سناریوی قدیمی «دریافت ۷۰۰ با تأیید و ۶۰۰ اضافه‌دریافت» منسوخ است.
+let payMsg = ''
+try { await pay(A.inv.id, 700, { confirmOverpay: true }) } catch (e) { payMsg = String(e?.message ?? e) }
+eq('دریافت ۷۰۰ روی بدهی رد می‌شود (سیاست مورد ۴)', payMsg.includes('بیشتر است'), true)
+eq('هیچ اضافه‌دریافتی ثبت نشد', payRows(A.inv.id).reduce((s, p) => s + Number(p.overpayAmount ?? 0), 0), 0)
+eq('بدهی بدون تغییر می‌ماند', await remainingEverywhere(A.inv.id, yday), [100, 100, 100])
+await safe('تسویهٔ دقیق بدهی', () => pay(A.inv.id, 100))
+eq('بدهی ۰ همه‌جا بعد از تسویهٔ دقیق', await remainingEverywhere(A.inv.id, yday), [0, 0, 0])
 {
   const t = await invariants('الف-۳')
   eq('ردیف overpayReceived ۰', Number(rowAmt(t, 'overpayReceived') ?? 0), 0)

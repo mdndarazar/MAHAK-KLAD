@@ -34,7 +34,12 @@ export default function StockAdjustModal({
   onSaved: (msg: string) => void
 }) {
   const [qty, setQty] = useState(0)
-  const [note, setNote] = useState('انبارگردانی')
+  const [note, setNote] = useState('')
+  /**
+   * مورد ۱۱ — کاهش دستی موجودی بدون علت ثبت نمی‌شود. «خرابی/کسری» با بهای FIFO
+   * زیان موجودی است؛ «اصلاح اشتباه» زیان نمی‌سازد. افزایش از این مسیر بسته است.
+   */
+  const [kind, setKind] = useState<'DAMAGE' | 'CORRECTION'>('DAMAGE')
   const [err, setErr] = useState<string | null>(null)
   const [warn, setWarn] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -45,7 +50,8 @@ export default function StockAdjustModal({
   useEffect(() => {
     if (!open || !variant) return
     setQty(variant.stock ?? 0)
-    setNote('انبارگردانی')
+    setNote('')
+    setKind('DAMAGE')
     setErr(null)
     setWarn(null)
     setBusy(false)
@@ -72,7 +78,8 @@ export default function StockAdjustModal({
       await call(CH.stockAdjust, {
         variantId: variant.id,
         newQty: qty,
-        note: note.trim() || 'اصلاح دستی',
+        kind,
+        note: note.trim(),
         managerPassword: password.trim() || null
       })
       setPassword('')
@@ -87,6 +94,12 @@ export default function StockAdjustModal({
   const save = () => {
     if (!variant) return
     if (!Number.isFinite(qty)) return setErr('موجودی باید یک عدد باشد')
+    if (delta > 0)
+      return setErr(
+        'افزایش دستی موجودی مجاز نیست. مازاد فقط از مسیر «انبارگردانی» (با مجوز مدیر، دلیل و بهای صریح) یا با فاکتور خرید واقعی ثبت می‌شود.'
+      )
+    if (delta < 0 && note.trim().length < 3)
+      return setErr('برای کاهش موجودی، شرح علت الزامی است (دست‌کم ۳ نویسه).')
     if (needPassword && delta !== 0 && !password.trim())
       return setErr('اصلاح دستی موجودی تأیید مدیر لازم دارد؛ رمز مدیر (یا رمز دوم پنل کالاها) را وارد کنید.')
     setErr(null)
@@ -148,9 +161,40 @@ export default function StockAdjustModal({
                 </>
               )}
             </div>
+            {delta < 0 && (
+              <div className="space-y-1">
+                <div className="mb-1 font-bold">علت کاهش موجودی (اجباری)</div>
+                <label className="flex items-start gap-2 rounded border p-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    className="w-4 h-4 mt-1"
+                    name="stock-loss-kind"
+                    checked={kind === 'DAMAGE'}
+                    onChange={() => setKind('DAMAGE')}
+                  />
+                  <span>
+                    <b>خرابی/کسری</b>
+                    <div className="kbd leading-5">با بهای FIFO همان حرکت، زیان موجودی ثبت می‌شود و جدا از سود دیده می‌شود.</div>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 rounded border p-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    className="w-4 h-4 mt-1"
+                    name="stock-loss-kind"
+                    checked={kind === 'CORRECTION'}
+                    onChange={() => setKind('CORRECTION')}
+                  />
+                  <span>
+                    <b>اصلاح اشتباه</b>
+                    <div className="kbd leading-5">شمارش/ثبت قبلی غلط بوده و فقط اصلاح می‌شود؛ زیان موجودی نمی‌سازد.</div>
+                  </span>
+                </label>
+              </div>
+            )}
             <label className="block">
-              <div className="mb-1">توضیح</div>
-              <input className="inp" value={note} onChange={(e) => setNote(e.target.value)} />
+              <div className="mb-1">توضیح (برای کاهش، اجباری است)</div>
+              <input className="inp" value={note} onChange={(e) => setNote(e.target.value)} placeholder="مثلاً: دو عدد پاره شد" />
             </label>
             {needPassword && (
               <label className="block">

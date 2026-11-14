@@ -671,6 +671,7 @@ export function registerIpcHandlers(): void {
   handle(IPC.salePaymentUpdate, async (p) => salesService.updatePayment(await withSessionActor(p)))
   handle(IPC.salePaymentDelete, async (p) => salesService.deletePayment(await withSessionActor(p ?? {})))
   handle(IPC.saleChequeStatus, async (p) => salesService.setChequeStatus(await withSessionActor(p ?? {})))
+  handle(IPC.saleChequeReplace, async (p) => salesService.replaceCheque(await withSessionActor(p ?? {})))
   handle(IPC.saleChequeList, async (p) => {
     await assertSalesReportsRead('دیدن فهرست چک‌های فروش در گزارشات')
     return salesService.chequeList(p ?? {})

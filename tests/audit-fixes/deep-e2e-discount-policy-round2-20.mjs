@@ -81,6 +81,7 @@ async function sale({ suffix, lines, invoiceDiscount = 0, tender = 'CASH', paidA
     ] : []
   } else if (tender !== 'NONE') throw new Error(`Unknown source tender ${tender}`)
   const created = await salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId, shiftId,
     lines: lines.map((line) => ({ ...line, tax: line.tax ?? 0 })),
     invoiceDiscount, payments, storeCredits

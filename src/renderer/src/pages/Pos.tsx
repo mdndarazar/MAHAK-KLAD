@@ -332,6 +332,17 @@ export default function Pos() {
    * حالتی لازم است که مشتق کردن جوابش را نمی‌دهد: پولی که به حساب مدیر رفته.
    */
   const [creditDestination, setCreditDestination] = useState<string | null>(null)
+  /**
+   * ---------------- مورد ۷: هویت بدهکار نسیه ----------------
+   * نسیه بدون اینکه معلوم باشد «بدهکار کیست» ثبت نمی‌شود. این مشخصات فقط روی
+   * همان فاکتور snapshot می‌شود (Customer سراسری ساخته نمی‌شود) و سرور هم مستقل
+   * از این فرم همان قاعده را اعمال می‌کند؛ اینجا فقط جلوی رفت‌وبرگشت بیهوده و
+   * پیام خطای دیرهنگام را می‌گیریم.
+   */
+  const [debtorFirst, setDebtorFirst] = useState('')
+  const [debtorLast, setDebtorLast] = useState('')
+  const [debtorPhone, setDebtorPhone] = useState('')
+  const [debtorNationalId, setDebtorNationalId] = useState('')
   const searchRef = useRef<VariantSearchBoxHandle>(null)
   const lastScan = useRef<{ code: string; at: number }>({ code: '', at: 0 })
 
@@ -867,6 +878,13 @@ export default function Pos() {
     () => (creditMode ? Math.max(0, cashDue - Math.min(Math.max(0, Math.round(creditPaid || 0)), cashDue)) : 0),
     [creditMode, creditPaid, cashDue]
   )
+  /**
+   * مورد ۷ — شرط «بدهکار شناسایی‌شده»: نام و نام خانوادگی و شماره‌ای که
+   * دست‌کم ۸ رقم داشته باشد (ارقام فارسی هم شمرده می‌شوند). کد ملی اختیاری است.
+   */
+  const debtorPhoneDigits = (debtorPhone.match(/[0-9۰-۹]/g) ?? []).length
+  const debtorReady = debtorFirst.trim().length > 0 && debtorLast.trim().length > 0 && debtorPhoneDigits >= 8
+
 
   /**
    * هشدار زودهنگام کمبود موجودی، همان لحظه‌ی اسکن/انتخاب کالا (مورد ۳).
@@ -1107,6 +1125,16 @@ export default function Pos() {
         if (isSplit && splitTotal !== cashDue)
           return setErr(`جمع نقد و کارت باید دقیقاً ${money(cashDue)} ریال باشد؛ اکنون ${money(splitTotal!)} ریال است.`)
         /**
+         * مورد ۷ — اگر همین فاکتور بدهی دارد، هویت بدهکار قبل از هر تماسی
+         * اجباری است. سرور همین قاعده را داخل تراکنش هم دارد؛ اینجا فقط زودتر
+         * و با همان زبان به فروشنده گفته می‌شود.
+         */
+        const saleDebt = creditMode ? Math.max(0, cashDue - paidNow) : 0
+        if (saleDebt > 0 && !debtorReady) {
+          setBusy(false)
+          return setErr('این فاکتور بدهی دارد: نام، نام خانوادگی و شماره تلفن بدهکار الزامی است (شماره تلفن دست‌کم ۸ رقم).')
+        }
+        /**
          * ---- کار الف: مقصد فقط وقتی فرستاده می‌شود که واقعاً انتخاب شده باشد ----
          * و اگر انتخابش با روش پرداختی که همین حالا زده شد سازگار نباشد (مثلاً
          * «کارتخوان» با دکمه‌ی «نقدی»)، همین‌جا با پیام فارسی می‌ایستیم و به سرور
@@ -1179,6 +1207,17 @@ export default function Pos() {
           storeCredits,
           // یک کلید برای کل فاکتور؛ retry همان فاکتور را برمی‌گرداند.
           saleRequestIdempotencyKey: null,
+          // مورد ۷: هویت بدهکار فقط برای فاکتورِ بدهکار فرستاده می‌شود.
+          ...(saleDebt > 0
+            ? {
+                debtor: {
+                  firstName: debtorFirst.trim(),
+                  lastName: debtorLast.trim(),
+                  phone: debtorPhone.trim(),
+                  nationalId: debtorNationalId.trim() || null
+                }
+              }
+            : {}),
           // بخش ۷: پرداختی جزئی یا هیچ پرداختی (نسیه‌ی کامل)
           splitPayment: isSplit || undefined,
           payments: isSplit
@@ -1419,6 +1458,11 @@ export default function Pos() {
       creditMode,
       creditPaid,
       creditDestination,
+      debtorReady,
+      debtorFirst,
+      debtorLast,
+      debtorPhone,
+      debtorNationalId,
       settings.receipt.autoPrint
     ]
   )
@@ -2347,7 +2391,13 @@ export default function Pos() {
               checked={creditMode}
               onChange={(e) => {
                 setCreditMode(e.target.checked)
-                if (!e.target.checked) setCreditPaid(0)
+                if (!e.target.checked) {
+                  setCreditPaid(0)
+                  setDebtorFirst('')
+                  setDebtorLast('')
+                  setDebtorPhone('')
+                  setDebtorNationalId('')
+                }
               }}
             />
             فروش نسیه / پرداخت جزئی
@@ -2381,6 +2431,62 @@ export default function Pos() {
                 <span>بدهی باقی‌مانده</span>
                 <b>{money(creditRemaining)} ریال</b>
               </div>
+              {/*
+                ================= مورد ۷ — هویت بدهکار =================
+                نسیه بی‌نام‌ونشان یعنی بدهی‌ای که هیچ‌کس پیگیری‌اش نمی‌کند. این
+                سه کادر فقط وقتی دیده می‌شوند که واقعاً بدهی می‌ماند (پرداخت
+                کامل = فروش عادی) و روی خودِ همان فاکتور snapshot می‌شوند.
+                ==========================================================
+              */}
+              {creditRemaining > 0 ? (
+                <div className="space-y-1 border-t pt-1">
+                  <div className="font-bold text-amber-900">مشخصات بدهکار</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                    <label className="block">
+                      <div className="kbd">نام *</div>
+                      <input
+                        className="inp bg-white"
+                        value={debtorFirst}
+                        onChange={(e) => setDebtorFirst(e.target.value)}
+                        placeholder="مثلاً مریم"
+                      />
+                    </label>
+                    <label className="block">
+                      <div className="kbd">نام خانوادگی *</div>
+                      <input
+                        className="inp bg-white"
+                        value={debtorLast}
+                        onChange={(e) => setDebtorLast(e.target.value)}
+                        placeholder="مثلاً رضایی"
+                      />
+                    </label>
+                    <label className="block">
+                      <div className="kbd">شماره تلفن *</div>
+                      <input
+                        className="inp bg-white"
+                        inputMode="tel"
+                        value={debtorPhone}
+                        onChange={(e) => setDebtorPhone(e.target.value)}
+                        placeholder="۰۹۱۲…"
+                      />
+                    </label>
+                    <label className="block">
+                      <div className="kbd">کد ملی (اختیاری)</div>
+                      <input
+                        className="inp bg-white"
+                        inputMode="numeric"
+                        value={debtorNationalId}
+                        onChange={(e) => setDebtorNationalId(e.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <div className="kbd leading-6">
+                    {debtorReady
+                      ? 'این مشخصات فقط روی همین فاکتور ثبت می‌شود و کارت مشتری سراسری نمی‌سازد.'
+                      : 'بدون نام، نام خانوادگی و شماره تلفن بدهکار، فاکتور نسیه ثبت نمی‌شود.'}
+                  </div>
+                </div>
+              ) : null}
               {/*
                 ================= کار الف — مقصد پولِ پرداخت جزئی =================
                 فقط وقتی مبلغی *همین حالا* دریافت می‌شود دیده می‌شود (نسیه‌ی کامل

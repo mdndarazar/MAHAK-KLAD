@@ -58,7 +58,7 @@ async function sale({ lines, invoiceDiscount = 0, tender = 'CASH' }) {
       { methodId: cardId, amount: total - cash, destination: 'CARD' }
     ]
   } else throw new Error(`unsupported sale tender ${tender}`)
-  const created = await salesService.create({ userId, shiftId, lines: lines.map(line => ({ ...line, tax: line.tax ?? 0 })), invoiceDiscount, payments })
+  const created = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: lines.map(line => ({ ...line, tax: line.tax ?? 0 })), invoiceDiscount, payments })
   const items = seed.rows('SELECT id,variantId,qty,unitPrice,discount,lineTotal FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id', created.id)
   return { id: n(created.id), items, total }
 }

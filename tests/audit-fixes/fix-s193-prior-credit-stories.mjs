@@ -75,6 +75,7 @@ const namedId = seed.customer('علی محمدی', '09121111111')
 const namedVar = variant(500000)
 const namedInv = await safe('فروش دیروز نام‌دار', () =>
   salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId,
     shiftId,
     customerId: namedId,
@@ -101,7 +102,7 @@ const snap1 = numbers(t)
 console.log('\\n۲) نسیه‌ی دیروز بدون نام ⇒ داستان بدون نام، «پرداخت شد»')
 const anonVar = variant(200000)
 const anonInv = await safe('فروش دیروز بی‌نام', () =>
-  salesService.create({ userId, shiftId, lines: [line(anonVar, 200000)], payments: [] })
+  salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(anonVar, 200000)], payments: [] })
 )
 if (anonInv) backdate(anonInv.id)
 await safe('وصول ۲۰۰٬۰۰۰ بی‌نام', () =>
@@ -121,6 +122,7 @@ console.log('\\n۳) فروش نقدی همین بازه در فهرست وصول
 const todayVar = variant(100000)
 await safe('فروش نقد امروز', () =>
   salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId,
     shiftId,
     customerId: namedId,
@@ -144,6 +146,7 @@ const wholeId = seed.customer('فروشگاه رضایی', '09123333333')
 const wholeVar = variant(300000)
 const wholeInv = await safe('فروش عمده دیروز', () =>
   salesService.create({
+    debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
     userId,
     shiftId,
     customerId: wholeId,

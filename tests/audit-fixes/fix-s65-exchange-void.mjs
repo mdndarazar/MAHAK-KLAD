@@ -77,7 +77,7 @@ const itemsOf = (invoiceId) => seed.rows('SELECT id, variantId FROM "SaleInvoice
 const line = (variantId, price) => ({ variantId, qty: 1, unitPrice: price, discount: 0, tax: 0 })
 const twoItems = async (paid) => {
   const a = variant(600), b = variant(400)
-  const inv = await salesService.create({ userId, shiftId, lines: [line(a, 600), line(b, 400)], payments: paid > 0 ? [{ methodId: cash, amount: paid, destination: 'CASH' }] : [] })
+  const inv = await salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(a, 600), line(b, 400)], payments: paid > 0 ? [{ methodId: cash, amount: paid, destination: 'CASH' }] : [] })
   return { inv, a, b, items: itemsOf(inv.id) }
 }
 const exchange = (invoiceId, saleItemId, repVariant, refundMode) =>
@@ -156,7 +156,7 @@ const audA = seed.rows(`SELECT action, note FROM "AuditLog" WHERE entity = 'Sale
 truthy('Audit ابطال سند تعویض با دلیل', audA.some((x) => String(x.note).includes('تعویض اشتباه ثبت شد')))
 truthy('Audit ابطال سند برگشت تعویض', seed.rows(`SELECT id FROM "AuditLog" WHERE entity = 'SaleReturn' AND entityId = ? AND action = 'VOID'`, retA).length >= 1)
 truthy('Audit برگشت بدهی فاکتور اصلی', seed.rows(`SELECT note FROM "AuditLog" WHERE entity = 'SaleInvoice' AND entityId = ?`, A.inv.id).some((x) => String(x.note).includes('ابطال') && String(x.note).includes('بدهی')))
-const next = await safe('فاکتور بعدی', () => salesService.create({ userId, shiftId, lines: [line(variant(100), 100)], payments: [{ methodId: cash, amount: 100, destination: 'CASH' }] }))
+const next = await safe('فاکتور بعدی', () => salesService.create({ debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },  userId, shiftId, lines: [line(variant(100), 100)], payments: [{ methodId: cash, amount: 100, destination: 'CASH' }] }))
 truthy('شماره فیش سند تعویض باطل دوباره استفاده نشد', Number(next?.receiptNo ?? 0) > Number(invRow(exInvA)?.receiptNo ?? 0))
 await throwsWith('ابطال دوباره رد می‌شود', () => voidIt(retA), 'باطل')
 await throwsWith('برگشت روی سند تعویض باطل رد می‌شود', () => salesService.createReturn({ invoiceId: exInvA, full: true, lines: [], refundMethod: 'NONE', userId }))

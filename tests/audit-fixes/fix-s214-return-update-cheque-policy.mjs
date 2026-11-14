@@ -52,6 +52,7 @@ seed.insert('PaymentMethod', { key: 'CASH', label: 'نقدی', kind: 'CASH', isA
 const shiftId = seed.insert('Shift', { name: 'صبح', number: 1, dayJalali: today, openedAt: Date.now() - 3600_000, userId })
 
 const saleOf = async () => salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId, shiftId,
   lines: [
     { variantId: v1, qty: 1, unitPrice: 600, discount: 0, tax: 0 },

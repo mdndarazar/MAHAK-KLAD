@@ -99,7 +99,7 @@ await settingsService.saveCharge({ kind: 'service', scope: 'pos', config: { enab
 
 const invoices = () => seed.count('SaleInvoice')
 const line = (o = {}) => ({ variantId: vShirt, code: 'S156', barcode: 'BS156', name: 'پیراهن ۱۵۶', qty: 1, unitPrice: 1_000_000, discount: 0, tax: 100_000, ...o })
-const sale = (o = {}) => ({ userId: actor, shiftId, deductInventory: false, lines: [line()], serviceCharge: 20_000, invoiceTax: 0, payments: [], ...o })
+const sale = (o = {}) => ({ userId: actor, shiftId, deductInventory: false, lines: [line()], serviceCharge: 20_000, invoiceTax: 0, payments: [], debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' }, ...o })
 
 console.log('\n۳) Y8 · فروش خرده: عوارض/حق سرویس با تنظیمات main سنجیده می‌شود')
 let n0 = invoices()

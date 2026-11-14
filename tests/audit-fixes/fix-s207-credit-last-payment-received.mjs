@@ -46,6 +46,7 @@ sql.prepare('UPDATE "ProductVariant" SET stock = 20, salePrice = 1000 WHERE id =
 
 console.log('\n۱) نقد دیروز + چک در جریان امروز')
 const inv = await salesService.create({
+  debtor: { firstName: 'مشتری', lastName: 'تستی', phone: '09120000000' },
   userId,
   shiftId,
   lines: [{ variantId, qty: 1, unitPrice: 1000, discount: 0, tax: 0 }],
