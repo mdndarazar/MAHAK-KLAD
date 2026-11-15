@@ -638,7 +638,7 @@ export default function SalesReturn() {
           qty: l.qty
         }))
       ),
-    [exChargeHook, reps]
+    [exChargeHook.compute, reps]
   )
   const exTotals = useMemo(() => {
     const goods = reps.reduce((s, l) => s + l.unitPrice * l.qty, 0)
