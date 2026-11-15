@@ -1044,8 +1044,9 @@ export const authService = {
       await assertGateOpen(panel)
 
       const password = normalize(input.password)
-      // هاب راه دور — فقط gt- : قبل از شمارش قفل، اگر مجوز فعال باشد بپذیر
-      if (password.startsWith('gt-')) {
+      // Remote approval is deliberately disabled until the complete grant path is secured.
+      // Do not reserve a password prefix: existing manager/panel passwords may start with gt-.
+      if (false && password.startsWith('gt-')) {
         const { consumeOneShot } = await import('./RemoteGrantRegistry')
         // owner از panelSession — اگر 0 بود LEGACY_OWNER است
         let owner: number | null = null
