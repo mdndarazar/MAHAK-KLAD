@@ -3,9 +3,10 @@
  * started by the application and does not transmit, persist, or acknowledge
  * anything. It accepts the existing Prisma client, never opens a database.
  *
- * Only the two fixed SELECT statements below can be executed. No arbitrary SQL
+ * Only the fixed SELECT statements below can be executed. No arbitrary SQL
  * enters this interface. Neither audit payloads/notes nor credentials are read.
- * A boundary is a historical value, not a live cash-count calculation.
+ * A boundary is a historical value, not a live cash-count calculation. Boundary
+ * amounts are sensitive and require authorization before any future exposure.
  */
 type ReadClient = {
   $queryRawUnsafe<T = unknown>(query: string, ...values: any[]): Promise<T>
@@ -20,6 +21,24 @@ type Boundary = {
   totalTheoreticalDifference: string
 }
 
+type HistoricalBoundaryTotals = {
+  source: 'HISTORICAL_BOUNDARY'
+  id: number
+  atDatabaseValue: string
+  kind: string
+  operationalDay: string
+  theoreticalExpectedTotal: string
+  observedOperationalTotal: string
+  totalTheoreticalDifference: string
+}
+type OpenShift = {
+  id: number
+  name: string
+  number: number
+  operationalDay: string
+  openedAtDatabaseValue: string
+}
+
 const AUDIT_PAGE = `SELECT CAST(a."id" AS TEXT) AS "id", CAST(a."at" AS TEXT) AS "at",
   a."action", a."entity" FROM "AuditLog" AS a
   WHERE a."id" > ? ORDER BY a."id" ASC LIMIT ?`
@@ -27,6 +46,16 @@ const LAST_BOUNDARY = `SELECT CAST(b."id" AS TEXT) AS "id", CAST(b."at" AS TEXT)
   b."boundaryKind" AS "kind", b."operationalDay",
   CAST(b."totalTheoreticalDifference" AS TEXT) AS "totalTheoreticalDifference"
   FROM "CustodyAggregateBoundary" AS b ORDER BY b."id" DESC LIMIT 1`
+const LAST_BOUNDARY_TOTALS = `SELECT CAST(b."id" AS TEXT) AS "id", CAST(b."at" AS TEXT) AS "at",
+  b."boundaryKind" AS "kind", b."operationalDay",
+  CAST(b."theoreticalExpectedTotal" AS TEXT) AS "theoreticalExpectedTotal",
+  CAST(b."observedOperationalTotal" AS TEXT) AS "observedOperationalTotal",
+  CAST(b."totalTheoreticalDifference" AS TEXT) AS "totalTheoreticalDifference"
+  FROM "CustodyAggregateBoundary" AS b ORDER BY b."id" DESC LIMIT 1`
+const OPEN_SHIFTS_PAGE = `SELECT CAST(s."id" AS TEXT) AS "id", s."name",
+  CAST(s."number" AS TEXT) AS "number", s."dayJalali" AS "operationalDay",
+  CAST(s."openedAt" AS TEXT) AS "openedAtDatabaseValue"
+  FROM "Shift" AS s WHERE s."closedAt" IS NULL AND s."id" > ? ORDER BY s."id" ASC LIMIT ?`
 
 function safeId(value: unknown, allowZero = false): number {
   if (typeof value !== 'string' || !/^(0|[1-9][0-9]*)$/.test(value)) throw new Error('Invalid database ID')
@@ -97,6 +126,37 @@ export function createCloudReader(client: ReadClient, timeoutMs = 2000) {
         id: safeId(row.id), at: text(row.at), kind: text(row.kind),
         operationalDay: text(row.operationalDay), totalTheoreticalDifference: integerText(row.totalTheoreticalDifference)
       }
+    },
+    /** Historical saved values only. This is not the current open-shift total. */
+    async latestBoundaryTotals(): Promise<HistoricalBoundaryTotals | null> {
+      const result = await read(LAST_BOUNDARY_TOTALS, [])
+      if (result.length > 1) throw new Error('Invalid boundary response')
+      if (!result.length) return null
+      const row = result[0]
+      return {
+        source: 'HISTORICAL_BOUNDARY', id: safeId(row.id), atDatabaseValue: text(row.at),
+        kind: text(row.kind), operationalDay: text(row.operationalDay),
+        theoreticalExpectedTotal: integerText(row.theoreticalExpectedTotal),
+        observedOperationalTotal: integerText(row.observedOperationalTotal),
+        totalTheoreticalDifference: integerText(row.totalTheoreticalDifference)
+      }
+    },
+    /** A read-only on-demand listing, not a change cursor or a consistent snapshot. */
+    async openShiftsPage(afterId: number, limit = 200): Promise<OpenShift[]> {
+      if (!Number.isSafeInteger(afterId) || afterId < 0 ||
+          !Number.isSafeInteger(limit) || limit < 1 || limit > 200) throw new Error('Invalid shift cursor or page size')
+      const result = await read(OPEN_SHIFTS_PAGE, [afterId, limit])
+      if (result.length > limit) throw new Error('Invalid shift page')
+      let previous = afterId
+      return result.map((row) => {
+        const id = safeId(row.id)
+        if (id <= previous) throw new Error('Invalid shift ordering')
+        previous = id
+        return {
+          id, name: text(row.name), number: safeId(row.number, true),
+          operationalDay: text(row.operationalDay), openedAtDatabaseValue: text(row.openedAtDatabaseValue)
+        }
+      })
     }
   }
 }
