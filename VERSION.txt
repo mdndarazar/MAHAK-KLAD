@@ -1,4 +1,4 @@
-SHA=d5830566616a54d6e6af0d5d13b01d9dfc56836f
+SHA=b3c6303f7b4124670bf7ac193c256c0750376c47
 branch=arena/e478473a-mahak-klad
-date=2026-11-15T13:48:24Z
-note=بدون better-sqlite3 — نصب بدون VS — هاب JSON
+date=2026-11-15T14:22:59Z
+note=Prisma fix — lossKind comment
