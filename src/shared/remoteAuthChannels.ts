@@ -31,3 +31,9 @@ export type RemoteGrantCommand = {
 
 export const REMOTE_GT_PREFIX = 'gt-'
 export const REMOTE_GT_PREFIX_LEN = 3
+
+/** This is a code-readiness gate, not a user setting. Do not enable until the
+ * hub, identity, replay protection, grants and rollback are complete and tested. */
+export function remoteImplementationReady(): boolean {
+  return false
+}

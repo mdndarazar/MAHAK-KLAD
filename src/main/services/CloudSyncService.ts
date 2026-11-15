@@ -9,6 +9,7 @@ import { join } from 'node:path'
 import { app } from 'electron'
 import { prisma } from '../db/client'
 import { registerRemoteAuthHandlers } from '../ipc/remoteAuth'
+import { remoteImplementationReady } from '../../shared/remoteAuthChannels'
 import { initRemoteGrantRegistry } from './RemoteGrantRegistry'
 
 let timer: NodeJS.Timeout | null = null
@@ -112,6 +113,8 @@ async function tick() {
 }
 
 export function startCloudSync() {
+  // The unfinished sync must not read shop.db, create state, or register IPC.
+  if (!remoteImplementationReady()) return
   try {
     ensureState()
     // Registry را به panelSession وصل کن

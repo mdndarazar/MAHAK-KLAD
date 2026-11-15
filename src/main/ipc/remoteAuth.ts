@@ -3,10 +3,11 @@
  * بدون دست زدن به ipc/index.ts — مستقیم ipcMain.handle
  */
 import { BrowserWindow, ipcMain } from 'electron'
-import { REMOTE_AUTH_CHANNELS, REMOTE_GT_PREFIX } from '../../shared/remoteAuthChannels'
+import { REMOTE_AUTH_CHANNELS, REMOTE_GT_PREFIX, remoteImplementationReady } from '../../shared/remoteAuthChannels'
 import { getPending, isGrantActiveForWindow, markUsed, requestCode, revokeAll } from '../services/RemoteGrantRegistry'
 
 export function registerRemoteAuthHandlers() {
+  if (!remoteImplementationReady()) return
   ipcMain.handle(REMOTE_AUTH_CHANNELS.request, async (event, payload: { panel?: string }) => {
     const panel = String(payload?.panel ?? '').trim()
     if (!panel) return { ok: false as const, error: 'پنل مشخص نشده' }
