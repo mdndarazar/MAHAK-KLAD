@@ -108,12 +108,17 @@ function listMigrations(dir: string): { name: string; sql: string; checksum: str
  * تقسیم فایل migration به جمله‌های SQL.
  * کامنت‌های `--` و `/* *\/` و رشته‌های داخل کوتیشن در نظر گرفته می‌شوند تا یک
  * سمی‌کالن داخل متن فارسی یا داخل کامنت، جمله را نصف نکند.
+ * نکته‌ی مهم SQLite: تریگرها (CREATE TRIGGER ... BEGIN ... END;) خودشان داخل
+ * بدنه «؛» دارند — نباید بدنه‌ی تریگر را از وسط نصف کرد. کل تریگر یک جمله است.
  */
 export function splitStatements(sql: string): string[] {
   const out: string[] = []
   let cur = ''
   let i = 0
   const n = sql.length
+  // حالت تریگر: وقتی داخل CREATE TRIGGER هستیم، «؛» داخلی نباید جمله را ببُرد
+  let inTrigger = false
+  let triggerBeginSeen = false
   while (i < n) {
     const c = sql[i]
     const next = sql[i + 1]
@@ -148,6 +153,45 @@ export function splitStatements(sql: string): string[] {
         i++
       }
       continue
+    }
+    // تشخیص شروع تریگر: در ابتدای جمله (cur هنوز خالی) اگر بقیه‌ی متن با CREATE TRIGGER شروع شود
+    if (!inTrigger && !cur.trim()) {
+      const ahead = sql.slice(i).trimStart()
+      if (/^CREATE\s+TRIGGER\b/i.test(ahead)) {
+        inTrigger = true
+        triggerBeginSeen = false
+      }
+    }
+    // اگر داخل تریگر هستیم
+    if (inTrigger) {
+      // BEGIN بدنه‌ی تریگر
+      if (!triggerBeginSeen) {
+        const mBegin = sql.slice(i).match(/^BEGIN\b/i)
+        if (mBegin) {
+          triggerBeginSeen = true
+          cur += mBegin[0]
+          i += mBegin[0].length
+          continue
+        }
+      } else {
+        // END; پایان تریگر — تنها «؛» مجاز برای بستن جمله‌ی تریگر
+        const mEnd = sql.slice(i).match(/^END\s*;/i)
+        if (mEnd) {
+          cur += mEnd[0]
+          i += mEnd[0].length
+          if (cur.trim()) out.push(cur.trim())
+          cur = ''
+          inTrigger = false
+          triggerBeginSeen = false
+          continue
+        }
+        // «؛» داخلی بدنه — نبر، فقط به cur اضافه کن
+        if (c === ';') {
+          cur += c
+          i++
+          continue
+        }
+      }
     }
     if (c === ';') {
       if (cur.trim()) out.push(cur.trim())
