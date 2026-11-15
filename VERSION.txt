@@ -1,4 +1,4 @@
-SHA=b3c6303f7b4124670bf7ac193c256c0750376c47
+SHA=9d62d650be79e1013ea4f4a2e70f7860c0821019
 branch=arena/e478473a-mahak-klad
-date=2026-11-15T14:22:59Z
-note=Prisma fix — lossKind comment
+date=2026-11-15T14:42:29Z
+note=fix migrator trigger split — 20271020500000
