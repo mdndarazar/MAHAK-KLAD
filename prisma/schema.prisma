@@ -133,13 +133,7 @@ model StockMovement {
   consolidationId Int?
   consolidation   Consolidation? @relation(fields: [consolidationId], references: [id])
   note            String?
-  /**
-   * مورد ۱۱ — طبقه‌بندی علت کاهش دستی موجودی:
-   *   DAMAGE     = خرابی/کسری ⇒ با بهای FIFO همان حرکت، زیان موجودی است
-   *   CORRECTION = اصلاح اشتباه ثبت ⇒ زیان نمی‌سازد
-   *   null       = دادهٔ قدیمی یا حرکتی که فروش/خرید/انتقال است ⇒ «نامشخص» و
-   *                بیرون از جمع زیانِ ثبت‌شده می‌ماند (هیچ حدسی زده نمی‌شود).
-   */
+  /// مورد ۱۱ — طبقه‌بندی علت کاهش دستی موجودی: DAMAGE=خرابی/کسری ⇒ زیان، CORRECTION=اصلاح ⇒ بی‌زیان، null=قدیمی/نامشخص
   lossKind        String?
   createdAt       DateTime       @default(now())
 
