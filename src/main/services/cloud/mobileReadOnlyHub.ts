@@ -7,6 +7,7 @@
  * proxy and provision the owner. Do not enable production access with this.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+import { performance } from 'node:perf_hooks'
 import { mobileHtml, mobileCss, mobileJs, mobileManifest, mobileWorker } from './mobilePwaAssets'
 import { icon192, icon512 } from './mobilePwaIcons'
 
@@ -25,6 +26,8 @@ type Identity = {
 type Reader = {
   latestBoundaryTotals(): Promise<unknown>
   openShiftsPage(afterId: number, limit: number): Promise<unknown>
+  // Optional experimental, on-demand raw facts; not a desktop financial report.
+  invoiceFactsPage?(fromDay: string, toDay: string, afterId: number, limit: number): Promise<unknown>
 }
 type ApprovalController = {
   list(token: string): { requestId: string; panel: string; code: string }[]
@@ -75,6 +78,22 @@ function shifts(v: unknown) {
     return { id:id(a.id), name:text(a.name), number:id(a.number), operationalDay:text(a.operationalDay), openedAtDatabaseValue:text(a.openedAtDatabaseValue) }
   })
 }
+function invoiceDate(v: unknown): v is string {
+  return typeof v === 'string' && /^[0-9]{4}\/(0[1-9]|1[0-2])\/(0[1-9]|[12][0-9]|3[01])$/.test(v)
+}
+function invoices(v: unknown, from: string, to: string, afterId: number) {
+  if (!Array.isArray(v) || v.length > 50) throw new Error('Invalid invoice page')
+  let prior=afterId
+  return v.map(a => {
+    if (!a || typeof a !== 'object' || Array.isArray(a) || !Number.isSafeInteger(a.id) || a.id <= prior ||
+        !invoiceDate(a.issuedAtJalali) || a.issuedAtJalali < from || a.issuedAtJalali > to || typeof a.voided !== 'boolean') throw new Error('Invalid invoice page')
+    prior=a.id
+    const optional=(value:unknown) => value === null ? null : text(value,512)
+    return { id:id(a.id), receiptNo:id(a.receiptNo), issuedAtJalali:a.issuedAtJalali, status:text(a.status,512),
+      orderType:text(a.orderType,512), voided:a.voided, grandTotal:amount(a.grandTotal), paidTotal:amount(a.paidTotal),
+      customerName:optional(a.customerName), customerPhone:optional(a.customerPhone), sellerName:optional(a.sellerName) }
+  })
+}
 function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   return new Promise((resolve,reject) => {
     let size = 0, done = false
@@ -97,6 +116,9 @@ export function createMobileReadOnlyHandler(options: Options) {
   if (origin.protocol !== 'https:' || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash ||
       !options.identity || !options.reader) throw new Error('Invalid HTTPS origin or dependencies')
   const expectedOrigin = origin.origin, expectedHost = origin.host
+  // Shared across sessions so many clients cannot fan out DB reads. The real
+  // query must settle before releasing the slot; never queue expensive reads.
+  let invoiceBusy=false, lastInvoiceRead=-Infinity
   // Bounds both per-source login attempts and total in-memory source records. A
   // proxy must enforce its own limits; it may collapse all clients to one source.
   const attempts = new Map<string,{start:number; count:number}>()
@@ -157,6 +179,26 @@ export function createMobileReadOnlyHandler(options: Options) {
               typeof data.code !== 'string' || typeof data.pin !== 'string') { send(400,{error:'درخواست معتبر نیست'});return }
           if (!options.approval.approve(token,data.requestId,data.code,data.pin)) { send(403,{error:'تأیید انجام نشد؛ کد، PIN و دسترسی را بررسی کنید'});return }
           send(200,{ok:true});return
+        }
+        if (path === '/api/invoices' && options.reader.invoiceFactsPage) {
+          const token=cookie(req), principal=token ? options.identity.whoAmI(token) : null
+          if (!token || !principal) { send(401,{error:'لطفاً وارد شوید'});return }
+          if (!options.identity.authorize(token,'invoices','VIEW')) { send(403,{error:'اجازه مشاهده این بخش را ندارید'});return }
+          if (!/^application\/json(?:\s*;|\s*$)/i.test(header(req,'content-type') ?? '')) { send(400,{error:'درخواست معتبر نیست'});return }
+          let data: Record<string,unknown>
+          try { data=await readBody(req) } catch { send(400,{error:'درخواست معتبر نیست'});return }
+          if (Object.keys(data).sort().join(',') !== 'afterId,fromDay,toDay' || !invoiceDate(data.fromDay) || !invoiceDate(data.toDay) ||
+              data.fromDay > data.toDay || !Number.isSafeInteger(data.afterId) || (data.afterId as number) < 0) { send(400,{error:'درخواست معتبر نیست'});return }
+          if (!options.identity.authorize(token,'invoices','VIEW')) { send(403,{error:'اجازه مشاهده این بخش را ندارید'});return }
+          const now=performance.now()
+          if (invoiceBusy || now < lastInvoiceRead || now-lastInvoiceRead < 10_000) { send(429,{error:'برای دریافت دوباره کمی صبر کنید'});return }
+          invoiceBusy=true;lastInvoiceRead=now
+          try {
+            const result=invoices(await options.reader.invoiceFactsPage(data.fromDay,data.toDay,data.afterId as number,50),data.fromDay,data.toDay,data.afterId as number)
+            // Membership and permissions may change while the read is pending.
+            if (!options.identity.authorize(token,'invoices','VIEW')) { send(403,{error:'اجازه مشاهده این بخش را ندارید'});return }
+            send(200,{invoices:result,hasMore:result.length===50});return
+          } finally { invoiceBusy=false }
         }
         if (path === '/api/invite/accept' || path === '/api/invite/create' || path === '/api/member/approve' || path === '/api/member/remove') {
           if (!loginAllowed(req.socket.remoteAddress ?? 'unknown')) { send(429,{error:'تعداد تلاش‌ها زیاد است؛ بعداً دوباره تلاش کنید'});return }
