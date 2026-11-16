@@ -75,7 +75,19 @@ jobs:
       - name: Test remote-panic-notification-loopback
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-notification-loopback.mjs
       - name: Test supervisor snapshot restore detection on isolated SQLite
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-hub-supervisor.mjs
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'remote-supervisor-test.log'
+          cmd /c "node --import ./test/harness/register.mjs tests/audit-fixes/remote-hub-supervisor.mjs > `"$log`" 2>&1"
+          $code = $LASTEXITCODE
+          Get-Content -LiteralPath $log
+          if ($code -ne 0) {
+            $text = Get-Content -LiteralPath $log -Raw
+            if ($text.Length -gt 12000) { $text = $text.Substring($text.Length - 12000) }
+            $text = $text.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Remote supervisor test::$text"
+            exit $code
+          }
       - name: Test audit sync epoch race checks with isolated state files
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-audit-state-races.mjs
       - name: Test isolated cloud state lock ownership
