@@ -22,6 +22,7 @@ test('panic revokes a real panel session through the supervisor and registry',as
  const reader={latestBoundaryTotals:async()=>null,openShiftsPage:async()=>[],auditPage:async()=>[]}
  process.env.HARNESS_DIR=dir;process.env.HARNESS_DB=join(dir,'shop-isolated.db')
  const session=await import('../../src/main/services/panelSession.ts')
+ const {prisma}=await import('../../src/main/db/client.ts')
  initRemoteGrantRegistry({notePanelUnlocked:session.notePanelUnlocked,clearPanelScope:session.clearPanelScope,clearPanelSessions:session.clearPanelSessions})
  let hub
  try {
@@ -46,5 +47,5 @@ test('panic revokes a real panel session through the supervisor and registry',as
   assert.equal(state.openRevocationLedger().load().id,1)
   await hub.stop();hub=null;state.close()
   const reopened=openCloudStateStore(join(dir,'state'));try {assert.equal(reopened.openRevocationLedger().load().id,1)}finally{reopened.close()}
- } finally {if(hub)await hub.stop();revokeAll();session.clearPanelSessions(42);state.close();rmSync(dir,{recursive:true,force:true})}
+ } finally {if(hub)await hub.stop();revokeAll();session.clearPanelSessions(42);state.close();await prisma.$disconnect();rmSync(dir,{recursive:true,force:true})}
 })
