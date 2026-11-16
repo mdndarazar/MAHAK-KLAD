@@ -15,7 +15,7 @@ type Grant = {
   id: string; panel: string; ownerWindowId: number; tier: GrantTier; mode: GrantMode
   approvedAt: number; claimBy: number; expiresAt: number; lastUsedAt: number
   memberId: string; requestId: string; usesLeft: number
-  tokenHash: Buffer; ttlMs: number; claimed: boolean
+  tokenHash: Buffer; ttlMs: number; claimed: boolean; revoking?: boolean
 }
 type GrantInput = {
   panel: string; ownerWindowId: number; tier: GrantTier; mode: GrantMode
@@ -55,12 +55,15 @@ export function initIsolatedRemoteGrantRegistry() {
 }
 function clearGrant(k: string, grant: Grant) {
   if (grants.get(k) !== grant) return
-  grants.delete(k)
+  // A failing external cleanup must not reactivate this grant, nor lose the
+  // information required to retry clearing the host's panel session.
+  grant.revoking = true
   if (grant.claimed && grant.mode === 'PANEL') injected?.clearPanelScope(grant.panel, grant.ownerWindowId)
+  grants.delete(k)
 }
 function active(k: string): Grant | null {
   const g = grants.get(k)
-  if (!g) return null
+  if (!g || g.revoking) return null
   const t = now()
   if ((!g.claimed && t >= g.claimBy) || (g.claimed && (t >= g.expiresAt || t - g.lastUsedAt >= IDLE_MS))) {
     clearGrant(k, g); return null
@@ -185,11 +188,21 @@ export function createGrant(opts: GrantInput): Omit<Grant, 'tokenHash'> | null {
   return publicGrant
 }
 export function revokeBy(memberId: string) {
-  for (const [k, g] of grants) if (g.memberId === memberId) clearGrant(k, g)
+  let failed = false
+  for (const [k, g] of grants) if (g.memberId === memberId) {
+    try { clearGrant(k, g) } catch { failed = true }
+  }
+  if (failed) throw new Error('Remote panel cleanup failed')
 }
 export function revokeAll() {
-  for (const [k, g] of grants) clearGrant(k, g)
+  let failed = false
+  for (const [k, g] of grants) {
+    try { clearGrant(k, g) } catch { failed = true }
+  }
   pendingRequests.clear(); failCounts.clear()
+  // Never acknowledge if the host could not clear an external session.
+  // Failed entries remain inactive and can be retried.
+  if (failed) throw new Error('Remote panel cleanup failed')
 }
 /** Window-scoped cancellation; never revoke another window's grants. */
 export function cancelForWindow(ownerWindowId: number, panel?: string): boolean {
