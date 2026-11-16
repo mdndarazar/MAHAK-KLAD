@@ -24,6 +24,8 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
+      - name: Test disabled cloud service has no side effects
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-cloud-disabled.mjs
       - name: Test isolated hub on temporary SQLite
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-windows-node24.mjs
       - name: Test supervisor snapshot restore detection on isolated SQLite
