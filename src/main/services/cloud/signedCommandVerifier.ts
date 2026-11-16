@@ -54,10 +54,18 @@ function signedBytes(c: SignedGrantCommand): string {
 }
 
 function parseCommand(input: unknown): SignedGrantCommand | null {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) return null
-  const c = input as Record<string, unknown>
-  const keys = Object.keys(c)
-  if (keys.length !== COMMAND_KEYS.length || COMMAND_KEYS.some((key) => !Object.hasOwn(c, key))) return null
+  if (!input || typeof input !== 'object') return null
+  try { if (Array.isArray(input)) return null } catch { return null }
+  // Copy data properties once before validating/signing them. Getters (or a
+  // changing caller-owned object) must not switch fields after authentication.
+  let c: Record<string, unknown>
+  try {
+    const descriptors = Object.getOwnPropertyDescriptors(input)
+    const keys = Reflect.ownKeys(descriptors)
+    if (keys.length !== COMMAND_KEYS.length || COMMAND_KEYS.some((key) =>
+      !Object.hasOwn(descriptors, key) || !Object.hasOwn(descriptors[key], 'value') || !descriptors[key].enumerable)) return null
+    c = Object.fromEntries(COMMAND_KEYS.map((key) => [key, descriptors[key].value]))
+  } catch { return null }
   if (c.version !== 1 || typeof c.storeId !== 'string' || !ID_PATTERN.test(c.storeId) ||
       typeof c.requestId !== 'string' || !ID_PATTERN.test(c.requestId) ||
       typeof c.nonce !== 'string' || !NONCE_PATTERN.test(c.nonce) ||
