@@ -38,6 +38,13 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-command-issuer.mjs
       - name: Test experimental in-process revocation bridge
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-authenticated-approval.mjs
+      - name: Test experimental revocation signatures and restore barrier
+        shell: pwsh
+        run: |
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-revocation-envelope.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-restore-barrier.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Test experimental identity and pending revocations
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-hub-identity.mjs
       - name: Test read-only invoice facts using isolated SQLite

@@ -9,7 +9,7 @@ import { createHubIdentity } from '../../src/main/services/cloud/hubIdentity.ts'
 import { createAuthenticatedApproval } from '../../src/main/services/cloud/authenticatedApproval.ts'
 import { createDurableGrantReplay } from '../../src/main/services/cloud/durableGrantReplay.ts'
 import { drainInProcessRevocations } from '../../src/main/services/cloud/inProcessRevocationBridge.ts'
-import { initRemoteGrantRegistry, requestCode, consumeOneShot, isGrantActiveForWindow, revokeAll } from '../../src/main/services/RemoteGrantRegistry.ts'
+import { initRemoteGrantRegistry, requestCode, consumeOneShot, isGrantActiveForWindow, getRequestStatus, revokeAll } from '../../src/main/services/RemoteGrantRegistry.ts'
 
 const KEY=Buffer.alloc(32,0x27), NOW=1800000000000, PASSWORD='owner-secret-password', PIN='483920', MEMBERPASS='member-secret-password', MEMBERPIN='749201'
 let opened=[]
@@ -82,6 +82,22 @@ await test('ACL change and panic queue revoke existing grants; approvals fail cl
   assert.equal(x.identity.setPaused(x.owner,PIN,true),true);assert.equal(x.identity.setPaused(x.owner,PIN,false),true)
   assert.equal(isGrantActiveForWindow('sales-return',13),true)
   drainInProcessRevocations(x.identity);assert.equal(isGrantActiveForWindow('sales-return',13),false)
+ }finally{x.close()}
+})
+await test('simulated pause drains active grant and pending request',()=>{
+ const x=setup();try{
+  const active=requestCode('sales-return',13)
+  assert.equal(x.service.approve(command(active,x.managerId),auth(x.manager,active.code)).ok,true)
+  assert.equal(consumeOneShot(13,'sales-return',active.gt.slice(3)),true)
+  const pending=requestCode('sales-return',14)
+  assert.equal(x.identity.setPaused(x.owner,PIN,true),true)
+  const before=command(pending,x.managerId,{ownerWindowId:14})
+  assert.equal(x.service.approve(before,auth(x.manager,pending.code)).ok,false)
+  assert.equal(getRequestStatus(14,'sales-return',pending.requestId),'PENDING')
+  assert.deepEqual(drainInProcessRevocations(x.identity),{applied:1,remaining:false})
+  assert.equal(isGrantActiveForWindow('sales-return',13),false)
+  assert.equal(getRequestStatus(14,'sales-return',pending.requestId),'UNAVAILABLE')
+  assert.equal(x.service.approve(command(pending,x.managerId,{ownerWindowId:14}),auth(x.manager,pending.code)).ok,false)
  }finally{x.close()}
 })
 await test('lost revocation acknowledgment is retried without losing the queued item',()=>{
