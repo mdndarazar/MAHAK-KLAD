@@ -1,0 +1,144 @@
+/**
+ * Experimental explicit supervisor for a separate Node hub child. Not started
+ * by Electron and not a deployment/installer: callers must provision a trusted
+ * executable, bundled child, protected key, HTTPS proxy, dedicated hub directory,
+ * restore coordination and platform-specific file permissions. No approval,
+ * grant, Panic or remote session integration is provided. Do not enable the app.
+ *
+ * The parent supplies the existing read-only reader and an isolated sync-state
+ * object. Never give the child shop.db or the Prisma client; only fixed DTOs and
+ * authenticated audit batches cross the boundary. A heap limit is not an RSS cap.
+ */
+import { fork, type ChildProcess } from 'node:child_process'
+import { isAbsolute } from 'node:path'
+import { createAuditSync } from './auditSync'
+import { createLoopbackAuditTransport } from './loopbackAuditTransport'
+import type { CloudState } from './cloudState'
+
+type Reader = {
+  latestBoundaryTotals(): Promise<unknown>
+  openShiftsPage(afterId: number, limit?: number): Promise<unknown>
+  auditPage(afterId: number, limit?: number): Promise<{id:number; at:string; action:string; entity:string}[]>
+}
+type Options = {
+  nodeExecutable: string; childFile: string; directory: string; origin: string
+  owner: null | { username:string; password:string; pin:string }
+  auditKey: Uint8Array; snapshotMaxAgeMs: number
+  reader: Reader; state: { load():CloudState | null; save(value:CloudState):void }
+  readRestoreMarker: () => Promise<string | null>
+  timeoutMs?: number
+}
+const object = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v)
+
+export async function startExperimentalHubSupervisor(options: Options) {
+  if (!options || typeof options.nodeExecutable !== 'string' || !isAbsolute(options.nodeExecutable) ||
+      typeof options.childFile !== 'string' || !isAbsolute(options.childFile) ||
+      typeof options.directory !== 'string' || !isAbsolute(options.directory) || typeof options.origin !== 'string' ||
+      !(options.auditKey instanceof Uint8Array) || options.auditKey.byteLength !== 32 ||
+      !Number.isSafeInteger(options.snapshotMaxAgeMs) || options.snapshotMaxAgeMs < 100 || options.snapshotMaxAgeMs > 60_000 ||
+      !options.reader || typeof options.reader.latestBoundaryTotals !== 'function' || typeof options.reader.openShiftsPage !== 'function' ||
+      typeof options.reader.auditPage !== 'function' || !options.state || typeof options.state.load !== 'function' ||
+      typeof options.state.save !== 'function' || typeof options.readRestoreMarker !== 'function') throw new Error('Invalid experimental hub configuration')
+  const timeout = options.timeoutMs ?? 5000
+  if (!Number.isSafeInteger(timeout) || timeout < 100 || timeout > 30_000) throw new Error('Invalid hub timeout')
+  const key = Buffer.from(options.auditKey), reader = options.reader, state = options.state, readRestoreMarker = options.readRestoreMarker
+  // Do not inherit DATABASE_URL, NODE_OPTIONS, credentials, or the POS environment.
+  // Windows filesystem/runtime behavior still needs a real platform test.
+  const env: NodeJS.ProcessEnv = {}
+  for (const name of ['SystemRoot','SYSTEMROOT','WINDIR','TEMP','TMP','TZ','LANG']) {
+    if (typeof process.env[name] === 'string') env[name] = process.env[name]
+  }
+  const child: ChildProcess = fork(options.childFile, [], { execPath:options.nodeExecutable, execArgv:['--max-old-space-size=128'],
+    stdio:['ignore','ignore','ignore','ipc'], serialization:'json', env })
+  let dead = false, closed = false, busy = false, nextId = 0
+  let stopPromise: Promise<void> | null = null
+  const waiting = new Map<number,{ resolve:(ok:boolean)=>void; reject:(error:Error)=>void; timer:ReturnType<typeof setTimeout> }>()
+  let startupResolve: ((ports:{mobilePort:number; auditPort:number})=>void) | undefined
+  let startupReject: ((error:Error)=>void) | undefined
+  const startup = new Promise<{mobilePort:number; auditPort:number}>((resolve,reject) => { startupResolve=resolve;startupReject=reject })
+  const fail = () => {
+    dead = true
+    startupReject?.(new Error('Hub child unavailable'));startupReject=undefined;startupResolve=undefined
+    for (const item of waiting.values()) { clearTimeout(item.timer);item.reject(new Error('Hub child unavailable')) }
+    waiting.clear()
+  }
+  child.on('error',fail);child.on('exit',fail);child.on('disconnect',fail)
+  child.on('message',(message: unknown) => {
+    if (!object(message)) return
+    if (message.type === 'ready' && startupResolve && message.pid === child.pid &&
+        Number.isSafeInteger(message.mobilePort) && message.mobilePort >= 1 && message.mobilePort <= 65535 &&
+        Number.isSafeInteger(message.auditPort) && message.auditPort >= 1 && message.auditPort <= 65535 && message.mobilePort !== message.auditPort) {
+      startupResolve({mobilePort:message.mobilePort,auditPort:message.auditPort});startupResolve=undefined;startupReject=undefined
+    } else if (message.type === 'error' && message.operation === 'start') fail()
+    else if (message.type === 'snapshot' && Number.isSafeInteger(message.id)) {
+      const item=waiting.get(message.id)
+      if (!item) return
+      waiting.delete(message.id);clearTimeout(item.timer)
+      if (typeof message.ok !== 'boolean') item.reject(new Error('Invalid hub response'))
+      else item.resolve(message.ok)
+    }
+  })
+  const send = (message: Record<string, any>) => {
+    if (dead || !child.connected || !child.send) throw new Error('Hub child unavailable')
+    child.send(message, (error) => { if (error) fail() })
+  }
+  const startTimer=setTimeout(() => { fail();child.kill() },timeout)
+  try {
+    send({type:'start',config:{directory:options.directory,origin:options.origin,owner:options.owner,
+      auditKey:key.toString('hex'),snapshotMaxAgeMs:options.snapshotMaxAgeMs}})
+    const ports=await startup
+    clearTimeout(startTimer)
+    const transport=createLoopbackAuditTransport(`http://127.0.0.1:${ports.auditPort}/internal/v1/audit`,key,timeout)
+    const sync=createAuditSync({state,reader,transport,readRestoreMarker})
+    const update = (message: Record<string,unknown>) => new Promise<boolean>((resolve,reject) => {
+      if (dead || closed || nextId >= Number.MAX_SAFE_INTEGER) { reject(new Error('Hub child unavailable'));return }
+      const id=++nextId
+      const timer=setTimeout(() => { waiting.delete(id);reject(new Error('Hub snapshot timed out'));child.kill() },timeout)
+      waiting.set(id,{resolve,reject,timer})
+      try { send({...message,id}) } catch (error) { clearTimeout(timer);waiting.delete(id);reject(error) }
+    })
+    return {
+      mobilePort:ports.mobilePort,
+      async refreshOnce(): Promise<void> {
+        if (closed || dead) throw new Error('Hub child unavailable')
+        if (busy) throw new Error('Hub refresh busy')
+        busy=true
+        try {
+          const capturedAtMs=Date.now()
+          const boundary=await reader.latestBoundaryTotals()
+          const shifts=await reader.openShiftsPage(0,200)
+          if (!await update({type:'snapshot',capturedAtMs,value:{boundary,shifts}})) throw new Error('Hub rejected snapshot')
+        } catch (error) {
+          // Never knowingly leave a previously good snapshot visible on read error.
+          if (!closed && !dead) try { await update({type:'invalidateSnapshot'}) } catch { child.kill() }
+          throw error
+        } finally {busy=false}
+      },
+      async syncOnce() {
+        if (closed || dead) throw new Error('Hub child unavailable')
+        return sync.runOnce()
+      },
+      stop(): Promise<void> {
+        if (stopPromise) return stopPromise
+        closed=true
+        if (dead) return Promise.reject(new Error('Hub child unavailable; cleanup not confirmed'))
+        stopPromise = new Promise<void>((resolve,reject) => {
+          let acknowledged = false
+          const onMessage = (message: unknown) => { if (object(message) && message.type === 'stopped') acknowledged=true }
+          const cleanup = () => { clearTimeout(timer);child.off('message',onMessage);child.off('exit',onExit) }
+          const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+            cleanup()
+            if (acknowledged && code === 0 && signal === null) resolve()
+            else reject(new Error('Hub stopped without confirmed cleanup'))
+          }
+          const timer=setTimeout(() => {cleanup();child.kill();reject(new Error('Hub stop timed out'))},timeout)
+          child.on('message',onMessage);child.once('exit',onExit)
+          try { send({type:'stop'}) } catch (error) { cleanup();child.kill();reject(error) }
+        })
+        return stopPromise
+      }
+    }
+  } catch (error) {
+    clearTimeout(startTimer);child.kill();throw error
+  }
+}

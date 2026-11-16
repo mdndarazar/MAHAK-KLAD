@@ -62,7 +62,8 @@ function releaseLock() {
   let owns = false
   try { owns = lstatSync(lockPath).isFile() && readFileSync(lockPath, 'utf8') === lockToken } catch {}
   closeSync(lockFd); lockFd = undefined
-  if (owns) unlinkSync(lockPath)
+  if (!owns) throw new Error('Hub lock ownership lost')
+  unlinkSync(lockPath)
 }
 async function closeServer(server: Server | undefined): Promise<void> {
   if (!server) return
@@ -144,7 +145,11 @@ process.on('message', message => {
       catch { await shutdown(); send({ type:'error', operation:'start' }); process.disconnect?.() }
       return
     }
-    if (message.type === 'snapshot' && initialized && !shuttingDown && mobile) {
+    if ((message.type === 'snapshot' || message.type === 'invalidateSnapshot') && initialized && !shuttingDown && mobile) {
+      const id = message.id
+      if (id !== undefined && (!Number.isSafeInteger(id) || id <= 0)) return
+      const response = (ok: boolean) => send(id === undefined ? { type:'snapshot', ok } : { type:'snapshot', id, ok })
+      if (message.type === 'invalidateSnapshot') { snapshot = null; response(true); return }
       try {
         // The trusted parent must timestamp the *start* of its read, not the IPC
         // send. Queueing behind slow hashing must not make an old snapshot fresh.
@@ -153,8 +158,8 @@ process.on('message', message => {
             captured > wall || wall - captured >= snapshotMaxAge) throw new Error('Stale snapshot')
         const value = parseSnapshot(message.value)
         snapshot = value; snapshotAt = performance.now() - (wall - captured); lastSnapshotCapture = captured
-        send({ type:'snapshot', ok:true })
-      } catch { snapshot = null; send({ type:'snapshot', ok:false }) }
+        response(true)
+      } catch { snapshot = null; response(false) }
       return
     }
     if (message.type === 'stop') {
