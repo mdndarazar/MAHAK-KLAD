@@ -122,7 +122,7 @@ export function startCloudSync() {
     // Registry را به panelSession وصل کن
     import('./panelSession').then((ps: any) => {
       initRemoteGrantRegistry({
-        notePanelUnlocked: ps.notePanelUnlocked,
+        notePanelUnlocked: (panel: string, _scope: 'PANEL', owner: number) => ps.noteRemotePanelUnlocked(panel, owner),
         clearPanelScope: ps.clearPanelScope,
         clearPanelSessions: ps.clearPanelSessions ?? (() => {}),
       })

@@ -15,7 +15,7 @@ type Grant = {
   id: string; panel: string; ownerWindowId: number; tier: GrantTier; mode: GrantMode
   approvedAt: number; claimBy: number; expiresAt: number; lastUsedAt: number
   memberId: string; requestId: string; usesLeft: number
-  tokenHash: Buffer; ttlMs: number; claimed: boolean; revoking?: boolean
+  tokenHash: Buffer; ttlMs: number; claimed: boolean; revoking?: boolean; cleanup?: () => void
 }
 type GrantInput = {
   panel: string; ownerWindowId: number; tier: GrantTier; mode: GrantMode
@@ -35,7 +35,7 @@ const validOwner = (owner: number | null): owner is number => Number.isSafeInteg
 const tokenHash = (token: string) => createHash('sha256').update(token, 'utf8').digest()
 
 let injected: {
-  notePanelUnlocked: (panel: string, scope: 'PANEL', owner: number) => void
+  notePanelUnlocked: (panel: string, scope: 'PANEL', owner: number) => void | (() => void)
   clearPanelScope: (panel: string, owner: number) => void
   clearPanelSessions: (owner: number) => void
 } | null = null
@@ -58,7 +58,10 @@ function clearGrant(k: string, grant: Grant) {
   // A failing external cleanup must not reactivate this grant, nor lose the
   // information required to retry clearing the host's panel session.
   grant.revoking = true
-  if (grant.claimed && grant.mode === 'PANEL') injected?.clearPanelScope(grant.panel, grant.ownerWindowId)
+  if (grant.claimed && grant.mode === 'PANEL') {
+    if (grant.cleanup) grant.cleanup()
+    else injected?.clearPanelScope(grant.panel, grant.ownerWindowId)
+  }
   grants.delete(k)
 }
 function active(k: string): Grant | null {
@@ -157,9 +160,12 @@ export function consumeOneShot(ownerWindowId: number | null, panel: string, toke
     if (g.mode === 'PANEL' && !injected) return false
     g.claimed = true; g.expiresAt = t + g.ttlMs
     if (g.mode === 'PANEL') {
-      // A future integration must ensure clearing this scope cannot revoke a
-      // different local session subsequently opened in the same panel.
-      try { injected?.notePanelUnlocked(panel, 'PANEL', ownerWindowId) } catch { clearGrant(k, g); return false }
+      // A host may supply an ownership-bound cleanup; legacy adapters still
+      // use clearPanelScope and must not be wired into the live desktop.
+      try {
+        const cleanup=injected?.notePanelUnlocked(panel, 'PANEL', ownerWindowId)
+        if (typeof cleanup === 'function') g.cleanup=cleanup
+      } catch { clearGrant(k, g); return false }
     }
     scheduleExpiry(k, g)
   }

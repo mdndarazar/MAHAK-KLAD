@@ -152,6 +152,12 @@ export function clearPanelSessionsForOwner(owner: number): void {
 }
 
 /** خروج محدود یک پنل؛ نشست مدیر و حضانت را دست نمی‌زند. */
+export function noteRemotePanelUnlocked(panel: string, owner: number): () => void {
+  const key = normalizePanelKey(panel) ?? panel
+  if (alive(MANAGER_KEY, owner, false) || alive(key, owner, false)) return () => {}
+  notePanelUnlocked(panel, 'PANEL', owner); const entries = bucket(owner), entry = entries?.get(key)
+  return () => { if (entries && bucket(owner) === entries && entry && entries.get(key) === entry) clearPanelScope(panel, owner) }
+}
 export function clearPanelScope(panel: string, explicitOwner?: number): void {
   const owner = ownerOf(explicitOwner)
   const key = normalizePanelKey(panel) ?? panel
