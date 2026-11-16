@@ -147,6 +147,10 @@ export function createHubIdentity(db: Database, options: Options) {
           audit(t,m.id,'LOGIN_FAILED'); return { ok: false }
         }
         q('UPDATE remote_members SET login_fails=0,login_locked_until=0 WHERE id=?').run(m.id)
+        // Sessions that expired without being presented would otherwise remain
+        // indefinitely. This affects only the dedicated hub DB, never shop.db.
+        // A transport-level abuse limit is still required for active sessions.
+        q('DELETE FROM remote_sessions WHERE expires_at<=? OR last_seen<=?').run(t,t-IDLE)
         const token = randomToken()
         q('INSERT INTO remote_sessions(token_hash,member_id,created_at,last_seen,expires_at) VALUES(?,?,?,?,?)').run(sha(token),m.id,t,t,t+ABSOLUTE)
         audit(t,m.id,'LOGIN'); return { ok: true, token }

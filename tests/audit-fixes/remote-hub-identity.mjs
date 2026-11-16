@@ -119,6 +119,17 @@ await test('owner pause blocks approval but not view; viewer or bad PIN cannot r
   assert.equal(h.authorize(m,'sales-return','APPROVE',MEMBERPIN).role,'MANAGER')
  }finally{x.close()}
 })
+await test('successful login cleans expired sessions without revoking active sessions',()=>{
+ const x=setup();try{
+  const h=x.hub,first=login(h)
+  x.setTime(x.time()+9*60_000);const second=login(h)
+  assert.equal(x.db.prepare('SELECT COUNT(*) n FROM remote_sessions').get().n,2)
+  x.setTime(x.time()+60_000);const third=login(h)
+  assert.equal(x.db.prepare('SELECT COUNT(*) n FROM remote_sessions').get().n,2)
+  assert.equal(h.whoAmI(first),null)
+  assert.equal(h.whoAmI(second).role,'OWNER');assert.equal(h.whoAmI(third).role,'OWNER')
+ }finally{x.close()}
+})
 await test('sessions expire by idle time and clock rollback fails closed across restart',()=>{
  const x=setup();try{
   let h=x.hub;const token=login(h);x.setTime(x.time()+10*60_000)
