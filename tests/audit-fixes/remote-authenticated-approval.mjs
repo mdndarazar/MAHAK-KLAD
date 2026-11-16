@@ -95,6 +95,24 @@ await test('lost revocation acknowledgment is retried without losing the queued 
   assert.deepEqual(drainInProcessRevocations(x.identity),{applied:1,remaining:false})
  }finally{x.close()}
 })
+await test('malformed revocation batches fail before any acknowledgement or grant change',()=>{
+ const x=setup();try{
+  const p=requestCode('sales-return',13)
+  assert.equal(x.service.approve(command(p,x.managerId),auth(x.manager,p.code)).ok,true)
+  assert.equal(consumeOneShot(13,'sales-return',p.gt.slice(3)),true)
+  let acknowledgements=0
+  for(const entries of [null,{},[{id:1,kind:'ALL',memberId:null},{id:1,kind:'ALL',memberId:null}],
+    [{id:2,kind:'ALL',memberId:null},{id:1,kind:'ALL',memberId:null}],
+    [{id:1,kind:'ALL',memberId:null},{id:2,kind:'MEMBER',memberId:'bad'}],
+    Array.from({length:101},(_,i)=>({id:i+1,kind:'ALL',memberId:null}))]) {
+   assert.throws(()=>drainInProcessRevocations({pendingRevocations:()=>entries,acknowledgeRevocation:()=>{acknowledgements++;return true}}),/Invalid revocation queue/)
+   assert.equal(isGrantActiveForWindow('sales-return',13),true)
+  }
+  assert.equal(acknowledgements,0)
+  let calls=0
+  assert.throws(()=>drainInProcessRevocations({pendingRevocations:()=>++calls===1?[]:null,acknowledgeRevocation:()=>true}),/Invalid revocation queue/)
+ }finally{x.close()}
+})
 await test('invalid signed payload and invalid auth shape do not consume live request',()=>{
  const x=setup();try{
   const p=requestCode('sales-return',13),cmd=command(p,x.managerId)
