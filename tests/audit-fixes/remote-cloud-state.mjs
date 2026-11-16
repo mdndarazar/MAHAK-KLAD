@@ -1,11 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import fs, { mkdtempSync, readFileSync, writeFileSync, existsSync, lstatSync, readdirSync, symlinkSync } from 'node:fs'
+import fs, { mkdtempSync, readFileSync, writeFileSync, existsSync, lstatSync, readdirSync, symlinkSync, unlinkSync } from 'node:fs'
 import { syncBuiltinESMExports } from 'node:module'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { openCloudStateStore } from '../../src/main/services/cloud/cloudState.ts'
 
 const modulePath=fileURLToPath(new URL('../../src/main/services/cloud/cloudState.ts',import.meta.url))
@@ -13,7 +13,7 @@ const mk=()=>mkdtempSync(join(tmpdir(),'mahak-cloud-state-'))
 const first={version:1,storeId:'store_test',epoch:'12345678-1234-4123-8123-123456789abc',lastAcked:0,anchorHash:'',restoreMarker:null}
 const advanced={...first,lastAcked:5,anchorHash:'a'.repeat(64)}
 const child=(dir,close=false)=>spawnSync(process.execPath,['--input-type=module','-e',
-  `import {openCloudStateStore} from ${JSON.stringify(new URL(`file://${modulePath}`).href)}; const s=openCloudStateStore(${JSON.stringify(dir)}); ${close?'s.close();':''}`],{encoding:'utf8'})
+  `import {openCloudStateStore} from ${JSON.stringify(pathToFileURL(modulePath).href)}; const s=openCloudStateStore(${JSON.stringify(dir)}); ${close?'s.close();':''}`],{encoding:'utf8'})
 
 await test('empty, atomic save, reopen and preserve full state across processes',()=>{
   const dir=mk(),s=openCloudStateStore(dir);assert.equal(s.load(),null);s.save(first);assert.deepEqual(s.load(),first)
@@ -34,9 +34,25 @@ await test('crashed owner leaves lock and a subsequent process fails closed',()=
 await test('tampered or replaced lock is never unlinked by previous owner',()=>{
   const dir=mk(),s=openCloudStateStore(dir);const lock=join(dir,'cloud-state.lock')
   writeFileSync(lock,'different-owner')
+  assert.throws(()=>s.load(),/ownership lost/)
+  assert.throws(()=>s.save(first),/ownership lost/)
   assert.throws(()=>s.close(),/ownership lost/)
   assert.equal(readFileSync(lock,'utf8'),'different-owner')
   assert.throws(()=>s.load(),/closed/)
+})
+await test('lost lock blocks the old owner from reading or writing before close', {skip:process.platform==='win32'?'unlinking an open lock is platform-dependent':false},()=>{
+  const dir=mk(),old=openCloudStateStore(dir);old.save(first)
+  const lock=join(dir,'cloud-state.lock');unlinkSync(lock)
+  assert.throws(()=>old.load(),/ownership lost/)
+  assert.throws(()=>old.save(advanced),/ownership lost/)
+  const next=openCloudStateStore(dir)
+  try {
+    next.save(advanced)
+    assert.throws(()=>old.load(),/ownership lost/)
+    assert.throws(()=>old.save(first),/ownership lost/)
+    assert.throws(()=>old.close(),/ownership lost/)
+    assert.deepEqual(next.load(),advanced)
+  } finally { next.close() }
 })
 await test('invalid inputs, unknown fields and unsafe integers are rejected without creating state',()=>{
   const dir=mk(),s=openCloudStateStore(dir)
