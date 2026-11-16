@@ -4,8 +4,8 @@ import vm from 'node:vm'
 import { mobileHtml,mobileJs,mobileWorker } from '../../src/main/services/cloud/mobilePwaAssets.ts'
 
 // Structural/script test with a minimal fake DOM. Not a real browser, PWA install or phone.
-function fixture({enabled=true}={}) {
- const elements=new Map(),calls=[],overrides=new Map();let nextInvoice=null
+function fixture({enabled=true,initialSession=null}={}) {
+ const elements=new Map(),calls=[],overrides=new Map();let nextInvoice=null,firstSession=true
  class Element {
   constructor(id=''){this.id=id;this.hidden=false;this.value='';this.checked=false;this.children=[];this.events={};this._text=''}
   addEventListener(event,handler){this.events[event]=handler}
@@ -19,7 +19,9 @@ function fixture({enabled=true}={}) {
  const response=(value,status=200)=>({ok:status>=200&&status<300,json:async()=>value})
  const fetch=async(path,options={})=>{
   calls.push({path,options})
+  if(path==='/api/session'&&firstSession){firstSession=false;if(initialSession)return await initialSession}
   if(overrides.has(path))return await overrides.get(path)
+  if(path==='/api/login')return response({ok:true})
   if(path==='/api/session')return response({user:{username:'owner',role:'OWNER'}})
   if(path==='/api/capabilities')return response({invoices:enabled})
   if(path==='/api/custody')return response({boundary:null})
@@ -111,6 +113,22 @@ await test('capability refresh does not invalidate another action in the same se
  const pending=f.el('invite-form').fire('submit');await f.flush();await f.el('reload').fire('click')
  release(f.response({invite:'INVITE'}));await pending
  assert.equal(f.el('invite-result').textContent,'INVITE')
+})
+await test('late initial session check cannot overwrite a newer login',async()=>{
+ let release;const initialSession=new Promise(resolve=>{release=resolve})
+ const f=fixture({initialSession});f.el('username').value='owner';f.el('password').value='password'
+ await f.el('login-form').fire('submit');await f.flush()
+ assert.equal(f.el('dashboard').hidden,false);assert.match(f.el('user').textContent,/owner/)
+ release(f.response({error:'unauthorized'},401));await f.flush()
+ assert.equal(f.el('dashboard').hidden,false);assert.match(f.el('user').textContent,/owner/)
+})
+await test('overlapping logins send only one credential request and permit logout after login',async()=>{
+ const f=fixture();await f.flush();let release
+ f.setResponse('/api/login',new Promise(resolve=>{release=resolve}))
+ const first=f.el('login-form').fire('submit');await f.flush()
+ await f.el('login-form').fire('submit');assert.equal(f.calls.filter(c=>c.path==='/api/login').length,1)
+ release(f.response({ok:true}));await first;await f.flush()
+ await f.el('logout').fire('click');assert.equal(f.el('dashboard').hidden,true)
 })
 await test('no invoice capability means no invoice read or invite permission',async()=>{
  const f=fixture({enabled:false});await f.flush();assert.equal(f.el('invoice-tools').hidden,true);assert.equal(f.el('invoice-acl-label').hidden,true)
