@@ -96,6 +96,8 @@ try {
       const original=reader.latestBoundaryTotals
       reader.latestBoundaryTotals=async()=>{entered();return original()}
       const pending=supervisor.refreshOnce();await started
+      // No previous snapshot is served while a potentially slow read is pending.
+      assert.equal((await send(supervisor.mobilePort,'/api/custody',{headers:{cookie}})).status,503)
       if(change==='marker')marker='b'.repeat(64)
       else epochOverride='87654321-4321-4321-8321-cba987654321'
       release();await assert.rejects(pending,/Restore detected/)

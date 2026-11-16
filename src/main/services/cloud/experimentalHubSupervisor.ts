@@ -146,6 +146,10 @@ export async function startExperimentalHubSupervisor(options: Options) {
         if (busy) throw new Error('Hub refresh busy')
         busy=true
         try {
+          // Remove the old snapshot before potentially slow reads. A refresh can
+          // overlap an uncoordinated restore; an old value must not remain visible
+          // while this refresh is blocked or checking the marker.
+          if (!await update({type:'invalidateSnapshot'})) throw new Error('Hub rejected invalidation')
           // Detect known restore/epoch changes before publishing. These checks
           // are not a lock: restore must still be coordinated by the host.
           const initial=state.load()
