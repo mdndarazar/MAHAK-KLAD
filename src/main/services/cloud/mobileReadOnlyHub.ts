@@ -228,12 +228,15 @@ export function createMobileReadOnlyHandler(options: Options) {
           send(200,{ok:true});return
         }
       }
-      if (req.method === 'GET' && (path === '/api/session' || path === '/api/members' || path === '/api/custody' || path === '/api/shifts' || (path === '/api/requests' && options.approval))) {
+      if (req.method === 'GET' && (path === '/api/session' || path === '/api/capabilities' || path === '/api/members' || path === '/api/custody' || path === '/api/shifts' || (path === '/api/requests' && options.approval))) {
         const token=cookie(req), user=token ? options.identity.whoAmI(token) : null
         if (!token || !user) { send(401,{error:'لطفاً وارد شوید'});return }
         if (path === '/api/session') {
           // Do not expose internal member identifiers to the mobile client.
           send(200,{user:{username:text(user.username,256),role:text(user.role,32)}});return
+        }
+        if (path === '/api/capabilities') {
+          send(200,{invoices:typeof options.reader.invoiceFactsPage === 'function' && !!options.identity.authorize(token,'invoices','VIEW')});return
         }
         if (path === '/api/members') {
           if (user.role !== 'OWNER') { send(403,{error:'فقط مالک مجاز است'});return }

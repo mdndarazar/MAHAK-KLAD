@@ -34,6 +34,13 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-mobile-invoices-http.mjs
       - name: Test experimental cross-process invoice reads using isolated SQLite
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-hub-invoices-ipc.mjs
+      - name: Test mobile invoice capability and UI scripts
+        shell: pwsh
+        run: |
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-mobile-invoices-capabilities.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-mobile-invoices-ui.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify disabled remote and existing password behavior
         shell: pwsh
         run: |
