@@ -222,18 +222,23 @@ process.on('message', message => {
     if ((message.type === 'snapshot' || message.type === 'invalidateSnapshot') && initialized && !shuttingDown && mobile) {
       const id = message.id
       if (id !== undefined && (!Number.isSafeInteger(id) || id <= 0)) return
-      const response = (ok: boolean) => send(id === undefined ? { type:'snapshot', ok } : { type:'snapshot', id, ok })
+      const response = (ok: boolean, reason?: string) => send({ type:'snapshot', ...(id === undefined ? {} : {id}), ok, ...(id !== undefined && reason ? {reason} : {}) })
       if (message.type === 'invalidateSnapshot') { snapshot = null; response(true); return }
+      // Only fixed, non-sensitive error codes leave the child. Keep all clock
+      // checks fail-closed; these codes distinguish intermittent OS-clock races
+      // from invalid DTOs without logging the snapshot's contents.
+      const wall = Date.now(), captured = message.capturedAtMs
+      let reason=''
+      if (!Number.isSafeInteger(captured) || captured <= 0) reason='invalid-capture'
+      else if (captured < lastSnapshotCapture) reason='clock-regressed'
+      else if (captured > wall) reason='clock-future'
+      else if (wall - captured >= snapshotMaxAge) reason='snapshot-expired'
+      if (reason) { snapshot=null;response(false,reason);return }
       try {
-        // The trusted parent must timestamp the *start* of its read, not the IPC
-        // send. Queueing behind slow hashing must not make an old snapshot fresh.
-        const wall = Date.now(), captured = message.capturedAtMs
-        if (!Number.isSafeInteger(captured) || captured <= 0 || captured < lastSnapshotCapture ||
-            captured > wall || wall - captured >= snapshotMaxAge) throw new Error('Stale snapshot')
         const value = parseSnapshot(message.value)
         snapshot = value; snapshotAt = performance.now() - (wall - captured); lastSnapshotCapture = captured
         response(true)
-      } catch { snapshot = null; response(false) }
+      } catch { snapshot = null; response(false,'invalid-payload') }
       return
     }
     if (message.type === 'invoiceReadResult' && invoicePending && message.id === invoicePending.id) {

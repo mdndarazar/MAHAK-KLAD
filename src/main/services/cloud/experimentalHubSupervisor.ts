@@ -203,7 +203,10 @@ export async function startExperimentalHubSupervisor(options: Options) {
       if (!item) return
       waiting.delete(message.id);clearTimeout(item.timer)
       if (typeof message.ok !== 'boolean') item.reject(new Error('Invalid hub response'))
-      else item.resolve(message.ok)
+      else if (message.type === 'snapshot' && message.ok === false && typeof message.reason === 'string' &&
+               ['invalid-capture','clock-regressed','clock-future','snapshot-expired','invalid-payload'].includes(message.reason)) {
+        item.reject(new Error(`Hub rejected snapshot (${message.reason})`))
+      } else item.resolve(message.ok)
     }
   })
   const send = (message: Record<string, any>) => {
