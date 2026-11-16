@@ -94,12 +94,28 @@ await test('wrong login or PIN locks persist across database restart',()=>{
   assert.equal(h.authorize(newOwner,'sales-return','APPROVE',PIN).role,'OWNER')
  }finally{x.close()}
 })
+await test('approval authorization stays blocked until queued revocation is acknowledged',()=>{
+ const x=setup();try{
+  const h=x.hub,owner=login(h)
+  assert.equal(h.authorize(owner,'sales-return','APPROVE',PIN).role,'OWNER')
+  assert.equal(h.setPaused(owner,PIN,true),true)
+  assert.equal(h.setPaused(owner,PIN,false),true)
+  assert.equal(h.authorize(owner,'sales-return','VIEW').role,'OWNER')
+  assert.equal(h.canApprove(owner,'sales-return'),null)
+  assert.equal(h.authorize(owner,'sales-return','APPROVE',PIN),null)
+  const pending=h.pendingRevocations();assert.equal(pending.length,1)
+  assert.equal(h.acknowledgeRevocation(pending[0].id),true)
+  assert.equal(h.authorize(owner,'sales-return','APPROVE',PIN).role,'OWNER')
+ }finally{x.close()}
+})
 await test('owner pause blocks approval but not view; viewer or bad PIN cannot resume',()=>{
  const x=setup();try{
   const h=x.hub,owner=login(h),m=inviteAndActivate(h,owner,'manager')
   assert.equal(h.setPaused(m,MEMBERPIN,true),false);assert.equal(h.setPaused(owner,PIN,true),true);assert.equal(h.isPaused(),true)
   assert.equal(h.authorize(m,'sales-return','VIEW').role,'MANAGER');assert.equal(h.authorize(m,'sales-return','APPROVE',MEMBERPIN),null)
   assert.equal(h.setPaused(owner,'000000',false),false);assert.equal(h.setPaused(owner,PIN,false),true)
+  assert.equal(h.authorize(m,'sales-return','APPROVE',MEMBERPIN),null)
+  assert.equal(h.acknowledgeRevocation(h.pendingRevocations()[0].id),true)
   assert.equal(h.authorize(m,'sales-return','APPROVE',MEMBERPIN).role,'MANAGER')
  }finally{x.close()}
 })

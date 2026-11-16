@@ -240,7 +240,12 @@ export function createHubIdentity(db: Database, options: Options) {
       return transact(t => { const s = session(token,t); if (!s) return null
         const acl = s.role === 'OWNER' ? { can_view:1, can_approve:1 } : q('SELECT can_view,can_approve FROM remote_member_acl WHERE member_id=? AND panel=?').get(s.id,panel)
         if (!acl || (permission === 'VIEW' && acl.can_view !== 1) || (permission === 'APPROVE' && (s.role === 'VIEWER' || acl.can_approve !== 1))) return null
-        if (permission === 'APPROVE' && (metaGet.get().paused !== 0 || !pin(s,pinValue,t))) return null
+        // Never authorize an intervention while revocation delivery is pending,
+        // even if pause was subsequently cleared or a caller bypasses the
+        // higher-level approval coordinator.
+        if (permission === 'APPROVE' && (metaGet.get().paused !== 0 ||
+            q('SELECT 1 AS pending FROM remote_identity_revocations WHERE acknowledged_at IS NULL LIMIT 1').get() ||
+            !pin(s,pinValue,t))) return null
         if (permission === 'APPROVE') audit(t,s.id,'APPROVAL_AUTHORIZED',panel)
         return s })
     },
