@@ -157,6 +157,22 @@ export function createHubIdentity(db: Database, options: Options) {
     },
     /** Internal session lookup; no credentials or PIN hashes are returned. */
     whoAmI(token: string): Session | null { return transact(t => session(token,t)) },
+    /** Owner-only list of current and awaiting-approval accounts, never secrets. */
+    listMembers(token: string): { username: string; role: Role; status: string; acl: Acl[] }[] | null {
+      return transact(t => {
+        const s = session(token,t)
+        if (!s || s.role !== 'OWNER') return null
+        return q("SELECT id,username,role,status FROM remote_members WHERE status!='REMOVED' ORDER BY username").all().map(m => {
+          if ((m.role !== 'OWNER' && m.role !== 'MANAGER' && m.role !== 'VIEWER') ||
+              (m.status !== 'ACTIVE' && m.status !== 'PENDING_OWNER_APPROVAL')) throw new Error('Invalid member record')
+          const acl = q('SELECT panel,can_view,can_approve FROM remote_member_acl WHERE member_id=? ORDER BY panel').all(m.id).map(a => {
+            if (typeof a.panel !== 'string' || !panels.has(a.panel) || ![0,1].includes(a.can_view) || ![0,1].includes(a.can_approve)) throw new Error('Invalid ACL record')
+            return { panel:a.panel, view:a.can_view === 1, approve:a.can_approve === 1 }
+          })
+          return { username:m.username, role:m.role, status:m.status, acl }
+        })
+      })
+    },
     createInvite(token: string, pinValue: string, role: 'MANAGER' | 'VIEWER', requestedAcl: Acl[]): { ok: true; invite: string } | { ok: false } {
       const acl = (role === 'MANAGER' || role === 'VIEWER') ? aclValid(requestedAcl,role) : null
       if (!acl) return { ok: false }

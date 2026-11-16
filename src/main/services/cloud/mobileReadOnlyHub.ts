@@ -1,9 +1,10 @@
 /**
  * Experimental read-only PWA server, NOT started by Electron. Bind loopback only
- * behind a correctly configured HTTPS reverse proxy. No approval, pairing, member
- * management, notifications, live reports or shop database connection is included.
- * The host must isolate expensive identity/SQLite work from the POS thread, secure
- * the proxy and provision members. Do not enable production remote access with this.
+ * behind a correctly configured HTTPS reverse proxy. This includes basic hub
+ * member management, but not desktop approval, pairing, notifications, live
+ * reports or shop database connection. The host must isolate identity/SQLite work
+ * from the POS thread, secure the proxy and provision the owner. Do not enable
+ * production remote access with this experimental server.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { mobileHtml, mobileCss, mobileJs, mobileManifest, mobileWorker } from './mobilePwaAssets'
@@ -15,12 +16,17 @@ type Identity = {
   logout(token: string): boolean
   whoAmI(token: string): Session | null
   authorize(token: string, panel: string, permission: 'VIEW'): Session | null
+  listMembers(token: string): { username: string; role: string; status: string; acl: { panel: string; view: boolean; approve: boolean }[] }[] | null
+  createInvite(token: string, pin: string, role: 'MANAGER' | 'VIEWER', acl: { panel: string; view: boolean; approve: boolean }[]): { ok: true; invite: string } | { ok: false }
+  acceptInvite(invite: string, username: string, password: string, pin: string): boolean
+  approveMember(token: string, pin: string, username: string): boolean
+  removeMember(token: string, pin: string, username: string): { ok: true; memberId: string } | { ok: false }
 }
 type Reader = {
   latestBoundaryTotals(): Promise<unknown>
   openShiftsPage(afterId: number, limit: number): Promise<unknown>
 }
-type Options = { origin: string; identity: Identity; reader: Reader }
+type Options = { origin: string; identity: Identity; reader: Reader; drainRevocations?: () => { remaining: boolean } }
 const TOKEN = /^[A-Za-z0-9_-]{43}$/
 const MAX_BODY = 8192
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
@@ -136,13 +142,61 @@ export function createMobileReadOnlyHandler(options: Options) {
           res.setHeader('set-cookie','mahak_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0')
           send(200,{ok:true});return
         }
+        if (path === '/api/invite/accept' || path === '/api/invite/create' || path === '/api/member/approve' || path === '/api/member/remove') {
+          if (!loginAllowed(req.socket.remoteAddress ?? 'unknown')) { send(429,{error:'تعداد تلاش‌ها زیاد است؛ بعداً دوباره تلاش کنید'});return }
+          if (!/^application\/json(?:\s*;|\s*$)/i.test(header(req,'content-type') ?? '')) { send(400,{error:'درخواست معتبر نیست'});return }
+          let data: Record<string,unknown>
+          try { data=await readBody(req) } catch { send(400,{error:'درخواست معتبر نیست'});return }
+          if (path === '/api/invite/accept') {
+            if (Object.keys(data).sort().join(',') !== 'invite,password,pin,username' || typeof data.invite !== 'string' || typeof data.username !== 'string' ||
+                typeof data.password !== 'string' || typeof data.pin !== 'string' || !options.identity.acceptInvite(data.invite,data.username,data.password,data.pin)) {
+              send(400,{error:'دعوت یا اطلاعات ورود معتبر نیست'});return
+            }
+            send(200,{ok:true});return
+          }
+          const token=cookie(req), principal=token ? options.identity.whoAmI(token) : null
+          if (!token || !principal) { send(401,{error:'لطفاً وارد شوید'});return }
+          if (principal.role !== 'OWNER') { send(403,{error:'فقط مالک مجاز است'});return }
+          if (path === '/api/invite/create') {
+            if (Object.keys(data).sort().join(',') !== 'acl,pin,role' || typeof data.pin !== 'string' ||
+                (data.role !== 'MANAGER' && data.role !== 'VIEWER') || !Array.isArray(data.acl) ||
+                data.acl.some((a: any) => !a || typeof a !== 'object' || Array.isArray(a) ||
+                  Object.keys(a).sort().join(',') !== 'approve,panel,view' || (a.panel === 'custody' && a.approve !== false))) {
+              send(400,{error:'درخواست معتبر نیست'});return
+            }
+            const result=options.identity.createInvite(token,data.pin,data.role,data.acl)
+            if (!result.ok) { send(403,{error:'دعوت ساخته نشد؛ PIN، دسترسی‌ها یا سقف اعضا را بررسی کنید'});return }
+            send(200,{invite:result.invite});return
+          }
+          if (Object.keys(data).sort().join(',') !== 'pin,username' || typeof data.pin !== 'string' || typeof data.username !== 'string') { send(400,{error:'درخواست معتبر نیست'});return }
+          if (path === '/api/member/approve') {
+            if (!options.identity.approveMember(token,data.pin,data.username)) { send(403,{error:'تأیید انجام نشد'});return }
+            send(200,{ok:true});return
+          }
+          // Removing a member also requires a trusted desktop revocation bridge.
+          // Never report success until all queued revocations have been applied.
+          if (typeof options.drainRevocations !== 'function') { send(503,{error:'کانال ابطال مجوز فعال نیست'});return }
+          const result=options.identity.removeMember(token,data.pin,data.username)
+          if (!result.ok) { send(403,{error:'حذف انجام نشد'});return }
+          try {
+            const drained=options.drainRevocations()
+            if (!drained || drained.remaining !== false) { send(503,{error:'حذف ثبت شد اما ابطال مجوزها هنوز کامل نیست'});return }
+          } catch { send(503,{error:'حذف ثبت شد اما ابطال مجوزها هنوز کامل نیست'});return }
+          send(200,{ok:true});return
+        }
       }
-      if (req.method === 'GET' && (path === '/api/session' || path === '/api/custody' || path === '/api/shifts')) {
+      if (req.method === 'GET' && (path === '/api/session' || path === '/api/members' || path === '/api/custody' || path === '/api/shifts')) {
         const token=cookie(req), user=token ? options.identity.whoAmI(token) : null
         if (!token || !user) { send(401,{error:'لطفاً وارد شوید'});return }
         if (path === '/api/session') {
           // Do not expose internal member identifiers to the mobile client.
           send(200,{user:{username:text(user.username,256),role:text(user.role,32)}});return
+        }
+        if (path === '/api/members') {
+          if (user.role !== 'OWNER') { send(403,{error:'فقط مالک مجاز است'});return }
+          const members=options.identity.listMembers(token)
+          if (!members) { send(403,{error:'فقط مالک مجاز است'});return }
+          send(200,{members});return
         }
         const panel=path === '/api/custody' ? 'custody' : 'shifts'
         if (!options.identity.authorize(token,panel,'VIEW')) { send(403,{error:'اجازه مشاهده این بخش را ندارید'});return }
