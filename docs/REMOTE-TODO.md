@@ -26,7 +26,7 @@
 
 ## وضعیت کلید خاموش و بررسی ویندوز
 - تنظیم اختیاری `remote-settings.json` در userData فقط با محتوای دقیق `{"enabled":true}` اجازه کار می‌دهد؛ غیبت، خطا یا مقدار دیگر خاموش است. این یک opt-in مستقل است و `remoteImplementationReady()` همچنان ثابت `false` بوده و حتی تنظیم روشن قابلیت ناتمام را فعال نمی‌کند. تست `remote-user-setting.mjs` شکل‌های تنظیم را، و `remote-cloud-disabled.mjs` نبود listener/اتصال، درخواست HTTP، timer، دسترسی دیتابیس و نوشتن state را در مسیر سرویس با وابستگی‌های جایگزین‌شده بررسی کرد؛ Electron کامل و فعال‌سازی واقعی آزموده نشده‌اند. ردپای کد آزموده‌شده روی مبنای `f436368b37b3b72c1cb2a7813fc76baf2423087d`: سرویس `b96e0da4d1283313530ad59a10da0c40bd25eee9822cf4e52e7e0f84bca1a07f`، تنظیمات `31f4fb98f4755f2575bc3d7b905c5d7817d4ec6ad350857241cfec6dc4d7018c`، تست `a55b44b8fba3c445434df86d36c878186cba602c008c1954094ae38b52ed230b` (SHA-256).
-- برای commit `e6b38e40d06ae8ebd032f2c21f7ab602e5ac330a` هر دو اجرای ویندوز `43858736667` و installer `43858746081` در گام `Typecheck application` شکست خوردند؛ گزارش خام Actions از این محیط قابل دریافت نبود. وضعیت commit بعدی باید جداگانه بررسی شود.
+- برای commit `3c0ba5b0fc5b1806563ba621dea6712381dcf4da`، اجرای سازگاری ویندوز `43878875651` پس از موفقیت چند تست اولیه در گام `Test supervisor snapshot restore detection on isolated SQLite` شکست خورد؛ علت دقیق در خروجی مرحله از این محیط قابل دریافت نبود. اجرای installer `43879150946` در مرحله `Typecheck application` شکست خورد و مرحله ساخت نصب‌کننده اجرا نشد. بنابراین هیچ‌یک گواه build موفق ویندوز نیستند.
 
 ## موارد مشخصِ باقی‌مانده فاز ۱ تا ۴
 - فاز ۱: راه‌اندازی واقعی هاب از Electron، lifecycle و بسته‌بندی، provisioning امن و اتصال HTTPS/tunnel، snapshot و delta عملیاتی، PWA آفلاین، سلامت و هشدارها و آزمون گوشی/Windows تکمیل نشده‌اند.
