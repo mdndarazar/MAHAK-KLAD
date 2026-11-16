@@ -41,6 +41,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --import ./test/harness/register.mjs tests/audit-fixes/remote-mobile-invoices-ui.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test CMD scripts with mocked npm and isolated files
+        run: node tests/audit-fixes/windows-cmd-scripts.mjs
       - name: Verify disabled remote and existing password behavior
         shell: pwsh
         run: |
