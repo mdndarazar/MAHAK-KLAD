@@ -79,6 +79,39 @@ await test('logout discards a late invitation code',async()=>{
  release(f.response({invite:'SECRET-INVITE'}));await pending
  assert.equal(f.el('invite-result').textContent,'');assert.equal(f.el('message').textContent,'')
 })
+await test('late action results cannot update a logged-out view or start follow-up requests',async()=>{
+ for(const [path,id,event,status] of [
+  ['/api/approve','approval-form','submit',200],
+  ['/api/member/approve','member-form','submit',200],
+  ['/api/member/remove','remove-member','click',200],
+  ['/api/member/remove','remove-member','click',403]
+ ]){
+  const f=fixture();await f.flush();let release
+  f.setResponse(path,new Promise(resolve=>{release=resolve}))
+  const pending=f.el(id).fire(event);await f.flush();await f.el('logout').fire('click')
+  const calls=f.calls.length;release(f.response({error:'PRIVATE-ERROR'},status));await pending;await f.flush()
+  assert.equal(f.el('message').textContent,'');assert.equal(f.calls.length,calls)
+  assert.equal(f.el('dashboard').hidden,true)
+ }
+})
+await test('capability loss discards a late invoice response without logging out',async()=>{
+ const f=fixture();await f.flush();let release
+ f.setInvoice(new Promise(resolve=>{release=resolve}))
+ f.el('invoice-from').value='1405/01/01';f.el('invoice-to').value='1405/01/03'
+ const pending=f.el('invoice-form').fire('submit');await f.flush()
+ f.setResponse('/api/capabilities',Promise.resolve(f.response({invoices:false})))
+ await f.el('reload').fire('click')
+ release(f.response({invoices:[{id:1,customerName:'PRIVATE-CUSTOMER'}],hasMore:false}));await pending
+ assert.equal(f.el('dashboard').hidden,false);assert.equal(f.el('invoice-tools').hidden,true)
+ assert.equal(f.el('invoice-results').textContent,'');assert.deepEqual(f.el('invoice-results').children,[])
+})
+await test('capability refresh does not invalidate another action in the same session',async()=>{
+ const f=fixture({enabled:false});await f.flush();let release
+ f.setResponse('/api/invite/create',new Promise(resolve=>{release=resolve}))
+ const pending=f.el('invite-form').fire('submit');await f.flush();await f.el('reload').fire('click')
+ release(f.response({invite:'INVITE'}));await pending
+ assert.equal(f.el('invite-result').textContent,'INVITE')
+})
 await test('no invoice capability means no invoice read or invite permission',async()=>{
  const f=fixture({enabled:false});await f.flush();assert.equal(f.el('invoice-tools').hidden,true);assert.equal(f.el('invoice-acl-label').hidden,true)
  await f.el('invoice-form').fire('submit');assert.ok(!f.calls.some(c=>c.path==='/api/invoices'))
