@@ -112,6 +112,43 @@ try {
     await assert.rejects(supervisor.refreshOnce(),/busy/)
     release();await first;hold=null
   })
+  await test('stop waits for an in-flight parent read after child shutdown',async()=>{
+    const directory=mkdtempSync(join(tmpdir(),'mahak-supervisor-stop-read-'))
+    let release,started
+    const wait=new Promise(resolve=>{release=resolve}), ready=new Promise(resolve=>{started=resolve})
+    const slowReader={...reader,latestBoundaryTotals:async()=>{started();await wait;return real.latestBoundaryTotals()}}
+    const instance=await startExperimentalHubSupervisor({...options,directory,reader:slowReader})
+    const reading=instance.refreshOnce().then(()=>null,error=>error)
+    await ready
+    let stopped=false
+    const stopping=instance.stop().then(()=>{stopped=true})
+    await new Promise(resolve=>setTimeout(resolve,100))
+    assert.equal(stopped,false)
+    release()
+    assert.match((await reading).message,/unavailable/)
+    await stopping;assert.equal(stopped,true)
+  })
+  await test('stop waits for an in-flight audit sync in the parent',async()=>{
+    const directory=mkdtempSync(join(tmpdir(),'mahak-supervisor-stop-audit-'))
+    let release,started
+    const wait=new Promise(resolve=>{release=resolve}), ready=new Promise(resolve=>{started=resolve})
+    const slowReader={...reader,auditPage:async(...args)=>{started();await wait;return real.auditPage(...args)}}
+    const instance=await startExperimentalHubSupervisor({...options,directory,reader:slowReader})
+    const syncing=instance.syncOnce().then(()=>null,error=>error);await ready
+    let stopped=false;const stopping=instance.stop().then(()=>{stopped=true})
+    await new Promise(resolve=>setTimeout(resolve,100));assert.equal(stopped,false)
+    release();await syncing;await stopping;assert.equal(stopped,true)
+  })
+  await test('stop reports failure rather than claiming cleanup when parent work hangs',async()=>{
+    const directory=mkdtempSync(join(tmpdir(),'mahak-supervisor-hung-read-'))
+    let release,started
+    const wait=new Promise(resolve=>{release=resolve}), ready=new Promise(resolve=>{started=resolve})
+    const slowReader={...reader,latestBoundaryTotals:async()=>{started();await wait;return real.latestBoundaryTotals()}}
+    const instance=await startExperimentalHubSupervisor({...options,directory,reader:slowReader,timeoutMs:3000})
+    const reading=instance.refreshOnce().then(()=>null,error=>error);await ready
+    try { await assert.rejects(instance.stop(),/parent work did not settle/) }
+    finally { release();await reading }
+  })
   await test('stop closes listeners and leaves durable hub audit free of private fields',async()=>{
     const port=supervisor.mobilePort, stopping=supervisor.stop()
     assert.equal(supervisor.stop(),stopping);await stopping;await supervisor.stop()

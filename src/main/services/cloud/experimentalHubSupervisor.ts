@@ -70,6 +70,12 @@ export async function startExperimentalHubSupervisor(options: Options) {
   let invoiceBusy=false, invoiceLastRead=-Infinity, invoiceLastId=0
   const invoiceReader=options.enableInvoiceFacts === true ? reader.invoiceFactsPage!.bind(reader) : undefined
   let stopPromise: Promise<void> | null = null
+  const activeTasks = new Set<Promise<unknown>>()
+  function track<T>(task: Promise<T>): Promise<T> {
+    activeTasks.add(task)
+    void task.then(() => activeTasks.delete(task), () => activeTasks.delete(task))
+    return task
+  }
   const waiting = new Map<number,{ resolve:(ok:boolean)=>void; reject:(error:Error)=>void; timer:ReturnType<typeof setTimeout> }>()
   let startupResolve: ((ports:{mobilePort:number; auditPort:number})=>void) | undefined
   let startupReject: ((error:Error)=>void) | undefined
@@ -98,7 +104,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
           Object.keys(message).sort().join(',') !== 'afterId,fromDay,id,toDay,type' ||
           !isInvoiceDate(from) || !isInvoiceDate(to) || from > to || !Number.isSafeInteger(afterId) || afterId < 0) { failRead();return }
       invoiceBusy=true;invoiceLastRead=now
-      void (async () => {
+      void track((async () => {
         try {
           // These checks detect known restores but do not serialize with restore.
           // The application must remain disabled until real coordination exists.
@@ -110,7 +116,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
               current.restoreMarker !== initial.restoreMarker || await readRestoreMarker() !== initial.restoreMarker) throw new Error('Restore detected')
           if (!closed && !dead) send({type:'invoiceReadResult',id,ok:true,value})
         } catch { failRead() } finally { invoiceBusy=false }
-      })()
+      })())
     }
     else if (message.type === 'snapshot' && Number.isSafeInteger(message.id)) {
       const item=waiting.get(message.id)
@@ -141,11 +147,11 @@ export async function startExperimentalHubSupervisor(options: Options) {
     })
     return {
       mobilePort:ports.mobilePort,
-      async refreshOnce(): Promise<void> {
-        if (closed || dead) throw new Error('Hub child unavailable')
-        if (busy) throw new Error('Hub refresh busy')
+      refreshOnce(): Promise<void> {
+        if (closed || dead) return Promise.reject(new Error('Hub child unavailable'))
+        if (busy) return Promise.reject(new Error('Hub refresh busy'))
         busy=true
-        try {
+        return track((async () => { try {
           // Remove the old snapshot before potentially slow reads. A refresh can
           // overlap an uncoordinated restore; an old value must not remain visible
           // while this refresh is blocked or checking the marker.
@@ -165,11 +171,11 @@ export async function startExperimentalHubSupervisor(options: Options) {
           // Never knowingly leave a previously good snapshot visible on read error.
           if (!closed && !dead) try { await update({type:'invalidateSnapshot'}) } catch { child.kill() }
           throw error
-        } finally {busy=false}
+        } finally {busy=false} })())
       },
-      async syncOnce() {
-        if (closed || dead) throw new Error('Hub child unavailable')
-        return sync.runOnce()
+      syncOnce() {
+        if (closed || dead) return Promise.reject(new Error('Hub child unavailable'))
+        return track(sync.runOnce())
       },
       stop(): Promise<void> {
         if (stopPromise) return stopPromise
@@ -187,6 +193,19 @@ export async function startExperimentalHubSupervisor(options: Options) {
           const timer=setTimeout(() => {cleanup();child.kill();reject(new Error('Hub stop timed out'))},timeout)
           child.on('message',onMessage);child.once('exit',onExit)
           try { send({type:'stop'}) } catch (error) { cleanup();child.kill();reject(error) }
+        }).then(async () => {
+          // A killed/closed child does not cancel already-running parent reads or
+          // sync writes. Do not claim a clean stop while they can still mutate
+          // sync state. A timeout is failure, not cancellation of those tasks.
+          const tasks=[...activeTasks]
+          if (!tasks.length) return
+          let timer:ReturnType<typeof setTimeout> | undefined
+          try {
+            await Promise.race([
+              Promise.allSettled(tasks),
+              new Promise<never>((_,reject) => { timer=setTimeout(() => reject(new Error('Hub parent work did not settle')),timeout) })
+            ])
+          } finally { if (timer) clearTimeout(timer) }
         })
         return stopPromise
       }
