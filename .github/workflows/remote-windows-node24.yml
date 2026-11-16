@@ -66,6 +66,8 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-supervisor-panic-loopback.mjs
       - name: Test remote-supervisor-panic-failure-loopback
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-supervisor-panic-failure-loopback.mjs
+      - name: Test remote-supervisor-stop-cleanup-loopback
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-supervisor-stop-cleanup-loopback.mjs
       - name: Test remote-panic-source-rate-loopback
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-source-rate-loopback.mjs
       - name: Test remote-expiry-panic-failure-loopback

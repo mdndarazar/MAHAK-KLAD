@@ -143,6 +143,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
     stdio:['ignore','ignore','ignore','ipc'], serialization:'json', env }) }
   catch (error) { await releaseReceiver();throw error }
   let dead = false, closed = false, busy = false, nextId = 0
+  let revocationCleanupFailed = false
   let invoiceBusy=false, invoiceLastRead=-Infinity, invoiceLastId=0, recoveryBusy=false
   const invoiceReader=options.enableInvoiceFacts === true ? reader.invoiceFactsPage!.bind(reader) : undefined
   let stopPromise: Promise<void> | null = null
@@ -157,7 +158,10 @@ export async function startExperimentalHubSupervisor(options: Options) {
   let startupReject: ((error:Error)=>void) | undefined
   const startup = new Promise<{mobilePort:number; auditPort:number}>((resolve,reject) => { startupResolve=resolve;startupReject=reject })
   const fail = () => {
-    if (options.revocation) { try { revokeAll() } catch {} ; void releaseReceiver().catch(() => {}) }
+    if (options.revocation) {
+      try { revokeAll() } catch { revocationCleanupFailed = true }
+      void releaseReceiver().catch(() => {})
+    }
     dead = true
     startupReject?.(new Error('Hub child unavailable'));startupReject=undefined;startupResolve=undefined
     for (const item of waiting.values()) { clearTimeout(item.timer);item.reject(new Error('Hub child unavailable')) }
@@ -297,6 +301,12 @@ export async function startExperimentalHubSupervisor(options: Options) {
       stop(): Promise<void> {
         if (stopPromise) return stopPromise
         closed=true
+        // Revoke existing desktop grants and requests before waiting for the
+        // child. Host cleanup failure must never be reported as success. The
+        // host must separately prevent new admissions throughout shutdown.
+        if (options.revocation) {
+          try { revokeAll() } catch { revocationCleanupFailed = true }
+        }
         if (dead) return Promise.reject(new Error('Hub child unavailable; cleanup not confirmed'))
         stopPromise = new Promise<void>((resolve,reject) => {
           let acknowledged = false
@@ -319,7 +329,10 @@ export async function startExperimentalHubSupervisor(options: Options) {
           // The concrete cloud reader can retain a SQL operation after its
           // caller timed out. Custom readers without this contract remain the
           // host's responsibility; no cancellation or restore lock is implied.
-          if (!tasks.length && !reader.waitForIdle) return
+          if (!tasks.length && !reader.waitForIdle) {
+            if (revocationCleanupFailed) throw new Error('Remote panel cleanup not confirmed')
+            return
+          }
           const drained=Promise.allSettled(tasks).then(async () => { if (reader.waitForIdle) await reader.waitForIdle() })
           let timer:ReturnType<typeof setTimeout> | undefined
           try {
@@ -328,6 +341,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
               new Promise<never>((_,reject) => { timer=setTimeout(() => reject(new Error('Hub parent work did not settle')),timeout) })
             ])
           } finally { if (timer) clearTimeout(timer) }
+          if (revocationCleanupFailed) throw new Error('Remote panel cleanup not confirmed')
         })
         return stopPromise
       }
