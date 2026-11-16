@@ -1054,13 +1054,13 @@ export const authService = {
           const ps: any = await import('./panelSession')
           owner = ps.currentPanelOwner?.() ?? null
         } catch {}
-        if (owner != null && consumeOneShot(owner, panel, password.slice(3))) {
+        if (owner != null && consumeOneShot(owner, panel!, password.slice(3))) {
           // Audit ردیف جدا برای حسابرسی (تصمیم ۸ با شرط)
           try {
             const { audit } = await import('./AuditService')
             await audit(prisma as any, { action: 'REMOTE_GRANT_CONSUMED', entity: 'RemoteGrant', note: JSON.stringify({ panel, owner }) } as any)
           } catch {}
-          return { ok: true, scope: 'PANEL' as const, panel, isDefault: false }
+          return { ok: true, scope: 'PANEL' as const, panel: panel!, isDefault: false }
         }
         throw new BusinessError('مجوز راه دور نامعتبر یا منقضی شده است.')
       }
