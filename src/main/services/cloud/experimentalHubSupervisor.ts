@@ -39,7 +39,7 @@ type Options = {
   nodeExecutable: string; childFile: string; directory: string; origin?: string; origins?: readonly string[]
   owner: null | { username:string; password:string; pin:string }
   auditKey: Uint8Array; snapshotMaxAgeMs: number
-  reader: Reader; state: { load():CloudState | null; save(value:CloudState):void }
+  reader: Reader; state: { load():CloudState | null; save(value:CloudState):void; openRevocationLedger?():Omit<Parameters<typeof startExperimentalRevocationReceiver>[0]['ledger'],'apply'> }
   readRestoreMarker: () => Promise<string | null>
   // Experimental explicit opt-in only; not sufficient to enable production.
   enableInvoiceFacts?: boolean
@@ -48,7 +48,7 @@ type Options = {
   restoreBarrier?: ReturnType<typeof createExperimentalRestoreBarrier>
   // The caller owns an exclusive durable replay ledger scoped to this store and
   // epoch. This opt-in does not enable the Electron integration.
-  revocation?: { key:Uint8Array; ledger:Omit<Parameters<typeof startExperimentalRevocationReceiver>[0]['ledger'],'apply'> }
+  revocation?: { key:Uint8Array; ledger?:Omit<Parameters<typeof startExperimentalRevocationReceiver>[0]['ledger'],'apply'> }
   timeoutMs?: number
 }
 const object = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -68,8 +68,9 @@ export async function startExperimentalHubSupervisor(options: Options) {
       (options.enableInvoiceFacts !== undefined && typeof options.enableInvoiceFacts !== 'boolean') ||
       (options.enableInvoiceFacts === true && typeof options.reader.invoiceFactsPage !== 'function') ||
       (options.revocation !== undefined && (!options.revocation || !(options.revocation.key instanceof Uint8Array) ||
-        options.revocation.key.byteLength!==32 || Buffer.from(options.revocation.key).equals(Buffer.from(options.auditKey)) || !options.revocation.ledger ||
-        typeof options.revocation.ledger.load!=='function' || typeof options.revocation.ledger.hasNonce!=='function' || typeof options.revocation.ledger.save!=='function')) ||
+        options.revocation.key.byteLength!==32 || Buffer.from(options.revocation.key).equals(Buffer.from(options.auditKey)) ||
+        (options.revocation.ledger === undefined ? typeof options.state?.openRevocationLedger !== 'function' :
+          (!options.revocation.ledger || typeof options.revocation.ledger.load!=='function' || typeof options.revocation.ledger.hasNonce!=='function' || typeof options.revocation.ledger.save!=='function')))) ||
       !options.state || typeof options.state.load !== 'function' ||
       typeof options.state.save !== 'function' || typeof options.readRestoreMarker !== 'function') throw new Error('Invalid experimental hub configuration')
   const origins=normalizeMobileOrigins(options.origin,options.origins)
@@ -88,7 +89,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
   if (options.revocation) {
     const initial=state.load()
     if (!initial) throw new Error('Revocation state unavailable')
-    const storeId=initial.storeId, epoch=initial.epoch, ledger=options.revocation.ledger
+    const storeId=initial.storeId, epoch=initial.epoch, ledger=options.revocation.ledger ?? state.openRevocationLedger!()
     revokeAll()
     function guardedLedger<T>(operation:()=>T):T {
       try { return operation() } catch (error) { try {revokeAll()} catch {} ; throw error }

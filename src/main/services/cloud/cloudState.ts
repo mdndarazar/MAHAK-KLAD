@@ -27,6 +27,17 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{1
 const ID = /^[A-Za-z0-9_-]{1,128}$/
 const HASH = /^[0-9a-f]{64}$/
 const MAX_STATE_BYTES = 8192
+const MAX_REVOCATION_NONCES = 20_000
+const MAX_REVOCATION_BYTES = 2_000_000
+const NONCE = /^[0-9a-f]{48}$/
+type RevocationEntry = { id:number; kind:'ALL'|'MEMBER'; memberId:string|null }
+type RevocationState = { version:1; storeId:string; epoch:string; cursor:RevocationEntry|null; nonces:string[] }
+function validRevocationEntry(value:unknown):value is RevocationEntry {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const v=value as Record<string,unknown>
+  return Object.keys(v).sort().join(',')==='id,kind,memberId' && Number.isSafeInteger(v.id) && (v.id as number)>0 &&
+    ((v.kind==='ALL' && v.memberId===null) || (v.kind==='MEMBER' && typeof v.memberId==='string' && /^[a-f0-9]{32}$/.test(v.memberId)))
+}
 
 function validated(input: unknown): CloudState {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Invalid cloud state')
@@ -125,6 +136,66 @@ export function openCloudStateStore(directory: string) {
       if (created) try { unlinkSync(tmpPath) } catch {}
     }
   }
+  // This file is private to the locked state owner, not shop.db. Initialization
+  // is explicit and exclusive: missing/corrupt history is NEVER recreated by
+  // open. Every epoch transition requires a separate, coordinated procedure.
+  const revocationPath=join(directory,'revocation-ledger.json')
+  const revocationMarkerPath=join(directory,'revocation-ledger.initialized')
+  function readRevocations():RevocationState {
+    ensureOpen()
+    const marker=lstatSync(revocationMarkerPath)
+    if (!marker.isFile() || marker.nlink!==1 || marker.size!==2 || readFileSync(revocationMarkerPath,'utf8')!=='v1') throw new Error('Invalid revocation marker')
+    const state=load()
+    if (!state) throw new Error('Cloud state unavailable')
+    const stat=lstatSync(revocationPath)
+    if (!stat.isFile() || stat.nlink!==1 || stat.size<1 || stat.size>MAX_REVOCATION_BYTES) throw new Error('Invalid revocation ledger')
+    let value:unknown
+    try { value=JSON.parse(readFileSync(revocationPath,'utf8')) } catch { throw new Error('Invalid revocation ledger') }
+    if (!value || typeof value!=='object' || Array.isArray(value)) throw new Error('Invalid revocation ledger')
+    const v=value as Record<string,unknown>
+    if (Object.keys(v).sort().join(',')!=='cursor,epoch,nonces,storeId,version' || v.version!==1 || v.storeId!==state.storeId || v.epoch!==state.epoch ||
+        (v.cursor!==null && !validRevocationEntry(v.cursor)) || !Array.isArray(v.nonces) || v.nonces.length>MAX_REVOCATION_NONCES ||
+        v.nonces.some(n=>typeof n!=='string' || !NONCE.test(n)) || new Set(v.nonces).size!==v.nonces.length ||
+        ((v.cursor===null)!==(v.nonces.length===0))) throw new Error('Invalid revocation ledger')
+    return {version:1,storeId:state.storeId,epoch:state.epoch,cursor:v.cursor as RevocationEntry|null,nonces:v.nonces as string[]}
+  }
+  function initializeRevocationLedger():void {
+    ensureOpen()
+    const state=load()
+    if (!state) throw new Error('Cloud state unavailable')
+    const payload=JSON.stringify({version:1,storeId:state.storeId,epoch:state.epoch,cursor:null,nonces:[]})
+    // Marker first: a crash or missing ledger must not permit automatic reset.
+    const markerFd=openSync(revocationMarkerPath,'wx',0o600)
+    try { writeFileSync(markerFd,'v1','utf8');fsyncSync(markerFd) } finally { closeSync(markerFd) }
+    // An interrupted creation remains an error; never replace an existing file.
+    const fd=openSync(revocationPath,'wx',0o600)
+    try { writeFileSync(fd,payload,'utf8');fsyncSync(fd) } finally { closeSync(fd) }
+  }
+  function openRevocationLedger() {
+    readRevocations()
+    return {
+      load():RevocationEntry|null { return readRevocations().cursor },
+      hasNonce(nonce:string):boolean {
+        if (typeof nonce!=='string' || !NONCE.test(nonce)) throw new Error('Invalid revocation nonce')
+        return readRevocations().nonces.includes(nonce)
+      },
+      save(entry:RevocationEntry,nonce:string):void {
+        if (!validRevocationEntry(entry) || typeof nonce!=='string' || !NONCE.test(nonce)) throw new Error('Invalid revocation entry')
+        const previous=readRevocations(), cursor=previous.cursor
+        if (previous.nonces.includes(nonce) || previous.nonces.length>=MAX_REVOCATION_NONCES ||
+            (cursor && (entry.id<cursor.id || (entry.id===cursor.id && (entry.kind!==cursor.kind || entry.memberId!==cursor.memberId))))) throw new Error('Invalid revocation transition')
+        const payload=JSON.stringify({...previous,cursor:{id:entry.id,kind:entry.kind,memberId:entry.memberId},nonces:[...previous.nonces,nonce]})
+        if (Buffer.byteLength(payload,'utf8')>MAX_REVOCATION_BYTES) throw new Error('Revocation ledger full')
+        const temporary=join(directory,`.revocation-ledger-${randomBytes(16).toString('hex')}.tmp`)
+        let fd:number|undefined,created=false
+        try {
+          fd=openSync(temporary,'wx',0o600);created=true
+          writeFileSync(fd,payload,'utf8');fsyncSync(fd);closeSync(fd);fd=undefined
+          ensureOpen();renameSync(temporary,revocationPath);created=false
+        } finally { if (fd!==undefined) try {closeSync(fd)} catch {};if(created) try {unlinkSync(temporary)} catch {} }
+      }
+    }
+  }
   function close(): void {
     if (closed) return
     // A replaced or missing lock is not ours to remove. Fail closed.
@@ -134,5 +205,5 @@ export function openCloudStateStore(directory: string) {
     if (!owned) throw new Error('Cloud state lock ownership lost')
     unlinkSync(lockPath)
   }
-  return { load, save, close }
+  return { load, save, initializeRevocationLedger, openRevocationLedger, close }
 }
