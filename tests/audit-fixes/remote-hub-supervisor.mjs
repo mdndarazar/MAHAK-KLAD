@@ -106,6 +106,18 @@ try {
       await supervisor.refreshOnce()
     }
   })
+  await test('mutating a shared state object during snapshot read prevents publication',async()=>{
+    const directory=mkdtempSync(join(tmpdir(),'mahak-supervisor-mutable-state-'))
+    const mutable=state.load();let release,started
+    const wait=new Promise(resolve=>{release=resolve}),ready=new Promise(resolve=>{started=resolve})
+    const slowReader={...reader,latestBoundaryTotals:async()=>{started();await wait;return real.latestBoundaryTotals()}}
+    const instance=await startExperimentalHubSupervisor({...options,directory,reader:slowReader,state:{load:()=>mutable,save:()=>{}}})
+    try {
+      const pending=instance.refreshOnce();await ready
+      mutable.epoch='abcdefab-cdef-4abc-8abc-abcdefabcdef';release()
+      await assert.rejects(pending,/Restore detected/)
+    } finally {release();await instance.stop()}
+  })
   await test('overlapping refresh is rejected instead of accumulating unbounded work',async()=>{
     let release;hold=new Promise(resolve=>{release=resolve})
     const first=supervisor.refreshOnce()

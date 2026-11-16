@@ -108,8 +108,10 @@ export async function startExperimentalHubSupervisor(options: Options) {
         try {
           // These checks detect known restores but do not serialize with restore.
           // The application must remain disabled until real coordination exists.
-          const initial=state.load()
-          if (!initial || await readRestoreMarker() !== initial.restoreMarker) throw new Error('Restore detected')
+          const loaded=state.load()
+          if (!loaded) throw new Error('Restore detected')
+          const initial={storeId:loaded.storeId,epoch:loaded.epoch,restoreMarker:loaded.restoreMarker}
+          if (await readRestoreMarker() !== initial.restoreMarker) throw new Error('Restore detected')
           const value=parseInvoicePage(await invoiceReader(from,to,afterId,50),from,to,afterId)
           const current=state.load()
           if (!current || current.storeId !== initial.storeId || current.epoch !== initial.epoch ||
@@ -158,8 +160,10 @@ export async function startExperimentalHubSupervisor(options: Options) {
           if (!await update({type:'invalidateSnapshot'})) throw new Error('Hub rejected invalidation')
           // Detect known restore/epoch changes before publishing. These checks
           // are not a lock: restore must still be coordinated by the host.
-          const initial=state.load()
-          if (!initial || await readRestoreMarker() !== initial.restoreMarker) throw new Error('Restore detected')
+          const loaded=state.load()
+          if (!loaded) throw new Error('Restore detected')
+          const initial={storeId:loaded.storeId,epoch:loaded.epoch,restoreMarker:loaded.restoreMarker}
+          if (await readRestoreMarker() !== initial.restoreMarker) throw new Error('Restore detected')
           const capturedAtMs=Date.now()
           const boundary=await reader.latestBoundaryTotals()
           const shifts=await reader.openShiftsPage(0,200)

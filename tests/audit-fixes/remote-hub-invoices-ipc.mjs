@@ -76,6 +76,15 @@ try {
    const response=await pending;assert.equal(response.status,503);assert.ok(!response.body.includes('مشتری نمونه'))
   }finally{release();stateValue.epoch='12345678-1234-4123-8123-123456789abc';block=null;notifyStart=null;await supervisor.stop()}
  })
+ await test('mutating a shared state object during an invoice read fails closed',async()=>{
+  let release,started;block=new Promise(r=>{release=r});const ready=new Promise(r=>{started=r});notifyStart=started
+  const mutable={...stateValue},supervisor=await start({state:{load:()=>mutable,save:()=>{}}})
+  try{
+   const port=supervisor.mobilePort,cookie=await login(port),pending=post(port,'/api/invoices',payload,{cookie})
+   await ready;mutable.epoch='abcdefab-cdef-4abc-8abc-abcdefabcdef';release()
+   const response=await pending;assert.equal(response.status,503);assert.ok(!response.body.includes('مشتری نمونه'))
+  }finally{release();block=null;notifyStart=null;await supervisor.stop()}
+ })
  await test('stuck parent read times out in the child and a late result is not delivered',async()=>{
   let release,started;block=new Promise(r=>{release=r});const ready=new Promise(r=>{started=r});notifyStart=started
   const supervisor=await start();try{
