@@ -3,8 +3,9 @@
  *
  * The transport MUST authenticate both the peer and its acknowledgment, durably
  * persist the batch before acknowledging, and deduplicate by (store, epoch, id).
- * These requirements are NOT implemented here. There is no network adapter, spool,
- * restore recovery, worker, retry scheduler, PWA or live-data mirroring yet.
+ * These requirements are NOT implemented here. The experimental loopback adapter
+ * and receiver are not wired into the app. There is no spool, restore recovery,
+ * worker, retry scheduler, PWA or live-data mirroring yet.
  * Records remain in shop.db until they can be read; this is not a durable outbox.
  * Rechecks cannot make a concurrent database restore atomic with state save;
  * the future coordinator must serialize restore, epoch rotation and this cycle.

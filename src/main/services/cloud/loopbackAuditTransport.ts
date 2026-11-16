@@ -1,9 +1,10 @@
 /**
  * Experimental desktop-to-local-hub audit transport; not started by the app.
  * This only connects to 127.0.0.1. No mobile endpoint, public listener, proxy,
- * WSS, key provisioning, hub implementation, durable receiver or replay ledger
- * is supplied here. The receiver must authenticate and durably deduplicate before
- * signing a response. Do not activate until those pieces are independently tested.
+ * WSS, key provisioning, production hub or mobile API is supplied here. An
+ * experimental receiver exists but is not wired into the app. The receiver must
+ * authenticate and durably deduplicate before signing a response. Do not activate
+ * until all missing pieces are independently tested.
  */
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { request } from 'node:http'
