@@ -24,6 +24,8 @@ import { createAuditSync } from './auditSync'
 import { createLoopbackAuditTransport } from './loopbackAuditTransport'
 import type { CloudState } from './cloudState'
 import type { createExperimentalRestoreBarrier } from './experimentalRestoreBarrier'
+import { startExperimentalRevocationReceiver } from './experimentalNetworkRevocation'
+import { revokeAll, revokeBy } from '../RemoteGrantRegistry'
 
 type Reader = {
   latestBoundaryTotals(): Promise<unknown>
@@ -44,6 +46,9 @@ type Options = {
   // Optional in-process experiment only. Every restore must use restoreExclusive,
   // and no other component may bypass the gate or start queries on this reader.
   restoreBarrier?: ReturnType<typeof createExperimentalRestoreBarrier>
+  // The caller owns an exclusive durable replay ledger scoped to this store and
+  // epoch. This opt-in does not enable the Electron integration.
+  revocation?: { key:Uint8Array; ledger:Omit<Parameters<typeof startExperimentalRevocationReceiver>[0]['ledger'],'apply'> }
   timeoutMs?: number
 }
 const object = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -62,6 +67,9 @@ export async function startExperimentalHubSupervisor(options: Options) {
       (options.reader.invoiceFactsPage !== undefined && typeof options.reader.invoiceFactsPage !== 'function') ||
       (options.enableInvoiceFacts !== undefined && typeof options.enableInvoiceFacts !== 'boolean') ||
       (options.enableInvoiceFacts === true && typeof options.reader.invoiceFactsPage !== 'function') ||
+      (options.revocation !== undefined && (!options.revocation || !(options.revocation.key instanceof Uint8Array) ||
+        options.revocation.key.byteLength!==32 || Buffer.from(options.revocation.key).equals(Buffer.from(options.auditKey)) || !options.revocation.ledger ||
+        typeof options.revocation.ledger.load!=='function' || typeof options.revocation.ledger.hasNonce!=='function' || typeof options.revocation.ledger.save!=='function')) ||
       !options.state || typeof options.state.load !== 'function' ||
       typeof options.state.save !== 'function' || typeof options.readRestoreMarker !== 'function') throw new Error('Invalid experimental hub configuration')
   const origins=normalizeMobileOrigins(options.origin,options.origins)
@@ -74,14 +82,43 @@ export async function startExperimentalHubSupervisor(options: Options) {
     if (!barrier) return operation()
     return barrier.run(async()=>{ try { return await operation() } finally { await reader.waitForIdle!() } })
   }
+  let revocationReceiver: Awaited<ReturnType<typeof startExperimentalRevocationReceiver>> | undefined
+  let revocationConfig: {key:string;storeId:string;epoch:string;port:number} | undefined
+  let closeReceiver: Promise<void> | undefined
+  if (options.revocation) {
+    const initial=state.load()
+    if (!initial) throw new Error('Revocation state unavailable')
+    const storeId=initial.storeId, epoch=initial.epoch, ledger=options.revocation.ledger
+    revokeAll()
+    function guardedLedger<T>(operation:()=>T):T {
+      try { return operation() } catch (error) { try {revokeAll()} catch {} ; throw error }
+    }
+    revocationReceiver=await startExperimentalRevocationReceiver({key:options.revocation.key,storeId,epoch,ledger:{
+      load:()=>guardedLedger(()=>ledger.load()), hasNonce:nonce=>guardedLedger(()=>ledger.hasNonce(nonce)),
+      save:(entry,nonce)=>guardedLedger(()=>ledger.save(entry,nonce)),
+      apply:entry=>guardedLedger(()=>{
+        const current=state.load()
+        if (!current || current.storeId!==storeId || current.epoch!==epoch) throw new Error('Revocation epoch changed')
+        if (entry.kind==='ALL') revokeAll(); else revokeBy(entry.memberId!)
+      })
+    }})
+    revocationConfig={key:Buffer.from(options.revocation.key).toString('hex'),storeId,epoch,port:revocationReceiver.port}
+  }
+  function releaseReceiver():Promise<void> {
+    if (!revocationReceiver) return Promise.resolve()
+    closeReceiver ??= revocationReceiver.close()
+    return closeReceiver
+  }
   // Do not inherit DATABASE_URL, NODE_OPTIONS, credentials, or the POS environment.
   // Windows filesystem/runtime behavior still needs a real platform test.
   const env: NodeJS.ProcessEnv = {}
   for (const name of ['SystemRoot','SYSTEMROOT','WINDIR','TEMP','TMP','TZ','LANG']) {
     if (typeof process.env[name] === 'string') env[name] = process.env[name]
   }
-  const child: ChildProcess = fork(options.childFile, [], { execPath:options.nodeExecutable, execArgv:['--max-old-space-size=128'],
-    stdio:['ignore','ignore','ignore','ipc'], serialization:'json', env })
+  let child: ChildProcess
+  try { child = fork(options.childFile, [], { execPath:options.nodeExecutable, execArgv:['--max-old-space-size=128'],
+    stdio:['ignore','ignore','ignore','ipc'], serialization:'json', env }) }
+  catch (error) { await releaseReceiver();throw error }
   let dead = false, closed = false, busy = false, nextId = 0
   let invoiceBusy=false, invoiceLastRead=-Infinity, invoiceLastId=0
   const invoiceReader=options.enableInvoiceFacts === true ? reader.invoiceFactsPage!.bind(reader) : undefined
@@ -97,6 +134,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
   let startupReject: ((error:Error)=>void) | undefined
   const startup = new Promise<{mobilePort:number; auditPort:number}>((resolve,reject) => { startupResolve=resolve;startupReject=reject })
   const fail = () => {
+    if (options.revocation) { try { revokeAll() } catch {} ; void releaseReceiver().catch(() => {}) }
     dead = true
     startupReject?.(new Error('Hub child unavailable'));startupReject=undefined;startupResolve=undefined
     for (const item of waiting.values()) { clearTimeout(item.timer);item.reject(new Error('Hub child unavailable')) }
@@ -152,7 +190,8 @@ export async function startExperimentalHubSupervisor(options: Options) {
   const startTimer=setTimeout(() => { fail();child.kill() },timeout)
   try {
     send({type:'start',config:{directory:options.directory,...originConfig,owner:options.owner,
-      auditKey:key.toString('hex'),snapshotMaxAgeMs:options.snapshotMaxAgeMs,...(invoiceReader ? {invoiceFacts:true} : {})}})
+      auditKey:key.toString('hex'),snapshotMaxAgeMs:options.snapshotMaxAgeMs,...(invoiceReader ? {invoiceFacts:true} : {}),
+      ...(revocationConfig ? {revocation:revocationConfig} : {})}})
     const ports=await startup
     clearTimeout(startTimer)
     const transport=createLoopbackAuditTransport(`http://127.0.0.1:${ports.auditPort}/internal/v1/audit`,key,timeout)
@@ -223,6 +262,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
           child.on('message',onMessage);child.once('exit',onExit)
           try { send({type:'stop'}) } catch (error) { cleanup();child.kill();reject(error) }
         }).then(async () => {
+          await releaseReceiver()
           // A killed/closed child does not cancel already-running parent reads or
           // sync writes. Do not claim a clean stop while they can still mutate
           // sync state. A timeout is failure, not cancellation of those tasks.
@@ -244,6 +284,6 @@ export async function startExperimentalHubSupervisor(options: Options) {
       }
     }
   } catch (error) {
-    clearTimeout(startTimer);child.kill();throw error
+    clearTimeout(startTimer);child.kill();await releaseReceiver().catch(() => {});throw error
   }
 }

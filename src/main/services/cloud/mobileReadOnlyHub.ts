@@ -37,7 +37,7 @@ type ApprovalController = {
   list(token: string): { requestId: string; panel: string; code: string }[]
   approve(token: string, requestId: string, code: string, pin: string): boolean
 }
-type Options = { origin?: string; origins?: readonly string[]; identity: Identity; reader: Reader; drainRevocations?: () => { remaining: boolean }; approval?: ApprovalController }
+type Options = { origin?: string; origins?: readonly string[]; identity: Identity; reader: Reader; drainRevocations?: () => { remaining: boolean } | Promise<{ remaining: boolean }>; approval?: ApprovalController }
 const TOKEN = /^[A-Za-z0-9_-]{43}$/
 const MAX_BODY = 8192
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
@@ -226,7 +226,7 @@ export function createMobileReadOnlyHandler(options: Options) {
           const result=options.identity.removeMember(token,data.pin,data.username)
           if (!result.ok) { send(403,{error:'حذف انجام نشد'});return }
           try {
-            const drained=options.drainRevocations()
+            const drained=await options.drainRevocations()
             if (!drained || drained.remaining !== false) { send(503,{error:'حذف ثبت شد اما ابطال مجوزها هنوز کامل نیست'});return }
           } catch { send(503,{error:'حذف ثبت شد اما ابطال مجوزها هنوز کامل نیست'});return }
           send(200,{ok:true});return

@@ -21,6 +21,7 @@ import { startMobileReadOnlyHub } from './mobileReadOnlyHub'
 import { createLocalAuditReceiver } from './localAuditReceiver'
 import { isInvoiceDate, parseInvoicePage } from './invoiceFactsValidation'
 import { normalizeMobileOrigins } from './mobileOrigins'
+import { drainNetworkRevocations } from './inProcessRevocationBridge'
 
 if (typeof process.send !== 'function') throw new Error('A private parent IPC channel is required')
 const send = (message: unknown) => { if (process.connected && process.send) process.send(message) }
@@ -58,6 +59,8 @@ let initialized = false, shuttingDown = false
 let lockFd: number | undefined, lockPath = '', lockToken = ''
 let db: DatabaseSync | undefined, auditServer: Server | undefined
 let mobile: Awaited<ReturnType<typeof startMobileReadOnlyHub>> | undefined
+let revocationTimer: ReturnType<typeof setInterval> | undefined
+let revocationActive: Promise<{applied:number;remaining:boolean}> | undefined
 let snapshot: Snapshot | null = null, snapshotAt = 0, snapshotMaxAge = 0, lastSnapshotCapture = 0
 let invoiceId=0
 let invoicePending: null | {id:number; from:string; to:string; afterId:number; resolve:(value:unknown)=>void; reject:(error:Error)=>void; timer:ReturnType<typeof setTimeout>} = null
@@ -94,13 +97,22 @@ async function shutdown() {
   if (shuttingDown) return
   shuttingDown = true
   failInvoice()
+  if (revocationTimer) clearInterval(revocationTimer)
   if (mobile) { await mobile.closeNow().catch(() => {}); mobile = undefined }
+  if (revocationActive) await revocationActive.catch(() => {})
   await closeServer(auditServer); auditServer = undefined
   if (db) { db.close(); db = undefined }
   releaseLock()
 }
-async function start(config: unknown) {
-  if (!okObject(config) || !(sameKeys(config, 'auditKey,directory,origin,owner,snapshotMaxAgeMs') ||
+async function start(input: unknown) {
+  if (!okObject(input)) throw new Error('Invalid configuration')
+  const {revocation, ...config}=input
+  if (revocation !== undefined && (!okObject(revocation) || !sameKeys(revocation,'epoch,key,port,storeId') ||
+      typeof revocation.key !== 'string' || !/^[a-f0-9]{64}$/.test(revocation.key) ||
+      !safeInt(revocation.port,1) || revocation.port>65535 || typeof revocation.storeId !== 'string' ||
+      !/^[A-Za-z0-9_-]{1,128}$/.test(revocation.storeId) || typeof revocation.epoch !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(revocation.epoch))) throw new Error('Invalid revocation configuration')
+  if (!(sameKeys(config, 'auditKey,directory,origin,owner,snapshotMaxAgeMs') ||
       sameKeys(config, 'auditKey,directory,origins,owner,snapshotMaxAgeMs') ||
       ((sameKeys(config, 'auditKey,directory,invoiceFacts,origin,owner,snapshotMaxAgeMs') ||
         sameKeys(config, 'auditKey,directory,invoiceFacts,origins,owner,snapshotMaxAgeMs')) && config.invoiceFacts === true)) ||
@@ -150,12 +162,31 @@ async function start(config: unknown) {
   } else {
     if (config.owner !== null || db.prepare("SELECT COUNT(*) AS n FROM remote_members WHERE role='OWNER' AND status='ACTIVE'").get()?.n !== 1) throw new Error('Invalid existing owner')
   }
+  const revocationOptions = revocation === undefined ? undefined : {
+    key:Buffer.from(revocation.key,'hex'), storeId:revocation.storeId as string,
+    epoch:revocation.epoch as string, port:revocation.port as number
+  }
+  const drain = revocationOptions ? () => {
+    if (shuttingDown) return Promise.reject(new Error('Hub stopping'))
+    if (revocationActive) return revocationActive
+    const task=drainNetworkRevocations(identity,revocationOptions)
+    revocationActive=task
+    void task.then(() => { if (revocationActive===task) revocationActive=undefined },
+      () => { if (revocationActive===task) revocationActive=undefined })
+    return task
+  } : undefined
+  if (drain) {
+    const first=await drain()
+    if (first.remaining) throw new Error('Revocations pending')
+    revocationTimer=setInterval(() => { void drain().catch(() => {}) },1000)
+    revocationTimer.unref?.()
+  }
   const current = () => {
     if (!snapshot || performance.now() - snapshotAt >= snapshotMaxAge) throw new Error('Snapshot unavailable or stale')
     return snapshot
   }
   snapshotMaxAge = config.snapshotMaxAgeMs
-  mobile = await startMobileReadOnlyHub({ origins, identity, reader: {
+  mobile = await startMobileReadOnlyHub({ origins, identity, ...(drain ? {drainRevocations:drain} : {}), reader: {
     latestBoundaryTotals:async () => current().boundary,
     openShiftsPage:async () => current().shifts,
     ...(config.invoiceFacts === true ? { invoiceFactsPage:requestInvoices } : {})

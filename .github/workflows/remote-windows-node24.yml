@@ -42,6 +42,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Test isolated hub on temporary SQLite
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-windows-node24.mjs
+      - name: Test supervisor network revocation on isolated SQLite
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-supervisor-revocation-loopback.mjs
       - name: Test supervisor snapshot restore detection on isolated SQLite
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-hub-supervisor.mjs
       - name: Test audit sync epoch race checks with isolated state files
