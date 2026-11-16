@@ -2,8 +2,9 @@
  * Experimental separate Node child for the loopback read-only mobile hub and
  * audit receiver. Not bundled, started, or enabled by Electron. The parent must
  * provide the Node runtime, protect its IPC channel/key, supply fresh read-only
- * snapshots, and configure an HTTPS proxy. No grants or approval transport are
- * provided here. Node's built-in SQLite and Windows durability/ACL behavior must
+ * snapshots, and configure an HTTPS proxy. Optional invoice facts use a trusted
+ * private parent IPC and are not a financial report. No grants or approval
+ * transport are provided here. Node's built-in SQLite and Windows durability/ACL behavior must
  * be verified in the actual deployment runtime before this can be integrated.
  *
  * Only a dedicated `remote-hub.sqlite` is opened, never shop.db. A stale lock is
@@ -18,6 +19,7 @@ import { performance } from 'node:perf_hooks'
 import { createHubIdentity } from './hubIdentity'
 import { startMobileReadOnlyHub } from './mobileReadOnlyHub'
 import { createLocalAuditReceiver } from './localAuditReceiver'
+import { isInvoiceDate, parseInvoicePage } from './invoiceFactsValidation'
 
 if (typeof process.send !== 'function') throw new Error('A private parent IPC channel is required')
 const send = (message: unknown) => { if (process.connected && process.send) process.send(message) }
@@ -56,6 +58,23 @@ let lockFd: number | undefined, lockPath = '', lockToken = ''
 let db: DatabaseSync | undefined, auditServer: Server | undefined
 let mobile: Awaited<ReturnType<typeof startMobileReadOnlyHub>> | undefined
 let snapshot: Snapshot | null = null, snapshotAt = 0, snapshotMaxAge = 0, lastSnapshotCapture = 0
+let invoiceId=0
+let invoicePending: null | {id:number; from:string; to:string; afterId:number; resolve:(value:unknown)=>void; reject:(error:Error)=>void; timer:ReturnType<typeof setTimeout>} = null
+function failInvoice() {
+  const pending=invoicePending
+  if (!pending) return
+  invoicePending=null;clearTimeout(pending.timer);pending.reject(new Error('Invoice read unavailable'))
+}
+function requestInvoices(from:string,to:string,afterId:number,limit:number):Promise<unknown> {
+  if (shuttingDown || !process.connected || invoicePending || invoiceId >= Number.MAX_SAFE_INTEGER ||
+      !isInvoiceDate(from) || !isInvoiceDate(to) || from > to || !safeInt(afterId,0) || limit !== 50) return Promise.reject(new Error('Invalid invoice request'))
+  const id=++invoiceId
+  return new Promise((resolve,reject) => {
+    const timer=setTimeout(() => { if (invoicePending?.id === id) failInvoice() },3000)
+    invoicePending={id,from,to,afterId,resolve,reject,timer}
+    try { send({type:'invoiceRead',id,fromDay:from,toDay:to,afterId}) } catch { failInvoice() }
+  })
+}
 
 function releaseLock() {
   if (lockFd === undefined) return
@@ -73,13 +92,15 @@ async function closeServer(server: Server | undefined): Promise<void> {
 async function shutdown() {
   if (shuttingDown) return
   shuttingDown = true
+  failInvoice()
   if (mobile) { await mobile.closeNow().catch(() => {}); mobile = undefined }
   await closeServer(auditServer); auditServer = undefined
   if (db) { db.close(); db = undefined }
   releaseLock()
 }
 async function start(config: unknown) {
-  if (!okObject(config) || !sameKeys(config, 'auditKey,directory,origin,owner,snapshotMaxAgeMs') ||
+  if (!okObject(config) || !(sameKeys(config, 'auditKey,directory,origin,owner,snapshotMaxAgeMs') ||
+      (sameKeys(config, 'auditKey,directory,invoiceFacts,origin,owner,snapshotMaxAgeMs') && config.invoiceFacts === true)) ||
       typeof config.directory !== 'string' || !isAbsolute(config.directory) || typeof config.origin !== 'string' ||
       typeof config.auditKey !== 'string' || !/^[a-f0-9]{64}$/.test(config.auditKey) ||
       !Number.isSafeInteger(config.snapshotMaxAgeMs) || config.snapshotMaxAgeMs < 100 || config.snapshotMaxAgeMs > 60_000 ||
@@ -118,7 +139,7 @@ async function start(config: unknown) {
     db.exec('CREATE TABLE remote_transport_meta (id INTEGER PRIMARY KEY CHECK(id=1), key_check TEXT NOT NULL)')
     db.prepare('INSERT INTO remote_transport_meta (id,key_check) VALUES (1,?)').run(keyCheck.toString('hex'))
   }
-  const identity = createHubIdentity(db, { panels:['custody','shifts'], approvalPanels:[] })
+  const identity = createHubIdentity(db, { panels:config.invoiceFacts === true ? ['custody','shifts','invoices'] : ['custody','shifts'], approvalPanels:[] })
   const count = db.prepare('SELECT COUNT(*) AS n FROM remote_members').get()?.n
   if (count === 0) {
     if (!config.owner || !identity.bootstrap(config.owner.username,config.owner.password,config.owner.pin)) throw new Error('Owner setup required')
@@ -132,7 +153,8 @@ async function start(config: unknown) {
   snapshotMaxAge = config.snapshotMaxAgeMs
   mobile = await startMobileReadOnlyHub({ origin:config.origin, identity, reader: {
     latestBoundaryTotals:async () => current().boundary,
-    openShiftsPage:async () => current().shifts
+    openShiftsPage:async () => current().shifts,
+    ...(config.invoiceFacts === true ? { invoiceFactsPage:requestInvoices } : {})
   } })
   const receiver = createLocalAuditReceiver(db, Buffer.from(config.auditKey, 'hex'))
   auditServer = createServer(receiver)
@@ -168,6 +190,14 @@ process.on('message', message => {
         snapshot = value; snapshotAt = performance.now() - (wall - captured); lastSnapshotCapture = captured
         response(true)
       } catch { snapshot = null; response(false) }
+      return
+    }
+    if (message.type === 'invoiceReadResult' && invoicePending && message.id === invoicePending.id) {
+      const pending=invoicePending;invoicePending=null;clearTimeout(pending.timer)
+      try {
+        if (message.ok !== true || !sameKeys(message,'id,ok,type,value')) throw new Error('Invoice read unavailable')
+        pending.resolve(parseInvoicePage(message.value,pending.from,pending.to,pending.afterId))
+      } catch { pending.reject(new Error('Invoice read unavailable')) }
       return
     }
     if (message.type === 'stop') {

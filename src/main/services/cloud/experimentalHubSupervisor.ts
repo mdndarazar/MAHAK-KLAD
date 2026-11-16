@@ -7,10 +7,15 @@
  *
  * The parent supplies the existing read-only reader and an isolated sync-state
  * object. Never give the child shop.db or the Prisma client; only fixed DTOs and
- * authenticated audit batches cross the boundary. A heap limit is not an RSS cap.
+ * authenticated audit batches cross the boundary. Optional invoice reads require
+ * explicit opt-in and a trusted child/IPC; marker rechecks do not coordinate a
+ * real restore, and a reader timeout may not cancel the underlying query. A heap
+ * limit is not an RSS cap.
  */
 import { fork, type ChildProcess } from 'node:child_process'
 import { isAbsolute } from 'node:path'
+import { performance } from 'node:perf_hooks'
+import { isInvoiceDate, parseInvoicePage } from './invoiceFactsValidation'
 import { createAuditSync } from './auditSync'
 import { createLoopbackAuditTransport } from './loopbackAuditTransport'
 import type { CloudState } from './cloudState'
@@ -19,6 +24,7 @@ type Reader = {
   latestBoundaryTotals(): Promise<unknown>
   openShiftsPage(afterId: number, limit?: number): Promise<unknown>
   auditPage(afterId: number, limit?: number): Promise<{id:number; at:string; action:string; entity:string}[]>
+  invoiceFactsPage?(fromDay:string,toDay:string,afterId:number,limit:number): Promise<unknown>
 }
 type Options = {
   nodeExecutable: string; childFile: string; directory: string; origin: string
@@ -26,6 +32,8 @@ type Options = {
   auditKey: Uint8Array; snapshotMaxAgeMs: number
   reader: Reader; state: { load():CloudState | null; save(value:CloudState):void }
   readRestoreMarker: () => Promise<string | null>
+  // Experimental explicit opt-in only; not sufficient to enable production.
+  enableInvoiceFacts?: boolean
   timeoutMs?: number
 }
 const object = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -37,7 +45,11 @@ export async function startExperimentalHubSupervisor(options: Options) {
       !(options.auditKey instanceof Uint8Array) || options.auditKey.byteLength !== 32 ||
       !Number.isSafeInteger(options.snapshotMaxAgeMs) || options.snapshotMaxAgeMs < 100 || options.snapshotMaxAgeMs > 60_000 ||
       !options.reader || typeof options.reader.latestBoundaryTotals !== 'function' || typeof options.reader.openShiftsPage !== 'function' ||
-      typeof options.reader.auditPage !== 'function' || !options.state || typeof options.state.load !== 'function' ||
+      typeof options.reader.auditPage !== 'function' ||
+      (options.reader.invoiceFactsPage !== undefined && typeof options.reader.invoiceFactsPage !== 'function') ||
+      (options.enableInvoiceFacts !== undefined && typeof options.enableInvoiceFacts !== 'boolean') ||
+      (options.enableInvoiceFacts === true && typeof options.reader.invoiceFactsPage !== 'function') ||
+      !options.state || typeof options.state.load !== 'function' ||
       typeof options.state.save !== 'function' || typeof options.readRestoreMarker !== 'function') throw new Error('Invalid experimental hub configuration')
   const timeout = options.timeoutMs ?? 5000
   if (!Number.isSafeInteger(timeout) || timeout < 100 || timeout > 30_000) throw new Error('Invalid hub timeout')
@@ -51,6 +63,8 @@ export async function startExperimentalHubSupervisor(options: Options) {
   const child: ChildProcess = fork(options.childFile, [], { execPath:options.nodeExecutable, execArgv:['--max-old-space-size=128'],
     stdio:['ignore','ignore','ignore','ipc'], serialization:'json', env })
   let dead = false, closed = false, busy = false, nextId = 0
+  let invoiceBusy=false, invoiceLastRead=-Infinity, invoiceLastId=0
+  const invoiceReader=options.enableInvoiceFacts === true ? reader.invoiceFactsPage!.bind(reader) : undefined
   let stopPromise: Promise<void> | null = null
   const waiting = new Map<number,{ resolve:(ok:boolean)=>void; reject:(error:Error)=>void; timer:ReturnType<typeof setTimeout> }>()
   let startupResolve: ((ports:{mobilePort:number; auditPort:number})=>void) | undefined
@@ -70,6 +84,30 @@ export async function startExperimentalHubSupervisor(options: Options) {
         Number.isSafeInteger(message.auditPort) && message.auditPort >= 1 && message.auditPort <= 65535 && message.mobilePort !== message.auditPort) {
       startupResolve({mobilePort:message.mobilePort,auditPort:message.auditPort});startupResolve=undefined;startupReject=undefined
     } else if (message.type === 'error' && message.operation === 'start') fail()
+    else if (message.type === 'invoiceRead' && invoiceReader) {
+      const id=message.id, from=message.fromDay, to=message.toDay, afterId=message.afterId
+      if (!Number.isSafeInteger(id) || id <= invoiceLastId || id <= 0) return
+      invoiceLastId=id
+      const failRead=() => { try { if (!closed && !dead) send({type:'invoiceReadResult',id,ok:false}) } catch {} }
+      const now=performance.now()
+      if (closed || dead || invoiceBusy || now < invoiceLastRead || now-invoiceLastRead < 10_000 ||
+          Object.keys(message).sort().join(',') !== 'afterId,fromDay,id,toDay,type' ||
+          !isInvoiceDate(from) || !isInvoiceDate(to) || from > to || !Number.isSafeInteger(afterId) || afterId < 0) { failRead();return }
+      invoiceBusy=true;invoiceLastRead=now
+      void (async () => {
+        try {
+          // These checks detect known restores but do not serialize with restore.
+          // The application must remain disabled until real coordination exists.
+          const initial=state.load()
+          if (!initial || await readRestoreMarker() !== initial.restoreMarker) throw new Error('Restore detected')
+          const value=parseInvoicePage(await invoiceReader(from,to,afterId,50),from,to,afterId)
+          const current=state.load()
+          if (!current || current.storeId !== initial.storeId || current.epoch !== initial.epoch ||
+              current.restoreMarker !== initial.restoreMarker || await readRestoreMarker() !== initial.restoreMarker) throw new Error('Restore detected')
+          if (!closed && !dead) send({type:'invoiceReadResult',id,ok:true,value})
+        } catch { failRead() } finally { invoiceBusy=false }
+      })()
+    }
     else if (message.type === 'snapshot' && Number.isSafeInteger(message.id)) {
       const item=waiting.get(message.id)
       if (!item) return
@@ -85,7 +123,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
   const startTimer=setTimeout(() => { fail();child.kill() },timeout)
   try {
     send({type:'start',config:{directory:options.directory,origin:options.origin,owner:options.owner,
-      auditKey:key.toString('hex'),snapshotMaxAgeMs:options.snapshotMaxAgeMs}})
+      auditKey:key.toString('hex'),snapshotMaxAgeMs:options.snapshotMaxAgeMs,...(invoiceReader ? {invoiceFacts:true} : {})}})
     const ports=await startup
     clearTimeout(startTimer)
     const transport=createLoopbackAuditTransport(`http://127.0.0.1:${ports.auditPort}/internal/v1/audit`,key,timeout)

@@ -10,6 +10,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { performance } from 'node:perf_hooks'
 import { mobileHtml, mobileCss, mobileJs, mobileManifest, mobileWorker } from './mobilePwaAssets'
 import { icon192, icon512 } from './mobilePwaIcons'
+import { isInvoiceDate, parseInvoicePage } from './invoiceFactsValidation'
 
 type Session = { id: string; role: string; username: string }
 type Identity = {
@@ -76,22 +77,6 @@ function shifts(v: unknown) {
   return v.map(a => {
     if (!a || typeof a !== 'object' || Array.isArray(a)) throw new Error('Invalid snapshot')
     return { id:id(a.id), name:text(a.name), number:id(a.number), operationalDay:text(a.operationalDay), openedAtDatabaseValue:text(a.openedAtDatabaseValue) }
-  })
-}
-function invoiceDate(v: unknown): v is string {
-  return typeof v === 'string' && /^[0-9]{4}\/(0[1-9]|1[0-2])\/(0[1-9]|[12][0-9]|3[01])$/.test(v)
-}
-function invoices(v: unknown, from: string, to: string, afterId: number) {
-  if (!Array.isArray(v) || v.length > 50) throw new Error('Invalid invoice page')
-  let prior=afterId
-  return v.map(a => {
-    if (!a || typeof a !== 'object' || Array.isArray(a) || !Number.isSafeInteger(a.id) || a.id <= prior ||
-        !invoiceDate(a.issuedAtJalali) || a.issuedAtJalali < from || a.issuedAtJalali > to || typeof a.voided !== 'boolean') throw new Error('Invalid invoice page')
-    prior=a.id
-    const optional=(value:unknown) => value === null ? null : text(value,512)
-    return { id:id(a.id), receiptNo:id(a.receiptNo), issuedAtJalali:a.issuedAtJalali, status:text(a.status,512),
-      orderType:text(a.orderType,512), voided:a.voided, grandTotal:amount(a.grandTotal), paidTotal:amount(a.paidTotal),
-      customerName:optional(a.customerName), customerPhone:optional(a.customerPhone), sellerName:optional(a.sellerName) }
   })
 }
 function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
@@ -187,14 +172,14 @@ export function createMobileReadOnlyHandler(options: Options) {
           if (!/^application\/json(?:\s*;|\s*$)/i.test(header(req,'content-type') ?? '')) { send(400,{error:'درخواست معتبر نیست'});return }
           let data: Record<string,unknown>
           try { data=await readBody(req) } catch { send(400,{error:'درخواست معتبر نیست'});return }
-          if (Object.keys(data).sort().join(',') !== 'afterId,fromDay,toDay' || !invoiceDate(data.fromDay) || !invoiceDate(data.toDay) ||
+          if (Object.keys(data).sort().join(',') !== 'afterId,fromDay,toDay' || !isInvoiceDate(data.fromDay) || !isInvoiceDate(data.toDay) ||
               data.fromDay > data.toDay || !Number.isSafeInteger(data.afterId) || (data.afterId as number) < 0) { send(400,{error:'درخواست معتبر نیست'});return }
           if (!options.identity.authorize(token,'invoices','VIEW')) { send(403,{error:'اجازه مشاهده این بخش را ندارید'});return }
           const now=performance.now()
           if (invoiceBusy || now < lastInvoiceRead || now-lastInvoiceRead < 10_000) { send(429,{error:'برای دریافت دوباره کمی صبر کنید'});return }
           invoiceBusy=true;lastInvoiceRead=now
           try {
-            const result=invoices(await options.reader.invoiceFactsPage(data.fromDay,data.toDay,data.afterId as number,50),data.fromDay,data.toDay,data.afterId as number)
+            const result=parseInvoicePage(await options.reader.invoiceFactsPage(data.fromDay,data.toDay,data.afterId as number,50),data.fromDay,data.toDay,data.afterId as number)
             // Membership and permissions may change while the read is pending.
             if (!options.identity.authorize(token,'invoices','VIEW')) { send(403,{error:'اجازه مشاهده این بخش را ندارید'});return }
             send(200,{invoices:result,hasMore:result.length===50});return
