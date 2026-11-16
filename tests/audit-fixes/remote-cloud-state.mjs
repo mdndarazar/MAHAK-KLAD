@@ -54,6 +54,17 @@ await test('lost lock blocks the old owner from reading or writing before close'
     assert.deepEqual(next.load(),advanced)
   } finally { next.close() }
 })
+await test('observed loss of lock ownership is permanent even if lock content returns',()=>{
+  const dir=mk(),s=openCloudStateStore(dir);s.save(first)
+  const lock=join(dir,'cloud-state.lock'), original=readFileSync(lock,'utf8')
+  writeFileSync(lock,'different-owner')
+  assert.throws(()=>s.load(),/ownership lost/)
+  writeFileSync(lock,original)
+  assert.throws(()=>s.load(),/ownership lost/)
+  assert.throws(()=>s.save(advanced),/ownership lost/)
+  assert.throws(()=>s.close(),/ownership lost/)
+  assert.equal(readFileSync(lock,'utf8'),original)
+})
 await test('invalid inputs, unknown fields and unsafe integers are rejected without creating state',()=>{
   const dir=mk(),s=openCloudStateStore(dir)
   for(const patch of [{version:2},{storeId:'bad/store'},{epoch:'bad'},{lastAcked:-1},{lastAcked:Number.MAX_SAFE_INTEGER+1},{lastAcked:1},{anchorHash:'abc'},{restoreMarker:'bad'},{extra:true}]) {

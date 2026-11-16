@@ -67,7 +67,7 @@ export function openCloudStateStore(directory: string) {
     }
     throw error
   }
-  let closed = false
+  let closed = false, ownershipLost = false
   const ownsLock = (): boolean => {
     try { return lstatSync(lockPath).isFile() && readFileSync(lockPath, 'utf8') === token } catch { return false }
   }
@@ -75,7 +75,10 @@ export function openCloudStateStore(directory: string) {
     if (closed) throw new Error('Cloud state store is closed')
     // Detect an accidentally removed or replaced lock before using state. This
     // is not protection against a malicious concurrent filesystem actor.
-    if (!ownsLock()) throw new Error('Cloud state lock ownership lost')
+    if (ownershipLost || !ownsLock()) {
+      ownershipLost = true
+      throw new Error('Cloud state lock ownership lost')
+    }
   }
   function load(): CloudState | null {
     ensureOpen()
@@ -125,7 +128,7 @@ export function openCloudStateStore(directory: string) {
   function close(): void {
     if (closed) return
     // A replaced or missing lock is not ours to remove. Fail closed.
-    const owned = ownsLock()
+    const owned = !ownershipLost && ownsLock()
     closeSync(lockFd!)
     closed = true
     if (!owned) throw new Error('Cloud state lock ownership lost')
