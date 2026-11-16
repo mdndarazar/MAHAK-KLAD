@@ -14,8 +14,10 @@ import { createHash } from 'node:crypto'
 import type { CloudState } from './cloudState'
 
 type Event = { id: number; at: string; action: string; entity: string }
-type Batch = { version: 1; storeId: string; epoch: string; events: Event[]; digest: string }
-type Ack = { version: 1; storeId: string; epoch: string; lastId: number; digest: string }
+export type AuditBatch = { version: 1; storeId: string; epoch: string; events: Event[]; digest: string }
+export type AuditAck = { version: 1; storeId: string; epoch: string; lastId: number; digest: string }
+type Batch = AuditBatch
+type Ack = AuditAck
 type Dependencies = {
   state: { load(): CloudState | null; save(state: CloudState): void }
   reader: { auditPage(afterId: number, limit?: number): Promise<Event[]> }
