@@ -48,7 +48,11 @@ type Options = {
   restoreBarrier?: ReturnType<typeof createExperimentalRestoreBarrier>
   // The caller owns an exclusive durable replay ledger scoped to this store and
   // epoch. This opt-in does not enable the Electron integration.
-  revocation?: { key:Uint8Array; ledger?:Omit<Parameters<typeof startExperimentalRevocationReceiver>[0]['ledger'],'apply'> }
+  revocation?: { key:Uint8Array; ledger?:Omit<Parameters<typeof startExperimentalRevocationReceiver>[0]['ledger'],'apply'>;
+    // Synchronous, idempotent host delivery: called before durable ACK. It can
+    // repeat after a failure or lost ACK; never use a volatile-only notification
+    // as evidence that a user has seen a message.
+    onRevocation?:(entry:{id:number;kind:'ALL'|'MEMBER';memberId:string|null})=>undefined }
   timeoutMs?: number
 }
 const object = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -69,6 +73,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
       (options.enableInvoiceFacts === true && typeof options.reader.invoiceFactsPage !== 'function') ||
       (options.revocation !== undefined && (!options.revocation || !(options.revocation.key instanceof Uint8Array) ||
         options.revocation.key.byteLength!==32 || Buffer.from(options.revocation.key).equals(Buffer.from(options.auditKey)) ||
+        (options.revocation.onRevocation !== undefined && typeof options.revocation.onRevocation !== 'function') ||
         (options.revocation.ledger === undefined ? typeof options.state?.openRevocationLedger !== 'function' :
           (!options.revocation.ledger || typeof options.revocation.ledger.load!=='function' || typeof options.revocation.ledger.hasNonce!=='function' || typeof options.revocation.ledger.save!=='function')))) ||
       !options.state || typeof options.state.load !== 'function' ||
@@ -101,6 +106,17 @@ export async function startExperimentalHubSupervisor(options: Options) {
         const current=state.load()
         if (!current || current.storeId!==storeId || current.epoch!==epoch) throw new Error('Revocation epoch changed')
         if (entry.kind==='ALL') revokeAll(); else revokeBy(entry.memberId!)
+        // Fail before saving the nonce/cursor if host delivery fails. A retry
+        // re-applies revocation and may call the host again; it must deduplicate.
+        if (options.revocation?.onRevocation) {
+          const result:unknown=options.revocation.onRevocation({...entry})
+          if (result !== undefined) {
+            // A mistakenly supplied async callback must not produce an
+            // unhandled rejection or receive an ACK for unfinished work.
+            if (result instanceof Promise) void result.catch(() => {})
+            throw new Error('Invalid revocation callback')
+          }
+        }
       })
     }})
     revocationConfig={key:Buffer.from(options.revocation.key).toString('hex'),storeId,epoch,port:revocationReceiver.port}
