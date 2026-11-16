@@ -25,7 +25,7 @@ import { createLoopbackAuditTransport } from './loopbackAuditTransport'
 import type { CloudState } from './cloudState'
 import type { createExperimentalRestoreBarrier } from './experimentalRestoreBarrier'
 import { startExperimentalRevocationReceiver } from './experimentalNetworkRevocation'
-import { revokeAll, revokeBy } from '../RemoteGrantRegistry'
+import { acquireRemoteAdmissionLease, revokeAll, revokeBy } from '../RemoteGrantRegistry'
 
 type Reader = {
   latestBoundaryTotals(): Promise<unknown>
@@ -92,6 +92,9 @@ export async function startExperimentalHubSupervisor(options: Options) {
     if (!barrier) return operation()
     return barrier.run(async()=>{ try { return await operation() } finally { await reader.waitForIdle!() } })
   }
+  // The lease starts closed and remains closed on any uncertain startup or
+  // shutdown. Only one supervisor may own desktop admissions at a time.
+  const admission = options.revocation ? acquireRemoteAdmissionLease() : undefined
   let revocationReceiver: Awaited<ReturnType<typeof startExperimentalRevocationReceiver>> | undefined
   let recoveryLedger: Omit<Parameters<typeof startExperimentalRevocationReceiver>[0]['ledger'],'apply'> | undefined
   let revocationConfig: {key:string;storeId:string;epoch:string;port:number} | undefined
@@ -158,6 +161,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
   let startupReject: ((error:Error)=>void) | undefined
   const startup = new Promise<{mobilePort:number; auditPort:number}>((resolve,reject) => { startupResolve=resolve;startupReject=reject })
   const fail = () => {
+    admission?.block()
     if (options.revocation) {
       try { revokeAll() } catch { revocationCleanupFailed = true }
       void releaseReceiver().catch(() => {})
@@ -233,6 +237,8 @@ export async function startExperimentalHubSupervisor(options: Options) {
       waiting.set(id,{resolve,reject,timer})
       try { send({...message,id}) } catch (error) { clearTimeout(timer);waiting.delete(id);reject(error) }
     })
+    if (dead) throw new Error('Hub child unavailable')
+    admission?.open()
     return {
       mobilePort:ports.mobilePort,
       refreshOnce(): Promise<void> {
@@ -301,9 +307,9 @@ export async function startExperimentalHubSupervisor(options: Options) {
       stop(): Promise<void> {
         if (stopPromise) return stopPromise
         closed=true
-        // Revoke existing desktop grants and requests before waiting for the
-        // child. Host cleanup failure must never be reported as success. The
-        // host must separately prevent new admissions throughout shutdown.
+        admission?.block()
+        // Close admissions and revoke existing grants and requests before
+        // waiting for child shutdown; cleanup failure must not report success.
         if (options.revocation) {
           try { revokeAll() } catch { revocationCleanupFailed = true }
         }
@@ -331,6 +337,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
           // host's responsibility; no cancellation or restore lock is implied.
           if (!tasks.length && !reader.waitForIdle) {
             if (revocationCleanupFailed) throw new Error('Remote panel cleanup not confirmed')
+            admission?.release()
             return
           }
           const drained=Promise.allSettled(tasks).then(async () => { if (reader.waitForIdle) await reader.waitForIdle() })
@@ -342,6 +349,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
             ])
           } finally { if (timer) clearTimeout(timer) }
           if (revocationCleanupFailed) throw new Error('Remote panel cleanup not confirmed')
+          admission?.release()
         })
         return stopPromise
       }

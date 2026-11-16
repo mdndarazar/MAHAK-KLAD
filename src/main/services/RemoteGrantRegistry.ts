@@ -40,6 +40,20 @@ let injected: {
   clearPanelSessions: (owner: number) => void
 } | null = null
 let isolated = false
+// A supervisor owns this latch through startup and shutdown. Failure leaves it
+// closed; only a cleanly stopped owner may release it for a later supervisor.
+let admissionOwner: object | null = null
+let admissionBlocked = false
+export function acquireRemoteAdmissionLease() {
+  if (admissionOwner) throw new Error('Remote admission owner already active')
+  const owner = {}; admissionOwner = owner; admissionBlocked = true
+  const owns = () => admissionOwner === owner
+  return {
+    open() { if (!owns()) throw new Error('Remote admission lease lost'); admissionBlocked = false },
+    block() { if (owns()) admissionBlocked = true },
+    release() { if (!owns()) throw new Error('Remote admission lease lost'); admissionBlocked = true; admissionOwner = null }
+  }
+}
 export function initRemoteGrantRegistry(deps: NonNullable<typeof injected>) {
   if (isolated) throw new Error('Isolated remote registry cannot be replaced')
   injected = deps
@@ -66,7 +80,7 @@ function clearGrant(k: string, grant: Grant) {
 }
 function active(k: string): Grant | null {
   const g = grants.get(k)
-  if (!g || g.revoking) return null
+  if (!g || g.revoking || admissionBlocked) return null
   const t = now()
   if ((!g.claimed && t >= g.claimBy) || (g.claimed && (t >= g.expiresAt || t - g.lastUsedAt >= IDLE_MS))) {
     // A host cleanup exception cannot make an expired grant active again. The
@@ -187,6 +201,7 @@ export function markUsed(panel: string, ownerWindowId: number) {
 
 /** Caller MUST first verify the signed approval, member ACL and replay state. */
 export function createGrant(opts: GrantInput): Omit<Grant, 'tokenHash'> | null {
+  if (admissionBlocked) return null
   if (!opts || !validOwner(opts.ownerWindowId) || typeof opts.panel !== 'string' || !VALID_PANEL.test(opts.panel) ||
       typeof opts.requestId !== 'string' || !VALID_ID.test(opts.requestId) ||
       typeof opts.memberId !== 'string' || !VALID_ID.test(opts.memberId) ||
@@ -239,6 +254,7 @@ export function cancelForWindow(ownerWindowId: number, panel?: string): boolean 
   return true
 }
 export function requestCode(panel: string, ownerWindowId: number): { code: string; gt: string; requestId: string } {
+  if (admissionBlocked) throw new Error('Remote admission closed')
   if (!validOwner(ownerWindowId) || typeof panel !== 'string' || !VALID_PANEL.test(panel)) throw new Error('Invalid remote request')
   const k = keyOf(ownerWindowId, panel)
   if (!pendingRequests.has(k) && pendingRequests.size >= 1000) {
