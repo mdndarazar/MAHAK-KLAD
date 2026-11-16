@@ -248,5 +248,10 @@ export async function startMobileReadOnlyHub(options: Options, port = 0) {
   await new Promise<void>((resolve,reject) => { server.once('error',reject);server.listen(port,'127.0.0.1',()=>{server.off('error',reject);resolve()}) })
   const address=server.address()
   if (!address || typeof address === 'string') { server.close();throw new Error('Invalid listener') }
-  return { port:address.port, close:() => new Promise<void>((resolve,reject)=>server.close(error=>error ? reject(error) : resolve())) }
+  return {
+    port:address.port,
+    close:() => new Promise<void>((resolve,reject)=>server.close(error=>error ? reject(error) : resolve())),
+    // Only for terminating an isolated hub process; aborts active requests.
+    closeNow:() => { server.closeAllConnections(); return new Promise<void>((resolve,reject)=>server.close(error=>error ? reject(error) : resolve())) }
+  }
 }
