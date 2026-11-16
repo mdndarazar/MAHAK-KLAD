@@ -8,6 +8,7 @@ import { createHmac, randomBytes } from 'node:crypto'
 import { createHubIdentity } from '../../src/main/services/cloud/hubIdentity.ts'
 import { createAuthenticatedApproval } from '../../src/main/services/cloud/authenticatedApproval.ts'
 import { createDurableGrantReplay } from '../../src/main/services/cloud/durableGrantReplay.ts'
+import { drainInProcessRevocations } from '../../src/main/services/cloud/inProcessRevocationBridge.ts'
 import { initRemoteGrantRegistry, requestCode, consumeOneShot, isGrantActiveForWindow, revokeAll } from '../../src/main/services/RemoteGrantRegistry.ts'
 
 const KEY=Buffer.alloc(32,0x27), NOW=1800000000000, PASSWORD='owner-secret-password', PIN='483920', MEMBERPASS='member-secret-password', MEMBERPIN='749201'
@@ -62,6 +63,36 @@ await test('pause, ACL removal, member deletion and replay leave desktop grant u
   assert.equal(x.identity.removeMember(x.owner,PIN,'manager').ok,true)
   p=requestCode('sales-return',13);assert.deepEqual(x.service.approve(command(p,x.managerId),auth(x.manager,p.code)),{ok:false})
   assert.equal(consumeOneShot(13,'sales-return',p.gt.slice(3)),false)
+ }finally{x.close()}
+})
+await test('ACL change and panic queue revoke existing grants; approvals fail closed until drained',()=>{
+ const x=setup();try{
+  let p=requestCode('sales-return',13),cmd=command(p,x.managerId)
+  assert.equal(x.service.approve(cmd,auth(x.manager,p.code)).ok,true)
+  assert.equal(consumeOneShot(13,'sales-return',p.gt.slice(3)),true)
+  assert.equal(x.identity.setAcl(x.owner,PIN,'manager',[{panel:'sales-return',view:true,approve:false}]),true)
+  assert.equal(isGrantActiveForWindow('sales-return',13),true) // delivery has not happened yet
+  assert.deepEqual(drainInProcessRevocations(x.identity),{applied:1,remaining:false})
+  assert.equal(isGrantActiveForWindow('sales-return',13),false)
+  assert.equal(x.identity.setAcl(x.owner,PIN,'manager',[{panel:'sales-return',view:true,approve:true}]),true)
+  p=requestCode('sales-return',13);assert.equal(x.service.approve(command(p,x.managerId),auth(x.manager,p.code)).ok,false)
+  drainInProcessRevocations(x.identity)
+  p=requestCode('sales-return',13);assert.equal(x.service.approve(command(p,x.managerId),auth(x.manager,p.code)).ok,true)
+  assert.equal(consumeOneShot(13,'sales-return',p.gt.slice(3)),true)
+  assert.equal(x.identity.setPaused(x.owner,PIN,true),true);assert.equal(x.identity.setPaused(x.owner,PIN,false),true)
+  assert.equal(isGrantActiveForWindow('sales-return',13),true)
+  drainInProcessRevocations(x.identity);assert.equal(isGrantActiveForWindow('sales-return',13),false)
+ }finally{x.close()}
+})
+await test('lost revocation acknowledgment is retried without losing the queued item',()=>{
+ const x=setup();try{
+  const p=requestCode('sales-return',13)
+  assert.equal(x.service.approve(command(p,x.managerId),auth(x.manager,p.code)).ok,true)
+  assert.equal(consumeOneShot(13,'sales-return',p.gt.slice(3)),true)
+  assert.equal(x.identity.setAcl(x.owner,PIN,'manager',[{panel:'sales-return',view:true,approve:false}]),true)
+  assert.throws(()=>drainInProcessRevocations({pendingRevocations:x.identity.pendingRevocations,acknowledgeRevocation:()=>false}),/acknowledgement/)
+  assert.equal(isGrantActiveForWindow('sales-return',13),false);assert.equal(x.identity.pendingRevocations().length,1)
+  assert.deepEqual(drainInProcessRevocations(x.identity),{applied:1,remaining:false})
  }finally{x.close()}
 })
 await test('invalid signed payload and invalid auth shape do not consume live request',()=>{

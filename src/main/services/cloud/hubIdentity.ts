@@ -52,7 +52,9 @@ export function createHubIdentity(db: Database, options: Options) {
       status TEXT NOT NULL, expires_at INTEGER NOT NULL, acl_json TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS remote_sessions (token_hash TEXT PRIMARY KEY, member_id TEXT NOT NULL, created_at INTEGER NOT NULL, last_seen INTEGER NOT NULL, expires_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS remote_identity_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, member_id TEXT, kind TEXT NOT NULL,
-      detail TEXT NOT NULL, prev_hash TEXT NOT NULL, hash TEXT NOT NULL);`)
+      detail TEXT NOT NULL, prev_hash TEXT NOT NULL, hash TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS remote_identity_revocations (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL,
+      kind TEXT NOT NULL, member_id TEXT, acknowledged_at INTEGER);`)
   const q = (sql: string) => db.prepare(sql)
   const metaGet = q('SELECT last_clock, paused FROM remote_identity_meta WHERE id=1')
   const metaSet = q('UPDATE remote_identity_meta SET last_clock=? WHERE id=1')
@@ -71,6 +73,9 @@ export function createHubIdentity(db: Database, options: Options) {
     const prev = q('SELECT hash FROM remote_identity_audit ORDER BY id DESC LIMIT 1').get()?.hash ?? ''
     const hash = sha(JSON.stringify([prev, at, member, kind, detail]))
     q('INSERT INTO remote_identity_audit(at,member_id,kind,detail,prev_hash,hash) VALUES(?,?,?,?,?,?)').run(at,member,kind,detail,prev,hash)
+  }
+  const enqueueRevoke = (t: number, kind: 'MEMBER' | 'ALL', memberId: string | null) => {
+    q('INSERT INTO remote_identity_revocations(at,kind,member_id,acknowledged_at) VALUES(?,?,?,NULL)').run(t,kind,memberId)
   }
   const memberById = q('SELECT * FROM remote_members WHERE id=?')
   const memberByName = q('SELECT * FROM remote_members WHERE username=?')
@@ -189,14 +194,14 @@ export function createHubIdentity(db: Database, options: Options) {
       return transact(t => { const s = owner(token,pinValue,t); if (!s) return false
         const m = memberByName.get(name); if (!m || m.role === 'OWNER' || m.status === 'REMOVED') return false
         const acl = aclValid(requestedAcl,m.role); if (!acl) return false
-        writeAcl(m.id,acl); audit(t,s.id,'ACL_CHANGED',m.id); return true })
+        writeAcl(m.id,acl); enqueueRevoke(t,'MEMBER',m.id); audit(t,s.id,'ACL_CHANGED',m.id); return true })
     },
     removeMember(token: string, pinValue: string, username: string): { ok: true; memberId: string } | { ok: false } {
       const name = usernameValue(username); if (!name) return { ok:false }
       return transact(t => { const s = owner(token,pinValue,t); if (!s) return { ok:false }
         const m = memberByName.get(name); if (!m || m.role === 'OWNER' || m.status === 'REMOVED') return { ok:false }
         q("UPDATE remote_members SET status='REMOVED' WHERE id=?").run(m.id); sessionsDelete.run(m.id)
-        audit(t,s.id,'MEMBER_REMOVED',m.id); return { ok:true, memberId:m.id } })
+        enqueueRevoke(t,'MEMBER',m.id); audit(t,s.id,'MEMBER_REMOVED',m.id); return { ok:true, memberId:m.id } })
     },
     authorize(token: string, panel: string, permission: 'VIEW' | 'APPROVE', pinValue?: string): Session | null {
       if (typeof panel !== 'string' || !panels.has(panel) || (permission !== 'VIEW' && permission !== 'APPROVE') ||
@@ -211,9 +216,31 @@ export function createHubIdentity(db: Database, options: Options) {
     setPaused(token: string, pinValue: string, paused: boolean): boolean {
       if (typeof paused !== 'boolean') return false
       return transact(t => { const s = owner(token,pinValue,t); if (!s) return false
-        q('UPDATE remote_identity_meta SET paused=? WHERE id=1').run(paused ? 1 : 0); audit(t,s.id,paused ? 'PAUSED' : 'RESUMED'); return true })
+        q('UPDATE remote_identity_meta SET paused=? WHERE id=1').run(paused ? 1 : 0)
+        if (paused) enqueueRevoke(t,'ALL',null)
+        audit(t,s.id,paused ? 'PAUSED' : 'RESUMED'); return true })
     },
-    /** On pause/removal the embedding app MUST also revoke existing grants. */
+    /** Internal outbox: a separate trusted bridge must authenticate delivery and
+     * acknowledge only after revocation has been applied. Never expose directly
+     * to untrusted clients. Pending entries are retained across process restart. */
+    pendingRevocations(limit = 100): { id: number; kind: 'ALL' | 'MEMBER'; memberId: string | null }[] {
+      if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new Error('Invalid revocation limit')
+      return q('SELECT id,kind,member_id FROM remote_identity_revocations WHERE acknowledged_at IS NULL ORDER BY id LIMIT ?').all(limit).map(row => {
+        if (!Number.isSafeInteger(row.id) || row.id <= 0 || (row.kind !== 'ALL' && row.kind !== 'MEMBER') ||
+            (row.kind === 'ALL' ? row.member_id !== null : typeof row.member_id !== 'string' || !/^[a-f0-9]{32}$/.test(row.member_id))) throw new Error('Invalid revocation')
+        return { id: row.id, kind: row.kind, memberId: row.member_id }
+      })
+    },
+    acknowledgeRevocation(id: number): boolean {
+      if (!Number.isSafeInteger(id) || id <= 0) return false
+      return transact(t => {
+        // Require ordered acknowledgement; skipping a prior revoke is unsafe.
+        const next = q('SELECT id FROM remote_identity_revocations WHERE acknowledged_at IS NULL ORDER BY id LIMIT 1').get()
+        if (!next || next.id !== id) return false
+        q('UPDATE remote_identity_revocations SET acknowledged_at=? WHERE id=? AND acknowledged_at IS NULL').run(t,id)
+        return true
+      })
+    },
     isPaused(): boolean { return transact(() => metaGet.get().paused !== 0) }
   }
 }

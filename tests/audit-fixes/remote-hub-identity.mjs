@@ -111,6 +111,17 @@ await test('sessions expire by idle time and clock rollback fails closed across 
   assert.throws(()=>h.login('owner',PASS),/clock/);x.setTime(t);assert.equal(h.login('owner',PASS).ok,true)
  }finally{x.close()}
 })
+await test('revocation outbox persists across restart and must be acknowledged in order',()=>{
+ const x=setup();try{
+  let h=x.hub,owner=login(h);inviteAndActivate(h,owner,'manager')
+  assert.equal(h.setAcl(owner,PIN,'manager',viewOnly),true);assert.equal(h.setPaused(owner,PIN,true),true)
+  const items=h.pendingRevocations();assert.equal(items.length,2);assert.equal(items[0].kind,'MEMBER');assert.equal(items[1].kind,'ALL')
+  assert.equal(h.acknowledgeRevocation(items[1].id),false)
+  x.reopen();h=x.hub;assert.deepEqual(h.pendingRevocations(),items)
+  assert.equal(h.acknowledgeRevocation(items[0].id),true);assert.equal(h.acknowledgeRevocation(items[1].id),true)
+  assert.deepEqual(h.pendingRevocations(),[])
+ }finally{x.close()}
+})
 await test('seat reservations and audit are transactional when database write fails',()=>{
  const x=setup();try{
   const h=x.hub,owner=login(h)

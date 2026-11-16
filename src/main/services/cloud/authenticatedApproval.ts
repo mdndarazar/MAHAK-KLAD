@@ -12,6 +12,7 @@ import { getPending, type GrantMode, type GrantTier } from '../RemoteGrantRegist
 
 type Identity = {
   isPaused(): boolean
+  pendingRevocations(limit?: number): unknown[]
   authorize(token: string, panel: string, permission: 'APPROVE', pin: string): { id: string; role: string } | null
 }
 type Options = {
@@ -22,11 +23,16 @@ type Options = {
 type Credentials = { sessionToken: string; pin: string; code: string }
 export function createAuthenticatedApproval(options: Options) {
   if (!options?.identity || typeof options.identity.isPaused !== 'function' || typeof options.identity.authorize !== 'function' ||
-      !options.replayStore || typeof options.replayStore.consume !== 'function') throw new Error('Invalid identity or replay store')
+      typeof options.identity.pendingRevocations !== 'function' || !options.replayStore ||
+      typeof options.replayStore.consume !== 'function') throw new Error('Invalid identity or replay store')
   let credentials: Credentials | null = null
   const coordinator = createGrantApprovalCoordinator({
     key: options.key, storeId: options.storeId, policies: options.policies, now: options.now, replayStore: options.replayStore,
-    isPaused: () => options.identity.isPaused(),
+    isPaused: () => {
+      if (options.identity.isPaused() !== false) return true
+      const pending = options.identity.pendingRevocations(1)
+      return !Array.isArray(pending) || pending.length > 0
+    },
     mayApprove: (memberId, panel, command) => {
       const c = credentials
       if (!c) return false
