@@ -46,6 +46,8 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-supervisor-revocation-loopback.mjs
       - name: Test remote-revocation-failure-admission-loopback
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-revocation-failure-admission-loopback.mjs
+      - name: Test remote-revocation-transport-failure-loopback
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-revocation-transport-failure-loopback.mjs
       - name: Test remote-revocation-cleanup-failure
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-revocation-cleanup-failure.mjs
       - name: Test remote-durable-revocation-ledger

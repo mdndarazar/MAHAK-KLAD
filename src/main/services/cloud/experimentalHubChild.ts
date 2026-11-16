@@ -172,7 +172,14 @@ async function start(input: unknown) {
   const drain = revocationOptions ? () => {
     if (shuttingDown) return Promise.reject(new Error('Hub stopping'))
     if (revocationActive) return revocationActive
-    const task=drainNetworkRevocations(identity,revocationOptions)
+    const task=drainNetworkRevocations(identity,revocationOptions).catch(error => {
+      // A failure can occur before the receiver reaches its ledger callbacks
+      // (e.g. a lost connection or a rejected packet). Tell the parent over the
+      // private child channel; a successful later retry cannot itself prove that
+      // desktop admission is safe to reopen.
+      try { send({type:'revocationDeliveryFailed'}) } catch {}
+      throw error
+    })
     revocationActive=task
     void task.then(() => { if (revocationActive===task) revocationActive=undefined },
       () => { if (revocationActive===task) revocationActive=undefined })

@@ -187,6 +187,16 @@ export async function startExperimentalHubSupervisor(options: Options) {
         Number.isSafeInteger(message.auditPort) && message.auditPort >= 1 && message.auditPort <= 65535 && message.mobilePort !== message.auditPort) {
       startupResolve({mobilePort:message.mobilePort,auditPort:message.auditPort});startupResolve=undefined;startupReject=undefined
     } else if (message.type === 'error' && message.operation === 'start') fail()
+    else if (message.type === 'revocationDeliveryFailed' && options.revocation && Object.keys(message).join(',') === 'type') {
+      // The child may fail before a packet reaches our authenticated receiver;
+      // close admissions as soon as it reports any delivery uncertainty. This
+      // latch is not reopened by a later ACK; shutdown and startup must succeed.
+      admission?.block()
+      // Failed grant cleanup remains marked revoking in the registry; outbox
+      // retry and stop() both retry it. stop() independently reports failure if
+      // cleanup is still unsuccessful at shutdown.
+      try { revokeAll() } catch {}
+    }
     else if (message.type === 'invoiceRead' && invoiceReader) {
       const id=message.id, from=message.fromDay, to=message.toDay, afterId=message.afterId
       if (!Number.isSafeInteger(id) || id <= invoiceLastId || id <= 0) return
