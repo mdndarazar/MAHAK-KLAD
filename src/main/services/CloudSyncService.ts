@@ -10,6 +10,7 @@ import { app } from 'electron'
 import { prisma } from '../db/client'
 import { registerRemoteAuthHandlers } from '../ipc/remoteAuth'
 import { remoteImplementationReady } from '../../shared/remoteAuthChannels'
+import { remoteSettingEnabled } from './cloud/remoteSettings'
 import { initRemoteGrantRegistry } from './RemoteGrantRegistry'
 
 let timer: NodeJS.Timeout | null = null
@@ -116,6 +117,7 @@ export function startCloudSync() {
   // The unfinished sync must not read shop.db, create state, or register IPC.
   if (!remoteImplementationReady()) return
   try {
+    if (!remoteSettingEnabled(app.getPath('userData'))) return
     ensureState()
     // Registry را به panelSession وصل کن
     import('./panelSession').then((ps: any) => {
