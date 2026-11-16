@@ -106,7 +106,15 @@ export async function startExperimentalHubSupervisor(options: Options) {
     recoveryLedger=ledger
     revokeAll()
     function guardedLedger<T>(operation:()=>T):T {
-      try { return operation() } catch (error) { try {revokeAll()} catch {} ; throw error }
+      try { return operation() } catch (error) {
+        // Once delivery or durable acknowledgement is uncertain, don't admit a
+        // new request or reactivate a grant while the child retries its outbox.
+        // Recovery requires a clean stop and fresh startup; an ACK alone cannot
+        // prove there are no later queued revocations.
+        admission?.block()
+        try { revokeAll() } catch {}
+        throw error
+      }
     }
     revocationReceiver=await startExperimentalRevocationReceiver({key:options.revocation.key,storeId,epoch,ledger:{
       load:()=>guardedLedger(()=>ledger.load()), hasNonce:nonce=>guardedLedger(()=>ledger.hasNonce(nonce)),
