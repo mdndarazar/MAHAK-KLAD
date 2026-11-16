@@ -146,9 +146,16 @@ export async function startExperimentalHubSupervisor(options: Options) {
         if (busy) throw new Error('Hub refresh busy')
         busy=true
         try {
+          // Detect known restore/epoch changes before publishing. These checks
+          // are not a lock: restore must still be coordinated by the host.
+          const initial=state.load()
+          if (!initial || await readRestoreMarker() !== initial.restoreMarker) throw new Error('Restore detected')
           const capturedAtMs=Date.now()
           const boundary=await reader.latestBoundaryTotals()
           const shifts=await reader.openShiftsPage(0,200)
+          const current=state.load()
+          if (!current || current.storeId !== initial.storeId || current.epoch !== initial.epoch ||
+              current.restoreMarker !== initial.restoreMarker || await readRestoreMarker() !== initial.restoreMarker) throw new Error('Restore detected')
           if (!await update({type:'snapshot',capturedAtMs,value:{boundary,shifts}})) throw new Error('Hub rejected snapshot')
         } catch (error) {
           // Never knowingly leave a previously good snapshot visible on read error.

@@ -6,6 +6,7 @@ import { request } from 'node:http'
 import { mkdtempSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { createClient } from '../../test/harness/prismaLite.mjs'
 import { makeSeeder } from '../../test/harness/seed.mjs'
 import { createCloudReader } from '../../src/main/services/cloud/cloudReader.ts'
@@ -16,20 +17,21 @@ import { remoteImplementationReady } from '../../src/shared/remoteAuthChannels.t
 // Real separate process + loopback + temporary SQLite. Not Electron, a phone,
 // HTTPS, Windows, production key provisioning or permission configuration.
 const dir=mkdtempSync(join(tmpdir(),'mahak-supervisor-')), childFile=join(dir,'hub.cjs')
-await build({entryPoints:[new URL('../../src/main/services/cloud/experimentalHubChild.ts',import.meta.url).pathname],outfile:childFile,bundle:true,platform:'node',format:'cjs',target:'node22',logLevel:'silent'})
+await build({entryPoints:[fileURLToPath(new URL('../../src/main/services/cloud/experimentalHubChild.ts',import.meta.url))],outfile:childFile,bundle:true,platform:'node',format:'cjs',target:'node22',logLevel:'silent'})
 const hubDir=mkdtempSync(join(tmpdir(),'mahak-supervisor-hub-')),store=createClient(join(dir,'isolated-shop.db')),seed=makeSeeder(store)
 seed.insert('CustodyAggregateBoundary',{boundaryKind:'HANDOVER',operationalDay:'1405-01-02',idempotencyKey:'b1',at:1700000000001,theoreticalExpectedTotal:9007199254740993n,observedOperationalTotal:9007199254740973n,totalTheoreticalDifference:-20n})
 seed.insert('Shift',{name:'source shift',number:1,dayJalali:'1405/01/02',openedAt:1700000000000,note:'PRIVATE SHIFT NOTE'})
 seed.insert('AuditLog',{at:1700000000000,action:'SALE_CREATE',entity:'SaleInvoice',before:'PRIVATE AUDIT',after:'PRIVATE AUDIT',note:'PRIVATE AUDIT'})
 const state=openCloudStateStore(join(dir,'state'))
 state.save({version:1,storeId:'store_test',epoch:'12345678-1234-4123-8123-123456789abc',lastAcked:0,anchorHash:'',restoreMarker:null})
-const real=createCloudReader(store);let failBoundary=false,hold=null
+const real=createCloudReader(store);let failBoundary=false,hold=null,marker=null,epochOverride=null
+const observedState={load(){const value=state.load();return value && epochOverride ? {...value,epoch:epochOverride} : value},save:value=>state.save(value)}
 const reader={
   async latestBoundaryTotals(){ if(failBoundary)throw new Error('source unavailable');if(hold)await hold;return real.latestBoundaryTotals() },
   openShiftsPage:(...args)=>real.openShiftsPage(...args), auditPage:(...args)=>real.auditPage(...args)
 }
 const key=Buffer.alloc(32,34),origin='https://store.example'
-const options={nodeExecutable:process.execPath,childFile,directory:hubDir,origin,owner:{username:'owner',password:'owner-test-password',pin:'746392'},auditKey:key,snapshotMaxAgeMs:5000,reader,state,readRestoreMarker:async()=>null,timeoutMs:3000}
+const options={nodeExecutable:process.execPath,childFile,directory:hubDir,origin,owner:{username:'owner',password:'owner-test-password',pin:'746392'},auditKey:key,snapshotMaxAgeMs:5000,reader,state:observedState,readRestoreMarker:async()=>marker,timeoutMs:3000}
 function send(port,path,{method='GET',body,headers={}}={}){
   const data=body===undefined?null:Buffer.from(JSON.stringify(body))
   return new Promise((resolve,reject)=>{const req=request({hostname:'127.0.0.1',port,path,method,headers:{host:'store.example',...(data?{'content-type':'application/json','content-length':data.length}:{}),...headers}},res=>{
@@ -81,6 +83,26 @@ try {
     assert.equal((await send(supervisor.mobilePort,'/api/custody',{headers:{cookie}})).status,503)
     failBoundary=false;await supervisor.refreshOnce()
     assert.equal((await send(supervisor.mobilePort,'/api/custody',{headers:{cookie}})).status,200)
+  })
+  await test('known restore marker and epoch changes reject refresh and invalidate prior snapshot',async()=>{
+    marker='a'.repeat(64)
+    await assert.rejects(supervisor.refreshOnce(),/Restore detected/)
+    assert.equal((await send(supervisor.mobilePort,'/api/custody',{headers:{cookie}})).status,503)
+    marker=null;await supervisor.refreshOnce()
+    for(const change of ['marker','epoch']) {
+      let release,entered
+      const started=new Promise(resolve=>{entered=resolve})
+      hold=new Promise(resolve=>{release=resolve})
+      const original=reader.latestBoundaryTotals
+      reader.latestBoundaryTotals=async()=>{entered();return original()}
+      const pending=supervisor.refreshOnce();await started
+      if(change==='marker')marker='b'.repeat(64)
+      else epochOverride='87654321-4321-4321-8321-cba987654321'
+      release();await assert.rejects(pending,/Restore detected/)
+      hold=null;marker=null;epochOverride=null;reader.latestBoundaryTotals=original
+      assert.equal((await send(supervisor.mobilePort,'/api/custody',{headers:{cookie}})).status,503)
+      await supervisor.refreshOnce()
+    }
   })
   await test('overlapping refresh is rejected instead of accumulating unbounded work',async()=>{
     let release;hold=new Promise(resolve=>{release=resolve})
