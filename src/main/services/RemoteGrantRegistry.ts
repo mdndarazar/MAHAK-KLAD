@@ -66,14 +66,25 @@ function active(k: string): Grant | null {
   if (!g || g.revoking) return null
   const t = now()
   if ((!g.claimed && t >= g.claimBy) || (g.claimed && (t >= g.expiresAt || t - g.lastUsedAt >= IDLE_MS))) {
-    clearGrant(k, g); return null
+    // A host cleanup exception cannot make an expired grant active again. The
+    // expiry timer retains the entry and retries without crashing Electron.
+    try { clearGrant(k, g) } catch {}
+    return null
   }
   return g
 }
 function scheduleExpiry(k: string, g: Grant) {
   const check = () => {
     if (grants.get(k) !== g) return
-    if (!active(k)) return
+    if (g.revoking) {
+      try { clearGrant(k, g) } catch {}
+      if (grants.get(k) === g) setTimeout(check, 1000).unref?.()
+      return
+    }
+    if (!active(k)) {
+      if (grants.get(k) === g && g.revoking) setTimeout(check, 1000).unref?.()
+      return
+    }
     const deadline = g.claimed ? Math.min(g.expiresAt, g.lastUsedAt + IDLE_MS) : g.claimBy
     setTimeout(check, Math.max(1, Math.ceil(deadline - now()))).unref?.()
   }
