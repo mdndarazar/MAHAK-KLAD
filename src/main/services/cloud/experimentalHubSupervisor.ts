@@ -10,12 +10,14 @@
  * authenticated audit batches cross the boundary. Optional invoice reads require
  * explicit opt-in and a trusted child/IPC; marker rechecks do not coordinate a
  * real restore, and a reader timeout may not cancel the underlying query. A heap
- * limit is not an RSS cap.
+ * limit is not an RSS cap. Multiple origin identities do not create or secure
+ * any HTTPS transport or tunnel.
  */
 import { fork, type ChildProcess } from 'node:child_process'
 import { isAbsolute } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { isInvoiceDate, parseInvoicePage } from './invoiceFactsValidation'
+import { normalizeMobileOrigins } from './mobileOrigins'
 import { createAuditSync } from './auditSync'
 import { createLoopbackAuditTransport } from './loopbackAuditTransport'
 import type { CloudState } from './cloudState'
@@ -27,7 +29,7 @@ type Reader = {
   invoiceFactsPage?(fromDay:string,toDay:string,afterId:number,limit:number): Promise<unknown>
 }
 type Options = {
-  nodeExecutable: string; childFile: string; directory: string; origin: string
+  nodeExecutable: string; childFile: string; directory: string; origin?: string; origins?: readonly string[]
   owner: null | { username:string; password:string; pin:string }
   auditKey: Uint8Array; snapshotMaxAgeMs: number
   reader: Reader; state: { load():CloudState | null; save(value:CloudState):void }
@@ -41,7 +43,7 @@ const object = (v: unknown): v is Record<string, any> => !!v && typeof v === 'ob
 export async function startExperimentalHubSupervisor(options: Options) {
   if (!options || typeof options.nodeExecutable !== 'string' || !isAbsolute(options.nodeExecutable) ||
       typeof options.childFile !== 'string' || !isAbsolute(options.childFile) ||
-      typeof options.directory !== 'string' || !isAbsolute(options.directory) || typeof options.origin !== 'string' ||
+      typeof options.directory !== 'string' || !isAbsolute(options.directory) ||
       !(options.auditKey instanceof Uint8Array) || options.auditKey.byteLength !== 32 ||
       !Number.isSafeInteger(options.snapshotMaxAgeMs) || options.snapshotMaxAgeMs < 100 || options.snapshotMaxAgeMs > 60_000 ||
       !options.reader || typeof options.reader.latestBoundaryTotals !== 'function' || typeof options.reader.openShiftsPage !== 'function' ||
@@ -51,6 +53,8 @@ export async function startExperimentalHubSupervisor(options: Options) {
       (options.enableInvoiceFacts === true && typeof options.reader.invoiceFactsPage !== 'function') ||
       !options.state || typeof options.state.load !== 'function' ||
       typeof options.state.save !== 'function' || typeof options.readRestoreMarker !== 'function') throw new Error('Invalid experimental hub configuration')
+  const origins=normalizeMobileOrigins(options.origin,options.origins)
+  const originConfig=options.origin !== undefined ? {origin:origins[0]} : {origins}
   const timeout = options.timeoutMs ?? 5000
   if (!Number.isSafeInteger(timeout) || timeout < 100 || timeout > 30_000) throw new Error('Invalid hub timeout')
   const key = Buffer.from(options.auditKey), reader = options.reader, state = options.state, readRestoreMarker = options.readRestoreMarker
@@ -122,7 +126,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
   }
   const startTimer=setTimeout(() => { fail();child.kill() },timeout)
   try {
-    send({type:'start',config:{directory:options.directory,origin:options.origin,owner:options.owner,
+    send({type:'start',config:{directory:options.directory,...originConfig,owner:options.owner,
       auditKey:key.toString('hex'),snapshotMaxAgeMs:options.snapshotMaxAgeMs,...(invoiceReader ? {invoiceFacts:true} : {})}})
     const ports=await startup
     clearTimeout(startTimer)

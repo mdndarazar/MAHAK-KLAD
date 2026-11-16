@@ -4,13 +4,16 @@
  * member management and optional in-process approval, but not real desktop
  * transport, pairing, notifications, live reports or shop database connection.
  * The host must isolate identity/SQLite work from the POS thread, secure the
- * proxy and provision the owner. Do not enable production access with this.
+ * proxy and provision the owner. Multiple exact configured HTTPS origins can be
+ * accepted at once, but this does not configure or authenticate any proxy,
+ * overlay or tunnel. Do not enable production access with this.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { performance } from 'node:perf_hooks'
 import { mobileHtml, mobileCss, mobileJs, mobileManifest, mobileWorker } from './mobilePwaAssets'
 import { icon192, icon512 } from './mobilePwaIcons'
 import { isInvoiceDate, parseInvoicePage } from './invoiceFactsValidation'
+import { normalizeMobileOrigins } from './mobileOrigins'
 
 type Session = { id: string; role: string; username: string }
 type Identity = {
@@ -34,7 +37,7 @@ type ApprovalController = {
   list(token: string): { requestId: string; panel: string; code: string }[]
   approve(token: string, requestId: string, code: string, pin: string): boolean
 }
-type Options = { origin: string; identity: Identity; reader: Reader; drainRevocations?: () => { remaining: boolean }; approval?: ApprovalController }
+type Options = { origin?: string; origins?: readonly string[]; identity: Identity; reader: Reader; drainRevocations?: () => { remaining: boolean }; approval?: ApprovalController }
 const TOKEN = /^[A-Za-z0-9_-]{43}$/
 const MAX_BODY = 8192
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
@@ -96,11 +99,11 @@ function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   })
 }
 export function createMobileReadOnlyHandler(options: Options) {
-  let origin: URL
-  try { origin = new URL(options.origin) } catch { throw new Error('Invalid HTTPS origin') }
-  if (origin.protocol !== 'https:' || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash ||
-      !options.identity || !options.reader) throw new Error('Invalid HTTPS origin or dependencies')
-  const expectedOrigin = origin.origin, expectedHost = origin.host
+  if (!options || !options.identity || !options.reader) throw new Error('Invalid HTTPS origin or dependencies')
+  // A request must use a configured Host; its Origin must match that same Host,
+  // not merely any other configured route. Proxies must preserve Host exactly.
+  const allowedOrigins=normalizeMobileOrigins(options.origin,options.origins)
+  const originsByHost=new Map(allowedOrigins.map(value=>[new URL(value).host,value]))
   // Shared across sessions so many clients cannot fan out DB reads. The real
   // query must settle before releasing the slot; never queue expensive reads.
   let invoiceBusy=false, lastInvoiceRead=-Infinity
@@ -128,7 +131,8 @@ export function createMobileReadOnlyHandler(options: Options) {
       res.writeHead(status,{'content-type':'application/json; charset=utf-8'});res.end(JSON.stringify(value))
     }
     try {
-      if (header(req,'host') !== expectedHost) { send(421,{error:'آدرس معتبر نیست'}); return }
+      const host=header(req,'host'), expectedOrigin=host ? originsByHost.get(host) : undefined
+      if (!expectedOrigin) { send(421,{error:'آدرس معتبر نیست'}); return }
       const path = req.url ?? ''
       if (req.method === 'GET' && Object.hasOwn(assets,path)) {
         const asset=assets[path];res.writeHead(200,{'content-type':asset.type});res.end(asset.body);return

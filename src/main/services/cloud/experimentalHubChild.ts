@@ -20,6 +20,7 @@ import { createHubIdentity } from './hubIdentity'
 import { startMobileReadOnlyHub } from './mobileReadOnlyHub'
 import { createLocalAuditReceiver } from './localAuditReceiver'
 import { isInvoiceDate, parseInvoicePage } from './invoiceFactsValidation'
+import { normalizeMobileOrigins } from './mobileOrigins'
 
 if (typeof process.send !== 'function') throw new Error('A private parent IPC channel is required')
 const send = (message: unknown) => { if (process.connected && process.send) process.send(message) }
@@ -100,12 +101,15 @@ async function shutdown() {
 }
 async function start(config: unknown) {
   if (!okObject(config) || !(sameKeys(config, 'auditKey,directory,origin,owner,snapshotMaxAgeMs') ||
-      (sameKeys(config, 'auditKey,directory,invoiceFacts,origin,owner,snapshotMaxAgeMs') && config.invoiceFacts === true)) ||
-      typeof config.directory !== 'string' || !isAbsolute(config.directory) || typeof config.origin !== 'string' ||
+      sameKeys(config, 'auditKey,directory,origins,owner,snapshotMaxAgeMs') ||
+      ((sameKeys(config, 'auditKey,directory,invoiceFacts,origin,owner,snapshotMaxAgeMs') ||
+        sameKeys(config, 'auditKey,directory,invoiceFacts,origins,owner,snapshotMaxAgeMs')) && config.invoiceFacts === true)) ||
+      typeof config.directory !== 'string' || !isAbsolute(config.directory) ||
       typeof config.auditKey !== 'string' || !/^[a-f0-9]{64}$/.test(config.auditKey) ||
       !Number.isSafeInteger(config.snapshotMaxAgeMs) || config.snapshotMaxAgeMs < 100 || config.snapshotMaxAgeMs > 60_000 ||
       (config.owner !== null && (!okObject(config.owner) || !sameKeys(config.owner, 'password,pin,username') ||
        typeof config.owner.username !== 'string' || typeof config.owner.password !== 'string' || typeof config.owner.pin !== 'string'))) throw new Error('Invalid configuration')
+  const origins=normalizeMobileOrigins(config.origin,config.origins)
   const directory = realpathSync(config.directory)
   if (!lstatSync(directory).isDirectory()) throw new Error('Invalid hub directory')
   lockPath = join(directory, 'remote-hub.lock'); lockToken = randomBytes(32).toString('hex')
@@ -151,7 +155,7 @@ async function start(config: unknown) {
     return snapshot
   }
   snapshotMaxAge = config.snapshotMaxAgeMs
-  mobile = await startMobileReadOnlyHub({ origin:config.origin, identity, reader: {
+  mobile = await startMobileReadOnlyHub({ origins, identity, reader: {
     latestBoundaryTotals:async () => current().boundary,
     openShiftsPage:async () => current().shifts,
     ...(config.invoiceFacts === true ? { invoiceFactsPage:requestInvoices } : {})
