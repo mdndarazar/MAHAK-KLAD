@@ -9,7 +9,9 @@
  * object. Never give the child shop.db or the Prisma client; only fixed DTOs and
  * authenticated audit batches cross the boundary. Optional invoice reads require
  * explicit opt-in and a trusted child/IPC; marker rechecks do not coordinate a
- * real restore, and a reader timeout may not cancel the underlying query. A heap
+ * real restore, and a reader timeout may not cancel the underlying query. A
+ * custom reader without waitForIdle cannot prove underlying queries have ended
+ * on shutdown. No other owner may start new reads during that wait. A heap
  * limit is not an RSS cap. Multiple origin identities do not create or secure
  * any HTTPS transport or tunnel.
  */
@@ -26,6 +28,8 @@ type Reader = {
   latestBoundaryTotals(): Promise<unknown>
   openShiftsPage(afterId: number, limit?: number): Promise<unknown>
   auditPage(afterId: number, limit?: number): Promise<{id:number; at:string; action:string; entity:string}[]>
+  // Trusted readers can expose underlying operations that outlive public timeouts.
+  waitForIdle?(): Promise<void>
   invoiceFactsPage?(fromDay:string,toDay:string,afterId:number,limit:number): Promise<unknown>
 }
 type Options = {
@@ -48,6 +52,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
       !Number.isSafeInteger(options.snapshotMaxAgeMs) || options.snapshotMaxAgeMs < 100 || options.snapshotMaxAgeMs > 60_000 ||
       !options.reader || typeof options.reader.latestBoundaryTotals !== 'function' || typeof options.reader.openShiftsPage !== 'function' ||
       typeof options.reader.auditPage !== 'function' ||
+      (options.reader.waitForIdle !== undefined && typeof options.reader.waitForIdle !== 'function') ||
       (options.reader.invoiceFactsPage !== undefined && typeof options.reader.invoiceFactsPage !== 'function') ||
       (options.enableInvoiceFacts !== undefined && typeof options.enableInvoiceFacts !== 'boolean') ||
       (options.enableInvoiceFacts === true && typeof options.reader.invoiceFactsPage !== 'function') ||
@@ -202,11 +207,15 @@ export async function startExperimentalHubSupervisor(options: Options) {
           // sync writes. Do not claim a clean stop while they can still mutate
           // sync state. A timeout is failure, not cancellation of those tasks.
           const tasks=[...activeTasks]
-          if (!tasks.length) return
+          // The concrete cloud reader can retain a SQL operation after its
+          // caller timed out. Custom readers without this contract remain the
+          // host's responsibility; no cancellation or restore lock is implied.
+          if (!tasks.length && !reader.waitForIdle) return
+          const drained=Promise.allSettled(tasks).then(async () => { if (reader.waitForIdle) await reader.waitForIdle() })
           let timer:ReturnType<typeof setTimeout> | undefined
           try {
             await Promise.race([
-              Promise.allSettled(tasks),
+              drained,
               new Promise<never>((_,reject) => { timer=setTimeout(() => reject(new Error('Hub parent work did not settle')),timeout) })
             ])
           } finally { if (timer) clearTimeout(timer) }

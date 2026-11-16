@@ -118,13 +118,16 @@ export function createCloudReader(client: ReadClient, timeoutMs = 2000) {
     throw new Error('Invalid cloud reader configuration')
   }
   let inFlight = false
+  let pendingQuery: Promise<unknown> | null = null
   async function read(sql: string, values: (number | string)[]): Promise<Record<string, unknown>[]> {
     if (inFlight) throw new Error('Cloud reader busy')
     inFlight = true
     // The timeout is not a database cancellation. Keep the single-flight lock
     // until the real query settles, even if the caller has already timed out.
     const query = Promise.resolve().then(() => client.$queryRawUnsafe(sql, ...values))
-    void query.then(() => { inFlight = false }, () => { inFlight = false })
+    pendingQuery = query
+    const clear = () => { if (pendingQuery === query) { pendingQuery = null; inFlight = false } }
+    void query.then(clear, clear)
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
       const result = await Promise.race([
@@ -137,6 +140,12 @@ export function createCloudReader(client: ReadClient, timeoutMs = 2000) {
     }
   }
   return {
+    /** Wait for the actual query, including one whose public call timed out.
+     * The caller must prevent new reads while waiting; this does not cancel SQL. */
+    async waitForIdle(): Promise<void> {
+      const query = pendingQuery
+      if (query) await query.then(() => {}, () => {})
+    },
     async auditPage(afterId: number, limit = 200): Promise<AuditEvent[]> {
       if (!Number.isSafeInteger(afterId) || afterId < 0 ||
           !Number.isSafeInteger(limit) || limit < 1 || limit > 200) throw new Error('Invalid audit cursor or page size')

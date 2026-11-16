@@ -140,6 +140,20 @@ try {
     assert.match((await reading).message,/unavailable/)
     await stopping;assert.equal(stopped,true)
   })
+  await test('stop waits for an underlying query that outlived its reader timeout',async()=>{
+    const directory=mkdtempSync(join(tmpdir(),'mahak-supervisor-timeout-query-'))
+    let release,started
+    const ready=new Promise(resolve=>{started=resolve})
+    const actual=createCloudReader({$queryRawUnsafe:()=>new Promise(resolve=>{release=resolve;started()})},20)
+    const slowReader={...reader,latestBoundaryTotals:()=>actual.latestBoundaryTotals(),waitForIdle:()=>actual.waitForIdle()}
+    const instance=await startExperimentalHubSupervisor({...options,directory,reader:slowReader})
+    try {
+      const reading=instance.refreshOnce();await ready;await assert.rejects(reading,/timeout/)
+      let stopped=false;const stopping=instance.stop().then(()=>{stopped=true})
+      await new Promise(resolve=>setTimeout(resolve,100));assert.equal(stopped,false)
+      release([]);await stopping;assert.equal(stopped,true)
+    } finally {if(release)release([])}
+  })
   await test('stop waits for an in-flight audit sync in the parent',async()=>{
     const directory=mkdtempSync(join(tmpdir(),'mahak-supervisor-stop-audit-'))
     let release,started
