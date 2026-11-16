@@ -82,6 +82,17 @@ export function isGrantActiveForWindow(panel: string, ownerWindowId: number): bo
   const g = active(keyOf(ownerWindowId, panel))
   return !!g && g.claimed && g.mode === 'PANEL'
 }
+
+/** Window and request bound status; this does not claim or extend a grant. */
+export function getRequestStatus(ownerWindowId: number, panel: string, requestId: string): 'PENDING' | 'APPROVED' | 'CLAIMED' | 'UNAVAILABLE' {
+  if (!validOwner(ownerWindowId) || typeof panel !== 'string' || !VALID_PANEL.test(panel) ||
+      typeof requestId !== 'string' || !VALID_ID.test(requestId)) return 'UNAVAILABLE'
+  const pending = getPending(ownerWindowId, panel)
+  if (pending) return pending.requestId === requestId ? 'PENDING' : 'UNAVAILABLE'
+  const grant = active(keyOf(ownerWindowId, panel))
+  if (!grant || grant.requestId !== requestId) return 'UNAVAILABLE'
+  return grant.claimed ? 'CLAIMED' : 'APPROVED'
+}
 /** An ownerless authorization is never valid; kept only for old callers. */
 export function remoteGrantActive(_panel: string): boolean { return false }
 export function isActiveForCurrentWindow(_panel: string): boolean { return false }
