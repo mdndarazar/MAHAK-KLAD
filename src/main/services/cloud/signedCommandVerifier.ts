@@ -26,12 +26,14 @@ export type CommandVerification =
   | { ok: true; command: SignedGrantCommand }
   | { ok: false; reason: 'INVALID' | 'EXPIRED' | 'REPLAY' | 'CAPACITY' }
 
+export type GrantReplayStore = { consume(requestId: string, nonce: string, expiresAt: number, now: number): 'OK' | 'REPLAY' | 'CAPACITY' | 'INVALID' }
 type VerifierOptions = {
   key: Uint8Array
   storeId: string
   allowedPanels: Iterable<string>
   now?: () => number
   maxEntries?: number
+  replayStore?: GrantReplayStore
 }
 
 const MAX_TTL_MS = 60_000
@@ -97,6 +99,8 @@ export function createSignedGrantVerifier(options: VerifierOptions) {
   const storeId = options.storeId
   const key = Buffer.from(options.key)
   const clock = options.now ?? Date.now
+  if (options.replayStore && typeof options.replayStore.consume !== 'function') throw new Error('Invalid replay store')
+  const consumeReplay = options.replayStore?.consume.bind(options.replayStore)
   const requestIds = new Map<string, number>()
   const nonces = new Map<string, number>()
   let lastNow = 0
@@ -120,6 +124,14 @@ export function createSignedGrantVerifier(options: VerifierOptions) {
     const received = Buffer.from(command.signature, 'hex')
     if (received.length !== expected.length || !timingSafeEqual(received, expected)) {
       return { ok: false, reason: 'INVALID' }
+    }
+    if (consumeReplay) {
+      try {
+        const outcome = consumeReplay(command.requestId, command.nonce, command.expiresAt, now)
+        if (outcome === 'REPLAY' || outcome === 'CAPACITY') return { ok: false, reason: outcome }
+        if (outcome !== 'OK') return { ok: false, reason: 'INVALID' }
+      } catch { return { ok: false, reason: 'INVALID' } }
+      return { ok: true, command: { ...command } }
     }
     for (const [id, expiry] of requestIds) if (expiry <= now) requestIds.delete(id)
     for (const [nonce, expiry] of nonces) if (expiry <= now) nonces.delete(nonce)
