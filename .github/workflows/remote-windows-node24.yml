@@ -26,6 +26,20 @@ jobs:
         run: npm ci
       - name: Test disabled cloud service has no side effects
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-cloud-disabled.mjs
+      - name: Test user setting and experimental panic latch
+        shell: pwsh
+        run: |
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-user-setting.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-identity.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test experimental two-process loopback revocation
+        shell: pwsh
+        run: |
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-network-revocation.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-network-ack.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Test isolated hub on temporary SQLite
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-windows-node24.mjs
       - name: Test supervisor snapshot restore detection on isolated SQLite
