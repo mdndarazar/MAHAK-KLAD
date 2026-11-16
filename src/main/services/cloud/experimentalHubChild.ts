@@ -13,7 +13,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { createServer, type Server } from 'node:http'
 import { closeSync, lstatSync, openSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
-import { randomBytes } from 'node:crypto'
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { performance } from 'node:perf_hooks'
 import { createHubIdentity } from './hubIdentity'
 import { startMobileReadOnlyHub } from './mobileReadOnlyHub'
@@ -100,16 +100,24 @@ async function start(config: unknown) {
   }
   const stat = lstatSync(databasePath)
   if (!stat.isFile() || stat.nlink !== 1) throw new Error('Invalid hub database file')
+  const keyCheck=createHmac('sha256',Buffer.from(config.auditKey,'hex')).update('mahak-hub-audit-key-check-v1','utf8').digest()
   if (!newFile) {
-    // Refuse any existing application database before enabling SQLite writes.
+    // Refuse an application DB or a hub with a different/lost key before any write.
+    // A legacy hub without this binding requires explicit migration, not adoption.
     const inspect = new DatabaseSync(databasePath, { readOnly: true })
     try {
       const rows = inspect.prepare("SELECT name FROM sqlite_master WHERE type IN ('table','index','view','trigger') AND name NOT LIKE 'sqlite_%'").all()
       if (rows.some(row => typeof row.name !== 'string' || !row.name.startsWith('remote_'))) throw new Error('Not a dedicated hub database')
+      const saved=inspect.prepare('SELECT key_check FROM remote_transport_meta WHERE id=1').get()?.key_check
+      if (typeof saved !== 'string' || !/^[a-f0-9]{64}$/.test(saved) || !timingSafeEqual(keyCheck,Buffer.from(saved,'hex'))) throw new Error('Hub key mismatch')
     } finally { inspect.close() }
   }
   db = new DatabaseSync(databasePath)
   db.exec('PRAGMA trusted_schema=OFF; PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA busy_timeout=200;')
+  if (newFile) {
+    db.exec('CREATE TABLE remote_transport_meta (id INTEGER PRIMARY KEY CHECK(id=1), key_check TEXT NOT NULL)')
+    db.prepare('INSERT INTO remote_transport_meta (id,key_check) VALUES (1,?)').run(keyCheck.toString('hex'))
+  }
   const identity = createHubIdentity(db, { panels:['custody','shifts'], approvalPanels:[] })
   const count = db.prepare('SELECT COUNT(*) AS n FROM remote_members').get()?.n
   if (count === 0) {
