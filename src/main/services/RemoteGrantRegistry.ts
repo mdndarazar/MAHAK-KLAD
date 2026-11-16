@@ -160,7 +160,12 @@ export function cancelForWindow(ownerWindowId: number, panel?: string): boolean 
 }
 export function requestCode(panel: string, ownerWindowId: number): { code: string; gt: string; requestId: string } {
   if (!validOwner(ownerWindowId) || typeof panel !== 'string' || !VALID_PANEL.test(panel)) throw new Error('Invalid remote request')
-  const k = keyOf(ownerWindowId, panel), code = String(randomInt(100_000, 1_000_000))
+  const k = keyOf(ownerWindowId, panel)
+  if (!pendingRequests.has(k) && pendingRequests.size >= 1000) {
+    for (const p of pendingRequests.values()) getPending(p.ownerWindowId,p.panel)
+    if (pendingRequests.size >= 1000) throw new Error('Remote request capacity reached')
+  }
+  const code = String(randomInt(100_000, 1_000_000))
   const token = randomBytes(32).toString('base64url'), requestId = randomBytes(16).toString('hex')
   const pending: Pending = { requestId, code, tokenHash: tokenHash(token), panel, ownerWindowId, createdAt: now() }
   pendingRequests.set(k, pending)
@@ -173,4 +178,13 @@ export function getPending(ownerWindowId: number, panel: string) {
   if (!p) return null
   if (now() - p.createdAt >= PENDING_MS) { pendingRequests.delete(k); return null }
   return { requestId: p.requestId, code: p.code, panel: p.panel, ownerWindowId: p.ownerWindowId }
+}
+/** Trusted host only: filter by member ACL before returning entries to a client. */
+export function listPendingRequests() {
+  const result: { requestId: string; code: string; panel: string; ownerWindowId: number }[] = []
+  for (const p of pendingRequests.values()) {
+    const current = getPending(p.ownerWindowId,p.panel)
+    if (current) result.push(current)
+  }
+  return result
 }

@@ -1,10 +1,10 @@
 /**
  * Experimental read-only PWA server, NOT started by Electron. Bind loopback only
  * behind a correctly configured HTTPS reverse proxy. This includes basic hub
- * member management, but not desktop approval, pairing, notifications, live
- * reports or shop database connection. The host must isolate identity/SQLite work
- * from the POS thread, secure the proxy and provision the owner. Do not enable
- * production remote access with this experimental server.
+ * member management and optional in-process approval, but not real desktop
+ * transport, pairing, notifications, live reports or shop database connection.
+ * The host must isolate identity/SQLite work from the POS thread, secure the
+ * proxy and provision the owner. Do not enable production access with this.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { mobileHtml, mobileCss, mobileJs, mobileManifest, mobileWorker } from './mobilePwaAssets'
@@ -26,7 +26,11 @@ type Reader = {
   latestBoundaryTotals(): Promise<unknown>
   openShiftsPage(afterId: number, limit: number): Promise<unknown>
 }
-type Options = { origin: string; identity: Identity; reader: Reader; drainRevocations?: () => { remaining: boolean } }
+type ApprovalController = {
+  list(token: string): { requestId: string; panel: string; code: string }[]
+  approve(token: string, requestId: string, code: string, pin: string): boolean
+}
+type Options = { origin: string; identity: Identity; reader: Reader; drainRevocations?: () => { remaining: boolean }; approval?: ApprovalController }
 const TOKEN = /^[A-Za-z0-9_-]{43}$/
 const MAX_BODY = 8192
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
@@ -142,6 +146,18 @@ export function createMobileReadOnlyHandler(options: Options) {
           res.setHeader('set-cookie','mahak_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0')
           send(200,{ok:true});return
         }
+        if (path === '/api/approve' && options.approval) {
+          if (!loginAllowed(req.socket.remoteAddress ?? 'unknown')) { send(429,{error:'تعداد تلاش‌ها زیاد است؛ بعداً دوباره تلاش کنید'});return }
+          if (!/^application\/json(?:\s*;|\s*$)/i.test(header(req,'content-type') ?? '')) { send(400,{error:'درخواست معتبر نیست'});return }
+          let data: Record<string,unknown>
+          try { data=await readBody(req) } catch { send(400,{error:'درخواست معتبر نیست'});return }
+          const token=cookie(req), principal=token ? options.identity.whoAmI(token) : null
+          if (!token || !principal) { send(401,{error:'لطفاً وارد شوید'});return }
+          if (Object.keys(data).sort().join(',') !== 'code,pin,requestId' || typeof data.requestId !== 'string' ||
+              typeof data.code !== 'string' || typeof data.pin !== 'string') { send(400,{error:'درخواست معتبر نیست'});return }
+          if (!options.approval.approve(token,data.requestId,data.code,data.pin)) { send(403,{error:'تأیید انجام نشد؛ کد، PIN و دسترسی را بررسی کنید'});return }
+          send(200,{ok:true});return
+        }
         if (path === '/api/invite/accept' || path === '/api/invite/create' || path === '/api/member/approve' || path === '/api/member/remove') {
           if (!loginAllowed(req.socket.remoteAddress ?? 'unknown')) { send(429,{error:'تعداد تلاش‌ها زیاد است؛ بعداً دوباره تلاش کنید'});return }
           if (!/^application\/json(?:\s*;|\s*$)/i.test(header(req,'content-type') ?? '')) { send(400,{error:'درخواست معتبر نیست'});return }
@@ -185,7 +201,7 @@ export function createMobileReadOnlyHandler(options: Options) {
           send(200,{ok:true});return
         }
       }
-      if (req.method === 'GET' && (path === '/api/session' || path === '/api/members' || path === '/api/custody' || path === '/api/shifts')) {
+      if (req.method === 'GET' && (path === '/api/session' || path === '/api/members' || path === '/api/custody' || path === '/api/shifts' || (path === '/api/requests' && options.approval))) {
         const token=cookie(req), user=token ? options.identity.whoAmI(token) : null
         if (!token || !user) { send(401,{error:'لطفاً وارد شوید'});return }
         if (path === '/api/session') {
@@ -197,6 +213,17 @@ export function createMobileReadOnlyHandler(options: Options) {
           const members=options.identity.listMembers(token)
           if (!members) { send(403,{error:'فقط مالک مجاز است'});return }
           send(200,{members});return
+        }
+        if (path === '/api/requests' && options.approval) {
+          const list=options.approval.list(token)
+          if (!Array.isArray(list) || list.length > 200) throw new Error('Invalid request list')
+          const requests=list.map(r=>{
+            if (!r || typeof r.requestId !== 'string' || !/^[a-f0-9]{32}$/.test(r.requestId) ||
+                typeof r.panel !== 'string' || !/^[A-Za-z0-9_.:-]{1,128}$/.test(r.panel) ||
+                typeof r.code !== 'string' || !/^[0-9]{6}$/.test(r.code)) throw new Error('Invalid request')
+            return {requestId:r.requestId,panel:r.panel,code:r.code}
+          })
+          send(200,{requests});return
         }
         const panel=path === '/api/custody' ? 'custody' : 'shifts'
         if (!options.identity.authorize(token,panel,'VIEW')) { send(403,{error:'اجازه مشاهده این بخش را ندارید'});return }

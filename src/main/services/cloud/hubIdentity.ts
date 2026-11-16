@@ -221,6 +221,19 @@ export function createHubIdentity(db: Database, options: Options) {
         q("UPDATE remote_members SET status='REMOVED' WHERE id=?").run(m.id); sessionsDelete.run(m.id)
         enqueueRevoke(t,'MEMBER',m.id); audit(t,s.id,'MEMBER_REMOVED',m.id); return { ok:true, memberId:m.id } })
     },
+    /** Inspect whether an authenticated member may see approval requests; actual
+     * approval still requires the second PIN and all other checks. */
+    canApprove(token: string, panel: string): Session | null {
+      if (typeof panel !== 'string' || !approvalPanels.has(panel)) return null
+      return transact(t => {
+        const s = session(token,t)
+        if (!s || (s.role !== 'OWNER' && s.role !== 'MANAGER') || metaGet.get().paused !== 0 ||
+            q('SELECT 1 AS pending FROM remote_identity_revocations WHERE acknowledged_at IS NULL LIMIT 1').get()) return null
+        if (s.role === 'OWNER') return s
+        const acl=q('SELECT can_approve FROM remote_member_acl WHERE member_id=? AND panel=?').get(s.id,panel)
+        return acl?.can_approve === 1 ? s : null
+      })
+    },
     authorize(token: string, panel: string, permission: 'VIEW' | 'APPROVE', pinValue?: string): Session | null {
       if (typeof panel !== 'string' || !panels.has(panel) || (permission !== 'VIEW' && permission !== 'APPROVE') ||
           (permission === 'APPROVE' && !approvalPanels.has(panel))) return null
