@@ -256,6 +256,14 @@ export function createHubIdentity(db: Database, options: Options) {
         if (permission === 'APPROVE') audit(t,s.id,'APPROVAL_AUTHORIZED',panel)
         return s })
     },
+    /** P1 only closes outstanding remote grants and requests; unlike P2 it does
+     * not pause future approvals or end identity sessions. Delivery must be
+     * acknowledged before any new approval is admitted. */
+    panicClose(token: string, pinValue: string): boolean {
+      return transact(t => { const s=owner(token,pinValue,t); if (!s) return false
+        enqueueRevoke(t,'ALL',null)
+        audit(t,s.id,'PANIC_CLOSE'); return true })
+    },
     /** Experimental P2: remains latched across restarts. No remote unlock is
      * provided. Local recovery must only be added with authenticated desktop
      * integration; this is not an end-to-end Panic implementation. */
