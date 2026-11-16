@@ -35,7 +35,7 @@ const validOwner = (owner: number | null): owner is number => Number.isSafeInteg
 const tokenHash = (token: string) => createHash('sha256').update(token, 'utf8').digest()
 
 let injected: {
-  notePanelUnlocked: (panel: string, scope: 'PANEL', owner: number) => void | (() => void)
+  notePanelUnlocked: (panel: string, scope: 'PANEL', owner: number, allowed: (touch: boolean) => boolean) => void | (() => void)
   clearPanelScope: (panel: string, owner: number) => void
   clearPanelSessions: (owner: number) => void
 } | null = null
@@ -163,7 +163,12 @@ export function consumeOneShot(ownerWindowId: number | null, panel: string, toke
       // A host may supply an ownership-bound cleanup; legacy adapters still
       // use clearPanelScope and must not be wired into the live desktop.
       try {
-        const cleanup=injected?.notePanelUnlocked(panel, 'PANEL', ownerWindowId)
+        const allowed = (touch: boolean) => {
+          if (active(k) !== g || !g.claimed || g.mode !== 'PANEL') return false
+          if (touch) g.lastUsedAt = now()
+          return true
+        }
+        const cleanup=injected?.notePanelUnlocked(panel, 'PANEL', ownerWindowId, allowed)
         if (typeof cleanup === 'function') g.cleanup=cleanup
       } catch { clearGrant(k, g); return false }
     }

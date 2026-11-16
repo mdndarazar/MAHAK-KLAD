@@ -84,6 +84,8 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-local-recovery-loopback.mjs
       - name: Test remote-panic-preserve-local-loopback
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-preserve-local-loopback.mjs
+      - name: Test remote-panel-expiry-gate-loopback
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panel-expiry-gate-loopback.mjs
       - name: Test remote-snapshot-rejection-loopback
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-snapshot-rejection-loopback.mjs
       - name: Test supervisor snapshot restore detection on isolated SQLite
