@@ -35,7 +35,7 @@ if(process.platform!=='win32') {
  ].join('\r\n'))
  const baseEnv={...process.env,PATH:fake+';'+process.env.PATH,MAHAK_TEST_LOG:log}
  delete baseEnv.DATABASE_URL;delete baseEnv.MAHAK_TEST_FAIL
- const calls=()=>existsSync(log)?readFileSync(log,'utf8').trim().split(/\r?\n/):[]
+ const calls=()=>{const value=existsSync(log)?readFileSync(log,'utf8').trim():'';return value ? value.split(/\r?\n/) : []}
  const resetLog=()=>writeFileSync(log,'')
  // Execute by relative name from a path containing spaces and '&'; cmd.exe's
  // /c quote stripping would otherwise split an absolute quoted command itself.
