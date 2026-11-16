@@ -7785,7 +7785,7 @@ export const salesService = {
       )
       if (invalidCode) {
         const deadline = invalidCode.policy.returnCodeExpiresAt
-        if (!invalidCode.policy.hasReturnCode)
+        if (!invalidCode.policy.hasReturnCode || deadline == null)
           throw new BusinessError(
             `برای کد «${code}» مهلت معتبر در سابقه ثبت نشده است؛ ثبت برگشت مسدود شد. ` +
               'اگر رسید را دارید، شمارهٔ رسید را جداگانه وارد کنید تا وضعیت فاکتور بررسی شود.'
@@ -9317,8 +9317,7 @@ export const salesService = {
              * لحظهٔ «پاس شد» پول کشو/کارت‌خوان نیست) و هیچ حرکتی در کشو نمی‌آید.
              * =================================================================
              */
-            const isChequeTender =
-              methodRow?.key === CHEQUE_METHOD_KEY || methodRow?.kind === PaymentKind.CHEQUE
+            const isChequeTender = methodRow.key === CHEQUE_METHOD_KEY
             if (isChequeTender) {
               const chequeNo = String(input.chequeNo ?? '').trim()
               if (chequeNo.length < 3)

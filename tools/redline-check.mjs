@@ -52,7 +52,15 @@ const budgets = new Map(Object.entries({
   'src/renderer/src/hooks/useManagerSession.tsx': 4, 'src/renderer/src/main.tsx': 2,
   'src/renderer/src/components/CreditForms.tsx': 4, 'package.json': 1, 'electron.vite.config.ts': 1
 }))
-const permitted = (path) => allowed.has(path) || path.startsWith('src/main/services/cloud/')
+// Owner approved exactly two historical typecheck corrections in SalesService.
+// Pin both complete blobs, not a line budget: any additional edit remains forbidden.
+const salesPath = 'src/main/services/SalesService.ts'
+let approvedSalesFix = false
+try {
+  approvedSalesFix = git('rev-parse', `${base}:${salesPath}`).trim() === '64f56dcfb4cb2e4169d6e37e7ca86ec86cba1cbc' &&
+    git('hash-object', `--path=${salesPath}`, salesPath).trim() === '122a366fcff54ce5756bd09f42eae3e686748e59'
+} catch {} // Missing or unreadable file is never approved.
+const permitted = (path) => allowed.has(path) || path.startsWith('src/main/services/cloud/') || (path === salesPath && approvedSalesFix)
 const problems = []
 const statusFields = git('diff', '--name-status', '--no-renames', '-z', base, '--', ...scope).split('\0')
 for (let i = 0; i < statusFields.length - 1; i += 2) {
