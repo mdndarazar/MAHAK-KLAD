@@ -80,6 +80,8 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-p1-failure-loopback.mjs
       - name: Test remote-panic-pwa-loopback
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-pwa-loopback.mjs
+      - name: Test remote-panic-local-recovery-loopback
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-local-recovery-loopback.mjs
       - name: Test supervisor snapshot restore detection on isolated SQLite
         shell: pwsh
         run: |

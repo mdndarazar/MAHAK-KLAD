@@ -275,6 +275,24 @@ export function createHubIdentity(db: Database, options: Options) {
         enqueueRevoke(t,'ALL',null)
         audit(t,s.id,'PANIC'); return true })
     },
+    /** Trusted local parent only, after local manager-password verification.
+     * Never expose this method on a mobile endpoint. Pending revocations must
+     * have a durable ACK before the latch can be released. */
+    recoverPanicLocally(pinValue: string, epoch: string, lastAck: number): boolean {
+      if (typeof epoch !== 'string' || !Number.isSafeInteger(lastAck) || lastAck < 1) return false
+      return transact(t => {
+        const delivery=q('SELECT epoch,last_ack FROM remote_revocation_delivery WHERE id=1').get()
+        if (!delivery || delivery.epoch !== epoch || delivery.last_ack !== lastAck ||
+            q('SELECT latched FROM remote_identity_panic WHERE id=1').get()?.latched !== 1 ||
+            metaGet.get().paused !== 1 ||
+            q('SELECT 1 FROM remote_identity_revocations WHERE acknowledged_at IS NULL LIMIT 1').get()) return false
+        const rows=q("SELECT id,role,username FROM remote_members WHERE role='OWNER' AND status='ACTIVE'").all()
+        if (rows.length!==1 || !pin(rows[0] as Session,pinValue,t)) return false
+        q('UPDATE remote_identity_panic SET latched=0 WHERE id=1').run()
+        q('UPDATE remote_identity_meta SET paused=0 WHERE id=1').run()
+        audit(t,rows[0].id,'PANIC_LOCAL_RECOVERY'); return true
+      })
+    },
     setPaused(token: string, pinValue: string, paused: boolean): boolean {
       if (typeof paused !== 'boolean') return false
       return transact(t => { const s = owner(token,pinValue,t); if (!s) return false

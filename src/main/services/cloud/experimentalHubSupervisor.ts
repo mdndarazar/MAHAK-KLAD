@@ -53,6 +53,9 @@ type Options = {
     // repeat after a failure or lost ACK; never use a volatile-only notification
     // as evidence that a user has seen a message.
     onRevocation?:(entry:{id:number;kind:'ALL'|'MEMBER';memberId:string|null})=>undefined }
+  // Trusted desktop callback must enforce the existing local manager-password
+  // gate and lockout. Do not expose recovery to the mobile network.
+  verifyLocalRecoveryPassword?: (password:string)=>Promise<void>
   timeoutMs?: number
 }
 const object = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -71,6 +74,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
       (options.reader.invoiceFactsPage !== undefined && typeof options.reader.invoiceFactsPage !== 'function') ||
       (options.enableInvoiceFacts !== undefined && typeof options.enableInvoiceFacts !== 'boolean') ||
       (options.enableInvoiceFacts === true && typeof options.reader.invoiceFactsPage !== 'function') ||
+      (options.verifyLocalRecoveryPassword !== undefined && (typeof options.verifyLocalRecoveryPassword !== 'function' || !options.revocation)) ||
       (options.revocation !== undefined && (!options.revocation || !(options.revocation.key instanceof Uint8Array) ||
         options.revocation.key.byteLength!==32 || Buffer.from(options.revocation.key).equals(Buffer.from(options.auditKey)) ||
         (options.revocation.onRevocation !== undefined && typeof options.revocation.onRevocation !== 'function') ||
@@ -89,12 +93,14 @@ export async function startExperimentalHubSupervisor(options: Options) {
     return barrier.run(async()=>{ try { return await operation() } finally { await reader.waitForIdle!() } })
   }
   let revocationReceiver: Awaited<ReturnType<typeof startExperimentalRevocationReceiver>> | undefined
+  let recoveryLedger: Omit<Parameters<typeof startExperimentalRevocationReceiver>[0]['ledger'],'apply'> | undefined
   let revocationConfig: {key:string;storeId:string;epoch:string;port:number} | undefined
   let closeReceiver: Promise<void> | undefined
   if (options.revocation) {
     const initial=state.load()
     if (!initial) throw new Error('Revocation state unavailable')
     const storeId=initial.storeId, epoch=initial.epoch, ledger=options.revocation.ledger ?? state.openRevocationLedger!()
+    recoveryLedger=ledger
     revokeAll()
     function guardedLedger<T>(operation:()=>T):T {
       try { return operation() } catch (error) { try {revokeAll()} catch {} ; throw error }
@@ -137,7 +143,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
     stdio:['ignore','ignore','ignore','ipc'], serialization:'json', env }) }
   catch (error) { await releaseReceiver();throw error }
   let dead = false, closed = false, busy = false, nextId = 0
-  let invoiceBusy=false, invoiceLastRead=-Infinity, invoiceLastId=0
+  let invoiceBusy=false, invoiceLastRead=-Infinity, invoiceLastId=0, recoveryBusy=false
   const invoiceReader=options.enableInvoiceFacts === true ? reader.invoiceFactsPage!.bind(reader) : undefined
   let stopPromise: Promise<void> | null = null
   const activeTasks = new Set<Promise<unknown>>()
@@ -192,7 +198,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
         } catch { failRead() }
       }).catch(() => { failRead() }).finally(() => { invoiceBusy=false }))
     }
-    else if (message.type === 'snapshot' && Number.isSafeInteger(message.id)) {
+    else if ((message.type === 'snapshot' || message.type === 'panicRecovered') && Number.isSafeInteger(message.id)) {
       const item=waiting.get(message.id)
       if (!item) return
       waiting.delete(message.id);clearTimeout(item.timer)
@@ -254,6 +260,29 @@ export async function startExperimentalHubSupervisor(options: Options) {
       syncOnce() {
         if (closed || dead) return Promise.reject(new Error('Hub child unavailable'))
         return track(guarded(() => sync.runOnce()))
+      },
+      // Local trusted caller only. This is not registered as a mobile endpoint
+      // or Electron IPC; integration must enforce a trusted local window.
+      recoverPanic(password:string, ownerPin:string):Promise<boolean> {
+        if (closed || dead || recoveryBusy || !options.verifyLocalRecoveryPassword || !revocationConfig ||
+            typeof password!=='string' || !password || Buffer.byteLength(password,'utf8')>128 ||
+            typeof ownerPin!=='string' || !/^[0-9]{6}$/.test(ownerPin)) return Promise.resolve(false)
+        recoveryBusy=true
+        return track(guarded(async()=>{
+          try {
+            const before=state.load()
+            if (!before || before.storeId!==revocationConfig!.storeId || before.epoch!==revocationConfig!.epoch ||
+                await readRestoreMarker()!==before.restoreMarker) return false
+            if (await options.verifyLocalRecoveryPassword!(password) !== undefined) return false
+            const current=state.load()
+            if (closed || dead || !current || current.storeId!==before.storeId || current.epoch!==before.epoch ||
+                current.restoreMarker!==before.restoreMarker || await readRestoreMarker()!==before.restoreMarker ||
+                (barrier && barrier.status().state!=='OPEN')) return false
+            const cursor=recoveryLedger?.load()
+            if (!cursor || !Number.isSafeInteger(cursor.id) || cursor.id<1) return false
+            return await update({type:'recoverPanic',pin:ownerPin,lastAck:cursor.id})
+          } catch { return false }
+        }).finally(()=>{recoveryBusy=false}))
       },
       restoreExclusive(operation:()=>Promise<void>):Promise<void> {
         if (closed || dead || !barrier || typeof operation !== 'function') return Promise.reject(new Error('Restore coordination unavailable'))

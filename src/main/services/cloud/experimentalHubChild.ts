@@ -58,6 +58,8 @@ function parseSnapshot(value: unknown): Snapshot {
 let initialized = false, shuttingDown = false
 let lockFd: number | undefined, lockPath = '', lockToken = ''
 let db: DatabaseSync | undefined, auditServer: Server | undefined
+let recoveryIdentity: ReturnType<typeof createHubIdentity> | undefined
+let recoveryEpoch = ''
 let mobile: Awaited<ReturnType<typeof startMobileReadOnlyHub>> | undefined
 let revocationTimer: ReturnType<typeof setInterval> | undefined
 let revocationActive: Promise<{applied:number;remaining:boolean}> | undefined
@@ -156,6 +158,7 @@ async function start(input: unknown) {
     db.prepare('INSERT INTO remote_transport_meta (id,key_check) VALUES (1,?)').run(keyCheck.toString('hex'))
   }
   const identity = createHubIdentity(db, { panels:config.invoiceFacts === true ? ['custody','shifts','invoices'] : ['custody','shifts'], approvalPanels:[] })
+  recoveryIdentity=identity;recoveryEpoch=revocation === undefined ? '' : revocation.epoch
   const count = db.prepare('SELECT COUNT(*) AS n FROM remote_members').get()?.n
   if (count === 0) {
     if (!config.owner || !identity.bootstrap(config.owner.username,config.owner.password,config.owner.pin)) throw new Error('Owner setup required')
@@ -209,6 +212,12 @@ process.on('message', message => {
       try { const ports = await start(message.config); send({ type:'ready', ...ports, pid:process.pid }) }
       catch { await shutdown(); send({ type:'error', operation:'start' }); process.disconnect?.() }
       return
+    }
+    if (message.type === 'recoverPanic' && initialized && !shuttingDown && mobile && recoveryEpoch && recoveryIdentity) {
+      if (!sameKeys(message,'id,lastAck,pin,type') || !safeInt(message.id,1) || !safeInt(message.lastAck,1) || typeof message.pin !== 'string' || !/^[0-9]{6}$/.test(message.pin)) return
+      let ok=false
+      try { ok=recoveryIdentity.recoverPanicLocally(message.pin,recoveryEpoch,message.lastAck) } catch {}
+      send({type:'panicRecovered',id:message.id,ok});return
     }
     if ((message.type === 'snapshot' || message.type === 'invalidateSnapshot') && initialized && !shuttingDown && mobile) {
       const id = message.id
