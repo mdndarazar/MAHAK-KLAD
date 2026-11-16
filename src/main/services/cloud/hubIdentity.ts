@@ -56,7 +56,8 @@ export function createHubIdentity(db: Database, options: Options) {
     CREATE TABLE IF NOT EXISTS remote_identity_revocations (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL,
       kind TEXT NOT NULL, member_id TEXT, acknowledged_at INTEGER);
     CREATE TABLE IF NOT EXISTS remote_identity_panic (id INTEGER PRIMARY KEY CHECK(id=1), latched INTEGER NOT NULL CHECK(latched IN (0,1)));
-    INSERT OR IGNORE INTO remote_identity_panic(id,latched) VALUES(1,0);`)
+    INSERT OR IGNORE INTO remote_identity_panic(id,latched) VALUES(1,0);
+    CREATE TABLE IF NOT EXISTS remote_revocation_delivery (id INTEGER PRIMARY KEY CHECK(id=1), epoch TEXT NOT NULL, last_ack INTEGER NOT NULL);`)
   const q = (sql: string) => db.prepare(sql)
   const metaGet = q('SELECT last_clock, paused FROM remote_identity_meta WHERE id=1')
   const metaSet = q('UPDATE remote_identity_meta SET last_clock=? WHERE id=1')
@@ -284,9 +285,35 @@ export function createHubIdentity(db: Database, options: Options) {
         return { id: row.id, kind: row.kind, memberId: row.member_id }
       })
     },
+    /** Sender cursor and outbox acknowledgement must commit together after a
+     * verified transport ACK. Once configured, the legacy bridge cannot ACK. */
+    networkRevocationCursor(epoch: string): number {
+      if (typeof epoch !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(epoch)) throw new Error('Invalid revocation epoch')
+      return transact(() => {
+        const row=q('SELECT epoch,last_ack FROM remote_revocation_delivery WHERE id=1').get()
+        if (!row) {
+          if (q('SELECT 1 FROM remote_identity_revocations WHERE acknowledged_at IS NOT NULL LIMIT 1').get()) throw new Error('Revocation history requires reconciliation')
+          q('INSERT INTO remote_revocation_delivery(id,epoch,last_ack) VALUES(1,?,0)').run(epoch);return 0
+        }
+        if (row.epoch!==epoch || !Number.isSafeInteger(row.last_ack) || row.last_ack<0) throw new Error('Revocation cursor mismatch')
+        return row.last_ack
+      })
+    },
+    acknowledgeNetworkRevocation(epoch: string, previous: number, id: number): boolean {
+      if (typeof epoch !== 'string' || !Number.isSafeInteger(previous) || previous < 0 || !Number.isSafeInteger(id) || id <= previous) return false
+      return transact(t => {
+        const row=q('SELECT epoch,last_ack FROM remote_revocation_delivery WHERE id=1').get()
+        const next=q('SELECT id FROM remote_identity_revocations WHERE acknowledged_at IS NULL ORDER BY id LIMIT 1').get()
+        if (!row || row.epoch!==epoch || row.last_ack!==previous || !next || next.id!==id) return false
+        q('UPDATE remote_identity_revocations SET acknowledged_at=? WHERE id=? AND acknowledged_at IS NULL').run(t,id)
+        q('UPDATE remote_revocation_delivery SET last_ack=? WHERE id=1').run(id)
+        return true
+      })
+    },
     acknowledgeRevocation(id: number): boolean {
       if (!Number.isSafeInteger(id) || id <= 0) return false
       return transact(t => {
+        if (q('SELECT 1 FROM remote_revocation_delivery WHERE id=1').get()) return false
         // Require ordered acknowledgement; skipping a prior revoke is unsafe.
         const next = q('SELECT id FROM remote_identity_revocations WHERE acknowledged_at IS NULL ORDER BY id LIMIT 1').get()
         if (!next || next.id !== id) return false
