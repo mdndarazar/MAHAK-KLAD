@@ -12,6 +12,10 @@ rem An overridden database URL can differ from the migration and backup paths.
 rem Refuse it rather than silently touching two different databases.
 if defined DATABASE_URL goto :databaseconfig
 if exist ".env" goto :databaseconfig
+if exist ".env.local" goto :databaseconfig
+if exist ".env.development" goto :databaseconfig
+if exist ".env.development.local" goto :databaseconfig
+if exist "prisma\.env" goto :databaseconfig
 echo WARNING: This starts the desktop app using its existing user-data folder.
 echo The app may apply migrations or update existing data. This is NOT an isolated test.
 echo First make a backup from inside the installed app and close the other instance.
@@ -29,7 +33,7 @@ echo Start cancelled. No application was started.
 popd
 exit /b 1
 :databaseconfig
-echo ERROR: DATABASE_URL or a local .env exists. Startup was stopped to avoid using different database paths.
+echo ERROR: DATABASE_URL or a local environment file exists. Startup was stopped to avoid different database paths.
 echo Do not delete any data or configuration. Ask for help before proceeding.
 popd
 exit /b 1

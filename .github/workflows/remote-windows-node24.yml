@@ -42,7 +42,19 @@ jobs:
           node --import ./test/harness/register.mjs tests/audit-fixes/remote-mobile-invoices-ui.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Test CMD scripts with mocked npm and isolated files
-        run: node tests/audit-fixes/windows-cmd-scripts.mjs
+        shell: pwsh
+        run: |
+          $output = & node tests/audit-fixes/windows-cmd-scripts.mjs 2>&1 | Out-String
+          $result = $LASTEXITCODE
+          Write-Output $output
+          if ($result -ne 0) {
+            $detail = $output -replace '%','%25' -replace "`r",'%0D' -replace "`n",'%0A'
+            if ($detail.Length -gt 10000) { $detail = $detail.Substring(0,10000) }
+            Write-Output "::error title=Windows CMD test details::$detail"
+            exit $result
+          }
+          node tests/audit-fixes/windows-cmd-env-guards.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify disabled remote and existing password behavior
         shell: pwsh
         run: |
