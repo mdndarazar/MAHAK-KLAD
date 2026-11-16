@@ -39,7 +39,20 @@ let injected: {
   clearPanelScope: (panel: string, owner: number) => void
   clearPanelSessions: (owner: number) => void
 } | null = null
-export function initRemoteGrantRegistry(deps: NonNullable<typeof injected>) { injected = deps }
+let isolated = false
+export function initRemoteGrantRegistry(deps: NonNullable<typeof injected>) {
+  if (isolated) throw new Error('Isolated remote registry cannot be replaced')
+  injected = deps
+}
+/** Experimental isolated mode: a remote grant is checked separately instead of
+ * writing to or deleting the local panel-session map. Must be selected before
+ * any requests, grants, or credential lockouts exist. Not wired into the app. */
+export function initIsolatedRemoteGrantRegistry() {
+  if (isolated) return
+  if (pendingRequests.size || grants.size || failCounts.size) throw new Error('Remote registry is not empty')
+  injected = { notePanelUnlocked: () => {}, clearPanelScope: () => {}, clearPanelSessions: () => {} }
+  isolated = true
+}
 function clearGrant(k: string, grant: Grant) {
   if (grants.get(k) !== grant) return
   grants.delete(k)
@@ -78,9 +91,30 @@ function noteFailure(k: string) {
 }
 
 export function isGrantActiveForWindow(panel: string, ownerWindowId: number): boolean {
-  if (!validOwner(ownerWindowId) || !VALID_PANEL.test(panel)) return false
+  if (!validOwner(ownerWindowId) || typeof panel !== 'string' || !VALID_PANEL.test(panel)) return false
   const g = active(keyOf(ownerWindowId, panel))
   return !!g && g.claimed && g.mode === 'PANEL'
+}
+
+/** Separate from local panel sessions. Only real authorized activity may touch
+ * idle time; renderer status polling must use the default non-touching check. */
+export function hasIsolatedRemotePanel(panel: string, ownerWindowId: number, touch = false): boolean {
+  if (!isolated || typeof touch !== 'boolean' || !validOwner(ownerWindowId) ||
+      typeof panel !== 'string' || !VALID_PANEL.test(panel)) return false
+  const grant = active(keyOf(ownerWindowId, panel))
+  if (!grant?.claimed || grant.mode !== 'PANEL') return false
+  if (touch) grant.lastUsedAt = now()
+  return true
+}
+export function listIsolatedRemotePanels(ownerWindowId: number): string[] {
+  if (!isolated || !validOwner(ownerWindowId)) return []
+  const result: string[] = []
+  for (const [key, grant] of grants) {
+    if (grant.ownerWindowId !== ownerWindowId) continue
+    const current = active(key)
+    if (current?.claimed && current.mode === 'PANEL') result.push(current.panel)
+  }
+  return result.sort()
 }
 
 /** Window and request bound status; this does not claim or extend a grant. */
