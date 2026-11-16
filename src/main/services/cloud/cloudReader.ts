@@ -39,6 +39,21 @@ type OpenShift = {
   openedAtDatabaseValue: string
 }
 
+/** Raw current invoice rows, not sales totals or an immutable invoice snapshot. */
+type InvoiceFact = {
+  id: number
+  receiptNo: number
+  issuedAtJalali: string
+  status: string
+  orderType: string
+  voided: boolean
+  grandTotal: string
+  paidTotal: string
+  customerName: string | null
+  customerPhone: string | null
+  sellerName: string | null
+}
+
 const AUDIT_PAGE = `SELECT CAST(a."id" AS TEXT) AS "id", CAST(a."at" AS TEXT) AS "at",
   a."action", a."entity" FROM "AuditLog" AS a
   WHERE a."id" > ? ORDER BY a."id" ASC LIMIT ?`
@@ -56,6 +71,13 @@ const OPEN_SHIFTS_PAGE = `SELECT CAST(s."id" AS TEXT) AS "id", s."name",
   CAST(s."number" AS TEXT) AS "number", s."dayJalali" AS "operationalDay",
   CAST(s."openedAt" AS TEXT) AS "openedAtDatabaseValue"
   FROM "Shift" AS s WHERE s."closedAt" IS NULL AND s."id" > ? ORDER BY s."id" ASC LIMIT ?`
+const INVOICE_FACTS_PAGE = `SELECT CAST(i."id" AS TEXT) AS "id", CAST(i."receiptNo" AS TEXT) AS "receiptNo",
+  i."issuedAtJalali", i."status", i."orderType", CASE WHEN i."voidedAt" IS NULL THEN '0' ELSE '1' END AS "voided",
+  CAST(i."grandTotal" AS TEXT) AS "grandTotal", CAST(i."paidTotal" AS TEXT) AS "paidTotal",
+  c."name" AS "customerName", c."phone" AS "customerPhone", u."displayName" AS "sellerName"
+  FROM "SaleInvoice" AS i LEFT JOIN "Customer" AS c ON c."id" = i."customerId"
+  LEFT JOIN "User" AS u ON u."id" = i."userId"
+  WHERE i."issuedAtJalali" >= ? AND i."issuedAtJalali" <= ? AND i."id" > ? ORDER BY i."id" ASC LIMIT ?`
 
 function safeId(value: unknown, allowZero = false): number {
   if (typeof value !== 'string' || !/^(0|[1-9][0-9]*)$/.test(value)) throw new Error('Invalid database ID')
@@ -72,6 +94,17 @@ function integerText(value: unknown): string {
   if (!/^-?(0|[1-9][0-9]*)$/.test(v)) throw new Error('Invalid database amount')
   return v
 }
+function boundedText(value: unknown): string {
+  const v = text(value)
+  if (Buffer.byteLength(v, 'utf8') > 512) throw new Error('Database text too large')
+  return v
+}
+function nullableText(value: unknown): string | null {
+  return value === null ? null : boundedText(value)
+}
+function jalaliDate(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9]{4}\/(0[1-9]|1[0-2])\/(0[1-9]|[12][0-9]|3[01])$/.test(value)
+}
 function rows(value: unknown): Record<string, unknown>[] {
   if (!Array.isArray(value) || value.some((row) => !row || typeof row !== 'object' || Array.isArray(row))) {
     throw new Error('Invalid database response')
@@ -85,7 +118,7 @@ export function createCloudReader(client: ReadClient, timeoutMs = 2000) {
     throw new Error('Invalid cloud reader configuration')
   }
   let inFlight = false
-  async function read(sql: string, values: (number)[]): Promise<Record<string, unknown>[]> {
+  async function read(sql: string, values: (number | string)[]): Promise<Record<string, unknown>[]> {
     if (inFlight) throw new Error('Cloud reader busy')
     inFlight = true
     // The timeout is not a database cancellation. Keep the single-flight lock
@@ -140,6 +173,34 @@ export function createCloudReader(client: ReadClient, timeoutMs = 2000) {
         observedOperationalTotal: integerText(row.observedOperationalTotal),
         totalTheoreticalDifference: integerText(row.totalTheoreticalDifference)
       }
+    },
+    /**
+     * On-demand raw invoice facts, including voided/draft rows. This deliberately
+     * does not claim to match a desktop sales report, compute revenue, or resolve
+     * return/exchange history. Customer and seller names are current profile data,
+     * not historical snapshots. A caller must enforce current VIEW ACL before and
+     * after reading. This is neither a durable change feed nor a cross-page snapshot.
+     */
+    async invoiceFactsPage(fromDay: string, toDay: string, afterId: number, limit = 200): Promise<InvoiceFact[]> {
+      if (!jalaliDate(fromDay) || !jalaliDate(toDay) || fromDay > toDay ||
+          !Number.isSafeInteger(afterId) || afterId < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 200) {
+        throw new Error('Invalid invoice date range, cursor or page size')
+      }
+      const result = await read(INVOICE_FACTS_PAGE, [fromDay, toDay, afterId, limit])
+      if (result.length > limit) throw new Error('Invalid invoice page')
+      let previous = afterId
+      return result.map(row => {
+        const id = safeId(row.id)
+        if (id <= previous || !jalaliDate(row.issuedAtJalali) || row.issuedAtJalali < fromDay || row.issuedAtJalali > toDay ||
+            (row.voided !== '0' && row.voided !== '1')) throw new Error('Invalid invoice response')
+        previous = id
+        return {
+          id, receiptNo: safeId(row.receiptNo, true), issuedAtJalali: row.issuedAtJalali,
+          status: boundedText(row.status), orderType: boundedText(row.orderType), voided: row.voided === '1',
+          grandTotal: integerText(row.grandTotal), paidTotal: integerText(row.paidTotal),
+          customerName: nullableText(row.customerName), customerPhone: nullableText(row.customerPhone), sellerName: nullableText(row.sellerName)
+        }
+      })
     },
     /** A read-only on-demand listing, not a change cursor or a consistent snapshot. */
     async openShiftsPage(afterId: number, limit = 200): Promise<OpenShift[]> {

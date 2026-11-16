@@ -28,6 +28,8 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-windows-node24.mjs
       - name: Test experimental command issuer using isolated SQLite
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-command-issuer.mjs
+      - name: Test read-only invoice facts using isolated SQLite
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-invoice-facts-readonly.mjs
       - name: Verify disabled remote and existing password behavior
         shell: pwsh
         run: |
