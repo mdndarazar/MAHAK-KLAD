@@ -69,6 +69,14 @@ export function createAuditSync(deps: Dependencies) {
   async function marker(expected: string | null): Promise<void> {
     if (markerValue(await deps.readRestoreMarker()) !== expected) throw new Error('Restore detected; sync paused')
   }
+  function unchanged(expected: CloudState): void {
+    const current = deps.state.load()
+    if (!current || current.version !== expected.version || current.storeId !== expected.storeId ||
+        current.epoch !== expected.epoch || current.restoreMarker !== expected.restoreMarker ||
+        current.lastAcked !== expected.lastAcked || current.anchorHash !== expected.anchorHash) {
+      throw new Error('Cloud state changed; sync paused')
+    }
+  }
   async function anchor(id: number, expected: string): Promise<void> {
     const found = checkedEvents(await deps.reader.auditPage(id - 1, 1), id - 1, 1)
     if (found.length !== 1 || found[0].id !== id || eventHash(found[0]) !== expected) {
@@ -80,12 +88,15 @@ export function createAuditSync(deps: Dependencies) {
       if (running) throw new Error('Audit sync busy')
       running = true
       try {
-        const state = deps.state.load()
-        if (!state) throw new Error('Cloud state is not initialized')
+        const loaded = deps.state.load()
+        if (!loaded) throw new Error('Cloud state is not initialized')
+        // Snapshot scalars even if an injected store returns a mutable object.
+        const state: CloudState = { ...loaded }
         await marker(state.restoreMarker)
         if (state.lastAcked > 0) await anchor(state.lastAcked, state.anchorHash)
         const events = checkedEvents(await deps.reader.auditPage(state.lastAcked, PAGE_SIZE), state.lastAcked, PAGE_SIZE)
         await marker(state.restoreMarker)
+        unchanged(state)
         if (!events.length) return { sent: 0, lastAcked: state.lastAcked }
         const digest = sha(JSON.stringify([1, state.storeId, state.epoch, events.map((event) => [event.id, event.at, event.action, event.entity])]))
         const batch: Batch = { version: 1, storeId: state.storeId, epoch: state.epoch, events, digest }
@@ -101,6 +112,8 @@ export function createAuditSync(deps: Dependencies) {
           throw new Error('Restore or audit history change detected; sync paused')
         }
         await marker(state.restoreMarker)
+        // This check narrows races but is not a transactional compare-and-save.
+        unchanged(state)
         const last = expected.events[expected.events.length - 1]
         const hash = eventHash(last)
         deps.state.save({ ...state, lastAcked: last.id, anchorHash: hash })

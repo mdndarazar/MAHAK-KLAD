@@ -77,6 +77,34 @@ await test('restore marker changes before or during send pause sync without adva
     await assert.rejects(b.runOnce(),/Restore detected/);assert.equal(f.state.load().lastAcked,0)
   } finally {await f.close()}
 })
+await test('epoch rotation during page read or empty result prevents sending under the old epoch',async()=>{
+  for(const hasEvent of [false,true]) {
+    const f=setup();try {
+      if(hasEvent)f.insert()
+      let sent=0
+      const reader={auditPage:async(...args)=>{
+        const page=await f.reader.auditPage(...args)
+        f.state.save({...initial,epoch:'87654321-4321-4321-8321-cba987654321'})
+        return page
+      }}
+      const a=f.agent({send:async b=>{sent++;return f.ack(b)}},{reader})
+      await assert.rejects(a.runOnce(),/Cloud state changed/)
+      assert.equal(sent,0);assert.equal(f.state.load().epoch,'87654321-4321-4321-8321-cba987654321')
+    } finally {await f.close()}
+  }
+})
+await test('epoch rotation during acknowledgment never rewinds the state',async()=>{
+  const f=setup();try {
+    f.insert()
+    const a=f.agent({send:async b=>{
+      f.state.save({...initial,epoch:'87654321-4321-4321-8321-cba987654321'})
+      return f.ack(b)
+    }})
+    await assert.rejects(a.runOnce(),/Cloud state changed/)
+    assert.equal(f.state.load().epoch,'87654321-4321-4321-8321-cba987654321')
+    assert.equal(f.state.load().lastAcked,0)
+  } finally {await f.close()}
+})
 await test('changed previously acknowledged row is detected and no new data sent',async()=>{
   const f=setup();try {
     f.insert();const a=f.agent({send:async b=>f.ack(b)});await a.runOnce()
