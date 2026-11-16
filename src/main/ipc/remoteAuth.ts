@@ -4,7 +4,7 @@
  */
 import { BrowserWindow, ipcMain } from 'electron'
 import { REMOTE_AUTH_CHANNELS, REMOTE_GT_PREFIX, remoteImplementationReady } from '../../shared/remoteAuthChannels'
-import { getPending, isGrantActiveForWindow, markUsed, requestCode, revokeAll } from '../services/RemoteGrantRegistry'
+import { cancelForWindow, getPending, isGrantActiveForWindow, markUsed, requestCode } from '../services/RemoteGrantRegistry'
 
 export function registerRemoteAuthHandlers() {
   if (!remoteImplementationReady()) return
@@ -12,8 +12,8 @@ export function registerRemoteAuthHandlers() {
     const panel = String(payload?.panel ?? '').trim()
     if (!panel) return { ok: false as const, error: 'پنل مشخص نشده' }
     const owner = (event.sender as any)?.id ?? 0
-    const { code, gt } = requestCode(panel, owner)
-    return { ok: true as const, data: { code, gt, panel } }
+    const { code, gt, requestId } = requestCode(panel, owner)
+    return { ok: true as const, data: { code, gt, requestId, panel } }
   })
 
   ipcMain.handle(REMOTE_AUTH_CHANNELS.status, async (event, payload: { panel?: string }) => {
@@ -22,15 +22,14 @@ export function registerRemoteAuthHandlers() {
     const owner = (event.sender as any)?.id ?? 0
     const pending = getPending(owner, panel)
     const granted = isGrantActiveForWindow(panel, owner)
-    return { ok: true as const, data: { pending: !!pending, code: pending?.code, granted } }
+    return { ok: true as const, data: { pending: !!pending, code: pending?.code, requestId: pending?.requestId, granted } }
   })
 
   ipcMain.handle(REMOTE_AUTH_CHANNELS.cancel, async (event, payload: { panel?: string }) => {
     const panel = String(payload?.panel ?? '').trim()
     const owner = (event.sender as any)?.id ?? 0
-    // ساده: revoke همه برای این owner
-    if (!panel) revokeAll()
-    return { ok: true as const, data: { ok: true } }
+    const ok = cancelForWindow(owner, panel || undefined)
+    return ok ? { ok: true as const, data: { ok: true } } : { ok: false as const, error: 'درخواست معتبر نیست' }
   })
 
   ipcMain.handle(REMOTE_AUTH_CHANNELS.used, async (event, payload: { panel?: string }) => {
