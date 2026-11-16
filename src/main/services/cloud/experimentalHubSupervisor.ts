@@ -23,6 +23,7 @@ import { normalizeMobileOrigins } from './mobileOrigins'
 import { createAuditSync } from './auditSync'
 import { createLoopbackAuditTransport } from './loopbackAuditTransport'
 import type { CloudState } from './cloudState'
+import type { createExperimentalRestoreBarrier } from './experimentalRestoreBarrier'
 
 type Reader = {
   latestBoundaryTotals(): Promise<unknown>
@@ -40,6 +41,9 @@ type Options = {
   readRestoreMarker: () => Promise<string | null>
   // Experimental explicit opt-in only; not sufficient to enable production.
   enableInvoiceFacts?: boolean
+  // Optional in-process experiment only. Every restore must use restoreExclusive,
+  // and no other component may bypass the gate or start queries on this reader.
+  restoreBarrier?: ReturnType<typeof createExperimentalRestoreBarrier>
   timeoutMs?: number
 }
 const object = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -53,6 +57,8 @@ export async function startExperimentalHubSupervisor(options: Options) {
       !options.reader || typeof options.reader.latestBoundaryTotals !== 'function' || typeof options.reader.openShiftsPage !== 'function' ||
       typeof options.reader.auditPage !== 'function' ||
       (options.reader.waitForIdle !== undefined && typeof options.reader.waitForIdle !== 'function') ||
+      (options.restoreBarrier !== undefined && (!options.restoreBarrier || typeof options.restoreBarrier.run !== 'function' ||
+        typeof options.restoreBarrier.restore !== 'function' || typeof options.restoreBarrier.status !== 'function' || typeof options.reader.waitForIdle !== 'function')) ||
       (options.reader.invoiceFactsPage !== undefined && typeof options.reader.invoiceFactsPage !== 'function') ||
       (options.enableInvoiceFacts !== undefined && typeof options.enableInvoiceFacts !== 'boolean') ||
       (options.enableInvoiceFacts === true && typeof options.reader.invoiceFactsPage !== 'function') ||
@@ -63,6 +69,11 @@ export async function startExperimentalHubSupervisor(options: Options) {
   const timeout = options.timeoutMs ?? 5000
   if (!Number.isSafeInteger(timeout) || timeout < 100 || timeout > 30_000) throw new Error('Invalid hub timeout')
   const key = Buffer.from(options.auditKey), reader = options.reader, state = options.state, readRestoreMarker = options.readRestoreMarker
+  const barrier=options.restoreBarrier
+  function guarded<T>(operation:()=>Promise<T>):Promise<T> {
+    if (!barrier) return operation()
+    return barrier.run(async()=>{ try { return await operation() } finally { await reader.waitForIdle!() } })
+  }
   // Do not inherit DATABASE_URL, NODE_OPTIONS, credentials, or the POS environment.
   // Windows filesystem/runtime behavior still needs a real platform test.
   const env: NodeJS.ProcessEnv = {}
@@ -109,7 +120,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
           Object.keys(message).sort().join(',') !== 'afterId,fromDay,id,toDay,type' ||
           !isInvoiceDate(from) || !isInvoiceDate(to) || from > to || !Number.isSafeInteger(afterId) || afterId < 0) { failRead();return }
       invoiceBusy=true;invoiceLastRead=now
-      void track((async () => {
+      void track(guarded(async () => {
         try {
           // These checks detect known restores but do not serialize with restore.
           // The application must remain disabled until real coordination exists.
@@ -121,9 +132,10 @@ export async function startExperimentalHubSupervisor(options: Options) {
           const current=state.load()
           if (!current || current.storeId !== initial.storeId || current.epoch !== initial.epoch ||
               current.restoreMarker !== initial.restoreMarker || await readRestoreMarker() !== initial.restoreMarker) throw new Error('Restore detected')
+          if (barrier && barrier.status().state !== 'OPEN') throw new Error('Restore in progress')
           if (!closed && !dead) send({type:'invoiceReadResult',id,ok:true,value})
-        } catch { failRead() } finally { invoiceBusy=false }
-      })())
+        } catch { failRead() }
+      }).catch(() => { failRead() }).finally(() => { invoiceBusy=false }))
     }
     else if (message.type === 'snapshot' && Number.isSafeInteger(message.id)) {
       const item=waiting.get(message.id)
@@ -158,7 +170,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
         if (closed || dead) return Promise.reject(new Error('Hub child unavailable'))
         if (busy) return Promise.reject(new Error('Hub refresh busy'))
         busy=true
-        return track((async () => { try {
+        return track(guarded(async () => { try {
           // Remove the old snapshot before potentially slow reads. A refresh can
           // overlap an uncoordinated restore; an old value must not remain visible
           // while this refresh is blocked or checking the marker.
@@ -175,16 +187,24 @@ export async function startExperimentalHubSupervisor(options: Options) {
           const current=state.load()
           if (!current || current.storeId !== initial.storeId || current.epoch !== initial.epoch ||
               current.restoreMarker !== initial.restoreMarker || await readRestoreMarker() !== initial.restoreMarker) throw new Error('Restore detected')
+          if (barrier && barrier.status().state !== 'OPEN') throw new Error('Restore in progress')
           if (!await update({type:'snapshot',capturedAtMs,value:{boundary,shifts}})) throw new Error('Hub rejected snapshot')
         } catch (error) {
           // Never knowingly leave a previously good snapshot visible on read error.
           if (!closed && !dead) try { await update({type:'invalidateSnapshot'}) } catch { child.kill() }
           throw error
-        } finally {busy=false} })())
+        } }).finally(() => {busy=false}))
       },
       syncOnce() {
         if (closed || dead) return Promise.reject(new Error('Hub child unavailable'))
-        return track(sync.runOnce())
+        return track(guarded(() => sync.runOnce()))
+      },
+      restoreExclusive(operation:()=>Promise<void>):Promise<void> {
+        if (closed || dead || !barrier || typeof operation !== 'function') return Promise.reject(new Error('Restore coordination unavailable'))
+        const invalidate=async()=>{ if (!await update({type:'invalidateSnapshot'})) throw new Error('Hub rejected invalidation') }
+        // Invalidate both as the gate closes and once more after old work drains.
+        // The caller must rotate epoch/revoke and serialize every restore itself.
+        return track(barrier.restore(async()=>{await invalidate();await operation()},invalidate))
       },
       stop(): Promise<void> {
         if (stopPromise) return stopPromise

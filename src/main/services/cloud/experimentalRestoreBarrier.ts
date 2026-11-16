@@ -21,10 +21,11 @@ export function createExperimentalRestoreBarrier() {
         if (active === 0) { for (const resolve of waiters) resolve(); waiters.clear() }
       }
     },
-    async restore(operation: () => Promise<void>): Promise<void> {
-      if (state !== 'OPEN' || typeof operation !== 'function') throw new Error('Restore barrier closed')
+    async restore(operation: () => Promise<void>, onClosing?: () => Promise<void>): Promise<void> {
+      if (state !== 'OPEN' || typeof operation !== 'function' || (onClosing !== undefined && typeof onClosing !== 'function')) throw new Error('Restore barrier closed')
       state = 'DRAINING'
       try {
+        if (onClosing) await onClosing()
         await drained()
         await operation()
         state = 'OPEN'

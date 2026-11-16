@@ -13,6 +13,7 @@ import { createCloudReader } from '../../src/main/services/cloud/cloudReader.ts'
 import { openCloudStateStore } from '../../src/main/services/cloud/cloudState.ts'
 import { startExperimentalHubSupervisor } from '../../src/main/services/cloud/experimentalHubSupervisor.ts'
 import { remoteImplementationReady } from '../../src/shared/remoteAuthChannels.ts'
+import { createExperimentalRestoreBarrier } from '../../src/main/services/cloud/experimentalRestoreBarrier.ts'
 
 // Real separate process + loopback + temporary SQLite. Not Electron, a phone,
 // HTTPS, Windows, production key provisioning or permission configuration.
@@ -153,6 +154,25 @@ try {
       await new Promise(resolve=>setTimeout(resolve,100));assert.equal(stopped,false)
       release([]);await stopping;assert.equal(stopped,true)
     } finally {if(release)release([])}
+  })
+  await test('experimental restore waits for an underlying timed-out query and closes admission',async()=>{
+    const directory=mkdtempSync(join(tmpdir(),'mahak-supervisor-restore-'))
+    let release,started,restored=false
+    const ready=new Promise(resolve=>{started=resolve})
+    const actual=createCloudReader({$queryRawUnsafe:()=>new Promise(resolve=>{release=resolve;started()})},20)
+    const slowReader={...reader,latestBoundaryTotals:()=>actual.latestBoundaryTotals(),waitForIdle:()=>actual.waitForIdle()}
+    const barrier=createExperimentalRestoreBarrier()
+    const instance=await startExperimentalHubSupervisor({...options,directory,reader:slowReader,restoreBarrier:barrier})
+    try {
+      const reading=instance.refreshOnce().then(()=>null,error=>error);await ready
+      await new Promise(resolve=>setTimeout(resolve,60))
+      const restoring=instance.restoreExclusive(async()=>{restored=true})
+      await new Promise(resolve=>setTimeout(resolve,100))
+      assert.equal(restored,false);assert.equal(barrier.status().state,'DRAINING')
+      await assert.rejects(instance.syncOnce(),/barrier closed/)
+      release([]);assert.match((await reading).message,/timeout/);await restoring
+      assert.equal(restored,true);assert.equal(barrier.status().state,'OPEN')
+    } finally {if(release)release([]);await instance.stop()}
   })
   await test('stop waits for an in-flight audit sync in the parent',async()=>{
     const directory=mkdtempSync(join(tmpdir(),'mahak-supervisor-stop-audit-'))
