@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto'
-import { mkdtempSync, readFileSync, writeFileSync, linkSync, symlinkSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync, linkSync, symlinkSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createRemoteTransportVault } from '../../src/main/services/cloud/remoteTransportVault.ts'
@@ -25,6 +25,19 @@ await test('explicit creation produces independent random keys stored only throu
   assert.ok(!original.includes(Buffer.from(keys.auditKey.toString('hex'))));assert.ok(!original.includes(Buffer.from(keys.commandKey.toString('hex'))))
   const loaded=vault.load();assert.deepEqual(loaded,keys);assert.notEqual(loaded.auditKey,keys.auditKey)
 })
+await test('broken or obvious no-op protectors fail before a new file is created',()=>{
+  const broken=[
+    {...protector,encryptString:value=>Buffer.from(value),decryptString:value=>value.toString('utf8')},
+    {...protector,decryptString:()=>{throw Error('not recoverable')}},
+    {...protector,decryptString:()=>'{"wrong":true}'},
+    {...protector,decryptString:()=>null}
+  ]
+  for(const bad of broken){
+    const d=mkdtempSync(join(tmpdir(),'mahak-vault-broken-')),candidate=join(d,'remote-transport-key.v1')
+    assert.throws(()=>createRemoteTransportVault(d,'store_test',bad).create(),/Secure storage failed/)
+    assert.equal(existsSync(candidate),false)
+  }
+})
 await test('existing or damaged files and store mismatch cannot silently regenerate keys',()=>{
   assert.throws(()=>vault.create(),/EEXIST/);assert.deepEqual(readFileSync(path),original)
   assert.throws(()=>createRemoteTransportVault(dir,'another_store',protector).load(),/Invalid/)
@@ -44,7 +57,8 @@ await test('secure storage availability and unsafe Linux fallback fail closed',(
   assert.deepEqual(readFileSync(path),original)
 })
 await test('symlinks and hardlinks are not read or replaced',()=>{
-  for(const kind of ['symlink','hardlink']){
+  // Windows symlink creation may require privileges; still exercise hardlinks.
+  for(const kind of (process.platform==='win32'?['hardlink']:['symlink','hardlink'])){
     const d=mkdtempSync(join(tmpdir(),'mahak-transport-link-')),target=join(d,'sentinel'),candidate=join(d,'remote-transport-key.v1')
     writeFileSync(target,'do-not-modify')
     if(kind==='symlink')symlinkSync(target,candidate);else linkSync(target,candidate)

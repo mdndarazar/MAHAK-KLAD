@@ -82,7 +82,14 @@ export function createRemoteTransportVault(directory: string, storeId: string, s
     const plaintext=JSON.stringify({version:1,storeId,auditKey:auditKey.toString('hex'),commandKey:commandKey.toString('hex')})
     let encrypted: Buffer
     try { encrypted=storage.encryptString(plaintext) } catch { throw new Error('Secure storage failed') }
-    if (!Buffer.isBuffer(encrypted) || encrypted.length < 1 || encrypted.length > MAX_BYTES) throw new Error('Secure storage failed')
+    if (!Buffer.isBuffer(encrypted) || encrypted.length < 1 || encrypted.length > MAX_BYTES ||
+        encrypted.equals(Buffer.from(plaintext,'utf8'))) throw new Error('Secure storage failed')
+    // Fail before creating a durable key file if this protector cannot recover
+    // exactly what it encrypted. This catches obvious broken/no-op adapters; it
+    // does not prove encryption, OS isolation, DPAPI, ACLs or crash durability.
+    let recovered: unknown
+    try { recovered=storage.decryptString(Buffer.from(encrypted)) } catch { throw new Error('Secure storage failed') }
+    if (typeof recovered !== 'string' || recovered !== plaintext) throw new Error('Secure storage failed')
     // Exclusive creation never overwrites another process or an existing broken
     // key. File/directory ACLs and power-loss durability require platform tests.
     const fd=openSync(path,'wx',0o600)
