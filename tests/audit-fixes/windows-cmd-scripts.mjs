@@ -37,7 +37,9 @@ if(process.platform!=='win32') {
  delete baseEnv.DATABASE_URL;delete baseEnv.MAHAK_TEST_FAIL
  const calls=()=>existsSync(log)?readFileSync(log,'utf8').trim().split(/\r?\n/):[]
  const resetLog=()=>writeFileSync(log,'')
- const exec=(file,{env={},input=''}={})=>spawnSync('cmd.exe',['/d','/c',join(source,file)],{cwd:source,env:{...baseEnv,...env},encoding:'utf8',input,timeout:20000})
+ // Execute by relative name from a path containing spaces and '&'; cmd.exe's
+ // /c quote stripping would otherwise split an absolute quoted command itself.
+ const exec=(file,{env={},input=''}={})=>spawnSync('cmd.exe',['/d','/c',file],{cwd:source,env:{...baseEnv,...env},encoding:'utf8',input,timeout:20000})
  const safe=()=>{assert.equal(readFileSync(join(source,'shop.db'),'utf8'),'DATABASE SENTINEL');assert.equal(readFileSync(join(source,'package-lock.json'),'utf8'),'LOCKFILE SENTINEL')}
  await test('setup performs locked install and client generation, in order and with an isolated generation URL',()=>{
   resetLog();const r=exec('SETUP-WINDOWS.cmd');assert.equal(r.status,0,r.stdout+r.stderr)
@@ -65,7 +67,7 @@ if(process.platform!=='win32') {
   mkdirSync(join(second,'prisma','migrations','0_init'),{recursive:true});mkdirSync(join(second,'node_modules','.bin'),{recursive:true})
   writeFileSync(join(second,'package.json'),'{}');writeFileSync(join(second,'package-lock.json'),'LOCKFILE SENTINEL')
   writeFileSync(join(second,'prisma','migrations','0_init','migration.sql'),'MIGRATION SENTINEL');writeFileSync(join(second,'node_modules','.bin','electron-vite.cmd'),'@exit /b 0\r\n')
-  const launch=input=>spawnSync('cmd.exe',['/d','/c',join(second,'RUN-WINDOWS.cmd')],{cwd:second,env:baseEnv,encoding:'utf8',input,timeout:20000})
+  const launch=input=>spawnSync('cmd.exe',['/d','/c','RUN-WINDOWS.cmd'],{cwd:second,env:baseEnv,encoding:'utf8',input,timeout:20000})
   resetLog();let r=launch('N\r\n');assert.notEqual(r.status,0);assert.deepEqual(calls(),[])
   resetLog();r=launch('Y\r\n');assert.equal(r.status,0,r.stdout+r.stderr);assert.deepEqual(calls(),['run dev |'])
   assert.equal(readFileSync(join(second,'package-lock.json'),'utf8'),'LOCKFILE SENTINEL')
