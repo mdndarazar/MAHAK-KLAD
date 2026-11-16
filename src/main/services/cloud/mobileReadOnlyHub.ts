@@ -26,6 +26,7 @@ type Identity = {
   acceptInvite(invite: string, username: string, password: string, pin: string): boolean
   approveMember(token: string, pin: string, username: string): boolean
   removeMember(token: string, pin: string, username: string): { ok: true; memberId: string } | { ok: false }
+  panic?(token: string, pin: string): boolean
 }
 type Reader = {
   latestBoundaryTotals(): Promise<unknown>
@@ -157,6 +158,26 @@ export function createMobileReadOnlyHandler(options: Options) {
           res.setHeader('set-cookie','mahak_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0')
           send(200,{ok:true});return
         }
+        if (path === '/api/panic') {
+          if (!loginAllowed(req.socket.remoteAddress ?? 'unknown')) { send(429,{error:'تعداد تلاش‌ها زیاد است؛ بعداً دوباره تلاش کنید'});return }
+          if (!/^application\/json(?:\s*;|\s*$)/i.test(header(req,'content-type') ?? '')) { send(400,{error:'درخواست معتبر نیست'});return }
+          const token=cookie(req), principal=token ? options.identity.whoAmI(token) : null
+          if (!token || !principal) { send(401,{error:'لطفاً وارد شوید'});return }
+          if (principal.role!=='OWNER') { send(403,{error:'فقط مالک مجاز است'});return }
+          if (typeof options.identity.panic!=='function' || typeof options.drainRevocations!=='function') { send(503,{error:'کانال توقف اضطراری فعال نیست'});return }
+          let data:Record<string,unknown>
+          try { data=await readBody(req) } catch { send(400,{error:'درخواست معتبر نیست'});return }
+          if (Object.keys(data).join(',')!=='pin' || typeof data.pin!=='string' || !/^[0-9]{6}$/.test(data.pin)) { send(400,{error:'PIN معتبر نیست'});return }
+          if (!options.identity.panic(token,data.pin)) { send(403,{error:'توقف اضطراری تأیید نشد'});return }
+          // Identity is now durably latched and all hub sessions are invalid.
+          // A lost ACK leaves the queue pending for the existing retry worker.
+          res.setHeader('set-cookie','mahak_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0')
+          try {
+            const drained=await options.drainRevocations()
+            if (!drained || drained.remaining!==false) {send(503,{error:'توقف ثبت شد؛ تحویل ابطال هنوز کامل نیست'});return}
+          } catch {send(503,{error:'توقف ثبت شد؛ تحویل ابطال هنوز کامل نیست'});return}
+          send(200,{ok:true});return
+        }
         if (path === '/api/approve' && options.approval) {
           if (!loginAllowed(req.socket.remoteAddress ?? 'unknown')) { send(429,{error:'تعداد تلاش‌ها زیاد است؛ بعداً دوباره تلاش کنید'});return }
           if (!/^application\/json(?:\s*;|\s*$)/i.test(header(req,'content-type') ?? '')) { send(400,{error:'درخواست معتبر نیست'});return }
@@ -240,7 +261,8 @@ export function createMobileReadOnlyHandler(options: Options) {
           send(200,{user:{username:text(user.username,256),role:text(user.role,32)}});return
         }
         if (path === '/api/capabilities') {
-          send(200,{invoices:typeof options.reader.invoiceFactsPage === 'function' && !!options.identity.authorize(token,'invoices','VIEW')});return
+          send(200,{invoices:typeof options.reader.invoiceFactsPage === 'function' && !!options.identity.authorize(token,'invoices','VIEW'),
+            ...(user.role==='OWNER' && typeof options.identity.panic==='function' && typeof options.drainRevocations==='function' ? {panic:true} : {})});return
         }
         if (path === '/api/members') {
           if (user.role !== 'OWNER') { send(403,{error:'فقط مالک مجاز است'});return }
