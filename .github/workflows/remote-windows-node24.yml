@@ -26,6 +26,8 @@ jobs:
         run: npm ci
       - name: Test isolated hub on temporary SQLite
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-windows-node24.mjs
+      - name: Test experimental command issuer using isolated SQLite
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-command-issuer.mjs
       - name: Verify disabled remote and existing password behavior
         shell: pwsh
         run: |
