@@ -5,7 +5,7 @@ import { mobileHtml,mobileJs,mobileWorker } from '../../src/main/services/cloud/
 
 // Structural/script test with a minimal fake DOM. Not a real browser, PWA install or phone.
 function fixture({enabled=true}={}) {
- const elements=new Map(),calls=[];let nextInvoice=null
+ const elements=new Map(),calls=[],overrides=new Map();let nextInvoice=null
  class Element {
   constructor(id=''){this.id=id;this.hidden=false;this.value='';this.checked=false;this.children=[];this.events={};this._text=''}
   addEventListener(event,handler){this.events[event]=handler}
@@ -19,6 +19,7 @@ function fixture({enabled=true}={}) {
  const response=(value,status=200)=>({ok:status>=200&&status<300,json:async()=>value})
  const fetch=async(path,options={})=>{
   calls.push({path,options})
+  if(overrides.has(path))return await overrides.get(path)
   if(path==='/api/session')return response({user:{username:'owner',role:'OWNER'}})
   if(path==='/api/capabilities')return response({invoices:enabled})
   if(path==='/api/custody')return response({boundary:null})
@@ -32,7 +33,7 @@ function fixture({enabled=true}={}) {
  const document={getElementById:el,createElement:()=>new Element()}
  vm.runInNewContext(mobileJs,{document,navigator:{},fetch,console},{timeout:1000})
  const flush=async()=>{for(let n=0;n<20;n++)await Promise.resolve()}
- return {el,calls,flush,response,setInvoice:value=>{nextInvoice=value}}
+ return {el,calls,flush,response,setInvoice:value=>{nextInvoice=value},setResponse:(path,value)=>overrides.set(path,value)}
 }
 await test('invoice UI is capability-gated and does not cache or render HTML',()=>{
  assert.match(mobileHtml,/id="invoice-tools" hidden/);assert.match(mobileHtml,/فهرست خام فاکتورها/)
@@ -55,6 +56,28 @@ await test('logout discards a late invoice response and clears displayed details
  release(f.response({invoices:[{id:1,receiptNo:1,issuedAtJalali:'1405/01/02',status:'SETTLED',voided:false,orderType:'INTERNAL',grandTotal:'1',paidTotal:'1',customerName:'PRIVATE-CUSTOMER',customerPhone:null,sellerName:null}],hasMore:false}));await pending
  assert.equal(f.el('dashboard').hidden,true);assert.equal(f.el('invoice-tools').hidden,true)
  assert.equal(f.el('invoice-results').textContent,'');assert.deepEqual(f.el('invoice-results').children,[])
+})
+await test('logout discards late custody, shifts, requests and members responses',async()=>{
+ for(const [path,body,element] of [
+  ['/api/custody',{boundary:{operationalDay:'PRIVATE-CUSTODY',atDatabaseValue:'x',theoreticalExpectedTotal:'1',observedOperationalTotal:'1',totalTheoreticalDifference:'0'}},'custody'],
+  ['/api/shifts',{shifts:[{name:'PRIVATE-SHIFT',number:1,operationalDay:'x'}],hasMore:false},'shifts'],
+  ['/api/requests',{requests:[{requestId:'request',panel:'PRIVATE-REQUEST',code:'123456'}]},'request-id'],
+  ['/api/members',{members:[{username:'PRIVATE-MEMBER',role:'MANAGER',status:'ACTIVE'}]},'members']
+ ]){
+  const f=fixture();await f.flush();let release
+  f.setResponse(path,new Promise(resolve=>{release=resolve}))
+  const refresh=f.el('reload').fire('click');await f.flush()
+  await f.el('logout').fire('click');release(f.response(body));await refresh
+  assert.equal(f.el('dashboard').hidden,true)
+  assert.equal(f.el(element).textContent,'');assert.deepEqual(f.el(element).children,[])
+ }
+})
+await test('logout discards a late invitation code',async()=>{
+ const f=fixture();await f.flush();let release
+ f.setResponse('/api/invite/create',new Promise(resolve=>{release=resolve}))
+ const pending=f.el('invite-form').fire('submit');await f.flush();await f.el('logout').fire('click')
+ release(f.response({invite:'SECRET-INVITE'}));await pending
+ assert.equal(f.el('invite-result').textContent,'');assert.equal(f.el('message').textContent,'')
 })
 await test('no invoice capability means no invoice read or invite permission',async()=>{
  const f=fixture({enabled:false});await f.flush();assert.equal(f.el('invoice-tools').hidden,true);assert.equal(f.el('invoice-acl-label').hidden,true)
