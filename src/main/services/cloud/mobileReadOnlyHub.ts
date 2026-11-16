@@ -268,7 +268,8 @@ export function createMobileReadOnlyHandler(options: Options) {
         }
         if (path === '/api/capabilities') {
           send(200,{invoices:typeof options.reader.invoiceFactsPage === 'function' && !!options.identity.authorize(token,'invoices','VIEW'),
-            ...(user.role==='OWNER' && typeof options.identity.panic==='function' && typeof options.drainRevocations==='function' ? {panic:true} : {})});return
+            ...(user.role==='OWNER' && typeof options.identity.panic==='function' && typeof options.drainRevocations==='function' ? {panic:true} : {}),
+            ...(user.role==='OWNER' && typeof options.identity.panicClose==='function' && typeof options.drainRevocations==='function' ? {panicClose:true} : {})});return
         }
         if (path === '/api/members') {
           if (user.role !== 'OWNER') { send(403,{error:'فقط مالک مجاز است'});return }
