@@ -155,6 +155,8 @@ export function createHubIdentity(db: Database, options: Options) {
     logout(token: string): boolean {
       return transact(t => { const s = session(token,t); if (!s) return false; q('DELETE FROM remote_sessions WHERE token_hash=?').run(sha(token)); audit(t,s.id,'LOGOUT'); return true })
     },
+    /** Internal session lookup; no credentials or PIN hashes are returned. */
+    whoAmI(token: string): Session | null { return transact(t => session(token,t)) },
     createInvite(token: string, pinValue: string, role: 'MANAGER' | 'VIEWER', requestedAcl: Acl[]): { ok: true; invite: string } | { ok: false } {
       const acl = (role === 'MANAGER' || role === 'VIEWER') ? aclValid(requestedAcl,role) : null
       if (!acl) return { ok: false }

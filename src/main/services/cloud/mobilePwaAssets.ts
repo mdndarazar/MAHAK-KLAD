@@ -1,0 +1,30 @@
+/** Static assets for the experimental read-only mobile hub. No dynamic HTML. */
+export const mobileHtml = `<!doctype html>
+<html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#102f2c"><meta name="apple-mobile-web-app-capable" content="yes"><link rel="manifest" href="/manifest.webmanifest"><link rel="stylesheet" href="/mobile.css"><title>مهاک | مشاهده از راه دور</title></head>
+<body><header><h1>مهاک</h1><p>مشاهده از راه دور</p></header><main>
+<section id="login"><h2>ورود مدیر</h2><form id="login-form"><label for="username">نام کاربری</label><input id="username" autocomplete="username" required maxlength="64"><label for="password">رمز ورود</label><input id="password" type="password" autocomplete="current-password" required maxlength="128"><button type="submit">ورود</button></form></section>
+<section id="dashboard" hidden><div class="heading"><h2>داشبورد</h2><button type="button" id="logout" class="secondary">خروج</button></div><p id="user"></p><button type="button" id="reload">به‌روزرسانی</button>
+<article><h3>آخرین مرز ثبت‌شده حضانت</h3><p class="caption">این اعداد تاریخی هستند و موجودی زنده صندوق نیستند.</p><div id="custody">در انتظار دریافت…</div></article>
+<article><h3>شیفت‌های باز</h3><p class="caption">فهرست لحظه‌ای است و بین دریافت‌ها ممکن است تغییر کند.</p><div id="shifts">در انتظار دریافت…</div></article></section>
+<p id="message" role="status" aria-live="polite"></p></main><script src="/mobile.js" defer></script></body></html>`
+
+export const mobileCss = `:root{font-family:Tahoma,Arial,sans-serif;color:#183630;background:#f4f7f5}*{box-sizing:border-box}body{margin:0}header{background:#102f2c;color:#fff;padding:24px max(20px,calc((100% - 680px)/2));}header h1{margin:0;font-size:28px}header p{margin:6px 0 0;color:#c3d9d2}main{max-width:680px;margin:auto;padding:20px}section,article{background:#fff;border:1px solid #dce7e2;border-radius:14px;padding:20px;box-shadow:0 5px 20px #173b2d0a}article{margin-top:16px;box-shadow:none}h2,h3{margin:0 0 16px}label{display:block;margin:16px 0 8px}input{width:100%;border:1px solid #b8ccc2;border-radius:8px;padding:12px;font-size:16px;direction:ltr}button{border:0;background:#0b6956;color:#fff;border-radius:8px;padding:12px 18px;font-size:15px;cursor:pointer}form button{width:100%;margin-top:18px}.secondary{background:#e7f0eb;color:#184638}.heading{display:flex;justify-content:space-between;align-items:center;gap:12px}.heading h2{margin:0}.caption{font-size:13px;color:#55746a;line-height:1.8}#message{color:#8a2a21;line-height:1.8}[hidden]{display:none!important}ul{padding-right:20px}li{margin:8px 0}`
+
+export const mobileJs = `'use strict';
+const el=id=>document.getElementById(id),msg=text=>{el('message').textContent=text};
+async function api(path,options){const response=await fetch(path,{credentials:'same-origin',cache:'no-store',...options});const data=await response.json();if(!response.ok)throw new Error(data.error||'درخواست ناموفق بود');return data}
+function line(parent,text){const p=document.createElement('p');p.textContent=text;parent.appendChild(p)}
+function loggedIn(user){el('login').hidden=true;el('dashboard').hidden=false;el('user').textContent='کاربر: '+user.username+' ('+user.role+')'}
+function loggedOut(){el('login').hidden=false;el('dashboard').hidden=true;el('user').textContent='';el('custody').textContent='';el('shifts').textContent='';el('password').value=''}
+async function refresh(){msg('');el('custody').textContent='در حال دریافت…';el('shifts').textContent='در حال دریافت…';
+try{const data=await api('/api/custody');const box=el('custody');box.textContent='';if(!data.boundary){line(box,'مرز ثبت‌شده‌ای وجود ندارد')}else{const b=data.boundary;line(box,'روز عملیاتی: '+b.operationalDay);line(box,'زمان ثبت (متن پایگاه داده): '+b.atDatabaseValue);line(box,'جمع مورد انتظار: '+b.theoreticalExpectedTotal+' ریال');line(box,'جمع مشاهده‌شده: '+b.observedOperationalTotal+' ریال');line(box,'اختلاف نظری: '+b.totalTheoreticalDifference+' ریال')}}catch(e){el('custody').textContent=e.message}
+try{const data=await api('/api/shifts');const box=el('shifts');box.textContent='';if(!data.shifts.length){line(box,'شیفت بازی وجود ندارد')}else{const ul=document.createElement('ul');for(const shift of data.shifts){const li=document.createElement('li');li.textContent=shift.name+'، شماره '+shift.number+'، روز '+shift.operationalDay;ul.appendChild(li)}box.appendChild(ul);if(data.hasMore)line(box,'فهرست محدود به ۲۰۰ شیفت است.')}}catch(e){el('shifts').textContent=e.message}}
+el('login-form').addEventListener('submit',async e=>{e.preventDefault();msg('');try{await api('/api/login',{method:'POST',headers:{'content-type':'application/json','x-mahak-request':'1'},body:JSON.stringify({username:el('username').value,password:el('password').value})});el('password').value='';const s=await api('/api/session');loggedIn(s.user);await refresh()}catch(error){el('password').value='';msg(error.message)}});
+el('logout').addEventListener('click',async()=>{try{await api('/api/logout',{method:'POST',headers:{'x-mahak-request':'1'}});loggedOut();msg('')}catch(e){msg('خروج تأیید نشد؛ اتصال را بررسی کنید و دوباره تلاش کنید.')}});
+el('reload').addEventListener('click',refresh);
+(async()=>{try{const s=await api('/api/session');loggedIn(s.user);await refresh()}catch{loggedOut()}})();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('/mobile-sw.js').catch(()=>{});`
+
+export const mobileManifest = JSON.stringify({name:'مهاک - مشاهده از راه دور',short_name:'مهاک',lang:'fa',dir:'rtl',start_url:'/',scope:'/',display:'standalone',background_color:'#f4f7f5',theme_color:'#102f2c',icons:[{src:'/icon-192.png',sizes:'192x192',type:'image/png'},{src:'/icon-512.png',sizes:'512x512',type:'image/png'}]})
+// Never cache APIs, credentials, financial data or authenticated responses.
+export const mobileWorker = `'use strict';self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));`
