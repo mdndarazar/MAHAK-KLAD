@@ -54,7 +54,9 @@ export function createHubIdentity(db: Database, options: Options) {
     CREATE TABLE IF NOT EXISTS remote_identity_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, member_id TEXT, kind TEXT NOT NULL,
       detail TEXT NOT NULL, prev_hash TEXT NOT NULL, hash TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS remote_identity_revocations (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL,
-      kind TEXT NOT NULL, member_id TEXT, acknowledged_at INTEGER);`)
+      kind TEXT NOT NULL, member_id TEXT, acknowledged_at INTEGER);
+    CREATE TABLE IF NOT EXISTS remote_identity_panic (id INTEGER PRIMARY KEY CHECK(id=1), latched INTEGER NOT NULL CHECK(latched IN (0,1)));
+    INSERT OR IGNORE INTO remote_identity_panic(id,latched) VALUES(1,0);`)
   const q = (sql: string) => db.prepare(sql)
   const metaGet = q('SELECT last_clock, paused FROM remote_identity_meta WHERE id=1')
   const metaSet = q('UPDATE remote_identity_meta SET last_clock=? WHERE id=1')
@@ -140,7 +142,7 @@ export function createHubIdentity(db: Database, options: Options) {
         const m = name ? memberByName.get(name) : null
         // Unknown/disabled accounts use the same expensive work as a real login.
         const matched = matches(secret, m?.password_salt ?? '0'.repeat(32), m?.password_hash ?? '0'.repeat(64))
-        if (!m || m.status !== 'ACTIVE' || t < m.login_locked_until) return { ok: false }
+        if (!m || m.status !== 'ACTIVE' || t < m.login_locked_until || q('SELECT latched FROM remote_identity_panic WHERE id=1').get()?.latched !== 0) return { ok: false }
         if (!matched) {
           const count = m.login_fails + 1
           q('UPDATE remote_members SET login_fails=?,login_locked_until=? WHERE id=?').run(count >= 5 ? 0 : count, count >= 5 ? t + LOCK_MS : 0, m.id)
@@ -252,6 +254,17 @@ export function createHubIdentity(db: Database, options: Options) {
             !pin(s,pinValue,t))) return null
         if (permission === 'APPROVE') audit(t,s.id,'APPROVAL_AUTHORIZED',panel)
         return s })
+    },
+    /** Experimental P2: remains latched across restarts. No remote unlock is
+     * provided. Local recovery must only be added with authenticated desktop
+     * integration; this is not an end-to-end Panic implementation. */
+    panic(token: string, pinValue: string): boolean {
+      return transact(t => { const s=owner(token,pinValue,t); if (!s) return false
+        q('UPDATE remote_identity_panic SET latched=1 WHERE id=1').run()
+        q('UPDATE remote_identity_meta SET paused=1 WHERE id=1').run()
+        q('DELETE FROM remote_sessions').run()
+        enqueueRevoke(t,'ALL',null)
+        audit(t,s.id,'PANIC'); return true })
     },
     setPaused(token: string, pinValue: string, paused: boolean): boolean {
       if (typeof paused !== 'boolean') return false
