@@ -62,10 +62,12 @@ test('desktop host member approval, removal and durable acknowledgement close th
   assert.equal(api.isPanelUnlocked('products',42),false)
   assert.equal((await call('remoteAuth:claim',{panel:'products',requestId:p.requestId,gt:p.gt})).ok,false)
   assert.equal((await send('POST','/api/approve',{requestId:p.requestId,code:p.code,pin:'482931'},manager.cookie)).status,401)
+  // Close the child before the independent read-only SQLite inspection. The
+  // assertions still verify the durable sender ACK and receiver ledger.
+  await api.stopCloudSync();assert.equal(api.cloudSyncStatus().running,false);await assert.rejects(send('GET','/api/requests',undefined,login.cookie))
   const inspect=new DatabaseSync(join(hubDir,'remote-hub.sqlite'),{readOnly:true})
   try {assert.equal(inspect.prepare('SELECT last_ack n FROM remote_revocation_delivery').get().n,1);assert.equal(inspect.prepare('SELECT COUNT(*) n FROM remote_identity_revocations WHERE acknowledged_at IS NULL').get().n,0)} finally {inspect.close()}
   assert.equal(JSON.parse((await import('node:fs')).readFileSync(join(stateDir,'revocation-ledger.json'),'utf8')).cursor.id,1)
-  await api.stopCloudSync();assert.equal(api.cloudSyncStatus().running,false);await assert.rejects(send('GET','/api/requests',undefined,login.cookie))
   // A missing owner configuration must not recreate it or start a listener.
   renameSync(join(root,'config.json'),join(root,'config.saved'))
   await api.startCloudSync();assert.equal(api.cloudSyncStatus().running,false);assert.equal(existsSync(join(root,'config.json')),false)
