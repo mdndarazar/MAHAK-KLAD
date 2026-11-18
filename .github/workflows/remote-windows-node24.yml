@@ -146,6 +146,8 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-mobile-approval-panic-restart-loopback.mjs
       - name: Test child-clock snapshot freshness
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-snapshot-child-clock-loopback.mjs
+      - name: Test restore admission drain over loopback
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-restore-admission-drain-loopback.mjs
       - name: Test experimental in-process revocation bridge
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-authenticated-approval.mjs
       - name: Test experimental revocation signatures and restore barrier

@@ -267,7 +267,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
     if (approval && revocationConfig && options.approval) approvalBridge=createExperimentalApprovalBridge({
       key:approval.key,storeId:revocationConfig.storeId,epoch:revocationConfig.epoch,policies:approval.policies,
       replayStore:options.approval.replayStore ?? state.openGrantReplayLedger!(),appliedRevocation:()=>appliedRevocationId,
-      isClosed:()=>closed || dead || !admission?.isOpen(),send,
+      isClosed:()=>closed || dead || !admission?.isOpen() || (barrier !== undefined && barrier.status().state !== 'OPEN'),send,
       onReplayFailure:()=>{admission?.block();try {revokeAll()} catch {}}
     })
     send({type:'start',config:{directory:options.directory,...originConfig,owner:options.owner,
@@ -357,9 +357,19 @@ export async function startExperimentalHubSupervisor(options: Options) {
       restoreExclusive(operation:()=>Promise<void>):Promise<void> {
         if (closed || dead || !barrier || typeof operation !== 'function') return Promise.reject(new Error('Restore coordination unavailable'))
         const invalidate=async()=>{ if (!await update({type:'invalidateSnapshot'})) throw new Error('Hub rejected invalidation') }
-        // Invalidate both as the gate closes and once more after old work drains.
-        // The caller must rotate epoch/revoke and serialize every restore itself.
-        return track(barrier.restore(async()=>{await invalidate();await operation()},invalidate))
+        const closeAdmissions=async()=>{
+          // Synchronously close and revoke before the first await. Keep this
+          // lease latched even after success: a new epoch and controlled restart
+          // are still required before any subsequent remote admission.
+          admission?.block()
+          if (options.revocation) {
+            try { revokeAll() } catch (error) { revocationCleanupFailed=true;throw error }
+          }
+          await invalidate()
+        }
+        // This only coordinates callers that use this barrier; BackupService and
+        // direct/external writers are not yet wired. It does not rotate epoch.
+        return track(barrier.restore(async()=>{await invalidate();await operation()},closeAdmissions))
       },
       stop(): Promise<void> {
         if (stopPromise) return stopPromise
