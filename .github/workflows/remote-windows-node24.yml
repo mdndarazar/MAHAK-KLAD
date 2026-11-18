@@ -28,6 +28,8 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-cloud-disabled.mjs
       - name: Test remote IPC window ownership and cleanup
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-window-lifecycle.mjs
+      - name: Test remote IPC and child approval window lifecycle
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-hub-window-loopback.mjs
       - name: Test user setting and experimental panic latch
         shell: pwsh
         run: |
