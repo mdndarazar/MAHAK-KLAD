@@ -139,6 +139,19 @@ export function createCloudReader(client: ReadClient, timeoutMs = 2000) {
       if (timer) clearTimeout(timer)
     }
   }
+  async function auditPage(afterId: number, limit = 200): Promise<AuditEvent[]> {
+    if (!Number.isSafeInteger(afterId) || afterId < 0 ||
+        !Number.isSafeInteger(limit) || limit < 1 || limit > 200) throw new Error('Invalid audit cursor or page size')
+    const result = await read(AUDIT_PAGE, [afterId, limit])
+    if (result.length > limit) throw new Error('Invalid audit page')
+    let previous = afterId
+    return result.map((row) => {
+      const id = safeId(row.id)
+      if (id <= previous) throw new Error('Invalid audit ordering')
+      previous = id
+      return { id, at: text(row.at), action: text(row.action), entity: text(row.entity) }
+    })
+  }
   return {
     /** Wait for the actual query, including one whose public call timed out.
      * The caller must prevent new reads while waiting; this does not cancel SQL. */
@@ -146,18 +159,11 @@ export function createCloudReader(client: ReadClient, timeoutMs = 2000) {
       const query = pendingQuery
       if (query) await query.then(() => {}, () => {})
     },
-    async auditPage(afterId: number, limit = 200): Promise<AuditEvent[]> {
-      if (!Number.isSafeInteger(afterId) || afterId < 0 ||
-          !Number.isSafeInteger(limit) || limit < 1 || limit > 200) throw new Error('Invalid audit cursor or page size')
-      const result = await read(AUDIT_PAGE, [afterId, limit])
-      if (result.length > limit) throw new Error('Invalid audit page')
-      let previous = afterId
-      return result.map((row) => {
-        const id = safeId(row.id)
-        if (id <= previous) throw new Error('Invalid audit ordering')
-        previous = id
-        return { id, at: text(row.at), action: text(row.action), entity: text(row.entity) }
-      })
+    auditPage,
+    /** Atomically start an anchor read or decline it without issuing any SQL.
+     * A caller that receives null MUST NOT publish data using an old result. */
+    tryAuditPage(afterId: number, limit = 200): Promise<AuditEvent[]> | null {
+      return inFlight ? null : auditPage(afterId, limit)
     },
     async latestBoundary(): Promise<Boundary | null> {
       const result = await read(LAST_BOUNDARY, [])

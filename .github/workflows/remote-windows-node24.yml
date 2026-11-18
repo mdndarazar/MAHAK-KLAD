@@ -72,6 +72,8 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-sync-timeout-revokes-loopback.mjs
       - name: Test snapshot query timeout revokes before drain
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-refresh-timeout-revokes-loopback.mjs
+      - name: Test busy reader defers request mirror
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-mirror-reader-busy-loopback.mjs
       - name: Test same-inode audit anchor before request mirror
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-request-mirror-audit-fence-loopback.mjs
       - name: Test same-inode audit anchor before snapshot publication

@@ -36,6 +36,7 @@ type Reader = {
   latestBoundaryTotals(): Promise<unknown>
   openShiftsPage(afterId: number, limit?: number): Promise<unknown>
   auditPage(afterId: number, limit?: number): Promise<{id:number; at:string; action:string; entity:string}[]>
+  tryAuditPage?(afterId: number, limit?: number): Promise<{id:number; at:string; action:string; entity:string}[]> | null
   // Trusted readers can expose underlying operations that outlive public timeouts.
   waitForIdle?(): Promise<void>
   invoiceFactsPage?(fromDay:string,toDay:string,afterId:number,limit:number): Promise<unknown>
@@ -82,6 +83,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
       !options.reader || typeof options.reader.latestBoundaryTotals !== 'function' || typeof options.reader.openShiftsPage !== 'function' ||
       typeof options.reader.auditPage !== 'function' ||
       (options.reader.waitForIdle !== undefined && typeof options.reader.waitForIdle !== 'function') ||
+      (options.reader.tryAuditPage !== undefined && typeof options.reader.tryAuditPage !== 'function') ||
       (options.coordinateDesktopBackup !== undefined && typeof options.coordinateDesktopBackup !== 'boolean') ||
       (options.coordinateDesktopBackup === true && (!options.restoreBarrier || !options.revocation || options.revocation.ledger !== undefined || options.approval?.replayStore !== undefined)) ||
       (options.restoreBarrier !== undefined && (!options.restoreBarrier || typeof options.restoreBarrier.run !== 'function' ||
@@ -256,7 +258,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
   // Marker/epoch checks complement, but do not replace, exclusive restore
   // coordination or a real database identity check. Never approve after an
   // uncertain read: revoke the desktop sessions and terminate the child.
-  async function approvalStateCurrent(checkAuditAnchor=false): Promise<boolean> {
+  async function approvalStateCurrent(checkAuditAnchor=false, skipBusy=false): Promise<boolean> {
     try {
       if (closed || dead || storeInvalidated || !revocationConfig) return false
       const before=state.load()
@@ -275,8 +277,12 @@ export async function startExperimentalHubSupervisor(options: Options) {
         // last acknowledged audit row before issuing/claiming any new grant.
         // This detects changed history, not an identical rollback or a change
         // outside that row; the external-writer limitation still applies.
+        // A periodic mirror may defer when another trusted read owns the
+        // reader. This is not permission to publish an unchecked mirror.
+        const query=skipBusy && reader.tryAuditPage ? reader.tryAuditPage(before.lastAcked-1,1) : reader.auditPage(before.lastAcked-1,1)
+        if (query===null) return false
         let rows:Awaited<ReturnType<typeof reader.auditPage>>
-        try { rows=await reader.auditPage(before.lastAcked-1,1) }
+        try { rows=await query }
         catch (error) {
           // A timed-out read can still be running. Revoke immediately rather
           // than waiting for it in finally, while keeping the barrier held until
@@ -442,7 +448,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
         void track(runApprovalGuard(async()=>{
           // A request mirror is also outbound data: validate the last durable
           // audit anchor before sending it, not only on approval and claim.
-          if (await approvalStateCurrent(true)) approvalBridge?.tick()
+          if (await approvalStateCurrent(true,true)) approvalBridge?.tick()
         }).catch(()=>{
           // A closing restore is expected to reject new work. Any other error
           // leaves the admission latch closed and the child unavailable.
