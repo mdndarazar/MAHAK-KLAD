@@ -481,6 +481,10 @@ export async function startExperimentalHubSupervisor(options: Options) {
           if (!current || current.storeId !== initial.storeId || current.epoch !== initial.epoch ||
               current.restoreMarker !== initial.restoreMarker || await readRestoreMarker() !== initial.restoreMarker) throw new Error('Restore detected')
           if (barrier && barrier.status().state !== 'OPEN') throw new Error('Restore in progress')
+          // Snapshot data must not be published on a database whose last
+          // acknowledged audit anchor has changed. This is a limited fence,
+          // not a substitute for a complete database identity or writer lock.
+          if (revocationConfig && !await approvalStateCurrent(true)) throw new Error('Snapshot identity unavailable')
           if (!await update({type:'snapshot',captureId,value:{boundary,shifts}})) throw new Error('Hub rejected snapshot')
         } catch (error) {
           // With remote grants enabled, an uncertain refresh must revoke before
