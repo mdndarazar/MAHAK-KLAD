@@ -60,7 +60,22 @@ try {
   approvedSalesFix = git('rev-parse', `${base}:${salesPath}`).trim() === '64f56dcfb4cb2e4169d6e37e7ca86ec86cba1cbc' &&
     git('hash-object', `--path=${salesPath}`, salesPath).trim() === '122a366fcff54ce5756bd09f42eae3e686748e59'
 } catch {} // Missing or unreadable file is never approved.
-const permitted = (path) => allowed.has(path) || path.startsWith('src/main/services/cloud/') || (path === salesPath && approvedSalesFix)
+// Owner authorized only the backup IPC coordination hook, not general IPC edits.
+const backupIpcPath = 'src/main/ipc/index.ts'
+let approvedBackupIpc = false
+try {
+  approvedBackupIpc = git('rev-parse', `${base}:${backupIpcPath}`).trim() === '932e01005eed9722f4e06d31752e25a6e79f071c' &&
+    git('hash-object', `--path=${backupIpcPath}`, backupIpcPath).trim() === '819520a968e75f9814af28e95192d9c28703696b'
+} catch {}
+// Owner authorized a coordination wrapper around merge entry only; pin the
+// entire pre/post blob so the financial merge implementation cannot change.
+const mergePath = 'src/main/services/MergeService.ts'
+let approvedMergeWrapper = false
+try {
+  approvedMergeWrapper = git('rev-parse', `${base}:${mergePath}`).trim() === 'e6dfe9f37f926c4ebb6134eeeadaa2764f84e66f' &&
+    git('hash-object', `--path=${mergePath}`, mergePath).trim() === '29e19ba29136992c49bd37bd4ab48a998344deff'
+} catch {}
+const permitted = (path) => allowed.has(path) || path.startsWith('src/main/services/cloud/') || (path === salesPath && approvedSalesFix) || (path === backupIpcPath && approvedBackupIpc) || (path === mergePath && approvedMergeWrapper)
 const problems = []
 const statusFields = git('diff', '--name-status', '--no-renames', '-z', base, '--', ...scope).split('\0')
 for (let i = 0; i < statusFields.length - 1; i += 2) {

@@ -7,6 +7,7 @@ import { applyMigrations } from '../db/migrator'
 import { audit } from './AuditService'
 import { bumpReceiptSeq } from './receiptNo'
 import { BusinessError } from '../errors'
+import { withDesktopBackupCoordination } from './cloud/desktopBackupCoordination'
 import { AuditAction } from '@shared/enums'
 import { toJalaliDate } from '@shared/jalali'
 import type { BackupSummary, MergeReport } from '@shared/types'
@@ -352,6 +353,14 @@ async function assertMergeCreditSafe(src: PrismaClient): Promise<void> {
 }
 
 export async function mergeBackup(input: {
+  file: string
+  fileName?: string
+  userId?: number | null
+}): Promise<MergeReport> {
+  return withDesktopBackupCoordination(() => mergeBackupImpl(input))
+}
+
+async function mergeBackupImpl(input: {
   file: string
   fileName?: string
   userId?: number | null

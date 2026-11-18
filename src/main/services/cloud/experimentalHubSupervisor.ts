@@ -29,6 +29,7 @@ import { startExperimentalRevocationReceiver } from './experimentalNetworkRevoca
 import { acquireRemoteAdmissionLease, revokeAll, revokeBy } from '../RemoteGrantRegistry'
 import { createExperimentalApprovalBridge } from './experimentalApprovalBridge'
 import type { GrantReplayStore } from './signedCommandVerifier'
+import { reserveDesktopBackupCoordination } from './desktopBackupCoordination'
 
 type Reader = {
   latestBoundaryTotals(): Promise<unknown>
@@ -49,6 +50,8 @@ type Options = {
   // Optional in-process experiment only. Every restore must use restoreExclusive,
   // and no other component may bypass the gate or start queries on this reader.
   restoreBarrier?: ReturnType<typeof createExperimentalRestoreBarrier>
+  // Experimental opt-in for the desktop backup IPC; not a production switch.
+  coordinateDesktopBackup?: boolean
   // The caller owns an exclusive durable replay ledger scoped to this store and
   // epoch. This opt-in does not enable the Electron integration.
   revocation?: { key:Uint8Array; ledger?:Omit<Parameters<typeof startExperimentalRevocationReceiver>[0]['ledger'],'apply'>;
@@ -75,6 +78,8 @@ export async function startExperimentalHubSupervisor(options: Options) {
       !options.reader || typeof options.reader.latestBoundaryTotals !== 'function' || typeof options.reader.openShiftsPage !== 'function' ||
       typeof options.reader.auditPage !== 'function' ||
       (options.reader.waitForIdle !== undefined && typeof options.reader.waitForIdle !== 'function') ||
+      (options.coordinateDesktopBackup !== undefined && typeof options.coordinateDesktopBackup !== 'boolean') ||
+      (options.coordinateDesktopBackup === true && (!options.restoreBarrier || !options.revocation || options.revocation.ledger !== undefined || options.approval?.replayStore !== undefined)) ||
       (options.restoreBarrier !== undefined && (!options.restoreBarrier || typeof options.restoreBarrier.run !== 'function' ||
         typeof options.restoreBarrier.restore !== 'function' || typeof options.restoreBarrier.status !== 'function' || typeof options.reader.waitForIdle !== 'function')) ||
       (options.reader.invoiceFactsPage !== undefined && typeof options.reader.invoiceFactsPage !== 'function') ||
@@ -106,6 +111,9 @@ export async function startExperimentalHubSupervisor(options: Options) {
     if (!barrier) return operation()
     return barrier.run(async()=>{ try { return await operation() } finally { await reader.waitForIdle!() } })
   }
+  // Reserve before the first asynchronous startup step; an uncertain startup or
+  // shutdown deliberately leaves the experimental backup fence closed.
+  const backupCoordination=options.coordinateDesktopBackup ? reserveDesktopBackupCoordination() : undefined
   // The lease starts closed and remains closed on any uncertain startup or
   // shutdown. Only one supervisor may own desktop admissions at a time.
   const admission = options.revocation ? acquireRemoteAdmissionLease() : undefined
@@ -294,7 +302,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
       approvalTimer.unref?.()
       approvalBridge.tick()
     }
-    return {
+    const supervisor = {
       mobilePort:ports.mobilePort,
       refreshOnce(): Promise<void> {
         if (closed || dead || storeInvalidated) return Promise.reject(new Error('Hub child unavailable'))
@@ -422,6 +430,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
           // host's responsibility; no cancellation or restore lock is implied.
           if (!tasks.length && !reader.waitForIdle) {
             if (revocationCleanupFailed) throw new Error('Remote panel cleanup not confirmed')
+            backupCoordination?.release()
             admission?.release()
             return
           }
@@ -434,11 +443,14 @@ export async function startExperimentalHubSupervisor(options: Options) {
             ])
           } finally { if (timer) clearTimeout(timer) }
           if (revocationCleanupFailed) throw new Error('Remote panel cleanup not confirmed')
+          backupCoordination?.release()
           admission?.release()
         })
         return stopPromise
       }
     }
+    backupCoordination?.install(operation=>supervisor.restoreExclusive(operation))
+    return supervisor
   } catch (error) {
     clearTimeout(startTimer);child.kill();await releaseReceiver().catch(() => {});throw error
   }

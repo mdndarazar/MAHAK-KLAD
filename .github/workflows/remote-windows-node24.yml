@@ -150,6 +150,16 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-restore-admission-drain-loopback.mjs
       - name: Test restore epoch fence over loopback
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-restore-epoch-fence-loopback.mjs
+      - name: Test backup coordination lifecycle
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-coordination-lifecycle.mjs
+      - name: Test backup IPC security fence
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-ipc-fence-loopback.mjs
+      - name: Test real replacement through backup IPC
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-real-replace-ipc-loopback.mjs
+      - name: Test real merge through backup IPC
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-real-merge-ipc-loopback.mjs
+      - name: Test direct merge fence
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-direct-merge-loopback.mjs
       - name: Test experimental in-process revocation bridge
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-authenticated-approval.mjs
       - name: Test experimental revocation signatures and restore barrier
