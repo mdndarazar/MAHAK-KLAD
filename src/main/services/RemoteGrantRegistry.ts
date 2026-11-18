@@ -47,10 +47,12 @@ let admissionBlocked = false
 export function acquireRemoteAdmissionLease() {
   if (admissionOwner) throw new Error('Remote admission owner already active')
   const owner = {}; admissionOwner = owner; admissionBlocked = true
+  let failed = false
   const owns = () => admissionOwner === owner
   return {
-    open() { if (!owns()) throw new Error('Remote admission lease lost'); admissionBlocked = false },
-    block() { if (owns()) admissionBlocked = true },
+    isOpen() { return owns() && !failed && !admissionBlocked },
+    open() { if (!owns() || failed) throw new Error('Remote admission lease unavailable'); admissionBlocked = false },
+    block() { if (owns()) { failed = true; admissionBlocked = true } },
     release() { if (!owns()) throw new Error('Remote admission lease lost'); admissionBlocked = true; admissionOwner = null }
   }
 }

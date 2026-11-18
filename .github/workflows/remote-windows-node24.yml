@@ -140,6 +140,8 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-grant-replay-ledger.mjs
       - name: Test supervisor grant replay after state reopen
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-supervisor-grant-replay-loopback.mjs
+      - name: Test approval admission latch over loopback
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-approval-admission-latch-loopback.mjs
       - name: Test experimental in-process revocation bridge
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-authenticated-approval.mjs
       - name: Test experimental revocation signatures and restore barrier

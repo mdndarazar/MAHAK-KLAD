@@ -266,7 +266,8 @@ export async function startExperimentalHubSupervisor(options: Options) {
     const approval=options.approval ? {key:Buffer.from(options.approval.key),policies:Object.fromEntries(Object.entries(options.approval.policies).map(([name,p])=>[name,{...p}]))} : undefined
     if (approval && revocationConfig && options.approval) approvalBridge=createExperimentalApprovalBridge({
       key:approval.key,storeId:revocationConfig.storeId,epoch:revocationConfig.epoch,policies:approval.policies,
-      replayStore:options.approval.replayStore ?? state.openGrantReplayLedger!(),appliedRevocation:()=>appliedRevocationId,isClosed:()=>closed || dead,send,
+      replayStore:options.approval.replayStore ?? state.openGrantReplayLedger!(),appliedRevocation:()=>appliedRevocationId,
+      isClosed:()=>closed || dead || !admission?.isOpen(),send,
       onReplayFailure:()=>{admission?.block();try {revokeAll()} catch {}}
     })
     send({type:'start',config:{directory:options.directory,...originConfig,owner:options.owner,
