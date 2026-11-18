@@ -114,7 +114,17 @@ jobs:
       - name: Test remote-panic-notification-loopback
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-notification-loopback.mjs
       - name: Test remote-panic-levels-loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-levels-loopback.mjs
+        shell: pwsh
+        run: |
+          $output = & node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-levels-loopback.mjs 2>&1 | Out-String
+          $result = $LASTEXITCODE
+          Write-Output $output
+          if ($result -ne 0) {
+            $detail = $output -replace '%','%25' -replace "`r",'%0D' -replace "`n",'%0A'
+            if ($detail.Length -gt 10000) { $detail = $detail.Substring($detail.Length - 10000) }
+            Write-Output "::error title=Remote panic levels test::$detail"
+            exit $result
+          }
       - name: Test remote-panic-p1-failure-loopback
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-p1-failure-loopback.mjs
       - name: Test remote-panic-pwa-loopback

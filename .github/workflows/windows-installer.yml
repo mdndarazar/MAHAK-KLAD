@@ -140,6 +140,14 @@ jobs:
             exit $LASTEXITCODE
           }
 
+      - name: Verify Windows hub runtime from unpacked installer resources
+        shell: pwsh
+        env:
+          REMOTE_TEST_RESOURCE_DIR: dist/win-unpacked/resources
+        run: |
+          node --import ./test/harness/register.mjs --test tests/audit-fixes/remote-installer-runtime-loopback.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Create installable and source ZIPs
         if: success()
         shell: pwsh

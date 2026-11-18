@@ -63,6 +63,7 @@
       }
     ],
     "win": {
+      "extraResources": [{"from":"out/main/remote-hub-child.cjs","to":"remote/remote-hub-child.cjs"},{"from":"build/remote-runtime/node.exe","to":"remote/node.exe"},{"from":"build/remote-runtime/LICENSE","to":"remote/LICENSE"}],
       "target": [
         "nsis"
       ]
