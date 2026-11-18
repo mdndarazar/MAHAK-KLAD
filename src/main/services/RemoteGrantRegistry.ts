@@ -249,9 +249,15 @@ export function cancelForWindow(ownerWindowId: number, panel?: string): boolean 
   for (const [k, p] of pendingRequests) {
     if (p.ownerWindowId === ownerWindowId && (panel === undefined || p.panel === panel)) pendingRequests.delete(k)
   }
+  let failed = false
   for (const [k, g] of grants) {
-    if (g.ownerWindowId === ownerWindowId && (panel === undefined || g.panel === panel)) clearGrant(k, g)
+    if (g.ownerWindowId === ownerWindowId && (panel === undefined || g.panel === panel)) {
+      try { clearGrant(k, g) } catch { failed = true }
+    }
   }
+  // Continue closing other scopes even when one host cleanup fails. Failed
+  // entries remain revoking for retry, and the caller must not report success.
+  if (failed) throw new Error('Remote panel cleanup failed')
   // Cancellation must not erase a credential-guessing lockout.
   return true
 }

@@ -26,6 +26,8 @@ jobs:
         run: npm ci
       - name: Test disabled cloud service has no side effects
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-cloud-disabled.mjs
+      - name: Test remote IPC window ownership and cleanup
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-window-lifecycle.mjs
       - name: Test user setting and experimental panic latch
         shell: pwsh
         run: |
