@@ -136,9 +136,22 @@ export async function startExperimentalHubSupervisor(options: Options) {
     }
   }
   const barrier=options.restoreBarrier
+  // Give foreground DB work priority over the periodic mirror. This avoids
+  // turning an ordinary overlap with the mirror's anchor read into a fatal
+  // reader-busy error. The barrier still counts waiters before their first await.
+  let foregroundCount=0, mirrorWork:Promise<void>|null=null
+  async function foreground<T>(operation:()=>Promise<T>):Promise<T> {
+    foregroundCount++
+    try {
+      const preceding=mirrorWork
+      if (preceding) await preceding
+      if (closed || dead || storeInvalidated || (barrier && barrier.status().state!=='OPEN')) throw new Error('Hub child unavailable')
+      return await operation()
+    } finally { foregroundCount-- }
+  }
   function guarded<T>(operation:()=>Promise<T>):Promise<T> {
-    if (!barrier) return operation()
-    return barrier.run(async()=>{ try { return await operation() } finally { await reader.waitForIdle!() } })
+    if (!barrier) return foreground(operation)
+    return barrier.run(()=>foreground(async()=>{ try { return await operation() } finally { await reader.waitForIdle!() } }))
   }
   // Reserve before the first asynchronous startup step; an uncertain startup or
   // shutdown deliberately leaves the experimental backup fence closed.
@@ -311,9 +324,10 @@ export async function startExperimentalHubSupervisor(options: Options) {
   // while an earlier marker/file-identity read is still in progress. Do not use
   // guarded(), which also drains the shared SQL reader and can serialize an
   // unrelated snapshot query against approval.
-  async function runApprovalGuard(operation:()=>Promise<void>):Promise<void> {
-    if (barrier) await barrier.run(operation)
-    else await operation()
+  async function runApprovalGuard(operation:()=>Promise<void>, background=false):Promise<void> {
+    const run=background ? operation : ()=>foreground(operation)
+    if (barrier) await barrier.run(run)
+    else await run()
   }
   child.on('message',(message: unknown) => {
     if (!object(message)) return
@@ -444,18 +458,25 @@ export async function startExperimentalHubSupervisor(options: Options) {
       let ticking=false
       const tickApproval=()=>{
         if (ticking) return
+        if (foregroundCount) {
+          try { approvalBridge?.clearMirror() } catch { fail();child.kill() }
+          return
+        }
         ticking=true
-        void track(runApprovalGuard(async()=>{
+        const task=runApprovalGuard(async()=>{
           // A request mirror is also outbound data: validate the last durable
           // audit anchor before sending it, not only on approval and claim.
-          if (await approvalStateCurrent(true,true)) approvalBridge?.tick()
+          const current=await approvalStateCurrent(true,true)
+          if (current && !foregroundCount) approvalBridge?.tick()
           else if (!closed && !dead && !storeInvalidated && admission?.isOpen() && (!barrier || barrier.status().state==='OPEN'))
             approvalBridge?.clearMirror()
-        }).catch(()=>{
+        },true).catch(()=>{
           // A closing restore is expected to reject new work. Any other error
           // leaves the admission latch closed and the child unavailable.
           if (!barrier || barrier.status().state==='OPEN') {fail();child.kill()}
-        }).finally(()=>{ticking=false}))
+        }).finally(()=>{ticking=false;if (mirrorWork===task) mirrorWork=null})
+        mirrorWork=task
+        void track(task)
       }
       approvalTimer=setInterval(tickApproval,500)
       approvalTimer.unref?.()
