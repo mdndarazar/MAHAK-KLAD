@@ -365,7 +365,26 @@ export async function startExperimentalHubSupervisor(options: Options) {
       waiting.set(id,{resolve,reject,timer})
       try { send({...message,id}) } catch (error) { clearTimeout(timer);waiting.delete(id);reject(error) }
     })
-    if (dead) throw new Error('Hub child unavailable')
+    if (revocationConfig) {
+      // The child has drained its initial outbox, but the desktop database may
+      // have changed during startup. Keep admission closed until the same
+      // store/epoch/marker and optional file identity are verified again.
+      const verifyStartup=async()=>{
+        const before=state.load()
+        if (!before || before.storeId!==revocationConfig!.storeId || before.epoch!==revocationConfig!.epoch ||
+            before.restoreMarker!==revocationRestoreMarker || await readRestoreMarker()!==revocationRestoreMarker) throw new Error('Restore detected during startup')
+        const after=state.load()
+        if (!after || after.storeId!==before.storeId || after.epoch!==before.epoch || after.restoreMarker!==before.restoreMarker ||
+            (barrier && barrier.status().state!=='OPEN')) throw new Error('Restore detected during startup')
+      }
+      let timer:ReturnType<typeof setTimeout> | undefined
+      try {
+        await Promise.race([runApprovalGuard(verifyStartup),new Promise<never>((_,reject)=>{
+          timer=setTimeout(()=>reject(new Error('Startup restore check timed out')),timeout)
+        })])
+      } finally { if (timer) clearTimeout(timer) }
+    }
+    if (dead || storeInvalidated) throw new Error('Hub child unavailable')
     admission?.open()
     if (approvalBridge) {
       let ticking=false
