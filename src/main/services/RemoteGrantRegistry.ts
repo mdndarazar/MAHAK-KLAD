@@ -164,6 +164,17 @@ export function getRequestStatus(ownerWindowId: number, panel: string, requestId
 export function remoteGrantActive(_panel: string): boolean { return false }
 export function isActiveForCurrentWindow(_panel: string): boolean { return false }
 
+/** Explicit remote panel claim; never interpret a local password as a token.
+ * The request, owner and normal-panel policy are checked synchronously with
+ * consumption so a stale renderer response cannot claim another request. */
+export function claimRemotePanel(ownerWindowId: number, panel: string, requestId: string, token: string): boolean {
+  if (!validOwner(ownerWindowId) || typeof panel !== 'string' || !VALID_PANEL.test(panel) ||
+      typeof requestId !== 'string' || !VALID_ID.test(requestId)) return false
+  const grant=active(keyOf(ownerWindowId,panel))
+  if (!grant || grant.claimed || grant.requestId!==requestId || grant.tier!=='NORMAL' || grant.mode!=='PANEL') return false
+  return consumeOneShot(ownerWindowId,panel,token)
+}
+
 export function consumeOneShot(ownerWindowId: number | null, panel: string, token: string): boolean {
   if (!validOwner(ownerWindowId) || typeof panel !== 'string' || !VALID_PANEL.test(panel)) return false
   const k = keyOf(ownerWindowId, panel)

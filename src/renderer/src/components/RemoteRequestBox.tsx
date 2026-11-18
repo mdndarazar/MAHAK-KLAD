@@ -34,6 +34,7 @@ export function RemoteRequestBox({ panel }: { panel: string }) {
         if (!['PENDING', 'APPROVED', 'CLAIMED', 'UNAVAILABLE'].includes(status?.state)) throw new Error('Invalid status')
         setState(status.state)
         setError(null)
+        if (status.state === 'CLAIMED') window.dispatchEvent(new Event('mahak-remote-sync'))
         if (status.state === 'CLAIMED' || status.state === 'UNAVAILABLE') return
       } catch {
         if (stopped) return
@@ -67,6 +68,23 @@ export function RemoteRequestBox({ panel }: { panel: string }) {
     }
   }
 
+  const claim = async () => {
+    if (!request || request.panel !== panel || state !== 'APPROVED' || busy) return
+    const current = generation.current
+    setBusy(true)
+    setError(null)
+    try {
+      await call(REMOTE_AUTH_CHANNELS.claim as any, { panel, requestId: request.requestId, gt: request.gt })
+      if (current !== generation.current) return
+      setState('CLAIMED')
+      window.dispatchEvent(new Event('mahak-remote-sync'))
+    } catch {
+      if (current === generation.current) setError('فعال‌سازی مجوز تأیید نشد؛ وضعیت دوباره بررسی می‌شود.')
+    } finally {
+      if (current === generation.current) setBusy(false)
+    }
+  }
+
   const cancel = async () => {
     const current = ++generation.current
     setBusy(true)
@@ -95,7 +113,7 @@ export function RemoteRequestBox({ panel }: { panel: string }) {
             <>
               <div>کد تطبیق: <b>{current.code}</b> — آن را با مدیر مقایسه کنید.</div>
               {state === 'PENDING' && <div>در انتظار تأیید مدیر.</div>}
-              {state === 'APPROVED' && <div>درخواست تأیید شده است. کد مجوز را در کادر رمز همین پنجره وارد کنید: <b>{current.gt}</b></div>}
+              {state === 'APPROVED' && <button className="btn btn-primary w-full" disabled={busy} onClick={() => void claim()}>فعال‌سازی مجوز همین پنل</button>}
               {state === 'CLAIMED' && <div>مجوز استفاده شده است.</div>}
             </>
           )}

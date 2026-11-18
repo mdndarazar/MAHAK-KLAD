@@ -4,7 +4,7 @@
  */
 import { BrowserWindow, ipcMain } from 'electron'
 import { REMOTE_AUTH_CHANNELS, REMOTE_GT_PREFIX, remoteImplementationReady } from '../../shared/remoteAuthChannels'
-import { cancelForWindow, getRequestStatus, requestCode } from '../services/RemoteGrantRegistry'
+import { cancelForWindow, claimRemotePanel, getRequestStatus, requestCode } from '../services/RemoteGrantRegistry'
 
 // Match the application's other IPC handlers: only a live BrowserWindow may
 // own a request. A destroyed renderer must not retain pending requests or grants.
@@ -42,6 +42,16 @@ export function registerRemoteAuthHandlers() {
     if (!panel || !requestId) return { ok: false as const, error: 'درخواست مشخص نشده' }
     const owner = ownerOf(event)
     return { ok: true as const, data: { state: getRequestStatus(owner, panel, requestId) } }
+  })
+
+  ipcMain.handle(REMOTE_AUTH_CHANNELS.claim, async (event, payload: { panel?: string; requestId?: string; gt?: string }) => {
+    const owner = ownerOf(event)
+    const panel = typeof payload?.panel === 'string' ? payload.panel : ''
+    const requestId = typeof payload?.requestId === 'string' ? payload.requestId : ''
+    const gt = typeof payload?.gt === 'string' ? payload.gt : ''
+    if (!/^gt-[A-Za-z0-9_-]{43}$/.test(gt) || !claimRemotePanel(owner,panel,requestId,gt.slice(REMOTE_GT_PREFIX.length)))
+      return { ok: false as const, error: 'مجوز راه دور نامعتبر یا منقضی شده است.' }
+    return { ok: true as const, data: { scope: 'PANEL' as const } }
   })
 
   ipcMain.handle(REMOTE_AUTH_CHANNELS.cancel, async (event, payload: { panel?: string }) => {

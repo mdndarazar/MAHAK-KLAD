@@ -32,6 +32,8 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-idle-no-keepalive.mjs
       - name: Test remote IPC and child approval window lifecycle
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-hub-window-loopback.mjs
+      - name: Test remote IPC claim and panic on loopback
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-claim-panic-loopback.mjs
       - name: Test user setting and experimental panic latch
         shell: pwsh
         run: |
