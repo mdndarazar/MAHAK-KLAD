@@ -277,7 +277,14 @@ export async function startExperimentalHubSupervisor(options: Options) {
         // outside that row; the external-writer limitation still applies.
         let rows:Awaited<ReturnType<typeof reader.auditPage>>
         try { rows=await reader.auditPage(before.lastAcked-1,1) }
-        finally { if (reader.waitForIdle) await reader.waitForIdle() }
+        catch (error) {
+          // A timed-out read can still be running. Revoke immediately rather
+          // than waiting for it in finally, while keeping the barrier held until
+          // the underlying query really settles so restore cannot race it.
+          storeInvalidated=true
+          fail();fenceUncertainEpoch();child.kill()
+          throw error
+        } finally { if (reader.waitForIdle) await reader.waitForIdle() }
         const item=Array.isArray(rows) && rows.length===1 ? rows[0] : null
         if (!item || item.id!==before.lastAcked || typeof item.at!=='string' || typeof item.action!=='string' || typeof item.entity!=='string' ||
             createHash('sha256').update(JSON.stringify([item.id,item.at,item.action,item.entity]),'utf8').digest('hex')!==before.anchorHash)
