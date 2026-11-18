@@ -25,19 +25,26 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
       - name: Test disabled cloud service has no side effects
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-cloud-disabled.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-cloud-disabled.mjs
       - name: Test remote IPC window ownership and cleanup
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-window-lifecycle.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-ipc-window-lifecycle.mjs
       - name: Test remote IPC cannot extend idle grants
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-idle-no-keepalive.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-ipc-idle-no-keepalive.mjs
       - name: Test renderer session monitoring
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-renderer-session-monitor.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-renderer-session-monitor.mjs
       - name: Test remote IPC and child approval window lifecycle
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-hub-window-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-ipc-hub-window-loopback.mjs
       - name: Test remote IPC claim and panic on loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-claim-panic-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-ipc-claim-panic-loopback.mjs
       - name: Test desktop host with provisioned temporary hub
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-desktop-host-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-desktop-host-loopback.mjs
       - name: Test desktop host member revocation and acknowledgement
         shell: pwsh
         run: |
@@ -53,43 +60,62 @@ jobs:
             exit $code
           }
       - name: Test desktop host panic recovery
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-desktop-host-panic-recovery.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-desktop-host-panic-recovery.mjs
       - name: Test uncertain desktop host startup shutdown
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-host-failed-start-stop.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-host-failed-start-stop.mjs
       - name: Test desktop reports unconfirmed child shutdown
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-host-unconfirmed-shutdown.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-host-unconfirmed-shutdown.mjs
       - name: Test database replacement during IPC claim on loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-claim-db-fence-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-ipc-claim-db-fence-loopback.mjs
       - name: Test audit sync failure closes remote grants
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-audit-sync-invalidates-grants.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-audit-sync-invalidates-grants.mjs
       - name: Test audit uncertainty fences old epoch
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-sync-uncertainty-epoch-fence.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-sync-uncertainty-epoch-fence.mjs
       - name: Test snapshot detects database replacement and fences epoch
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-refresh-db-epoch-fence.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-refresh-db-epoch-fence.mjs
       - name: Test approval query timeout revokes before drain
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-approval-timeout-revokes-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-approval-timeout-revokes-loopback.mjs
       - name: Test sync query timeout revokes before drain
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-sync-timeout-revokes-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-sync-timeout-revokes-loopback.mjs
       - name: Test snapshot query timeout revokes before drain
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-refresh-timeout-revokes-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-refresh-timeout-revokes-loopback.mjs
       - name: Test sync waits for active mirror anchor
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-sync-after-mirror-read-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-sync-after-mirror-read-loopback.mjs
       - name: Test approval during foreground sync
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-approval-during-sync-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-approval-during-sync-loopback.mjs
       - name: Test queued approval timeout closes without grant
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-approval-queue-timeout-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-approval-queue-timeout-loopback.mjs
       - name: Test restore with queued sync
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-restore-queued-sync-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-restore-queued-sync-loopback.mjs
       - name: Test restore with queued sync and mirror timeout
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-restore-waiting-mirror-timeout-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-restore-waiting-mirror-timeout-loopback.mjs
       - name: Test busy reader defers request mirror
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-mirror-reader-busy-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-mirror-reader-busy-loopback.mjs
       - name: Test busy reader clears earlier request mirror
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-mirror-busy-clears-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-mirror-busy-clears-loopback.mjs
       - name: Test same-inode audit anchor before request mirror
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-request-mirror-audit-fence-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-request-mirror-audit-fence-loopback.mjs
       - name: Test same-inode audit anchor before snapshot publication
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-refresh-audit-fence-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-refresh-audit-fence-loopback.mjs
       - name: Test same-inode audit anchor change before approval and claim
         run: |
           node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-approval-audit-anchor.mjs
@@ -104,7 +130,8 @@ jobs:
           node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-identity.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Test conservative revocation clock handling
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-revocation-clock-conservative.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-revocation-clock-conservative.mjs
       - name: Test experimental two-process loopback revocation
         shell: pwsh
         run: |
@@ -120,19 +147,26 @@ jobs:
             exit $code
           }
       - name: Test experimental forged revocation ACK
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-network-ack.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-network-ack.mjs
       - name: Test isolated hub on temporary SQLite
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-windows-node24.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-windows-node24.mjs
       - name: Test remote-supervisor-revocation-loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-supervisor-revocation-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-supervisor-revocation-loopback.mjs
       - name: Test remote-revocation-failure-admission-loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-revocation-failure-admission-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-revocation-failure-admission-loopback.mjs
       - name: Test remote-revocation-transport-failure-loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-revocation-transport-failure-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-revocation-transport-failure-loopback.mjs
       - name: Test remote-revocation-cleanup-failure
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-revocation-cleanup-failure.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-revocation-cleanup-failure.mjs
       - name: Test remote-durable-revocation-ledger
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-durable-revocation-ledger.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-durable-revocation-ledger.mjs
       - name: Test remote-supervisor-durable-revocation
         shell: pwsh
         run: |
@@ -148,17 +182,23 @@ jobs:
             exit $code
           }
       - name: Test remote-supervisor-panic-loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-supervisor-panic-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-supervisor-panic-loopback.mjs
       - name: Test remote-supervisor-panic-failure-loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-supervisor-panic-failure-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-supervisor-panic-failure-loopback.mjs
       - name: Test remote-supervisor-stop-cleanup-loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-supervisor-stop-cleanup-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-supervisor-stop-cleanup-loopback.mjs
       - name: Test remote-supervisor-admission-lifecycle-loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-supervisor-admission-lifecycle-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-supervisor-admission-lifecycle-loopback.mjs
       - name: Test remote-panic-source-rate-loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-source-rate-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-panic-source-rate-loopback.mjs
       - name: Test remote-expiry-panic-failure-loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-expiry-panic-failure-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-expiry-panic-failure-loopback.mjs
       - name: Test remote-panic-panel-session-loopback
         shell: pwsh
         run: |
@@ -174,7 +214,8 @@ jobs:
             exit $code
           }
       - name: Test remote-panic-notification-loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-notification-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-panic-notification-loopback.mjs
       - name: Test remote-panic-levels-loopback
         shell: pwsh
         run: |
@@ -188,7 +229,8 @@ jobs:
             exit $result
           }
       - name: Test remote-panic-p1-failure-loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-p1-failure-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-panic-p1-failure-loopback.mjs
       - name: Test remote-panic-pwa-loopback
         shell: pwsh
         run: |
@@ -204,13 +246,17 @@ jobs:
             exit $code
           }
       - name: Test remote-panic-local-recovery-loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-local-recovery-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-panic-local-recovery-loopback.mjs
       - name: Test remote-panic-preserve-local-loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-preserve-local-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-panic-preserve-local-loopback.mjs
       - name: Test remote-panel-expiry-gate-loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panel-expiry-gate-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-panel-expiry-gate-loopback.mjs
       - name: Test remote-snapshot-rejection-loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-snapshot-rejection-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-snapshot-rejection-loopback.mjs
       - name: Test supervisor snapshot restore detection on isolated SQLite
         shell: pwsh
         run: |
@@ -226,37 +272,53 @@ jobs:
             exit $code
           }
       - name: Test audit sync epoch race checks with isolated state files
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-audit-state-races.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-audit-state-races.mjs
       - name: Test isolated cloud state lock ownership
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-cloud-state.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-cloud-state.mjs
       - name: Test experimental transport vault with a simulated protector
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-transport-vault.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-transport-vault.mjs
       - name: Test experimental command issuer using isolated SQLite
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-command-issuer.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-command-issuer.mjs
       - name: Test experimental cross-process mobile approval and revocation
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-cross-process-approval-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-cross-process-approval-loopback.mjs
       - name: Test experimental approval fence race
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-approval-fence-race.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-approval-fence-race.mjs
       - name: Test approval restore marker fence over loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-approval-restore-marker-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-approval-restore-marker-loopback.mjs
       - name: Test approval database replacement fence over loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-approval-database-replacement-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-approval-database-replacement-loopback.mjs
       - name: Test startup database replacement fence over loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-startup-database-fence-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-startup-database-fence-loopback.mjs
       - name: Test restore beginning during startup over loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-startup-barrier-race-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-startup-barrier-race-loopback.mjs
       - name: Test experimental approval bridge failure and replay
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-approval-bridge-security.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-approval-bridge-security.mjs
       - name: Test experimental durable grant replay ledger
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-grant-replay-ledger.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-grant-replay-ledger.mjs
       - name: Test supervisor grant replay after state reopen
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-supervisor-grant-replay-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-supervisor-grant-replay-loopback.mjs
       - name: Test approval admission latch over loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-approval-admission-latch-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-approval-admission-latch-loopback.mjs
       - name: Test mobile approval and panic across hub restart
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-mobile-approval-panic-restart-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-mobile-approval-panic-restart-loopback.mjs
       - name: Test child-clock snapshot freshness
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-snapshot-child-clock-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-snapshot-child-clock-loopback.mjs
       - name: Test restore admission drain over loopback
         shell: pwsh
         run: |
@@ -272,13 +334,17 @@ jobs:
             exit $code
           }
       - name: Test restore epoch fence over loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-restore-epoch-fence-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-restore-epoch-fence-loopback.mjs
       - name: Test backup coordination lifecycle
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-coordination-lifecycle.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-coordination-lifecycle.mjs
       - name: Test backup IPC security fence
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-ipc-fence-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-ipc-fence-loopback.mjs
       - name: Test real replacement through backup IPC
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-real-replace-ipc-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-real-replace-ipc-loopback.mjs
       - name: Test backup drains approval identity checks
         shell: pwsh
         run: |
@@ -294,13 +360,17 @@ jobs:
             exit $code
           }
       - name: Test backup drains guarded panel claim
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-claim-drain-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-claim-drain-loopback.mjs
       - name: Test real merge through backup IPC
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-real-merge-ipc-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-real-merge-ipc-loopback.mjs
       - name: Test direct merge fence
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-direct-merge-loopback.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-direct-merge-loopback.mjs
       - name: Test experimental in-process revocation bridge
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-authenticated-approval.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-authenticated-approval.mjs
       - name: Test experimental revocation signatures and restore barrier
         shell: pwsh
         run: |
@@ -309,15 +379,20 @@ jobs:
           node --import ./test/harness/register.mjs tests/audit-fixes/remote-restore-barrier.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Test experimental identity and pending revocations
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-hub-identity.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-hub-identity.mjs
       - name: Test read-only invoice facts using isolated SQLite
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-invoice-facts-readonly.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-invoice-facts-readonly.mjs
       - name: Test experimental mobile invoice API using isolated SQLite
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-mobile-invoices-http.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-mobile-invoices-http.mjs
       - name: Test experimental cross-process invoice reads using isolated SQLite
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-hub-invoices-ipc.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-hub-invoices-ipc.mjs
       - name: Test simulated multiple HTTPS origins on loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-multiple-origins.mjs
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-multiple-origins.mjs
       - name: Test mobile invoice capability and UI scripts
         shell: pwsh
         run: |
