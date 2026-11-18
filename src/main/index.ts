@@ -217,6 +217,7 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', async () => {
+  await import('./services/CloudSyncService').then(service => service.stopCloudSync()).catch(() => {})
   await prisma.$disconnect()
   if (process.platform !== 'darwin') app.quit()
 })
