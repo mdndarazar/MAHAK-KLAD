@@ -250,7 +250,19 @@ jobs:
       - name: Test real replacement through backup IPC
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-real-replace-ipc-loopback.mjs
       - name: Test backup drains approval identity checks
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-approval-drain-loopback.mjs
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'remote-backup-approval-drain.log'
+          cmd /c "node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-approval-drain-loopback.mjs > `"$log`" 2>&1"
+          $code = $LASTEXITCODE
+          Get-Content -LiteralPath $log
+          if ($code -ne 0) {
+            $text = Get-Content -LiteralPath $log -Raw
+            if ($text.Length -gt 12000) { $text = $text.Substring($text.Length - 12000) }
+            $text = $text.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Remote backup approval drain test::$text"
+            exit $code
+          }
       - name: Test backup drains guarded panel claim
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-claim-drain-loopback.mjs
       - name: Test real merge through backup IPC

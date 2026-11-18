@@ -145,8 +145,17 @@ jobs:
         env:
           REMOTE_TEST_RESOURCE_DIR: dist/win-unpacked/resources
         run: |
-          node --import ./test/harness/register.mjs --test tests/audit-fixes/remote-installer-runtime-loopback.mjs
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $log = Join-Path $env:RUNNER_TEMP 'remote-installer-runtime.log'
+          cmd /c "node --import ./test/harness/register.mjs --test tests/audit-fixes/remote-installer-runtime-loopback.mjs > `"$log`" 2>&1"
+          $code = $LASTEXITCODE
+          Get-Content -LiteralPath $log
+          if ($code -ne 0) {
+            $text = Get-Content -LiteralPath $log -Raw
+            if ($text.Length -gt 12000) { $text = $text.Substring($text.Length - 12000) }
+            $text = $text.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Windows packaged hub runtime test::$text"
+            exit $code
+          }
 
       - name: Create installable and source ZIPs
         if: success()
