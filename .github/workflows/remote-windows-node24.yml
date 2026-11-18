@@ -39,7 +39,19 @@ jobs:
       - name: Test desktop host with provisioned temporary hub
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-desktop-host-loopback.mjs
       - name: Test desktop host member revocation and acknowledgement
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-desktop-host-member-revocation.mjs
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'remote-desktop-member-revocation.log'
+          cmd /c "node --import ./test/harness/register.mjs tests/audit-fixes/remote-desktop-host-member-revocation.mjs > `"$log`" 2>&1"
+          $code = $LASTEXITCODE
+          Get-Content -LiteralPath $log
+          if ($code -ne 0) {
+            $text = Get-Content -LiteralPath $log -Raw
+            if ($text.Length -gt 12000) { $text = $text.Substring($text.Length - 12000) }
+            $text = $text.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Desktop host member revocation test::$text"
+            exit $code
+          }
       - name: Test desktop host panic recovery
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-desktop-host-panic-recovery.mjs
       - name: Test uncertain desktop host startup shutdown
