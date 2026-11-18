@@ -39,6 +39,11 @@ export function createExperimentalApprovalBridge(options:{key:Uint8Array;storeId
       if (options.isClosed()) return
       const items=listPendingRequests().filter(p=>Object.hasOwn(policies,p.panel)).slice(0,200)
       options.send({type:'pendingRequests',seq:++seq,items})
+    },
+    clearMirror():void {
+      if (options.isClosed()) return
+      // An empty replacement clears stale requests without disclosing data.
+      options.send({type:'pendingRequests',seq:++seq,items:[]})
     }
   }
 }

@@ -449,6 +449,8 @@ export async function startExperimentalHubSupervisor(options: Options) {
           // A request mirror is also outbound data: validate the last durable
           // audit anchor before sending it, not only on approval and claim.
           if (await approvalStateCurrent(true,true)) approvalBridge?.tick()
+          else if (!closed && !dead && !storeInvalidated && admission?.isOpen() && (!barrier || barrier.status().state==='OPEN'))
+            approvalBridge?.clearMirror()
         }).catch(()=>{
           // A closing restore is expected to reject new work. Any other error
           // leaves the admission latch closed and the child unavailable.
