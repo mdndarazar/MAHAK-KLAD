@@ -22,6 +22,8 @@ import { createLocalAuditReceiver } from './localAuditReceiver'
 import { isInvoiceDate, parseInvoicePage } from './invoiceFactsValidation'
 import { normalizeMobileOrigins } from './mobileOrigins'
 import { drainNetworkRevocations } from './inProcessRevocationBridge'
+import { createExperimentalRemoteCommandIssuer } from './experimentalRemoteCommandIssuer'
+import { approvalEnvelopeMac } from './experimentalApprovalEnvelope'
 
 if (typeof process.send !== 'function') throw new Error('A private parent IPC channel is required')
 const send = (message: unknown) => { if (process.connected && process.send) process.send(message) }
@@ -65,6 +67,20 @@ let revocationTimer: ReturnType<typeof setInterval> | undefined
 let revocationActive: Promise<{applied:number;remaining:boolean}> | undefined
 let snapshot: Snapshot | null = null, snapshotAt = 0, snapshotMaxAge = 0, lastSnapshotCapture = 0
 let invoiceId=0
+type MirrorItem={requestId:string;panel:string;code:string;ownerWindowId:number}
+let mirror:{at:number;seq:number;items:MirrorItem[]}|null=null, approvalId=0
+const waitingApprovals=new Map<number,{resolve:(ok:boolean)=>void;timer:ReturnType<typeof setTimeout>}>()
+function failApprovals() { for (const item of waitingApprovals.values()) {clearTimeout(item.timer);item.resolve(false)} waitingApprovals.clear() }
+function parseMirror(message:Record<string,any>) {
+  if (!sameKeys(message,'items,seq,type') || !safeInt(message.seq,1) || (mirror && message.seq<=mirror.seq) || !Array.isArray(message.items) || message.items.length>200) return
+  const items:MirrorItem[]=[]
+  for (const x of message.items) {
+    if (!okObject(x) || !sameKeys(x,'code,ownerWindowId,panel,requestId') || typeof x.requestId!=='string' || !/^[a-f0-9]{32}$/.test(x.requestId) ||
+        typeof x.panel!=='string' || !/^[A-Za-z0-9_.:-]{1,128}$/.test(x.panel) || typeof x.code!=='string' || !/^[0-9]{6}$/.test(x.code) || !safeInt(x.ownerWindowId,1)) return
+    items.push({requestId:x.requestId,panel:x.panel,code:x.code,ownerWindowId:x.ownerWindowId})
+  }
+  mirror={at:performance.now(),seq:message.seq,items}
+}
 let invoicePending: null | {id:number; from:string; to:string; afterId:number; resolve:(value:unknown)=>void; reject:(error:Error)=>void; timer:ReturnType<typeof setTimeout>} = null
 function failInvoice() {
   const pending=invoicePending
@@ -98,7 +114,7 @@ async function closeServer(server: Server | undefined): Promise<void> {
 async function shutdown() {
   if (shuttingDown) return
   shuttingDown = true
-  failInvoice()
+  failInvoice();failApprovals()
   if (revocationTimer) clearInterval(revocationTimer)
   if (mobile) { await mobile.closeNow().catch(() => {}); mobile = undefined }
   if (revocationActive) await revocationActive.catch(() => {})
@@ -108,7 +124,14 @@ async function shutdown() {
 }
 async function start(input: unknown) {
   if (!okObject(input)) throw new Error('Invalid configuration')
-  const {revocation, ...config}=input
+  const {revocation, approval, ...config}=input
+  if (approval!==undefined && (!okObject(revocation) || !okObject(approval) || !sameKeys(approval,'key,panels,policies,storeId') ||
+      typeof approval.key!=='string' || !/^[a-f0-9]{64}$/.test(approval.key) || approval.key===revocation.key || approval.key===config.auditKey ||
+      approval.storeId!==revocation.storeId || !Array.isArray(approval.panels) || approval.panels.length<1 || approval.panels.length>64 ||
+      approval.panels.some((p:unknown)=>typeof p!=='string' || !/^[A-Za-z0-9_.:-]{1,128}$/.test(p) || p==='custody') ||
+      new Set(approval.panels).size!==approval.panels.length || !okObject(approval.policies) ||
+      Object.keys(approval.policies).sort().join(',')!==[...approval.panels].sort().join(',') ||
+      Object.values(approval.policies).some(p=>!okObject(p) || !sameKeys(p,'mode,tier,ttlMs') || p.tier!=='NORMAL' || p.mode!=='PANEL' || !safeInt(p.ttlMs,1) || p.ttlMs>600_000))) throw new Error('Invalid approval configuration')
   if (revocation !== undefined && (!okObject(revocation) || !sameKeys(revocation,'epoch,key,port,storeId') ||
       typeof revocation.key !== 'string' || !/^[a-f0-9]{64}$/.test(revocation.key) ||
       !safeInt(revocation.port,1) || revocation.port>65535 || typeof revocation.storeId !== 'string' ||
@@ -157,7 +180,9 @@ async function start(input: unknown) {
     db.exec('CREATE TABLE remote_transport_meta (id INTEGER PRIMARY KEY CHECK(id=1), key_check TEXT NOT NULL)')
     db.prepare('INSERT INTO remote_transport_meta (id,key_check) VALUES (1,?)').run(keyCheck.toString('hex'))
   }
-  const identity = createHubIdentity(db, { panels:config.invoiceFacts === true ? ['custody','shifts','invoices'] : ['custody','shifts'], approvalPanels:[] })
+  const approvalPanels:string[]=approval===undefined ? [] : [...approval.panels]
+  const panels=[...new Set([...(config.invoiceFacts === true ? ['custody','shifts','invoices'] : ['custody','shifts']),...approvalPanels])]
+  const identity = createHubIdentity(db, { panels, approvalPanels })
   recoveryIdentity=identity;recoveryEpoch=revocation === undefined ? '' : revocation.epoch
   const count = db.prepare('SELECT COUNT(*) AS n FROM remote_members').get()?.n
   if (count === 0) {
@@ -196,7 +221,36 @@ async function start(input: unknown) {
     return snapshot
   }
   snapshotMaxAge = config.snapshotMaxAgeMs
-  mobile = await startMobileReadOnlyHub({ origins, identity, ...(drain ? {drainRevocations:drain} : {}), reader: {
+  let approvalController:{list(token:string):{requestId:string;panel:string;code:string}[];approve(token:string,requestId:string,code:string,pin:string):Promise<boolean>}|undefined
+  if (approval!==undefined && revocationOptions) {
+    let uncertain=false
+    const key=Buffer.from(approval.key,'hex'),storeId=revocationOptions.storeId,epoch=revocationOptions.epoch
+    const issuer=createExperimentalRemoteCommandIssuer({key,storeId,policies:approval.policies,identity,
+      pending:()=>{if (!mirror || performance.now()-mirror.at>=3000) throw new Error('Pending mirror stale');return mirror.items},
+      send:command=>{
+        if (shuttingDown || !process.connected || approvalId>=Number.MAX_SAFE_INTEGER) return Promise.resolve(false)
+        const fence=identity.networkRevocationCursor(epoch), id=++approvalId
+        return new Promise<boolean>(resolve=>{
+          const timer=setTimeout(()=>{
+            waitingApprovals.delete(id);uncertain=true
+            // A lost result has an unknown outcome. Close the entire private
+            // channel so the supervisor revokes all grants; never claim that an
+            // asynchronous abort alone proves a grant was never used.
+            try { process.disconnect?.() } catch {}
+            resolve(false)
+          },4000)
+          waitingApprovals.set(id,{resolve,timer})
+          try {send({type:'approvalCommand',id,command,fence,mac:approvalEnvelopeMac(key,storeId,epoch,id,fence,command.signature)})}
+          catch {clearTimeout(timer);waitingApprovals.delete(id);uncertain=true;try {process.disconnect?.()} catch {};resolve(false)}
+        })
+      }})
+    approvalController={list:token=>issuer.list(token),approve:async(token,requestId,code,pin)=>{
+      const ok=await issuer.approve(token,requestId,code,pin)
+      if (uncertain) throw new Error('Approval outcome unavailable')
+      return ok
+    }}
+  }
+  mobile = await startMobileReadOnlyHub({ origins, identity, ...(approvalController ? {approval:approvalController} : {}), ...(drain ? {drainRevocations:drain} : {}), reader: {
     latestBoundaryTotals:async () => current().boundary,
     openShiftsPage:async () => current().shifts,
     ...(config.invoiceFacts === true ? { invoiceFactsPage:requestInvoices } : {})
@@ -212,6 +266,12 @@ async function start(input: unknown) {
 // Serialize startup, updates and stop so a concurrent stop cannot race startup.
 let actions: Promise<void> = Promise.resolve()
 process.on('message', message => {
+  if (okObject(message) && message.type==='approvalResult') {
+    const item=safeInt(message.id,1) ? waitingApprovals.get(message.id) : undefined
+    if (item && typeof message.ok==='boolean') {waitingApprovals.delete(message.id);clearTimeout(item.timer);item.resolve(message.ok)}
+    return
+  }
+  if (okObject(message) && message.type==='pendingRequests') {if(initialized && !shuttingDown) parseMirror(message);return}
   actions = actions.then(async () => {
     if (!okObject(message) || typeof message.type !== 'string') return
     if (message.type === 'start' && !initialized) {

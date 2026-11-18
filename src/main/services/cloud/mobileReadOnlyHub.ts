@@ -37,7 +37,7 @@ type Reader = {
 }
 type ApprovalController = {
   list(token: string): { requestId: string; panel: string; code: string }[]
-  approve(token: string, requestId: string, code: string, pin: string): boolean
+  approve(token: string, requestId: string, code: string, pin: string): boolean | Promise<boolean>
 }
 type Options = { origin?: string; origins?: readonly string[]; identity: Identity; reader: Reader; drainRevocations?: () => { remaining: boolean } | Promise<{ remaining: boolean }>; approval?: ApprovalController }
 const TOKEN = /^[A-Za-z0-9_-]{43}$/
@@ -193,7 +193,7 @@ export function createMobileReadOnlyHandler(options: Options) {
           if (!token || !principal) { send(401,{error:'لطفاً وارد شوید'});return }
           if (Object.keys(data).sort().join(',') !== 'code,pin,requestId' || typeof data.requestId !== 'string' ||
               typeof data.code !== 'string' || typeof data.pin !== 'string') { send(400,{error:'درخواست معتبر نیست'});return }
-          if (!options.approval.approve(token,data.requestId,data.code,data.pin)) { send(403,{error:'تأیید انجام نشد؛ کد، PIN و دسترسی را بررسی کنید'});return }
+          if (await options.approval.approve(token,data.requestId,data.code,data.pin) !== true) { send(403,{error:'تأیید انجام نشد؛ کد، PIN و دسترسی را بررسی کنید'});return }
           send(200,{ok:true});return
         }
         if (path === '/api/invoices' && options.reader.invoiceFactsPage) {

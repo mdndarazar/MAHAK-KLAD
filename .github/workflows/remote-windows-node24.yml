@@ -130,6 +130,12 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-transport-vault.mjs
       - name: Test experimental command issuer using isolated SQLite
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-command-issuer.mjs
+      - name: Test experimental cross-process mobile approval and revocation
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-cross-process-approval-loopback.mjs
+      - name: Test experimental approval fence race
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-approval-fence-race.mjs
+      - name: Test experimental approval bridge failure and replay
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-approval-bridge-security.mjs
       - name: Test experimental in-process revocation bridge
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-authenticated-approval.mjs
       - name: Test experimental revocation signatures and restore barrier

@@ -26,6 +26,8 @@ import type { CloudState } from './cloudState'
 import type { createExperimentalRestoreBarrier } from './experimentalRestoreBarrier'
 import { startExperimentalRevocationReceiver } from './experimentalNetworkRevocation'
 import { acquireRemoteAdmissionLease, revokeAll, revokeBy } from '../RemoteGrantRegistry'
+import { createExperimentalApprovalBridge } from './experimentalApprovalBridge'
+import type { GrantReplayStore } from './signedCommandVerifier'
 
 type Reader = {
   latestBoundaryTotals(): Promise<unknown>
@@ -56,6 +58,9 @@ type Options = {
   // Trusted desktop callback must enforce the existing local manager-password
   // gate and lockout. Do not expose recovery to the mobile network.
   verifyLocalRecoveryPassword?: (password:string)=>Promise<void>
+  // Experimental opt-in, not wired to Electron. The owner supplies an exclusive
+  // durable replay store scoped to this store and epoch.
+  approval?: {key:Uint8Array;policies:Readonly<Record<string,{tier:'NORMAL';mode:'PANEL';ttlMs:number}>>;replayStore:GrantReplayStore}
   timeoutMs?: number
 }
 const object = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -80,6 +85,13 @@ export async function startExperimentalHubSupervisor(options: Options) {
         (options.revocation.onRevocation !== undefined && typeof options.revocation.onRevocation !== 'function') ||
         (options.revocation.ledger === undefined ? typeof options.state?.openRevocationLedger !== 'function' :
           (!options.revocation.ledger || typeof options.revocation.ledger.load!=='function' || typeof options.revocation.ledger.hasNonce!=='function' || typeof options.revocation.ledger.save!=='function')))) ||
+      (options.approval !== undefined && (!options.revocation || !options.approval || !(options.approval.key instanceof Uint8Array) ||
+        options.approval.key.byteLength!==32 || Buffer.from(options.approval.key).equals(Buffer.from(options.auditKey)) ||
+        Buffer.from(options.approval.key).equals(Buffer.from(options.revocation.key)) || !options.approval.replayStore ||
+        typeof options.approval.replayStore.consume!=='function' || !options.approval.policies ||
+        Object.keys(options.approval.policies).length<1 || Object.keys(options.approval.policies).length>64 ||
+        Object.entries(options.approval.policies).some(([panel,p])=>! /^[A-Za-z0-9_.:-]{1,128}$/.test(panel) || panel==='custody' ||
+          !p || p.tier!=='NORMAL' || p.mode!=='PANEL' || !Number.isSafeInteger(p.ttlMs) || p.ttlMs<=0 || p.ttlMs>600_000))) ||
       !options.state || typeof options.state.load !== 'function' ||
       typeof options.state.save !== 'function' || typeof options.readRestoreMarker !== 'function') throw new Error('Invalid experimental hub configuration')
   const origins=normalizeMobileOrigins(options.origin,options.origins)
@@ -99,11 +111,15 @@ export async function startExperimentalHubSupervisor(options: Options) {
   let recoveryLedger: Omit<Parameters<typeof startExperimentalRevocationReceiver>[0]['ledger'],'apply'> | undefined
   let revocationConfig: {key:string;storeId:string;epoch:string;port:number} | undefined
   let closeReceiver: Promise<void> | undefined
+  let appliedRevocationId=0
+  let approvalBridge:ReturnType<typeof createExperimentalApprovalBridge> | undefined
+  let approvalTimer:ReturnType<typeof setInterval> | undefined
   if (options.revocation) {
     const initial=state.load()
     if (!initial) throw new Error('Revocation state unavailable')
     const storeId=initial.storeId, epoch=initial.epoch, ledger=options.revocation.ledger ?? state.openRevocationLedger!()
     recoveryLedger=ledger
+    appliedRevocationId=ledger.load()?.id ?? 0
     revokeAll()
     function guardedLedger<T>(operation:()=>T):T {
       try { return operation() } catch (error) {
@@ -134,6 +150,9 @@ export async function startExperimentalHubSupervisor(options: Options) {
             throw new Error('Invalid revocation callback')
           }
         }
+        // Event loop serialization prevents a grant from interleaving between
+        // the registry revocation and advancing the in-memory fence.
+        appliedRevocationId=entry.id
       })
     }})
     revocationConfig={key:Buffer.from(options.revocation.key).toString('hex'),storeId,epoch,port:revocationReceiver.port}
@@ -169,6 +188,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
   let startupReject: ((error:Error)=>void) | undefined
   const startup = new Promise<{mobilePort:number; auditPort:number}>((resolve,reject) => { startupResolve=resolve;startupReject=reject })
   const fail = () => {
+    if (approvalTimer) { clearInterval(approvalTimer); approvalTimer=undefined }
     admission?.block()
     if (options.revocation) {
       try { revokeAll() } catch { revocationCleanupFailed = true }
@@ -182,6 +202,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
   child.on('error',fail);child.on('exit',fail);child.on('disconnect',fail)
   child.on('message',(message: unknown) => {
     if (!object(message)) return
+    if (approvalBridge?.onMessage(message)) return
     if (message.type === 'ready' && startupResolve && message.pid === child.pid &&
         Number.isSafeInteger(message.mobilePort) && message.mobilePort >= 1 && message.mobilePort <= 65535 &&
         Number.isSafeInteger(message.auditPort) && message.auditPort >= 1 && message.auditPort <= 65535 && message.mobilePort !== message.auditPort) {
@@ -241,9 +262,16 @@ export async function startExperimentalHubSupervisor(options: Options) {
   }
   const startTimer=setTimeout(() => { fail();child.kill() },timeout)
   try {
+    const approval=options.approval ? {key:Buffer.from(options.approval.key),policies:Object.fromEntries(Object.entries(options.approval.policies).map(([name,p])=>[name,{...p}]))} : undefined
+    if (approval && revocationConfig && options.approval) approvalBridge=createExperimentalApprovalBridge({
+      key:approval.key,storeId:revocationConfig.storeId,epoch:revocationConfig.epoch,policies:approval.policies,
+      replayStore:options.approval.replayStore,appliedRevocation:()=>appliedRevocationId,isClosed:()=>closed || dead,send,
+      onReplayFailure:()=>{admission?.block();try {revokeAll()} catch {}}
+    })
     send({type:'start',config:{directory:options.directory,...originConfig,owner:options.owner,
       auditKey:key.toString('hex'),snapshotMaxAgeMs:options.snapshotMaxAgeMs,...(invoiceReader ? {invoiceFacts:true} : {}),
-      ...(revocationConfig ? {revocation:revocationConfig} : {})}})
+      ...(revocationConfig ? {revocation:revocationConfig} : {}),
+      ...(approval && revocationConfig ? {approval:{key:approval.key.toString('hex'),storeId:revocationConfig.storeId,panels:Object.keys(approval.policies).sort(),policies:approval.policies}} : {})}})
     const ports=await startup
     clearTimeout(startTimer)
     const transport=createLoopbackAuditTransport(`http://127.0.0.1:${ports.auditPort}/internal/v1/audit`,key,timeout)
@@ -257,6 +285,11 @@ export async function startExperimentalHubSupervisor(options: Options) {
     })
     if (dead) throw new Error('Hub child unavailable')
     admission?.open()
+    if (approvalBridge) {
+      approvalTimer=setInterval(()=>{try {approvalBridge?.tick()} catch {fail();child.kill()}},500)
+      approvalTimer.unref?.()
+      approvalBridge.tick()
+    }
     return {
       mobilePort:ports.mobilePort,
       refreshOnce(): Promise<void> {
@@ -325,6 +358,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
       stop(): Promise<void> {
         if (stopPromise) return stopPromise
         closed=true
+        if (approvalTimer) {clearInterval(approvalTimer);approvalTimer=undefined}
         admission?.block()
         // Close admissions and revoke existing grants and requests before
         // waiting for child shutdown; cleanup failure must not report success.
