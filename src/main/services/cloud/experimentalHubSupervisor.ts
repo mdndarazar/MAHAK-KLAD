@@ -140,14 +140,23 @@ export async function startExperimentalHubSupervisor(options: Options) {
   // turning an ordinary overlap with the mirror's anchor read into a fatal
   // reader-busy error. The barrier still counts waiters before their first await.
   let foregroundCount=0, mirrorWork:Promise<void>|null=null
+  let foregroundTail:Promise<void>=Promise.resolve()
   async function foreground<T>(operation:()=>Promise<T>):Promise<T> {
+    // The reader is single-flight. Serialize all its foreground users, not just
+    // the mirror, and bound the backlog so mobile requests cannot grow it forever.
+    if (foregroundCount>=64) throw new Error('Hub foreground queue full')
+    const queuedAt=performance.now(), preceding=mirrorWork, previous=foregroundTail
+    let release!:()=>void
+    foregroundTail=new Promise<void>(resolve=>{release=resolve})
     foregroundCount++
     try {
-      const preceding=mirrorWork
+      await previous
       if (preceding) await preceding
-      if (closed || dead || storeInvalidated || (barrier && barrier.status().state!=='OPEN')) throw new Error('Hub child unavailable')
+      // Never apply a stale approval after a long queue wait. Restore waiters
+      // are already counted by barrier.run before reaching this point.
+      if (performance.now()-queuedAt>=timeout || closed || dead || storeInvalidated || (barrier && barrier.status().state!=='OPEN')) throw new Error('Hub child unavailable')
       return await operation()
-    } finally { foregroundCount-- }
+    } finally { foregroundCount--;release() }
   }
   function guarded<T>(operation:()=>Promise<T>):Promise<T> {
     if (!barrier) return foreground(operation)

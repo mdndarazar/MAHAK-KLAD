@@ -74,6 +74,8 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-refresh-timeout-revokes-loopback.mjs
       - name: Test sync waits for active mirror anchor
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-sync-after-mirror-read-loopback.mjs
+      - name: Test approval during foreground sync
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-approval-during-sync-loopback.mjs
       - name: Test restore with queued sync and mirror timeout
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-restore-waiting-mirror-timeout-loopback.mjs
       - name: Test busy reader defers request mirror
