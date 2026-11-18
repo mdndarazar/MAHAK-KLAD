@@ -8,6 +8,7 @@ export const REMOTE_AUTH_CHANNELS = {
   cancel: 'remoteAuth:cancel',
   banner: 'remoteAuth:banner',
   claim: 'remoteAuth:claim',
+  recover: 'remoteAuth:recover',
   ping: 'remoteAuth:ping',
   used: 'remoteAuth:used',
 } as const

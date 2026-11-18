@@ -40,6 +40,8 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-desktop-host-loopback.mjs
       - name: Test desktop host member revocation and acknowledgement
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-desktop-host-member-revocation.mjs
+      - name: Test desktop host panic recovery
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-desktop-host-panic-recovery.mjs
       - name: Test uncertain desktop host startup shutdown
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-host-failed-start-stop.mjs
       - name: Test database replacement during IPC claim on loopback

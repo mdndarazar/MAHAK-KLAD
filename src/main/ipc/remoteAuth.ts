@@ -3,6 +3,8 @@
  * بدون دست زدن به ipc/index.ts — مستقیم ipcMain.handle
  */
 import { BrowserWindow, ipcMain } from 'electron'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { REMOTE_AUTH_CHANNELS, REMOTE_GT_PREFIX, remoteImplementationReady } from '../../shared/remoteAuthChannels'
 import { cancelForWindow, claimRemotePanel, getRequestStatus, requestCode } from '../services/RemoteGrantRegistry'
 
@@ -26,8 +28,27 @@ function ownerOf(event: Electron.IpcMainInvokeEvent): number {
   return id
 }
 
-export function registerRemoteAuthHandlers() {
+export function registerRemoteAuthHandlers(recover?: (password:string, pin:string)=>Promise<boolean>) {
   if (!remoteImplementationReady()) return
+  if (recover) ipcMain.handle(REMOTE_AUTH_CHANNELS.recover, async (event, payload: unknown) => {
+    ownerOf(event)
+    // Only the top-level local application window can request recovery; mobile
+    // pages, subframes and destroyed windows cannot invoke this path.
+    if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame) return {ok:false as const,error:'بازیابی ممکن نیست.'}
+    try {
+      const actual=new URL(event.senderFrame.url)
+      const expected=new URL(process.env.ELECTRON_RENDERER_URL || pathToFileURL(join(__dirname,'../renderer/index.html')).href)
+      if (actual.protocol!==expected.protocol || actual.host!==expected.host || actual.pathname!==expected.pathname)
+        return {ok:false as const,error:'بازیابی ممکن نیست.'}
+    } catch {return {ok:false as const,error:'بازیابی ممکن نیست.'}}
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return {ok:false as const,error:'بازیابی ممکن نیست.'}
+    const {password,pin}=payload as Record<string,unknown>
+    if (typeof password!=='string' || !password || Buffer.byteLength(password,'utf8')>128 ||
+        typeof pin!=='string' || !/^[0-9]{6}$/.test(pin)) return {ok:false as const,error:'بازیابی ممکن نیست.'}
+    try {
+      return await recover(password,pin) ? {ok:true as const,data:{ok:true}} : {ok:false as const,error:'بازیابی تأیید نشد.'}
+    } catch { return {ok:false as const,error:'بازیابی تأیید نشد.'} }
+  })
   ipcMain.handle(REMOTE_AUTH_CHANNELS.request, async (event, payload: { panel?: string }) => {
     const panel = String(payload?.panel ?? '').trim()
     if (!panel) return { ok: false as const, error: 'پنل مشخص نشده' }

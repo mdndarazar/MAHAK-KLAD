@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { REMOTE_AUTH_CHANNELS, remoteImplementationReady, type RemoteAuthRequestResult, type RemoteAuthStatusResult } from '@shared/remoteAuthChannels'
 import { call, CH } from '../lib/api'
+import { toLatinDigits } from '@shared/jalali'
 
 /** Update an already-open renderer view after revoke, panic or expiry. This
  * only removes access, never extends idle time or creates a new session. */
@@ -32,6 +33,21 @@ export function RemoteRequestBox({ panel }: { panel: string }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const generation = useRef(0)
+  const [recoveryOpen,setRecoveryOpen]=useState(false)
+  const [recoveryPassword,setRecoveryPassword]=useState('')
+  const [recoveryPin,setRecoveryPin]=useState('')
+  const [recoveryMessage,setRecoveryMessage]=useState<string|null>(null)
+  const [recoveryBusy,setRecoveryBusy]=useState(false)
+
+  const recover=async()=>{
+    if (recoveryBusy || !recoveryPassword || !/^[0-9]{6}$/.test(recoveryPin)) return
+    setRecoveryBusy(true);setRecoveryMessage(null)
+    try {
+      await call(REMOTE_AUTH_CHANNELS.recover as any,{password:recoveryPassword,pin:recoveryPin})
+      setRecoveryMessage('توقف اضطراری برداشته شد؛ مدیر باید دوباره وارد گوشی شود.')
+    } catch {setRecoveryMessage('بازیابی تأیید نشد. رمز مدیر، PIN مالک و وضعیت اتصال را بررسی کنید.')}
+    finally {setRecoveryPassword('');setRecoveryPin('');setRecoveryBusy(false)}
+  }
 
   useEffect(() => {
     // Ignore late responses after a panel change or unmount. A request already
@@ -41,6 +57,7 @@ export function RemoteRequestBox({ panel }: { panel: string }) {
     setState('PENDING')
     setBusy(false)
     setError(null)
+    setRecoveryPassword('');setRecoveryPin('');setRecoveryMessage(null);setRecoveryOpen(false)
     return () => { generation.current++ }
   }, [panel])
 
@@ -125,6 +142,14 @@ export function RemoteRequestBox({ panel }: { panel: string }) {
   return (
     <div className="space-y-2">
       {error && <div role="alert" className="rounded px-3 py-2 bg-amber-50 border border-amber-300">{error}</div>}
+      <button type="button" className="btn btn-ghost w-full" onClick={()=>{setRecoveryOpen(!recoveryOpen);setRecoveryPassword('');setRecoveryPin('');setRecoveryMessage(null)}} disabled={recoveryBusy}>بازیابی توقف اضطراری راه دور</button>
+      {recoveryOpen && <div className="rounded px-3 py-2 bg-rose-50 border border-rose-300 space-y-2">
+        <div>فقط روی رایانه، با رمز مدیر برنامه و PIN شش‌رقمی مالک راه دور.</div>
+        <label className="block">رمز مدیر برنامه<input className="inp w-full" type="password" autoComplete="off" value={recoveryPassword} disabled={recoveryBusy} onChange={e=>setRecoveryPassword(e.target.value)} /></label>
+        <label className="block">PIN مالک راه دور<input className="inp w-full" type="password" inputMode="numeric" autoComplete="off" maxLength={6} value={recoveryPin} disabled={recoveryBusy} onChange={e=>setRecoveryPin(toLatinDigits(e.target.value))} /></label>
+        <button type="button" className="btn" disabled={recoveryBusy || !recoveryPassword || !/^[0-9]{6}$/.test(recoveryPin)} onClick={()=>void recover()}>تأیید بازیابی</button>
+        {recoveryMessage && <div role="status">{recoveryMessage}</div>}
+      </div>}
       {!current ? (
         <button className="btn btn-ghost w-full" disabled={busy} onClick={() => void create()}>
           درخواست مجوز از مدیر (راه دور)

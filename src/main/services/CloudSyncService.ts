@@ -90,6 +90,10 @@ async function startConfigured():Promise<void> {
     localHub=await startExperimentalHubSupervisor({nodeExecutable,childFile,directory:hubDir,origin,owner:null,auditKey:keys.auditKey,
       snapshotMaxAgeMs:60_000,reader:createCloudReader(prisma),state:localState,databaseFile:dbFile,restoreBarrier:barrier,coordinateDesktopBackup:true,
       readRestoreMarker:async()=>restoreMarker(join(userData,'backups','last-restore.txt')),
+      verifyLocalRecoveryPassword:async password=>{
+        const auth=await import('./AuthService')
+        await auth.assertManagerPassword(password,'بازیابی توقف اضطراری کنترل از راه دور')
+      },
       revocation:{key:revocationKey,onRevocation:entry=>{
         if (entry.kind==='ALL') {
           if (!electron.Notification.isSupported()) throw new Error('Desktop notification unavailable')
@@ -99,7 +103,10 @@ async function startConfigured():Promise<void> {
       }},
       approval:{key:approvalKey,policies:POLICIES}})
     if (stopRequested) throw new Error('Remote startup cancelled')
-    if (!handlersRegistered) {registerRemoteAuthHandlers();handlersRegistered=true}
+    if (!handlersRegistered) {
+      registerRemoteAuthHandlers(async(password,pin)=>hub ? hub.recoverPanic(password,pin) : false)
+      handlersRegistered=true
+    }
     localScheduler=createExperimentalHubScheduler(localHub)
     localScheduler.start()
     state=localState;hub=localHub;scheduler=localScheduler
