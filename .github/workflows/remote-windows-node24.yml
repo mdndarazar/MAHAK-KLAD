@@ -166,7 +166,19 @@ jobs:
       - name: Test remote-panic-p1-failure-loopback
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-p1-failure-loopback.mjs
       - name: Test remote-panic-pwa-loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-pwa-loopback.mjs
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'remote-panic-pwa-loopback.log'
+          cmd /c "node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-pwa-loopback.mjs > `"$log`" 2>&1"
+          $code = $LASTEXITCODE
+          Get-Content -LiteralPath $log
+          if ($code -ne 0) {
+            $text = Get-Content -LiteralPath $log -Raw
+            if ($text.Length -gt 12000) { $text = $text.Substring($text.Length - 12000) }
+            $text = $text.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Remote panic PWA test::$text"
+            exit $code
+          }
       - name: Test remote-panic-local-recovery-loopback
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-local-recovery-loopback.mjs
       - name: Test remote-panic-preserve-local-loopback
