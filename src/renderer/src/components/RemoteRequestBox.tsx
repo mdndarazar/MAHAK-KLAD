@@ -1,6 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
-import { REMOTE_AUTH_CHANNELS, type RemoteAuthRequestResult, type RemoteAuthStatusResult } from '@shared/remoteAuthChannels'
-import { call } from '../lib/api'
+import { REMOTE_AUTH_CHANNELS, remoteImplementationReady, type RemoteAuthRequestResult, type RemoteAuthStatusResult } from '@shared/remoteAuthChannels'
+import { call, CH } from '../lib/api'
+
+/** Update an already-open renderer view after revoke, panic or expiry. This
+ * only removes access, never extends idle time or creates a new session. */
+export function startRemoteSessionMonitor(active:boolean, onPanels:(panels:string[])=>void, onError:()=>void):()=>void {
+  if (!active || !remoteImplementationReady()) return () => {}
+  let stopped=false, inFlight=false
+  const check=async()=>{
+    if (stopped || inFlight) return
+    inFlight=true
+    try {
+      const status=await call<{manager?:boolean;panels?:unknown}>(CH.managerSessionStatus)
+      if (stopped) return
+      if (!status || typeof status.manager !== 'boolean') throw new Error('Invalid session status')
+      if (status.manager) return
+      if (!Array.isArray(status.panels) || status.panels.some(panel=>typeof panel!=='string')) throw new Error('Invalid panel status')
+      onPanels(status.panels as string[])
+    } catch { if (!stopped) onError() }
+    finally { inFlight=false }
+  }
+  const timer=setInterval(()=>void check(),1000)
+  return ()=>{stopped=true;clearInterval(timer)}
+}
 
 /** Experimental UI only. The readiness gate must remain closed until the entire
  * approval and session lifecycle is integrated and independently tested. */

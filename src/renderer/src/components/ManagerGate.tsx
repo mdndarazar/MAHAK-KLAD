@@ -62,6 +62,9 @@ export default function ManagerGate({
   const { lockEnabled, loaded: locksLoaded } = usePanelLock(panel)
   const lockOff = locksLoaded && !lockEnabled
   const open = canOpen(panel) || lockOff
+  const [accessEnded, setAccessEnded] = useState(false)
+  const wasOpen = useRef(open)
+  useEffect(() => { if (remoteImplementationReady() && wasOpen.current && !open) setAccessEnded(true); if (open) setAccessEnded(false); wasOpen.current = open }, [open])
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -157,6 +160,7 @@ export default function ManagerGate({
       </div>
       <div className="p-4 space-y-3">
         <p className="leading-7">{reason}</p>
+        {accessEnded && <div role="status" className="rounded border border-amber-300 bg-amber-50 px-3 py-2">دسترسی این پنل پایان یافت یا لغو شد.</div>}
         <label className="block">
           <div className="mb-1 font-bold">رمز مدیر{hasSecond ? ` یا رمز اختصاصی «${panelTitle(panel)}»` : ''}</div>
           {/* مورد ۲ — همین اینپوت با آیکون چشم: کاربر می‌تواند رمز تایپ‌شده را ببیند */}

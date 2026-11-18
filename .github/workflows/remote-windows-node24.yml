@@ -30,6 +30,8 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-window-lifecycle.mjs
       - name: Test remote IPC cannot extend idle grants
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-idle-no-keepalive.mjs
+      - name: Test renderer session monitoring
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-renderer-session-monitor.mjs
       - name: Test remote IPC and child approval window lifecycle
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-hub-window-loopback.mjs
       - name: Test remote IPC claim and panic on loopback
