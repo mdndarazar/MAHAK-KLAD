@@ -481,8 +481,16 @@ export async function startExperimentalHubSupervisor(options: Options) {
           if (barrier && barrier.status().state !== 'OPEN') throw new Error('Restore in progress')
           if (!await update({type:'snapshot',captureId,value:{boundary,shifts}})) throw new Error('Hub rejected snapshot')
         } catch (error) {
-          // Never knowingly leave a previously good snapshot visible on read error.
-          if (!closed && !dead) try { await update({type:'invalidateSnapshot'}) } catch { child.kill() }
+          // With remote grants enabled, an uncertain refresh must revoke before
+          // guarded() waits for a timed-out query to finish. Killing the child
+          // also removes the previous snapshot. A draining restore has already
+          // closed admissions and remains responsible for its epoch fence.
+          if (options.revocation && !closed && (!barrier || barrier.status().state==='OPEN')) {
+            storeInvalidated=true;fail();fenceUncertainEpoch();child.kill()
+          } else if (!closed && !dead) {
+            // Non-revocation callers retain the existing snapshot-only behavior.
+            try { await update({type:'invalidateSnapshot'}) } catch { child.kill() }
+          }
           throw error
         } }).finally(() => {busy=false}))
       },
