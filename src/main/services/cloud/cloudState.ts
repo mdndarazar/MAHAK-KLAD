@@ -30,6 +30,8 @@ const MAX_STATE_BYTES = 8192
 const MAX_REVOCATION_NONCES = 20_000
 const MAX_REVOCATION_BYTES = 2_000_000
 const NONCE = /^[0-9a-f]{48}$/
+const GRANT_NONCE = /^[A-Za-z0-9_-]{22,128}$/
+const MAX_GRANT_REPLAY_BYTES = 1_000_000
 type RevocationEntry = { id:number; kind:'ALL'|'MEMBER'; memberId:string|null }
 type RevocationState = { version:1; storeId:string; epoch:string; cursor:RevocationEntry|null; nonces:string[] }
 function validRevocationEntry(value:unknown):value is RevocationEntry {
@@ -196,6 +198,74 @@ export function openCloudStateStore(directory: string) {
       }
     }
   }
+  // Desktop replay ledger is bound to the same exclusive store and epoch. A
+  // missing, corrupt or mismatched ledger must never be silently recreated.
+  // File fsync + rename do not establish power-loss or Windows ACL guarantees.
+  const replayPath=join(directory,'grant-replay-ledger.json')
+  const replayMarkerPath=join(directory,'grant-replay-ledger.initialized')
+  type GrantEntry={requestId:string;nonce:string;expiresAt:number}
+  type GrantState={version:1;storeId:string;epoch:string;latest:number;entries:GrantEntry[]}
+  function readGrantReplay():GrantState {
+    ensureOpen()
+    const marker=lstatSync(replayMarkerPath)
+    if (!marker.isFile() || marker.nlink!==1 || marker.size!==2 || readFileSync(replayMarkerPath,'utf8')!=='v1') throw new Error('Invalid grant replay marker')
+    const state=load()
+    if (!state) throw new Error('Cloud state unavailable')
+    const stat=lstatSync(replayPath)
+    if (!stat.isFile() || stat.nlink!==1 || stat.size<1 || stat.size>MAX_GRANT_REPLAY_BYTES) throw new Error('Invalid grant replay ledger')
+    let raw:unknown
+    try { raw=JSON.parse(readFileSync(replayPath,'utf8')) } catch { throw new Error('Invalid grant replay ledger') }
+    if (!raw || typeof raw!=='object' || Array.isArray(raw)) throw new Error('Invalid grant replay ledger')
+    const v=raw as Record<string,unknown>
+    if (Object.keys(v).sort().join(',')!=='entries,epoch,latest,storeId,version' || v.version!==1 || v.storeId!==state.storeId || v.epoch!==state.epoch ||
+        !Number.isSafeInteger(v.latest) || (v.latest as number)<0 || !Array.isArray(v.entries) || v.entries.length>100_000) throw new Error('Invalid grant replay ledger')
+    const requests=new Set<string>(),nonces=new Set<string>(),entries:GrantEntry[]=[]
+    for (const item of v.entries) {
+      if (!item || typeof item!=='object' || Array.isArray(item) || Object.keys(item).sort().join(',')!=='expiresAt,nonce,requestId' ||
+          typeof item.requestId!=='string' || !ID.test(item.requestId) || typeof item.nonce!=='string' || !GRANT_NONCE.test(item.nonce) ||
+          !Number.isSafeInteger(item.expiresAt) || item.expiresAt<=0 || requests.has(item.requestId) || nonces.has(item.nonce)) throw new Error('Invalid grant replay ledger')
+      requests.add(item.requestId);nonces.add(item.nonce);entries.push({requestId:item.requestId,nonce:item.nonce,expiresAt:item.expiresAt})
+    }
+    return {version:1,storeId:state.storeId,epoch:state.epoch,latest:v.latest as number,entries}
+  }
+  function writeGrantReplay(state:GrantState):void {
+    const payload=JSON.stringify(state)
+    if (Buffer.byteLength(payload,'utf8')>MAX_GRANT_REPLAY_BYTES) throw new Error('Grant replay ledger full')
+    const temporary=join(directory,`.grant-replay-${randomBytes(16).toString('hex')}.tmp`)
+    let fd:number|undefined,created=false
+    try {
+      fd=openSync(temporary,'wx',0o600);created=true
+      writeFileSync(fd,payload,'utf8');fsyncSync(fd);closeSync(fd);fd=undefined
+      ensureOpen();renameSync(temporary,replayPath);created=false
+    } finally { if (fd!==undefined) try {closeSync(fd)} catch {};if(created) try {unlinkSync(temporary)} catch {} }
+  }
+  function initializeGrantReplayLedger():void {
+    ensureOpen()
+    const state=load()
+    if (!state) throw new Error('Cloud state unavailable')
+    const payload=JSON.stringify({version:1,storeId:state.storeId,epoch:state.epoch,latest:0,entries:[]})
+    const markerFd=openSync(replayMarkerPath,'wx',0o600)
+    try {writeFileSync(markerFd,'v1','utf8');fsyncSync(markerFd)} finally {closeSync(markerFd)}
+    const fd=openSync(replayPath,'wx',0o600)
+    try {writeFileSync(fd,payload,'utf8');fsyncSync(fd)} finally {closeSync(fd)}
+  }
+  function openGrantReplayLedger(capacity=2048) {
+    if (!Number.isSafeInteger(capacity) || capacity<1 || capacity>100_000) throw new Error('Invalid replay capacity')
+    readGrantReplay()
+    return {
+      consume(requestId:string,nonce:string,expiresAt:number,now:number):'OK'|'REPLAY'|'CAPACITY'|'INVALID' {
+        if (typeof requestId!=='string' || !ID.test(requestId) || typeof nonce!=='string' || !GRANT_NONCE.test(nonce) ||
+            !Number.isSafeInteger(now) || now<=0 || !Number.isSafeInteger(expiresAt) || expiresAt<=now || expiresAt-now>75_000) return 'INVALID'
+        const current=readGrantReplay()
+        if (now<current.latest) return 'INVALID'
+        const entries=current.entries.filter(item=>item.expiresAt>now)
+        if (entries.some(item=>item.requestId===requestId || item.nonce===nonce)) {writeGrantReplay({...current,latest:now,entries});return 'REPLAY'}
+        if (entries.length>=capacity) return 'CAPACITY'
+        writeGrantReplay({...current,latest:now,entries:[...entries,{requestId,nonce,expiresAt}]})
+        return 'OK'
+      }
+    }
+  }
   function close(): void {
     if (closed) return
     // A replaced or missing lock is not ours to remove. Fail closed.
@@ -205,5 +275,5 @@ export function openCloudStateStore(directory: string) {
     if (!owned) throw new Error('Cloud state lock ownership lost')
     unlinkSync(lockPath)
   }
-  return { load, save, initializeRevocationLedger, openRevocationLedger, close }
+  return { load, save, initializeRevocationLedger, openRevocationLedger, initializeGrantReplayLedger, openGrantReplayLedger, close }
 }

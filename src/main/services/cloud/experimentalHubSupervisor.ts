@@ -41,7 +41,7 @@ type Options = {
   nodeExecutable: string; childFile: string; directory: string; origin?: string; origins?: readonly string[]
   owner: null | { username:string; password:string; pin:string }
   auditKey: Uint8Array; snapshotMaxAgeMs: number
-  reader: Reader; state: { load():CloudState | null; save(value:CloudState):void; openRevocationLedger?():Omit<Parameters<typeof startExperimentalRevocationReceiver>[0]['ledger'],'apply'> }
+  reader: Reader; state: { load():CloudState | null; save(value:CloudState):void; openRevocationLedger?():Omit<Parameters<typeof startExperimentalRevocationReceiver>[0]['ledger'],'apply'>; openGrantReplayLedger?():GrantReplayStore }
   readRestoreMarker: () => Promise<string | null>
   // Experimental explicit opt-in only; not sufficient to enable production.
   enableInvoiceFacts?: boolean
@@ -58,9 +58,9 @@ type Options = {
   // Trusted desktop callback must enforce the existing local manager-password
   // gate and lockout. Do not expose recovery to the mobile network.
   verifyLocalRecoveryPassword?: (password:string)=>Promise<void>
-  // Experimental opt-in, not wired to Electron. The owner supplies an exclusive
-  // durable replay store scoped to this store and epoch.
-  approval?: {key:Uint8Array;policies:Readonly<Record<string,{tier:'NORMAL';mode:'PANEL';ttlMs:number}>>;replayStore:GrantReplayStore}
+  // Experimental opt-in, not wired to Electron. When omitted, the replay store
+  // must already be explicitly initialized in the exclusive cloud state store.
+  approval?: {key:Uint8Array;policies:Readonly<Record<string,{tier:'NORMAL';mode:'PANEL';ttlMs:number}>>;replayStore?:GrantReplayStore}
   timeoutMs?: number
 }
 const object = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -87,8 +87,9 @@ export async function startExperimentalHubSupervisor(options: Options) {
           (!options.revocation.ledger || typeof options.revocation.ledger.load!=='function' || typeof options.revocation.ledger.hasNonce!=='function' || typeof options.revocation.ledger.save!=='function')))) ||
       (options.approval !== undefined && (!options.revocation || !options.approval || !(options.approval.key instanceof Uint8Array) ||
         options.approval.key.byteLength!==32 || Buffer.from(options.approval.key).equals(Buffer.from(options.auditKey)) ||
-        Buffer.from(options.approval.key).equals(Buffer.from(options.revocation.key)) || !options.approval.replayStore ||
-        typeof options.approval.replayStore.consume!=='function' || !options.approval.policies ||
+        Buffer.from(options.approval.key).equals(Buffer.from(options.revocation.key)) ||
+        (options.approval.replayStore===undefined ? typeof options.state?.openGrantReplayLedger!=='function' :
+          !options.approval.replayStore || typeof options.approval.replayStore.consume!=='function') || !options.approval.policies ||
         Object.keys(options.approval.policies).length<1 || Object.keys(options.approval.policies).length>64 ||
         Object.entries(options.approval.policies).some(([panel,p])=>! /^[A-Za-z0-9_.:-]{1,128}$/.test(panel) || panel==='custody' ||
           !p || p.tier!=='NORMAL' || p.mode!=='PANEL' || !Number.isSafeInteger(p.ttlMs) || p.ttlMs<=0 || p.ttlMs>600_000))) ||
@@ -265,7 +266,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
     const approval=options.approval ? {key:Buffer.from(options.approval.key),policies:Object.fromEntries(Object.entries(options.approval.policies).map(([name,p])=>[name,{...p}]))} : undefined
     if (approval && revocationConfig && options.approval) approvalBridge=createExperimentalApprovalBridge({
       key:approval.key,storeId:revocationConfig.storeId,epoch:revocationConfig.epoch,policies:approval.policies,
-      replayStore:options.approval.replayStore,appliedRevocation:()=>appliedRevocationId,isClosed:()=>closed || dead,send,
+      replayStore:options.approval.replayStore ?? state.openGrantReplayLedger!(),appliedRevocation:()=>appliedRevocationId,isClosed:()=>closed || dead,send,
       onReplayFailure:()=>{admission?.block();try {revokeAll()} catch {}}
     })
     send({type:'start',config:{directory:options.directory,...originConfig,owner:options.owner,
