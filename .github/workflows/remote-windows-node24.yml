@@ -48,6 +48,8 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-claim-db-fence-loopback.mjs
       - name: Test audit sync failure closes remote grants
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-audit-sync-invalidates-grants.mjs
+      - name: Test audit uncertainty fences old epoch
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-sync-uncertainty-epoch-fence.mjs
       - name: Test same-inode audit anchor change before approval and claim
         run: |
           node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-approval-audit-anchor.mjs

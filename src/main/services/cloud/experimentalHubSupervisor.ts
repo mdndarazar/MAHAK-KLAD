@@ -238,6 +238,20 @@ export async function startExperimentalHubSupervisor(options: Options) {
     waiting.clear()
   }
   child.on('error',fail);child.on('exit',fail);child.on('disconnect',fail)
+  function fenceUncertainEpoch():void {
+    // fail() must close admission and revoke first. A new epoch cannot be
+    // resumed with the old ledgers; recovery must explicitly resynchronize.
+    // If a coordinated restore is already draining, it owns epoch rotation.
+    if (!revocationConfig || (barrier && barrier.status().state!=='OPEN')) return
+    try {
+      const current=state.load()
+      if (!current || current.storeId!==revocationConfig.storeId || current.epoch!==revocationConfig.epoch) return
+      state.save({...current,epoch:randomUUID(),lastAcked:0,anchorHash:''})
+    } catch {
+      // The admission/backup leases remain closed if persisting is uncertain.
+      // Do not manufacture replacement ledger state or claim recovery.
+    }
+  }
   // Marker/epoch checks complement, but do not replace, exclusive restore
   // coordination or a real database identity check. Never approve after an
   // uncertain read: revoke the desktop sessions and terminate the child.
@@ -275,7 +289,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
       return !closed && !dead && !storeInvalidated && !!admission?.isOpen() && (!barrier || barrier.status().state==='OPEN')
     } catch {
       storeInvalidated=true
-      fail();child.kill()
+      fail();fenceUncertainEpoch();child.kill()
       return false
     }
   }
@@ -471,8 +485,8 @@ export async function startExperimentalHubSupervisor(options: Options) {
           // An audit/read/ACK failure may mean the source or its identity is
           // uncertain. Never leave grants active while retrying such a cycle.
           // A deliberately closing restore has already blocked admission.
-          if (options.revocation && !closed && !dead && !storeInvalidated && (!barrier || barrier.status().state==='OPEN')) {
-            storeInvalidated=true;fail();child.kill()
+          if (options.revocation && !closed && (!barrier || barrier.status().state==='OPEN')) {
+            storeInvalidated=true;fail();fenceUncertainEpoch();child.kill()
           }
           throw error
         }))
