@@ -258,7 +258,19 @@ jobs:
       - name: Test child-clock snapshot freshness
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-snapshot-child-clock-loopback.mjs
       - name: Test restore admission drain over loopback
-        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-restore-admission-drain-loopback.mjs
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'remote-restore-admission-drain.log'
+          cmd /c "node --import ./test/harness/register.mjs tests/audit-fixes/remote-restore-admission-drain-loopback.mjs > `"$log`" 2>&1"
+          $code = $LASTEXITCODE
+          Get-Content -LiteralPath $log
+          if ($code -ne 0) {
+            $text = Get-Content -LiteralPath $log -Raw
+            if ($text.Length -gt 12000) { $text = $text.Substring($text.Length - 12000) }
+            $text = $text.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Remote restore admission drain test::$text"
+            exit $code
+          }
       - name: Test restore epoch fence over loopback
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-restore-epoch-fence-loopback.mjs
       - name: Test backup coordination lifecycle
