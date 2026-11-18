@@ -264,14 +264,23 @@ export async function startExperimentalHubSupervisor(options: Options) {
       return false
     }
   }
+  // Count approval checks as barrier work too: restore must not replace the DB
+  // while an earlier marker/file-identity read is still in progress. Do not use
+  // guarded(), which also drains the shared SQL reader and can serialize an
+  // unrelated snapshot query against approval.
+  async function runApprovalGuard(operation:()=>Promise<void>):Promise<void> {
+    if (barrier) await barrier.run(operation)
+    else await operation()
+  }
   child.on('message',(message: unknown) => {
     if (!object(message)) return
     if (message.type==='approvalCommand' && approvalBridge) {
-      void track(approvalStateCurrent().then(current=>{
+      void track(runApprovalGuard(async()=>{
+        const current=await approvalStateCurrent()
         // isClosed is checked again synchronously by the bridge before grant.
         if (current) approvalBridge?.onMessage(message)
         else { try { send({type:'approvalResult',id:message.id,ok:false}) } catch {} }
-      }))
+      }).catch(()=>{try {send({type:'approvalResult',id:message.id,ok:false})} catch {}}))
       return
     }
     if (message.type === 'ready' && startupResolve && message.pid === child.pid &&
@@ -363,9 +372,13 @@ export async function startExperimentalHubSupervisor(options: Options) {
       const tickApproval=()=>{
         if (ticking) return
         ticking=true
-        void track(approvalStateCurrent().then(current=>{
-          if (current) approvalBridge?.tick()
-        }).catch(()=>{fail();child.kill()}).finally(()=>{ticking=false}))
+        void track(runApprovalGuard(async()=>{
+          if (await approvalStateCurrent()) approvalBridge?.tick()
+        }).catch(()=>{
+          // A closing restore is expected to reject new work. Any other error
+          // leaves the admission latch closed and the child unavailable.
+          if (!barrier || barrier.status().state==='OPEN') {fail();child.kill()}
+        }).finally(()=>{ticking=false}))
       }
       approvalTimer=setInterval(tickApproval,500)
       approvalTimer.unref?.()

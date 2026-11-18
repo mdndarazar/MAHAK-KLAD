@@ -160,6 +160,8 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-ipc-fence-loopback.mjs
       - name: Test real replacement through backup IPC
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-real-replace-ipc-loopback.mjs
+      - name: Test backup drains approval identity checks
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-approval-drain-loopback.mjs
       - name: Test real merge through backup IPC
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-real-merge-ipc-loopback.mjs
       - name: Test direct merge fence
