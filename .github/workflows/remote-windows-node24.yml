@@ -79,6 +79,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-identity.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test conservative revocation clock handling
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-revocation-clock-conservative.mjs
       - name: Test experimental two-process loopback revocation
         shell: pwsh
         run: |

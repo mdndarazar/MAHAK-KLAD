@@ -47,13 +47,23 @@ export async function startExperimentalRevocationReceiver(options:{key:Uint8Arra
   const auth=cryptoFor(key), envelopes=createExperimentalRevocationEnvelope(key,storeId,epoch)
   if (!validCursor(ledger.load())) throw new Error('Invalid cursor')
   const server:Server=createServer(async(req,res)=>{
+    let authenticated=false, failure='validation'
     try {
       if (req.method!=='POST' || req.url!=='/internal/revoke' || req.headers['content-type']!=='application/json' || req.socket.remoteAddress!=='127.0.0.1') throw new Error('Rejected')
       const value:unknown=JSON.parse(await collect(req))
       if (!exact(value,['prev','envelope','mac']) || !Number.isSafeInteger(value.prev) || (value.prev as number)<0 ||
           !auth.check(value.mac,auth.mac('packet',[value.prev,value.envelope]))) throw new Error('Authentication failed')
-      const event=envelopes.verify(value.envelope), cursor=ledger.load()
-      if (!event || !validCursor(cursor)) throw new Error('Invalid event')
+      authenticated=true;failure='envelope'
+      const event=envelopes.verify(value.envelope)
+      if (!event) {
+        const envelope=value.envelope as Partial<Envelope> | null,t=Date.now()
+        if (envelope && Number.isSafeInteger(envelope.issuedAt) && envelope.issuedAt!>t) failure='clock-future'
+        else if (envelope && Number.isSafeInteger(envelope.expiresAt) && envelope.expiresAt!<=t) failure='clock-expired'
+        throw new Error('Invalid event')
+      }
+      failure='ledger';const cursor=ledger.load()
+      if (!validCursor(cursor)) throw new Error('Invalid cursor')
+      failure='order-or-replay'
       const previous=value.prev as number, nonce=(value.envelope as Envelope).nonce
       if (ledger.hasNonce(nonce)!==false) throw new Error('Replay rejected')
       if (cursor && same(cursor,event)) {
@@ -61,12 +71,17 @@ export async function startExperimentalRevocationReceiver(options:{key:Uint8Arra
         // again before acknowledging, covering loss of in-memory grant state.
         if (previous>=event.id) throw new Error('Invalid predecessor')
       } else if ((cursor?.id ?? 0)!==previous || event.id<=previous) throw new Error('Out of order or replay')
-      ledger.apply(event)
+      failure='ledger';ledger.apply(event)
       ledger.save(event,nonce)
       const signature=(value.envelope as Envelope).signature
       const ack={id:event.id,signature,mac:auth.mac('ack',[event.id,signature])}
       res.writeHead(200,{'content-type':'application/json','cache-control':'no-store'});res.end(JSON.stringify(ack))
-    } catch { if (!res.headersSent) res.writeHead(400,{'cache-control':'no-store'});res.end() }
+    } catch {
+      // Report only a fixed category after packet MAC authentication; never log
+      // IDs, payloads, nonces, signatures or credentials.
+      if (authenticated) console.error(`[remote revocation] authenticated packet rejected: ${failure}`)
+      if (!res.headersSent) res.writeHead(400,{'cache-control':'no-store'});res.end()
+    }
   })
   await new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',()=>{server.off('error',reject);resolve()})})
   const address=server.address()

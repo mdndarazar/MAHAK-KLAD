@@ -25,8 +25,12 @@ export function createExperimentalRevocationEnvelope(key:Uint8Array,storeId:stri
   return {
     sign(event:Event):Envelope {
       if (!eventValid(event)) throw new Error('Invalid revocation')
-      const issuedAt=now()
-      if (!Number.isSafeInteger(issuedAt) || issuedAt<=0 || issuedAt>Number.MAX_SAFE_INTEGER-30_000) throw new Error('Invalid clock')
+      const timestamp=now()
+      if (!Number.isSafeInteger(timestamp) || timestamp<=1000 || timestamp>Number.MAX_SAFE_INTEGER-30_000) throw new Error('Invalid clock')
+      // Different Windows processes can observe slightly different wall-clock
+      // readings. Backdate the signed issue time instead of accepting future
+      // messages: the 30-second validity window is correspondingly shorter.
+      const issuedAt=timestamp-1000
       const v:Omit<Envelope,'signature'>={version:1,storeId,epoch,id:event.id,kind:event.kind,memberId:event.memberId,
         nonce:randomBytes(24).toString('hex'),issuedAt,expiresAt:issuedAt+30_000}
       return {...v,signature:createHmac('sha256',secret).update(bytes(v)).digest('hex')}
