@@ -336,6 +336,15 @@ jobs:
       - name: Test restore epoch fence over loopback
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-restore-epoch-fence-loopback.mjs
+      - name: Test explicit epoch transition and resync over loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-epoch-resync-loopback.mjs
+      - name: Test desktop host epoch transition after restore
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-desktop-host-epoch-transition.mjs
+      - name: Test failed hub stop waits for child exit
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-supervisor-failed-stop-exit.mjs
       - name: Test backup coordination lifecycle
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-coordination-lifecycle.mjs

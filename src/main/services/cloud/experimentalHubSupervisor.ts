@@ -63,7 +63,10 @@ type Options = {
     // Synchronous, idempotent host delivery: called before durable ACK. It can
     // repeat after a failure or lost ACK; never use a volatile-only notification
     // as evidence that a user has seen a message.
-    onRevocation?:(entry:{id:number;kind:'ALL'|'MEMBER';memberId:string|null})=>undefined }
+    onRevocation?:(entry:{id:number;kind:'ALL'|'MEMBER';memberId:string|null})=>undefined
+    // Host opt-in after an explicit stopped-hub epoch transition. Only when the
+    // desktop ledger has no applied entry may the child move its delivery cursor.
+    allowEpochRotation?: true }
   // Trusted desktop callback must enforce the existing local manager-password
   // gate and lockout. Do not expose recovery to the mobile network.
   verifyLocalRecoveryPassword?: (password:string)=>Promise<void>
@@ -95,6 +98,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
       (options.revocation !== undefined && (!options.revocation || !(options.revocation.key instanceof Uint8Array) ||
         options.revocation.key.byteLength!==32 || Buffer.from(options.revocation.key).equals(Buffer.from(options.auditKey)) ||
         (options.revocation.onRevocation !== undefined && typeof options.revocation.onRevocation !== 'function') ||
+        (options.revocation.allowEpochRotation !== undefined && options.revocation.allowEpochRotation !== true) ||
         (options.revocation.ledger === undefined ? typeof options.state?.openRevocationLedger !== 'function' :
           (!options.revocation.ledger || typeof options.revocation.ledger.load!=='function' || typeof options.revocation.ledger.hasNonce!=='function' || typeof options.revocation.ledger.save!=='function')))) ||
       (options.approval !== undefined && (!options.revocation || !options.approval || !(options.approval.key instanceof Uint8Array) ||
@@ -170,7 +174,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
   const admission = options.revocation ? acquireRemoteAdmissionLease() : undefined
   let revocationReceiver: Awaited<ReturnType<typeof startExperimentalRevocationReceiver>> | undefined
   let recoveryLedger: Omit<Parameters<typeof startExperimentalRevocationReceiver>[0]['ledger'],'apply'> | undefined
-  let revocationConfig: {key:string;storeId:string;epoch:string;port:number} | undefined
+  let revocationConfig: {key:string;storeId:string;epoch:string;port:number;rotate?:true} | undefined
   let revocationRestoreMarker: string | null = null
   let closeReceiver: Promise<void> | undefined
   let appliedRevocationId=0
@@ -218,7 +222,9 @@ export async function startExperimentalHubSupervisor(options: Options) {
         appliedRevocationId=entry.id
       })
     }})
-    revocationConfig={key:Buffer.from(options.revocation.key).toString('hex'),storeId,epoch,port:revocationReceiver.port}
+    // A fresh desktop ledger expects delivery to restart at zero in this epoch.
+    const rotate=options.revocation.allowEpochRotation===true && ledger.load()===null
+    revocationConfig={key:Buffer.from(options.revocation.key).toString('hex'),storeId,epoch,port:revocationReceiver.port,...(rotate ? {rotate:true as const} : {})}
   }
   function releaseReceiver():Promise<void> {
     if (!revocationReceiver) return Promise.resolve()
@@ -263,9 +269,21 @@ export async function startExperimentalHubSupervisor(options: Options) {
     waiting.clear()
   }
   child.on('error',fail);child.on('exit',fail);child.on('disconnect',fail)
+  // Kill if still running and wait up to `timeout` for the exit event. Never
+  // rejects: callers report their own failure either way.
+  function waitForChildExit():Promise<void> {
+    if (child.exitCode!==null || child.signalCode!==null) return Promise.resolve()
+    return new Promise<void>(resolve=>{
+      const done=()=>{clearTimeout(timer);child.off('exit',done);resolve()}
+      const timer=setTimeout(done,timeout)
+      child.once('exit',done)
+      try { child.kill() } catch {}
+    })
+  }
   function fenceUncertainEpoch():void {
     // fail() must close admission and revoke first. A new epoch cannot be
-    // resumed with the old ledgers; recovery must explicitly resynchronize.
+    // resumed with the old ledgers in this process; only an explicit stopped-hub
+    // transition on a later startup may replace them and resend audit history.
     // If a coordinated restore is already draining, it owns epoch rotation.
     if (!revocationConfig || (barrier && barrier.status().state!=='OPEN')) return
     try {
@@ -590,8 +608,9 @@ export async function startExperimentalHubSupervisor(options: Options) {
           await invalidate()
         }
         // Persist an epoch fence before mutation, after all guarded work drains.
-        // Existing revocation/replay ledgers remain bound to the old epoch: a
-        // restart must fail closed until a coordinated resync is implemented.
+        // Existing revocation/replay ledgers remain bound to the old epoch: this
+        // supervisor never reopens, and a later startup must run the explicit
+        // stopped-hub epoch transition before audit history is resent.
         // This covers only callers using this barrier, not external writers.
         return track(barrier.restore(async()=>{
           await invalidate()
@@ -616,7 +635,13 @@ export async function startExperimentalHubSupervisor(options: Options) {
         if (options.revocation) {
           try { revokeAll() } catch { revocationCleanupFailed = true }
         }
-        if (dead) return Promise.reject(new Error('Hub child unavailable; cleanup not confirmed'))
+        // After a disconnect or kill the process may still be exiting. Settle a
+        // failed stop only after it has really exited (bounded wait): Windows
+        // keeps its hub database and other files locked until then.
+        if (dead) {
+          stopPromise=waitForChildExit().then(()=>{ throw new Error('Hub child unavailable; cleanup not confirmed') })
+          return stopPromise
+        }
         stopPromise = new Promise<void>((resolve,reject) => {
           let acknowledged = false
           const onMessage = (message: unknown) => { if (object(message) && message.type === 'stopped') acknowledged=true }
@@ -626,9 +651,9 @@ export async function startExperimentalHubSupervisor(options: Options) {
             if (acknowledged && code === 0 && signal === null) resolve()
             else reject(new Error('Hub stopped without confirmed cleanup'))
           }
-          const timer=setTimeout(() => {cleanup();child.kill();reject(new Error('Hub stop timed out'))},timeout)
+          const timer=setTimeout(() => {cleanup();void waitForChildExit().then(()=>reject(new Error('Hub stop timed out')))},timeout)
           child.on('message',onMessage);child.once('exit',onExit)
-          try { send({type:'stop'}) } catch (error) { cleanup();child.kill();reject(error) }
+          try { send({type:'stop'}) } catch (error) { cleanup();void waitForChildExit().then(()=>reject(error)) }
         }).then(async () => {
           await releaseReceiver()
           // A killed/closed child does not cancel already-running parent reads or

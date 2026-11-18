@@ -9,7 +9,7 @@
  * Atomic rename and file fsync protect against partial writes in ordinary process
  * failures; power-loss durability and Windows behavior still require real tests.
  */
-import { randomBytes } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { closeSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -60,8 +60,14 @@ function validated(input: unknown): CloudState {
   }
 }
 
-export function openCloudStateStore(directory: string) {
+/** With `restoreMarker`, the desktop host's pre-start epoch transition runs
+ * right after this lock is acquired, before the store is returned to any
+ * supervisor or reader. A failed transition releases the lock and throws. */
+export function openCloudStateStore(directory: string, options?: { restoreMarker: string | null }) {
   if (typeof directory !== 'string' || directory.length === 0) throw new Error('Invalid state directory')
+  if (options !== undefined && (!options || typeof options !== 'object' || Object.keys(options).join(',') !== 'restoreMarker' ||
+      (options.restoreMarker !== null && (typeof options.restoreMarker !== 'string' || !HASH.test(options.restoreMarker)))))
+    throw new Error('Invalid state options')
   mkdirSync(directory, { recursive: true, mode: 0o700 })
   const statePath = join(directory, 'cloud-state.json')
   const lockPath = join(directory, 'cloud-state.lock')
@@ -143,7 +149,9 @@ export function openCloudStateStore(directory: string) {
   // open. Every epoch transition requires a separate, coordinated procedure.
   const revocationPath=join(directory,'revocation-ledger.json')
   const revocationMarkerPath=join(directory,'revocation-ledger.initialized')
-  function readRevocations():RevocationState {
+  // anyEpoch is only for the explicit stopped-hub epoch transition below; every
+  // ordinary ledger operation still requires the current state epoch.
+  function readRevocations(anyEpoch=false):RevocationState {
     ensureOpen()
     const marker=lstatSync(revocationMarkerPath)
     if (!marker.isFile() || marker.nlink!==1 || marker.size!==2 || readFileSync(revocationMarkerPath,'utf8')!=='v1') throw new Error('Invalid revocation marker')
@@ -155,11 +163,12 @@ export function openCloudStateStore(directory: string) {
     try { value=JSON.parse(readFileSync(revocationPath,'utf8')) } catch { throw new Error('Invalid revocation ledger') }
     if (!value || typeof value!=='object' || Array.isArray(value)) throw new Error('Invalid revocation ledger')
     const v=value as Record<string,unknown>
-    if (Object.keys(v).sort().join(',')!=='cursor,epoch,nonces,storeId,version' || v.version!==1 || v.storeId!==state.storeId || v.epoch!==state.epoch ||
+    if (Object.keys(v).sort().join(',')!=='cursor,epoch,nonces,storeId,version' || v.version!==1 || v.storeId!==state.storeId ||
+        (anyEpoch ? typeof v.epoch!=='string' || !UUID.test(v.epoch) : v.epoch!==state.epoch) ||
         (v.cursor!==null && !validRevocationEntry(v.cursor)) || !Array.isArray(v.nonces) || v.nonces.length>MAX_REVOCATION_NONCES ||
         v.nonces.some(n=>typeof n!=='string' || !NONCE.test(n)) || new Set(v.nonces).size!==v.nonces.length ||
         ((v.cursor===null)!==(v.nonces.length===0))) throw new Error('Invalid revocation ledger')
-    return {version:1,storeId:state.storeId,epoch:state.epoch,cursor:v.cursor as RevocationEntry|null,nonces:v.nonces as string[]}
+    return {version:1,storeId:state.storeId,epoch:v.epoch as string,cursor:v.cursor as RevocationEntry|null,nonces:v.nonces as string[]}
   }
   function initializeRevocationLedger():void {
     ensureOpen()
@@ -205,7 +214,7 @@ export function openCloudStateStore(directory: string) {
   const replayMarkerPath=join(directory,'grant-replay-ledger.initialized')
   type GrantEntry={requestId:string;nonce:string;expiresAt:number}
   type GrantState={version:1;storeId:string;epoch:string;latest:number;entries:GrantEntry[]}
-  function readGrantReplay():GrantState {
+  function readGrantReplay(anyEpoch=false):GrantState {
     ensureOpen()
     const marker=lstatSync(replayMarkerPath)
     if (!marker.isFile() || marker.nlink!==1 || marker.size!==2 || readFileSync(replayMarkerPath,'utf8')!=='v1') throw new Error('Invalid grant replay marker')
@@ -217,7 +226,8 @@ export function openCloudStateStore(directory: string) {
     try { raw=JSON.parse(readFileSync(replayPath,'utf8')) } catch { throw new Error('Invalid grant replay ledger') }
     if (!raw || typeof raw!=='object' || Array.isArray(raw)) throw new Error('Invalid grant replay ledger')
     const v=raw as Record<string,unknown>
-    if (Object.keys(v).sort().join(',')!=='entries,epoch,latest,storeId,version' || v.version!==1 || v.storeId!==state.storeId || v.epoch!==state.epoch ||
+    if (Object.keys(v).sort().join(',')!=='entries,epoch,latest,storeId,version' || v.version!==1 || v.storeId!==state.storeId ||
+        (anyEpoch ? typeof v.epoch!=='string' || !UUID.test(v.epoch) : v.epoch!==state.epoch) ||
         !Number.isSafeInteger(v.latest) || (v.latest as number)<0 || !Array.isArray(v.entries) || v.entries.length>100_000) throw new Error('Invalid grant replay ledger')
     const requests=new Set<string>(),nonces=new Set<string>(),entries:GrantEntry[]=[]
     for (const item of v.entries) {
@@ -226,7 +236,7 @@ export function openCloudStateStore(directory: string) {
           !Number.isSafeInteger(item.expiresAt) || item.expiresAt<=0 || requests.has(item.requestId) || nonces.has(item.nonce)) throw new Error('Invalid grant replay ledger')
       requests.add(item.requestId);nonces.add(item.nonce);entries.push({requestId:item.requestId,nonce:item.nonce,expiresAt:item.expiresAt})
     }
-    return {version:1,storeId:state.storeId,epoch:state.epoch,latest:v.latest as number,entries}
+    return {version:1,storeId:state.storeId,epoch:v.epoch as string,latest:v.latest as number,entries}
   }
   function writeGrantReplay(state:GrantState):void {
     const payload=JSON.stringify(state)
@@ -266,6 +276,35 @@ export function openCloudStateStore(directory: string) {
       }
     }
   }
+  /** Explicit epoch transition for a stopped hub: the caller holds this store
+   * lock and has not started the supervisor. Only well-formed ledgers of this
+   * store from an earlier epoch are replaced, and only while the current epoch
+   * has not synchronized anything. Missing, corrupt or foreign files still fail
+   * closed and are never recreated. Old packets stay invalid because transport
+   * keys and envelopes are bound to the epoch. Replay is rotated first; after a
+   * crash the remaining ledger is rotated on the next attempt. */
+  function prepareEpochLedgers():{rotated:boolean} {
+    ensureOpen()
+    const state=load()
+    if (!state) throw new Error('Cloud state unavailable')
+    const revocation=readRevocations(true), replay=readGrantReplay(true)
+    if (revocation.epoch===state.epoch && replay.epoch===state.epoch) return {rotated:false}
+    if (state.lastAcked!==0 || state.anchorHash!=='') throw new Error('Epoch ledgers require reconciliation')
+    if (replay.epoch!==state.epoch) writeGrantReplay({version:1,storeId:state.storeId,epoch:state.epoch,latest:0,entries:[]})
+    if (revocation.epoch!==state.epoch) {
+      const payload=JSON.stringify({version:1,storeId:state.storeId,epoch:state.epoch,cursor:null,nonces:[]})
+      const temporary=join(directory,`.revocation-ledger-${randomBytes(16).toString('hex')}.tmp`)
+      let fd:number|undefined,created=false
+      try {
+        fd=openSync(temporary,'wx',0o600);created=true
+        writeFileSync(fd,payload,'utf8');fsyncSync(fd);closeSync(fd);fd=undefined
+        ensureOpen();renameSync(temporary,revocationPath);created=false
+      } finally { if (fd!==undefined) try {closeSync(fd)} catch {};if(created) try {unlinkSync(temporary)} catch {} }
+    }
+    // Re-read both with the ordinary current-epoch validation.
+    readRevocations();readGrantReplay()
+    return {rotated:true}
+  }
   function close(): void {
     if (closed) return
     // A replaced or missing lock is not ours to remove. Fail closed.
@@ -275,5 +314,44 @@ export function openCloudStateStore(directory: string) {
     if (!owned) throw new Error('Cloud state lock ownership lost')
     unlinkSync(lockPath)
   }
-  return { load, save, initializeRevocationLedger, openRevocationLedger, initializeGrantReplayLedger, openGrantReplayLedger, close }
+  const store = { load, save, initializeRevocationLedger, openRevocationLedger, initializeGrantReplayLedger, openGrantReplayLedger, prepareEpochLedgers, close }
+  if (options) {
+    try { prepareRemoteEpoch(store, options.restoreMarker) }
+    catch (error) { try { close() } catch {} ; throw error }
+  }
+  return store
+}
+
+/**
+ * Desktop-host step that runs before the experimental hub starts, while no
+ * supervisor, listener or remote grant exists in this process.
+ *
+ * A changed restore marker means the shop database may have been replaced
+ * since the cloud state was written. A new epoch bound to the current marker is
+ * then started: nothing acknowledged earlier is trusted and the whole audit
+ * history is sent again. Ledgers of an earlier epoch (for example after an
+ * uncertain-read fence or a coordinated restore) are replaced only through the
+ * explicit stopped-hub transition of the state store.
+ *
+ * This does not detect a replacement that keeps the marker; the supervisor's
+ * file identity and audit-anchor checks remain the runtime fence, and writers
+ * outside the coordinated backup paths are still not serialized.
+ */
+type Store = { load(): CloudState | null; save(value: CloudState): void; prepareEpochLedgers(): { rotated: boolean } }
+
+export function prepareRemoteEpoch(store: Store, marker: string | null): { epoch: string; markerChanged: boolean; rotated: boolean } {
+  if (!store || typeof store.load !== 'function' || typeof store.save !== 'function' || typeof store.prepareEpochLedgers !== 'function' ||
+      (marker !== null && (typeof marker !== 'string' || !/^[0-9a-f]{64}$/.test(marker)))) throw new Error('Invalid remote epoch input')
+  const before = store.load()
+  if (!before) throw new Error('Remote state unavailable')
+  let markerChanged = false
+  if (marker !== before.restoreMarker) {
+    store.save({ ...before, epoch: randomUUID(), lastAcked: 0, anchorHash: '', restoreMarker: marker })
+    markerChanged = true
+  }
+  const { rotated } = store.prepareEpochLedgers()
+  const after = store.load()
+  if (!after || after.storeId !== before.storeId || after.restoreMarker !== marker ||
+      (markerChanged && (after.epoch === before.epoch || after.lastAcked !== 0))) throw new Error('Remote epoch unavailable')
+  return { epoch: after.epoch, markerChanged, rotated }
 }

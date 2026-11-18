@@ -325,6 +325,23 @@ export function createHubIdentity(db: Database, options: Options) {
         return row.last_ack
       })
     },
+    /** Trusted parent only, after the desktop revocation ledger of `epoch` was
+     * freshly initialized by an explicit stopped-hub epoch transition. Moves the
+     * delivery cursor without acknowledging anything: pending outbox entries are
+     * delivered again from the start of the new epoch. A latched Panic is
+     * announced again, so local recovery still requires a fresh durable ACK. */
+    rotateNetworkRevocationEpoch(epoch: string): boolean {
+      if (typeof epoch !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(epoch)) throw new Error('Invalid revocation epoch')
+      return transact(t => {
+        const row=q('SELECT epoch,last_ack FROM remote_revocation_delivery WHERE id=1').get()
+        if (!row || row.epoch===epoch) return false
+        if (typeof row.epoch!=='string' || !Number.isSafeInteger(row.last_ack) || row.last_ack<0) throw new Error('Revocation cursor mismatch')
+        q('UPDATE remote_revocation_delivery SET epoch=?,last_ack=0 WHERE id=1').run(epoch)
+        if (q('SELECT latched FROM remote_identity_panic WHERE id=1').get()?.latched===1) enqueueRevoke(t,'ALL',null)
+        audit(t,null,'REVOCATION_EPOCH_ROTATED')
+        return true
+      })
+    },
     acknowledgeNetworkRevocation(epoch: string, previous: number, id: number): boolean {
       if (typeof epoch !== 'string' || !Number.isSafeInteger(previous) || previous < 0 || !Number.isSafeInteger(id) || id <= previous) return false
       return transact(t => {

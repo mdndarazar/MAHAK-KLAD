@@ -73,7 +73,12 @@ async function startConfigured():Promise<void> {
   for (const path of [root,stateDir,hubDir,runtimeDir]) existingDirectory(path)
   for (const path of [dbFile,nodeExecutable,childFile,join(hubDir,'remote-hub.sqlite'),join(stateDir,'cloud-state.json')]) existingFile(path)
   const origin=readConfig(join(root,'config.json'))
-  const localState=openCloudStateStore(stateDir)
+  // Before any listener: opening the state with the current restore marker
+  // adopts a changed marker as a new epoch and replaces earlier-epoch ledgers
+  // through the explicit stopped-hub transition. Missing or corrupt state and
+  // ledgers still fail closed and are not recreated.
+  const markerPath=join(userData,'backups','last-restore.txt')
+  const localState=openCloudStateStore(stateDir,{restoreMarker:restoreMarker(markerPath)})
   let localHub:Hub|null=null, localScheduler:Scheduler|null=null, hubStartAttempted=false
   try {
     const snapshot=localState.load()
@@ -89,12 +94,12 @@ async function startConfigured():Promise<void> {
     hubStartAttempted=true
     localHub=await startExperimentalHubSupervisor({nodeExecutable,childFile,directory:hubDir,origin,owner:null,auditKey:keys.auditKey,
       snapshotMaxAgeMs:60_000,reader:createCloudReader(prisma),state:localState,databaseFile:dbFile,restoreBarrier:barrier,coordinateDesktopBackup:true,
-      readRestoreMarker:async()=>restoreMarker(join(userData,'backups','last-restore.txt')),
+      readRestoreMarker:async()=>restoreMarker(markerPath),
       verifyLocalRecoveryPassword:async password=>{
         const auth=await import('./AuthService')
         await auth.assertManagerPassword(password,'بازیابی توقف اضطراری کنترل از راه دور')
       },
-      revocation:{key:revocationKey,onRevocation:entry=>{
+      revocation:{key:revocationKey,allowEpochRotation:true,onRevocation:entry=>{
         if (entry.kind==='ALL') {
           if (!electron.Notification.isSupported()) throw new Error('Desktop notification unavailable')
           new electron.Notification({title:'کنترل از راه دور',body:'دسترسی‌های راه دور بسته شدند.'}).show()
