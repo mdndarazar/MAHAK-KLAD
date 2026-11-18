@@ -155,6 +155,8 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-approval-database-replacement-loopback.mjs
       - name: Test startup database replacement fence over loopback
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-startup-database-fence-loopback.mjs
+      - name: Test restore beginning during startup over loopback
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-startup-barrier-race-loopback.mjs
       - name: Test experimental approval bridge failure and replay
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-approval-bridge-security.mjs
       - name: Test experimental durable grant replay ledger

@@ -384,7 +384,9 @@ export async function startExperimentalHubSupervisor(options: Options) {
         })])
       } finally { if (timer) clearTimeout(timer) }
     }
-    if (dead || storeInvalidated) throw new Error('Hub child unavailable')
+    // The barrier may start closing after verification yielded, before this
+    // continuation runs. Never open admissions into a draining restore.
+    if (dead || storeInvalidated || (barrier && barrier.status().state !== 'OPEN')) throw new Error('Hub child unavailable')
     admission?.open()
     if (approvalBridge) {
       let ticking=false
@@ -553,6 +555,9 @@ export async function startExperimentalHubSupervisor(options: Options) {
     backupCoordination?.install(operation=>supervisor.restoreExclusive(operation))
     return supervisor
   } catch (error) {
-    clearTimeout(startTimer);child.kill();await releaseReceiver().catch(() => {});throw error
+    // Startup can fail even after admission was opened (for example while
+    // installing backup coordination). Close it synchronously, not when the
+    // child eventually emits exit or disconnect.
+    clearTimeout(startTimer);fail();child.kill();await releaseReceiver().catch(() => {});throw error
   }
 }
