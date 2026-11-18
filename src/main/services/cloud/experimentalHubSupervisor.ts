@@ -173,7 +173,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
   try { child = fork(options.childFile, [], { execPath:options.nodeExecutable, execArgv:['--max-old-space-size=128'],
     stdio:['ignore','ignore','ignore','ipc'], serialization:'json', env }) }
   catch (error) { await releaseReceiver();throw error }
-  let dead = false, closed = false, busy = false, nextId = 0
+  let dead = false, closed = false, busy = false, nextId = 0, snapshotCaptureId = 0
   let revocationCleanupFailed = false
   let invoiceBusy=false, invoiceLastRead=-Infinity, invoiceLastId=0, recoveryBusy=false
   const invoiceReader=options.enableInvoiceFacts === true ? reader.invoiceFactsPage!.bind(reader) : undefined
@@ -309,14 +309,18 @@ export async function startExperimentalHubSupervisor(options: Options) {
           if (!loaded) throw new Error('Restore detected')
           const initial={storeId:loaded.storeId,epoch:loaded.epoch,restoreMarker:loaded.restoreMarker}
           if (await readRestoreMarker() !== initial.restoreMarker) throw new Error('Restore detected')
-          const capturedAtMs=Date.now()
+          if (snapshotCaptureId>=Number.MAX_SAFE_INTEGER) throw new Error('Snapshot capture exhausted')
+          const captureId=++snapshotCaptureId
+          // The child starts a conservative freshness clock before any source
+          // read; no wall-clock comparison between processes is needed.
+          if (!await update({type:'beginSnapshot',captureId})) throw new Error('Hub rejected capture')
           const boundary=await reader.latestBoundaryTotals()
           const shifts=await reader.openShiftsPage(0,200)
           const current=state.load()
           if (!current || current.storeId !== initial.storeId || current.epoch !== initial.epoch ||
               current.restoreMarker !== initial.restoreMarker || await readRestoreMarker() !== initial.restoreMarker) throw new Error('Restore detected')
           if (barrier && barrier.status().state !== 'OPEN') throw new Error('Restore in progress')
-          if (!await update({type:'snapshot',capturedAtMs,value:{boundary,shifts}})) throw new Error('Hub rejected snapshot')
+          if (!await update({type:'snapshot',captureId,value:{boundary,shifts}})) throw new Error('Hub rejected snapshot')
         } catch (error) {
           // Never knowingly leave a previously good snapshot visible on read error.
           if (!closed && !dead) try { await update({type:'invalidateSnapshot'}) } catch { child.kill() }

@@ -66,6 +66,9 @@ let mobile: Awaited<ReturnType<typeof startMobileReadOnlyHub>> | undefined
 let revocationTimer: ReturnType<typeof setInterval> | undefined
 let revocationActive: Promise<{applied:number;remaining:boolean}> | undefined
 let snapshot: Snapshot | null = null, snapshotAt = 0, snapshotMaxAge = 0, lastSnapshotCapture = 0
+// Freshness for supervisor reads is measured entirely by the child, starting
+// before the parent reads. This avoids comparing clocks from separate processes.
+let snapshotCapture: {id:number; monotonic:number; wall:number} | null = null, lastCaptureId = 0
 let invoiceId=0
 type MirrorItem={requestId:string;panel:string;code:string;ownerWindowId:number}
 let mirror:{at:number;seq:number;items:MirrorItem[]}|null=null, approvalId=0
@@ -286,11 +289,30 @@ process.on('message', message => {
       try { ok=recoveryIdentity.recoverPanicLocally(message.pin,recoveryEpoch,message.lastAck) } catch {}
       send({type:'panicRecovered',id:message.id,ok});return
     }
-    if ((message.type === 'snapshot' || message.type === 'invalidateSnapshot') && initialized && !shuttingDown && mobile) {
+    if ((message.type === 'snapshot' || message.type === 'invalidateSnapshot' || message.type === 'beginSnapshot') && initialized && !shuttingDown && mobile) {
       const id = message.id
       if (id !== undefined && (!Number.isSafeInteger(id) || id <= 0)) return
       const response = (ok: boolean, reason?: string) => send({ type:'snapshot', ...(id === undefined ? {} : {id}), ok, ...(id !== undefined && reason ? {reason} : {}) })
-      if (message.type === 'invalidateSnapshot') { snapshot = null; response(true); return }
+      if (message.type === 'invalidateSnapshot') { snapshot = null; snapshotCapture=null; response(true); return }
+      if (message.type === 'beginSnapshot') {
+        snapshot=null; snapshotCapture=null
+        if (!sameKeys(message,'captureId,id,type') || !safeInt(message.captureId,1) || message.captureId<=lastCaptureId) {response(false,'invalid-capture');return}
+        lastCaptureId=message.captureId
+        snapshotCapture={id:message.captureId,monotonic:performance.now(),wall:Date.now()}
+        response(true);return
+      }
+      if (Object.hasOwn(message,'captureId')) {
+        const capture=snapshotCapture; snapshotCapture=null
+        const now=performance.now(), wall=Date.now()
+        if (!sameKeys(message,'captureId,id,type,value') || !capture || message.captureId!==capture.id || !Number.isFinite(now) ||
+            now<capture.monotonic || !Number.isSafeInteger(wall) || wall<capture.wall) {snapshot=null;response(false,'invalid-capture');return}
+        const age=Math.max(now-capture.monotonic,wall-capture.wall)
+        if (age>=snapshotMaxAge) {snapshot=null;response(false,'snapshot-expired');return}
+        try {snapshot=parseSnapshot(message.value);snapshotAt=now-age;response(true)}
+        catch {snapshot=null;response(false,'invalid-payload')}
+        return
+      }
+      snapshotCapture=null
       // Only fixed, non-sensitive error codes leave the child. Keep all clock
       // checks fail-closed; these codes distinguish intermittent OS-clock races
       // from invalid DTOs without logging the snapshot's contents.
