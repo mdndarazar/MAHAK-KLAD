@@ -17,6 +17,7 @@
  */
 import { fork, type ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { lstatSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { isInvoiceDate, parseInvoicePage } from './invoiceFactsValidation'
@@ -45,6 +46,9 @@ type Options = {
   auditKey: Uint8Array; snapshotMaxAgeMs: number
   reader: Reader; state: { load():CloudState | null; save(value:CloudState):void; openRevocationLedger?():Omit<Parameters<typeof startExperimentalRevocationReceiver>[0]['ledger'],'apply'>; openGrantReplayLedger?():GrantReplayStore }
   readRestoreMarker: () => Promise<string | null>
+  // Optional additional file-replacement fence. This is NOT a complete DB
+  // fingerprint and cannot detect in-place overwrite or historical rollback.
+  databaseFile?: string
   // Experimental explicit opt-in only; not sufficient to enable production.
   enableInvoiceFacts?: boolean
   // Optional in-process experiment only. Every restore must use restoreExclusive,
@@ -100,12 +104,34 @@ export async function startExperimentalHubSupervisor(options: Options) {
         Object.entries(options.approval.policies).some(([panel,p])=>! /^[A-Za-z0-9_.:-]{1,128}$/.test(panel) || panel==='custody' ||
           !p || p.tier!=='NORMAL' || p.mode!=='PANEL' || !Number.isSafeInteger(p.ttlMs) || p.ttlMs<=0 || p.ttlMs>600_000))) ||
       !options.state || typeof options.state.load !== 'function' ||
-      typeof options.state.save !== 'function' || typeof options.readRestoreMarker !== 'function') throw new Error('Invalid experimental hub configuration')
+      typeof options.state.save !== 'function' || typeof options.readRestoreMarker !== 'function' ||
+      (options.databaseFile !== undefined && (typeof options.databaseFile !== 'string' || !isAbsolute(options.databaseFile) || !options.revocation))) throw new Error('Invalid experimental hub configuration')
   const origins=normalizeMobileOrigins(options.origin,options.origins)
   const originConfig=options.origin !== undefined ? {origin:origins[0]} : {origins}
   const timeout = options.timeoutMs ?? 5000
   if (!Number.isSafeInteger(timeout) || timeout < 100 || timeout > 30_000) throw new Error('Invalid hub timeout')
-  const key = Buffer.from(options.auditKey), reader = options.reader, state = options.state, readRestoreMarker = options.readRestoreMarker
+  const key = Buffer.from(options.auditKey), reader = options.reader, state = options.state
+  const fileIdentity=():string => {
+    const stat=lstatSync(options.databaseFile!,{bigint:true})
+    if (!stat.isFile() || stat.nlink!==1n || stat.ino===0n) throw new Error('Database identity unavailable')
+    return `${stat.dev}:${stat.ino}`
+  }
+  // Captured before opening admissions; file size and timestamps are not used
+  // because ordinary SQLite writes legitimately change them.
+  const initialFileIdentity=options.databaseFile === undefined ? undefined : fileIdentity()
+  const readRestoreMarker=async():Promise<string|null> => {
+    try {
+      if (initialFileIdentity !== undefined && fileIdentity()!==initialFileIdentity) throw new Error('Database identity changed')
+      const marker=await options.readRestoreMarker()
+      if (initialFileIdentity !== undefined && fileIdentity()!==initialFileIdentity) throw new Error('Database identity changed')
+      return marker
+    } catch (error) {
+      // Once the live identity is uncertain, all admissions must remain closed.
+      // This callback is only invoked after the child and failure handler exist.
+      if (initialFileIdentity !== undefined) { storeInvalidated=true;fail();child.kill() }
+      throw error
+    }
+  }
   const barrier=options.restoreBarrier
   function guarded<T>(operation:()=>Promise<T>):Promise<T> {
     if (!barrier) return operation()
