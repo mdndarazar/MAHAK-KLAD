@@ -467,7 +467,15 @@ export async function startExperimentalHubSupervisor(options: Options) {
       syncOnce() {
         if (closed || dead) return Promise.reject(new Error('Hub child unavailable'))
         if (storeInvalidated) return Promise.reject(new Error(barrier?.status().state !== 'OPEN' ? 'Restore barrier closed' : 'Hub child unavailable'))
-        return track(guarded(() => sync.runOnce()))
+        return track(guarded(() => sync.runOnce()).catch(error=>{
+          // An audit/read/ACK failure may mean the source or its identity is
+          // uncertain. Never leave grants active while retrying such a cycle.
+          // A deliberately closing restore has already blocked admission.
+          if (options.revocation && !closed && !dead && !storeInvalidated && (!barrier || barrier.status().state==='OPEN')) {
+            storeInvalidated=true;fail();child.kill()
+          }
+          throw error
+        }))
       },
       // Local trusted caller only. This is not registered as a mobile endpoint
       // or Electron IPC; integration must enforce a trusted local window.
