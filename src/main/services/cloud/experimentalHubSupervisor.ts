@@ -16,6 +16,7 @@
  * any HTTPS transport or tunnel.
  */
 import { fork, type ChildProcess } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { isAbsolute } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { isInvoiceDate, parseInvoicePage } from './invoiceFactsValidation'
@@ -173,7 +174,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
   try { child = fork(options.childFile, [], { execPath:options.nodeExecutable, execArgv:['--max-old-space-size=128'],
     stdio:['ignore','ignore','ignore','ipc'], serialization:'json', env }) }
   catch (error) { await releaseReceiver();throw error }
-  let dead = false, closed = false, busy = false, nextId = 0, snapshotCaptureId = 0
+  let dead = false, closed = false, busy = false, storeInvalidated = false, nextId = 0, snapshotCaptureId = 0
   let revocationCleanupFailed = false
   let invoiceBusy=false, invoiceLastRead=-Infinity, invoiceLastId=0, recoveryBusy=false
   const invoiceReader=options.enableInvoiceFacts === true ? reader.invoiceFactsPage!.bind(reader) : undefined
@@ -225,7 +226,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
       invoiceLastId=id
       const failRead=() => { try { if (!closed && !dead) send({type:'invoiceReadResult',id,ok:false}) } catch {} }
       const now=performance.now()
-      if (closed || dead || invoiceBusy || now < invoiceLastRead || now-invoiceLastRead < 10_000 ||
+      if (closed || dead || storeInvalidated || invoiceBusy || now < invoiceLastRead || now-invoiceLastRead < 10_000 ||
           Object.keys(message).sort().join(',') !== 'afterId,fromDay,id,toDay,type' ||
           !isInvoiceDate(from) || !isInvoiceDate(to) || from > to || !Number.isSafeInteger(afterId) || afterId < 0) { failRead();return }
       invoiceBusy=true;invoiceLastRead=now
@@ -242,7 +243,8 @@ export async function startExperimentalHubSupervisor(options: Options) {
           if (!current || current.storeId !== initial.storeId || current.epoch !== initial.epoch ||
               current.restoreMarker !== initial.restoreMarker || await readRestoreMarker() !== initial.restoreMarker) throw new Error('Restore detected')
           if (barrier && barrier.status().state !== 'OPEN') throw new Error('Restore in progress')
-          if (!closed && !dead) send({type:'invoiceReadResult',id,ok:true,value})
+          if (!closed && !dead && !storeInvalidated) send({type:'invoiceReadResult',id,ok:true,value})
+          else failRead()
         } catch { failRead() }
       }).catch(() => { failRead() }).finally(() => { invoiceBusy=false }))
     }
@@ -267,7 +269,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
     if (approval && revocationConfig && options.approval) approvalBridge=createExperimentalApprovalBridge({
       key:approval.key,storeId:revocationConfig.storeId,epoch:revocationConfig.epoch,policies:approval.policies,
       replayStore:options.approval.replayStore ?? state.openGrantReplayLedger!(),appliedRevocation:()=>appliedRevocationId,
-      isClosed:()=>closed || dead || !admission?.isOpen() || (barrier !== undefined && barrier.status().state !== 'OPEN'),send,
+      isClosed:()=>closed || dead || storeInvalidated || !admission?.isOpen() || (barrier !== undefined && barrier.status().state !== 'OPEN'),send,
       onReplayFailure:()=>{admission?.block();try {revokeAll()} catch {}}
     })
     send({type:'start',config:{directory:options.directory,...originConfig,owner:options.owner,
@@ -295,7 +297,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
     return {
       mobilePort:ports.mobilePort,
       refreshOnce(): Promise<void> {
-        if (closed || dead) return Promise.reject(new Error('Hub child unavailable'))
+        if (closed || dead || storeInvalidated) return Promise.reject(new Error('Hub child unavailable'))
         if (busy) return Promise.reject(new Error('Hub refresh busy'))
         busy=true
         return track(guarded(async () => { try {
@@ -329,12 +331,13 @@ export async function startExperimentalHubSupervisor(options: Options) {
       },
       syncOnce() {
         if (closed || dead) return Promise.reject(new Error('Hub child unavailable'))
+        if (storeInvalidated) return Promise.reject(new Error(barrier?.status().state !== 'OPEN' ? 'Restore barrier closed' : 'Hub child unavailable'))
         return track(guarded(() => sync.runOnce()))
       },
       // Local trusted caller only. This is not registered as a mobile endpoint
       // or Electron IPC; integration must enforce a trusted local window.
       recoverPanic(password:string, ownerPin:string):Promise<boolean> {
-        if (closed || dead || recoveryBusy || !options.verifyLocalRecoveryPassword || !revocationConfig ||
+        if (closed || dead || storeInvalidated || recoveryBusy || !options.verifyLocalRecoveryPassword || !revocationConfig ||
             typeof password!=='string' || !password || Buffer.byteLength(password,'utf8')>128 ||
             typeof ownerPin!=='string' || !/^[0-9]{6}$/.test(ownerPin)) return Promise.resolve(false)
         recoveryBusy=true
@@ -355,21 +358,35 @@ export async function startExperimentalHubSupervisor(options: Options) {
         }).finally(()=>{recoveryBusy=false}))
       },
       restoreExclusive(operation:()=>Promise<void>):Promise<void> {
-        if (closed || dead || !barrier || typeof operation !== 'function') return Promise.reject(new Error('Restore coordination unavailable'))
+        if (closed || dead || storeInvalidated || !barrier || typeof operation !== 'function') return Promise.reject(new Error('Restore coordination unavailable'))
         const invalidate=async()=>{ if (!await update({type:'invalidateSnapshot'})) throw new Error('Hub rejected invalidation') }
         const closeAdmissions=async()=>{
           // Synchronously close and revoke before the first await. Keep this
           // lease latched even after success: a new epoch and controlled restart
           // are still required before any subsequent remote admission.
+          storeInvalidated=true
           admission?.block()
           if (options.revocation) {
             try { revokeAll() } catch (error) { revocationCleanupFailed=true;throw error }
           }
           await invalidate()
         }
-        // This only coordinates callers that use this barrier; BackupService and
-        // direct/external writers are not yet wired. It does not rotate epoch.
-        return track(barrier.restore(async()=>{await invalidate();await operation()},closeAdmissions))
+        // Persist an epoch fence before mutation, after all guarded work drains.
+        // Existing revocation/replay ledgers remain bound to the old epoch: a
+        // restart must fail closed until a coordinated resync is implemented.
+        // This covers only callers using this barrier, not external writers.
+        return track(barrier.restore(async()=>{
+          await invalidate()
+          if (revocationConfig) {
+            const before=state.load()
+            if (!before || before.storeId!==revocationConfig.storeId || before.epoch!==revocationConfig.epoch) throw new Error('Restore epoch unavailable')
+            const next={...before,epoch:randomUUID(),lastAcked:0,anchorHash:''}
+            state.save(next)
+            const saved=state.load()
+            if (!saved || saved.storeId!==next.storeId || saved.epoch!==next.epoch || saved.lastAcked!==0 || saved.anchorHash!=='' || saved.restoreMarker!==next.restoreMarker) throw new Error('Restore epoch unavailable')
+          }
+          await operation()
+        },closeAdmissions))
       },
       stop(): Promise<void> {
         if (stopPromise) return stopPromise
