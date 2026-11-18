@@ -144,6 +144,9 @@ export function stopCloudSync():Promise<void> {
   if (!starting && !hub) return Promise.resolve()
   const task=(async()=>{
     if (starting) await starting
+    // A failed startup may have retained the state lock because child shutdown
+    // was not confirmed. Never release that lock via the concurrent stop path.
+    if (failed && !hub) return
     const oldScheduler=scheduler,oldHub=hub,oldState=state
     scheduler=null;hub=null;state=null
     // stop() marks the scheduler stopped synchronously; initiate child shutdown
