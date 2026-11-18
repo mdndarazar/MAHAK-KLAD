@@ -124,11 +124,12 @@ export async function startExperimentalHubSupervisor(options: Options) {
       if (initialFileIdentity !== undefined && fileIdentity()!==initialFileIdentity) throw new Error('Database identity changed')
       const marker=await options.readRestoreMarker()
       if (initialFileIdentity !== undefined && fileIdentity()!==initialFileIdentity) throw new Error('Database identity changed')
+      if (revocationConfig && marker!==revocationRestoreMarker) throw new Error('Restore marker changed')
       return marker
     } catch (error) {
       // Once the live identity is uncertain, all admissions must remain closed.
       // This callback is only invoked after the child and failure handler exist.
-      if (initialFileIdentity !== undefined) { storeInvalidated=true;fail();child.kill() }
+      if (options.revocation) { storeInvalidated=true;fail();fenceUncertainEpoch();child.kill() }
       throw error
     }
   }
