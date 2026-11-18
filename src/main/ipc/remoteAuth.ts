@@ -4,7 +4,7 @@
  */
 import { BrowserWindow, ipcMain } from 'electron'
 import { REMOTE_AUTH_CHANNELS, REMOTE_GT_PREFIX, remoteImplementationReady } from '../../shared/remoteAuthChannels'
-import { cancelForWindow, getRequestStatus, markUsed, requestCode } from '../services/RemoteGrantRegistry'
+import { cancelForWindow, getRequestStatus, requestCode } from '../services/RemoteGrantRegistry'
 
 // Match the application's other IPC handlers: only a live BrowserWindow may
 // own a request. A destroyed renderer must not retain pending requests or grants.
@@ -51,11 +51,11 @@ export function registerRemoteAuthHandlers() {
     return ok ? { ok: true as const, data: { ok: true } } : { ok: false as const, error: 'درخواست معتبر نیست' }
   })
 
-  ipcMain.handle(REMOTE_AUTH_CHANNELS.used, async (event, payload: { panel?: string }) => {
-    const panel = String(payload?.panel ?? '').trim()
-    const owner = ownerOf(event)
-    if (panel) markUsed(panel, owner)
-    return { ok: true as const, data: { ok: true } }
+  ipcMain.handle(REMOTE_AUTH_CHANNELS.used, async (event) => {
+    ownerOf(event)
+    // A renderer-supplied keepalive is not evidence of authorized activity.
+    // The panel-session guard touches the grant on a real protected operation.
+    return { ok: false as const, error: 'تمدید مجوز فقط با استفادهٔ معتبر از پنل انجام می‌شود.' }
   })
 
   ipcMain.handle(REMOTE_AUTH_CHANNELS.banner, async (event) => {
