@@ -68,6 +68,8 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-refresh-db-epoch-fence.mjs
       - name: Test approval query timeout revokes before drain
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-approval-timeout-revokes-loopback.mjs
+      - name: Test sync query timeout revokes before drain
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-sync-timeout-revokes-loopback.mjs
       - name: Test same-inode audit anchor change before approval and claim
         run: |
           node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-approval-audit-anchor.mjs

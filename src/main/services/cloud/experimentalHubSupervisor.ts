@@ -489,15 +489,16 @@ export async function startExperimentalHubSupervisor(options: Options) {
       syncOnce() {
         if (closed || dead) return Promise.reject(new Error('Hub child unavailable'))
         if (storeInvalidated) return Promise.reject(new Error(barrier?.status().state !== 'OPEN' ? 'Restore barrier closed' : 'Hub child unavailable'))
-        return track(guarded(() => sync.runOnce()).catch(error=>{
-          // An audit/read/ACK failure may mean the source or its identity is
-          // uncertain. Never leave grants active while retrying such a cycle.
-          // A deliberately closing restore has already blocked admission.
+        return track(guarded(() => sync.runOnce().catch(error=>{
+          // Close admissions before guarded() waits for the real SQL query to
+          // drain. A timeout is not cancellation and must not leave a grant
+          // active throughout an arbitrarily long wait. The barrier remains
+          // held until waitForIdle completes, preventing restore from racing it.
           if (options.revocation && !closed && (!barrier || barrier.status().state==='OPEN')) {
             storeInvalidated=true;fail();fenceUncertainEpoch();child.kill()
           }
           throw error
-        }))
+        })))
       },
       // Local trusted caller only. This is not registered as a mobile endpoint
       // or Electron IPC; integration must enforce a trusted local window.
