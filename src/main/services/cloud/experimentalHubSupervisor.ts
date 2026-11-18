@@ -440,7 +440,9 @@ export async function startExperimentalHubSupervisor(options: Options) {
         if (ticking) return
         ticking=true
         void track(runApprovalGuard(async()=>{
-          if (await approvalStateCurrent()) approvalBridge?.tick()
+          // A request mirror is also outbound data: validate the last durable
+          // audit anchor before sending it, not only on approval and claim.
+          if (await approvalStateCurrent(true)) approvalBridge?.tick()
         }).catch(()=>{
           // A closing restore is expected to reject new work. Any other error
           // leaves the admission latch closed and the child unavailable.
