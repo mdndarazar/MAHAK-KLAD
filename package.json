@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "npm run db:generate && electron-vite build",
+    "postbuild": "node tools/build-remote-hub.mjs",
     "build:check": "electron-vite build",
     "start": "electron-vite preview",
     "db:generate": "prisma generate",
