@@ -134,6 +134,8 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-cross-process-approval-loopback.mjs
       - name: Test experimental approval fence race
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-approval-fence-race.mjs
+      - name: Test approval restore marker fence over loopback
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-approval-restore-marker-loopback.mjs
       - name: Test experimental approval bridge failure and replay
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-approval-bridge-security.mjs
       - name: Test experimental durable grant replay ledger

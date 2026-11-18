@@ -120,6 +120,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
   let revocationReceiver: Awaited<ReturnType<typeof startExperimentalRevocationReceiver>> | undefined
   let recoveryLedger: Omit<Parameters<typeof startExperimentalRevocationReceiver>[0]['ledger'],'apply'> | undefined
   let revocationConfig: {key:string;storeId:string;epoch:string;port:number} | undefined
+  let revocationRestoreMarker: string | null = null
   let closeReceiver: Promise<void> | undefined
   let appliedRevocationId=0
   let approvalBridge:ReturnType<typeof createExperimentalApprovalBridge> | undefined
@@ -128,6 +129,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
     const initial=state.load()
     if (!initial) throw new Error('Revocation state unavailable')
     const storeId=initial.storeId, epoch=initial.epoch, ledger=options.revocation.ledger ?? state.openRevocationLedger!()
+    revocationRestoreMarker=initial.restoreMarker
     recoveryLedger=ledger
     appliedRevocationId=ledger.load()?.id ?? 0
     revokeAll()
@@ -210,9 +212,42 @@ export async function startExperimentalHubSupervisor(options: Options) {
     waiting.clear()
   }
   child.on('error',fail);child.on('exit',fail);child.on('disconnect',fail)
+  // Marker/epoch checks complement, but do not replace, exclusive restore
+  // coordination or a real database identity check. Never approve after an
+  // uncertain read: revoke the desktop sessions and terminate the child.
+  async function approvalStateCurrent(): Promise<boolean> {
+    try {
+      if (closed || dead || storeInvalidated || !revocationConfig) return false
+      const before=state.load()
+      if (!before || before.storeId!==revocationConfig.storeId || before.epoch!==revocationConfig.epoch ||
+          before.restoreMarker!==revocationRestoreMarker) throw new Error('Restore detected')
+      let markerTimer:ReturnType<typeof setTimeout> | undefined
+      let marker:string | null
+      try {
+        marker=await Promise.race([readRestoreMarker(),new Promise<never>((_,reject)=>{
+          markerTimer=setTimeout(()=>reject(new Error('Restore marker timed out')),timeout)
+        })])
+      } finally { if (markerTimer) clearTimeout(markerTimer) }
+      if (marker!==revocationRestoreMarker) throw new Error('Restore detected')
+      const after=state.load()
+      if (!after || after.storeId!==before.storeId || after.epoch!==before.epoch || after.restoreMarker!==before.restoreMarker) throw new Error('Restore detected')
+      return !closed && !dead && !storeInvalidated && !!admission?.isOpen() && (!barrier || barrier.status().state==='OPEN')
+    } catch {
+      storeInvalidated=true
+      fail();child.kill()
+      return false
+    }
+  }
   child.on('message',(message: unknown) => {
     if (!object(message)) return
-    if (approvalBridge?.onMessage(message)) return
+    if (message.type==='approvalCommand' && approvalBridge) {
+      void track(approvalStateCurrent().then(current=>{
+        // isClosed is checked again synchronously by the bridge before grant.
+        if (current) approvalBridge?.onMessage(message)
+        else { try { send({type:'approvalResult',id:message.id,ok:false}) } catch {} }
+      }))
+      return
+    }
     if (message.type === 'ready' && startupResolve && message.pid === child.pid &&
         Number.isSafeInteger(message.mobilePort) && message.mobilePort >= 1 && message.mobilePort <= 65535 &&
         Number.isSafeInteger(message.auditPort) && message.auditPort >= 1 && message.auditPort <= 65535 && message.mobilePort !== message.auditPort) {
@@ -298,9 +333,17 @@ export async function startExperimentalHubSupervisor(options: Options) {
     if (dead) throw new Error('Hub child unavailable')
     admission?.open()
     if (approvalBridge) {
-      approvalTimer=setInterval(()=>{try {approvalBridge?.tick()} catch {fail();child.kill()}},500)
+      let ticking=false
+      const tickApproval=()=>{
+        if (ticking) return
+        ticking=true
+        void track(approvalStateCurrent().then(current=>{
+          if (current) approvalBridge?.tick()
+        }).catch(()=>{fail();child.kill()}).finally(()=>{ticking=false}))
+      }
+      approvalTimer=setInterval(tickApproval,500)
       approvalTimer.unref?.()
-      approvalBridge.tick()
+      tickApproval()
     }
     const supervisor = {
       mobilePort:ports.mobilePort,
