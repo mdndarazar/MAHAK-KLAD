@@ -387,6 +387,15 @@ export async function startExperimentalHubSupervisor(options: Options) {
     // The barrier may start closing after verification yielded, before this
     // continuation runs. Never open admissions into a draining restore.
     if (dead || storeInvalidated || (barrier && barrier.status().state !== 'OPEN')) throw new Error('Hub child unavailable')
+    if (approvalBridge && admission) admission.installClaimGuard(async claim=>{
+      let result=false
+      try {
+        await track(runApprovalGuard(async()=>{
+          if (await approvalStateCurrent()) result=claim()
+        }))
+      } catch { return false }
+      return result
+    })
     admission?.open()
     if (approvalBridge) {
       let ticking=false

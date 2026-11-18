@@ -44,6 +44,8 @@ let isolated = false
 // closed; only a cleanly stopped owner may release it for a later supervisor.
 let admissionOwner: object | null = null
 let admissionBlocked = false
+type ClaimGuard = (claim:()=>boolean)=>Promise<boolean>
+let claimGuard: ClaimGuard | null = null
 export function acquireRemoteAdmissionLease() {
   if (admissionOwner) throw new Error('Remote admission owner already active')
   const owner = {}; admissionOwner = owner; admissionBlocked = true
@@ -52,8 +54,12 @@ export function acquireRemoteAdmissionLease() {
   return {
     isOpen() { return owns() && !failed && !admissionBlocked },
     open() { if (!owns() || failed) throw new Error('Remote admission lease unavailable'); admissionBlocked = false },
-    block() { if (owns()) { failed = true; admissionBlocked = true } },
-    release() { if (!owns()) throw new Error('Remote admission lease lost'); admissionBlocked = true; admissionOwner = null }
+    installClaimGuard(guard:ClaimGuard) {
+      if (!owns() || failed || claimGuard || typeof guard !== 'function') throw new Error('Remote claim guard unavailable')
+      claimGuard=guard
+    },
+    block() { if (owns()) { failed = true; admissionBlocked = true; claimGuard=null } },
+    release() { if (!owns()) throw new Error('Remote admission lease lost'); admissionBlocked = true; claimGuard=null; admissionOwner = null }
   }
 }
 export function initRemoteGrantRegistry(deps: NonNullable<typeof injected>) {
@@ -167,12 +173,19 @@ export function isActiveForCurrentWindow(_panel: string): boolean { return false
 /** Explicit remote panel claim; never interpret a local password as a token.
  * The request, owner and normal-panel policy are checked synchronously with
  * consumption so a stale renderer response cannot claim another request. */
-export function claimRemotePanel(ownerWindowId: number, panel: string, requestId: string, token: string): boolean {
+export async function claimRemotePanel(ownerWindowId: number, panel: string, requestId: string, token: string): Promise<boolean> {
   if (!validOwner(ownerWindowId) || typeof panel !== 'string' || !VALID_PANEL.test(panel) ||
-      typeof requestId !== 'string' || !VALID_ID.test(requestId)) return false
-  const grant=active(keyOf(ownerWindowId,panel))
-  if (!grant || grant.claimed || grant.requestId!==requestId || grant.tier!=='NORMAL' || grant.mode!=='PANEL') return false
-  return consumeOneShot(ownerWindowId,panel,token)
+      typeof requestId !== 'string' || !VALID_ID.test(requestId) || !admissionOwner || admissionBlocked || !claimGuard) return false
+  const owner=admissionOwner, guard=claimGuard
+  try {
+    return await guard(()=>{
+      // Stop, restore and another lease cannot be allowed to race this claim.
+      if (admissionOwner!==owner || admissionBlocked || claimGuard!==guard) return false
+      const grant=active(keyOf(ownerWindowId,panel))
+      if (!grant || grant.claimed || grant.requestId!==requestId || grant.tier!=='NORMAL' || grant.mode!=='PANEL') return false
+      return consumeOneShot(ownerWindowId,panel,token)
+    }) === true
+  } catch { return false }
 }
 
 export function consumeOneShot(ownerWindowId: number | null, panel: string, token: string): boolean {

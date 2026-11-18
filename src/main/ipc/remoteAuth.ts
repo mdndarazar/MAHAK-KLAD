@@ -49,7 +49,7 @@ export function registerRemoteAuthHandlers() {
     const panel = typeof payload?.panel === 'string' ? payload.panel : ''
     const requestId = typeof payload?.requestId === 'string' ? payload.requestId : ''
     const gt = typeof payload?.gt === 'string' ? payload.gt : ''
-    if (!/^gt-[A-Za-z0-9_-]{43}$/.test(gt) || !claimRemotePanel(owner,panel,requestId,gt.slice(REMOTE_GT_PREFIX.length)))
+    if (!/^gt-[A-Za-z0-9_-]{43}$/.test(gt) || !await claimRemotePanel(owner,panel,requestId,gt.slice(REMOTE_GT_PREFIX.length)))
       return { ok: false as const, error: 'مجوز راه دور نامعتبر یا منقضی شده است.' }
     return { ok: true as const, data: { scope: 'PANEL' as const } }
   })
