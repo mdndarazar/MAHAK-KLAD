@@ -46,6 +46,12 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-host-failed-start-stop.mjs
       - name: Test database replacement during IPC claim on loopback
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-claim-db-fence-loopback.mjs
+      - name: Test same-inode audit anchor change before approval and claim
+        run: |
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-approval-audit-anchor.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-claim-audit-anchor.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Test user setting and experimental panic latch
         shell: pwsh
         run: |

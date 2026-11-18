@@ -16,7 +16,7 @@
  * any HTTPS transport or tunnel.
  */
 import { fork, type ChildProcess } from 'node:child_process'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { lstatSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
 import { performance } from 'node:perf_hooks'
@@ -241,7 +241,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
   // Marker/epoch checks complement, but do not replace, exclusive restore
   // coordination or a real database identity check. Never approve after an
   // uncertain read: revoke the desktop sessions and terminate the child.
-  async function approvalStateCurrent(): Promise<boolean> {
+  async function approvalStateCurrent(checkAuditAnchor=false): Promise<boolean> {
     try {
       if (closed || dead || storeInvalidated || !revocationConfig) return false
       const before=state.load()
@@ -255,8 +255,23 @@ export async function startExperimentalHubSupervisor(options: Options) {
         })])
       } finally { if (markerTimer) clearTimeout(markerTimer) }
       if (marker!==revocationRestoreMarker) throw new Error('Restore detected')
+      if (checkAuditAnchor && before.lastAcked>0) {
+        // A replacement can preserve inode and the restore marker. Verify the
+        // last acknowledged audit row before issuing/claiming any new grant.
+        // This detects changed history, not an identical rollback or a change
+        // outside that row; the external-writer limitation still applies.
+        let rows:Awaited<ReturnType<typeof reader.auditPage>>
+        try { rows=await reader.auditPage(before.lastAcked-1,1) }
+        finally { if (reader.waitForIdle) await reader.waitForIdle() }
+        const item=Array.isArray(rows) && rows.length===1 ? rows[0] : null
+        if (!item || item.id!==before.lastAcked || typeof item.at!=='string' || typeof item.action!=='string' || typeof item.entity!=='string' ||
+            createHash('sha256').update(JSON.stringify([item.id,item.at,item.action,item.entity]),'utf8').digest('hex')!==before.anchorHash)
+          throw new Error('Audit anchor changed')
+        if (await readRestoreMarker()!==revocationRestoreMarker) throw new Error('Restore detected')
+      }
       const after=state.load()
-      if (!after || after.storeId!==before.storeId || after.epoch!==before.epoch || after.restoreMarker!==before.restoreMarker) throw new Error('Restore detected')
+      if (!after || after.storeId!==before.storeId || after.epoch!==before.epoch || after.restoreMarker!==before.restoreMarker ||
+          (checkAuditAnchor && (after.lastAcked!==before.lastAcked || after.anchorHash!==before.anchorHash))) throw new Error('Restore detected')
       return !closed && !dead && !storeInvalidated && !!admission?.isOpen() && (!barrier || barrier.status().state==='OPEN')
     } catch {
       storeInvalidated=true
@@ -276,7 +291,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
     if (!object(message)) return
     if (message.type==='approvalCommand' && approvalBridge) {
       void track(runApprovalGuard(async()=>{
-        const current=await approvalStateCurrent()
+        const current=await approvalStateCurrent(true)
         // isClosed is checked again synchronously by the bridge before grant.
         if (current) approvalBridge?.onMessage(message)
         else { try { send({type:'approvalResult',id:message.id,ok:false}) } catch {} }
@@ -391,7 +406,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
       let result=false
       try {
         await track(runApprovalGuard(async()=>{
-          if (await approvalStateCurrent()) result=claim()
+          if (await approvalStateCurrent(true)) result=claim()
         }))
       } catch { return false }
       return result
