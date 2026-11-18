@@ -56,6 +56,8 @@ jobs:
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-desktop-host-panic-recovery.mjs
       - name: Test uncertain desktop host startup shutdown
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-host-failed-start-stop.mjs
+      - name: Test desktop reports unconfirmed child shutdown
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-host-unconfirmed-shutdown.mjs
       - name: Test database replacement during IPC claim on loopback
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-claim-db-fence-loopback.mjs
       - name: Test audit sync failure closes remote grants

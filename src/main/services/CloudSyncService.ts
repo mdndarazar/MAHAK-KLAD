@@ -30,7 +30,7 @@ type Hub = Awaited<ReturnType<typeof startExperimentalHubSupervisor>>
 type Scheduler = ReturnType<typeof createExperimentalHubScheduler>
 let starting:Promise<void>|null=null, stopping:Promise<void>|null=null
 let hub:Hub|null=null, scheduler:Scheduler|null=null, state:Store|null=null
-let quitHookInstalled=false, quitAfterStop=false, stopRequested=false, handlersRegistered=false, failed=false
+let quitHookInstalled=false, quitAfterStop=false, stopRequested=false, handlersRegistered=false, failed=false, shutdownFailed=false
 
 function existingDirectory(path:string):void {
   const stat=lstatSync(path)
@@ -131,7 +131,7 @@ export function startCloudSync():Promise<void> {
     app.on('before-quit',event=>{
       if (quitAfterStop || (!starting && !hub)) return
       event.preventDefault();quitAfterStop=true
-      void stopCloudSync().finally(()=>app.quit())
+      void stopCloudSync().catch(error=>console.error('[remote] shutdown not confirmed',error)).finally(()=>app.quit())
     })
   }
   const task=startConfigured().catch(error=>{console.error('[remote] startup unavailable',error)})
@@ -148,6 +148,7 @@ export function cloudSyncStatus():{running:boolean;mobilePort:number|null} {
 export function stopCloudSync():Promise<void> {
   stopRequested=true
   if (stopping) return stopping
+  if (shutdownFailed) return Promise.reject(new Error('Remote shutdown not confirmed'))
   if (!starting && !hub) return Promise.resolve()
   const task=(async()=>{
     if (starting) await starting
@@ -162,10 +163,10 @@ export function stopCloudSync():Promise<void> {
     const operations=Promise.allSettled([oldScheduler?.stop() ?? Promise.resolve(),oldHub?.stop() ?? Promise.resolve()])
     const results=await Promise.race([operations,new Promise<null>(resolve=>{timer=setTimeout(()=>resolve(null),15000)})])
     if (timer) clearTimeout(timer)
-    if (!results || results.some(result=>result.status==='rejected')) {failed=true;state=oldState;console.error('[remote] shutdown not confirmed');return}
-    if (oldState) try {oldState.close()} catch {failed=true;state=oldState;console.error('[remote] state cleanup not confirmed')}
+    if (!results || results.some(result=>result.status==='rejected')) {failed=true;shutdownFailed=true;state=oldState;throw new Error('Remote shutdown not confirmed')}
+    if (oldState) try {oldState.close()} catch {failed=true;shutdownFailed=true;state=oldState;throw new Error('Remote state cleanup not confirmed')}
   })()
   stopping=task
-  void task.finally(()=>{if(stopping===task)stopping=null})
+  void task.then(()=>{if(stopping===task)stopping=null},()=>{if(stopping===task)stopping=null})
   return task
 }
