@@ -42,10 +42,19 @@ jobs:
       - name: Test experimental two-process loopback revocation
         shell: pwsh
         run: |
-          node --import ./test/harness/register.mjs tests/audit-fixes/remote-network-revocation.mjs
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --import ./test/harness/register.mjs tests/audit-fixes/remote-network-ack.mjs
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $log = Join-Path $env:RUNNER_TEMP 'remote-network-revocation.log'
+          cmd /c "node --import ./test/harness/register.mjs tests/audit-fixes/remote-network-revocation.mjs > `"$log`" 2>&1"
+          $code = $LASTEXITCODE
+          Get-Content -LiteralPath $log
+          if ($code -ne 0) {
+            $text = Get-Content -LiteralPath $log -Raw
+            if ($text.Length -gt 12000) { $text = $text.Substring($text.Length - 12000) }
+            $text = $text.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Remote two-process revocation test::$text"
+            exit $code
+          }
+      - name: Test experimental forged revocation ACK
+        run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-network-ack.mjs
       - name: Test isolated hub on temporary SQLite
         run: node --import ./test/harness/register.mjs tests/audit-fixes/remote-windows-node24.mjs
       - name: Test remote-supervisor-revocation-loopback
