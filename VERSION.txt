@@ -1,4 +1,4 @@
-SHA=a005fc7d6ea0ba763257be0725b22146c6ea5d44
+SHA=118406a341f76183a2cb2360dde19d0584313f4e
 branch=arena/e478473a-mahak-klad
-date=2026-11-19T16:03:39Z
-note=remote control through stage 12 (single-instance lock + stale-lock recovery); remote is OFF by default (turn on in Settings); code identical to 5e40af3 (installer CI passed); remote Windows CI for stage 12 incomplete: two old unchanged tests failed and the stage-12 test has not run on Windows yet; never run on a real Windows install, phone or tunnel
+date=2026-11-19T16:46:57Z
+note=remote control complete through stage 12; code identical to 7c076f7, CI green there (remote 44565010522 all 128 steps incl. the stage-12 test on Windows; installer 44565033445); remote is OFF by default (turn on in Settings); ready for the owner tests; never run on a real Windows install, phone or tunnel
