@@ -340,6 +340,9 @@ jobs:
             Write-Output "::error title=Remote restore admission drain test::$text"
             exit $code
           }
+      - name: Diagnostic restore then stop timing (before restore epoch fence test)
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-restore-stop-timing.mjs
       - name: Test restore epoch fence over loopback
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-restore-epoch-fence-loopback.mjs
@@ -379,6 +382,9 @@ jobs:
       - name: Test a slow first hub start within its own startup window
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-hub-startup-window.mjs
+      - name: Test the own-page check for owner IPC with Windows install paths
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-frame-url-windows.mjs
       - name: Test backup coordination lifecycle
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-coordination-lifecycle.mjs

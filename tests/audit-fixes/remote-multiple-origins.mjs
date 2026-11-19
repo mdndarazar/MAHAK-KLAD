@@ -10,7 +10,7 @@ import { build } from 'esbuild'
 import { createHubIdentity } from '../../src/main/services/cloud/hubIdentity.ts'
 import { createMobileReadOnlyHandler, startMobileReadOnlyHub } from '../../src/main/services/cloud/mobileReadOnlyHub.ts'
 import { startExperimentalHubSupervisor } from '../../src/main/services/cloud/experimentalHubSupervisor.ts'
-import { remoteImplementationReady } from '../../src/shared/remoteAuthChannels.ts'
+import { remoteSettingEnabled } from '../../src/main/services/cloud/remoteSettings.ts'
 
 // Two public names are simulated using Host/Origin headers over loopback HTTP.
 // No real HTTPS, reverse proxy, Tailscale, Cloudflare, Electron or phone is tested.
@@ -54,7 +54,7 @@ try {
   }finally{await hub.close()}
  })
  await test('separate child accepts both configured simulated routes without enabling the app',async()=>{
-  assert.equal(remoteImplementationReady(),false)
+  assert.equal(remoteSettingEnabled(mkdtempSync(join(tmpdir(),'mahak-default-off-'))),false)
   const childFile=join(dir,'child.cjs');await build({entryPoints:[fileURLToPath(new URL('../../src/main/services/cloud/experimentalHubChild.ts',import.meta.url))],outfile:childFile,bundle:true,platform:'node',format:'cjs',target:'node22',logLevel:'silent'})
   const supervisor=await startExperimentalHubSupervisor({nodeExecutable:process.execPath,childFile,directory:mkdtempSync(join(tmpdir(),'mahak-multi-origin-hub-')),
    origins:allowed,owner:{username:'owner',password:'owner-test-password',pin:'746392'},auditKey:Buffer.alloc(32,91),snapshotMaxAgeMs:5000,

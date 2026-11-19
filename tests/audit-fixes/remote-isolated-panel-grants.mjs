@@ -12,7 +12,7 @@ process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'isolated.db')
 const registry = await import('../../src/main/services/RemoteGrantRegistry.ts')
 const session = await import('../../src/main/services/panelSession.ts')
-const { remoteImplementationReady } = await import('../../src/shared/remoteAuthChannels.ts')
+const { remoteSettingEnabled } = await import('../../src/main/services/cloud/remoteSettings.ts')
 const panel = 'settings', owner = 301, other = 302
 const grant = (windowId, ttlMs = 1000, tier = 'NORMAL') => {
   const request = registry.requestCode(panel, windowId)
@@ -30,7 +30,7 @@ try {
     registry.initIsolatedRemoteGrantRegistry() // idempotent, never resets a live registry
     assert.throws(() => registry.initRemoteGrantRegistry({ notePanelUnlocked() {}, clearPanelScope() {}, clearPanelSessions() {} }), /cannot be replaced/)
     assert.equal(registry.getRequestStatus(owner, panel, pending.requestId), 'UNAVAILABLE')
-    assert.equal(remoteImplementationReady(), false)
+    assert.equal(remoteSettingEnabled(mkdtempSync(join(tmpdir(),'mahak-default-off-'))), false)
   })
   await test('remote admission is a separate scope; it does not open or overwrite local panel sessions', () => {
     session.clearPanelSessions(owner); session.clearPanelSessions(other)

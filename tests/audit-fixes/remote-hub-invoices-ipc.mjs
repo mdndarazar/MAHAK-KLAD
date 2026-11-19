@@ -10,7 +10,7 @@ import { createClient } from '../../test/harness/prismaLite.mjs'
 import { makeSeeder } from '../../test/harness/seed.mjs'
 import { createCloudReader } from '../../src/main/services/cloud/cloudReader.ts'
 import { startExperimentalHubSupervisor } from '../../src/main/services/cloud/experimentalHubSupervisor.ts'
-import { remoteImplementationReady } from '../../src/shared/remoteAuthChannels.ts'
+import { remoteSettingEnabled } from '../../src/main/services/cloud/remoteSettings.ts'
 
 // Genuine parent + separate child + loopback HTTP + temporary SQLite only.
 // This is not Electron, actual restore coordination, HTTPS or a phone.
@@ -40,7 +40,7 @@ try {
   await assert.rejects(start({reader:{latestBoundaryTotals:reader.latestBoundaryTotals,openShiftsPage:reader.openShiftsPage,auditPage:reader.auditPage}}),/Invalid/)
  })
  await test('optional process bridge reads bounded facts without writing source or exposing private fields',async()=>{
-  assert.equal(remoteImplementationReady(),false)
+  assert.equal(remoteSettingEnabled(mkdtempSync(join(tmpdir(),'mahak-default-off-'))),false)
   const supervisor=await start();try{
    const port=supervisor.mobilePort
    assert.equal((await post(port,'/api/invoices',payload)).status,401);assert.equal(calls,0)

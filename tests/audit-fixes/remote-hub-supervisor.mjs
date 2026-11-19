@@ -12,7 +12,7 @@ import { makeSeeder } from '../../test/harness/seed.mjs'
 import { createCloudReader } from '../../src/main/services/cloud/cloudReader.ts'
 import { openCloudStateStore } from '../../src/main/services/cloud/cloudState.ts'
 import { startExperimentalHubSupervisor } from '../../src/main/services/cloud/experimentalHubSupervisor.ts'
-import { remoteImplementationReady } from '../../src/shared/remoteAuthChannels.ts'
+import { remoteSettingEnabled } from '../../src/main/services/cloud/remoteSettings.ts'
 import { createExperimentalRestoreBarrier } from '../../src/main/services/cloud/experimentalRestoreBarrier.ts'
 
 // Real separate process + loopback + temporary SQLite. Not Electron, a phone,
@@ -32,7 +32,7 @@ const reader={
   openShiftsPage:(...args)=>real.openShiftsPage(...args), auditPage:(...args)=>real.auditPage(...args)
 }
 const key=Buffer.alloc(32,34),origin='https://store.example'
-const options={nodeExecutable:process.execPath,childFile,directory:hubDir,origin,owner:{username:'owner',password:'owner-test-password',pin:'746392'},auditKey:key,snapshotMaxAgeMs:5000,reader,state:observedState,readRestoreMarker:async()=>marker,timeoutMs:3000}
+const options={nodeExecutable:process.execPath,childFile,directory:hubDir,origin,owner:{username:'owner',password:'owner-test-password',pin:'746392'},auditKey:key,snapshotMaxAgeMs:5000,reader,state:observedState,readRestoreMarker:async()=>marker,timeoutMs:3000,startupTimeoutMs:30000}
 function send(port,path,{method='GET',body,headers={}}={}){
   const data=body===undefined?null:Buffer.from(JSON.stringify(body))
   return new Promise((resolve,reject)=>{const req=request({hostname:'127.0.0.1',port,path,method,headers:{host:'store.example',...(data?{'content-type':'application/json','content-length':data.length}:{}),...headers}},res=>{
@@ -42,7 +42,7 @@ function send(port,path,{method='GET',body,headers={}}={}){
 let supervisor,cookie
 try {
   await test('config and unavailable runtime fail without enabling remote access',async()=>{
-    assert.equal(remoteImplementationReady(),false)
+    assert.equal(remoteSettingEnabled(mkdtempSync(join(tmpdir(),'mahak-default-off-'))),false)
     await assert.rejects(startExperimentalHubSupervisor({...options,nodeExecutable:'relative-node'}),/Invalid/)
     await assert.rejects(startExperimentalHubSupervisor({...options,auditKey:Buffer.alloc(31)}),/Invalid/)
     await assert.rejects(startExperimentalHubSupervisor({...options,nodeExecutable:join(dir,'missing-node')}),/unavailable/)

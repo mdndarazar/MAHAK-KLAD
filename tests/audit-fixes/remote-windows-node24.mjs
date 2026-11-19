@@ -12,7 +12,7 @@ import { createCloudReader } from '../../src/main/services/cloud/cloudReader.ts'
 import { openCloudStateStore } from '../../src/main/services/cloud/cloudState.ts'
 import { startExperimentalHubSupervisor } from '../../src/main/services/cloud/experimentalHubSupervisor.ts'
 import { createExperimentalHubScheduler } from '../../src/main/services/cloud/experimentalHubScheduler.ts'
-import { remoteImplementationReady } from '../../src/shared/remoteAuthChannels.ts'
+import { remoteSettingEnabled } from '../../src/main/services/cloud/remoteSettings.ts'
 
 // Portable Node 24 compatibility test; on Windows CI this uses a real Windows
 // child and temporary SQLite files, not Electron, DPAPI, HTTPS, or a phone.
@@ -35,7 +35,7 @@ function send(port,path,{method='GET',body,headers={}}={}){
 let supervisor,scheduler,timer
 try {
   await test('Node 24 starts an isolated child and default remote readiness remains disabled',async()=>{
-    assert.equal(remoteImplementationReady(),false)
+    assert.equal(remoteSettingEnabled(mkdtempSync(join(tmpdir(),'mahak-default-off-'))),false)
     supervisor=await startExperimentalHubSupervisor(options)
     const response=await send(supervisor.mobilePort,'/api/login',{method:'POST',body:{username:'owner',password:'owner-test-password'},headers:{origin,'x-mahak-request':'1'}})
     assert.equal(response.status,200)

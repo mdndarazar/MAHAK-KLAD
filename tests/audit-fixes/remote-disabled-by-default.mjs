@@ -10,7 +10,7 @@ process.env.HARNESS_DIR = dir
 process.env.HARNESS_DB = join(dir, 'isolated.db')
 const { ipcMain } = await import('electron')
 const { harnessClient } = await import('../../test/harness/stubs/prismaClient.mjs')
-const { remoteImplementationReady } = await import('../../src/shared/remoteAuthChannels.ts')
+const { remoteSettingEnabled } = await import('../../src/main/services/cloud/remoteSettings.ts')
 const { startCloudSync, stopCloudSync } = await import('../../src/main/services/CloudSyncService.ts')
 const { registerRemoteAuthHandlers } = await import('../../src/main/ipc/remoteAuth.ts')
 const db = harnessClient()
@@ -28,7 +28,7 @@ db.auditLog.findFirst = async (...args) => { auditReads++; return originalFindFi
 db.auditLog.findMany = async (...args) => { auditReads++; return originalFindMany(...args) }
 try {
   await test('unfinished remote sync has no startup state file, timers, reads or IPC', () => {
-    assert.equal(remoteImplementationReady(), false)
+    assert.equal(remoteSettingEnabled(dir), false)
     startCloudSync(); startCloudSync(); stopCloudSync()
     assert.equal(existsSync(statePath), false)
     assert.equal(handles, 0); assert.equal(timeouts, 0); assert.equal(intervals, 0); assert.equal(auditReads, 0)

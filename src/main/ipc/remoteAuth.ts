@@ -3,8 +3,8 @@
  * بدون دست زدن به ipc/index.ts — مستقیم ipcMain.handle
  */
 import { BrowserWindow, ipcMain } from 'electron'
-import { dirname, join } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { dirname, join, posix, win32 } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { REMOTE_AUTH_CHANNELS, REMOTE_GT_PREFIX, remoteImplementationReady } from '../../shared/remoteAuthChannels'
 import { cancelForWindow, claimRemotePanel, getRequestStatus, remoteRegistryInitialized, requestCode } from '../services/RemoteGrantRegistry'
 
@@ -36,15 +36,32 @@ function rendererBase(): string {
   const entry = typeof require !== 'undefined' ? require.main?.filename : undefined
   return entry ? dirname(entry) : __dirname
 }
+/** True only for the application's own renderer page. File URLs are compared
+ * as decoded paths, case-insensitively on Windows: Chromium canonicalizes the
+ * URL that loadFile() produces, and its percent-encoding of characters in the
+ * install path (a Persian Windows user name, spaces, brackets) may differ from
+ * Node's. Any other scheme, host, file, or an undecodable URL is rejected. */
+export function isOwnRendererPage(value: string, expectedFile?: string, windows: boolean = process.platform === 'win32'): boolean {
+  try {
+    const actual = new URL(value), dev = process.env.ELECTRON_RENDERER_URL
+    if (dev) {
+      const expected = new URL(dev)
+      return actual.protocol === expected.protocol && actual.host === expected.host && actual.pathname === expected.pathname
+    }
+    if (actual.protocol !== 'file:' || actual.host !== '') return false
+    const path = windows ? win32 : posix, file = expectedFile ?? join(rendererBase(), '../renderer/index.html')
+    if (!path.isAbsolute(file)) return false
+    const found = path.normalize(fileURLToPath(actual, { windows })), wanted = path.normalize(file)
+    return windows ? found.toLowerCase() === wanted.toLowerCase() : found === wanted
+  } catch { return false }
+}
 /** Only the application's own top-level renderer page may call owner-only
  * remote IPC: not a subframe, another page or a destroyed window. */
 export function isLocalAppFrame(event: Electron.IpcMainInvokeEvent): boolean {
   try {
     ownerOf(event)
     if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame) return false
-    const actual=new URL(event.senderFrame.url)
-    const expected=new URL(process.env.ELECTRON_RENDERER_URL || pathToFileURL(join(rendererBase(),'../renderer/index.html')).href)
-    return actual.protocol===expected.protocol && actual.host===expected.host && actual.pathname===expected.pathname
+    return isOwnRendererPage(event.senderFrame.url)
   } catch { return false }
 }
 
@@ -57,12 +74,7 @@ export function registerRemoteAuthHandlers(recover?: (password:string, pin:strin
     // Only the top-level local application window can request recovery; mobile
     // pages, subframes and destroyed windows cannot invoke this path.
     if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame) return {ok:false as const,error:'بازیابی ممکن نیست.'}
-    try {
-      const actual=new URL(event.senderFrame.url)
-      const expected=new URL(process.env.ELECTRON_RENDERER_URL || pathToFileURL(join(rendererBase(),'../renderer/index.html')).href)
-      if (actual.protocol!==expected.protocol || actual.host!==expected.host || actual.pathname!==expected.pathname)
-        return {ok:false as const,error:'بازیابی ممکن نیست.'}
-    } catch {return {ok:false as const,error:'بازیابی ممکن نیست.'}}
+    if (!isOwnRendererPage(event.senderFrame.url)) return {ok:false as const,error:'بازیابی ممکن نیست.'}
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return {ok:false as const,error:'بازیابی ممکن نیست.'}
     const {password,pin}=payload as Record<string,unknown>
     if (typeof password!=='string' || !password || Buffer.byteLength(password,'utf8')>128 ||

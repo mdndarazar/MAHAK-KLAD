@@ -11,7 +11,7 @@ import { createCloudReader } from '../../src/main/services/cloud/cloudReader.ts'
 import { openCloudStateStore } from '../../src/main/services/cloud/cloudState.ts'
 import { startExperimentalHubSupervisor } from '../../src/main/services/cloud/experimentalHubSupervisor.ts'
 import { createExperimentalHubScheduler } from '../../src/main/services/cloud/experimentalHubScheduler.ts'
-import { remoteImplementationReady } from '../../src/shared/remoteAuthChannels.ts'
+import { remoteSettingEnabled } from '../../src/main/services/cloud/remoteSettings.ts'
 
 // Fake timers and temporary SQLite/real loopback child. Not Electron, HTTPS,
 // Windows, a phone, actual restore coordination or production key protection.
@@ -58,7 +58,7 @@ await test('clock rollback prevents audit; source errors and invalid settings ar
   assert.throws(()=>createExperimentalHubScheduler({refreshOnce:async()=>{},syncOnce:async()=>{}},{intervalMs:0}),/Invalid/)
 })
 await test('scheduler drives a real isolated child and authenticated audit sync',async()=>{
-  assert.equal(remoteImplementationReady(),false)
+  assert.equal(remoteSettingEnabled(mkdtempSync(join(tmpdir(),'mahak-default-off-'))),false)
   const dir=mkdtempSync(join(tmpdir(),'mahak-scheduler-')),hub=mkdtempSync(join(tmpdir(),'mahak-scheduler-hub-')),childFile=join(dir,'hub.cjs')
   await build({entryPoints:[new URL('../../src/main/services/cloud/experimentalHubChild.ts',import.meta.url).pathname],outfile:childFile,bundle:true,platform:'node',format:'cjs',target:'node22',logLevel:'silent'})
   const store=createClient(join(dir,'isolated-shop.db')),seed=makeSeeder(store)

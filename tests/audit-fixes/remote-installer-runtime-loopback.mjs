@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { request } from 'node:http'
 import { startExperimentalHubSupervisor } from '../../src/main/services/cloud/experimentalHubSupervisor.ts'
 import { openCloudStateStore } from '../../src/main/services/cloud/cloudState.ts'
-import { remoteImplementationReady } from '../../src/shared/remoteAuthChannels.ts'
+import { remoteSettingEnabled } from '../../src/main/services/cloud/remoteSettings.ts'
 
 // CI supplies the unpacked Windows installer's resources. Local execution can
 // point at a temporary copy, which is not evidence of installer packaging.
@@ -19,7 +19,7 @@ test('unpacked hub resource runs through the packaged Node executable',async()=>
  assert.ok(readFileSync(resolve(base,'remote/LICENSE')).length>0)
  const probe=spawnSync(nodeExecutable,['-e',"const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync(':memory:');db.close();console.log(process.versions.node)"],{encoding:'utf8',timeout:10000,windowsHide:true})
  assert.equal(probe.status,0,probe.stderr);assert.match(probe.stdout,/^\d+\.\d+\.\d+/)
- assert.equal(remoteImplementationReady(),false)
+ assert.equal(remoteSettingEnabled(mkdtempSync(join(tmpdir(),'mahak-default-off-'))),false)
  const dir=mkdtempSync(join(tmpdir(),'mahak-installed-hub-')),hubDir=join(dir,'hub');mkdirSync(hubDir)
  const state=openCloudStateStore(join(dir,'state'))
  let hub

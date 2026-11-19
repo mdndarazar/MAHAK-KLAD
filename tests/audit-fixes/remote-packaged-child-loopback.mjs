@@ -6,13 +6,13 @@ import { tmpdir } from 'node:os'
 import { request } from 'node:http'
 import { startExperimentalHubSupervisor } from '../../src/main/services/cloud/experimentalHubSupervisor.ts'
 import { openCloudStateStore } from '../../src/main/services/cloud/cloudState.ts'
-import { remoteImplementationReady } from '../../src/shared/remoteAuthChannels.ts'
+import { remoteSettingEnabled } from '../../src/main/services/cloud/remoteSettings.ts'
 
 // Runs the asset produced by npm run build with the current test Node executable.
 // No Electron, packaged Node runtime, phone, production keys or customer database
 // are involved. A missing asset fails the test instead of rebuilding it.
 test('packaged hub child starts, serves loopback, and shuts down without enabling the app',async()=>{
- const childFile=resolve('out/main/remote-hub-child.cjs');assert.ok(existsSync(childFile));assert.equal(remoteImplementationReady(),false)
+ const childFile=resolve('out/main/remote-hub-child.cjs');assert.ok(existsSync(childFile));assert.equal(remoteSettingEnabled(mkdtempSync(join(tmpdir(),'mahak-default-off-'))),false)
  const dir=mkdtempSync(join(tmpdir(),'mahak-packaged-hub-')),hubDir=join(dir,'hub');mkdirSync(hubDir)
  const state=openCloudStateStore(join(dir,'state'));state.save({version:1,storeId:'store_test',epoch:'12345678-1234-4123-8123-123456789abc',lastAcked:0,anchorHash:'',restoreMarker:null})
  let hub

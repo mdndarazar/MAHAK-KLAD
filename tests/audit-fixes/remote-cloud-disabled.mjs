@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
-import { remoteImplementationReady } from '../../src/shared/remoteAuthChannels.ts'
+import { remoteSettingEnabled } from '../../src/main/services/cloud/remoteSettings.ts'
 
 // Bundle the real service and readiness gate; dependencies are tripwires, not
 // a running Electron installation or a real database. No shop data is touched.
@@ -31,7 +31,7 @@ test('default-disabled cloud sync neither schedules work nor starts network or d
       http.request=trap('http');https.request=trap('https');dgram.createSocket=trap('udp');fs.writeFileSync=trap('write')
       globalThis.setTimeout=trap('timeout');globalThis.setInterval=trap('interval');globalThis.fetch=trap('fetch')
       const service=require(outfile)
-      assert.equal(remoteImplementationReady(),false)
+      assert.equal(remoteSettingEnabled(dir),false)
       service.startCloudSync();service.startCloudSync();service.stopCloudSync()
       await Promise.resolve()
       assert.deepEqual(hits,[])
