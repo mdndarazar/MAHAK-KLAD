@@ -403,6 +403,9 @@ jobs:
       - name: Test the owner's live view of open grants on the phone and the desktop banner
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-live-grants-loopback.mjs
+      - name: Test the suspicious-request warning on the phone (more than three in ten minutes)
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-suspicious-request-loopback.mjs
       - name: Test backup coordination lifecycle
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-coordination-lifecycle.mjs

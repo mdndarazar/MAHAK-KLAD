@@ -70,7 +70,7 @@ let snapshot: Snapshot | null = null, snapshotAt = 0, snapshotMaxAge = 0, lastSn
 // before the parent reads. This avoids comparing clocks from separate processes.
 let snapshotCapture: {id:number; monotonic:number; wall:number} | null = null, lastCaptureId = 0
 let invoiceId=0
-type MirrorItem={requestId:string;panel:string;code:string;ownerWindowId:number}
+type MirrorItem={requestId:string;panel:string;code:string;ownerWindowId:number;recent?:number}
 let mirror:{at:number;seq:number;items:MirrorItem[]}|null=null, approvalId=0
 type GrantItem={panel:string;claimed:boolean;remainingMs:number}
 let grantMirror:{at:number;seq:number;items:GrantItem[]}|null=null
@@ -80,9 +80,11 @@ function parseMirror(message:Record<string,any>) {
   if (!sameKeys(message,'items,seq,type') || !safeInt(message.seq,1) || (mirror && message.seq<=mirror.seq) || !Array.isArray(message.items) || message.items.length>200) return
   const items:MirrorItem[]=[]
   for (const x of message.items) {
-    if (!okObject(x) || !sameKeys(x,'code,ownerWindowId,panel,requestId') || typeof x.requestId!=='string' || !/^[a-f0-9]{32}$/.test(x.requestId) ||
+    if (!okObject(x) || !(sameKeys(x,'code,ownerWindowId,panel,requestId') || (sameKeys(x,'code,ownerWindowId,panel,recent,requestId') && safeInt(x.recent,4) && x.recent<=1000)) ||
+        typeof x.requestId!=='string' || !/^[a-f0-9]{32}$/.test(x.requestId) ||
         typeof x.panel!=='string' || !/^[A-Za-z0-9_.:-]{1,128}$/.test(x.panel) || typeof x.code!=='string' || !/^[0-9]{6}$/.test(x.code) || !safeInt(x.ownerWindowId,1)) return
-    items.push({requestId:x.requestId,panel:x.panel,code:x.code,ownerWindowId:x.ownerWindowId})
+    // `recent` flags a suspicious request (more than three in ten minutes).
+    items.push({requestId:x.requestId,panel:x.panel,code:x.code,ownerWindowId:x.ownerWindowId,...(x.recent!==undefined ? {recent:x.recent} : {})})
   }
   mirror={at:performance.now(),seq:message.seq,items}
 }
@@ -272,7 +274,7 @@ async function start(input: unknown) {
     return snapshot
   }
   snapshotMaxAge = config.snapshotMaxAgeMs
-  let approvalController:{panels:readonly string[];list(token:string):{requestId:string;panel:string;code:string}[];grants():GrantItem[];approve(token:string,requestId:string,code:string,pin:string):Promise<boolean>}|undefined
+  let approvalController:{panels:readonly string[];list(token:string):{requestId:string;panel:string;code:string;recent?:number}[];grants():GrantItem[];approve(token:string,requestId:string,code:string,pin:string):Promise<boolean>}|undefined
   if (approval!==undefined && revocationOptions) {
     let uncertain=false
     const key=Buffer.from(approval.key,'hex'),storeId=revocationOptions.storeId,epoch=revocationOptions.epoch

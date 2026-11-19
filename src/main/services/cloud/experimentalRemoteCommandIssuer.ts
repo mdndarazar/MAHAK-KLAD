@@ -9,7 +9,7 @@ import { createHmac,randomBytes,timingSafeEqual } from 'node:crypto'
 import type { SignedGrantCommand } from './signedCommandVerifier'
 import type { GrantMode,GrantTier } from '../RemoteGrantRegistry'
 
-type Pending = { requestId:string; panel:string; code:string; ownerWindowId:number }
+type Pending = { requestId:string; panel:string; code:string; ownerWindowId:number; recent?:number }
 type Identity = {
   canApprove(token:string,panel:string): {id:string;role:string} | null
   authorize(token:string,panel:string,permission:'APPROVE',pin:string): {id:string;role:string} | null
@@ -43,13 +43,14 @@ export function createExperimentalRemoteCommandIssuer(options:Options) {
     return raw.map(p=>{
       if (!p || typeof p.requestId !== 'string' || !REQUEST.test(p.requestId) || seen.has(p.requestId) ||
           typeof p.panel !== 'string' || !PANEL.test(p.panel) || typeof p.code !== 'string' || !/^[0-9]{6}$/.test(p.code) ||
-          !Number.isSafeInteger(p.ownerWindowId) || p.ownerWindowId <= 0) throw new Error('Invalid pending request')
+          !Number.isSafeInteger(p.ownerWindowId) || p.ownerWindowId <= 0 ||
+          (p.recent !== undefined && (!Number.isSafeInteger(p.recent) || p.recent <= 3 || p.recent > 1000))) throw new Error('Invalid pending request')
       seen.add(p.requestId)
-      return {requestId:p.requestId,panel:p.panel,code:p.code,ownerWindowId:p.ownerWindowId}
+      return {requestId:p.requestId,panel:p.panel,code:p.code,ownerWindowId:p.ownerWindowId,...(p.recent !== undefined ? {recent:p.recent} : {})}
     })
   }
   return {
-    list(token:string): {requestId:string;panel:string;code:string}[] {
+    list(token:string): {requestId:string;panel:string;code:string;recent?:number}[] {
       if (typeof token !== 'string' || !TOKEN.test(token)) return []
       try {
         const decisions=new Map<string,boolean>()
@@ -57,7 +58,7 @@ export function createExperimentalRemoteCommandIssuer(options:Options) {
           if (!policies.has(p.panel)) return false
           if (!decisions.has(p.panel)) decisions.set(p.panel,!!identity.canApprove(token,p.panel))
           return decisions.get(p.panel) === true
-        }).map(p=>({requestId:p.requestId,panel:p.panel,code:p.code}))
+        }).map(p=>({requestId:p.requestId,panel:p.panel,code:p.code,...(p.recent !== undefined ? {recent:p.recent} : {})}))
       } catch { return [] }
     },
     async approve(token:string,requestId:string,code:string,pin:string):Promise<boolean> {

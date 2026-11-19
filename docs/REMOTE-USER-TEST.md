@@ -35,6 +35,7 @@ node --import ./test/harness/register.mjs tests/audit-fixes/remote-manager-appro
 node --import ./test/harness/register.mjs tests/audit-fixes/remote-desktop-host-epoch-transition.mjs
 node --import ./test/harness/register.mjs tests/audit-fixes/remote-host-restore-relaunch-loopback.mjs
 node --import ./test/harness/register.mjs tests/audit-fixes/remote-live-grants-loopback.mjs
+node --import ./test/harness/register.mjs tests/audit-fixes/remote-suspicious-request-loopback.mjs
 ```
 
 **نتیجهٔ درست:** در پایان هر تست `fail 0` دیده شود. این تست‌ها فقط فایل موقت می‌سازند و به گوشی یا تونل کاری ندارند.
@@ -118,6 +119,8 @@ node --import ./test/harness/register.mjs tests/audit-fixes/remote-live-grants-l
    - درخواستی که ۴ دقیقه تأیید نشود باطل شود: «درخواست دیگر معتبر نیست…».
    - تأییدی که ۳ دقیقه فعال نشود باطل شود.
    - پنل‌های قفل‌دار دیگر دکمهٔ درخواست ندارند و فقط دکمهٔ «بازیابی توقف اضطراری راه دور» دارند.
+   - هشدار درخواست مشکوک: روی رایانه برای «کالاها» چهار بار پشت سر هم «درخواست مجوز از مدیر (راه دور)» را بزنید و در گوشی «به‌روزرسانی» را بزنید.
+     **نتیجهٔ درست:** گزینه «کالاها — کد …… — هشدار: 4 درخواست در ۱۰ دقیقه» باشد و زیر آن: «هشدار درخواست مشکوک: «کالاها» در ۱۰ دقیقهٔ اخیر 4 بار درخواست شده است…». تأیید همچنان ممکن است (فقط هشدار است، قفل نمی‌کند). پس از ۱۰ دقیقه شمارش از نو شروع می‌شود. اگر برنامهٔ رایانه را ببندید و دوباره باز کنید، شمارش هم از صفر شروع می‌شود.
 7. پنل بازشده پس از ۱۰ دقیقه، یا پس از ۳ دقیقه کار نکردن با آن، بسته می‌شود با پیام «دسترسی این پنل پایان یافت یا لغو شد». خط آبی بالای پنل و ردیف آن در «مجوزهای باز الان» هم حذف شود.
 
 **(اختیاری) مدیر دوم با گوشی دیگر:**

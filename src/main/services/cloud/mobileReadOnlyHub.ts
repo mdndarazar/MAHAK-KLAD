@@ -38,7 +38,8 @@ type Reader = {
 type ApprovalController = {
   /** Panels whose requests members may be allowed to approve (owner's invite form). */
   panels?: readonly string[]
-  list(token: string): { requestId: string; panel: string; code: string }[]
+  /** `recent`: requests for that panel in the last ten minutes, only when more than three. */
+  list(token: string): { requestId: string; panel: string; code: string; recent?: number }[]
   /** Owner's live view of open grants; throws when the desktop's copy is stale. */
   grants?(): { panel: string; claimed: boolean; remainingMs: number }[]
   approve(token: string, requestId: string, code: string, pin: string): boolean | Promise<boolean>
@@ -300,8 +301,9 @@ export function createMobileReadOnlyHandler(options: Options) {
           const requests=list.map(r=>{
             if (!r || typeof r.requestId !== 'string' || !/^[a-f0-9]{32}$/.test(r.requestId) ||
                 typeof r.panel !== 'string' || !/^[A-Za-z0-9_.:-]{1,128}$/.test(r.panel) ||
-                typeof r.code !== 'string' || !/^[0-9]{6}$/.test(r.code)) throw new Error('Invalid request')
-            return {requestId:r.requestId,panel:r.panel,code:r.code}
+                typeof r.code !== 'string' || !/^[0-9]{6}$/.test(r.code) ||
+                (r.recent !== undefined && (!Number.isSafeInteger(r.recent) || r.recent <= 3 || r.recent > 1000))) throw new Error('Invalid request')
+            return {requestId:r.requestId,panel:r.panel,code:r.code,...(r.recent !== undefined ? {recent:r.recent} : {})}
           })
           send(200,{requests});return
         }

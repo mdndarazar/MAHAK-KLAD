@@ -10,7 +10,7 @@ import { performance } from 'node:perf_hooks'
 
 export type GrantTier = 'NORMAL' | 'SENSITIVE_MONEY'
 export type GrantMode = 'PANEL' | 'ONE_SHOT'
-type Pending = { requestId: string; code: string; tokenHash: Buffer; panel: string; ownerWindowId: number; createdAt: number }
+type Pending = { requestId: string; code: string; tokenHash: Buffer; panel: string; ownerWindowId: number; createdAt: number; recent: number }
 type Grant = {
   id: string; panel: string; ownerWindowId: number; tier: GrantTier; mode: GrantMode
   approvedAt: number; claimBy: number; expiresAt: number; lastUsedAt: number
@@ -26,6 +26,22 @@ const pendingRequests = new Map<string, Pending>()
 const failCounts = new Map<string, { count: number; lockedUntil: number }>()
 const PENDING_MS = 4 * 60_000, CLAIM_MS = 3 * 60_000, IDLE_MS = 3 * 60_000
 const LOCK_MS = 15 * 60_000
+// Decision 15 of the mobile design: more than three requests for one panel in
+// ten minutes are flagged to the approvers on the phone. A warning, never a block.
+const REQUEST_LOG_MS = 10 * 60_000, SUSPICIOUS_OVER = 3
+const requestLog = new Map<string, number[]>()
+function noteRequest(panel: string): number {
+  const t = now()
+  if (!requestLog.has(panel) && requestLog.size >= 256) {
+    for (const [p, times] of requestLog) if (!times.some(x => t - x < REQUEST_LOG_MS)) requestLog.delete(p)
+    if (requestLog.size >= 256) return 1
+  }
+  const times = (requestLog.get(panel) ?? []).filter(x => t - x < REQUEST_LOG_MS)
+  times.push(t)
+  if (times.length > 1000) times.splice(0, times.length - 1000)
+  requestLog.set(panel, times)
+  return times.length
+}
 const VALID_PANEL = /^[A-Za-z0-9_.:-]{1,128}$/
 const VALID_ID = /^[A-Za-z0-9_-]{1,128}$/
 const VALID_TOKEN = /^[A-Za-z0-9_-]{43}$/
@@ -298,7 +314,7 @@ export function requestCode(panel: string, ownerWindowId: number): { code: strin
   }
   const code = String(randomInt(100_000, 1_000_000))
   const token = randomBytes(32).toString('base64url'), requestId = randomBytes(16).toString('hex')
-  const pending: Pending = { requestId, code, tokenHash: tokenHash(token), panel, ownerWindowId, createdAt: now() }
+  const pending: Pending = { requestId, code, tokenHash: tokenHash(token), panel, ownerWindowId, createdAt: now(), recent: noteRequest(panel) }
   pendingRequests.set(k, pending)
   setTimeout(() => { if (pendingRequests.get(k) === pending) pendingRequests.delete(k) }, PENDING_MS).unref?.()
   return { code, gt: `gt-${token}`, requestId }
@@ -334,10 +350,11 @@ export function remotePanelSecondsLeft(ownerWindowId: number, panel: string): nu
 }
 /** Trusted host only: filter by member ACL before returning entries to a client. */
 export function listPendingRequests() {
-  const result: { requestId: string; code: string; panel: string; ownerWindowId: number }[] = []
+  const result: { requestId: string; code: string; panel: string; ownerWindowId: number; recent?: number }[] = []
   for (const p of pendingRequests.values()) {
     const current = getPending(p.ownerWindowId,p.panel)
-    if (current) result.push(current)
+    // `recent` (requests for this panel in the last ten minutes) only when suspicious.
+    if (current) result.push(p.recent > SUSPICIOUS_OVER ? { ...current, recent: p.recent } : current)
   }
   return result
 }
