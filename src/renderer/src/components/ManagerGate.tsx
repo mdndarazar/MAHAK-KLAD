@@ -7,7 +7,7 @@ import { call, CH } from '../lib/api'
 import { faDigits, toLatinDigits } from '@shared/jalali'
 import { panelTitle, type PanelKey } from '@shared/panels'
 import type { PanelAuthState, PanelGateStatus } from '@shared/types'
-import { RemoteRequestBox } from './RemoteRequestBox'
+import { RemoteGrantBanner, RemoteRequestBox } from './RemoteRequestBox'
 import { remoteImplementationReady } from '@shared/remoteAuthChannels'
 
 /** ثانیه ⇒ «۲:۳۵» (یا «۱:۰۵:۰۰» برای قفل‌های بلند). */
@@ -125,7 +125,7 @@ export default function ManagerGate({
     return () => window.clearInterval(id)
   }, [open, refreshGate])
 
-  if (open) return <>{remoteImplementationReady() && panel === 'settings' && !window.location.hash.startsWith('#/remote-link') && <div className="mb-3"><a className="btn" href="#/remote-link">کنترل از راه دور با گوشی</a></div>}{children}</>
+  if (open) return <>{remoteImplementationReady() && <RemoteGrantBanner panel={panel} />}{remoteImplementationReady() && panel === 'settings' && !window.location.hash.startsWith('#/remote-link') && <div className="mb-3"><a className="btn" href="#/remote-link">کنترل از راه دور با گوشی</a></div>}{children}</>
 
   const locked = !!gate?.locked && gate.remainingSeconds > 0
   /** چند تلاش ناموفق دیگر تا قفل شدن (فقط وقتی قفل موقت روشن است) */

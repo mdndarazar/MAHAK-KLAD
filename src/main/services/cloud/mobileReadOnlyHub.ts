@@ -39,6 +39,8 @@ type ApprovalController = {
   /** Panels whose requests members may be allowed to approve (owner's invite form). */
   panels?: readonly string[]
   list(token: string): { requestId: string; panel: string; code: string }[]
+  /** Owner's live view of open grants; throws when the desktop's copy is stale. */
+  grants?(): { panel: string; claimed: boolean; remainingMs: number }[]
   approve(token: string, requestId: string, code: string, pin: string): boolean | Promise<boolean>
 }
 type Options = { origin?: string; origins?: readonly string[]; identity: Identity; reader: Reader; drainRevocations?: () => { remaining: boolean } | Promise<{ remaining: boolean }>; approval?: ApprovalController }
@@ -261,7 +263,7 @@ export function createMobileReadOnlyHandler(options: Options) {
           send(200,{ok:true});return
         }
       }
-      if (req.method === 'GET' && (path === '/api/session' || path === '/api/capabilities' || path === '/api/members' || path === '/api/custody' || path === '/api/shifts' || (path === '/api/requests' && options.approval))) {
+      if (req.method === 'GET' && (path === '/api/session' || path === '/api/capabilities' || path === '/api/members' || path === '/api/custody' || path === '/api/shifts' || (path === '/api/requests' && options.approval) || (path === '/api/grants' && typeof options.approval?.grants === 'function'))) {
         const token=cookie(req), user=token ? options.identity.whoAmI(token) : null
         if (!token || !user) { send(401,{error:'لطفاً وارد شوید'});return }
         if (path === '/api/session') {
@@ -272,7 +274,19 @@ export function createMobileReadOnlyHandler(options: Options) {
           send(200,{invoices:typeof options.reader.invoiceFactsPage === 'function' && !!options.identity.authorize(token,'invoices','VIEW'),
             ...(user.role==='OWNER' && typeof options.identity.panic==='function' && typeof options.drainRevocations==='function' ? {panic:true} : {}),
             ...(user.role==='OWNER' && typeof options.identity.panicClose==='function' && typeof options.drainRevocations==='function' ? {panicClose:true} : {}),
+            ...(user.role==='OWNER' && typeof options.approval?.grants==='function' ? {grants:true} : {}),
             ...(user.role==='OWNER' && Array.isArray(options.approval?.panels) ? {approvalPanels:options.approval.panels.filter(panel=>typeof panel==='string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(panel)).slice(0,20)} : {})});return
+        }
+        if (path === '/api/grants' && typeof options.approval?.grants === 'function') {
+          if (user.role !== 'OWNER') { send(403,{error:'فقط مالک مجاز است'});return }
+          const list=options.approval.grants()
+          if (!Array.isArray(list) || list.length > 200) throw new Error('Invalid grant list')
+          const grants=list.map(g=>{
+            if (!g || typeof g.panel !== 'string' || !/^[A-Za-z0-9_.:-]{1,128}$/.test(g.panel) || typeof g.claimed !== 'boolean' ||
+                !Number.isSafeInteger(g.remainingMs) || g.remainingMs < 1 || g.remainingMs > 86_400_000) throw new Error('Invalid grant')
+            return {panel:g.panel,claimed:g.claimed,remainingMs:g.remainingMs}
+          })
+          send(200,{grants});return
         }
         if (path === '/api/members') {
           if (user.role !== 'OWNER') { send(403,{error:'فقط مالک مجاز است'});return }

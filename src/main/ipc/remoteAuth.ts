@@ -6,7 +6,7 @@ import { BrowserWindow, ipcMain } from 'electron'
 import { dirname, join, posix, win32 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { REMOTE_AUTH_CHANNELS, REMOTE_GT_PREFIX, remoteImplementationReady } from '../../shared/remoteAuthChannels'
-import { cancelForWindow, claimRemotePanel, getRequestStatus, remoteRegistryInitialized, requestCode } from '../services/RemoteGrantRegistry'
+import { cancelForWindow, claimRemotePanel, getRequestStatus, remotePanelSecondsLeft, remoteRegistryInitialized, requestCode } from '../services/RemoteGrantRegistry'
 
 // Match the application's other IPC handlers: only a live BrowserWindow may
 // own a request. A destroyed renderer must not retain pending requests or grants.
@@ -127,9 +127,12 @@ export function registerRemoteAuthHandlers(recover?: (password:string, pin:strin
     return { ok: false as const, error: 'تمدید مجوز فقط با استفادهٔ معتبر از پنل انجام می‌شود.' }
   })
 
-  ipcMain.handle(REMOTE_AUTH_CHANNELS.banner, async (event) => {
+  ipcMain.handle(REMOTE_AUTH_CHANNELS.banner, async (event, payload: { panel?: unknown }) => {
     const owner = ownerOf(event)
-    // بنر ساده — اگر هر grant فعال باشد
-    return { ok: true as const, data: { owner } }
+    // Banner above an open panel: this window's phone-approved grant for that
+    // panel only. A status read; it never extends idle time or reveals tokens.
+    const panel = typeof payload?.panel === 'string' ? payload.panel : ''
+    const seconds = panel ? remotePanelSecondsLeft(owner, panel) : null
+    return { ok: true as const, data: seconds === null ? { active: false as const } : { active: true as const, seconds } }
   })
 }

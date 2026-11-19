@@ -72,6 +72,8 @@ let snapshotCapture: {id:number; monotonic:number; wall:number} | null = null, l
 let invoiceId=0
 type MirrorItem={requestId:string;panel:string;code:string;ownerWindowId:number}
 let mirror:{at:number;seq:number;items:MirrorItem[]}|null=null, approvalId=0
+type GrantItem={panel:string;claimed:boolean;remainingMs:number}
+let grantMirror:{at:number;seq:number;items:GrantItem[]}|null=null
 const waitingApprovals=new Map<number,{resolve:(ok:boolean)=>void;timer:ReturnType<typeof setTimeout>}>()
 function failApprovals() { for (const item of waitingApprovals.values()) {clearTimeout(item.timer);item.resolve(false)} waitingApprovals.clear() }
 function parseMirror(message:Record<string,any>) {
@@ -83,6 +85,18 @@ function parseMirror(message:Record<string,any>) {
     items.push({requestId:x.requestId,panel:x.panel,code:x.code,ownerWindowId:x.ownerWindowId})
   }
   mirror={at:performance.now(),seq:message.seq,items}
+}
+// Owner's live view only; it never authorizes anything. A malformed list is
+// ignored, so the previous copy ages out and the view reports unavailable.
+function parseGrantMirror(message:Record<string,any>) {
+  if (!sameKeys(message,'items,seq,type') || !safeInt(message.seq,1) || (grantMirror && message.seq<=grantMirror.seq) || !Array.isArray(message.items) || message.items.length>200) return
+  const items:GrantItem[]=[]
+  for (const x of message.items) {
+    if (!okObject(x) || !sameKeys(x,'claimed,panel,remainingMs') || typeof x.panel!=='string' || !/^[A-Za-z0-9_.:-]{1,128}$/.test(x.panel) ||
+        typeof x.claimed!=='boolean' || !safeInt(x.remainingMs,1) || x.remainingMs>86_400_000) return
+    items.push({panel:x.panel,claimed:x.claimed,remainingMs:x.remainingMs})
+  }
+  grantMirror={at:performance.now(),seq:message.seq,items}
 }
 let invoicePending: null | {id:number; from:string; to:string; afterId:number; resolve:(value:unknown)=>void; reject:(error:Error)=>void; timer:ReturnType<typeof setTimeout>} = null
 function failInvoice() {
@@ -258,7 +272,7 @@ async function start(input: unknown) {
     return snapshot
   }
   snapshotMaxAge = config.snapshotMaxAgeMs
-  let approvalController:{panels:readonly string[];list(token:string):{requestId:string;panel:string;code:string}[];approve(token:string,requestId:string,code:string,pin:string):Promise<boolean>}|undefined
+  let approvalController:{panels:readonly string[];list(token:string):{requestId:string;panel:string;code:string}[];grants():GrantItem[];approve(token:string,requestId:string,code:string,pin:string):Promise<boolean>}|undefined
   if (approval!==undefined && revocationOptions) {
     let uncertain=false
     const key=Buffer.from(approval.key,'hex'),storeId=revocationOptions.storeId,epoch=revocationOptions.epoch
@@ -281,7 +295,15 @@ async function start(input: unknown) {
           catch {clearTimeout(timer);waitingApprovals.delete(id);uncertain=true;try {process.disconnect?.()} catch {};resolve(false)}
         })
       }})
-    approvalController={panels:approvalPanels,list:token=>issuer.list(token),approve:async(token,requestId,code,pin)=>{
+    approvalController={panels:approvalPanels,list:token=>issuer.list(token),
+      grants:()=>{
+        // Same freshness bound as the request mirror: a desktop that stopped
+        // vouching for its state yields "unavailable", never an empty list.
+        const copy=grantMirror, age=copy ? performance.now()-copy.at : Infinity
+        if (!copy || age>=3000) throw new Error('Grant mirror stale')
+        return copy.items.map(g=>({...g,remainingMs:Math.floor(g.remainingMs-age)})).filter(g=>g.remainingMs>0)
+      },
+      approve:async(token,requestId,code,pin)=>{
       const ok=await issuer.approve(token,requestId,code,pin)
       if (uncertain) throw new Error('Approval outcome unavailable')
       return ok
@@ -309,6 +331,7 @@ process.on('message', message => {
     return
   }
   if (okObject(message) && message.type==='pendingRequests') {if(initialized && !shuttingDown) parseMirror(message);return}
+  if (okObject(message) && message.type==='openGrants') {if(initialized && !shuttingDown) parseGrantMirror(message);return}
   actions = actions.then(async () => {
     if (!okObject(message) || typeof message.type !== 'string') return
     if (message.type === 'start' && !initialized) {

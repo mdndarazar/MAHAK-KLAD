@@ -1,7 +1,7 @@
 /** Experimental desktop half of the approval transport. Not production-ready. */
 import { timingSafeEqual } from 'node:crypto'
 import { approvalEnvelopeMac } from './experimentalApprovalEnvelope'
-import { listPendingRequests } from '../RemoteGrantRegistry'
+import { listActiveGrants, listPendingRequests } from '../RemoteGrantRegistry'
 import { createGrantApprovalCoordinator } from './grantApprovalCoordinator'
 import type { GrantReplayStore } from './signedCommandVerifier'
 
@@ -39,10 +39,16 @@ export function createExperimentalApprovalBridge(options:{key:Uint8Array;storeId
       if (options.isClosed()) return
       const items=listPendingRequests().filter(p=>Object.hasOwn(policies,p.panel)).slice(0,200)
       options.send({type:'pendingRequests',seq:++seq,items})
+      // Owner's live view of open grants: panel, claim state and time left only.
+      const grants=listActiveGrants().filter(g=>Object.hasOwn(policies,g.panel)).slice(0,200)
+        .map(g=>({panel:g.panel,claimed:g.claimed,remainingMs:Math.min(g.remainingMs,86_400_000)}))
+      options.send({type:'openGrants',seq,items:grants})
     },
     clearMirror():void {
       if (options.isClosed()) return
       // An empty replacement clears stale requests without disclosing data.
+      // Open grants are deliberately not replaced: an empty list would claim
+      // that nothing is open. The child's copy ages out and reports unavailable.
       options.send({type:'pendingRequests',seq:++seq,items:[]})
     }
   }

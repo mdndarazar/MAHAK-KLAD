@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { REMOTE_AUTH_CHANNELS, remoteImplementationReady, type RemoteAuthRequestResult, type RemoteAuthStatusResult } from '@shared/remoteAuthChannels'
 import { call, CH } from '../lib/api'
-import { toLatinDigits } from '@shared/jalali'
+import { faDigits, toLatinDigits } from '@shared/jalali'
 import { REMOTE_PANELS } from '@shared/enums'
 
 /** Update an already-open renderer view after revoke, panic or expiry. This
@@ -24,6 +24,41 @@ export function startRemoteSessionMonitor(active:boolean, onPanels:(panels:strin
   }
   const timer=setInterval(()=>void check(),1000)
   return ()=>{stopped=true;clearInterval(timer)}
+}
+
+/** Watch this window's phone-approved grant for an open panel. Status only: it
+ * never extends idle time. The grant channel exists only while this computer's
+ * hub runs, so the hub status is checked first (every 5 s) and nothing else is
+ * called while it is off. Reports null when no such grant is open. */
+export function startRemoteBannerMonitor(panel:string, onSeconds:(seconds:number|null)=>void):()=>void {
+  if (!remoteImplementationReady()) return () => {}
+  let stopped=false, inFlight=false, ticks=0, running=false
+  const check=async()=>{
+    if (stopped || inFlight) return
+    inFlight=true
+    try {
+      if (ticks++ % 5 === 0) running=(await call<{running?:unknown}>('remoteSetup:status' as any))?.running===true
+      if (stopped) return
+      if (!running) { onSeconds(null); return }
+      const state=await call<{active?:unknown;seconds?:unknown}>('remoteAuth:banner' as any,{panel})
+      if (stopped) return
+      onSeconds(state?.active===true && Number.isSafeInteger(state.seconds) && (state.seconds as number)>=0 ? state.seconds as number : null)
+    } catch { running=false; if (!stopped) onSeconds(null) }
+    finally { inFlight=false }
+  }
+  void check()
+  const timer=setInterval(()=>void check(),1000)
+  return ()=>{stopped=true;clearInterval(timer)}
+}
+
+/** Above an open panel while it is open through a phone approval, so the person
+ * at the desk sees that, and when it closes. Renders nothing otherwise. */
+export function RemoteGrantBanner({ panel }: { panel: string }) {
+  const [seconds,setSeconds]=useState<number|null>(null)
+  useEffect(()=>startRemoteBannerMonitor(panel,setSeconds),[panel])
+  if (seconds === null) return null
+  const left=`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`
+  return <div role="status" className="mb-3 rounded border border-sky-300 bg-sky-50 px-3 py-2">این پنل با تأیید گوشی مدیر باز است؛ اگر استفاده نشود {faDigits(left)} دیگر بسته می‌شود.</div>
 }
 
 /** Lock-screen remote approval, shown only while this computer's hub runs (owner

@@ -310,6 +310,28 @@ export function getPending(ownerWindowId: number, panel: string) {
   if (now() - p.createdAt >= PENDING_MS) { pendingRequests.delete(k); return null }
   return { requestId: p.requestId, code: p.code, panel: p.panel, ownerWindowId: p.ownerWindowId }
 }
+/** Trusted host only: active grants for the owner's live view, without token,
+ * request or member identifiers. `remainingMs` is the time until the grant
+ * closes unless it is used (claimed: idle or hard expiry, whichever is first;
+ * unclaimed: the claim deadline). Reading never extends a grant. */
+export function listActiveGrants() {
+  const result: { panel: string; ownerWindowId: number; claimed: boolean; remainingMs: number }[] = []
+  for (const key of [...grants.keys()]) {
+    const g = active(key)
+    if (!g) continue
+    const remainingMs = Math.floor((g.claimed ? Math.min(g.expiresAt, g.lastUsedAt + IDLE_MS) : g.claimBy) - now())
+    if (remainingMs > 0) result.push({ panel: g.panel, ownerWindowId: g.ownerWindowId, claimed: g.claimed, remainingMs })
+  }
+  return result
+}
+/** Desktop banner: whole seconds left on this window's claimed panel grant, or
+ * null when none is open. A status read; it never touches idle time. */
+export function remotePanelSecondsLeft(ownerWindowId: number, panel: string): number | null {
+  if (!validOwner(ownerWindowId) || typeof panel !== 'string' || !VALID_PANEL.test(panel)) return null
+  const g = active(keyOf(ownerWindowId, panel))
+  if (!g || !g.claimed || g.mode !== 'PANEL') return null
+  return Math.max(0, Math.ceil((Math.min(g.expiresAt, g.lastUsedAt + IDLE_MS) - now()) / 1000))
+}
 /** Trusted host only: filter by member ACL before returning entries to a client. */
 export function listPendingRequests() {
   const result: { requestId: string; code: string; panel: string; ownerWindowId: number }[] = []
