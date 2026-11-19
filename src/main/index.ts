@@ -15,6 +15,8 @@ import { setNotificationSender } from './services/NotificationSender'
 import { startWooSyncScheduler } from './services/WooSyncService'
 
 let mainWindow: BrowserWindow | null = null
+if (!app.requestSingleInstanceLock()) app.quit() // تک‌نمونه: پیش‌نیاز بازیابی امن قفل‌های کهنهٔ راه دور (CloudSyncService)
+else app.on('second-instance', () => { if (mainWindow && !mainWindow.isDestroyed()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.focus() } })
 
 /**
  * آماده‌سازی دیتابیس قبل از هر کوئری.
@@ -131,6 +133,7 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  if (!app.hasSingleInstanceLock()) return // نمونهٔ دوم: ready پس از quit هم می‌آید؛ نه دیتابیس، نه زمان‌بند، نه پنجره
   const ready = await prepareDatabase()
   if (!ready) {
     app.quit()

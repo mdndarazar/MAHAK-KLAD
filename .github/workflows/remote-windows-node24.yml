@@ -415,6 +415,9 @@ jobs:
       - name: Test health of the remote link (unexpected hub stop on the desktop, owner health card on the phone)
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-health-loopback.mjs
+      - name: Test stale lock recovery after a crash (single-instance lock, fail closed, running hub untouched)
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-stale-lock-recovery-loopback.mjs
       - name: Test backup coordination lifecycle
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-coordination-lifecycle.mjs

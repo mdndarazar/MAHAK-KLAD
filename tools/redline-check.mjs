@@ -44,7 +44,9 @@ const allowed = new Set([
 ])
 // Budgets are additions plus deletions in tracked existing files, relative to base.
 const budgets = new Map(Object.entries({
-  'src/main/index.ts': 2, 'src/main/services/AuthService.ts': 10,
+  // Owner approved app.requestSingleInstanceLock() for stale remote-lock
+  // recovery (stage 12): +3 lines (lock, second-instance focus, ready guard).
+  'src/main/index.ts': 5, 'src/main/services/AuthService.ts': 10,
   // Owner approved the narrow increase for remote grant expiry enforcement.
   'src/main/services/panelSession.ts': 24, 'src/shared/enums.ts': 3,
   'src/preload/index.ts': 3, 'src/renderer/src/components/ManagerGate.tsx': 15,

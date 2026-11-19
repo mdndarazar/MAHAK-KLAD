@@ -5,7 +5,7 @@
  * configuration or keys never causes automatic initialization.
  */
 import { hkdfSync } from 'node:crypto'
-import { lstatSync } from 'node:fs'
+import { lstatSync, readFileSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
 import { prisma } from '../db/client'
@@ -69,6 +69,33 @@ async function portAvailable(port:number):Promise<void> {
     probe.listen(port,'127.0.0.1',()=>probe.close(()=>resolve()))
   })
 }
+/** An unclean end (crash, power loss, Windows shutdown with the app open, or a
+ * quit after an unconfirmed hub stop) leaves cloud-state.lock (this process)
+ * and remote-hub.lock (the hub child) behind, which blocked remote until
+ * reset. They are removed only when no owner can be alive:
+ * - this process holds Electron's single-instance lock for this userData, so
+ *   no other desktop instance (the only possible state-lock owner) runs; the
+ *   hub child dies with its desktop process (Windows: kill-on-close job of
+ *   every non-detached child; elsewhere: IPC disconnect);
+ * - this module has no state store or hub open;
+ * - the fixed port is free, so no hub listens (a busy port is reported as is);
+ * - each lock is a regular file with one link (no symlink, junction, directory
+ *   or hard link) holding exactly the 64-hex token that the owners write.
+ * Anything else keeps both locks and the existing failure (fail closed). Lock
+ * formats, tokens and every ownership check stay unchanged. */
+async function recoverStaleLocks(locks:string[],port:number|null):Promise<void> {
+  if (typeof app.hasSingleInstanceLock!=='function' || app.hasSingleInstanceLock()!==true) return
+  if (state || hub || port===null) return
+  const present=locks.filter(path=>!absent(path))
+  if (present.length===0) return
+  await portAvailable(port)
+  const stale=(path:string)=>{
+    try { const info=lstatSync(path);return info.isFile() && info.nlink===1 && info.size===64 && /^[0-9a-f]{64}$/.test(readFileSync(path,'utf8')) } catch { return false }
+  }
+  if (!present.every(stale)) return
+  for (const path of present) unlinkSync(path)
+  console.warn('[remote] stale locks from an unclean shutdown removed')
+}
 function derivedKey(key:Uint8Array, storeId:string, epoch:string, purpose:string):Buffer {
   return Buffer.from(hkdfSync('sha256',key,Buffer.from(`${storeId}:${epoch}`),Buffer.from(`mahak-remote-${purpose}-v1`),32))
 }
@@ -87,6 +114,7 @@ async function startConfigured(owner:RemoteOwner|null):Promise<void> {
   const hubExists=hubDatabaseExists(join(hubDir,'remote-hub.sqlite'))
   if (!hubExists && !owner) throw new Error('Remote owner setup required')
   const {origin,port}=readRemoteConfig(join(root,'config.json'))
+  await recoverStaleLocks([join(stateDir,'cloud-state.lock'),join(hubDir,'remote-hub.lock')],port)
   if (!absent(join(hubDir,'remote-hub.lock'))) throw new Error('Remote hub lock present')
   if (port!==null) await portAvailable(port)
   // Before any listener: opening the state with the current restore marker
