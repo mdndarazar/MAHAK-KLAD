@@ -1,5 +1,5 @@
 /**
- * Experimental in-process approval coordinator, not connected to the app.
+ * In-process approval coordinator, used by the desktop approval bridge.
  * It does not authenticate a mobile session, persist member ACLs, provision keys,
  * provide an API, or implement Panic. Its caller must supply trusted local policy,
  * synchronous current membership/ACL and pause checks. Replay state is process-local

@@ -1,7 +1,8 @@
 /**
- * Desktop host for the experimental local remote hub. The product readiness
- * gate remains false until provisioning, restore recovery and device testing are
- * complete. Missing configuration or keys never causes automatic initialization.
+ * Desktop host for the local remote hub. The readiness gate is open, but the hub
+ * starts only when the owner opt-in (userData/remote-settings.json, default off)
+ * is on and owner setup (remoteSetup) has created every required file. Missing
+ * configuration or keys never causes automatic initialization.
  */
 import { hkdfSync } from 'node:crypto'
 import { lstatSync } from 'node:fs'
@@ -9,6 +10,7 @@ import { join } from 'node:path'
 import { app } from 'electron'
 import { prisma } from '../db/client'
 import { registerRemoteAuthHandlers } from '../ipc/remoteAuth'
+import { REMOTE_PANELS } from '../../shared/enums'
 import { remoteImplementationReady } from '../../shared/remoteAuthChannels'
 import { remoteSettingEnabled } from './cloud/remoteSettings'
 import { createCloudReader } from './cloud/cloudReader'
@@ -22,9 +24,10 @@ import { readRemoteConfig, restoreMarkerHash, type RemoteOwner } from './cloud/r
 import { initRemoteGrantRegistry } from './RemoteGrantRegistry'
 import * as sessions from './panelSession'
 
-// Only these non-operation panel scopes are connected in this experimental host.
-// Financial one-shot operations require a separate reviewed policy and remain off.
-const PANELS = ['products','settings','secondary-stock'] as const
+// Only these non-operation panel scopes are connected in this host (one shared
+// list with the request IPC and the lock-screen button). Financial one-shot
+// operations require a separate reviewed policy and remain off.
+const PANELS = REMOTE_PANELS
 const POLICIES = Object.fromEntries(PANELS.map(panel => [panel,{tier:'NORMAL' as const,mode:'PANEL' as const,ttlMs:600_000}]))
 type Store = ReturnType<typeof openCloudStateStore>
 type Hub = Awaited<ReturnType<typeof startExperimentalHubSupervisor>>
@@ -113,7 +116,10 @@ async function startConfigured(owner:RemoteOwner|null):Promise<void> {
     initRemoteGrantRegistry({notePanelUnlocked:(panel,_scope,owner,allowed)=>sessions.noteRemotePanelUnlocked(panel,owner,allowed),clearPanelScope:sessions.clearPanelScope,clearPanelSessions:sessions.clearPanelSessions})
     const barrier=createExperimentalRestoreBarrier()
     hubStartAttempted=true
-    localHub=await startExperimentalHubSupervisor({nodeExecutable,childFile,directory:hubDir,origin,owner:hubExists ? null : owner,auditKey:keys.auditKey,
+    // The supervisor keeps its options for the hub's lifetime, but the owner's
+    // phone credentials are needed only by the first start message: drop them
+    // (success or failure) so they do not stay in Main memory.
+    const hubOptions:Parameters<typeof startExperimentalHubSupervisor>[0]={nodeExecutable,childFile,directory:hubDir,origin,owner:hubExists ? null : owner,auditKey:keys.auditKey,
       ...(port!==null ? {mobilePort:port} : {}),
       snapshotMaxAgeMs:60_000,reader,state:localState,databaseFile:dbFile,restoreBarrier:barrier,coordinateDesktopBackup:true,
       // First start after install can be slow (antivirus scanning node.exe);
@@ -132,10 +138,11 @@ async function startConfigured(owner:RemoteOwner|null):Promise<void> {
         }
         return undefined
       }},
-      approval:{key:approvalKey,policies:POLICIES}})
+      approval:{key:approvalKey,policies:POLICIES}}
+    try { localHub=await startExperimentalHubSupervisor(hubOptions) } finally { hubOptions.owner=null }
     if (stopRequested) throw new Error('Remote startup cancelled')
     if (!handlersRegistered) {
-      registerRemoteAuthHandlers(async(password,pin)=>hub ? hub.recoverPanic(password,pin) : false)
+      registerRemoteAuthHandlers(async(password,pin)=>hub ? hub.recoverPanic(password,pin) : false,PANELS)
       handlersRegistered=true
     }
     localScheduler=createExperimentalHubScheduler(localHub)

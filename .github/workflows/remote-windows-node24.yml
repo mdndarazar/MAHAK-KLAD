@@ -385,6 +385,18 @@ jobs:
       - name: Test the own-page check for owner IPC with Windows install paths
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-frame-url-windows.mjs
+      - name: Test the PWA full Panic (P2) button end to end, including an undelivered stop
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-panic-p2-pwa-loopback.mjs
+      - name: Test manager approval permission from the owner's phone and removal
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-manager-approval-pwa-loopback.mjs
+      - name: Test phone approval is offered only for panels with an approval policy
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-panels-desktop.mjs
+      - name: Test owner phone credentials are dropped after the first hub start
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-owner-credentials-cleared.mjs
       - name: Test backup coordination lifecycle
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-coordination-lifecycle.mjs

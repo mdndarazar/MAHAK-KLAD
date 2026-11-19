@@ -1,5 +1,5 @@
 /**
- * Experimental authenticated audit receiver. Not started by the application.
+ * Authenticated audit receiver, run inside the hub child process.
  * It expects a dedicated synchronous SQLite connection to a separate hub DB,
  * never shop.db. The owner must provision and protect the key and connection,
  * guarantee a single writer, and configure SQLite durability before using it.

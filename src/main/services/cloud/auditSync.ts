@@ -1,15 +1,14 @@
 /**
- * One bounded audit-mirror cycle for a future transport. Not started by the app.
+ * One bounded audit-mirror cycle, run by the desktop supervisor while the remote
+ * hub runs (owner opt-in, default off).
  *
  * The transport MUST authenticate both the peer and its acknowledgment, durably
  * persist the batch before acknowledging, and deduplicate by (store, epoch, id).
- * These requirements are NOT implemented here. The experimental loopback adapter
- * and receiver are not wired into the app. There is no spool, restore recovery,
- * worker, retry scheduler, PWA or live-data mirroring yet.
+ * These requirements are NOT implemented here; the loopback transport and the hub
+ * child's receiver must provide them. There is no spool or live-data mirroring.
  * Records remain in shop.db until they can be read; this is not a durable outbox.
  * Rechecks cannot make a concurrent database restore atomic with state save;
- * the future coordinator must serialize restore, epoch rotation and this cycle.
- * Never activate this module for a customer without those missing components.
+ * the caller must serialize restore, epoch rotation and this cycle.
  */
 import { createHash } from 'node:crypto'
 import type { CloudState } from './cloudState'

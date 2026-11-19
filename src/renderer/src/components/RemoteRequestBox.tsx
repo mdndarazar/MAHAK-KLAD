@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { REMOTE_AUTH_CHANNELS, remoteImplementationReady, type RemoteAuthRequestResult, type RemoteAuthStatusResult } from '@shared/remoteAuthChannels'
 import { call, CH } from '../lib/api'
 import { toLatinDigits } from '@shared/jalali'
+import { REMOTE_PANELS } from '@shared/enums'
 
 /** Update an already-open renderer view after revoke, panic or expiry. This
  * only removes access, never extends idle time or creates a new session. */
@@ -25,9 +26,11 @@ export function startRemoteSessionMonitor(active:boolean, onPanels:(panels:strin
   return ()=>{stopped=true;clearInterval(timer)}
 }
 
-/** Experimental UI only. The readiness gate must remain closed until the entire
- * approval and session lifecycle is integrated and independently tested. */
+/** Lock-screen remote approval, shown only while this computer's hub runs (owner
+ * opt-in on and started). The request button appears only on panels the hub
+ * has an approval policy for; Panic recovery is offered on every locked panel. */
 export function RemoteRequestBox({ panel }: { panel: string }) {
+  const remotePanel = (REMOTE_PANELS as readonly string[]).includes(panel)
   const [request, setRequest] = useState<RemoteAuthRequestResult | null>(null)
   const [state, setState] = useState<RemoteAuthStatusResult['state']>('PENDING')
   const [busy, setBusy] = useState(false)
@@ -162,7 +165,7 @@ export function RemoteRequestBox({ panel }: { panel: string }) {
         <button type="button" className="btn" disabled={recoveryBusy || !recoveryPassword || !/^[0-9]{6}$/.test(recoveryPin)} onClick={()=>void recover()}>تأیید بازیابی</button>
         {recoveryMessage && <div role="status">{recoveryMessage}</div>}
       </div>}
-      {!current ? (
+      {!current ? (remotePanel &&
         <button className="btn btn-ghost w-full" disabled={busy} onClick={() => void create()}>
           درخواست مجوز از مدیر (راه دور)
         </button>

@@ -1,5 +1,6 @@
 /**
- * Trusted in-process experimental bridge. Not wired into the application.
+ * `drainInProcessRevocations` is a trusted in-process helper not used by the app;
+ * the hub child delivers revocations to the desktop with `drainNetworkRevocations`.
  * A real cross-process/network bridge must authenticate messages and durable ACKs;
  * never expose the acknowledgment interface to a mobile or unauthenticated API.
  * Require a serialized host and drain before allowing any further approvals.

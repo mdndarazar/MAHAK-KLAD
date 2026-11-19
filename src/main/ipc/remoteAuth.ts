@@ -65,7 +65,10 @@ export function isLocalAppFrame(event: Electron.IpcMainInvokeEvent): boolean {
   } catch { return false }
 }
 
-export function registerRemoteAuthHandlers(recover?: (password:string, pin:string)=>Promise<boolean>) {
+/** `panels`, when given, are the only panels a request may be made for: the
+ * hub has an approval policy for no other panel, so a request for one could
+ * be shown on the phone but never approved. */
+export function registerRemoteAuthHandlers(recover?: (password:string, pin:string)=>Promise<boolean>, panels?: readonly string[]) {
   // Readiness alone is not enough: only a host that initialized the registry
   // (after the owner opt-in and before starting its hub) may expose grant IPC.
   if (!remoteImplementationReady() || !remoteRegistryInitialized()) return
@@ -87,6 +90,7 @@ export function registerRemoteAuthHandlers(recover?: (password:string, pin:strin
     const panel = String(payload?.panel ?? '').trim()
     if (!panel) return { ok: false as const, error: 'پنل مشخص نشده' }
     const owner = ownerOf(event)
+    if (panels && !panels.includes(panel)) return { ok: false as const, error: 'این پنل با تأیید گوشی باز نمی‌شود.' }
     const { code, gt, requestId } = requestCode(panel, owner)
     return { ok: true as const, data: { code, gt, requestId, panel } }
   })

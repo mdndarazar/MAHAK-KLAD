@@ -258,7 +258,7 @@ async function start(input: unknown) {
     return snapshot
   }
   snapshotMaxAge = config.snapshotMaxAgeMs
-  let approvalController:{list(token:string):{requestId:string;panel:string;code:string}[];approve(token:string,requestId:string,code:string,pin:string):Promise<boolean>}|undefined
+  let approvalController:{panels:readonly string[];list(token:string):{requestId:string;panel:string;code:string}[];approve(token:string,requestId:string,code:string,pin:string):Promise<boolean>}|undefined
   if (approval!==undefined && revocationOptions) {
     let uncertain=false
     const key=Buffer.from(approval.key,'hex'),storeId=revocationOptions.storeId,epoch=revocationOptions.epoch
@@ -281,7 +281,7 @@ async function start(input: unknown) {
           catch {clearTimeout(timer);waitingApprovals.delete(id);uncertain=true;try {process.disconnect?.()} catch {};resolve(false)}
         })
       }})
-    approvalController={list:token=>issuer.list(token),approve:async(token,requestId,code,pin)=>{
+    approvalController={panels:approvalPanels,list:token=>issuer.list(token),approve:async(token,requestId,code,pin)=>{
       const ok=await issuer.approve(token,requestId,code,pin)
       if (uncertain) throw new Error('Approval outcome unavailable')
       return ok

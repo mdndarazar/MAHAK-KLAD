@@ -1,6 +1,7 @@
-/** User opt-in is separate from the non-overridable implementation readiness
- * gate. Missing, malformed, inaccessible or unexpected files mean disabled.
- * This setting never starts the experimental hub by itself. */
+/** User opt-in, checked after the implementation readiness gate. Missing,
+ * malformed, inaccessible or unexpected files mean disabled. This module only
+ * reads the file; the desktop host starts the hub when it is on and owner setup
+ * is complete. */
 import { lstatSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 

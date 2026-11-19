@@ -1,8 +1,9 @@
 /**
- * Local sync-state building block, not started by the application. This stores
- * no shop data and never opens shop.db. A future agent must hold this lock for
- * its entire lifetime and must not advance lastAcked without a durable remote
- * acknowledgment. Restore detection, outbox and transport are not implemented.
+ * Local sync state of the remote hub, opened by the desktop host while the hub
+ * runs. This stores no shop data and never opens shop.db. The holder keeps this
+ * lock for its entire lifetime and must not advance lastAcked without a durable
+ * remote acknowledgment. Restore detection here uses the backup marker only; the
+ * host adds the database fingerprint check.
  *
  * A leftover lock after a crash intentionally blocks startup: do not break it
  * automatically based on PID/time (PID reuse and a slow process are unsafe).

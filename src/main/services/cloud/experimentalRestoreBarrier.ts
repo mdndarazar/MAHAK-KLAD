@@ -1,6 +1,6 @@
 /**
- * Experimental in-process exclusion primitive, not wired to BackupService or
- * Electron. It is only effective if ALL reads, sync operations and every restore
+ * In-process exclusion primitive of the desktop host and supervisor;
+ * BackupService itself is not changed. It is only effective if ALL reads, sync operations and every restore
  * use the same instance, and if a timed-out database query is still awaited by
  * its operation. A failed restore leaves the barrier permanently closed.
  * Does not provide cross-process exclusion or coordinate a real shop restore.

@@ -36,6 +36,8 @@ type Reader = {
   invoiceFactsPage?(fromDay: string, toDay: string, afterId: number, limit: number): Promise<unknown>
 }
 type ApprovalController = {
+  /** Panels whose requests members may be allowed to approve (owner's invite form). */
+  panels?: readonly string[]
   list(token: string): { requestId: string; panel: string; code: string }[]
   approve(token: string, requestId: string, code: string, pin: string): boolean | Promise<boolean>
 }
@@ -269,7 +271,8 @@ export function createMobileReadOnlyHandler(options: Options) {
         if (path === '/api/capabilities') {
           send(200,{invoices:typeof options.reader.invoiceFactsPage === 'function' && !!options.identity.authorize(token,'invoices','VIEW'),
             ...(user.role==='OWNER' && typeof options.identity.panic==='function' && typeof options.drainRevocations==='function' ? {panic:true} : {}),
-            ...(user.role==='OWNER' && typeof options.identity.panicClose==='function' && typeof options.drainRevocations==='function' ? {panicClose:true} : {})});return
+            ...(user.role==='OWNER' && typeof options.identity.panicClose==='function' && typeof options.drainRevocations==='function' ? {panicClose:true} : {}),
+            ...(user.role==='OWNER' && Array.isArray(options.approval?.panels) ? {approvalPanels:options.approval.panels.filter(panel=>typeof panel==='string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(panel)).slice(0,20)} : {})});return
         }
         if (path === '/api/members') {
           if (user.role !== 'OWNER') { send(403,{error:'فقط مالک مجاز است'});return }

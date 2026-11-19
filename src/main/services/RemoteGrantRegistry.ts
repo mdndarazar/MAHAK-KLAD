@@ -1,8 +1,8 @@
 /**
- * Experimental remote-grant registry. The app's remote-readiness gate remains
- * false: this module is not a complete approval channel. Before production, the
- * caller must verify a signed command, member ACL, tier policy and durable replay
- * protection, and the session lifecycle must be integrated and audited.
+ * Remote-grant registry of the desktop host. This module is not a complete
+ * approval channel by itself: its caller (the host's approval bridge) must verify
+ * a signed command, member ACL, tier policy and durable replay protection before
+ * a grant is created here. Only NORMAL panel policies are connected.
  * A visible six-digit code is only for visual comparison, never a credential.
  */
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto'
