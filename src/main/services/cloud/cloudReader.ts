@@ -57,6 +57,12 @@ type InvoiceFact = {
 const AUDIT_PAGE = `SELECT CAST(a."id" AS TEXT) AS "id", CAST(a."at" AS TEXT) AS "at",
   a."action", a."entity" FROM "AuditLog" AS a
   WHERE a."id" > ? ORDER BY a."id" ASC LIMIT ?`
+// Most recent rows first. The reader reverses the page to ascending order
+// before returning it, so consumers can fold the tail into a chain hash
+// deterministically. This is a read-only tail, not a change cursor.
+const AUDIT_TAIL = `SELECT CAST(a."id" AS TEXT) AS "id", CAST(a."at" AS TEXT) AS "at",
+  a."action", a."entity" FROM "AuditLog" AS a
+  ORDER BY a."id" DESC LIMIT ?`
 const LAST_BOUNDARY = `SELECT CAST(b."id" AS TEXT) AS "id", CAST(b."at" AS TEXT) AS "at",
   b."boundaryKind" AS "kind", b."operationalDay",
   CAST(b."totalTheoreticalDifference" AS TEXT) AS "totalTheoreticalDifference"
@@ -139,18 +145,35 @@ export function createCloudReader(client: ReadClient, timeoutMs = 2000) {
       if (timer) clearTimeout(timer)
     }
   }
+  function auditRows(result: Record<string, unknown>[], limit: number): { id: number; at: string; action: string; entity: string }[] {
+    if (result.length > limit) throw new Error('Invalid audit page')
+    return result.map((row) => ({ id: safeId(row.id), at: text(row.at), action: text(row.action), entity: text(row.entity) }))
+  }
   async function auditPage(afterId: number, limit = 200): Promise<AuditEvent[]> {
     if (!Number.isSafeInteger(afterId) || afterId < 0 ||
         !Number.isSafeInteger(limit) || limit < 1 || limit > 200) throw new Error('Invalid audit cursor or page size')
     const result = await read(AUDIT_PAGE, [afterId, limit])
-    if (result.length > limit) throw new Error('Invalid audit page')
     let previous = afterId
-    return result.map((row) => {
-      const id = safeId(row.id)
-      if (id <= previous) throw new Error('Invalid audit ordering')
-      previous = id
-      return { id, at: text(row.at), action: text(row.action), entity: text(row.entity) }
+    return auditRows(result, limit).map((event) => {
+      if (event.id <= previous) throw new Error('Invalid audit ordering')
+      previous = event.id
+      return event
     })
+  }
+  /** The last `limit` audit rows, returned in ascending id order. Unlike
+   * auditPage this never takes a cursor and never mutates any state. Rows
+   * still pass through the same validation; an unverified tail must never
+   * be used as evidence that stored history is intact. */
+  async function auditTail(limit = 200): Promise<AuditEvent[]> {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) throw new Error('Invalid audit tail size')
+    const result = await read(AUDIT_TAIL, [limit])
+    const rows = auditRows(result, limit)
+    // The SQL page arrives in descending id order. Enforce strict descending
+    // order before reversing so a non-ordering database response still fails.
+    for (let index = 1; index < rows.length; index += 1) {
+      if (rows[index].id >= rows[index - 1].id) throw new Error('Invalid audit ordering')
+    }
+    return rows.reverse()
   }
   return {
     /** Wait for the actual query, including one whose public call timed out.
@@ -160,6 +183,7 @@ export function createCloudReader(client: ReadClient, timeoutMs = 2000) {
       if (query) await query.then(() => {}, () => {})
     },
     auditPage,
+    auditTail,
     /** Atomically start an anchor read or decline it without issuing any SQL.
      * A caller that receives null MUST NOT publish data using an old result. */
     tryAuditPage(afterId: number, limit = 200): Promise<AuditEvent[]> | null {
