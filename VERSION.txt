@@ -1,4 +1,4 @@
-SHA=9d62d650be79e1013ea4f4a2e70f7860c0821019
+SHA=a005fc7d6ea0ba763257be0725b22146c6ea5d44
 branch=arena/e478473a-mahak-klad
-date=2026-11-15T14:42:29Z
-note=fix migrator trigger split — 20271020500000
+date=2026-11-19T16:03:39Z
+note=remote control through stage 12 (single-instance lock + stale-lock recovery); remote is OFF by default (turn on in Settings); code identical to 5e40af3 (installer CI passed); remote Windows CI for stage 12 incomplete: two old unchanged tests failed and the stage-12 test has not run on Windows yet; never run on a real Windows install, phone or tunnel
