@@ -283,7 +283,9 @@ process.on('message', message => {
     if (!okObject(message) || typeof message.type !== 'string') return
     if (message.type === 'start' && !initialized) {
       initialized = true
-      try { const ports = await start(message.config); send({ type:'ready', ...ports, pid:process.pid }) }
+      // The lock token lets the parent remove this lock after it has observed
+      // this process exit; a killed child cannot release the lock itself.
+      try { const ports = await start(message.config); send({ type:'ready', ...ports, pid:process.pid, lockToken }) }
       catch { await shutdown(); send({ type:'error', operation:'start' }); process.disconnect?.() }
       return
     }

@@ -345,6 +345,15 @@ jobs:
       - name: Test failed hub stop waits for child exit
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-supervisor-failed-stop-exit.mjs
+      - name: Test database fingerprint on temporary SQLite
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-db-fingerprint.mjs
+      - name: Test mid-operation database swap, fail-closed restart and resync over loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-db-fingerprint-swap-loopback.mjs
+      - name: Test desktop host database fingerprint across restarts
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-desktop-host-db-fingerprint.mjs
       - name: Test backup coordination lifecycle
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-coordination-lifecycle.mjs

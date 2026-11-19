@@ -13,6 +13,7 @@ import { remoteImplementationReady } from '../../shared/remoteAuthChannels'
 import { remoteSettingEnabled } from './cloud/remoteSettings'
 import { createCloudReader } from './cloud/cloudReader'
 import { openCloudStateStore } from './cloud/cloudState'
+import { databaseChangedSince, readFingerprintBaseline, writeFingerprintBaseline } from './cloud/databaseFingerprint'
 import { createRemoteTransportVault } from './cloud/remoteTransportVault'
 import { createExperimentalRestoreBarrier } from './cloud/experimentalRestoreBarrier'
 import { startExperimentalHubSupervisor } from './cloud/experimentalHubSupervisor'
@@ -78,9 +79,17 @@ async function startConfigured():Promise<void> {
   // through the explicit stopped-hub transition. Missing or corrupt state and
   // ledgers still fail closed and are not recreated.
   const markerPath=join(userData,'backups','last-restore.txt')
-  const localState=openCloudStateStore(stateDir,{restoreMarker:restoreMarker(markerPath)})
+  // A fingerprint persisted for the current epoch by the previous run that no
+  // longer matches means the database was replaced while the hub was stopped
+  // (even with an unchanged marker): the store then starts a new epoch exactly
+  // as for a changed marker. Read before the state lock, re-checked under it.
+  const fingerprintFile=join(stateDir,'database-fingerprint.json'), reader=createCloudReader(prisma)
+  const baseline=readFingerprintBaseline(fingerprintFile)
+  const changedEpoch=baseline && await databaseChangedSince(dbFile,baseline,id=>reader.auditTail(id)) ? baseline.epoch : null
+  const localState=openCloudStateStore(stateDir,{restoreMarker:restoreMarker(markerPath),changedEpoch})
   let localHub:Hub|null=null, localScheduler:Scheduler|null=null, hubStartAttempted=false
   try {
+    if (JSON.stringify(readFingerprintBaseline(fingerprintFile))!==JSON.stringify(baseline)) throw new Error('Remote fingerprint changed during startup')
     const snapshot=localState.load()
     if (!snapshot) throw new Error('Remote state unavailable')
     // Loading both ledgers must succeed before starting any network listener.
@@ -93,7 +102,8 @@ async function startConfigured():Promise<void> {
     const barrier=createExperimentalRestoreBarrier()
     hubStartAttempted=true
     localHub=await startExperimentalHubSupervisor({nodeExecutable,childFile,directory:hubDir,origin,owner:null,auditKey:keys.auditKey,
-      snapshotMaxAgeMs:60_000,reader:createCloudReader(prisma),state:localState,databaseFile:dbFile,restoreBarrier:barrier,coordinateDesktopBackup:true,
+      snapshotMaxAgeMs:60_000,reader,state:localState,databaseFile:dbFile,restoreBarrier:barrier,coordinateDesktopBackup:true,
+      persistFingerprint:value=>writeFingerprintBaseline(fingerprintFile,{version:1,storeId:snapshot.storeId,...value}),
       readRestoreMarker:async()=>restoreMarker(markerPath),
       verifyLocalRecoveryPassword:async password=>{
         const auth=await import('./AuthService')

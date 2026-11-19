@@ -16,9 +16,9 @@
  * any HTTPS transport or tunnel.
  */
 import { fork, type ChildProcess } from 'node:child_process'
-import { createHash, randomUUID } from 'node:crypto'
-import { lstatSync } from 'node:fs'
-import { isAbsolute } from 'node:path'
+import { randomUUID } from 'node:crypto'
+import { lstatSync, readFileSync, realpathSync, unlinkSync } from 'node:fs'
+import { isAbsolute, join } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { isInvoiceDate, parseInvoicePage } from './invoiceFactsValidation'
 import { normalizeMobileOrigins } from './mobileOrigins'
@@ -31,12 +31,16 @@ import { acquireRemoteAdmissionLease, revokeAll, revokeBy } from '../RemoteGrant
 import { createExperimentalApprovalBridge } from './experimentalApprovalBridge'
 import type { GrantReplayStore } from './signedCommandVerifier'
 import { reserveDesktopBackupCoordination } from './desktopBackupCoordination'
+import { auditRowHash, createDatabaseFingerprint } from './databaseFingerprint'
 
 type Reader = {
   latestBoundaryTotals(): Promise<unknown>
   openShiftsPage(afterId: number, limit?: number): Promise<unknown>
   auditPage(afterId: number, limit?: number): Promise<{id:number; at:string; action:string; entity:string}[]>
   tryAuditPage?(afterId: number, limit?: number): Promise<{id:number; at:string; action:string; entity:string}[]> | null
+  // Optional single-snapshot read of row `id` (if present) and the newest row.
+  auditTail?(id: number): Promise<{id:number; at:string; action:string; entity:string}[]>
+  tryAuditTail?(id: number): Promise<{id:number; at:string; action:string; entity:string}[]> | null
   // Trusted readers can expose underlying operations that outlive public timeouts.
   waitForIdle?(): Promise<void>
   invoiceFactsPage?(fromDay:string,toDay:string,afterId:number,limit:number): Promise<unknown>
@@ -47,9 +51,15 @@ type Options = {
   auditKey: Uint8Array; snapshotMaxAgeMs: number
   reader: Reader; state: { load():CloudState | null; save(value:CloudState):void; openRevocationLedger?():Omit<Parameters<typeof startExperimentalRevocationReceiver>[0]['ledger'],'apply'>; openGrantReplayLedger?():GrantReplayStore }
   readRestoreMarker: () => Promise<string | null>
-  // Optional additional file-replacement fence. This is NOT a complete DB
-  // fingerprint and cannot detect in-place overwrite or historical rollback.
+  // Enables the composite database fingerprint (file identity and SQLite
+  // header inside every marker read, plus the audit high-water row) checked
+  // before every approval, claim and outbound send. It narrows, but does not
+  // replace, restore coordination: see databaseFingerprint.ts for its limits.
   databaseFile?: string
+  // Receives the verified fingerprint baseline (throttled, and once after a
+  // confirmed stop) so the host can detect a replacement while it was closed.
+  // Errors are ignored: a missing update only weakens that startup check.
+  persistFingerprint?: (value:{epoch:string; counter:number; highWaterId:number; highWaterHash:string})=>void
   // Experimental explicit opt-in only; not sufficient to enable production.
   enableInvoiceFacts?: boolean
   // Optional in-process experiment only. Every restore must use restoreExclusive,
@@ -111,25 +121,21 @@ export async function startExperimentalHubSupervisor(options: Options) {
           !p || p.tier!=='NORMAL' || p.mode!=='PANEL' || !Number.isSafeInteger(p.ttlMs) || p.ttlMs<=0 || p.ttlMs>600_000))) ||
       !options.state || typeof options.state.load !== 'function' ||
       typeof options.state.save !== 'function' || typeof options.readRestoreMarker !== 'function' ||
-      (options.databaseFile !== undefined && (typeof options.databaseFile !== 'string' || !isAbsolute(options.databaseFile) || !options.revocation))) throw new Error('Invalid experimental hub configuration')
+      (options.databaseFile !== undefined && (typeof options.databaseFile !== 'string' || !isAbsolute(options.databaseFile) || !options.revocation)) ||
+      (options.persistFingerprint !== undefined && (typeof options.persistFingerprint !== 'function' || options.databaseFile === undefined))) throw new Error('Invalid experimental hub configuration')
   const origins=normalizeMobileOrigins(options.origin,options.origins)
   const originConfig=options.origin !== undefined ? {origin:origins[0]} : {origins}
   const timeout = options.timeoutMs ?? 5000
   if (!Number.isSafeInteger(timeout) || timeout < 100 || timeout > 30_000) throw new Error('Invalid hub timeout')
   const key = Buffer.from(options.auditKey), reader = options.reader, state = options.state
-  const fileIdentity=():string => {
-    const stat=lstatSync(options.databaseFile!,{bigint:true})
-    if (!stat.isFile() || stat.nlink!==1n || stat.ino===0n) throw new Error('Database identity unavailable')
-    return `${stat.dev}:${stat.ino}`
-  }
   // Captured before opening admissions; file size and timestamps are not used
   // because ordinary SQLite writes legitimately change them.
-  const initialFileIdentity=options.databaseFile === undefined ? undefined : fileIdentity()
+  const fingerprint=options.databaseFile === undefined ? undefined : createDatabaseFingerprint(options.databaseFile)
   const readRestoreMarker=async():Promise<string|null> => {
     try {
-      if (initialFileIdentity !== undefined && fileIdentity()!==initialFileIdentity) throw new Error('Database identity changed')
+      fingerprint?.verify()
       const marker=await options.readRestoreMarker()
-      if (initialFileIdentity !== undefined && fileIdentity()!==initialFileIdentity) throw new Error('Database identity changed')
+      fingerprint?.verify()
       if (revocationConfig && marker!==revocationRestoreMarker) throw new Error('Restore marker changed')
       return marker
     } catch (error) {
@@ -269,6 +275,20 @@ export async function startExperimentalHubSupervisor(options: Options) {
     waiting.clear()
   }
   child.on('error',fail);child.on('exit',fail);child.on('disconnect',fail)
+  // The child releases its own `remote-hub.lock` on a confirmed stop or IPC
+  // disconnect, but not when killed (SIGTERM/TerminateProcess) on a fail-closed
+  // path; the next start would then stay blocked. Only after this exact child
+  // has exited, remove the lock it reported, and only while the file still
+  // holds its token. Any doubt leaves the lock in place (fail closed).
+  // Registered before any other exit listener: stop() settles after this ran.
+  let childLockToken:string|undefined
+  child.once('exit',()=>{
+    if (!childLockToken) return
+    try {
+      const lockPath=join(realpathSync(options.directory),'remote-hub.lock'), stat=lstatSync(lockPath)
+      if (stat.isFile() && stat.nlink===1 && readFileSync(lockPath,'utf8')===childLockToken) unlinkSync(lockPath)
+    } catch {}
+  })
   // Kill if still running and wait up to `timeout` for the exit event. Never
   // rejects: callers report their own failure either way.
   function waitForChildExit():Promise<void> {
@@ -295,51 +315,117 @@ export async function startExperimentalHubSupervisor(options: Options) {
       // Do not manufacture replacement ledger state or claim recovery.
     }
   }
-  // Marker/epoch checks complement, but do not replace, exclusive restore
-  // coordination or a real database identity check. Never approve after an
-  // uncertain read: revoke the desktop sessions and terminate the child.
+  // Audit high-water: the newest AuditLog row observed by this supervisor. It
+  // must stay present and unchanged; later rows only advance it. Retention
+  // cleanup deletes only rows older than its window (a stale row fails closed).
+  let auditHighWater:{id:number;hash:string}|null=null
+  const auditHash=auditRowHash
+  let persistedBaseline='', persistedAt=-Infinity
+  function persistBaseline(force:boolean):void {
+    if (!options.persistFingerprint || !fingerprint || !revocationConfig || storeInvalidated) return
+    const counter=fingerprint.committedCounter()
+    if (counter===null) return
+    const value={epoch:revocationConfig.epoch,counter,highWaterId:auditHighWater?.id ?? 0,highWaterHash:auditHighWater?.hash ?? ''}
+    const key=JSON.stringify(value), now=performance.now()
+    if (key===persistedBaseline || (!force && now-persistedAt<10_000)) return
+    try { options.persistFingerprint(value);persistedBaseline=key;persistedAt=now } catch {}
+  }
+  const auditItem=(value:unknown):value is {id:number;at:string;action:string;entity:string} => object(value) &&
+    Number.isSafeInteger(value.id) && value.id>0 && typeof value.at==='string' && typeof value.action==='string' && typeof value.entity==='string'
+  // A timed-out read can still be running. Revoke immediately rather than
+  // waiting for it in finally, while keeping the barrier held until the
+  // underlying query really settles so restore cannot race it.
+  async function auditRead(start:()=>Promise<unknown>|null, limit:number):Promise<unknown[]|null> {
+    const query=start()
+    if (query===null) return null
+    let rows:unknown
+    try { rows=await query }
+    catch (error) {
+      storeInvalidated=true
+      fail();fenceUncertainEpoch();child.kill()
+      throw error
+    } finally { if (reader.waitForIdle) await reader.waitForIdle() }
+    if (!Array.isArray(rows) || rows.length>limit) throw new Error('Invalid audit page')
+    return rows
+  }
+  // Verifies the previous high-water row and advances to the newest observed
+  // row within ONE read snapshot. Throws on change; false only if declined.
+  async function auditHighWaterCurrent(skipBusy:boolean, lastAcked:number):Promise<boolean> {
+    const previous=auditHighWater
+    let rows:unknown[]|null
+    if (reader.auditTail) {
+      const id=previous?.id ?? 0
+      rows=await auditRead(()=>skipBusy && reader.tryAuditTail ? reader.tryAuditTail(id) : reader.auditTail!(id),2)
+    } else {
+      // Readers without auditTail: a page that starts at the previous row (or
+      // the acknowledged anchor) still verifies and advances in one query.
+      const from=previous?.id ?? lastAcked
+      rows=await auditRead(()=>skipBusy && reader.tryAuditPage ? reader.tryAuditPage(Math.max(0,from-1),200) : reader.auditPage(Math.max(0,from-1),200),200)
+    }
+    if (rows===null) return false
+    if (previous) {
+      const first=rows[0]
+      if (!auditItem(first) || first.id!==previous.id || auditHash(first)!==previous.hash) throw new Error('Audit high-water row changed')
+    }
+    if (rows.length) {
+      const last=rows[rows.length-1]
+      if (!auditItem(last) || (previous && last.id<previous.id) || rows.some((row,i)=>!auditItem(row) || (i>0 && row.id<=(rows![i-1] as {id:number}).id)))
+        throw new Error('Invalid audit page')
+      auditHighWater={id:last.id,hash:auditHash(last)}
+    }
+    return true
+  }
+  // Composite database fingerprint, checked before every approval, claim and
+  // outbound send: cloud state and epoch, restore marker plus file identity and
+  // SQLite header (inside readRestoreMarker), the last acknowledged audit anchor
+  // and the audit high-water row. Throws on any change or uncertain read and
+  // returns false only when a skip-busy read was declined. It complements, but
+  // does not replace, exclusive restore coordination.
+  async function databaseIdentityCurrent(checkAuditAnchor:boolean, skipBusy:boolean, checkAnchorRow=true):Promise<boolean> {
+    if (!revocationConfig) throw new Error('Database identity unavailable')
+    const before=state.load()
+    if (!before || before.storeId!==revocationConfig.storeId || before.epoch!==revocationConfig.epoch ||
+        before.restoreMarker!==revocationRestoreMarker) throw new Error('Restore detected')
+    let markerTimer:ReturnType<typeof setTimeout> | undefined
+    let marker:string | null
+    try {
+      marker=await Promise.race([readRestoreMarker(),new Promise<never>((_,reject)=>{
+        markerTimer=setTimeout(()=>reject(new Error('Restore marker timed out')),timeout)
+      })])
+    } finally { if (markerTimer) clearTimeout(markerTimer) }
+    if (marker!==revocationRestoreMarker) throw new Error('Restore detected')
+    if (checkAuditAnchor && checkAnchorRow && before.lastAcked>0) {
+      // A replacement can preserve inode and the restore marker. Verify the
+      // last acknowledged audit row before issuing/claiming any new grant.
+      // This detects changed history, not an identical rollback or a change
+      // outside that row; the external-writer limitation still applies.
+      // A periodic mirror may defer when another trusted read owns the
+      // reader. This is not permission to publish an unchecked mirror.
+      const rows=await auditRead(()=>skipBusy && reader.tryAuditPage ? reader.tryAuditPage(before.lastAcked-1,1) : reader.auditPage(before.lastAcked-1,1),1)
+      if (rows===null) return false
+      const item=rows.length===1 ? rows[0] : null
+      if (!auditItem(item) || item.id!==before.lastAcked || auditHash(item)!==before.anchorHash) throw new Error('Audit anchor changed')
+    }
+    if (checkAuditAnchor && fingerprint && !await auditHighWaterCurrent(skipBusy,before.lastAcked)) return false
+    if (checkAuditAnchor && (before.lastAcked>0 || fingerprint) && await readRestoreMarker()!==revocationRestoreMarker) throw new Error('Restore detected')
+    const after=state.load()
+    if (!after || after.storeId!==before.storeId || after.epoch!==before.epoch || after.restoreMarker!==before.restoreMarker ||
+        (checkAuditAnchor && (after.lastAcked!==before.lastAcked || after.anchorHash!==before.anchorHash))) throw new Error('Restore detected')
+    if (checkAuditAnchor && fingerprint) persistBaseline(false)
+    return true
+  }
+  // For callers outside approvalStateCurrent: any mismatch or uncertain read
+  // fails closed and fences the epoch before the error propagates.
+  async function verifiedDatabaseIdentity(checkAnchorRow=true):Promise<boolean> {
+    try { return await databaseIdentityCurrent(true,false,checkAnchorRow) }
+    catch (error) { storeInvalidated=true;fail();fenceUncertainEpoch();child.kill();throw error }
+  }
+  // Never approve after an uncertain read: revoke the desktop sessions and
+  // terminate the child.
   async function approvalStateCurrent(checkAuditAnchor=false, skipBusy=false): Promise<boolean> {
     try {
       if (closed || dead || storeInvalidated || !revocationConfig) return false
-      const before=state.load()
-      if (!before || before.storeId!==revocationConfig.storeId || before.epoch!==revocationConfig.epoch ||
-          before.restoreMarker!==revocationRestoreMarker) throw new Error('Restore detected')
-      let markerTimer:ReturnType<typeof setTimeout> | undefined
-      let marker:string | null
-      try {
-        marker=await Promise.race([readRestoreMarker(),new Promise<never>((_,reject)=>{
-          markerTimer=setTimeout(()=>reject(new Error('Restore marker timed out')),timeout)
-        })])
-      } finally { if (markerTimer) clearTimeout(markerTimer) }
-      if (marker!==revocationRestoreMarker) throw new Error('Restore detected')
-      if (checkAuditAnchor && before.lastAcked>0) {
-        // A replacement can preserve inode and the restore marker. Verify the
-        // last acknowledged audit row before issuing/claiming any new grant.
-        // This detects changed history, not an identical rollback or a change
-        // outside that row; the external-writer limitation still applies.
-        // A periodic mirror may defer when another trusted read owns the
-        // reader. This is not permission to publish an unchecked mirror.
-        const query=skipBusy && reader.tryAuditPage ? reader.tryAuditPage(before.lastAcked-1,1) : reader.auditPage(before.lastAcked-1,1)
-        if (query===null) return false
-        let rows:Awaited<ReturnType<typeof reader.auditPage>>
-        try { rows=await query }
-        catch (error) {
-          // A timed-out read can still be running. Revoke immediately rather
-          // than waiting for it in finally, while keeping the barrier held until
-          // the underlying query really settles so restore cannot race it.
-          storeInvalidated=true
-          fail();fenceUncertainEpoch();child.kill()
-          throw error
-        } finally { if (reader.waitForIdle) await reader.waitForIdle() }
-        const item=Array.isArray(rows) && rows.length===1 ? rows[0] : null
-        if (!item || item.id!==before.lastAcked || typeof item.at!=='string' || typeof item.action!=='string' || typeof item.entity!=='string' ||
-            createHash('sha256').update(JSON.stringify([item.id,item.at,item.action,item.entity]),'utf8').digest('hex')!==before.anchorHash)
-          throw new Error('Audit anchor changed')
-        if (await readRestoreMarker()!==revocationRestoreMarker) throw new Error('Restore detected')
-      }
-      const after=state.load()
-      if (!after || after.storeId!==before.storeId || after.epoch!==before.epoch || after.restoreMarker!==before.restoreMarker ||
-          (checkAuditAnchor && (after.lastAcked!==before.lastAcked || after.anchorHash!==before.anchorHash))) throw new Error('Restore detected')
+      if (!await databaseIdentityCurrent(checkAuditAnchor,skipBusy)) return false
       return !closed && !dead && !storeInvalidated && !!admission?.isOpen() && (!barrier || barrier.status().state==='OPEN')
     } catch {
       storeInvalidated=true
@@ -369,7 +455,9 @@ export async function startExperimentalHubSupervisor(options: Options) {
     }
     if (message.type === 'ready' && startupResolve && message.pid === child.pid &&
         Number.isSafeInteger(message.mobilePort) && message.mobilePort >= 1 && message.mobilePort <= 65535 &&
-        Number.isSafeInteger(message.auditPort) && message.auditPort >= 1 && message.auditPort <= 65535 && message.mobilePort !== message.auditPort) {
+        Number.isSafeInteger(message.auditPort) && message.auditPort >= 1 && message.auditPort <= 65535 && message.mobilePort !== message.auditPort &&
+        (message.lockToken === undefined || (typeof message.lockToken === 'string' && /^[0-9a-f]{64}$/.test(message.lockToken)))) {
+      if (typeof message.lockToken === 'string') childLockToken=message.lockToken
       startupResolve({mobilePort:message.mobilePort,auditPort:message.auditPort});startupResolve=undefined;startupReject=undefined
     } else if (message.type === 'error' && message.operation === 'start') fail()
     else if (message.type === 'revocationDeliveryFailed' && options.revocation && Object.keys(message).join(',') === 'type') {
@@ -400,11 +488,14 @@ export async function startExperimentalHubSupervisor(options: Options) {
           if (!loaded) throw new Error('Restore detected')
           const initial={storeId:loaded.storeId,epoch:loaded.epoch,restoreMarker:loaded.restoreMarker}
           if (await readRestoreMarker() !== initial.restoreMarker) throw new Error('Restore detected')
+          if (revocationConfig && fingerprint && !await verifiedDatabaseIdentity()) throw new Error('Database identity unavailable')
           const value=parseInvoicePage(await invoiceReader(from,to,afterId,50),from,to,afterId)
           const current=state.load()
           if (!current || current.storeId !== initial.storeId || current.epoch !== initial.epoch ||
               current.restoreMarker !== initial.restoreMarker || await readRestoreMarker() !== initial.restoreMarker) throw new Error('Restore detected')
           if (barrier && barrier.status().state !== 'OPEN') throw new Error('Restore in progress')
+          // Data read above is sent only if the composite fingerprint still matches.
+          if (revocationConfig && fingerprint && !await verifiedDatabaseIdentity()) throw new Error('Database identity unavailable')
           if (!closed && !dead && !storeInvalidated) send({type:'invoiceReadResult',id,ok:true,value})
           else failRead()
         } catch { failRead() }
@@ -441,7 +532,11 @@ export async function startExperimentalHubSupervisor(options: Options) {
     const ports=await startup
     clearTimeout(startTimer)
     const transport=createLoopbackAuditTransport(`http://127.0.0.1:${ports.auditPort}/internal/v1/audit`,key,timeout)
-    const sync=createAuditSync({state,reader,transport,readRestoreMarker})
+    // The sync cycle verifies the marker and its anchor itself; the remaining
+    // composite fingerprint (audit high-water row, file header) is checked
+    // again immediately before the batch is sent.
+    const sync=createAuditSync({state,reader,transport,readRestoreMarker,
+      ...(revocationConfig && fingerprint ? {beforeSend:async()=>{ if (!await verifiedDatabaseIdentity(false)) throw new Error('Database identity unavailable') }} : {})})
     const update = (message: Record<string,unknown>) => new Promise<boolean>((resolve,reject) => {
       if (dead || closed || nextId >= Number.MAX_SAFE_INTEGER) { reject(new Error('Hub child unavailable'));return }
       const id=++nextId
@@ -457,6 +552,8 @@ export async function startExperimentalHubSupervisor(options: Options) {
         const before=state.load()
         if (!before || before.storeId!==revocationConfig!.storeId || before.epoch!==revocationConfig!.epoch ||
             before.restoreMarker!==revocationRestoreMarker || await readRestoreMarker()!==revocationRestoreMarker) throw new Error('Restore detected during startup')
+        // Baseline for the composite fingerprint before any admission opens.
+        if (fingerprint && !await verifiedDatabaseIdentity()) throw new Error('Restore detected during startup')
         const after=state.load()
         if (!after || after.storeId!==before.storeId || after.epoch!==before.epoch || after.restoreMarker!==before.restoreMarker ||
             (barrier && barrier.status().state!=='OPEN')) throw new Error('Restore detected during startup')
@@ -587,6 +684,8 @@ export async function startExperimentalHubSupervisor(options: Options) {
             if (closed || dead || !current || current.storeId!==before.storeId || current.epoch!==before.epoch ||
                 current.restoreMarker!==before.restoreMarker || await readRestoreMarker()!==before.restoreMarker ||
                 (barrier && barrier.status().state!=='OPEN')) return false
+            // A mismatch here fails closed (revoke, fence) inside the check.
+            if (fingerprint && !await verifiedDatabaseIdentity()) return false
             const cursor=recoveryLedger?.load()
             if (!cursor || !Number.isSafeInteger(cursor.id) || cursor.id<1) return false
             return await update({type:'recoverPanic',pin:ownerPin,lastAck:cursor.id})
@@ -655,6 +754,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
           child.on('message',onMessage);child.once('exit',onExit)
           try { send({type:'stop'}) } catch (error) { cleanup();void waitForChildExit().then(()=>reject(error)) }
         }).then(async () => {
+          persistBaseline(true)
           await releaseReceiver()
           // A killed/closed child does not cancel already-running parent reads or
           // sync writes. Do not claim a clean stop while they can still mutate

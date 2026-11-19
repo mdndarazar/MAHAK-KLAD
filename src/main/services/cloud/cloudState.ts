@@ -62,11 +62,15 @@ function validated(input: unknown): CloudState {
 
 /** With `restoreMarker`, the desktop host's pre-start epoch transition runs
  * right after this lock is acquired, before the store is returned to any
- * supervisor or reader. A failed transition releases the lock and throws. */
-export function openCloudStateStore(directory: string, options?: { restoreMarker: string | null }) {
+ * supervisor or reader. A failed transition releases the lock and throws.
+ * `changedEpoch` names an epoch whose persisted database fingerprint no longer
+ * matches the shop database; it rotates only if it is still the current epoch. */
+export function openCloudStateStore(directory: string, options?: { restoreMarker: string | null; changedEpoch?: string | null }) {
   if (typeof directory !== 'string' || directory.length === 0) throw new Error('Invalid state directory')
-  if (options !== undefined && (!options || typeof options !== 'object' || Object.keys(options).join(',') !== 'restoreMarker' ||
-      (options.restoreMarker !== null && (typeof options.restoreMarker !== 'string' || !HASH.test(options.restoreMarker)))))
+  if (options !== undefined && (!options || typeof options !== 'object' ||
+      !['restoreMarker', 'changedEpoch,restoreMarker'].includes(Object.keys(options).sort().join(',')) ||
+      (options.restoreMarker !== null && (typeof options.restoreMarker !== 'string' || !HASH.test(options.restoreMarker))) ||
+      (options.changedEpoch !== undefined && options.changedEpoch !== null && (typeof options.changedEpoch !== 'string' || !UUID.test(options.changedEpoch)))))
     throw new Error('Invalid state options')
   mkdirSync(directory, { recursive: true, mode: 0o700 })
   const statePath = join(directory, 'cloud-state.json')
@@ -316,7 +320,7 @@ export function openCloudStateStore(directory: string, options?: { restoreMarker
   }
   const store = { load, save, initializeRevocationLedger, openRevocationLedger, initializeGrantReplayLedger, openGrantReplayLedger, prepareEpochLedgers, close }
   if (options) {
-    try { prepareRemoteEpoch(store, options.restoreMarker) }
+    try { prepareRemoteEpoch(store, options.restoreMarker, options.changedEpoch ?? null) }
     catch (error) { try { close() } catch {} ; throw error }
   }
   return store
@@ -333,25 +337,27 @@ export function openCloudStateStore(directory: string, options?: { restoreMarker
  * uncertain-read fence or a coordinated restore) are replaced only through the
  * explicit stopped-hub transition of the state store.
  *
- * This does not detect a replacement that keeps the marker; the supervisor's
- * file identity and audit-anchor checks remain the runtime fence, and writers
- * outside the coordinated backup paths are still not serialized.
+ * A replacement that keeps the marker is detected only through `changedEpoch`
+ * (the host's comparison with the fingerprint persisted for the current epoch)
+ * and, at runtime, by the supervisor's composite fingerprint. Writers outside
+ * the coordinated backup paths are still not serialized.
  */
 type Store = { load(): CloudState | null; save(value: CloudState): void; prepareEpochLedgers(): { rotated: boolean } }
 
-export function prepareRemoteEpoch(store: Store, marker: string | null): { epoch: string; markerChanged: boolean; rotated: boolean } {
+export function prepareRemoteEpoch(store: Store, marker: string | null, changedEpoch: string | null = null): { epoch: string; markerChanged: boolean; rotated: boolean } {
   if (!store || typeof store.load !== 'function' || typeof store.save !== 'function' || typeof store.prepareEpochLedgers !== 'function' ||
-      (marker !== null && (typeof marker !== 'string' || !/^[0-9a-f]{64}$/.test(marker)))) throw new Error('Invalid remote epoch input')
+      (marker !== null && (typeof marker !== 'string' || !/^[0-9a-f]{64}$/.test(marker))) ||
+      (changedEpoch !== null && (typeof changedEpoch !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(changedEpoch))))
+    throw new Error('Invalid remote epoch input')
   const before = store.load()
   if (!before) throw new Error('Remote state unavailable')
-  let markerChanged = false
-  if (marker !== before.restoreMarker) {
-    store.save({ ...before, epoch: randomUUID(), lastAcked: 0, anchorHash: '', restoreMarker: marker })
-    markerChanged = true
-  }
+  const markerChanged = marker !== before.restoreMarker
+  // A stale changedEpoch (an earlier epoch) proves nothing about the current one.
+  const changed = markerChanged || changedEpoch === before.epoch
+  if (changed) store.save({ ...before, epoch: randomUUID(), lastAcked: 0, anchorHash: '', restoreMarker: marker })
   const { rotated } = store.prepareEpochLedgers()
   const after = store.load()
   if (!after || after.storeId !== before.storeId || after.restoreMarker !== marker ||
-      (markerChanged && (after.epoch === before.epoch || after.lastAcked !== 0))) throw new Error('Remote epoch unavailable')
+      (changed && (after.epoch === before.epoch || after.lastAcked !== 0))) throw new Error('Remote epoch unavailable')
   return { epoch: after.epoch, markerChanged, rotated }
 }

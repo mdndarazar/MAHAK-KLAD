@@ -24,6 +24,9 @@ type Dependencies = {
   reader: { auditPage(afterId: number, limit?: number): Promise<Event[]> }
   transport: { send(batch: Batch): Promise<Ack> }
   readRestoreMarker: () => Promise<string | null>
+  // Optional final database identity check right before the batch is sent,
+  // after this cycle's own marker and anchor checks. It must throw on change.
+  beforeSend?: () => Promise<void>
 }
 
 const HASH = /^[0-9a-f]{64}$/
@@ -103,6 +106,10 @@ export function createAuditSync(deps: Dependencies) {
         // Keep an independent expected batch in case the transport mutates its input.
         // The adapter itself must be trusted to authenticate durable acknowledgments.
         const expected: Batch = { ...batch, events: batch.events.map((event) => ({ ...event })) }
+        if (deps.beforeSend) {
+          await deps.beforeSend()
+          unchanged(state)
+        }
         const result = await deps.transport.send(batch)
         validateAck(result, expected)
         await marker(state.restoreMarker)

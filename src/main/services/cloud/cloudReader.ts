@@ -57,6 +57,11 @@ type InvoiceFact = {
 const AUDIT_PAGE = `SELECT CAST(a."id" AS TEXT) AS "id", CAST(a."at" AS TEXT) AS "at",
   a."action", a."entity" FROM "AuditLog" AS a
   WHERE a."id" > ? ORDER BY a."id" ASC LIMIT ?`
+// One statement, so one read snapshot: the given row (if present) and the
+// newest row. Used for the audit high-water part of the database fingerprint.
+const AUDIT_TAIL = `SELECT CAST(a."id" AS TEXT) AS "id", CAST(a."at" AS TEXT) AS "at",
+  a."action", a."entity" FROM "AuditLog" AS a
+  WHERE a."id" = ? OR a."id" = (SELECT MAX(m."id") FROM "AuditLog" AS m) ORDER BY a."id" ASC LIMIT 2`
 const LAST_BOUNDARY = `SELECT CAST(b."id" AS TEXT) AS "id", CAST(b."at" AS TEXT) AS "at",
   b."boundaryKind" AS "kind", b."operationalDay",
   CAST(b."totalTheoreticalDifference" AS TEXT) AS "totalTheoreticalDifference"
@@ -152,6 +157,18 @@ export function createCloudReader(client: ReadClient, timeoutMs = 2000) {
       return { id, at: text(row.at), action: text(row.action), entity: text(row.entity) }
     })
   }
+  async function auditTail(id: number): Promise<AuditEvent[]> {
+    if (!Number.isSafeInteger(id) || id < 0) throw new Error('Invalid audit cursor')
+    const result = await read(AUDIT_TAIL, [id])
+    if (result.length > 2) throw new Error('Invalid audit tail')
+    let previous = 0
+    return result.map((row) => {
+      const rowId = safeId(row.id)
+      if (rowId <= previous) throw new Error('Invalid audit ordering')
+      previous = rowId
+      return { id: rowId, at: text(row.at), action: text(row.action), entity: text(row.entity) }
+    })
+  }
   return {
     /** Wait for the actual query, including one whose public call timed out.
      * The caller must prevent new reads while waiting; this does not cancel SQL. */
@@ -164,6 +181,11 @@ export function createCloudReader(client: ReadClient, timeoutMs = 2000) {
      * A caller that receives null MUST NOT publish data using an old result. */
     tryAuditPage(afterId: number, limit = 200): Promise<AuditEvent[]> | null {
       return inFlight ? null : auditPage(afterId, limit)
+    },
+    auditTail,
+    /** Like tryAuditPage: declines without issuing SQL while a read is active. */
+    tryAuditTail(id: number): Promise<AuditEvent[]> | null {
+      return inFlight ? null : auditTail(id)
     },
     async latestBoundary(): Promise<Boundary | null> {
       const result = await read(LAST_BOUNDARY, [])
