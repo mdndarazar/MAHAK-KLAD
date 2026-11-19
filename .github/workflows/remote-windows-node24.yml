@@ -397,6 +397,9 @@ jobs:
       - name: Test owner phone credentials are dropped after the first hub start
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-owner-credentials-cleared.mjs
+      - name: Test a restore through the backup IPC stops the hub before the relaunch and the relaunch resumes
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-host-restore-relaunch-loopback.mjs
       - name: Test backup coordination lifecycle
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-coordination-lifecycle.mjs

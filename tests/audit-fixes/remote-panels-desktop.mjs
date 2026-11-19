@@ -52,7 +52,7 @@ test('the request IPC refuses a panel without an approval policy; the host passe
   } finally { delete globalThis.__remotePanels; rmSync(dir, { recursive: true, force: true }) }
   const host = readFileSync(new URL('../../src/main/services/CloudSyncService.ts', import.meta.url), 'utf8')
   assert.match(host, /import \{ REMOTE_PANELS \} from '\.\.\/\.\.\/shared\/enums'/)
-  assert.match(host, /const PANELS = REMOTE_PANELS\n/)
+  assert.match(host, /const PANELS = REMOTE_PANELS\r?\n/)
   assert.match(host, /const POLICIES = Object\.fromEntries\(PANELS\.map\(/)
   assert.match(host, /registerRemoteAuthHandlers\(async\(password,pin\)=>hub \? hub\.recoverPanic\(password,pin\) : false,PANELS\)/)
 })

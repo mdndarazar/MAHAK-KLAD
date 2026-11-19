@@ -121,7 +121,7 @@ async function startConfigured(owner:RemoteOwner|null):Promise<void> {
     // (success or failure) so they do not stay in Main memory.
     const hubOptions:Parameters<typeof startExperimentalHubSupervisor>[0]={nodeExecutable,childFile,directory:hubDir,origin,owner:hubExists ? null : owner,auditKey:keys.auditKey,
       ...(port!==null ? {mobilePort:port} : {}),
-      snapshotMaxAgeMs:60_000,reader,state:localState,databaseFile:dbFile,restoreBarrier:barrier,coordinateDesktopBackup:true,
+      snapshotMaxAgeMs:60_000,reader,state:localState,databaseFile:dbFile,restoreBarrier:barrier,coordinateDesktopBackup:true,afterRestore:stopAfterRestore,
       // First start after install can be slow (antivirus scanning node.exe);
       // a timed-out start keeps the state lock until the application restarts.
       startupTimeoutMs:30_000,
@@ -158,6 +158,16 @@ async function startConfigured(owner:RemoteOwner|null):Promise<void> {
   }
 }
 
+/** After a restore or merge through the backup coordination. Remote admission
+ * stays closed until a controlled restart, and the backup service may relaunch
+ * the app with app.exit (no before-quit). Stop now, so no state or hub lock is
+ * left behind; the next start (relaunch, or the setup page) adopts the new
+ * epoch through the normal stopped-hub transition. */
+function stopAfterRestore():void {
+  lastStartError='Remote stopped after backup restore'
+  void stopCloudSync().catch(error=>console.error('[remote] stop after restore not confirmed',error))
+}
+
 export function startCloudSync(options?:{owner?:RemoteOwner}):Promise<void> {
   // Default-off must not read userData, open a DB, start timers or IPC.
   if (!remoteImplementationReady()) return Promise.resolve()
@@ -171,7 +181,7 @@ export function startCloudSync(options?:{owner?:RemoteOwner}):Promise<void> {
   if (!quitHookInstalled) {
     quitHookInstalled=true
     app.on('before-quit',event=>{
-      if (quitAfterStop || (!starting && !hub)) return
+      if (quitAfterStop || (!starting && !hub && !stopping)) return
       event.preventDefault();quitAfterStop=true
       void stopCloudSync().catch(error=>console.error('[remote] shutdown not confirmed',error)).finally(()=>app.quit())
     })

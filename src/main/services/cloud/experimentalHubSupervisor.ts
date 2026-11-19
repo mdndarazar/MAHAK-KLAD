@@ -75,6 +75,12 @@ type Options = {
   restoreBarrier?: ReturnType<typeof createExperimentalRestoreBarrier>
   // Experimental opt-in for the desktop backup IPC; not a production switch.
   coordinateDesktopBackup?: boolean
+  // Called once after each restore or merge through restoreExclusive has
+  // settled (success or failure), outside the barrier. The desktop host then
+  // stops this hub: admission stays closed until a controlled restart anyway,
+  // and the backup service's relaunch (app.exit skips before-quit) must not
+  // leave the state or hub lock behind.
+  afterRestore?: () => void
   // The caller owns an exclusive durable replay ledger scoped to this store and
   // epoch. This opt-in does not enable the Electron integration.
   revocation?: { key:Uint8Array; ledger?:Omit<Parameters<typeof startExperimentalRevocationReceiver>[0]['ledger'],'apply'>;
@@ -106,6 +112,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
       (options.reader.waitForIdle !== undefined && typeof options.reader.waitForIdle !== 'function') ||
       (options.reader.tryAuditPage !== undefined && typeof options.reader.tryAuditPage !== 'function') ||
       (options.coordinateDesktopBackup !== undefined && typeof options.coordinateDesktopBackup !== 'boolean') ||
+      (options.afterRestore !== undefined && typeof options.afterRestore !== 'function') ||
       (options.coordinateDesktopBackup === true && (!options.restoreBarrier || !options.revocation || options.revocation.ledger !== undefined || options.approval?.replayStore !== undefined)) ||
       (options.restoreBarrier !== undefined && (!options.restoreBarrier || typeof options.restoreBarrier.run !== 'function' ||
         typeof options.restoreBarrier.restore !== 'function' || typeof options.restoreBarrier.status !== 'function' || typeof options.reader.waitForIdle !== 'function')) ||
@@ -723,7 +730,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
         // supervisor never reopens, and a later startup must run the explicit
         // stopped-hub epoch transition before audit history is resent.
         // This covers only callers using this barrier, not external writers.
-        return track(barrier.restore(async()=>{
+        const task=track(barrier.restore(async()=>{
           await invalidate()
           if (revocationConfig) {
             const before=state.load()
@@ -735,6 +742,9 @@ export async function startExperimentalHubSupervisor(options: Options) {
           }
           await operation()
         },closeAdmissions))
+        const notify=options.afterRestore
+        if (notify) void task.then(()=>{},()=>{}).then(()=>{setImmediate(()=>{try {notify()} catch {}})})
+        return task
       },
       stop(): Promise<void> {
         if (stopPromise) return stopPromise
