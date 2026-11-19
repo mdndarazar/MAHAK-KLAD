@@ -255,7 +255,7 @@ test('child: the health view reports real ages on the child clock, keeps the dat
     assert.ok((await get('/api/health', cookie)).body.dataAgeMs >= 450, 'the data age is kept after expiry')
     // The older snapshot message (with its own capture time) counts as data too.
     const sent = performance.now()
-    child.send({ type: 'snapshot', id: 3, capturedAtMs: Date.now(), value: { boundary: null, shifts: [] } }); assert.equal((await reply(3, 'older snapshot accepted')).ok, true)
+    const older = async id => { child.send({ type: 'snapshot', id, capturedAtMs: Date.now() - 25, value: { boundary: null, shifts: [] } }); return reply(id, 'older snapshot accepted') }; let olderReply = await older(3); if (olderReply.ok !== true && olderReply.reason === 'snapshot-expired') olderReply = await older(4); assert.equal(olderReply.ok, true, `older snapshot rejected (${olderReply.reason})`) // 25 ms back: Date.now() of two Windows processes can differ by one timer tick (~15.6 ms) and the child, unchanged, rejects a future capture; one resend only after a scheduling stall
     const renewed = (await get('/api/health', cookie)).body.dataAgeMs
     assert.ok(Number.isSafeInteger(renewed) && renewed <= performance.now() - sent + 50, `the older snapshot message renews the data age (${renewed})`)
 

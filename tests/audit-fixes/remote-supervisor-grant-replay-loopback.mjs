@@ -31,5 +31,5 @@ test('supervisor persists mobile approval replay after state store is reopened',
   await hub.stop();hub=null;state.close();state=openCloudStateStore(stateDir)
   const entry=value.entries[0], now=Math.max(value.latest,entry.expiresAt-1)
   assert.equal(state.openGrantReplayLedger().consume(entry.requestId,entry.nonce,entry.expiresAt,now),'REPLAY')
- } finally {if(hub)await hub.stop().catch(()=>{});revokeAll();state.close();rmSync(dir,{recursive:true,force:true})}
+ } finally {if(hub)await hub.stop().catch(()=>{});revokeAll();state.close();rmSync(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100})}
 })
