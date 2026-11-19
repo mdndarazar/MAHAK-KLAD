@@ -66,6 +66,8 @@ let mobile: Awaited<ReturnType<typeof startMobileReadOnlyHub>> | undefined
 let revocationTimer: ReturnType<typeof setInterval> | undefined
 let revocationActive: Promise<{applied:number;remaining:boolean}> | undefined
 let snapshot: Snapshot | null = null, snapshotAt = 0, snapshotMaxAge = 0, lastSnapshotCapture = 0
+// Monotonic time of the last accepted dashboard data; kept after it expires (health view).
+let lastDataAt: number | null = null
 // Freshness for supervisor reads is measured entirely by the child, starting
 // before the parent reads. This avoids comparing clocks from separate processes.
 let snapshotCapture: {id:number; monotonic:number; wall:number} | null = null, lastCaptureId = 0
@@ -311,7 +313,14 @@ async function start(input: unknown) {
       return ok
     }}
   }
-  mobile = await startMobileReadOnlyHub({ origins, identity, ...(approvalController ? {approval:approvalController} : {}), ...(drain ? {drainRevocations:drain} : {}), reader: {
+  // Owner's health view: ages only (no data), measured on this process's clock.
+  const health=()=>{
+    const now=performance.now(), age=(at:number)=>Math.min(2_592_000_000,Math.max(0,Math.floor(now-at)))
+    return {dataAgeMs:lastDataAt===null ? null : age(lastDataAt),
+      linkAgeMs:approvalController && mirror ? age(mirror.at) : null,
+      revocationPending:identity.pendingRevocations(1).length>0}
+  }
+  mobile = await startMobileReadOnlyHub({ origins, identity, health, ...(approvalController ? {approval:approvalController} : {}), ...(drain ? {drainRevocations:drain} : {}), reader: {
     latestBoundaryTotals:async () => current().boundary,
     openShiftsPage:async () => current().shifts,
     ...(config.invoiceFacts === true ? { invoiceFactsPage:requestInvoices } : {})
@@ -378,7 +387,7 @@ process.on('message', message => {
             now<capture.monotonic || !Number.isSafeInteger(wall) || wall<capture.wall) {snapshot=null;response(false,'invalid-capture');return}
         const age=Math.max(now-capture.monotonic,wall-capture.wall)
         if (age>=snapshotMaxAge) {snapshot=null;response(false,'snapshot-expired');return}
-        try {snapshot=parseSnapshot(message.value);snapshotAt=now-age;response(true)}
+        try {snapshot=parseSnapshot(message.value);snapshotAt=now-age;lastDataAt=snapshotAt;response(true)}
         catch {snapshot=null;response(false,'invalid-payload')}
         return
       }
@@ -395,7 +404,7 @@ process.on('message', message => {
       if (reason) { snapshot=null;response(false,reason);return }
       try {
         const value = parseSnapshot(message.value)
-        snapshot = value; snapshotAt = performance.now() - (wall - captured); lastSnapshotCapture = captured
+        snapshot = value; snapshotAt = performance.now() - (wall - captured); lastDataAt = snapshotAt; lastSnapshotCapture = captured
         response(true)
       } catch { snapshot = null; response(false,'invalid-payload') }
       return

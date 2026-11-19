@@ -127,6 +127,18 @@ async function startConfigured(owner:RemoteOwner|null):Promise<void> {
       startupTimeoutMs:30_000,
       persistFingerprint:value=>writeFingerprintBaseline(fingerprintFile,{version:1,storeId:snapshot.storeId,...value}),
       readRestoreMarker:async()=>restoreMarker(markerPath),
+      // The hub stopped by itself after a successful start (fail-closed check,
+      // crash or a killed process). Its grants are already revoked. Tell the
+      // shop and stop the host: an unconfirmed cleanup keeps the state lock, so
+      // the setup page asks for an application restart.
+      onUnavailable:()=>{
+        if (!localHub || hub!==localHub || stopping) return
+        lastStartError='Remote hub stopped unexpectedly'
+        try {
+          if (electron.Notification.isSupported()) new electron.Notification({title:'کنترل از راه دور',body:'کنترل از راه دور برای ایمنی متوقف شد و دسترسی‌های راه دور بسته شدند. جزئیات در صفحهٔ «کنترل از راه دور با گوشی».'}).show()
+        } catch {}
+        void stopCloudSync().catch(error=>console.error('[remote] stop after unexpected hub exit not confirmed',error))
+      },
       verifyLocalRecoveryPassword:async password=>{
         const auth=await import('./AuthService')
         await auth.assertManagerPassword(password,'بازیابی توقف اضطراری کنترل از راه دور')

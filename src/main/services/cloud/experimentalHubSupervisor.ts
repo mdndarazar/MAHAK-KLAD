@@ -94,6 +94,10 @@ type Options = {
   // Trusted desktop callback must enforce the existing local manager-password
   // gate and lockout. Do not expose recovery to the mobile network.
   verifyLocalRecoveryPassword?: (password:string)=>Promise<void>
+  // Called once, asynchronously, when the child becomes unavailable on its own
+  // (fail-closed kill, crash, killed process) after startup succeeded. Never
+  // for a requested stop or a failed startup. Grants are already revoked then.
+  onUnavailable?: ()=>void
   // Experimental opt-in, not wired to Electron. When omitted, the replay store
   // must already be explicitly initialized in the exclusive cloud state store.
   approval?: {key:Uint8Array;policies:Readonly<Record<string,{tier:'NORMAL';mode:'PANEL';ttlMs:number}>>;replayStore?:GrantReplayStore}
@@ -120,6 +124,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
       (options.enableInvoiceFacts !== undefined && typeof options.enableInvoiceFacts !== 'boolean') ||
       (options.enableInvoiceFacts === true && typeof options.reader.invoiceFactsPage !== 'function') ||
       (options.verifyLocalRecoveryPassword !== undefined && (typeof options.verifyLocalRecoveryPassword !== 'function' || !options.revocation)) ||
+      (options.onUnavailable !== undefined && typeof options.onUnavailable !== 'function') ||
       (options.revocation !== undefined && (!options.revocation || !(options.revocation.key instanceof Uint8Array) ||
         options.revocation.key.byteLength!==32 || Buffer.from(options.revocation.key).equals(Buffer.from(options.auditKey)) ||
         (options.revocation.onRevocation !== undefined && typeof options.revocation.onRevocation !== 'function') ||
@@ -280,6 +285,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
   let startupResolve: ((ports:{mobilePort:number; auditPort:number})=>void) | undefined
   let startupReject: ((error:Error)=>void) | undefined
   const startup = new Promise<{mobilePort:number; auditPort:number}>((resolve,reject) => { startupResolve=resolve;startupReject=reject })
+  let returned=false, unavailableReported=false
   const fail = () => {
     if (approvalTimer) { clearInterval(approvalTimer); approvalTimer=undefined }
     admission?.block()
@@ -291,6 +297,12 @@ export async function startExperimentalHubSupervisor(options: Options) {
     startupReject?.(new Error('Hub child unavailable'));startupReject=undefined;startupResolve=undefined
     for (const item of waiting.values()) { clearTimeout(item.timer);item.reject(new Error('Hub child unavailable')) }
     waiting.clear()
+    // Reported after the current fail-closed sequence (revoke, fence, kill) has
+    // finished, so the host's reaction cannot interleave with it.
+    if (returned && !closed && !unavailableReported && options.onUnavailable) {
+      unavailableReported=true
+      setImmediate(()=>{ if (!closed) { try { options.onUnavailable?.() } catch {} } })
+    }
   }
   child.on('error',fail);child.on('exit',fail);child.on('disconnect',fail)
   // The child releases its own `remote-hub.lock` on a confirmed stop or IPC
@@ -820,6 +832,8 @@ export async function startExperimentalHubSupervisor(options: Options) {
       }
     }
     backupCoordination?.install(operation=>supervisor.restoreExclusive(operation))
+    // No await since the `dead` check above: a child exit is reported by fail().
+    returned=true
     return supervisor
   } catch (error) {
     // Startup can fail even after admission was opened (for example while

@@ -15,6 +15,7 @@ const REASONS: Record<string, string> = {
 function explain(error: string | null): string | null {
   if (!error) return null
   if (error.includes('Remote stopped after backup restore')) return 'پس از بازگردانی یا ادغام بکاپ، کنترل از راه دور برای ایمنی خاموش شد. با باز شدن دوبارهٔ برنامه یا «روشن کردن» دوباره روشن می‌شود.'
+  if (error.includes('Remote hub stopped unexpectedly')) return 'هاب کنترل از راه دور خودبه‌خود متوقف شد (مثلاً چون پایگاه داده بیرون از برنامه عوض شد یا برنامهٔ هاب بسته شد) و همهٔ دسترسی‌های راه دور برای ایمنی بسته شدند.'
   if (error.includes('Remote port in use')) return REASONS.PORT_IN_USE
   if (error.includes('Remote hub lock present')) return REASONS.HUB_LOCKED
   if (error.includes('Remote owner setup required')) return REASONS.OWNER_REQUIRED

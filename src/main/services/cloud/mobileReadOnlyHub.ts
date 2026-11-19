@@ -44,7 +44,11 @@ type ApprovalController = {
   grants?(): { panel: string; claimed: boolean; remainingMs: number }[]
   approve(token: string, requestId: string, code: string, pin: string): boolean | Promise<boolean>
 }
-type Options = { origin?: string; origins?: readonly string[]; identity: Identity; reader: Reader; drainRevocations?: () => { remaining: boolean } | Promise<{ remaining: boolean }>; approval?: ApprovalController }
+/** Owner's health view: age of the desktop's last dashboard data and of its
+ * last live request copy (null = none yet / approvals off), and whether a
+ * revocation is still waiting for the desktop's ACK (approvals wait for it). */
+type Health = () => { dataAgeMs: number | null; linkAgeMs: number | null; revocationPending: boolean }
+type Options = { origin?: string; origins?: readonly string[]; identity: Identity; reader: Reader; drainRevocations?: () => { remaining: boolean } | Promise<{ remaining: boolean }>; approval?: ApprovalController; health?: Health }
 const TOKEN = /^[A-Za-z0-9_-]{43}$/
 const MAX_BODY = 8192
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
@@ -264,7 +268,7 @@ export function createMobileReadOnlyHandler(options: Options) {
           send(200,{ok:true});return
         }
       }
-      if (req.method === 'GET' && (path === '/api/session' || path === '/api/capabilities' || path === '/api/members' || path === '/api/custody' || path === '/api/shifts' || (path === '/api/requests' && options.approval) || (path === '/api/grants' && typeof options.approval?.grants === 'function'))) {
+      if (req.method === 'GET' && (path === '/api/session' || path === '/api/capabilities' || path === '/api/members' || path === '/api/custody' || path === '/api/shifts' || (path === '/api/requests' && options.approval) || (path === '/api/grants' && typeof options.approval?.grants === 'function') || (path === '/api/health' && typeof options.health === 'function'))) {
         const token=cookie(req), user=token ? options.identity.whoAmI(token) : null
         if (!token || !user) { send(401,{error:'لطفاً وارد شوید'});return }
         if (path === '/api/session') {
@@ -276,6 +280,7 @@ export function createMobileReadOnlyHandler(options: Options) {
             ...(user.role==='OWNER' && typeof options.identity.panic==='function' && typeof options.drainRevocations==='function' ? {panic:true} : {}),
             ...(user.role==='OWNER' && typeof options.identity.panicClose==='function' && typeof options.drainRevocations==='function' ? {panicClose:true} : {}),
             ...(user.role==='OWNER' && typeof options.approval?.grants==='function' ? {grants:true} : {}),
+            ...(user.role==='OWNER' && typeof options.health==='function' ? {health:true} : {}),
             ...(user.role==='OWNER' && Array.isArray(options.approval?.panels) ? {approvalPanels:options.approval.panels.filter(panel=>typeof panel==='string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(panel)).slice(0,20)} : {})});return
         }
         if (path === '/api/grants' && typeof options.approval?.grants === 'function') {
@@ -288,6 +293,13 @@ export function createMobileReadOnlyHandler(options: Options) {
             return {panel:g.panel,claimed:g.claimed,remainingMs:g.remainingMs}
           })
           send(200,{grants});return
+        }
+        if (path === '/api/health' && typeof options.health === 'function') {
+          if (user.role !== 'OWNER') { send(403,{error:'فقط مالک مجاز است'});return }
+          const h=options.health()
+          const age=(v:unknown)=>v === null || (Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= 2_592_000_000)
+          if (!h || typeof h !== 'object' || !age(h.dataAgeMs) || !age(h.linkAgeMs) || typeof h.revocationPending !== 'boolean') throw new Error('Invalid health')
+          send(200,{dataAgeMs:h.dataAgeMs,linkAgeMs:h.linkAgeMs,revocationPending:h.revocationPending});return
         }
         if (path === '/api/members') {
           if (user.role !== 'OWNER') { send(403,{error:'فقط مالک مجاز است'});return }

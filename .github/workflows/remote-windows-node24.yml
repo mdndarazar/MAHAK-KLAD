@@ -412,6 +412,9 @@ jobs:
       - name: Test the phone's built-in page when the shop computer cannot be reached (nothing stored)
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-pwa-offline-page-loopback.mjs
+      - name: Test health of the remote link (unexpected hub stop on the desktop, owner health card on the phone)
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-health-loopback.mjs
       - name: Test backup coordination lifecycle
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-coordination-lifecycle.mjs
