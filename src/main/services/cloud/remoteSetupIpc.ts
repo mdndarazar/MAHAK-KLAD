@@ -11,7 +11,7 @@ import { app, ipcMain, safeStorage } from 'electron'
 import { join } from 'node:path'
 import { REMOTE_SETUP_CHANNELS, remoteImplementationReady, type RemoteSetupStatus } from '../../../shared/remoteAuthChannels'
 import { isLocalAppFrame } from '../../ipc/remoteAuth'
-import { remoteHostState, startCloudSync, stopCloudSync } from '../CloudSyncService'
+import { remoteHostState, replaceRemoteOwner, startCloudSync, stopCloudSync } from '../CloudSyncService'
 import { remoteSettingEnabled } from './remoteSettings'
 import {
   REMOTE_DEFAULT_PORT, RemoteSetupError, createRemoteSetupFiles, remoteSetupFiles, restoreMarkerHash,
@@ -35,6 +35,8 @@ const MESSAGES: Record<string, string> = {
   PIN: 'PIN باید دقیقاً ۶ رقم و متفاوت از رمز گوشی باشد.',
   INVALID_INPUT: 'ورودی نامعتبر است.',
   SECURE_STORAGE: 'ذخیره‌ساز امن ویندوز در دسترس نیست؛ کلیدها ساخته نشدند.',
+  NOT_RUNNING: 'ابتدا کنترل از راه دور را روشن کنید؛ عوض کردن اطلاعات ورود مالک فقط وقتی هاب روشن است ممکن است.',
+  OWNER_REPLACE: 'اطلاعات ورود مالک عوض نشد. شاید این نام کاربری مال عضو دیگری باشد؛ نام دیگری بزنید و دوباره تلاش کنید.',
   FAILED: 'عملیات انجام نشد.'
 }
 const failure = (code: string, error = MESSAGES[code] ?? MESSAGES.FAILED): Failure => ({ ok: false, error, code })
@@ -115,6 +117,18 @@ export function registerRemoteSetupHandlers(): void {
   handle(REMOTE_SETUP_CHANNELS.complete, async input => {
     const userData = app.getPath('userData'), files = remoteSetupFiles(userData)
     if (!files.configured) return failure('NOT_CONFIGURED')
+    if (input.replace !== undefined) {
+      // OWNER recovery at the computer (design §4, physical presence): new
+      // phone username, password and PIN for the existing owner. Members stay.
+      if (input.replace !== true) return failure('INVALID_INPUT')
+      if (files.ownerRequired) return failure('OWNER_REQUIRED')
+      const ownerValue = owner(input)
+      const denied = await managerPassword(input, 'عوض کردن اطلاعات ورود مالک گوشی')
+      if (denied) return denied
+      if (!remoteHostState().running) return failure('NOT_RUNNING')
+      if (!await replaceRemoteOwner(ownerValue)) return failure('OWNER_REPLACE')
+      return { ok: true, data: status() }
+    }
     if (!files.ownerRequired) return failure('OWNER_EXISTS')
     const ownerValue = owner(input)
     const denied = await managerPassword(input, 'تکمیل راه‌اندازی کنترل از راه دور')

@@ -195,6 +195,12 @@ export function startCloudSync(options?:{owner?:RemoteOwner}):Promise<void> {
   return task
 }
 
+/** OWNER recovery at the computer, for the setup page after the manager
+ * password check: replaces the phone owner's credentials in the running hub. */
+export function replaceRemoteOwner(owner:RemoteOwner):Promise<boolean> {
+  return hub && !stopping ? hub.replaceOwner(owner) : Promise.resolve(false)
+}
+
 /** Internal status only; no credentials, keys or paths are returned. */
 export function cloudSyncStatus():{running:boolean;mobilePort:number|null} {
   return {running:hub!==null,mobilePort:hub?.mobilePort ?? null}

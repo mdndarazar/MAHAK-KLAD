@@ -350,6 +350,15 @@ process.on('message', message => {
       try { ok=recoveryIdentity.recoverPanicLocally(message.pin,recoveryEpoch,message.lastAck) } catch {}
       send({type:'panicRecovered',id:message.id,ok});return
     }
+    // OWNER recovery at the computer: only the parent sends this, after the
+    // desktop manager password; the identity store validates the new values.
+    if (message.type === 'replaceOwner' && initialized && !shuttingDown && mobile && recoveryEpoch && recoveryIdentity) {
+      if (!sameKeys(message,'id,password,pin,type,username') || !safeInt(message.id,1) || typeof message.username !== 'string' ||
+          typeof message.password !== 'string' || typeof message.pin !== 'string') return
+      let ok=false
+      try { ok=recoveryIdentity.replaceOwnerLocally(message.username,message.password,message.pin) } catch {}
+      send({type:'ownerReplaced',id:message.id,ok});return
+    }
     if ((message.type === 'snapshot' || message.type === 'invalidateSnapshot' || message.type === 'beginSnapshot') && initialized && !shuttingDown && mobile) {
       const id = message.id
       if (id !== undefined && (!Number.isSafeInteger(id) || id <= 0)) return

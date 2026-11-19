@@ -520,7 +520,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
         } catch { failRead() }
       }).catch(() => { failRead() }).finally(() => { invoiceBusy=false }))
     }
-    else if ((message.type === 'snapshot' || message.type === 'panicRecovered') && Number.isSafeInteger(message.id)) {
+    else if ((message.type === 'snapshot' || message.type === 'panicRecovered' || message.type === 'ownerReplaced') && Number.isSafeInteger(message.id)) {
       const item=waiting.get(message.id)
       if (!item) return
       waiting.delete(message.id);clearTimeout(item.timer)
@@ -708,6 +708,19 @@ export async function startExperimentalHubSupervisor(options: Options) {
             const cursor=recoveryLedger?.load()
             if (!cursor || !Number.isSafeInteger(cursor.id) || cursor.id<1) return false
             return await update({type:'recoverPanic',pin:ownerPin,lastAck:cursor.id})
+          } catch { return false }
+        }).finally(()=>{recoveryBusy=false}))
+      },
+      // OWNER recovery at the computer (design §4). Local trusted caller only,
+      // after the desktop manager password was verified; never a mobile route.
+      replaceOwner(owner:{username:string;password:string;pin:string}):Promise<boolean> {
+        if (closed || dead || storeInvalidated || recoveryBusy || !revocationConfig || !object(owner) ||
+            typeof owner.username!=='string' || typeof owner.password!=='string' || typeof owner.pin!=='string') return Promise.resolve(false)
+        recoveryBusy=true
+        return track(guarded(async()=>{
+          try {
+            if (closed || dead || storeInvalidated) return false
+            return await update({type:'replaceOwner',username:owner.username,password:owner.password,pin:owner.pin})
           } catch { return false }
         }).finally(()=>{recoveryBusy=false}))
       },

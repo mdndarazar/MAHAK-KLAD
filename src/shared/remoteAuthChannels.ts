@@ -48,6 +48,9 @@ export type RemoteSetupStatus = {
   mobilePort: number | null; defaultPort: number; error: string | null
 }
 export type RemoteSetupConfigurePayload = { managerPassword: string; origin: string; port: number; username: string; password: string; pin: string }
+/** `complete` with `replace: true`: OWNER recovery at the computer (new phone
+ * username, password and PIN for the existing owner; the hub must be running). */
+export type RemoteSetupReplaceOwnerPayload = { managerPassword: string; replace: true; username: string; password: string; pin: string }
 
 export const REMOTE_GT_PREFIX = 'gt-'
 export const REMOTE_GT_PREFIX_LEN = 3

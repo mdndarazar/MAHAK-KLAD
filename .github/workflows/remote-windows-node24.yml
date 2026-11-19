@@ -406,6 +406,9 @@ jobs:
       - name: Test the suspicious-request warning on the phone (more than three in ten minutes)
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-suspicious-request-loopback.mjs
+      - name: Test OWNER recovery at the computer (new phone credentials with the manager password)
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-owner-recovery-loopback.mjs
       - name: Test backup coordination lifecycle
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-coordination-lifecycle.mjs

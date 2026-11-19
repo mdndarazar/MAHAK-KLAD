@@ -39,6 +39,7 @@ export default function RemoteLink() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
   const [confirmReset, setConfirmReset] = useState(false)
+  const [replaceOpen, setReplaceOpen] = useState(false)
 
   const refresh = async () => {
     try { setStatus(await call<RemoteSetupStatus>(REMOTE_SETUP_CHANNELS.status as any)); setLoadError(null) }
@@ -50,8 +51,8 @@ export default function RemoteLink() {
     return () => clearInterval(timer)
   }, [])
 
-  const run = async (channel: string, payload: Record<string, unknown>, done: string) => {
-    if (busy) return
+  const run = async (channel: string, payload: Record<string, unknown>, done: string): Promise<boolean> => {
+    if (busy) return false
     setBusy(true); setMessage(null)
     try {
       const next = await call<RemoteSetupStatus>(channel as any, { managerPassword, ...payload })
@@ -61,8 +62,10 @@ export default function RemoteLink() {
         ? { ok: true, text: done }
         : { ok: false, text: failed ?? 'هاب روشن نشد.' })
       if (next.running || channel === REMOTE_SETUP_CHANNELS.reset) { setPassword(''); setPasswordAgain(''); setPin(''); setPinAgain('') }
+      return true
     } catch (error) {
       setMessage({ ok: false, text: error instanceof Error ? error.message : 'انجام نشد.' })
+      return false
     } finally { setManagerPassword(''); setConfirmReset(false); setBusy(false); void refresh() }
   }
 
@@ -171,6 +174,35 @@ export default function RemoteLink() {
             <button className="btn" disabled={busy || !managerPassword || (!status.running && !status.enabled)}
               onClick={() => void run(REMOTE_SETUP_CHANNELS.disable, {}, 'خاموش شد؛ پورت بسته است.')}>خاموش کردن</button>
           </div>
+        </div>
+      )}
+
+      {status.ready && status.configured && !status.ownerRequired && (
+        <div className="bg-white rounded shadow p-4 space-y-2">
+          <h2 className="font-bold">فراموشی رمز یا PIN گوشی مالک</h2>
+          <div className="kbd leading-6">
+            اگر مالک رمز ورود گوشی یا PIN را فراموش کرده است، اینجا روی همین رایانه و با رمز مدیر برنامه نام کاربری، رمز و PIN تازه بگذارید.
+            مدیرها و بیننده‌ها می‌مانند. نشست‌های گوشی مالک بسته می‌شوند، دعوت‌های استفاده‌نشده باطل می‌شوند و پنل‌هایی که با تأیید مالک باز است بسته می‌شوند.
+            هاب باید روشن باشد.
+          </div>
+          {!replaceOpen ? (
+            <button className="btn" disabled={busy} onClick={() => setReplaceOpen(true)}>گذاشتن رمز و PIN تازه برای مالک…</button>
+          ) : (
+            <div className="space-y-2">
+              {ownerFields}
+              {problem && <div className="kbd">{problem}</div>}
+              <div className="flex gap-2">
+                <button className="btn btn-primary" disabled={busy || !!problem || !managerPassword || !status.running}
+                  onClick={() => void run(REMOTE_SETUP_CHANNELS.complete, { replace: true, ...ownerPayload() },
+                    'اطلاعات ورود مالک گوشی عوض شد. در گوشی با نام کاربری و رمز تازه وارد شوید. اگر «توقف اضطراری کامل» فعال است، آن را با PIN تازه بازیابی کنید.')
+                    .then(ok => { if (ok) setReplaceOpen(false) })}>
+                  ذخیرهٔ اطلاعات ورود تازهٔ مالک
+                </button>
+                <button className="btn" disabled={busy} onClick={() => setReplaceOpen(false)}>انصراف</button>
+              </div>
+              {!status.running && <div className="kbd">ابتدا هاب را روشن کنید.</div>}
+            </div>
+          )}
         </div>
       )}
 

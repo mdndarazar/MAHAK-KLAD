@@ -293,6 +293,30 @@ export function createHubIdentity(db: Database, options: Options) {
         audit(t,rows[0].id,'PANIC_LOCAL_RECOVERY'); return true
       })
     },
+    /** OWNER recovery at the computer (design §4: physical presence). Trusted
+     * local parent only, after the desktop manager password was verified; never
+     * expose on a mobile endpoint. Replaces the single owner's username, password
+     * and PIN, clears its lockouts and ends its sessions. Pending invites expire
+     * and grants it approved are revoked (approvals wait for that ACK). Members
+     * are kept, and a latched P2 stays latched (local recovery remains separate). */
+    replaceOwnerLocally(username: string, password: string, pinValue: string): boolean {
+      const name = usernameValue(username)
+      if (!name || !passwordOk(password) || !pinOk(pinValue) || password === pinValue) return false
+      const p = makeSecret(password), v = makeSecret(pinValue)
+      return transact(t => {
+        const rows = q("SELECT id FROM remote_members WHERE role='OWNER' AND status='ACTIVE'").all()
+        if (rows.length !== 1) return false
+        const id = rows[0].id, taken = memberByName.get(name)
+        // Usernames stay unique across all members, including removed ones.
+        if (taken && taken.id !== id) return false
+        q('UPDATE remote_members SET username=?,password_salt=?,password_hash=?,pin_salt=?,pin_hash=?,login_fails=0,login_locked_until=0,pin_fails=0,pin_locked_until=0 WHERE id=?')
+          .run(name,p.salt,p.hash,v.salt,v.hash,id)
+        sessionsDelete.run(id)
+        q("UPDATE remote_invites SET status='EXPIRED' WHERE status='PENDING'").run()
+        enqueueRevoke(t,'MEMBER',id)
+        audit(t,id,'OWNER_REPLACED_LOCALLY'); return true
+      })
+    },
     setPaused(token: string, pinValue: string, paused: boolean): boolean {
       if (typeof paused !== 'boolean') return false
       return transact(t => { const s = owner(token,pinValue,t); if (!s) return false
