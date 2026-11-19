@@ -33,6 +33,7 @@ node --import ./test/harness/register.mjs tests/audit-fixes/remote-setup-host-lo
 node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-p2-pwa-loopback.mjs
 node --import ./test/harness/register.mjs tests/audit-fixes/remote-manager-approval-pwa-loopback.mjs
 node --import ./test/harness/register.mjs tests/audit-fixes/remote-desktop-host-epoch-transition.mjs
+node --import ./test/harness/register.mjs tests/audit-fixes/remote-host-restore-relaunch-loopback.mjs
 ```
 
 **نتیجهٔ درست:** در پایان هر تست `fail 0` دیده شود. این تست‌ها فقط فایل موقت می‌سازند و به گوشی یا تونل کاری ندارند.
