@@ -63,4 +63,22 @@ if('serviceWorker' in navigator)navigator.serviceWorker.register('/mobile-sw.js'
 
 export const mobileManifest = JSON.stringify({name:'مهاک - مشاهده از راه دور',short_name:'مهاک',lang:'fa',dir:'rtl',start_url:'/',scope:'/',display:'standalone',background_color:'#f4f7f5',theme_color:'#102f2c',icons:[{src:'/icon-192.png',sizes:'192x192',type:'image/png'},{src:'/icon-512.png',sizes:'512x512',type:'image/png'}]})
 // Never cache APIs, credentials, financial data or authenticated responses.
-export const mobileWorker = `'use strict';self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));`
+// Network only: the worker stores nothing on the phone. When the shop computer
+// cannot be reached (network failure, or a gateway/origin error from the
+// tunnel: 502-504 and 520-530, e.g. 530 for a disconnected Cloudflare tunnel;
+// the hub serves the page itself with 200 or 421), a GET navigation to the app
+// page gets a short built-in explanation instead of a browser or tunnel error
+// page. Nothing else (data requests, assets, other paths) is intercepted.
+export const mobileWorker = `'use strict';
+const OFFLINE='<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>مهاک — اتصال برقرار نیست</title></head><body><h1>اتصال به سیستم فروشگاه برقرار نیست</h1><p>برنامهٔ فروشگاه باید روی رایانه باز و کنترل از راه دور روشن باشد، و اینترنت گوشی و تونل وصل باشند.</p><p>هیچ داده‌ای روی این گوشی ذخیره نمی‌شود؛ پس از برقراری اتصال، صفحه را دوباره باز کنید.</p><p><a href="/">تلاش دوباره</a></p></body></html>';
+const OFFLINE_HEADERS={'content-type':'text/html; charset=utf-8','cache-control':'no-store','content-security-policy':"default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",'x-content-type-options':'nosniff','referrer-policy':'no-referrer'};
+const offline=()=>new Response(OFFLINE,{status:503,headers:OFFLINE_HEADERS});
+self.addEventListener('install',()=>self.skipWaiting());
+self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
+self.addEventListener('fetch',event=>{
+  const request=event.request;
+  if(request.mode!=='navigate'||request.method!=='GET')return;
+  let url;try{url=new URL(request.url)}catch(e){return}
+  if(url.origin!==self.location.origin||url.pathname!=='/')return;
+  event.respondWith(fetch(request).then(response=>{const s=response.status;return (s>=502&&s<=504)||(s>=520&&s<=530)?offline():response},()=>offline()));
+});`

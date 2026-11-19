@@ -37,6 +37,7 @@ node --import ./test/harness/register.mjs tests/audit-fixes/remote-host-restore-
 node --import ./test/harness/register.mjs tests/audit-fixes/remote-live-grants-loopback.mjs
 node --import ./test/harness/register.mjs tests/audit-fixes/remote-suspicious-request-loopback.mjs
 node --import ./test/harness/register.mjs tests/audit-fixes/remote-owner-recovery-loopback.mjs
+node --import ./test/harness/register.mjs tests/audit-fixes/remote-pwa-offline-page-loopback.mjs
 ```
 
 **نتیجهٔ درست:** در پایان هر تست `fail 0` دیده شود. این تست‌ها فقط فایل موقت می‌سازند و به گوشی یا تونل کاری ندارند.
@@ -94,6 +95,11 @@ node --import ./test/harness/register.mjs tests/audit-fixes/remote-owner-recover
 5. یک بار رمز غلط بزنید؛ ورود باید رد شود.
    - مراقب باشید: ۵ رمز یا PIN غلط، آن حساب را ۱۵ دقیقه قفل می‌کند.
 6. (اختیاری) از منوی مرورگر «Add to Home screen» را بزنید.
+7. صفحهٔ «اتصال برقرار نیست»: پس از آن‌که صفحه یک بار در گوشی درست باز شد، روی رایانه «خاموش کردن» را بزنید (یا برنامه را ببندید). سپس صفحه را در گوشی دوباره باز کنید یا بکشید تا تازه شود.
+   **نتیجهٔ درست:** به‌جای صفحهٔ خطای مرورگر یا تونل، صفحهٔ ساده‌ای با عنوان «اتصال به سیستم فروشگاه برقرار نیست» و دکمهٔ «تلاش دوباره» بیاید. هاب را دوباره روشن کنید و «تلاش دوباره» را بزنید تا صفحهٔ اصلی بیاید.
+   - این صفحه در گوشی ذخیره نمی‌شود و هیچ داده‌ای در گوشی نگه داشته نمی‌شود. پس بدون اتصال، داده‌ای هم دیده نمی‌شود؛
+   - این صفحه برای قطع کامل اینترنت گوشی و برای خطاهای 502 تا 504 و 520 تا 530 تونل می‌آید (مثلاً 530 وقتی Cloudflare Tunnel وصل نیست). اگر تونل شما خطای دیگری بدهد (مثلاً 404)، همان صفحهٔ تونل می‌آید؛ متن آن را گزارش کنید؛
+   - بار اول، پیش از آن‌که صفحه یک بار درست باز شده باشد، این صفحه نمی‌آید.
 
 تنظیم تونل در این محیط **اجرا نشده** است؛ اگر صفحه باز نشد، متن خطای مرورگر یا تونل را یادداشت کنید.
 

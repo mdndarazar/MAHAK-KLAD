@@ -409,6 +409,9 @@ jobs:
       - name: Test OWNER recovery at the computer (new phone credentials with the manager password)
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-owner-recovery-loopback.mjs
+      - name: Test the phone's built-in page when the shop computer cannot be reached (nothing stored)
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-pwa-offline-page-loopback.mjs
       - name: Test backup coordination lifecycle
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-coordination-lifecycle.mjs
