@@ -257,6 +257,9 @@ jobs:
       - name: Test remote-snapshot-rejection-loopback
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-snapshot-rejection-loopback.mjs
+      - name: Diagnostic hub child start timing (before supervisor test)
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-hub-start-timing.mjs
       - name: Test supervisor snapshot restore detection on isolated SQLite
         shell: pwsh
         run: |
@@ -271,6 +274,10 @@ jobs:
             Write-Output "::error title=Remote supervisor test::$text"
             exit $code
           }
+      - name: Diagnostic hub child start timing (after supervisor test)
+        if: always()
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-hub-start-timing.mjs
       - name: Test audit sync epoch race checks with isolated state files
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-audit-state-races.mjs
@@ -366,6 +373,12 @@ jobs:
       - name: Test owner setup IPC, fixed port, opt-in off and reset over loopback
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-setup-host-loopback.mjs
+      - name: Test opt-in off means no port, connection, process, timer or write
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-optin-off-no-port.mjs
+      - name: Test a slow first hub start within its own startup window
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-hub-startup-window.mjs
       - name: Test backup coordination lifecycle
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-coordination-lifecycle.mjs

@@ -52,6 +52,11 @@ type Options = {
   // Fixed loopback port (1024-65535) for the owner's overlay/tunnel; the child
   // must report exactly this port. Omitted = ephemeral port.
   mobilePort?: number
+  // Window for the child to become ready (spawn, hub database, owner bootstrap,
+  // listeners). A first run on a slow PC (antivirus scanning the bundled Node)
+  // can exceed an ordinary operation timeout, and a failed start cannot confirm
+  // cleanup. Defaults to timeoutMs; every later operation keeps timeoutMs.
+  startupTimeoutMs?: number
   reader: Reader; state: { load():CloudState | null; save(value:CloudState):void; openRevocationLedger?():Omit<Parameters<typeof startExperimentalRevocationReceiver>[0]['ledger'],'apply'>; openGrantReplayLedger?():GrantReplayStore }
   readRestoreMarker: () => Promise<string | null>
   // Enables the composite database fingerprint (file identity and SQLite
@@ -131,6 +136,8 @@ export async function startExperimentalHubSupervisor(options: Options) {
   const originConfig=options.origin !== undefined ? {origin:origins[0]} : {origins}
   const timeout = options.timeoutMs ?? 5000
   if (!Number.isSafeInteger(timeout) || timeout < 100 || timeout > 30_000) throw new Error('Invalid hub timeout')
+  const startupTimeout = options.startupTimeoutMs ?? timeout
+  if (!Number.isSafeInteger(startupTimeout) || startupTimeout < 100 || startupTimeout > 120_000) throw new Error('Invalid hub timeout')
   const key = Buffer.from(options.auditKey), reader = options.reader, state = options.state
   // Captured before opening admissions; file size and timestamps are not used
   // because ordinary SQLite writes legitimately change them.
@@ -521,7 +528,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
     if (dead || !child.connected || !child.send) throw new Error('Hub child unavailable')
     child.send(message, (error) => { if (error) fail() })
   }
-  const startTimer=setTimeout(() => { fail();child.kill() },timeout)
+  const startTimer=setTimeout(() => { fail();child.kill() },startupTimeout)
   try {
     const approval=options.approval ? {key:Buffer.from(options.approval.key),policies:Object.fromEntries(Object.entries(options.approval.policies).map(([name,p])=>[name,{...p}]))} : undefined
     if (approval && revocationConfig && options.approval) approvalBridge=createExperimentalApprovalBridge({

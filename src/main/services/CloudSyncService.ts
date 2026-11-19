@@ -116,6 +116,9 @@ async function startConfigured(owner:RemoteOwner|null):Promise<void> {
     localHub=await startExperimentalHubSupervisor({nodeExecutable,childFile,directory:hubDir,origin,owner:hubExists ? null : owner,auditKey:keys.auditKey,
       ...(port!==null ? {mobilePort:port} : {}),
       snapshotMaxAgeMs:60_000,reader,state:localState,databaseFile:dbFile,restoreBarrier:barrier,coordinateDesktopBackup:true,
+      // First start after install can be slow (antivirus scanning node.exe);
+      // a timed-out start keeps the state lock until the application restarts.
+      startupTimeoutMs:30_000,
       persistFingerprint:value=>writeFingerprintBaseline(fingerprintFile,{version:1,storeId:snapshot.storeId,...value}),
       readRestoreMarker:async()=>restoreMarker(markerPath),
       verifyLocalRecoveryPassword:async password=>{
