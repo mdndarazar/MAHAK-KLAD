@@ -125,7 +125,7 @@ export default function ManagerGate({
     return () => window.clearInterval(id)
   }, [open, refreshGate])
 
-  if (open) return <>{children}</>
+  if (open) return <>{remoteImplementationReady() && panel === 'settings' && !window.location.hash.startsWith('#/remote-link') && <div className="mb-3"><a className="btn" href="#/remote-link">کنترل از راه دور با گوشی</a></div>}{children}</>
 
   const locked = !!gate?.locked && gate.remainingSeconds > 0
   /** چند تلاش ناموفق دیگر تا قفل شدن (فقط وقتی قفل موقت روشن است) */

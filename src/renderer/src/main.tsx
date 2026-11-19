@@ -16,6 +16,7 @@ import CashClose from './pages/CashClose'
 import Consolidation from './pages/Consolidation'
 import SalesReturn from './pages/SalesReturn'
 import Settings from './pages/Settings'
+import RemoteLink from './pages/RemoteLink'
 import CategoryCharges from './pages/CategoryCharges'
 import ManagerGate from './components/ManagerGate'
 import { ManagerSessionProvider } from './hooks/useManagerSession'
@@ -244,6 +245,7 @@ const router = createHashRouter([
       { path: 'charges/service/pos', element: <ChargesGate kind="service" scope="pos" /> },
       { path: 'charges/tax/wholesale', element: <ChargesGate kind="tax" scope="wholesale" /> },
       { path: 'charges/service/wholesale', element: <ChargesGate kind="service" scope="wholesale" /> },
+      { path: 'remote-link', element: <ManagerGate panel={PANEL_KEYS.settings} title="کنترل از راه دور با گوشی" reason="راه‌اندازی کنترل از راه دور فقط برای مدیر است؛ هر تغییر دوباره رمز مدیر می‌خواهد."><RemoteLink /></ManagerGate> },
       {
         path: 'settings',
         element: (

@@ -125,9 +125,38 @@ async function shutdown() {
   if (db) { db.close(); db = undefined }
   releaseLock()
 }
+const SQLITE_READONLY_ROLLBACK = 776
+/** A process killed in the middle of a write (the supervisor's fail-closed
+ * kill is TerminateProcess on Windows; also power loss) leaves a hot rollback
+ * journal. A read-only connection cannot roll it back, so without this every
+ * later start would fail. Only that case is handled: the single write before
+ * identification is SQLite's own rollback, which restores the file's last
+ * committed state; identity and key checks then run as before. */
+function rollBackHotJournal(databasePath: string): void {
+  const journal = `${databasePath}-journal`
+  let stat
+  try { stat = lstatSync(journal) } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+    throw error
+  }
+  if (!stat.isFile() || stat.nlink !== 1) throw new Error('Invalid hub journal file')
+  const probe = new DatabaseSync(databasePath, { readOnly: true })
+  let hot = false
+  try { probe.prepare('SELECT 1 FROM sqlite_master LIMIT 1').all() }
+  catch (error) {
+    const e = error as { errcode?: unknown; message?: unknown }
+    if (e.errcode !== SQLITE_READONLY_ROLLBACK && !(e.errcode === undefined && /readonly database/.test(String(e.message)))) throw error
+    hot = true
+  } finally { probe.close() }
+  if (!hot) return
+  const writer = new DatabaseSync(databasePath)
+  try { writer.prepare('SELECT 1 FROM sqlite_master LIMIT 1').all() } finally { writer.close() }
+}
 async function start(input: unknown) {
   if (!okObject(input)) throw new Error('Invalid configuration')
-  const {revocation, approval, ...config}=input
+  const {revocation, approval, mobilePort, ...config}=input
+  // Optional fixed loopback port for the owner's overlay/tunnel; 0 = ephemeral.
+  if (mobilePort!==undefined && (!safeInt(mobilePort,1024) || mobilePort>65535)) throw new Error('Invalid mobile port')
   if (approval!==undefined && (!okObject(revocation) || !okObject(approval) || !sameKeys(approval,'key,panels,policies,storeId') ||
       typeof approval.key!=='string' || !/^[a-f0-9]{64}$/.test(approval.key) || approval.key===revocation.key || approval.key===config.auditKey ||
       approval.storeId!==revocation.storeId || !Array.isArray(approval.panels) || approval.panels.length<1 || approval.panels.length>64 ||
@@ -168,6 +197,7 @@ async function start(input: unknown) {
   if (!stat.isFile() || stat.nlink !== 1) throw new Error('Invalid hub database file')
   const keyCheck=createHmac('sha256',Buffer.from(config.auditKey,'hex')).update('mahak-hub-audit-key-check-v1','utf8').digest()
   if (!newFile) {
+    rollBackHotJournal(databasePath)
     // Refuse an application DB or a hub with a different/lost key before any write.
     // A legacy hub without this binding requires explicit migration, not adoption.
     const inspect = new DatabaseSync(databasePath, { readOnly: true })
@@ -261,7 +291,7 @@ async function start(input: unknown) {
     latestBoundaryTotals:async () => current().boundary,
     openShiftsPage:async () => current().shifts,
     ...(config.invoiceFacts === true ? { invoiceFactsPage:requestInvoices } : {})
-  } })
+  } }, mobilePort===undefined ? 0 : mobilePort as number)
   const receiver = createLocalAuditReceiver(db, Buffer.from(config.auditKey, 'hex'))
   auditServer = createServer(receiver)
   await new Promise<void>((resolve,reject) => { auditServer!.once('error',reject); auditServer!.listen(0,'127.0.0.1',() => { auditServer!.off('error',reject); resolve() }) })

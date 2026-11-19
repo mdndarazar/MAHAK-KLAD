@@ -3,10 +3,10 @@
  * بدون دست زدن به ipc/index.ts — مستقیم ipcMain.handle
  */
 import { BrowserWindow, ipcMain } from 'electron'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { REMOTE_AUTH_CHANNELS, REMOTE_GT_PREFIX, remoteImplementationReady } from '../../shared/remoteAuthChannels'
-import { cancelForWindow, claimRemotePanel, getRequestStatus, requestCode } from '../services/RemoteGrantRegistry'
+import { cancelForWindow, claimRemotePanel, getRequestStatus, remoteRegistryInitialized, requestCode } from '../services/RemoteGrantRegistry'
 
 // Match the application's other IPC handlers: only a live BrowserWindow may
 // own a request. A destroyed renderer must not retain pending requests or grants.
@@ -28,8 +28,30 @@ function ownerOf(event: Electron.IpcMainInvokeEvent): number {
   return id
 }
 
+// The production main build is code-split: this module may run from
+// out/main/chunks, while the renderer always sits next to the entry script
+// (out/main/index.js -> out/renderer/index.html). Without an entry script
+// (isolated test bundles) the module's own directory is used.
+function rendererBase(): string {
+  const entry = typeof require !== 'undefined' ? require.main?.filename : undefined
+  return entry ? dirname(entry) : __dirname
+}
+/** Only the application's own top-level renderer page may call owner-only
+ * remote IPC: not a subframe, another page or a destroyed window. */
+export function isLocalAppFrame(event: Electron.IpcMainInvokeEvent): boolean {
+  try {
+    ownerOf(event)
+    if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame) return false
+    const actual=new URL(event.senderFrame.url)
+    const expected=new URL(process.env.ELECTRON_RENDERER_URL || pathToFileURL(join(rendererBase(),'../renderer/index.html')).href)
+    return actual.protocol===expected.protocol && actual.host===expected.host && actual.pathname===expected.pathname
+  } catch { return false }
+}
+
 export function registerRemoteAuthHandlers(recover?: (password:string, pin:string)=>Promise<boolean>) {
-  if (!remoteImplementationReady()) return
+  // Readiness alone is not enough: only a host that initialized the registry
+  // (after the owner opt-in and before starting its hub) may expose grant IPC.
+  if (!remoteImplementationReady() || !remoteRegistryInitialized()) return
   if (recover) ipcMain.handle(REMOTE_AUTH_CHANNELS.recover, async (event, payload: unknown) => {
     ownerOf(event)
     // Only the top-level local application window can request recovery; mobile
@@ -37,7 +59,7 @@ export function registerRemoteAuthHandlers(recover?: (password:string, pin:strin
     if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame) return {ok:false as const,error:'بازیابی ممکن نیست.'}
     try {
       const actual=new URL(event.senderFrame.url)
-      const expected=new URL(process.env.ELECTRON_RENDERER_URL || pathToFileURL(join(__dirname,'../renderer/index.html')).href)
+      const expected=new URL(process.env.ELECTRON_RENDERER_URL || pathToFileURL(join(rendererBase(),'../renderer/index.html')).href)
       if (actual.protocol!==expected.protocol || actual.host!==expected.host || actual.pathname!==expected.pathname)
         return {ok:false as const,error:'بازیابی ممکن نیست.'}
     } catch {return {ok:false as const,error:'بازیابی ممکن نیست.'}}

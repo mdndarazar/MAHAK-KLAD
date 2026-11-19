@@ -38,6 +38,17 @@ export function RemoteRequestBox({ panel }: { panel: string }) {
   const [recoveryPin,setRecoveryPin]=useState('')
   const [recoveryMessage,setRecoveryMessage]=useState<string|null>(null)
   const [recoveryBusy,setRecoveryBusy]=useState(false)
+  // Shown only while this computer's remote hub is actually running (owner
+  // opt-in on and started). A string literal on purpose: isolated tests bundle
+  // this file with a minimal channels module.
+  const [hostRunning,setHostRunning]=useState(false)
+  useEffect(() => {
+    let stopped=false
+    const check=()=>{call<{running?:unknown}>('remoteSetup:status' as any).then(s=>{if(!stopped)setHostRunning(s?.running===true)},()=>{if(!stopped)setHostRunning(false)})}
+    check()
+    const timer=setInterval(check,5000)
+    return ()=>{stopped=true;clearInterval(timer)}
+  }, [])
 
   const recover=async()=>{
     if (recoveryBusy || !recoveryPassword || !/^[0-9]{6}$/.test(recoveryPin)) return
@@ -139,6 +150,7 @@ export function RemoteRequestBox({ panel }: { panel: string }) {
   }
 
   const current = request?.panel === panel ? request : null
+  if (!hostRunning && !current) return null
   return (
     <div className="space-y-2">
       {error && <div role="alert" className="rounded px-3 py-2 bg-amber-50 border border-amber-300">{error}</div>}

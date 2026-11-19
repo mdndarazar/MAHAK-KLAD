@@ -9,7 +9,7 @@ import { IPC } from '../shared/ipc'
 type IpcChannel = (typeof IPC)[keyof typeof IPC]
 type IpcResult<T> = { ok: true; data: T } | { ok: false; error: string; code?: string }
 
-const allowedChannels = new Set<string>([...Object.values(IPC), 'remoteAuth:request', 'remoteAuth:status', 'remoteAuth:cancel', 'remoteAuth:claim', 'remoteAuth:recover', 'remoteAuth:banner', 'remoteAuth:ping', 'remoteAuth:used'] as string[])
+const allowedChannels = new Set<string>([...Object.values(IPC), 'remoteAuth:request', 'remoteAuth:status', 'remoteAuth:cancel', 'remoteAuth:claim', 'remoteAuth:recover', 'remoteAuth:banner', 'remoteAuth:ping', 'remoteAuth:used', 'remoteSetup:status', 'remoteSetup:configure', 'remoteSetup:complete', 'remoteSetup:enable', 'remoteSetup:disable', 'remoteSetup:reset'] as string[])
 
 const api = {
   invoke: <T = unknown>(channel: IpcChannel, payload?: unknown): Promise<IpcResult<T>> => {

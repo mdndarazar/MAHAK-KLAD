@@ -49,6 +49,9 @@ type Options = {
   nodeExecutable: string; childFile: string; directory: string; origin?: string; origins?: readonly string[]
   owner: null | { username:string; password:string; pin:string }
   auditKey: Uint8Array; snapshotMaxAgeMs: number
+  // Fixed loopback port (1024-65535) for the owner's overlay/tunnel; the child
+  // must report exactly this port. Omitted = ephemeral port.
+  mobilePort?: number
   reader: Reader; state: { load():CloudState | null; save(value:CloudState):void; openRevocationLedger?():Omit<Parameters<typeof startExperimentalRevocationReceiver>[0]['ledger'],'apply'>; openGrantReplayLedger?():GrantReplayStore }
   readRestoreMarker: () => Promise<string | null>
   // Enables the composite database fingerprint (file identity and SQLite
@@ -122,7 +125,8 @@ export async function startExperimentalHubSupervisor(options: Options) {
       !options.state || typeof options.state.load !== 'function' ||
       typeof options.state.save !== 'function' || typeof options.readRestoreMarker !== 'function' ||
       (options.databaseFile !== undefined && (typeof options.databaseFile !== 'string' || !isAbsolute(options.databaseFile) || !options.revocation)) ||
-      (options.persistFingerprint !== undefined && (typeof options.persistFingerprint !== 'function' || options.databaseFile === undefined))) throw new Error('Invalid experimental hub configuration')
+      (options.persistFingerprint !== undefined && (typeof options.persistFingerprint !== 'function' || options.databaseFile === undefined)) ||
+      (options.mobilePort !== undefined && (!Number.isSafeInteger(options.mobilePort) || options.mobilePort < 1024 || options.mobilePort > 65535))) throw new Error('Invalid experimental hub configuration')
   const origins=normalizeMobileOrigins(options.origin,options.origins)
   const originConfig=options.origin !== undefined ? {origin:origins[0]} : {origins}
   const timeout = options.timeoutMs ?? 5000
@@ -455,6 +459,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
     }
     if (message.type === 'ready' && startupResolve && message.pid === child.pid &&
         Number.isSafeInteger(message.mobilePort) && message.mobilePort >= 1 && message.mobilePort <= 65535 &&
+        (options.mobilePort === undefined || message.mobilePort === options.mobilePort) &&
         Number.isSafeInteger(message.auditPort) && message.auditPort >= 1 && message.auditPort <= 65535 && message.mobilePort !== message.auditPort &&
         (message.lockToken === undefined || (typeof message.lockToken === 'string' && /^[0-9a-f]{64}$/.test(message.lockToken)))) {
       if (typeof message.lockToken === 'string') childLockToken=message.lockToken
@@ -525,7 +530,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
       isClosed:()=>closed || dead || storeInvalidated || !admission?.isOpen() || (barrier !== undefined && barrier.status().state !== 'OPEN'),send,
       onReplayFailure:()=>{admission?.block();try {revokeAll()} catch {}}
     })
-    send({type:'start',config:{directory:options.directory,...originConfig,owner:options.owner,
+    send({type:'start',config:{directory:options.directory,...originConfig,owner:options.owner,...(options.mobilePort !== undefined ? {mobilePort:options.mobilePort} : {}),
       auditKey:key.toString('hex'),snapshotMaxAgeMs:options.snapshotMaxAgeMs,...(invoiceReader ? {invoiceFacts:true} : {}),
       ...(revocationConfig ? {revocation:revocationConfig} : {}),
       ...(approval && revocationConfig ? {approval:{key:approval.key.toString('hex'),storeId:revocationConfig.storeId,panels:Object.keys(approval.policies).sort(),policies:approval.policies}} : {})}})

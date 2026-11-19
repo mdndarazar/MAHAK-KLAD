@@ -3,8 +3,8 @@
  * gate remains false until provisioning, restore recovery and device testing are
  * complete. Missing configuration or keys never causes automatic initialization.
  */
-import { createHash, hkdfSync } from 'node:crypto'
-import { lstatSync, readFileSync } from 'node:fs'
+import { hkdfSync } from 'node:crypto'
+import { lstatSync } from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
 import { prisma } from '../db/client'
@@ -18,7 +18,7 @@ import { createRemoteTransportVault } from './cloud/remoteTransportVault'
 import { createExperimentalRestoreBarrier } from './cloud/experimentalRestoreBarrier'
 import { startExperimentalHubSupervisor } from './cloud/experimentalHubSupervisor'
 import { createExperimentalHubScheduler } from './cloud/experimentalHubScheduler'
-import { normalizeMobileOrigins } from './cloud/mobileOrigins'
+import { readRemoteConfig, restoreMarkerHash, type RemoteOwner } from './cloud/remoteSetup'
 import { initRemoteGrantRegistry } from './RemoteGrantRegistry'
 import * as sessions from './panelSession'
 
@@ -32,6 +32,9 @@ type Scheduler = ReturnType<typeof createExperimentalHubScheduler>
 let starting:Promise<void>|null=null, stopping:Promise<void>|null=null
 let hub:Hub|null=null, scheduler:Scheduler|null=null, state:Store|null=null
 let quitHookInstalled=false, quitAfterStop=false, stopRequested=false, handlersRegistered=false, failed=false, shutdownFailed=false
+// Last startup failure message for the owner's setup page (fixed strings and
+// local file errors only; never credentials). Cleared by a successful start.
+let lastStartError:string|null=null
 
 function existingDirectory(path:string):void {
   const stat=lstatSync(path)
@@ -41,39 +44,48 @@ function existingFile(path:string):void {
   const stat=lstatSync(path)
   if (!stat.isFile() || stat.nlink!==1) throw new Error('Remote file unavailable')
 }
-function readConfig(path:string):string {
-  const stat=lstatSync(path)
-  if (!stat.isFile() || stat.nlink!==1 || stat.size<1 || stat.size>2048) throw new Error('Remote configuration unavailable')
-  const value:unknown=JSON.parse(readFileSync(path,'utf8'))
-  if (!value || typeof value!=='object' || Array.isArray(value)) throw new Error('Invalid remote configuration')
-  const config=value as Record<string,unknown>
-  if (Object.keys(config).sort().join(',')!=='origin,version' || config.version!==1) throw new Error('Invalid remote configuration')
-  return normalizeMobileOrigins(config.origin,undefined)[0]
-}
-function restoreMarker(path:string):string|null {
-  try {
-    const stat=lstatSync(path)
-    if (!stat.isFile() || stat.nlink!==1 || stat.size>65536) throw new Error('Invalid restore marker')
-    return createHash('sha256').update(readFileSync(path)).digest('hex')
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code==='ENOENT') return null
+/** The hub database exists after the first successful owner bootstrap start. */
+function hubDatabaseExists(path:string):boolean {
+  try { existingFile(path);return true } catch (error) {
+    if ((error as NodeJS.ErrnoException).code==='ENOENT') return false
     throw error
   }
+}
+const restoreMarker=restoreMarkerHash
+/** Diagnostics only (the child's own lock and listener stay authoritative):
+ * a lock left by a crashed hub, or another program on the fixed port, gets a
+ * clear message for the owner instead of a generic child failure. */
+function absent(path:string):boolean {
+  try { lstatSync(path);return false } catch (error) { if ((error as NodeJS.ErrnoException).code==='ENOENT') return true;throw error }
+}
+async function portAvailable(port:number):Promise<void> {
+  const net=await import('node:net')
+  await new Promise<void>((resolve,reject)=>{
+    const probe=net.createServer()
+    probe.once('error',error=>reject((error as NodeJS.ErrnoException).code==='EADDRINUSE' ? new Error('Remote port in use') : error))
+    probe.listen(port,'127.0.0.1',()=>probe.close(()=>resolve()))
+  })
 }
 function derivedKey(key:Uint8Array, storeId:string, epoch:string, purpose:string):Buffer {
   return Buffer.from(hkdfSync('sha256',key,Buffer.from(`${storeId}:${epoch}`),Buffer.from(`mahak-remote-${purpose}-v1`),32))
 }
 
-/** Start only after a separate owner-provisioning process has created every
- * required file. No credentials or identity are accepted from renderer IPC. */
-async function startConfigured():Promise<void> {
+/** Start only after owner provisioning (remoteSetup) has created every required
+ * file. Owner credentials are accepted only for the very first start, when the
+ * hub database does not exist yet; the child bootstraps exactly one owner from
+ * them and they are not stored by the desktop host. */
+async function startConfigured(owner:RemoteOwner|null):Promise<void> {
   const userData=app.getPath('userData'), root=join(userData,'remote-hub'), stateDir=join(root,'state'), hubDir=join(root,'hub')
   const dbFile=join(userData,'data','shop.db'), runtimeDir=join(process.resourcesPath,'remote')
   if (process.env.DATABASE_URL!==`file:${dbFile}`) throw new Error('Remote database identity unavailable')
   const nodeExecutable=join(runtimeDir,'node.exe'),childFile=join(runtimeDir,'remote-hub-child.cjs')
   for (const path of [root,stateDir,hubDir,runtimeDir]) existingDirectory(path)
-  for (const path of [dbFile,nodeExecutable,childFile,join(hubDir,'remote-hub.sqlite'),join(stateDir,'cloud-state.json')]) existingFile(path)
-  const origin=readConfig(join(root,'config.json'))
+  for (const path of [dbFile,nodeExecutable,childFile,join(stateDir,'cloud-state.json')]) existingFile(path)
+  const hubExists=hubDatabaseExists(join(hubDir,'remote-hub.sqlite'))
+  if (!hubExists && !owner) throw new Error('Remote owner setup required')
+  const {origin,port}=readRemoteConfig(join(root,'config.json'))
+  if (!absent(join(hubDir,'remote-hub.lock'))) throw new Error('Remote hub lock present')
+  if (port!==null) await portAvailable(port)
   // Before any listener: opening the state with the current restore marker
   // adopts a changed marker as a new epoch and replaces earlier-epoch ledgers
   // through the explicit stopped-hub transition. Missing or corrupt state and
@@ -101,7 +113,8 @@ async function startConfigured():Promise<void> {
     initRemoteGrantRegistry({notePanelUnlocked:(panel,_scope,owner,allowed)=>sessions.noteRemotePanelUnlocked(panel,owner,allowed),clearPanelScope:sessions.clearPanelScope,clearPanelSessions:sessions.clearPanelSessions})
     const barrier=createExperimentalRestoreBarrier()
     hubStartAttempted=true
-    localHub=await startExperimentalHubSupervisor({nodeExecutable,childFile,directory:hubDir,origin,owner:null,auditKey:keys.auditKey,
+    localHub=await startExperimentalHubSupervisor({nodeExecutable,childFile,directory:hubDir,origin,owner:hubExists ? null : owner,auditKey:keys.auditKey,
+      ...(port!==null ? {mobilePort:port} : {}),
       snapshotMaxAgeMs:60_000,reader,state:localState,databaseFile:dbFile,restoreBarrier:barrier,coordinateDesktopBackup:true,
       persistFingerprint:value=>writeFingerprintBaseline(fingerprintFile,{version:1,storeId:snapshot.storeId,...value}),
       readRestoreMarker:async()=>restoreMarker(markerPath),
@@ -135,11 +148,15 @@ async function startConfigured():Promise<void> {
   }
 }
 
-export function startCloudSync():Promise<void> {
+export function startCloudSync(options?:{owner?:RemoteOwner}):Promise<void> {
   // Default-off must not read userData, open a DB, start timers or IPC.
   if (!remoteImplementationReady()) return Promise.resolve()
   if (hub || starting || stopping || failed) return starting ?? Promise.resolve()
-  if (!remoteSettingEnabled(app.getPath('userData'))) return Promise.resolve()
+  // The owner opt-in (default off). Anything unreadable means off: then no
+  // file other than the setting is read, and no port, connection or timer exists.
+  let enabled=false
+  try { enabled=remoteSettingEnabled(app.getPath('userData')) } catch {}
+  if (!enabled) return Promise.resolve()
   stopRequested=false;quitAfterStop=false
   if (!quitHookInstalled) {
     quitHookInstalled=true
@@ -149,7 +166,10 @@ export function startCloudSync():Promise<void> {
       void stopCloudSync().catch(error=>console.error('[remote] shutdown not confirmed',error)).finally(()=>app.quit())
     })
   }
-  const task=startConfigured().catch(error=>{console.error('[remote] startup unavailable',error)})
+  const task=startConfigured(options?.owner ?? null).then(()=>{lastStartError=null},error=>{
+    lastStartError=String((error as Error)?.message ?? error).slice(0,300)
+    console.error('[remote] startup unavailable',error)
+  })
   starting=task
   void task.finally(()=>{if(starting===task)starting=null})
   return task
@@ -158,6 +178,12 @@ export function startCloudSync():Promise<void> {
 /** Internal status only; no credentials, keys or paths are returned. */
 export function cloudSyncStatus():{running:boolean;mobilePort:number|null} {
   return {running:hub!==null,mobilePort:hub?.mobilePort ?? null}
+}
+
+/** Host lifecycle for the owner's setup page. `needsRestart` means a shutdown
+ * or cleanup was not confirmed: the state lock is retained until app restart. */
+export function remoteHostState():{running:boolean;busy:boolean;needsRestart:boolean;mobilePort:number|null;error:string|null} {
+  return {running:hub!==null,busy:starting!==null || stopping!==null,needsRestart:failed || shutdownFailed,mobilePort:hub?.mobilePort ?? null,error:lastStartError}
 }
 
 export function stopCloudSync():Promise<void> {

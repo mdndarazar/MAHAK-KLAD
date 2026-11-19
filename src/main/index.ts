@@ -144,6 +144,7 @@ app.whenReady().then(async () => {
   try {
     const { startCloudSync } = await import('./services/CloudSyncService')
     startCloudSync()
+    void import('./services/cloud/remoteSetupIpc').then(setup => setup.registerRemoteSetupHandlers()).catch(() => {})
   } catch {}
   // زمان‌بندی خودکار تغییر قیمت گروهی (شروع/پایان سر وقت)
   schedulePriceAdjust()

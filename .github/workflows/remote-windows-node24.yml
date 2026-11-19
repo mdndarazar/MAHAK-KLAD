@@ -354,6 +354,18 @@ jobs:
       - name: Test desktop host database fingerprint across restarts
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-desktop-host-db-fingerprint.mjs
+      - name: Test hub restart after a kill mid-write (hot rollback journal)
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-hub-hot-journal-restart.mjs
+      - name: Test owner setup files, strict configuration and opt-in setting
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-setup-files.mjs
+      - name: Test fixed loopback hub port in child and supervisor
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-hub-fixed-port.mjs
+      - name: Test owner setup IPC, fixed port, opt-in off and reset over loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-setup-host-loopback.mjs
       - name: Test backup coordination lifecycle
         shell: pwsh
         run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-coordination-lifecycle.mjs

@@ -62,6 +62,9 @@ export function acquireRemoteAdmissionLease() {
     release() { if (!owns()) throw new Error('Remote admission lease lost'); admissionBlocked = true; claimGuard=null; admissionOwner = null }
   }
 }
+/** True once a host has wired the registry to the panel-session store. Grant
+ * IPC must not exist before that (e.g. while the owner opt-in is off). */
+export function remoteRegistryInitialized(): boolean { return injected !== null }
 export function initRemoteGrantRegistry(deps: NonNullable<typeof injected>) {
   if (isolated) throw new Error('Isolated remote registry cannot be replaced')
   injected = deps

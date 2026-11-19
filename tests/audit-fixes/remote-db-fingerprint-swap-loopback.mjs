@@ -231,7 +231,11 @@ test('an older copy written in place in the middle of an audit sync stops it bef
     assert.equal(swapPending(), false)
     await failedClosed({ grants: [[42, live]] })
     await hub.stop().catch(() => {})
-    const inspect = new DatabaseSync(join(hubDir, 'remote-hub.sqlite'), { readOnly: true })
+    // The fail-closed kill can interrupt a hub write (TerminateProcess on
+    // Windows, CI run 44484304921) and leave a hot rollback journal that a
+    // read-only connection cannot read. A read-write connection rolls it back
+    // to the last committed state, which is the durable state counted here.
+    const inspect = new DatabaseSync(join(hubDir, 'remote-hub.sqlite'))
     try { assert.equal(inspect.prepare('SELECT COUNT(*) AS n FROM remote_audit_events').get().n, 0) } finally { inspect.close() }
   })
 })
@@ -250,7 +254,11 @@ test('a different database written in place after the sync batch was read is cau
     assert.equal(swapPending(), false)
     await failedClosed({ grants: [[42, live]] })
     await hub.stop().catch(() => {})
-    const inspect = new DatabaseSync(join(hubDir, 'remote-hub.sqlite'), { readOnly: true })
+    // The fail-closed kill can interrupt a hub write (TerminateProcess on
+    // Windows, CI run 44484304921) and leave a hot rollback journal that a
+    // read-only connection cannot read. A read-write connection rolls it back
+    // to the last committed state, which is the durable state counted here.
+    const inspect = new DatabaseSync(join(hubDir, 'remote-hub.sqlite'))
     try { assert.equal(inspect.prepare('SELECT COUNT(*) AS n FROM remote_audit_events').get().n, 0) } finally { inspect.close() }
   })
 })
