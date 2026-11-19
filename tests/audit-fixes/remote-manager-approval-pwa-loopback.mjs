@@ -21,6 +21,9 @@ test('owner grants a manager approval for one panel from the phone; removal clos
   const dir = mkdtempSync(join(tmpdir(), 'mahak-pwa-manager-')), childFile = join(dir, 'hub.cjs'), hubDir = join(dir, 'hub'); mkdirSync(hubDir)
   process.env.HARNESS_DIR = dir; process.env.HARNESS_DB = join(dir, 'shop-isolated.db')
   const session = await import('../../src/main/services/panelSession.ts')
+  // panelSession reads panel locks through the harness database in this folder;
+  // close it before removing the folder (Windows cannot delete an open file).
+  const { prisma } = await import('../../src/main/db/client.ts')
   await build({ entryPoints: [fileURLToPath(new URL('../../src/main/services/cloud/experimentalHubChild.ts', import.meta.url))], outfile: childFile, bundle: true, platform: 'node', format: 'cjs', target: 'node22', logLevel: 'silent' })
   const state = openCloudStateStore(join(dir, 'state'))
   state.save({ version: 1, storeId: 'store_test', epoch: '12345678-1234-4123-8123-123456789abc', lastAcked: 0, anchorHash: '', restoreMarker: null }); state.initializeRevocationLedger(); state.initializeGrantReplayLedger()
@@ -111,5 +114,5 @@ test('owner grants a manager approval for one panel from the phone; removal clos
     // The removed manager's phone session no longer works.
     await manager('reload').events.click()
     assert.equal(manager('request-id').children.length, 0)
-  } finally { if (hub) await hub.stop(); revokeAll(); state.close(); rmSync(dir, { recursive: true, force: true }) }
+  } finally { if (hub) await hub.stop(); revokeAll(); state.close(); await prisma.$disconnect(); rmSync(dir, { recursive: true, force: true }) }
 })
