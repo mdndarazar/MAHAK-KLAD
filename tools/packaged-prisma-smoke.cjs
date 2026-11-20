@@ -12,14 +12,17 @@
  * '.prisma/client/default'", 2026-11-20). It never opens the shop database or
  * any user data, and it writes nothing outside its own temporary folder.
  */
-const { join } = require('node:path')
+const { join, resolve } = require('node:path')
 const { mkdtempSync, writeFileSync, rmSync } = require('node:fs')
 
-const [appRoot, tempRoot] = process.argv.slice(2)
-if (!appRoot || !tempRoot) {
+const [appArg, tempArg] = process.argv.slice(2)
+if (!appArg || !tempArg) {
   console.error('usage: packaged-prisma-smoke.cjs <app.asar or unpacked app folder> <temp folder>')
   process.exit(2)
 }
+// Absolute paths: a relative argument such as dist\win-unpacked\... would
+// otherwise be resolved by require() as a package name, not as a path.
+const appRoot = resolve(appArg), tempRoot = resolve(tempArg)
 if (/\.asar$/i.test(appRoot) && !process.versions.electron) {
   console.error('An .asar path needs the packaged Electron executable with ELECTRON_RUN_AS_NODE=1')
   process.exit(2)

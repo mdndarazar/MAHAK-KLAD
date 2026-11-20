@@ -871,3 +871,7 @@
     - `remote-packaged-child-loopback` ۱/۱. `remote-installer-runtime-loopback` با چیدمان محلی ۱/۱ (شاهد بسته‌بندی نیست).
   - **اجرا نشده:** نتیجهٔ CI همین commit (پس از push ثبت می‌شود) و باز شدن نسخهٔ نصب‌شده روی رایانهٔ مالک.
   - راهنماها: `INSTALL-WINDOWS-CMD.md`/`.txt` این‌ها را دارند: cmd مدیر، راه موقت LICENSE، اجرای نصب‌کننده با دوبار کلیک، و هشدار اینکه ZIP `118406a3…` و قبل از آن نصب‌کنندهٔ معیوب می‌سازند. بخش ۱ `docs/REMOTE-USER-TEST.md` معنی این خطا را دارد.
+  - **CI اول (`beaac1f`): نصب‌کننده 44762930957 ✗ در گام تازهٔ ۱۲**، به‌خاطر اشکال خود آزمون smoke، نه بسته:
+    - مسیر نسبی `dist\win-unpacked\resources\app.asar` به `require()` داده شده بود و Node آن را نام بسته فرض کرد (`Cannot find module 'dist\\win-unpacked\\...\\@prisma\\client'`). تا گام ۱۱ (typecheck، آزمون‌های مالی، ساخت نصب‌کننده) همه پاس بودند؛
+    - اصلاح: مسیرها با `path.resolve` مطلق می‌شوند. با مسیر نسبی آزموده شد: چیدمان قدیم `PRISMA_LOAD_FAILED` (`.prisma/client/default`) داد و چیدمان تازه بار شد؛
+    - همین اجرا نشان داد اجرای `MahakPOS.exe` بسته با `ELECTRON_RUN_AS_NODE=1` زیر `cmd /c` کار می‌کند: پشتهٔ خطا `node:electron/js2c/node_init` را دارد، و خروجی و کد خروج برگشتند.
