@@ -875,3 +875,8 @@
     - مسیر نسبی `dist\win-unpacked\resources\app.asar` به `require()` داده شده بود و Node آن را نام بسته فرض کرد (`Cannot find module 'dist\\win-unpacked\\...\\@prisma\\client'`). تا گام ۱۱ (typecheck، آزمون‌های مالی، ساخت نصب‌کننده) همه پاس بودند؛
     - اصلاح: مسیرها با `path.resolve` مطلق می‌شوند. با مسیر نسبی آزموده شد: چیدمان قدیم `PRISMA_LOAD_FAILED` (`.prisma/client/default`) داد و چیدمان تازه بار شد؛
     - همین اجرا نشان داد اجرای `MahakPOS.exe` بسته با `ELECTRON_RUN_AS_NODE=1` زیر `cmd /c` کار می‌کند: پشتهٔ خطا `node:electron/js2c/node_init` را دارد، و خروجی و کد خروج برگشتند.
+  - **CI پس از اصلاح (`eb2880b`):**
+    - نصب‌کننده 44764681993 ✓ با همهٔ ۱۷ گام. **گام ۱۲ تازه پاس شد:** `MahakPOS.exe` بسته‌شده (Electron در حالت Node) Prisma Client را از `resources\app.asar` بار کرد و `SELECT 1` را با موتور واقعی ویندوز روی SQLite موقت اجرا کرد. گام بدون `PRISMA_PACKAGED_OK` و کد ۰ پاس نمی‌شود. گام ۱۳ (runtime هاب) و ساخت ZIPها هم پاس شدند. متن خام لاگ از این محیط قابل دانلود نیست (blob.core.windows.net مسدود است)؛
+    - remote برای `beaac1f` (همان package.json) 44762918280 ✓. remote برای `eb2880b` (44764666446) هنگام این یادداشت در حال اجرا بود.
+  - **برای پوشهٔ ساخت مالک:** یک دستور `node -e` فقط `package.json` را از `api.github.com` (`ref=eb2880b…`) می‌گیرد و پیش از نوشتن، SHA-256 آن را با `2d061757e23e640daf42004fef51e845bcca62453bae2e0e2163e855bf3eb321` (۲۱۹۹ بایت، LF) مقایسه می‌کند. در این محیط آزموده شد و فایل نوشته‌شده با blob مخزن بایت‌به‌بایت یکی بود.
+  - ZIP سورس `deliverables/…118406a3…` هنوز `package.json` قدیم را دارد و نصب‌کنندهٔ ساخته‌شده از آن باز نمی‌شود. ZIP تازه هنوز ساخته نشده است.
