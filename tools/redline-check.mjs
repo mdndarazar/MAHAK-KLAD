@@ -52,8 +52,11 @@ const budgets = new Map(Object.entries({
   'src/preload/index.ts': 3, 'src/renderer/src/components/ManagerGate.tsx': 15,
   'src/renderer/src/components/PasswordField.tsx': 8,
   'src/renderer/src/hooks/useManagerSession.tsx': 4, 'src/renderer/src/main.tsx': 2,
-  // Owner approved one additional package line solely for Windows hub packaging.
-  'src/renderer/src/components/CreditForms.tsx': 4, 'package.json': 2, 'electron.vite.config.ts': 1
+  // Owner approved one additional package line solely for Windows hub packaging,
+  // and (2026-11-20, after the first real install failed with "Cannot find module
+  // '.prisma/client/default'") one build.files FileSet that ships the generated
+  // Prisma client in app.asar: +2/-1 lines, budget 2 -> 5.
+  'src/renderer/src/components/CreditForms.tsx': 4, 'package.json': 5, 'electron.vite.config.ts': 1
 }))
 // Owner approved exactly two historical typecheck corrections in SalesService.
 // Pin both complete blobs, not a line budget: any additional edit remains forbidden.
@@ -80,11 +83,12 @@ try {
 } catch {}
 const permitted = (path) => allowed.has(path) || path.startsWith('src/main/services/cloud/') || (path === salesPath && approvedSalesFix) || (path === backupIpcPath && approvedBackupIpc) || (path === mergePath && approvedMergeWrapper)
 const problems = []
-// The owner approved only the two packaging-related additions. Pin the exact
-// reviewed blobs as well as the budget so other package edits are not permitted.
+// The owner approved only the packaging-related additions (hub runtime, then the
+// Prisma client FileSet). Pin the exact reviewed blobs as well as the budget so
+// other package edits are not permitted.
 try {
   if (git('rev-parse', `${base}:package.json`).trim() !== 'c1f24920c6750f3a891b250d825cb7f10eeb2a3d' ||
-      git('hash-object', '--path=package.json', 'package.json').trim() !== 'ed1bd9412b4bd0a172ac375bbfdee973b8ebca5c')
+      git('hash-object', '--path=package.json', 'package.json').trim() !== '6714bb14eb5f6d261151deb5fd764fd36229a2f4')
     problems.push('package.json differs from the owner-approved packaging configuration')
 } catch { problems.push('Cannot verify approved package.json') }
 const statusFields = git('diff', '--name-status', '--no-renames', '-z', base, '--', ...scope).split('\0')

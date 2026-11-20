@@ -140,6 +140,30 @@ jobs:
             exit $LASTEXITCODE
           }
 
+      - name: Verify the packaged app loads Prisma Client and its query engine
+        # The installed app once failed at start with "Cannot find module
+        # '.prisma/client/default'" because the generated client was not in
+        # app.asar. Load it from the packaged layout with the packaged Electron
+        # (Node mode) and run one query on an empty temporary SQLite file.
+        shell: pwsh
+        timeout-minutes: 5
+        env:
+          ELECTRON_RUN_AS_NODE: '1'
+        run: |
+          if (-not (Test-Path -LiteralPath 'dist/win-unpacked/MahakPOS.exe')) { throw 'dist/win-unpacked/MahakPOS.exe was not produced.' }
+          if (-not (Test-Path -LiteralPath 'dist/win-unpacked/resources/app.asar')) { throw 'dist/win-unpacked/resources/app.asar was not produced.' }
+          $log = Join-Path $env:RUNNER_TEMP 'packaged-prisma-smoke.log'
+          cmd /c "dist\win-unpacked\MahakPOS.exe tools\packaged-prisma-smoke.cjs dist\win-unpacked\resources\app.asar $env:RUNNER_TEMP > `"$log`" 2>&1"
+          $code = $LASTEXITCODE
+          $text = "$(Get-Content -LiteralPath $log -Raw)"
+          Write-Output $text
+          if ($code -ne 0 -or $text -notmatch 'PRISMA_PACKAGED_OK') {
+            if ($text.Length -gt 12000) { $text = $text.Substring($text.Length - 12000) }
+            $text = $text.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Packaged app cannot load Prisma::$text"
+            exit 1
+          }
+
       - name: Verify Windows hub runtime from unpacked installer resources
         shell: pwsh
         env:

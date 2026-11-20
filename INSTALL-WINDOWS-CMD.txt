@@ -54,12 +54,31 @@ migration دیتابیس را اعمال نمی‌کند. اگر خطا دیدی
 
     BUILD-WINDOWS.cmd
 
-این دستور ابتدا typecheck می‌کند و فقط در صورت موفقیت نصب‌کنندهٔ x64 می‌سازد.
-دو خطای قدیمی typecheck در SalesService.ts در commit 7c557f2 رفع شده‌اند. نتیجهٔ
-CI ویندوز (typecheck و ساخت نصب‌کننده با Node 22) برای هر نسخه در انتهای
-docs\REMOTE-TODO.md ثبت است؛ ساخت نصب‌کننده با Node 24 هنوز اجرا نشده است.
-اگر خطا دیدید، آن را دور نزنید و متن خطا را نگه دارید. وجود پوشهٔ dist به‌تنهایی
-موفقیت ساخت جدید را ثابت نمی‌کند.
+این دستور ابتدا typecheck می‌کند و فقط در صورت موفقیت نصب‌کنندهٔ x64 را با نام
+dist\MahakPOS Setup 0.1.0.exe می‌سازد. دو خطای قدیمی typecheck در SalesService.ts
+در commit 7c557f2 رفع شده‌اند. نتیجهٔ CI ویندوز برای هر نسخه در انتهای
+docs\REMOTE-TODO.md ثبت است. CI نصب‌کننده را با Node 22 می‌سازد. ساخت با Node 24
+روی رایانهٔ واقعی مالک یک بار موفق بوده است (۲۰۲۶-۱۱-۲۰). اگر خطا دیدید، آن را دور
+نزنید و متن خطا را نگه دارید. وجود پوشهٔ dist به‌تنهایی موفقیت ساخت جدید را ثابت
+نمی‌کند.
+
+نکته‌های ساخت روی رایانهٔ واقعی (از نخستین آزمون مالک، ۲۰۲۶-۱۱-۲۰):
+- BUILD-WINDOWS.cmd را در cmd با دسترسی مدیر اجرا کنید: Start را بزنید، cmd را
+  بنویسید، روی «Command Prompt» راست‌کلیک کنید و «Run as administrator» را بزنید.
+  بدون دسترسی مدیر، ابزار ساخت هنگام باز کردن بستهٔ winCodeSign با خطای
+  Cannot create symbolic link متوقف می‌شود.
+- اگر ساخت با Packaging Node license is missing متوقف شد، علتش این است که
+  نصب‌کنندهٔ رسمی Node فایل LICENSE را کنار node.exe نمی‌گذارد. این دستور را در
+  همان cmd مدیر اجرا کنید و بعد BUILD-WINDOWS.cmd را دوباره بزنید. باید OK: چاپ
+  کند؛ اگر FAILED چاپ کرد، با فیلترشکن دوباره امتحان کنید:
+
+    node -e "const path=require('path'),fs=require('fs');const dest=path.join(path.dirname(process.execPath),'LICENSE');fetch('https://api.github.com/repos/nodejs/node/contents/LICENSE?ref='+process.version,{headers:{'Accept':'application/vnd.github.raw','User-Agent':'mahak-pos-build'}}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.text()}).then(t=>{if(!t.startsWith('Node.js is licensed for use as follows:'))throw new Error('unexpected content');fs.writeFileSync(dest,t);console.log('OK: '+dest)}).catch(e=>{console.error('FAILED: '+e.message);process.exit(1)})"
+
+- نصب‌کننده را با دوبار کلیک در File Explorer اجرا کنید، نه از داخل cmd مدیر.
+- مهم: نصب‌کننده‌ای که از سورس‌های پیش از اصلاح package.json (۲۰۲۶-۱۱-۲۰) ساخته
+  شود، از جمله ZIP 118406a3، هنگام باز شدن خطای
+  Cannot find module '.prisma/client/default' می‌دهد، چون کلاینت تولیدشدهٔ Prisma
+  در بسته نبود. این اشکال با اجازهٔ مالک اصلاح شد؛ از سورس تازه استفاده کنید.
 
 بررسی‌های جداگانهٔ سورس:
 

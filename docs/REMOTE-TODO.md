@@ -852,3 +852,22 @@
     - FileSet `{"from":"node_modules/.prisma","to":"node_modules/.prisma","filter":["**/*"]}` در `build.files` آن را در `app.asar` گذاشت، و electron-builder به‌خاطر فایل اجرایی موتور، کل `.prisma` را در `app.asar.unpacked` هم باز کرد.
   - **چرا CI ندید:** گردش‌کار نصب‌کننده فقط می‌سازد و runtime هاب را در `win-unpacked/resources` می‌آزماید. هرگز `MahakPOS.exe` یا Prisma را از چیدمان بسته اجرا نمی‌کند. پس «installer ✓» در ردیف‌های قبلی یعنی «ساخته شد»، نه «باز می‌شود». پیکربندی `files` از پیش از کار راه دور (`2834baf`) همین بوده است. پس نصب‌کننده‌های پیش از این کار هم احتمالاً همین خطا را داشتند (اجرا نشده).
   - **اصلاح لازم:** تغییر `package.json` (پین‌شده در redline با blob دقیق و بودجهٔ ۲ خط). **نیازمند اجازهٔ صریح مالک است؛ پرسیده شد و هنوز انجام نشده.** همراه آن: پین تازه در `tools/redline-check.mjs`، گام CI که Prisma را با Node خود Electron از `win-unpacked` بار کند و یک پرس‌وجو روی DB موقت بزند، و اصلاح `build-remote-hub.mjs` برای LICENSE.
+- **اصلاح بسته‌بندی Prisma (با اجازهٔ صریح مالک، ۲۰۲۶-۱۱-۲۰: «بله اجازه میدم ولی باید حواست باشه چیزی رو خراب نکنی»):**
+  - **تغییر:**
+    - `package.json`: یک FileSet به `build.files` اضافه شد: `{"from": "node_modules/.prisma", "to": "node_modules/.prisma", "filter": ["**/*"]}`. `extraResources` و بقیهٔ فایل دست نخورد. diff نسبت به `2834baf` چهار خط افزوده و یک خط حذف است؛
+    - `tools/redline-check.mjs`: پین blob تازهٔ `6714bb14eb5f6d261151deb5fd764fd36229a2f4` و بودجهٔ `package.json` از ۲ به ۵، با یادداشت اجازهٔ مالک؛
+    - `tools/packaged-prisma-smoke.cjs`: آزمون تازه؛
+    - گام CI «Verify the packaged app loads Prisma Client and its query engine» در `windows-installer.yml`، پس از ساخت. `MahakPOS.exe` بسته‌شده را با `ELECTRON_RUN_AS_NODE=1` اجرا می‌کند، Prisma را از `resources\app.asar` بار می‌کند و `SELECT 1` را روی یک فایل SQLite خالی موقت می‌زند. بدون `PRISMA_PACKAGED_OK` گام شکست می‌خورد (fail-closed). به DB فروشگاه یا دادهٔ کاربر دست نمی‌زند.
+  - **شواهد محلی** (Linux، electron-builder 25.1.8، electronDist ساختگی، موتور ساختگی Prisma):
+    - `app.asar` قبل ۴۳۲ مدخل و بعد ۴۴۸ مدخل داشت. تفاوت فقط ۱۶ مدخل افزوده زیر `node_modules/.prisma` است و هیچ مدخلی حذف نشد. `resources/prisma` و `resources/print` بایت‌به‌بایت یکی‌اند. `.prisma` در `app.asar.unpacked` هم باز شد؛
+    - asar قدیم پس از extract: `require('@prisma/client')` با همان خطای مالک (`Cannot find module '.prisma/client/default'`) شکست خورد. asar تازه: بار شد؛
+    - آزمون smoke روی چیدمان قدیم `PRISMA_LOAD_FAILED` با کد ۱ داد. روی چیدمان تازه بار شد و پرس‌وجو فقط به‌خاطر نبودِ موتور واقعی در این محیط شکست خورد («could not locate the Query Engine»). مسیر `.asar` بدون Electron کد ۲ داد. پوشه‌های موقت پاک شدند؛
+    - redline OK است. جهش (افزودن یک مدخل به همان FileSet) با «package.json differs from the owner-approved packaging configuration» گرفته شد؛
+    - typecheck OK.
+  - **آزمون‌ها:**
+    - `windows-cmd-scripts` ۱ پاس و ۱ رد شده؛
+    - `remote-redline-check` ۴ پاس و ۲ شکست، و `remote-redline-approved-financial-fix` ۰ از ۱؛ هر دو همان شکست‌های شناخته‌شدهٔ fixture بدون package.json؛
+    - `fix-s222-print-phase5-raw`: همان ۸ شکست از پیش موجود (روی درخت قبلی یکسان). بررسی `extraResources` آن پاس است؛
+    - `remote-packaged-child-loopback` ۱/۱. `remote-installer-runtime-loopback` با چیدمان محلی ۱/۱ (شاهد بسته‌بندی نیست).
+  - **اجرا نشده:** نتیجهٔ CI همین commit (پس از push ثبت می‌شود) و باز شدن نسخهٔ نصب‌شده روی رایانهٔ مالک.
+  - راهنماها: `INSTALL-WINDOWS-CMD.md`/`.txt` این‌ها را دارند: cmd مدیر، راه موقت LICENSE، اجرای نصب‌کننده با دوبار کلیک، و هشدار اینکه ZIP `118406a3…` و قبل از آن نصب‌کنندهٔ معیوب می‌سازند. بخش ۱ `docs/REMOTE-USER-TEST.md` معنی این خطا را دارد.

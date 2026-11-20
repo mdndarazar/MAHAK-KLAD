@@ -46,7 +46,19 @@ RUN-WINDOWS.cmd
 BUILD-WINDOWS.cmd
 ```
 
-در صورت موفقیت، فایل ساخته‌شده در `dist` قرار می‌گیرد. دو خطای قدیمی typecheck در `SalesService.ts` در commit `7c557f2` رفع شده‌اند. نتیجهٔ CI ویندوز گیت‌هاب (typecheck و ساخت نصب‌کننده با Node 22) برای هر نسخه در انتهای `docs/REMOTE-TODO.md` ثبت است؛ ساخت نصب‌کننده با Node 24 هنوز اجرا نشده است. اگر typecheck یا ساخت خطا داد، آن را دور نزنید و موفق اعلام نکنید؛ متن خطا را نگه دارید. وجود پوشهٔ `dist` به‌تنهایی نشانهٔ موفقیت ساخت جدید نیست.
+در صورت موفقیت، نصب‌کننده با نام `dist\MahakPOS Setup 0.1.0.exe` ساخته می‌شود. دو خطای قدیمی typecheck در `SalesService.ts` در commit `7c557f2` رفع شده‌اند. نتیجهٔ CI ویندوز گیت‌هاب برای هر نسخه در انتهای `docs/REMOTE-TODO.md` ثبت است. CI نصب‌کننده را با Node 22 می‌سازد. ساخت با Node 24 روی رایانهٔ واقعی مالک یک بار موفق بوده است (۲۰۲۶-۱۱-۲۰). اگر typecheck یا ساخت خطا داد، آن را دور نزنید و موفق اعلام نکنید؛ متن خطا را نگه دارید. وجود پوشهٔ `dist` به‌تنهایی نشانهٔ موفقیت ساخت جدید نیست.
+
+نکته‌های ساخت روی رایانهٔ واقعی (از نخستین آزمون مالک، ۲۰۲۶-۱۱-۲۰):
+
+- `BUILD-WINDOWS.cmd` را در cmd **با دسترسی مدیر** اجرا کنید: Start را بزنید، `cmd` را بنویسید، روی «Command Prompt» راست‌کلیک کنید و «Run as administrator» را بزنید. ابزار ساخت هنگام باز کردن بستهٔ winCodeSign پیوند نمادین (symlink) می‌سازد و بدون دسترسی مدیر با `Cannot create symbolic link` متوقف می‌شود.
+- اگر ساخت با `Packaging Node license is missing` متوقف شد، علتش این است که نصب‌کنندهٔ رسمی Node فایل `LICENSE` را کنار `node.exe` نمی‌گذارد. این دستور را در همان cmd مدیر اجرا کنید و بعد `BUILD-WINDOWS.cmd` را دوباره بزنید. دستور متن مجوز همان نسخهٔ Node را از صفحهٔ رسمی Node در GitHub می‌گیرد، درستی آغاز متن را می‌سنجد و آن را کنار `node.exe` می‌گذارد. باید `OK:` چاپ کند. اگر `FAILED` چاپ کرد، با فیلترشکن دوباره امتحان کنید:
+
+```cmd
+node -e "const path=require('path'),fs=require('fs');const dest=path.join(path.dirname(process.execPath),'LICENSE');fetch('https://api.github.com/repos/nodejs/node/contents/LICENSE?ref='+process.version,{headers:{'Accept':'application/vnd.github.raw','User-Agent':'mahak-pos-build'}}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.text()}).then(t=>{if(!t.startsWith('Node.js is licensed for use as follows:'))throw new Error('unexpected content');fs.writeFileSync(dest,t);console.log('OK: '+dest)}).catch(e=>{console.error('FAILED: '+e.message);process.exit(1)})"
+```
+
+- نصب‌کننده را با دوبار کلیک در File Explorer اجرا کنید، نه از داخل پنجرهٔ cmd مدیر.
+- **مهم:** نصب‌کننده‌ای که از سورس‌های پیش از اصلاح `package.json` (۲۰۲۶-۱۱-۲۰) ساخته شود، از جمله ZIP `118406a3…`، هنگام باز شدن خطای `Cannot find module '.prisma/client/default'` می‌دهد. علتش این بود که کلاینت تولیدشدهٔ Prisma در بسته قرار نمی‌گرفت. این اشکال با اجازهٔ مالک اصلاح شد؛ از سورس تازه استفاده کنید.
 
 ## بررسی جداگانهٔ سورس
 
