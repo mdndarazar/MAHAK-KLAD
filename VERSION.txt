@@ -1,4 +1,4 @@
-SHA=118406a341f76183a2cb2360dde19d0584313f4e
+SHA=2df8a2af89279fd17d00a2eba8fe1b4095532b25
 branch=arena/e478473a-mahak-klad
-date=2026-11-19T16:46:57Z
-note=remote control complete through stage 12; code identical to 7c076f7, CI green there (remote 44565010522 all 128 steps incl. the stage-12 test on Windows; installer 44565033445); remote is OFF by default (turn on in Settings); ready for the owner tests; never run on a real Windows install, phone or tunnel
+date=2026-11-20T16:12:16Z
+note=packaging fix: the generated Prisma client now ships in app.asar (owner-approved package.json FileSet), so the installed app no longer fails with "Cannot find module .prisma/client/default"; code identical to eb2880b, CI green there (installer 44764681993 incl. the new step that loads Prisma from the packaged app and runs a query on Windows; remote 44764666446); remote is OFF by default; the fixed installed app has not yet been opened on the owner PC
