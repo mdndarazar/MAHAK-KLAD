@@ -1061,3 +1061,12 @@
   - `caddy\caddy.exe version` عبارت `v2.11.9 h1:bhZtcRKQOq0fuLvEgCdPYvUxXyGn9kzjG4lh2332DTE=` داد.
   - مسیر فایل: `%USERPROFILE%\Downloads\caddy\caddy.exe`.
   - **گام بعد:** قانون فایروال فقط برای همین برنامه و TCP 8443 (`profile=any`)، و `ipconfig` برای IP شبکهٔ محلی.
+
+- **آزمون Wi-Fi، گام ۲ (خروجی متنی مالک):**
+  - **فایروال:** دستور `netsh advfirewall firewall add rule name="MahakPOS LAN test" dir=in action=allow program=...\caddy.exe protocol=TCP localport=8443 profile=any` نتیجهٔ `Ok.` داد، پس cmd مدیر است.
+  - **ipconfig:**
+    - `Unknown adapter Arman VPN` با IPv4 `198.18.0.1`، یعنی VPN آرمان (حالت TUN) هنگام اجرا وصل بود؛
+    - `Wireless LAN adapter Wi-Fi 2` با `192.168.1.6`، که IP شبکهٔ محلی رایانه است؛
+    - `vEthernet (WSL)` با `192.168.144.1`؛
+    - `NoDramaVPN` و چند کارت دیگر بی IP.
+  - **گام بعد:** با VPN رایانه خاموش، اجرای `"%USERPROFILE%\Downloads\caddy\caddy.exe" reverse-proxy --from https://192.168.1.6:8443 --to 127.0.0.1:47821 --internal-certs --disable-redirects`. به پرسش ویندوز برای نصب گواهی «No» گفته می‌شود.
