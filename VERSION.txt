@@ -1,4 +1,4 @@
-SHA=9cf38a57d1a1a88b08cfa65ec7e553cc3f436d71
+SHA=779d4f0dd53a8c01728b28bd3cc00d6df9bca8b5
 branch=arena/e478473a-mahak-klad
-date=2026-11-21T16:12:31Z
-note=plan-review package for Claude: docs-only changes since 2df8a2a (the 13-item change plan, its assets and the Claude prompt in docs/); code identical to eb2880b (the version installed on the owner PC; CI green there); not a new build; remote is OFF by default
+date=2026-11-21T16:24:57Z
+note=plan-review package for Claude: docs-only changes since 2df8a2a (the 13-item change plan incl. the owner red-line clarification in section 23, its assets and the corrected Claude prompt in docs/); code identical to eb2880b (the version installed on the owner PC; CI green there); not a new build; remote is OFF by default
