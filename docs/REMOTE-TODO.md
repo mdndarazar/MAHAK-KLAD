@@ -1070,3 +1070,11 @@
     - `vEthernet (WSL)` با `192.168.144.1`؛
     - `NoDramaVPN` و چند کارت دیگر بی IP.
   - **گام بعد:** با VPN رایانه خاموش، اجرای `"%USERPROFILE%\Downloads\caddy\caddy.exe" reverse-proxy --from https://192.168.1.6:8443 --to 127.0.0.1:47821 --internal-certs --disable-redirects`. به پرسش ویندوز برای نصب گواهی «No» گفته می‌شود.
+
+- **آزمون Wi-Fi، گام ۳، Caddy روشن شد (اسکرین‌شات مالک، 08:46:50 تا 08:46:52 UTC):**
+  - **نصب گواهی ریشه:** خط `installing root certificate` آمد، سپس `ERROR failed to install root certificate` با پیام «The operation was canceled by the user.». مالک «No» زد و Caddy ادامه داد. همان رفتار `pki.go:100-106`.
+  - **سرور:** `enabling HTTP/3 listener {"addr": ":8443"}` و `server running {"name": "proxy", "protocols": ["h1","h2","h3"]}`.
+  - **پراکسی:** `caddy proxying {"from": "https://192.168.1.6:8443", "to": ["127.0.0.1:47821"]}`.
+  - **گواهی:** `certificate obtained successfully {"identifier": "192.168.1.6", "issuer": "local"}`.
+  - **HTTP/3:** قانون فایروال فقط TCP است، پس HTTP/3 (UDP) از گوشی بسته می‌ماند و Chrome روی TCP (h2) می‌ماند. پیامد عملکردی ندارد.
+  - **گام بعد:** «راه‌اندازی اول» با `https://192.168.1.6:8443`.
