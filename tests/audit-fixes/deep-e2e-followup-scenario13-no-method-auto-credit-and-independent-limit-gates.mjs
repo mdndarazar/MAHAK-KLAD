@@ -40,24 +40,56 @@ const raw = () => ({
   stock: n(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', variant).stock)
 })
 
-// Simple sale: 200 of the 1,200 received is explicitly annotated as overpay.
-const sale = await salesService.create({
+// Current policy rejects new overpayments, even with confirmation. Verify the
+// rejection first, including the absence of financial/stock side effects.
+const beforeOverpayAttempt = raw()
+const invoicesBeforeAttempt = n(seed.count('SaleInvoice'))
+await assert.rejects(() => salesService.create({
   userId, shiftId, lines: [line(variant, 1000)],
   payments: [{ methodId: cash, amount: 1200, destination: 'CASH' }],
-  confirmOverpay: true, saleRequestIdempotencyKey: 's13-overpay-sale'
+  confirmOverpay: true, saleRequestIdempotencyKey: 's13-overpay-rejected'
+}), /بیشتر است/)
+assert.deepEqual(raw(), beforeOverpayAttempt, 'new overpayment rejection has no financial or stock mutation')
+assert.equal(n(seed.count('SaleInvoice')), invoicesBeforeAttempt)
+
+// Model an existing pre-S224 invoice in this isolated SQLite fixture only.
+// Create the normal invoice via the service, then restore the historical paid
+// amount and its corresponding attribution; do not relax production validation.
+const sale = await salesService.create({
+  userId, shiftId, lines: [line(variant, 1000)],
+  payments: [{ methodId: cash, amount: 1000, destination: 'CASH' }]
 })
+const paymentsBeforeFixture = seed.rows('SELECT id,amount,overpayAmount FROM "Payment" WHERE invoiceId=?', sale.id)
+assert.equal(paymentsBeforeFixture.length, 1)
+assert.equal(n(paymentsBeforeFixture[0].amount), 1000)
+assert.equal(n(paymentsBeforeFixture[0].overpayAmount), 0)
+sql.prepare('UPDATE "Payment" SET amount=1200, overpayAmount=200 WHERE id=?').run(paymentsBeforeFixture[0].id)
+sql.prepare('UPDATE "SaleInvoice" SET paidTotal=1200 WHERE id=?').run(sale.id)
 const paid = seed.rows('SELECT amount,overpayAmount FROM "Payment" WHERE invoiceId=?', sale.id)
 assert.equal(paid.length, 1)
 assert.equal(n(paid[0].amount), 1200)
 assert.equal(n(paid[0].overpayAmount), 200)
+const historical = seed.one('SELECT grandTotal,paidTotal FROM "SaleInvoice" WHERE id=?', sale.id)
+assert.equal(n(historical.grandTotal), 1000)
+assert.equal(n(historical.paidTotal), 1200)
+assert.equal(raw().cashMoves, beforeOverpayAttempt.cashMoves, 'sale cash receipt is represented by Payment, not a separate cash movement')
 const saleItem = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', sale.id)
 const beforeReturn = raw()
+
+// A historical overpayment must not bypass the new-return confirmation.
+await assert.rejects(() => salesService.createReturn({
+  userId, shiftId, invoiceId: n(sale.id), full: true,
+  lines: [{ saleItemId: n(saleItem.id), qty: 1 }],
+  refundDecision: 'DECLINED', refundMethod: 'NONE', refundNote: 'مشتری وجه نمی‌خواهد'
+}), /اضافه‌دریافت/)
+assert.deepEqual(raw(), beforeReturn, 'unconfirmed return does not mutate historical invoice or stock')
 
 // An unrelated managerPassword must not satisfy the credit-limit gate.
 await assert.rejects(() => salesService.createReturn({
   userId, shiftId, invoiceId: n(sale.id), full: true,
   lines: [{ saleItemId: n(saleItem.id), qty: 1 }],
-  refundMethod: 'NONE', confirmOverpay: true, managerPassword: DEFAULT_MANAGER_PASSWORD
+  refundDecision: 'DECLINED', refundMethod: 'NONE', refundNote: 'اعتبار با درخواست صریح مشتری',
+  confirmOverpay: true, overpayAsCredit: true, managerPassword: DEFAULT_MANAGER_PASSWORD
 }), /تایید مدیر لازم دارد/)
 assert.deepEqual(raw(), beforeReturn, 'rejected return/credit limit attempt has no financial or stock mutation')
 
@@ -66,7 +98,8 @@ assert.deepEqual(raw(), beforeReturn, 'rejected return/credit limit attempt has 
 const returned = await salesService.createReturn({
   userId, shiftId, invoiceId: n(sale.id), full: true,
   lines: [{ saleItemId: n(saleItem.id), qty: 1 }],
-  refundMethod: 'NONE', confirmOverpay: true,
+  refundDecision: 'DECLINED', refundMethod: 'NONE', refundNote: 'اعتبار با درخواست صریح مشتری',
+  confirmOverpay: true, overpayAsCredit: true,
   overpayManagerPassword: DEFAULT_MANAGER_PASSWORD
 })
 assert.equal(n(returned.refundAmount), 0, 'no physical refund is made')
@@ -87,6 +120,28 @@ assert.equal(afterReturn.credits, beforeReturn.credits + 1)
 assert.equal(afterReturn.cashMoves, beforeReturn.cashMoves, 'NONE creates no cash payout movement')
 assert.equal(afterReturn.returnCash, beforeReturn.returnCash, 'NONE creates no cash refund amount')
 assert.equal(afterReturn.stock, beforeReturn.stock + 1, 'return restores stock exactly once')
+
+// Explicitly declining a refund without choosing overpayAsCredit must never
+// automatically create a barcode, even when the return produces an overpay.
+const noCreditVariant = seed.variant(product, 'S13-no-automatic-credit')
+sql.prepare('UPDATE "ProductVariant" SET stock=20,salePrice=1000 WHERE id=?').run(noCreditVariant)
+const noCreditSale = await salesService.create({
+  userId, shiftId, lines: [line(noCreditVariant, 1000)],
+  payments: [{ methodId: cash, amount: 1000, destination: 'CASH' }],
+  saleRequestIdempotencyKey: 's13-no-automatic-credit'
+})
+const noCreditItem = seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=?', noCreditSale.id)
+const beforeNoCredit = raw()
+const declined = await salesService.createReturn({
+  userId, shiftId, invoiceId: n(noCreditSale.id), full: true,
+  lines: [{ saleItemId: n(noCreditItem.id), qty: 1 }],
+  refundDecision: 'DECLINED', refundMethod: 'NONE', refundNote: 'مشتری وجه نمی‌خواهد', confirmOverpay: true
+})
+assert.equal(n(declined.refundAmount), 0)
+assert.equal(declined.overpayCredit ?? null, null)
+assert.equal(n(seed.count('StoreCredit')), n(beforeNoCredit.credits), 'no barcode is automatically issued')
+assert.equal(n(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', noCreditVariant).stock), 20)
+assert.equal(raw().cashMoves, beforeNoCredit.cashMoves, 'declined refund does not create a cash payout')
 
 // A negative exchange with a real-money surplus requires an explicit settlement.
 // The general managerPassword is not a substitute for either the tender choice

@@ -33,7 +33,8 @@ import { settingsService } from '../services/SettingsService'
 import { priceAdjustService } from '../services/PriceAdjustService'
 import { printService } from '../services/PrintService'
 import { exportTableFile } from '../services/ExportService'
-import { authService, assertManagerPassword } from '../services/AuthService'
+import { authService, assertManagerPassword, assertPanelPasswordStrict } from '../services/AuthService'
+import { desktopBackupCoordinationActive, withDesktopBackupCoordination } from '../services/cloud/desktopBackupCoordination'
 import { barcodePng } from '../services/BarcodeService'
 import { backupService } from '../services/BackupService'
 import { maintenanceService } from '../services/MaintenanceService'
@@ -1418,7 +1419,18 @@ export function registerIpcHandlers(): void {
   handle(IPC.backupList, () => backupService.list())
   handle(IPC.backupImport, () => backupService.importPick())
   // نشست ۱۸۴ — actor ردیف Audit بکاپ باید از نشست main بیاید، نه payload رندرر.
-  handle(IPC.backupApply, async (p) => backupService.apply(await withOptionalSessionActor(p ?? {})))
+  handle(IPC.backupApply, async (p) => {
+    const input = await withOptionalSessionActor(p ?? {})
+    // Invalid modes are rejected by the service before any database work.
+    if (input.mode !== 'merge' && input.mode !== 'replace') return backupService.apply(input)
+    // Avoid closing remote access for an unauthenticated restore attempt. The
+    // service repeats its existing strict check; it remains the authority.
+    if (desktopBackupCoordinationActive()) {
+      await assertPanelPasswordStrict(PANEL_KEYS.settings, input.managerPassword ?? null,
+        input.mode === 'merge' ? 'ادغام یک فایل بکاپ با داده‌ی فعلی' : 'جایگزینی کامل داده‌ی فعلی با یک فایل بکاپ')
+    }
+    return withDesktopBackupCoordination(() => backupService.apply(input))
+  })
   handle(IPC.backupForget, async (p) => backupService.forget(await withOptionalSessionActor(p ?? {})))
   /** تنظیمات بکاپ خودکار: مسیر ذخیره‌سازی و بازه‌ی زمانی (مورد ۶) */
   handle(IPC.backupConfig, () => backupService.config())

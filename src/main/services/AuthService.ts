@@ -1044,8 +1044,9 @@ export const authService = {
       await assertGateOpen(panel)
 
       const password = normalize(input.password)
-      // هاب راه دور — فقط gt- : قبل از شمارش قفل، اگر مجوز فعال باشد بپذیر
-      if (password.startsWith('gt-')) {
+      // Remote approval is deliberately disabled until the complete grant path is secured.
+      // Do not reserve a password prefix: existing manager/panel passwords may start with gt-.
+      if (false && password.startsWith('gt-')) {
         const { consumeOneShot } = await import('./RemoteGrantRegistry')
         // owner از panelSession — اگر 0 بود LEGACY_OWNER است
         let owner: number | null = null
@@ -1053,13 +1054,13 @@ export const authService = {
           const ps: any = await import('./panelSession')
           owner = ps.currentPanelOwner?.() ?? null
         } catch {}
-        if (owner != null && consumeOneShot(owner, panel, password.slice(3))) {
+        if (owner != null && consumeOneShot(owner, panel!, password.slice(3))) {
           // Audit ردیف جدا برای حسابرسی (تصمیم ۸ با شرط)
           try {
             const { audit } = await import('./AuditService')
             await audit(prisma as any, { action: 'REMOTE_GRANT_CONSUMED', entity: 'RemoteGrant', note: JSON.stringify({ panel, owner }) } as any)
           } catch {}
-          return { ok: true, scope: 'PANEL' as const, panel, isDefault: false }
+          return { ok: true, scope: 'PANEL' as const, panel: panel!, isDefault: false }
         }
         throw new BusinessError('مجوز راه دور نامعتبر یا منقضی شده است.')
       }

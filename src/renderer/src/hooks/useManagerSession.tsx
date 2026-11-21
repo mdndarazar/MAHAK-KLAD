@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'; import { startRemoteSessionMonitor } from '../components/RemoteRequestBox'
 import { call, CH } from '../lib/api'
 import type { PanelUnlockResult } from '@shared/types'
 import { SETTINGS_CHANGED_EVENT } from './useSettings'
@@ -210,6 +210,7 @@ export function ManagerSessionProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(SETTINGS_CHANGED_EVENT, load)
   }, [])
 
+  useEffect(() => startRemoteSessionMonitor(!isManager && !securityError && panels.length > 0, (valid) => setPanels((old) => { const next = old.filter((panel) => valid.includes(panel)); return next.length === old.length ? old : next }), () => { setPanels([]); setSecurityError('وضعیت مجوز قابل بررسی نیست؛ پنل‌ها قفل شدند.') }), [isManager, securityError, panels])
   const sessionOpen = !securityError && (isManager || panels.length > 0)
   useEffect(() => {
     if (!sessionOpen) return

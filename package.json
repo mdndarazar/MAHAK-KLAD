@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "npm run db:generate && electron-vite build",
+    "postbuild": "node tools/build-remote-hub.mjs",
     "build:check": "electron-vite build",
     "start": "electron-vite preview",
     "db:generate": "prisma generate",
@@ -22,8 +23,7 @@
     "bwip-js": "^4.5.1",
     "jalaali-js": "^1.2.7",
     "electron-updater": "^6.3.9",
-    "ws": "^8.18.0",
-    "better-sqlite3": "^9.2.2"
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
@@ -50,7 +50,8 @@
     "files": [
       "out/**/*",
       "prisma/schema.prisma",
-      "resources/**/*"
+      "resources/**/*",
+      {"from": "node_modules/.prisma", "to": "node_modules/.prisma", "filter": ["**/*"]}
     ],
     "extraResources": [
       {
@@ -63,12 +64,10 @@
       }
     ],
     "win": {
+      "extraResources": [{"from":"out/main/remote-hub-child.cjs","to":"remote/remote-hub-child.cjs"},{"from":"build/remote-runtime/node.exe","to":"remote/node.exe"},{"from":"build/remote-runtime/LICENSE","to":"remote/LICENSE"}],
       "target": [
         "nsis"
       ]
-    },
-    "asarUnpack": [
-      "**/*.node"
-    ]
+    }
   }
 }

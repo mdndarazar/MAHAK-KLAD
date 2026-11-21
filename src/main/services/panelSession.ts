@@ -35,7 +35,7 @@ export function panelSessionTtlMs(): number {
 }
 
 type Scope = 'MANAGER' | 'PANEL'
-type Entry = { expiresAt: number; scope: Scope; openedAt: number; generation: number }
+type Entry = { expiresAt: number; scope: Scope; openedAt: number; generation: number; remoteAllowed?: (touch: boolean) => boolean }
 
 /**
  * کلید صفر فقط برای تست‌های مستقیم و callerهای قدیمیِ بیرون از IPC است. در
@@ -98,9 +98,16 @@ function alive(key: string, owner: number, touch: boolean): Entry | null {
   const entries = bucket(owner)
   const entry = entries?.get(key)
   if (!entry) return null
-  if (entry.expiresAt <= Date.now()) {
-    entries?.delete(key)
-    if (entries?.size === 0) sessionsByOwner.delete(owner)
+  let permitted = true
+  if (entry.remoteAllowed) {
+    try { permitted = entry.remoteAllowed(touch) === true } catch { permitted = false }
+  }
+  if (!permitted || entry.expiresAt <= Date.now()) {
+    // The check may revoke synchronously; never delete a replacement session.
+    if (bucket(owner) === entries && entries?.get(key) === entry) {
+      entries.delete(key)
+      if (entries.size === 0) sessionsByOwner.delete(owner)
+    }
     return null
   }
   if (touch) entry.expiresAt = Date.now() + ttlMs
@@ -152,6 +159,15 @@ export function clearPanelSessionsForOwner(owner: number): void {
 }
 
 /** خروج محدود یک پنل؛ نشست مدیر و حضانت را دست نمی‌زند. */
+export function noteRemotePanelUnlocked(panel: string, owner: number, allowed?: (touch: boolean) => boolean): () => void {
+  if (allowed !== undefined && typeof allowed !== 'function') throw new Error('Invalid remote session guard')
+  const key = normalizePanelKey(panel) ?? panel
+  if (alive(MANAGER_KEY, owner, false) || alive(key, owner, false)) return () => {}
+  notePanelUnlocked(panel, 'PANEL', owner); const entries = bucket(owner), entry = entries?.get(key)
+  if (!entry) throw new Error('Remote panel session unavailable')
+  entry.remoteAllowed = allowed
+  return () => { if (entries && bucket(owner) === entries && entries.get(key) === entry) clearPanelScope(panel, owner) }
+}
 export function clearPanelScope(panel: string, explicitOwner?: number): void {
   const owner = ownerOf(explicitOwner)
   const key = normalizePanelKey(panel) ?? panel

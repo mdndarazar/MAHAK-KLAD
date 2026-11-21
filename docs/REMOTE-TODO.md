@@ -1,0 +1,1268 @@
+# وضعیت چهار مانع کنترل از راه دور
+
+مبنای بررسی: شاخه `arena/e478473a-mahak-klad`، وضعیت پیش از این گام `4ef077e980622df7501a8627832c91edcdb0522f`. این سند گزارش کار است، نه مجوز فعال‌سازی یا تغییر تصمیم‌های قفل‌شده. وضعیت فعلی (پس از برداشتن readiness در مرحلهٔ ۴ با مجوز مالک): کد راه دور در نسخهٔ نصبی هست ولی پیش‌فرض خاموش است و فقط وقتی مالک آن را در تنظیمات روشن کند (`userData/remote-settings.json` دقیقاً `{"enabled":true}`) شروع می‌شود. بندهای قدیمی‌تر که «readiness=false» می‌گویند وضعیت همان زمان را ثبت کرده‌اند. مراحل ۵ و ۶ (موارد باقی‌مانده و راهنمای آزمون کاربر) نیز انجام شده‌اند؛ نصب ویندوز و گوشی واقعی با مالک است. تست فقط با داده ایزوله انجام می‌شود.
+
+## ۱. اتصال امن واقعی — مانع اصلی: (ب) زیرساخت واقعی
+- Windows remote و installer به‌ترتیب `44334046532` و `44334060794` روی `e17fd994e5137e2596c67617cc12e5d0063f3838`، `44334425319` و `44334442006` روی `edee0526cc9e39d315bd51cd6c4d67e81d03338e`، و `44335048360` و `44335063654` روی `5d292abc078b8597bf1f334f7fb6a46f94b7de71` همگی موفق شدند؛ سه تست timeout اخیر در remote روی `e17fd99` نیز گذشتند. موفقیت بعدی علت شکست‌های قبلی را ثابت نمی‌کند و جای نصب/اجرای Electron، DPAPI، گوشی و تونل را نمی‌گیرد؛ آنها اجرا نشدند. قابلیت هنوز آماده نیست و readiness=false است.
+- Windows remote `44333116766` روی `14e6b7a` در تست تخلیه بررسی approval هنگام backup با exit 1 شکست خورد؛ پیش‌تر `44329398337` نیز در همین تست شکست خورده بود ولی `44332561520` آن را گذراند. Windows installer `44332578026` در بررسی runtime بسته‌بندی‌شده شکست خورد. به‌علت EOF دریافت لاگ، علت این شکست‌ها نامعلوم است؛ wrapper اجرای دو تست بدون تغییر تست‌ها خروجی خطا را به annotation می‌افزاید. همان تست backup روی SQLite موقت و تست runtime با Node لینوکس کپی‌شده و LICENSE ساختگی محلی گذشتند؛ هشدار stub فاقد `$connect` در backup باقی است. YAML، typecheck، redline، build:check و postbuild محلی گذشتند؛ این تست runtime، نصب‌کننده Windows نیست. SHA-256 workflow remote `1508c85821676340f90aae4d902ab2d2dd58c47125d89a11ddfae06d5a425ad4`، installer `1ed3e36cc4e691d0d07f3b81bde0689e7ff6e0ad4d40742886a52ff85681710e`، تست backup `320a6411cb748e011920d5c048da1ff5459eab15d959080a99bbcc7f78e8bc0f` و تست runtime `3eecca1583cdd84a1857e01cc54ec402ba0dbef98c268826f07433f2cf4d3139`. Windows این wrapper، نصب/دستگاه واقعی اجرا نشد و readiness=false است.
+- Windows remote `44332561520` روی `e46e03175d45d6d5eac346723beb3bdd5d560168` با تست timeout تأیید و کل workflow موفق شد؛ این نتیجه دلیل شکست‌های قبلی را مشخص نمی‌کند. installer `44332578026` روی همان commit در تست runtime بسته‌بندی‌شده شکست خورد؛ دانلود لاگ EOF داد و علت نامعلوم است. در زمان ثبت، remote و installer روی `14e6b7a` و remote روی `e17fd99` هنوز اجرا می‌شدند. نصب واقعی، Electron/DPAPI، گوشی و تونل اجرا نشدند؛ readiness=false.
+- Windows remote `44329398337` روی `f395c86` در تست `remote-backup-approval-drain-loopback` و اجرای بعدی `44331073825` روی `b65ed7a` در تست cross-process invoice با exit 1 شکست خوردند. annotation جزئیات را نشان نداد؛ علت و ارتباط این شکست‌ها نامعلوم است. installer `44331093309` موفق شد. Windows remote `44332561520` روی `e46e031` هنوز در حال اجرا است. نصب و دستگاه واقعی اجرا نشدند؛ readiness=false.
+- روی مبنای `f395c86fb1aca40ec124f03ddbde85cafaeab046`، اجرای مجدد همان تست Panic PWA روی Linux/Node 22 گذشت (هارنس DOM و Electron واقعی ندارد). برای تشخیص شکست متناوب Windows، فقط wrapper اجرای همان تست در workflow خروجی شکست را به annotation می‌افزاید؛ خود تست و assertionها دست‌نخورده‌اند و علت شکست قبلی همچنان نامعلوم است. SHA-256 تست `4144a22a09e954284a3cf22c8149d76dcadd6c7fb33be714703a2c8f02c58a3f` و workflow `6fa40e2cc91eb7c43480d9c66a4dd5a6ed42be633fa05725ce56646c47572ed0`. YAML، typecheck، redline با اجرای مستقیم ابزار و build:check محلی گذشتند؛ تلاش اولیه `npm run redline:check` به‌دلیل نبود این script اجرا نشد و سپس ابزار مستقیم با baseline صحیح موفق شد. Windows remote `44329398337` در همان تست موفق شد ولی کل آن هنگام ثبت هنوز در حال اجرا بود؛ installer `44327854057`، `44328757947` و `44329413546` موفق شدند. این‌ها اجرای Electron/DPAPI، نصب، گوشی یا تونل نیستند و آن موارد اجرا نشدند؛ readiness=false و قابلیت کامل نیست.
+- Windows remote `44328744206` روی `2198293be10b5bb7e582d216beafd67a43dbd637`، تست ساعت revocation و تست دوپردازه revocation را گذراند، اما بعداً در `remote-panic-pwa-loopback` با exit 1 شکست خورد؛ لاگ جزئی به علت EOF دانلود نشد و علت نامعلوم است. این دومین شکست متوالی workflow remote پس از `44327840297` است، نه اثبات علت مشترک. بقیه گام‌های پس از آن اجرا نشدند. وضعیت installerهای `44327854057` و `44328757947` هنگام ثبت در حال اجرا بود. تست Windows/Electron واقعی، نصب و گوشی همچنان اجرا نشدند؛ readiness=false.
+- Windows remote `44327840297` روی `fb47e30d74e17f17b13a54154f810f5348ab59cc` در ارسال اول یا دوم تست دوپردازه revocation با `Revocation rejected` شکست خورد؛ علت دقیق از خروجی موجود مشخص نیست. برای کاهش احتمال اختلاف ساعت پردازه‌های Windows بدون پذیرش پیام آینده یا افزایش عمر آن، زمان صدور امضا یک ثانیه عقب‌تر ثبت می‌شود و عمر عملی پیام از ۳۰ به ۲۹ ثانیه کاهش می‌یابد؛ اختلاف بیش از این همچنان بسته می‌ماند. receiver فقط پس از احراز MAC، دسته ثابت خطا را بدون کلید، شناسه یا payload ثبت می‌کند تا در اجرای بعدی علت تشخیص داده شود. این تغییر رفع قطعی شکست فوق نیست. تست ساعت کنترل‌شده، تست دوپردازه واقعی و شش زیرآزمون مرتبط، typecheck، redline و build:check محلی گذشتند؛ Windows این تغییر، Electron، نصب، گوشی و تونل اجرا نشدند. SHA-256 envelope `650aa3ed7e8c375d1c5caa8806c9a02ba06565ba4105fc9726abe5287d9bd048`، receiver `87d4e1217f2d2eb5a0792826cfeda4ad4dfaa25b4bf257e1085275a06a4ee665` و تست `21b7314cad321a4deb28149f0c1e1c620d46e2404aa4af504b3556882688ab4a`. readiness همچنان false است.
+- روی مبنای `a5694b0939049ab0acb348335d78a58571baf9f8`، شکست یا timeout توقف scheduler/child دیگر به caller موفقیت گزارش نمی‌شود؛ توقف بعدی هم خطا می‌دهد، state قفل می‌ماند و شروع مجدد مسدود است. تست host واقعی با child/state/scheduler شبیه‌سازی‌شده شکست توقف و نگهداری قفل را آزمود؛ تست‌های دیگر host با child واقعی و SQLite موقت بودند. هفت تست، typecheck، redline و build:check محلی گذشتند. SHA-256 host `e6c265775e097fce843f26a452fb87541c725e950a156ddcebf45bb6505e1a05` و تست `0a50c898ebe657f45c5bea0896aa89280aa6a675e5b9102a1bce0be4d97beb9a`. Windows این تغییر، Electron واقعی، نصب، گوشی و تونل اجرا نشدند. قابلیت هنوز آماده نصب نیست و readiness false است.
+- Windows installer `44325029882` و remote `44325013089` روی `a5694b0939049ab0acb348335d78a58571baf9f8` هر دو موفق شدند؛ تست اصلاح‌شدهٔ ابطال عضو نیز در این اجرا گذشت. نصب واقعی و دستگاه اجرا نشدند.
+- با مجوز صریح مالک، فقط `remote-desktop-host-member-revocation.mjs` روی مبنای `5ba526918eb873246a01195144e73599a2c9523f` اصلاح شد: هاب پیش از خواندن مستقل SQLite متوقف می‌شود و تمام assertionهای ACK، ledger، حذف عضو و بسته‌شدن نشست حفظ شده‌اند. تست اصلاحی و پنج تست مرتبط، typecheck، redline و build:check محلی گذشتند؛ SHA-256 تست `520c2cde2e387215b312db5982ef1a8876ad9a3e041cb01d023ac387d39664ac`. Windows این اصلاح هنوز اجرا نشد؛ روی مبنای قبلی `44323763155` نیز در همان سطر با `database is locked` شکست خورده بود. اجرای واقعی Electron، نصب، گوشی و تونل اجرا نشد؛ readiness false است.
+- Windows remote `44323393236` روی `b4a75400daeb427a2257bdf782212495fae52326` در تست `remote-desktop-host-member-revocation.mjs` شکست خورد؛ annotation اکنون علت این اجرا را `database is locked` در خط ۶۶ هنگام خواندن SQLite هاب از اتصال دوم هم‌زمان با child نشان می‌دهد. این لاگ علت شکست‌های پیشین را اثبات نمی‌کند. آزمون دیگری روی `198f027` هنوز در حال اجراست. طبق قاعده عدم تغییر تست موجود بدون مجوز، خود تست تغییر نکرده؛ اصلاح محدود پیشنهادی این است که قبل از بررسی پایدار ACK ابتدا child تمیز متوقف شود و همان assertionها حفظ شوند، یا اتصال دوم با busy timeout کنترل‌شده بخواند. نتیجه Windows این گام و readiness همچنان ناموفق/false است.
+- Windows remote `44320074211` روی `81ba0dd1092f850d67912ab070168ed541f82ed9` و `44321125875` روی `ae4d591529ab88fc2528d809abced3c529bd6e85` هر دو در تست desktop host member revocation با exit 1 شکست خوردند؛ annotation علت را نشان نداد و لاگ در این محیط قابل دریافت نیست. برای اجرای بعدی همان تست بدون تغییر، خروجی خطا به annotation اضافه شد. اجرای `44321350789` روی `32d32f821ffa5c9736d6d9439956b351da086e25` از این مرحله عبور کرده ولی هنگام ثبت این یادداشت کل workflow هنوز در حال اجرا است؛ علت شکست‌های قبلی و رفع قطعی ثابت نشده‌اند.
+- Windows installer `44313684157` روی `0e9d32abcbe1ec0017c2a096b74fbe8992828822` موفق بود؛ remote `44313671546` در «Test backup drains guarded panel claim» با exit 1 شکست خورد. دریافت لاگ کامل EOF داد و annotation علت را نشان نداد؛ رفع‌شده فرض نشود. هر دو workflow روی `33ddbb690805a7e1af1b695c757233d6f352b5dc` موفق بودند. نصب و گوشی اجرا نشدند.
+- روی مبنای `33ddbb690805a7e1af1b695c757233d6f352b5dc`، آزمون جدید با host دسکتاپ، IPC، supervisor، child، HTTP و SQLite موقت واقعی مسیر دعوت مدیر، تأیید، claim پنل، حذف عضو، ثبت ACK در هاب و ledger و بسته‌شدن پنل را آزمود. Electron، Prisma، safeStorage و readiness شبیه‌سازی‌شده‌اند و state/مالک قبلاً در تست provision شده است؛ این آزمون راه‌اندازی اولیه واقعی یا raceهای دیگر را اثبات نمی‌کند. چهار تست مرتبط، typecheck، redline، build:check و YAML محلی گذشتند؛ در تست backup هشدار stub `$connect` باقی است. SHA-256 تست `2b492f7e7dbf8ecdc741f0bd95b2e64c83e1ce30cf5b688b3b694e993371afeb`. Windows این آزمون، Electron واقعی، نصب، گوشی و تونل اجرا نشدند؛ readiness همچنان false است.
+- پس از `c076e1fe9d50985fd4912ffb9fb6a4b5d052563b`، race توقف هم‌زمان با شکست startup اصلاح شد: در صورت نامعلوم بودن توقف child، مسیر stop قفل state را آزاد نمی‌کند. تست host واقعی با supervisor/state شبیه‌سازی‌شده، همراه تست host loopback و حالت خاموش، typecheck، redline و build:check محلی گذشت. هشدار خطای startup در این تست عمدی است. SHA-256 host `122e308fbef5f816906409cb5b04283f15228e749ec2cafec5b559f07c28301d` و تست جدید `293dda63b4f3cab23bc2fffb2a6f4e13fb0af9da4518532f5d09e782edd9493d`. تست Windows و Electron واقعی این اصلاح اجرا نشد؛ محدودیت‌های بند بعدی پابرجاست.
+- روی مبنای `db4671fcc437f3a8bfc74de2e6601d7055b6ff92`، stub قبلی `CloudSyncService` با اتصال آزمایشی واقعی host جایگزین شد: فقط پشت readiness و opt-in، state/ledger و کلید از پیش provision‌شده را بار می‌کند، کلیدهای مستقل مشتق می‌کند، supervisor، قفل backup، خواننده، IPC و scheduler را راه می‌اندازد و پیش از قطع Prisma آن‌ها را متوقف می‌کند. هیچ setup یا regeneration خودکار ندارد؛ فعلاً فقط سه scope پنل در policy هستند و عملیات حساس یک‌بارمصرف پوشش داده نشده است؛ قابلیت کامل نیست. تست loopback با host، child/HTTP، رجیستری و panelSession واقعی، فایل‌های موقت از پیش provision‌شده و Electron/Prisma/safeStorage/readiness شبیه‌سازی‌شده، درخواست، تأیید، claim، Panic، توقف و نبود config را آزمود. چهار تست مرتبط، typecheck، redline و build:check محلی گذشتند؛ تست backup هشدار stub `$connect` دارد. provision مالک و UI، تمام policyها و عملیات حساس، بازیابی امن epoch/ledger، کامل بودن fingerprint DB، اطمینان ACL و crash و اعلان واقعی هنوز حل یا اثبات نشده‌اند. Windows این تغییر، build کامل، Electron/DPAPI، نصب، گوشی و تونل اجرا نشدند؛ readiness false است و این نسخه برای نصب/آزمایش کاربر آماده نیست. SHA-256 host `7fec13c4bd13d806c1d81991599aff4f849ec2c468e73f004d813441bc9d1d2c`، index `23945ac12fa701ee9183d3111960238bdc497f4657d74a56be1ec5d005062c5a`، تست `3970b73dd6525068c386bd92945386811c909c250ccb715a5499df011cc32a2b`.
+- Windows installer `44308637736` و remote `44308629909` روی `db4671fcc437f3a8bfc74de2e6601d7055b6ff92` موفق شدند؛ نصب واقعی و دستگاه اجرا نشدند.
+- روی `86fd72cfa0c6109f79c9690a6f507d0a331373f4`، Windows installer `44305043504` و remote `44305028742` موفق شدند؛ مرحله تازه installer، منابع unpacked را با Node بسته‌بندی‌شده روی loopback آزمود. نصب واقعی، Electron، DPAPI، گوشی و تونل اجرا نشدند؛ این موفقیت قابلیت را آماده فعال‌سازی نمی‌کند. دو شکست Windows قبلی در این اجرا تکرار نشدند اما علت قطعی‌شان اثبات نشده است.
+- مالک افزایش محدود سقف تغییر `package.json` برای بسته‌بندی child و Node سازگار را تأیید کرد. روی مبنای `f7ab1d6fbc78e5cb8d24e7ffc2f04fe38bb112e9`، یک خط پیکربندی Windows، child و Node x64 محیط build را با LICENSE خارج از asar می‌گذارد؛ build ابتدا وجود `node:sqlite` را در همان اجرایی بررسی می‌کند. سقف guard به دو خط با pin blob دقیق محدود شد؛ lockfile یا dependency عوض نشد. تست جدید با کپی Node لینوکس و LICENSE ساختگی در پوشه موقت و child واقعی loopback اجرا شد، نه installer Windows؛ چهار تست، typecheck، redline و build:check محلی گذشتند. آزمون واقعی resource در workflow نصب‌کننده افزوده شد ولی Windows این تغییر، build کامل، اجرای Electron/DPAPI، نصب، گوشی و تونل اجرا نشدند. runtime اینجا از محیط build تأمین می‌شود؛ منشأ و محافظت اجرایی در محیط واقعی هنوز باید تأیید شود. SHA-256 پیکربندی `4aba3eff74f54b1a746a787ff148ad8e39cfe85bf08428d9211b0acb37500b43`، ابزار `35e3b879889090ee9485d034a20ad195fbfe9afd61c006d986eadd35d60e27ed`، تست `3eecca1583cdd84a1857e01cc54ec402ba0dbef98c268826f07433f2cf4d3139` و guard `63260299c88f2c9a20fabd9500894f9c44b5bb7447707e613f5a808b407d7328`.
+- Windows remote `44303892286` روی `f7ab1d6` در `remote-panic-levels-loopback` شکست خورد؛ لاگ کامل با EOF قابل دریافت نبود و annotation فقط exit code را نشان داد، بنابراین علت نامعلوم است. workflow برای اجرای بعدی جزئیات شکست را annotation می‌کند، بدون تغییر تست؛ این شکست و شکست قبلی startup هر دو رفع‌شده فرض نمی‌شوند. installer `44303903262` هنگام بررسی در حال اجرا بود.
+- Windows remote `44299725326` و installer `44299732469` روی `6ce485938ef856b5a78a29bf83fe9eb778cfac6f` موفق شدند؛ این‌ها نصب یا اجرای Electron و گوشی را ثابت نمی‌کنند. تغییر بعدی روی Windows هنوز اجرا نشد.
+- بررسی بعدی روی `eb74eebd43ee34a84628b3be471a736a3f211356`: وجود bundle در `out/**/*` به معنی قابل اجرا بودن آن با Node مستقل از داخل `app.asar` نیست؛ در نسخه بسته‌بندی‌شده مسیر واقعی خارج از asar هنوز تأمین و آزمایش نشده است. یک پیشنهاد کپی به `extraResources` روی working tree و با کپی شبیه‌سازی‌شده loopback آزموده شد، ولی redline آن را به‌درستی رد کرد: `package.json` نسبت به مبنای `2834baf` پنج خط تغییر داشت در حالی که سقف مجاز یک خط است. پیشنهاد و تست موقت کنار گذاشته شدند؛ guard دست‌کاری نشد. برای بسته‌بندی واقعی باید تغییر محدود پیکربندی طبق خط قرمزها مجاز شود یا راهکار دیگری که آن‌ها را حفظ کند پیدا شود. Node سازگار، Electron، نصب، گوشی و تونل هنوز اجرا نشدند. اجرای Windows روی `9f537e1` با شناسه `44296160702` سرانجام موفق شد؛ Windows مربوط به `eb74eeb` هنگام این بررسی همچنان در حال اجرا بود.
+- روی مبنای `9f537e1f15bbab6cef822238163a41b2f9d817ef`، postbuild یک bundle مستقل child در `out/main/remote-hub-child.cjs` می‌سازد؛ پیکربندی بسته‌بندی `out/**/*` را شامل می‌کند. تست loopback فایل ساخته‌شده را با Node محلی، supervisor و SQLite موقت اجرا کرد و readiness همچنان false بود؛ همچنین تست خاموشی و approval/revoke دوپردازه، typecheck، redline و build:check گذشتند. build:check خود postbuild را اجرا نمی‌کند و bundle جداگانه ساخته شد؛ build کامل، محتوای installer، اجرای Electron و runtime همراه نصب برای این تغییر اجرا نشدند. `node:sqlite` به Node سازگار جداگانه نیاز دارد و مسیر تأمین امن آن هنوز حل نشده است. Windows این تغییر در workflow افزوده شد ولی هنوز اجرا نشد؛ گوشی و تونل اجرا نشدند. SHA-256 ابزار `80998992ab0a392cb1972a2c47a8092d3c5cdc2ba5525e3e52937c93ca5c9a23`، تست `3705f98b8345a7da5374db1cfc1dde472b5c50b5875e6e1be55ecc58b2849c4a` و bundle محلی `22001bdef8e8cf548e2be722f419709017a415d0032568861eef7eaf23458e52`.
+- هاب فقط loopback است؛ HTTPS، مسیر رسیدن گوشی، تنظیم گواهی و proxy و provision امن کلید در محیط واقعی راه‌اندازی و تأیید نشده‌اند. آزمون Windows/DPAPI، نصب Electron و گوشی نیز لازم است. نباید ارائه‌دهنده‌ای بدون انتخاب مالک فرض شود.
+- کار محلی انجام‌شده: `remote-https-loopback.mjs` با گواهی خودامضای موقت و proxy آزمایشی روی loopback، رد گواهی نامعتبر و Host/Origin نامعتبر و کوکی Secure را آزمود. DNS عمومی، گواهی واقعی، گوشی و proxy عملیاتی آزموده نشده‌اند.
+- تصمیم مالک: هاب روی کامپیوتر + overlay/tunnel؛ ارائه‌دهنده و تنظیمات خاص هنوز تعیین نشده‌اند. برای پذیرش نهایی به دستگاه، محیط Windows و تنظیمات عملیاتی این مسیر نیاز است؛ هیچ رمز یا کلیدی در گفت‌وگو لازم نیست.
+
+## ۲. ابطال شبکه‌ای — مانع اصلی: (د) مشکل فنی در کد
+- روی مبنای `173f949e8c72a329184cb84e1caaff9fc8246b2a`، مسیر آزمایشی claim صریح IPC به registry و UI وصل شد؛ فقط grant تأییدشده NORMAL/PANEL با شناسه درخواست، توکن و پنجره همان درخواست پذیرفته می‌شود و رمز محلی با پیشوند `gt-` تغییر رفتار نمی‌دهد. UI پس از claim درخواست status-sync می‌دهد. تست جدید با IPC، child/HTTP، registry و panelSession واقعی و دیتابیس موقت، رد پنجره/درخواست/توکن اشتباه، تکرار claim، رد grant مالی ساختگی و بستن نشست توسط Panic را آزمود؛ Electron، readiness و AuthService در bundle تست شبیه‌سازی شدند و UI واقعی/مرورگر تست نشد. ده زیرآزمون مرتبط، typecheck، redline و build:check محلی گذشتند و تست پس از افزودن بررسی مالی دوباره پاس شد. هویت دیتابیس در خود claim، هماهنگی lifecycle محصول، کلید و recovery هنوز کامل نیست؛ این مسیر مجوز فعال‌سازی نیست و readiness false مانده است. Windows این تغییر، build کامل، نصب، گوشی و تونل اجرا نشدند. SHA-256 registry `2f180c4c48abde2d7bebd20f7a2f63f07c1a226977c0a58e102d4d379bb8af4f`، IPC `6897c44c2f69982881f20c1517fc7b9e9f8b086fa4e2822972556e338a2c851c`، preload `c6a19fc3f9624e885cc3757f38e8d8b22bb1d335025e3e0abbed5593fb368d18`، UI `8b92d7add2b96b9508364df3e47b9795b8be6a6a4e395188bc6d1961bc3f0754`، تست `9481adeb5528acfc5b9e03971711b62e34495a0228b55a45363b66979c7ac9ea`.
+- Windows remote `44294196763` روی `7f1cdf51cca9326c7d89eb2b3f85ce00309858ee` در گام مشترک دو تست ابطال شبکه شکست خورد؛ نتیجه این گام و علت دقیق شکست نامعلوم است چون دریافت لاگ از `results-receiver.actions.githubusercontent.com` با EOF شکست خورد و `gh run rerun --failed` با پیام `workflow file may be broken` انجام نشد. روی همان commit، installer ویندوز `44294206286` موفق شد. workflow بدون تغییر تست‌ها اکنون مرحله دوپردازه را جدا و خروجی شکست را annotation می‌کند تا در اجرای بعدی قابل تشخیص باشد؛ علت را حل‌شده فرض نکنید. دو تست شبکه و دو تست IPC مربوط روی working tree Linux گذشتند؛ Windows تغییر workflow هنوز اجرا نشد. SHA-256 workflow `11d2318d7f0b87e4a9ec4dfbc6e35b8de8cd31bcd300b278b7e70a358e627a49`؛ تست دوپردازه `6ceda2cc50dbf824bb4dc743f0b2b2d2f15af60be8916f0b97de0dfa1840f01c`؛ تست ACK `1f37b77cbb12bcabd577b93c0e43fc60d483224e84fa66f7216c0a4dcdd2616b`.
+- روی مبنای `e4f30b0905c3356d871226ffa60ba341db061250`، IPC واقعی `remoteAuth:used` دیگر اجازه تمدید زمان بی‌کاری صرفاً به درخواست renderer نمی‌دهد؛ استفاده واقعی از پنل از مسیر guard نشست انجام می‌شود. تست جدید با ساعت کنترل‌شده، handler واقعی و Electron/readiness شبیه‌سازی‌شده نشان داد فراخوانی `used` و `status` مانع انقضای مجوز بیکار نمی‌شود. ۱۳ زیرآزمون شامل child/HTTP loopback، typecheck، redline و `build:check` محلی گذشتند. SHA-256 handler `41973e65f6235da5e91f6fad788475aa93795f42547b552013d8a3b35c5fec97`؛ تست `7206aac7e6e0e2ff131aadb4acb3e6884d7c53949856aa447487d68d4f0094fe`. Windows این تغییر، Electron واقعی، گوشی و شبکه واقعی اجرا نشدند؛ readiness واقعی همچنان false است.
+- روی مبنای `6df4e791730c90439d85f9d9839525eb89942c25`، آزمون دوپردازه جدید از handler واقعی درخواست/status، supervisor و child/HTTP استفاده کرد: درخواست پنجره، تأیید موبایل آزمایشی، claim، بسته‌شدن پنجره، لغو grant و درخواست منتظر. پنجره Electron و readiness فقط در bundle آزمون شبیه‌سازی شدند؛ registry و handlerهای محصول واقعی‌اند، ولی این آزمایش اتصال Electron یا گوشی را اثبات نمی‌کند و readiness واقعی false مانده است. پنج زیرآزمون مرتبط، typecheck و redline گذشتند؛ build:check قبلاً روی همان کد `6df4e79` گذشت. SHA-256 آزمون `21d3e07063c7946a124510cca37cc76970da66a1a5d14cb85ace4908197abf31`. Windows این تست، نصب و شبکه واقعی اجرا نشدند.
+- روی مبنای `08b2aa5b6793a20a2b67d336b36d7f31eb164cbc`، handlerهای واقعی `remoteAuth` فقط فرستنده وابسته به پنجره زنده را می‌پذیرند و هنگام نابودی پنجره درخواست‌ها و grantهای همان پنجره را لغو می‌کنند؛ لغو پنجره حتی با شکست پاک‌سازی یک scope، بقیه scopeها را نیز می‌بندد و خطا را حفظ می‌کند. تست جدید خود handlerها و registry را با Electron شبیه‌سازی‌شده و readiness صرفاً در bundle تست جایگزین‌شده آزمود؛ readiness واقعی همچنان false است. این تست Electron واقعی یا اتصال کامل lifecycle هاب نیست. تست جداگانه child/HTTP و Panic واقعی آزمایشی نیز گذشت.
+- روی working tree این گام ۱۱ زیرآزمون، typecheck، redline و `build:check` گذشت؛ Windows این تغییر، گوشی و شبکه واقعی اجرا نشدند. SHA-256: remoteAuth `8d0f186f9c7724f2c98e2d6e7efff3de49af4f48cb4f25e61f977e1c9299a466`؛ registry `62793aa9f613c71d842db08d0f8c967ac865bcb7bbc4d4335385615ab4da0de3`؛ تست `9838ba3a63eb50b36b9de8829d839d2c6f1b21e7e4caa8027cce07082a63ff3b`.
+- روی مبنای `1dc9ff8ee9a9ec0eff15e9428441ae7818f36de2` شرط bridge آزمایشی اکنون بسته بودن lease پذیرش را نیز بررسی می‌کند؛ block شدن lease حتی پیش از پایان startup برگشت‌پذیر نیست و `open` پس از خطا شکست می‌خورد. در تست جدید، HTTP و child واقعی با داده موقت، شکست تزریقی replay و رد دومین approval روی mirror کهنه را آزمودند؛ store دوباره فراخوانی نشد. آزمون جداگانه stickiness را فقط مستقیم روی lease آزمایش می‌کند، نه همزمانی واقعی startup و خرابی child. تخلیه امن outbox پیش از بازشدن، ترتیب واقعی revoke/approval، timeout، restore و Electron همچنان حل یا اثبات نشده و readiness خاموش است.
+- روی working tree این گام ۱۰ زیرآزمون مرتبط (آزمون جدید پس از افزودن assertion مستقل دوباره پاس شد)، typecheck، redline، YAML و build بدون Prisma engine واقعی گذشتند. Windows این تغییر، شبکه/گوشی و نصب واقعی اجرا نشدند. SHA-256 رجیستری `38de2c2cd370b735160cb773bb272b5bb314d029c396231e1c85ad57309a3667`، supervisor `3e4cba52f401649aadae2f8353778b92048cc9eb67f761752d3050892d9dd189`، تست `0fa82bc4a7a32d15934119b5617717746aed9a17cf272a8a4475754d79f85b11`. تست به workflow Windows افزوده شد.
+- روی مبنای `3407330be262386959a9fff1eb2c70bca2d2ab35`، supervisor آزمایشی در نبود store تزریقی، ledger replay صریحاً مقداردهی‌شده و انحصاری cloud state را باز می‌کند. تست جدید HTTP/child واقعی و رجیستری، ثبت nonce و رد replay پس از بستن و بازکردن **store** را آزمود؛ restart واقعی supervisor/child یا replay از مسیر IPC بعد از restart اجرا نشد. حذف همزمان marker و ledger، rollback هر دو فایل، دوام قطع برق، ACL ویندوز و چرخه restore/epoch امن حل یا اثبات نشده‌اند؛ مقداردهی مجدد نباید در مسیر تولید خودکار شود. در آن نسخه admission latch در شرط `isClosed` bridge لحاظ نشده بود (تغییر بعدی در بند بالاست) و تخلیه outbox پیش از بازگشایی ثابت نیست؛ timeout تضمین عدم استفاده پیش از قطع را نمی‌دهد. readiness همچنان false است و این مرحله تکمیل واقعی اتصال Electron نیست.
+- روی working tree همین گام، ۱۹ زیرآزمون مرتبط، typecheck، redline، بررسی YAML و build محلی بدون Prisma engine واقعی گذشتند؛ Windows روی این تغییر، نصب واقعی، گوشی، تونل و قطع برق اجرا نشدند. SHA-256: `cloudState.ts` برابر `a7d3740cafb30432403a0e428c780bf4fd2cb2f83adf8d8ef880aa3254638b58`، supervisor برابر `407d52288557158b59c003150a38b39a27e6fd951caf6671d8b5e96c916bc048`، تست ledger برابر `c6e7748720db78364685260035051714d2c996ea234a7429bc228ceb90c6bcc0` و تست loopback برابر `3bdd5ed009153f321dee89629a34cc1e0c0cde90eef89350e304c0db9966d6ef`.
+- روی مبنای `ceb23a7c43534c5e5a50f3c3ac3b5202f7b94eb6`، از ایده fence گزارش کلاد برای اتصال **اختیاری و آزمایشی** استفاده شد: child با identity و PIN فرمان امضاشده روی IPC خصوصی به supervisor می‌فرستد؛ والد MAC، fence برابر با آخرین revoke اعمال‌شده، امضا، policy محلی و replay را بررسی و grant را در رجیستری واقعی می‌سازد. فقط `NORMAL/PANEL` غیر `custody` پذیرفته می‌شود. replay store بادوام و انحصاری باید توسط caller تأمین شود؛ تست از SQLite موقت استفاده می‌کند و store عملیاتی parent/Electron هنوز وجود ندارد. این پیاده‌سازی عین patch ارسالی نیست و readiness همچنان false است.
+- `remote-cross-process-approval-loopback.mjs` با HTTP، child واقعی، رجیستری و SQLiteهای موقت، درخواست ← PIN/کد ← grant ← حذف عضو ← ACK ← بسته‌شدن grant را آزمود. `remote-approval-fence-race.mjs` دو ترتیب approval/revoke را با issuer و bridge واقعی اما در یک پردازه و hop تعمدی آزمود؛ race همزمان در خود HTTP دوپردازه هنوز آزموده نشده است. `remote-approval-bridge-security.mjs` MAC جعلی، fence نادرست، replay و شکست تزریقی store را بررسی کرد. تست پنل از callback تزریقی استفاده می‌کند، نه Electron/پنل واقعی. آزمون‌های failure پیام/قطع IPC، replay بعد از restart واقعی و همزمانی با Panic و restore هنوز اجرا نشدند.
+- timeout پاسخ approval اتصال IPC را قطع می‌کند تا supervisor پذیرش را ببندد و مجوزها را لغو کند؛ پاسخ نامعلوم 503 است. این **اثبات نمی‌کند grant پیش از تشخیص timeout استفاده نشده باشد**؛ هر دو ترتیب و تأخیر خروج پردازه باید جداگانه آزمایش و طراحی نهایی شوند. گیت هویت DB پیش از approval، epoch/restore، توکن claim فروشنده، کلید محافظت‌شده، lifecycle و بسته‌بندی Electron و SENSITIVE_MONEY هنوز وصل نیستند؛ API آزمایشی را نباید در محصول فعال کرد. ۳۲ زیرآزمون، typecheck، redline و build محلی بدون engine گذشتند؛ Windows روی این تغییر، نصب واقعی، گوشی و تونل اجرا نشدند. آزمون‌ها به workflow Windows اضافه شدند.
+- SHA-256 فایل‌های آزموده‌شده: bridge `e1ec5ab06047513af192c5fd9109810698720ce1a01ccd7f2472af87126d74d3`؛ envelope `9139145a1bbccf2a12f923534ba7e5c1e618ccb7d561007f8a9911604307f01c`؛ child `e05e0c7af6ca84319cdbdf984b959788d99fff697e4962fce03ab7ca990de6fa`؛ supervisor `5c12c0a701be4e9e87ea626bfe90767e1dc0c53f291847c8e337045e3e7ffb64`؛ hub `11009c11f0aa94fb5a8baf0e43604d0874bdea67500980ec424d31aa15b1eb8e`؛ تست دوپردازه `c030094a0943879359418d411b772e5210de8b5967e1d4f68b0254196e30894d`، fence `59657429288fc4aaa9d4373d805f80f1821d58c272abd098f9f222d98969922f`، امنیت bridge `58b9f881ee9fdae86082ece43c65cfb9f87ea0a90bb3004f3568d2ad7d84c060`.
+- بررسی گزارش کلاد روی مبنای `8306bdff2d2a24515c59e5c2d70065a59e4706c2` (کد `21adc612bbe00e57cfdaad21b7af475d56e2fa05`؛ commit بعدی فقط بستهٔ بررسی است): آزمایش ارسالی `e1-approve-vs-remove-race.mjs` با SHA-256 `3b47a0bb0afc8f0fb6df9f290471311389e659809eb682892f57a4bfaf1c9d26` روی کد همین working tree با SQLite حافظه اجرا شد؛ در نسخه موقت فقط مسیرهای import برای دسترسی به working tree به مسیر مطلق تغییر یافت. نتیجه: در اتصال شبیه‌سازی‌شده‌ای که عمداً `mayApprove:()=>true` دارد، تأیید معوق پس از حذف عضو و ACK موفق می‌شود و grant قابل claim است. این بازتولید خطر اتصال ساده‌لوحانه است، نه اثبات اینکه endpoint تولیدی فعلی آسیب‌پذیر است؛ endpoint واقعی هنوز وصل و readiness خاموش است. ۲۲ زیرآزمون موجود مرتبط و redline، typecheck و build بدون engine محلی گذشتند؛ این موفقیت‌ها race اتصال ساده‌لوحانه را نقض نمی‌کنند.
+- patch متنی کلاد هنوز اعمال و روی این شاخه آزموده نشده است. ایده fence باید همراه با ترتیب اتمیک apply/ledger/ACK و دو ترتیب revoke/approval و شکست‌ها بررسی شود. در patch پیشنهادی، ارسال abort پس از timeout به‌تنهایی اثبات نمی‌کند که grant پیش از رسیدن abort claim نشده یا abort پس از قطع IPC اجرا شده است؛ پاسخ نامعلوم و قطع ارتباط باید جداگانه fail-closed شوند و تست صریح داشته باشند. polling چندثانیه‌ای marker/anchor نیز اثبات تشخیص پیش از هر تأیید یا عدم وجود race با restore نیست. اجرای patch، تست دوپردازهٔ تأیید واقعی، Electron، Windows روی تغییر جدید، نصب، گوشی و تونل اجرا نشدند؛ readiness نباید باز شود.
+- child آزمایشی هنگام شکست drain، علاوه بر خطای HTTP، از IPC خصوصی به supervisor اطلاع می‌دهد؛ supervisor پذیرش را می‌بندد و grant/درخواست‌ها را ابطال می‌کند. این پیام پس از شکست انتقال ارسال می‌شود، نه هنگام صف‌شدن آن؛ تأخیر انتقال و race با approval هنوز حل نشده و این تغییر مجوز فعال‌سازی نیست. اگر cleanup فعلاً خطا دهد grant غیرفعال و قابل retry می‌ماند و stop فقط در صورت پاک‌سازی موفق می‌تواند موفق شود. تست دوپردازه `remote-revocation-transport-failure-loopback.mjs` با ledger تزریقی پاسخ replay تولید کرد تا گیرنده پیش از apply بسته را رد کند؛ سپس عدم ACK، بسته‌شدن grant و پذیرش، retry و ACK و بسته‌ماندن پذیرش تا restart سالم بررسی شد. این تست قطع فیزیکی شبکه، approval واقعی موبایل یا Electron نیست. مبنا `9731f4d3bb8c768f585f9c8b923d96d73c5cc83a`؛ SHA-256 child `4b1b90189ff142e8c508b3fd72695d2439fae3132d10515d84663588d35733dc`، supervisor `09565c1d456b553ec7e7f0d2c957d6a38d1002d37c9d33903659b726d2dd6b3e`، تست `d78ae63a829f36af6e46b26fc0e66889b39694bc2d5399a9a3977c853ac229bf`. اجرای نخست regression با سه شکست stop پس از cleanup موقت همراه بود؛ پس از اصلاح retry cleanup، ۲۷ زیرآزمون، typecheck، redline و build محلی بدون engine گذشتند. Windows، نصب واقعی و گوشی روی این تغییر اجرا نشدند.
+- در مسیر واقعی receiver آزمایشی، خطای خواندن/ثبت ledger، اجرای revoke یا callback اکنون lease پذیرش دسکتاپ را می‌بندد و همه grantها/درخواست‌ها را نیز ابطال می‌کند. حتی پس از ACK تکرار موفق، پذیرش تا توقف سالم و startup دوباره بسته می‌ماند؛ ACK یک رویداد به‌تنهایی اثبات خالی بودن همه صف نیست. این تغییر قطع ارتباطی را که هرگز به receiver نرسیده تشخیص نمی‌دهد و ترتیب تأیید واقعی موبایل با outbox را حل نمی‌کند؛ readiness همچنان false است. آزمون `remote-revocation-failure-admission-loopback.mjs` با child واقعی، HTTP، ledger و DB موقت، شکست callback هنگام حذف عضو، عدم ACK، بسته‌ماندن پذیرش پس از retry/ACK و بازگشایی پس از توقف و شروع سالم را بررسی کرد؛ grant در تست مستقیماً در رجیستری ساخته شد و callback پنل تزریقی بود. مبنا `272b7c131648f485506d4336e167ff5798902a47`، SHA-256 supervisor `da1782af3cc9714664fa6fdd1303ed2d881a7455c8a08e3fcee3703d4374023d`، تست `e85fa507f5a5e8ea4ca894ba93c1c6bf18f118ee418d2489276e8692e31e1bfd`؛ ۲۶ زیرآزمون مرتبط و redline محلی گذشت. typecheck اولیه به علت client تولیدنشده Prisma شکست خورد؛ پس از تولید client بدون engine، typecheck و build بدون engine گذشتند. تست Windows روی تغییر جدید، Electron واقعی، نصب و گوشی اجرا نشدند.
+- بررسی مجدد روی `f2ec1ed08c7dd67aad8621106badef538fe516ae`: child هنوز `approvalPanels: []` دارد و controller تأیید به HTTP وصل نیست؛ `authenticatedApproval` برای مالک serialized در یک پردازه طراحی شده است. عبور دادن مستقیم آن میان دو پردازه بدون هماهنگی عضویت، صف ابطال، replay و ساخت grant امن نیست. بنابراین تست grant ← revoke ← ACK از مسیر **تأیید واقعی موبایل** و lifecycle Electron هنوز اجرا نشد؛ تست‌های فعلی grant را مستقیماً در والد ایجاد می‌کنند.
+- Windows `43928425873` روی `f2ec1ed08c7dd67aad8621106badef538fe516ae` همه مراحل، شامل تست‌های supervisor و build و typecheck را گذراند. اجرای پیشین `43927820030` روی `75e18db33062c69bb40dea989f445d2db0524249` در تست snapshot restore شکست خورد؛ annotation علت رد را `clock-future` گزارش کرد. چون اجرای بعدی گذشت، این شواهد رفع قطعی شکست متناوب یا دلیل اختلاف ساعت را ثابت نمی‌کند؛ حذف کنترل زمان برای عبور تست مجاز نیست. installer `43927833951` روی `75e18db` موفق شد؛ نصب و اجرای واقعی ویندوز و گوشی اجرا نشد.
+- supervisor آزمایشی اکنون یک lease انحصاری پذیرش رجیستری می‌گیرد: هنگام راه‌اندازی و توقف، صدور درخواست/‏grant و استفاده از grant مسدود است؛ توقف سالم lease را آزاد ولی پذیرش را بسته نگه می‌دارد و restart سالم دوباره باز می‌کند. خطای راه‌اندازی یا توقف lease را بسته نگه می‌دارد و در این نسخه بازیابی آن بدون راه‌اندازی مجدد پردازه وجود ندارد. این گیت **اثبات تخلیه outbox پیش از بازشدن نیست** و همگام‌سازی approval واقعی، ترتیب revoke/approval و اتصال lifecycle Electron همچنان مانع‌اند؛ readiness نباید برداشته شود. تست دوپردازه جدید از HTTP و رجیستری واقعی با callback تزریقی و SQLite موقت استفاده کرد، نه Electron یا گوشی. مبنا `75e18db33062c69bb40dea989f445d2db0524249`؛ SHA-256 رجیستری `2a33e8ba4b9f42fc6eeeee11498fb3bb8e5ed8e7e21dafe5b1257aacd659ca0c`، supervisor `e5d3a791d0bbd3e712a97170988320f984c5653afeb1eeb3268eae367f743269` و تست `fe27800731adcec294bbdd61a795a485e0173a0bc7e9fbda3786edd7e62088ff`. ۲۵ زیرآزمون مرتبط، typecheck، redline و build محلی بدون engine گذشتند؛ Windows برای این تغییر اجرا نشد.
+- در supervisor آزمایشی، `stop` پیش از انتظار child همه grantها و درخواست‌های موجود را ابطال می‌کند؛ اگر callback پاک‌سازی پنل خطا دهد، بستن child ادامه می‌یابد ولی موفقیت پاک‌سازی گزارش نمی‌شود و grant غیرفعال و قابل retry می‌ماند. از تغییر بعدی، lease آزمایشی رجیستری پذیرش درخواست جدید هنگام shutdown را نیز می‌بندد؛ اتصال آن به host واقعی همچنان انجام نشده است. `remote-supervisor-stop-cleanup-loopback.mjs` با HTTP، child واقعی، ledger و رجیستری روی SQLite موقت و callback خطای تزریقی این مسیر را آزمود؛ Electron و callback واقعی پنل در این تست اجرا نشدند. مبنا `2dd323ff7bbae0ce99f71a8adc0fe02230c38e1e`، SHA-256 supervisor `090e2543b64d3feb2c356063960b63e009af2309b99cd082d554df39d10c4fac`، تست `c6ec4c8200905c50fe67bc8720520b72513fe79bb8af0c97ed26936db3f93dd4`. ۲۳ زیرآزمون محلی مرتبط، typecheck، redline و build بدون engine گذشتند؛ Windows روی این تغییر هنوز اجرا نشد و readiness همچنان false است.
+- اجرای Windows `43914777934` روی `a8dde7a6737d0867f9589259cb407034fd3baecc` در `remote-supervisor-durable-revocation` شکست خورد؛ خروجی جزئی آن از محیط فعلی قابل دریافت نبود و علت هنوز مشخص نیست. این تست در Linux روی همان مبنا و workflow و working tree فعلی گذشت؛ workflow بدون تغییر تست برای اجرای بعدی annotation خطا را ضبط می‌کند (SHA-256 workflow `bb367f4322a99cd09e995fd301ddb00d9f540366db82b9f571367cf1ecaeecf5`، تست دست‌نخورده `3750966154dc3e44c6d113935c0fc571b3db765af492d741fbd2ec7d216fb343`). رفع شکست Windows ادعا نمی‌شود؛ در اجرای بعدی Windows `43915403475` روی `c4d6ffb67088708faf0d99725310a91460878ffe` همه تست‌ها از جمله ابطال پایدار و انقضای پنل و همچنین build گذشتند؛ typecheck با دو خطای قدیمی شکست خورد. چون شکست ابطال تکرار نشد، annotation علتی به دست نداد و مشکل متناوب رفع‌شده فرض نمی‌شود.
+- فقط صف پایدار و پل درون‌پردازه‌ای وجود دارد؛ ارسال، احراز هویت، ترتیب، replay، تأیید پایدار و اتصال واقعی به دسکتاپ بین دو پردازه تکمیل نشده‌اند. زیرساخت و Windows هم برای پذیرش نهایی لازم‌اند.
+- کار محلی انجام‌شده: علاوه بر envelope، `experimentalNetworkRevocation.ts` انتقال امضاشده loopback، ACK احراز‌شده، ترتیب بر پایه predecessor و رد nonce تکراری را پیاده می‌کند. `remote-network-revocation.mjs` با دو پردازه واقعی و SQLite موقت، رد کلید اشتباه، ترتیب اشتباه، replay، تکرار امن با nonce تازه و restart را آزموده است. اثرانگشت فایل کد آزموده‌شده SHA-256: `2703eb2cd201405382e0958c71d47abaa57cd167d30619d3e9652d5fbf4c4609`، مبنا `927aaad3b23098090f72448cbd3b0065eb3053b8`. این هنوز به outbox هاب و registry دسکتاپ وصل نیست: ledger واقعی، ذخیره اتمیک cursor و nonce، ثبت اتمیک ACK با cursor فرستنده، ابطال هنگام startup، کلید مستقل محافظت‌شده و جلوگیری از صدور grant همزمان با تحویل نیازند. تست loopback شبکه واقعی/تونل یا Panic سرتاسری نیست؛ قابلیت غیرفعال است.
+- مسیر اختیاری supervisor/child حالا outbox واقعی هاب را از طریق loopback به `revokeBy`/`revokeAll` در registry پردازه والد وصل می‌کند؛ حذف عضو از HTTP تا ACK منتظر می‌ماند، retry صف انجام می‌شود و هنگام قطع child مجوزها لغو می‌شوند. `remote-supervisor-revocation-loopback.mjs` با child واقعی، HTTP، grant واقعی و SQLite موقت حذف عضو و بسته‌شدن grant و ثبت ACK را آزمود. آزمون روی مبنای `a298d989c4786e86d4115e7ff078e112c06721ab` و working tree با SHA-256: child `eb9e2573425f88e5ea674dc9a604aa162a46121d4e62b1fe9a78f9418ff63a23`، supervisor `9d1647701d6ab5161001febb490f189a7568ae2246267bf196b7ad58bc38bd81`، mobile `d0529c7c1737da6ce5bbe7fb221a6822dd8c00502e658cd260875843b8bc3d5a`، تست `a27502c791e84da10aa4037a5ec6246daf7d8085ad05dfee1a293bd873baac1e`. Callback پنل و ledger گیرنده در آزمون آزمایشی‌اند؛ اتصال به lifecycle Electron، ledger پایدار واقعی، کلید محافظت‌شده، restore و آزمون Windows/گوشی هنوز کامل نیست. قابلیت همچنان غیرفعال است.
+- ledger ابطال در همان state قفل‌شده اضافه شد: ثبت cursor و nonce در یک فایل با نوشتن موقت و rename انجام می‌شود، فایل حذف‌شده/خراب خودکار بازسازی نمی‌شود و عدم تطابق store/epoch بسته می‌ماند. supervisor می‌تواند مستقیماً از این ledger استفاده کند؛ تست با child واقعی و DB موقت، ماندگاری پس از راه‌اندازی دوباره و خطای fsync/rename را بررسی می‌کند. مبنای تست `653d95ada17fa6d625c78fcaf3f92c9cf4d51011` و SHA-256 فایل state `794cbb00a79cb3d5f5d6c39d5535f09a4181e4a8684b5a7fdfb86199390b6d6e`، supervisor `c3e84b6111c72d83a010b8c00dd207d85c41fe61aa58400c046782ff575b5c1e`، تست ledger `de9cc2f333851c93bc211852dea86865022f95286f0b9ca814655b3d6e344bfc` و تست supervisor `3750966154dc3e44c6d113935c0fc571b3db765af492d741fbd2ec7d216fb343` است. سقف ۲۰۰۰۰ nonce عمداً fail-closed است؛ بازیابی، هماهنگی چرخش epoch، تحمل قطع برق و ACL/رفتار واقعی Windows هنوز اثبات نشده و اتصال به Electron نیز باقی است.
+- در registry اگر پاک‌سازی نشست پنل خطا دهد، grant فوراً غیرفعال اما برای تکرار پاک‌سازی نگه داشته می‌شود؛ بقیه grantها و درخواست‌ها نیز لغو می‌شوند و ACK موفق صادر نمی‌شود. `remote-revocation-cleanup-failure.mjs` این رفتار را آزمود (مبنای `bce77fb5f226ecdd0ec9073f4739b820fab4f689`، SHA-256 کد `0ebc346ce5765372d598298f8cd925d644ec38e906138b98c4a19fd9de0928f1`، تست `3bd0bcc7b2cb6ba126ad7ae77859b70e8a59f9f5ed3f529b2178ceb8c521b3a0`).
+- آزمون جداگانه `remote-network-ack.mjs` رد ACK جعلی را بررسی می‌کند (مبنای `98581eee394b4c9d4b8b6e9af82410bf965f542a`، SHA-256 تست `1f37b77cbb12bcabd577b93c0e43fc60d483224e84fa66f7216c0a4dcdd2616b`). تست‌های جدید در workflow ویندوز نیز قرار گرفته‌اند؛ نتیجه اجرای commit حامل workflow هنوز مشخص نیست.
+- لازم از مالک: برای این بخش به تنهایی تصمیم جدید لازم نیست؛ مسیر ارتباطی همان انتخاب بخش ۱ است. محدودیت مالک و نقش‌ها طبق اسناد قفل‌شده باقی است.
+
+## ۳. Panic — مانع اصلی: (د) مشکل فنی در کد
+- روی مبنای `0e9d32abcbe1ec0017c2a096b74fbe8992828822`، بازیابی محلی P2 به فرم دسکتاپ، IPC با محدودیت فریم اصلی و URL برنامه، گیت واقعی رمز مدیر و supervisor متصل شد؛ PIN مالک، ACK پایدار و وضعیت epoch همچنان در child/supervisor بررسی می‌شوند و بازیابی نشست پنل قبلی را باز نمی‌کند. تست host با child/HTTP و SQLite موقت، رد فریم و URL دیگر، رمز/PIN غلط و بازیابی درست را گذراند؛ Electron، safeStorage، Prisma و رمز محلی در این تست شبیه‌سازی شدند. تست جداگانه گیت واقعی رمز مدیر با SQLite موقت نیز گذشت؛ React/Electron واقعی، نصب، Windows و گوشی این تغییر اجرا نشدند. شش تست، typecheck، redline و build:check محلی گذشتند. SHA-256 host `c40c2af157ea593430b49c051f4900fff191ea9df3640ccc0389ef7f4d0132f9`، IPC `e149a09adf90149aeda06bc83d6112d23e8fadaec779ba6580dcdeaf4b8e27e3`، renderer `e397a5349609f2f63256d38dc8c450e0c78fb1180376ed86538cba5b13ea9e32` و تست `20c5d637d3713038ef8a1c9e77961549bc7d63693ebf304126db2e5a0ce8eea0`. readiness همچنان false و setup، تشخیص کامل DB و recovery بعد restore ناتمام‌اند.
+- روی مبنای `86fd72cfa0c6109f79c9690a6f507d0a331373f4`، renderer هنگام فعال بودن readiness و باز بودن پنل محدود، فقط status نشست Main را بدون touch می‌خواند و پنل‌های حذف‌شده را از نمایش می‌بندد؛ خطای خواندن نیز fail-closed است. گیت پیام عمومی پایان/لغو دسترسی نشان می‌دهد، نه تشخیص قطعی Panic. تست منطق monitor با IPC/زمان/readiness شبیه‌سازی‌شده و تست جداگانه claim تا Panic با child واقعی پاس شدند؛ React mount، خود renderer، Electron واقعی و اعلان اختصاصی Panic تست نشدند. چهار زیرآزمون، typecheck، redline و build:check محلی گذشتند. Windows این تغییر، build کامل، نصب، گوشی و تونل اجرا نشدند و readiness false مانده است. SHA-256 کامپوننت `75aa99087b1e0922d33c3cb0d7bf8495d2b7b0c53cb7b6d065cfa1dbee6bb2d8`، گیت `99ea83a782f5ddacc30e82df1d70644755d6400215d71af3a6b259c3e0f41da7`، hook `660f2ce94cd525a16f97e6f1b83f147f33d4c6e44133c83e381929ecd3363d07`، تست `e61d22fd0b2094f47f86795fb3dfd9541d831a37b2ab35e59c980a9a7f5135f2`.
+- روی مبنای `509f9d7e0d054a3604c735a71b77e4cf24adfe7e` تست تازه `remote-mobile-approval-panic-restart-loopback.mjs` با HTTP و child واقعی، تأیید موبایل، claim در registry، بازشدن `panelSession` واقعی، P2، بسته‌شدن scope و درخواست منتظر، ACK، و restart واقعی supervisor و child را روی DB و کلیدهای موقت بررسی کرد؛ P2 پس از restart همچنان latched است. ledger replay پس از بازکردن state مستقیماً `REPLAY` را رد کرد، نه اینکه همان فرمان از IPC دوباره ارسال شده باشد. اعلان واقعی دسکتاپ، Electron، کلید محافظت‌شده، restore، گوشی و تونل اجرا نشدند؛ تست جای تکمیل محصول نیست. ۱۲ زیرآزمون مرتبط، typecheck، redline، بررسی YAML و build محلی بدون engine واقعی گذشتند. SHA-256 تست `7da99d99c1439ba4e6f1fb34444083aa36bf096de8de36ea4e811f4b4f0e375d`. اجرای Windows روی تست جدید اجرا نشد.
+- اجرای سازگاری Windows `44277135459` روی `509f9d7` در تست قبلی snapshot شکست خورد: annotation زیرآزمون `failed refresh immediately removes the previously published snapshot` را با `clock-future` نشان داد؛ ۱۴ زیرآزمون آن مرحله موفق بودند و مراحل بعدی اجرا نشدند. این همان خانواده شکست متناوب قبلی است و علت قطعی هنوز ثابت نیست؛ بررسی زمان تضعیف نشده است. اجرای سازگاری `44276259453` و ساخت installer `44276268118` روی `1dc9ff8` موفق بودند؛ نصب واقعی اجرا نشد.
+- **(قدیمی؛ وضعیت فعلی در بخش «موارد مشخصِ باقی‌مانده» پایین‌تر)** pause و صف revoke آزمایشی وجود دارد ولی فرمان سرتاسری، نمایش، حسابرسی، P1/P2 و اعمال ابطال روی دسکتاپ/آفلاین هنوز کامل و اثبات نشده‌اند. نباید به‌جای Panic عملیاتی معرفی شود.
+- کار محلی انجام‌شده: متد آزمایشی `panic` در identity با تأیید OWNER و PIN در یک تراکنش، همه نشست‌های هاب را حذف، pause و latch پایدار فعال و ابطال ALL را صف می‌کند؛ ورود جدید تا راهکار بازیابی محلیِ تأییدشده بسته می‌ماند. تست `remote-panic-identity.mjs` با SQLite موقت صحت آن بعد از restart را آزموده است (مبنای کد `cd99587a0903d2297bb0682fcd396bd595cf5334`، SHA-256 فایل identity: `8f051d8c36717534038be7d2f5e13158855eddb9d2ced828d6c664a5072b1b36`). `remote-authenticated-approval.mjs` نیز لغو grant و درخواست را فقط درون‌پردازه‌ای آزمود. اتصال واقعی به شبکه/دسکتاپ، تفکیک P1/P2، بازیابی محلی، UI و آزمون سرتاسری هنوز انجام نشده‌اند؛ panic جدید به برنامه متصل نیست.
+- گام آزمایشی جدید روی مبنای `6589f4d233dbb7132de343c86af7d9d777a859b1`: endpoint مالک با PIN به latch و صف ALL و drain واقعی supervisor/child وصل شد. `remote-supervisor-panic-loopback.mjs` روی HTTP loopback و SQLite موقت، PIN غلط، grant و درخواست باز، ACK، خروج نشست و جلوگیری ورود را آزمود؛ callback پنل شبیه‌سازی‌شده است. SHA-256 فایل hub: `e77315f9b6e14b7b77233e27dd04c40900e18b8cddd9e4fcb627508ef24858e7`، تست: `1df6f3b98f6f30355fb291a6d6ae8a392b792404559160b442aa3a8ace06ef1f`. این یک فرمان آزمایشی و نه تفکیک P1/P2 یا رابط عملیاتی است؛ تست شکست انتقال/ACK برای همین مسیر، callback واقعی، اعلان و بازیابی اجرا نشد. callback اعلان بعد از ذخیره ledger اضافه نشد: در صورت شکست، nonce ذخیره‌شده و retry ممکن است اعلان را از دست بدهد.
+- `remote-supervisor-panic-failure-loopback.mjs` روی مبنای `bc3e2cfe5f38f1fb284b8b46022ac96c3a9abee9` با child واقعی و SQLite موقت شکست پاک‌سازی پنل را تزریق کرد: HTTP برابر 503، نشست و درخواست بسته، grant غیرفعال، outbox بدون ACK و ledger خالی ماند؛ پس از رفع شکست، retry پس‌زمینه پاک‌سازی را تکرار و ACK را ثبت کرد. SHA-256 تست `eabdd3248ccd88ade50017206dc8dd2fbe755ba41f75046248bf04cb9d582160` است. callback آزمایشی است و این به‌تنهایی تست شکست ارتباط شبکه، اعلان و Electron واقعی نیست.
+- سهمیه درخواست Panic پس از شناسایی OWNER جدا از سهمیه ورود بر اساس شناسه مالک شد؛ اشباع سهمیه ورود مشترک proxy دیگر به‌تنهایی Panic مالکِ دارای نشست را نمی‌بندد و قفل پایدار PIN همچنان برقرار است. `remote-panic-source-rate-loopback.mjs` این وضعیت را با HTTP، child، grant و SQLite موقت آزمود. مبنا `5d0f447abc29c9bbe4ad1f86843e15c577994126`؛ SHA-256 hub `262c1d231cf59b64da5dfdb5f0b12403079a8796738eeb4f8d54d42b1530b285` و تست `f9fea0e0f6fd4921e95447a97af77908a69db6408e6f0614f34092b0cca7c87d`. این تضمین دسترس‌پذیری در برابر همه حملات یا proxy واقعی نیست؛ تست آن اجرا نشد.
+- روی مبنای `f176dfe6557c526d253af95e77c4ab9ffc497f00`، تست `remote-panic-panel-session-loopback.mjs` با child و HTTP و SQLite موقت، callbackهای واقعی `panelSession` را به registry آزمایشی متصل کرد و بسته‌شدن همان scope را بعد از Panic آزمود. SHA-256 تست `97a45f2782fb85a8e886eda3ad1db63975a3fc7ffd2ec2bd5c357bb555362faf`. این راه‌اندازی واقعی Electron نیست و برخورد با ورود محلی بعدی در همان پنل هنوز حل نشده؛ اتصال فعلی می‌تواند نشست محلی جدید را پاک کند و نباید فعال شود. **به‌روزرسانی مرحلهٔ ۵:** این خطر با adapter مالکیت‌دار برطرف شد (بند «برای جلوگیری از پاک‌شدن ورود محلی…» پایین‌تر؛ `CloudSyncService` از `noteRemotePanelUnlocked` استفاده می‌کند و `remote-panic-preserve-local-loopback.mjs` در workflow ویندوز اجرا می‌شود).
+- شکست پاک‌سازی هنگام انقضای grant دیگر exception مدیریت‌نشده در تایمر ایجاد نمی‌کند؛ grant غیرفعال مانده و پاک‌سازی تکرار می‌شود. `remote-expiry-panic-failure-loopback.mjs` مسیر انقضا، شکست و retry را با child و outbox واقعی آزمود؛ SHA-256 registry `520f0a15e004b72c87da42e517e4635238b6fc6d362be8d0c40908a7791c40c7` و تست `417c4ba4dd7e0e8531fbc7b031cdd945e6e16bf8d0147c3a8ffadbe4ba401353`. تست callback تزریقی دارد و جایگزین آزمون Electron نیست.
+- روی مبنای `d77aa209b8819b5885699b3cdeddf6ff1fb0babc` به supervisor یک callback همزمان اختیاری پیش از ثبت nonce و ACK اضافه شد؛ شکست آن تحویل را بدون ACK می‌گذارد و retry دوباره ابطال و callback را انجام می‌دهد. callback باید خود idempotent و پایدار باشد، چون از دست رفتن ACK یا شکست ذخیره می‌تواند آن را تکرار کند. `remote-panic-notification-loopback.mjs` با HTTP، child و SQLite موقت شکست callback و retry را آزمود. SHA-256 supervisor `245765f0439745b62860636ae46016062ce665704b1f59da4c06ef7680184131` و تست `0ad5190e711c5bf773e06fe6572c2c17cbdff3c0e217ff769202829eec9ce678`. callback در تست شبیه‌سازی است؛ اعلان پایدار/بنر و lifecycle واقعی Electron هنوز متصل و آزمایش نشده‌اند.
+- روی مبنای `1d4766bb92ba2cf92b6b6db3ae68558ebfd355dd`، فرمان آزمایشی P1 (`/api/panic/close`) از P2 جدا شد: فقط OWNER با PIN، صف ابطال ALL و انتظار ACK، بدون pause یا خروج نشست؛ P2 قبلی همچنان latch و خروج نشست دارد. تست‌های `remote-panic-levels-loopback.mjs` و `remote-panic-p1-failure-loopback.mjs` با child، HTTP و SQLite موقت تفکیک P1/P2، رد مدیر، PIN غلط، بسته‌شدن grant/درخواست، عدم ACK هنگام شکست و retry را آزمودند. SHA-256: identity `0d31314ceb125fce1ca2a5c2ab2f53d241070da89d1eee873147da8655c208d0`، hub `b88f58213d5758ddcdb1dcb905adb5eaefa9d8026bb6f562cda59c5a877a1418`، تست سطوح `6aec9efdb14b2ab43551f2bc35d26979c085095a9eb9418c978ef5facf86c23e`، تست شکست `c21ff7a227d183a4dceda1794e9a8af63b79c9bc69eb2b0d50d0c1dc66a77471`. بنر قرمز، تشخیص نوع Panic در اعلان، بازیابی با رمز محلی، UI و اتصال واقعی Electron همچنان کامل نیست؛ P1/P2 عملیاتی محسوب نمی‌شوند.
+- رابط PWA آزمایشی P1 به endpoint و capability مختص OWNER متصل شد؛ نتیجه نامشخص، موفق اعلام نمی‌شود و پاسخ‌های دیررس درخواست‌های قبلی کنار گذاشته می‌شوند. `remote-panic-pwa-loopback.mjs` اسکریپت واقعی PWA را با DOM شبیه‌سازی‌شده، HTTP، child، registry و SQLite موقت آزمود (مبنای `7749fc0627f075df1db8fdf36cf8563114eb1953`؛ SHA-256 hub `b445da3bf0c85c9eb9964313a72f71c92862d0e526e8ca1e6fc32ea03ac03f9f`، assets `ba689da605d695b6cc42d098307a5422c4e72a58fd924b87517f6d90915fbae0`، تست `4144a22a09e954284a3cf22c8149d76dcadd6c7fb33be714703a2c8f02c58a3f`). callback پنل شبیه‌سازی است؛ UI برای P2 عمداً تا تکمیل بازیابی محلی ارائه نشده، تست مرورگر/گوشی/HTTPS واقعی اجرا نشد و قابلیت فعال نیست.
+- مسیر آزمایشی بازیابی P2 از supervisor با callback گیت رمز محلی، IPC خصوصی child و PIN مالک متصل شد؛ تا تأیید ابطال، تطابق cursor/epoch فرستنده و گیرنده و درستی هر دو رمز، latch باز نمی‌شود. تست `remote-panic-local-recovery-loopback.mjs` با `assertManagerPassword` واقعی روی SQLite هارنس موقت، HTTP، child و ledger موقت گذشت؛ پسورد غلط، PIN غلط، ACK معوق و cursor نامنطبق بازیابی را رد کردند. مبنا `753406c3b9c821317ef97391ba7cbd217150ee7e`؛ SHA-256 identity `38dac30a6a5004a69368dbb232beae44562939ce7e34f19fed94dc5606e58086`، child `76a89375f20abc41d43499a0c523ec9a22f9d026810563a7b9e16444422844c8`، supervisor `e0923fcc8138ac9998b4c849f83ceceebf1a9af020f724bac339b10bdab7424b`، تست `d7046fe070c4814bec1613f99c703df28bee8531ac8622e20310d093aeb0c8c9`. فراخوانی فقط برای parent مورد اعتماد است؛ پنجره و IPC محلی واقعی، هماهنگی اتمیک restore، رفتار قطع/timeout و P2 UI عملیاتی هنوز اثبات یا متصل نشده‌اند و readiness همچنان false است.
+- برای جلوگیری از پاک‌شدن ورود محلی هنگام revoke، adapter پنل به scope ایجادشده توسط همان grant یک تابع پاک‌سازی مالکیت‌دار می‌دهد؛ اگر ورود محلی بعداً جای آن را بگیرد یا bucket پنجره عوض شود پاک‌سازی به نشست جدید دست نمی‌زند. `CloudSyncService` در مسیر فعلاً غیرفعال از این adapter استفاده می‌کند. `remote-panic-preserve-local-loopback.mjs` با child/HTTP، registry، callback واقعی `panelSession` و SQLite هارنس موقت، پاک‌شدن scope راه دور و حفظ ورودهای محلی قبلی/بعدی و bucket تعویض‌شده را آزمود (مبنای `c02dcffd3717d98f82730d0af22102f65e487d45`؛ SHA-256 پنل `8d8d0312135ff2f076e0f8e0b58faae28c236aab14e343269b13addf4b03779d`، registry `93f59bdf65d0c12003ad1fbd6ea35ea02085c38326caf9fe43b7106ae35d0e59`، سرویس `a238e2027e5131f5db4cfb3833f8e9abc43eae46234f9c5f2c49cf89baf2ea8b`، تست `65d3c4b154c4e4e8a799900d4c17844a8fef9c63a636ae645c402e895c3d5bfa`). Electron واقعی، lifecycle و اتصال عملیاتی همچنان آزموده نشده؛ adapter قدیمی همچنان ناامن است و نباید در محصول استفاده شود.
+- **(حل‌شده در `a42ccba`؛ بند بعدی — تست `remote-panel-expiry-gate-loopback.mjs` در workflow ویندوز است)** **مانع امنیتی جدید، حل‌نشده:** روی مبنای `505277cd9b35cce11b0f34b0e121140c719f9e87`، بازتولید `tests/audit-fixes/remote-panel-expiry-gate-loopback.mjs` (SHA-256 `2f8ca89bed2834d8c04c84df15ea6008f156a664c8e8b0390e8bc425e6b0de5e`) دو بار پیاپی شکست خورد: اگر event loop تا پس از انقضای grant مسدود شود، پیش از اجرای تایمر، گیت واقعی `isPanelUnlocked` هنوز true برمی‌گرداند. آزمایش با child، HTTP، registry و SQLite موقت انجام شد؛ چون assertion انقضا شکست خورد، بخش Panic بعدی در این تست اجرا نشد. تست عمداً به workflow اضافه نشده چون شکست شناخته‌شده است. یک رفع آزمایشی با بررسی همزمان انقضا در گیت، این تست را گذراند اما guard خط قرمز را شکست (`panelSession.ts`: ۲۵ خط در برابر بودجه ۶)، پس تغییر کد کنار گذاشته شد و رفع انجام نشده است. بدون مجوز تغییر خط قرمز/معماری، این مسیر نباید فعال شود. نتیجه موفق قبلی حفظ نشست محلی فقط همان سناریو را ثابت می‌کند، نه ایمنی انقضای grant.
+- مالک افزایش محدود بودجه `panelSession.ts` را فقط برای رفع انقضای grant اجازه داد؛ بودجه guard از ۶ به ۲۴ خط تغییر کرد. در مسیر adapter تنظیم‌شده در `CloudSyncService` گیت نشست پیش از پذیرش، وضعیت همان grant را همزمان می‌سنجد؛ انقضا یا خطای بررسی بسته می‌ماند و timer تنها مرجع نیست. تست شکست‌خورده بالا اکنون روی مبنای `a42ccbaebe09c8367b541c7421608899161adc3a` و working tree جدید، با child/HTTP و SQLite موقت و توقف event loop گذشت؛ ۱۶ آزمون مرتبط دیگر/مجموعاً ۱۶ زیرآزمون، redline و build محلی بدون engine گذشتند. SHA-256 پنل `d697960bb38028c3ad9ffecf6a1d6c53add2437d6577c35912a3338b4fca9f5b`، registry `665d676618bca8149837e2efbcb00675dfa3d237943e48679105c0a8591c7a2a`، سرویس `911578825a5c926bfa36c1e21b3a12560a25b13689756e23debba51a82e688f1`؛ تست مذکور بدون تغییر در Windows workflow اضافه شد. adapter قدیمی که guard را عبور نمی‌دهد ایمن نیست و نباید فعال شود. Electron و Windows روی این تغییر هنوز اجرا نشدند؛ typecheck فقط دو خطای قدیمی فروش دارد.
+- لازم از مالک: تصمیم جدید درباره رفتار لازم نیست؛ P1/P2 و محدودیت OWNER و PIN طبق سند مصوب هستند. برای پذیرش نهایی انتخاب زمان/دستگاه تست ایزوله لازم است.
+
+## ۴. هماهنگی اتمیک restore — مانع اصلی: (د) مشکل فنی در کد
+- روی مبنای `853a037c6f488d98dbf8329de773f27e1fb1685c`، کارهای foreground هاب پیش از شروع خواندن منتظر بررسی mirror در حال اجرا می‌مانند و هنگام کار foreground، tick فهرست خالی می‌فرستد؛ هر دو انتظار از ابتدا در barrier شمارش می‌شوند و پس از شروع restore کار منتظر اجرا نمی‌شود. تست با child/HTTP، IPC، رجیستری، panelSession، cloudReader و SQLite موقت، query معلق mirror و شروع sync را آزمود: بدون ابطال اشتباه، sync منتظر می‌ماند و دو کار در barrier شمارش می‌شوند؛ Electron، auth و readiness شبیه‌سازی شدند. پس از آخرین اصلاح مدیریت خطای ارسال، ۹ تست مرتبط، typecheck، redline، YAML و build:check محلی گذشتند؛ تست backup هشدار stub فاقد `$connect` دارد. SHA-256 supervisor `37173e0aac3cde6fb8b53decca34ca5e464a072c018c0a307380084a884a11e9` و تست `3b3a0fb88d7b403799e4d46d08ec2cf05d4dfe0f49e69828d5e9d4f6b58a857c`. این هماهنگی بین همه کارهای foreground نیست و تداخل‌ها و کارایی واقعی باید بازبینی شوند. Windows این تغییر، Electron/DPAPI واقعی، نصب، گوشی و تونل اجرا نشدند؛ fingerprint کامل و resync باقی‌اند و readiness=false.
+- روی مبنای `d5e6e797f27e1579458fc567874ca1af4786a1c4`، tick هنگام busy بودن خواننده، فهرست خالیِ شماره‌گذاری‌شده می‌فرستد تا درخواست‌های mirror قبلی نیز کنار گذاشته شوند؛ پس از آزادشدن خواننده، فهرست فقط بعد از بررسی مجدد فرستاده می‌شود. تست با child/HTTP، IPC، registry، panelSession، cloudReader و SQLite موقت نشان داد درخواست قبلاً mirrorشده هنگام query معلق از فهرست حذف و بعد از تخلیه دوباره ظاهر می‌شود و grant سالم برقرار می‌ماند؛ Electron، auth و readiness شبیه‌سازی شدند. این پاک‌سازی وابسته به tick/IPC است و حذف آنی یا کنترل پاسخ‌های قبلاً در راه را تضمین نمی‌کند. ۱۰ تست مرتبط (۱۱ زیرآزمون)، typecheck، redline، YAML و build:check محلی گذشتند. SHA-256 bridge `21dd5056352ba74f75b42791bdb1b76ae344eaf9e5d8d462d0c449ca9269447b`، supervisor `f5a6a0e612a40e92f75fe7ee3e3279bd2ed62c606bc233fb78da55830423a3b6` و تست `a96462f7b285a325965ca6161bd91487dbd2b63e37291547406eb9e8787ad4e2`. Windows این تغییر، Electron/DPAPI واقعی، نصب، گوشی و تونل اجرا نشدند؛ fingerprint کامل و resync باقی‌اند و readiness=false است.
+- روی مبنای `1b78aaec1ba421c3f955f54c046745c2f43f84bd`، خواننده واقعی امکان شروع اتمیک و غیرمنتظرکنندهٔ بررسی audit دارد؛ tick اگر query دیگری مشغول باشد هیچ mirror تازه‌ای ارسال نمی‌کند و در tick بعدی دوباره بررسی می‌کند، بدون آنکه کار سالم هم‌زمان را خطا قلمداد کند. خطای واقعی و timeout همچنان مسیر fail-closed قبلی را دارند. تست با child/HTTP، IPC، رجیستری، پنل، cloudReader و SQLite موقت، sync معلق کمتر از timeout را آزمود: grant سالم باقی ماند، درخواست جدید در mirror بررسی‌نشده ارسال نشد و پس از تخلیه و بررسی، ارسال شد. Electron، auth و readiness شبیه‌سازی شدند. mirror قبلی تا انقضای سه‌ثانیه‌ای آن در child ممکن است قابل خواندن بماند؛ این تغییر fingerprint کامل یا تضمین پیش از هر پاسخ HTTP نیست. ۱۱ تست مرتبط (۳۰ زیرآزمون)، typecheck، redline، YAML و build:check محلی گذشتند؛ تست backup همچنان هشدار stub فاقد `$connect` دارد. SHA-256 خواننده `03b4bc47e96b1a9cc3104231c1014c38a20e617f88f2b125e6f92e147026b0f7`، supervisor `b8fa87f688909f8349c496d283d11c403b44d95b7a9c314b52a9ef0d08d8100b` و تست `458704065f1dcafcce19f6ac84e273f01909ef8bd50b9dd31cb1a91f4ae6d7cd`. Windows این تغییر، Electron/DPAPI واقعی، نصب، گوشی و تونل اجرا نشدند؛ readiness=false و resync و هویت کامل هنوز باقی‌اند.
+- روی مبنای `5786ff83531aee6e60753d012ac591203e49b0e2`، انتشار snapshot در حالت revocation پیش از ارسال به child نیز anchor آخرین audit تأییدشده را بررسی می‌کند. تست جدید با child/HTTP، IPC، registry، panelSession و SQLite موقت، تغییر همان inode حین refresh و بستن grant و تغییر epoch را آزمود؛ تایمر mirror در تست عمداً پس از claim متوقف شد تا تشخیص به مسیر refresh نسبت داده شود. Electron، auth و readiness شبیه‌سازی شدند. ۹ تست مرتبط، typecheck، redline، YAML و build:check محلی گذشتند؛ هشدار stub فاقد `$connect` در تست backup پابرجاست. SHA-256 supervisor `25de5a73c7a5fb665ef01377ac1f297e4e63cea1fb6195a2af976de483e186f0` و تست `bba6f11435fe8ce363684f3ecbc99ad9a6f6a5c0b15ed783c7c0487ed05a182c`. Windows این تغییر، Electron/DPAPI واقعی، نصب، گوشی و تونل اجرا نشدند؛ anchor جای fingerprint کامل و قفل مشترک همه نویسنده‌ها نیست، resync تکمیل نشده و readiness=false است.
+- روی مبنای `46ba32526dce4b5f8db7a9e494e97c619cca6b31`، ارسال دوره‌ای فهرست درخواست‌ها به child نیز اکنون پیش از ارسال anchor آخرین audit تأییدشده را بررسی می‌کند؛ پیش‌تر تنها marker و inode بررسی می‌شد. تست جدید با child/HTTP، IPC، registry، panelSession و SQLite موقت، تغییر anchor در همان inode با grant فعال را بدون فراخوانی approval/claim/sync/refresh بعدی آزمود: tick نشست و درخواست را می‌بندد و epoch را fence می‌کند. Electron، احراز هویت و readiness شبیه‌سازی شدند. ۱۰ تست مرتبط، typecheck، redline، YAML و build:check محلی گذشتند؛ هشدار stub فاقد `$connect` در تست backup همچنان وجود دارد. این بررسی هر نیم‌ثانیه خواندن audit اضافه می‌کند و در تداخل با خواننده busy ممکن است هاب را محافظه‌کارانه ببندد؛ کارایی واقعی هنوز آزموده نشده است. SHA-256 supervisor `d2b2f6f60dc001d957dca01fba0b506f8d2c8b512c9d278610cc48358f2088b8` و تست `8ced9a6a11028320346321cc73881fcd70a25c58096c51e2ec9d7b2799e28474`. Windows این تغییر، Electron/DPAPI واقعی، نصب، گوشی و تونل اجرا نشدند؛ این anchor، fingerprint کامل نیست و resync همچنان حل نشده است؛ readiness=false.
+- روی مبنای `14e6b7aff06d23084b64c4a76d5a3007bbddb86e`، خطای refresh snapshot در حالت فعال‌بودن revocation، پیش از انتظار تخلیه query، admission و grantها را می‌بندد، در صورت امکان epoch را fence و child را متوقف می‌کند؛ خطای گذرا نیز محافظه‌کارانه هاب را می‌بندد. حالت بدون revocation رفتار قبلی را دارد. تست با child/HTTP، IPC، panelSession، cloudReader و SQLite موقت، timeout عمدی query را پس از grant فعال و حفظ barrier تا پایان query آزمود؛ Electron، auth و readiness شبیه‌سازی شدند. ۹ تست (۱۰ زیرآزمون)، typecheck، redline، YAML و build:check محلی گذشتند. SHA-256 supervisor `6a4e417c9b362a174515dd3d79fa6b51ae8e357fd3152eb175d03d7bf309ced5` و تست `528c0c88cd1f48eb87dc578d471c162b8bd198170ea0828617237aa66317ccd9`. Windows این تغییر، Electron/DPAPI واقعی، نصب، گوشی و تونل اجرا نشدند؛ این اصلاح fingerprint کامل و resync نیست و readiness=false.
+- روی مبنای `e46e03175d45d6d5eac346723beb3bdd5d560168` خطای sync نیز پیش از انتظار تخلیه query در barrier، admission و grantها را می‌بندد و در صورت امکان epoch را fence می‌کند. تست loopback با child/HTTP، IPC، رجیستری و پنل، cloudReader و SQLite موقت، پس از فعال‌سازی grant، query را عمداً معلق کرد و بستن نشست و درخواست و ماندن کار در barrier تا آزادسازی query را آزمود؛ Electron، auth و readiness شبیه‌سازی شدند. هشت تست مرتبط، typecheck، redline، YAML و build:check محلی گذشتند؛ تست backup همچنان هشدار stub فاقد `$connect` دارد. SHA-256 supervisor `06977ce3a17a3adcece094cb6ec00de49d8233839387269cdc18e23aaaa8d076` و تست `2bee57fde7d77ef373e1a8fb1c901a6b2060c0d0f231190f26a079e9f3fb3d62`. Windows این تغییر، Electron/DPAPI واقعی، نصب، گوشی و تونل اجرا نشدند؛ fingerprint کامل و resync هنوز باقی‌اند و readiness=false.
+- روی مبنای `b65ed7a4eca551d193df5222a6950bb080e585a4`، خطای خواندن anchor در approval/claim اکنون بلافاصله admission و grantها را می‌بندد و epoch را در صورت امکان fence می‌کند، سپس همچنان منتظر اتمام query واقعی داخل barrier می‌ماند؛ پیش‌تر `finally` تخلیه را قبل از fail-closed انجام می‌داد. تست جدید با child/HTTP، IPC، registry، panelSession، cloudReader و SQLite موقت، یک grant واقعی فعال و query عمداً معلق تأیید کرد که بعد از timeout نشست و درخواست بسته و epoch عوض می‌شود در حالی که barrier هنوز query را نگه داشته است؛ Electron، احراز هویت و readiness شبیه‌سازی شدند. هشت تست مرتبط، typecheck، redline، YAML و build:check محلی گذشتند؛ تست backup همچنان هشدار stub فاقد `$connect` دارد. SHA-256 supervisor `4e7830c76b6d23ca8d10649ff0bdf9c85be30811911dccfc5c2f4a2dd1a77333` و تست `00edab7a93cb399f49aa210949bf2728cf5ca25ebb3ecc5085f655e438446b88`. Windows این تغییر، Electron/DPAPI واقعی، نصب، گوشی و تونل اجرا نشدند. این رفع، fingerprint کامل یا resync نیست؛ readiness=false.
+- روی مبنای `198f02721cdc10853fc710d3763290011b6ebcab`، بررسی مشترک marker و هویت فایل هنگام refresh نیز در صورت عدم قطعیت پذیرش را می‌بندد، نشست‌ها را لغو و در صورت امکان epoch را fence می‌کند. تست واقعی child/IPC و SQLite موقت، تعویض فایل هنگام refresh و بستن پنل و ledgerهای قدیمی را آزمود؛ ۱۸ زیرآزمون و شش تست مرتبط، typecheck، redline و build:check محلی گذشتند. SHA-256 supervisor `7e56a898031368868465b225598a8f9110e7023062376ca32bc3fed372d9fdfd` و تست `8eb51eb80e807fc9b7c6c0d4a18856bcf9a6f101f69465aa96ab760fa4f2ade1`. این fingerprint کامل یا resync نیست و محدودیت‌های بندهای بعدی پابرجاست. Windows، Electron، نصب و گوشی این تغییر اجرا نشدند؛ readiness false است.
+- Windows installer `44321360921` و remote `44321350789` روی `32d32f821ffa5c9736d6d9439956b351da086e25` هر دو موفق شدند؛ دو شکست پیشین در اجرای موفق بعدی تکرار نشدند اما دلیل قطعی آن‌ها معلوم نیست.
+- روی مبنای `dad93ed2142e6a6cce0624c4cfdfd87919d45ce5`، پس از بستن پذیرش و لغو نشست‌ها به‌علت عدم قطعیت approval/claim یا sync، state در صورت امکان به epoch تصادفی تازه با cursor صفر fence می‌شود؛ اگر restore هماهنگ در حال تخلیه باشد همان restore مسئول fence است. ledgerهای قدیمی با epoch تازه باز نمی‌شوند و خطای ذخیره نیز اجازه بازشدن نمی‌دهد. تست child/IPC و SQLite موقت تغییر anchor، چرخش epoch و رد هر دو ledger را نشان داد؛ ۹ تست، typecheck، redline و build:check محلی گذشتند. این **resync یا recovery نیست**: ledger و hub برای epoch تازه هنوز مسیر بازیابی هماهنگ ندارند؛ fingerprint کامل، خرابی برق، rollback فایل‌ها و writer خارجی نیز حل نشده‌اند. خطای موقت sync هم محافظه‌کارانه fence ایجاد می‌کند. SHA-256 supervisor `f341d57dc0a2af870b8c3fe62b1364948b4ddaab386d1d95278df21162c1c9eb` و تست `f6c9fccc3437c6e58bd8effea51c4db4a6297e63662dbf7b9479674d78c2aef2`. Windows، Electron، نصب و گوشی این تغییر اجرا نشدند؛ readiness false.
+- روی مبنای `81ba0dd1092f850d67912ab070168ed541f82ed9` خطای چرخه sync هنگام فعال‌بودن revocation اکنون پذیرش و grantها را می‌بندد و child را متوقف می‌کند؛ در restore در حال تخلیه، قفل قبلی مسئول بستن است. تست با IPC و child و SQLite موقت نشان داد تغییر ردیف anchor در همان inode هنگام sync، نشست واقعی پنل را می‌بندد و sync بعدی رد می‌شود. این سیاست حتی خطاهای موقت شبکه/خواننده را محافظه‌کارانه متوقف می‌کند و بازیابی خودکار ندارد. ۲۱ زیرآزمون، typecheck، redline و build:check محلی گذشتند؛ هشدار `$connect` تست backup محدودیت stub است. SHA-256 supervisor `0fcf132eb9c8ba91b24e173ef4e3d78f7f64d8875b637a5e89181c003ebc5aac` و تست `4788fadcbc7485eb62b91eabd4814bd36cbb68e7f27d0a028647ced3e1e13fab`. Windows این تغییر، Electron، نصب و گوشی اجرا نشدند. محدودیت fingerprint و resync بند بعدی همچنان برقرار است؛ readiness false.
+- روی مبنای `b15c4026561bca2b806b7feaafbc994a1acbb059`، پیش از approval و claim، اگر audit قبلاً ACK شده باشد، supervisor آخرین ردیف ACKشده را دوباره می‌خواند و هش آن را با state مقایسه می‌کند؛ خطا یا تفاوت، پذیرش را می‌بندد و child را متوقف می‌کند. دو تست با IPC و child/HTTP و SQLite موقت تغییر همان ردیف در همان inode را پیش از تأیید و پیش از claim آزمودند. در اولین اجرای تست تأیید، قطع سوکت هنگام توقف child به‌اشتباه شکست تست شد؛ assertion اصلاح شد تا قطع نامطمئن را موفقیت تأیید نداند؛ سپس هر دو و چهار تست مرتبط، typecheck، redline و build:check گذشتند. این بررسی fingerprint کامل نیست: وقتی ACK صفر است، ردیفی برای تطبیق وجود ندارد؛ تغییر داده‌ای غیر از anchor یا rollback همسان، writer خارجی و race پس از بررسی همچنان پوشش قطعی ندارند. تداخل با خواننده مشغول نیز ممکن است محافظه‌کارانه hub را متوقف کند. SHA-256 supervisor `0e8bcf3babe09d30b63d99ca3fd5916f834dd2f6a65b9764031cfa89987dc41c`، تست تأیید `6c99b963f65aa0e306eda8c7d77e8d0a74b279008d887992fe6246ddade9f378` و claim `688c97436aae34495a468510920d6d1fcedd29f6f0467dedc41861d3c0053f1c`. Electron/Windows روی این تغییر، نصب و گوشی اجرا نشدند؛ readiness false است.
+- Windows installer `44317228646` و remote `44317213431` روی `b15c4026561bca2b806b7feaafbc994a1acbb059` موفق شدند؛ شکست قبلی Windows بدون علت مشخص رفع قطعی تلقی نمی‌شود.
+- روی مبنای `ab90351a737ce3a713d650ad0c72d7343d0aa207` تست تازه با backup IPC و BackupService واقعی، claim guard و child/HTTP و SQLite موقت نشان داد restore جایگزینی پیش از تخلیه claim منتظر می‌ماند، پذیرش را فوری می‌بندد، claim را رد و epoch را تغییر می‌دهد. claim در این تست مستقیماً به registry فراخوانده شد نه از IPC؛ Electron و Prisma شبیه‌سازی شدند و reconnect/audit موفق اثبات نشد (هشدار stub `$connect`). پنج تست مرتبط، typecheck، redline و build:check محلی گذشتند. SHA-256 تست `86170c7478e916635cd74c83782fc164c4a35ac959526de3384048e0b38f5ea2`. Windows این تست، build کامل، نصب، گوشی و تونل اجرا نشدند؛ readiness false است.
+- Windows remote `44302836556` روی `ab90351` در زیرآزمون `a replaced lock is never removed and stop does not claim successful cleanup` شکست خورد: انتظار startup child پس از ۳۰۰۵ms با `Hub child unavailable` پایان یافت. annotation سایر ۱۴ زیرآزمون را موفق نشان می‌دهد؛ دریافت لاگ کامل به EOF خورد. دلیل کندی مشخص نیست و timeout یا تست برای عبور تغییر داده نشد؛ `gh run rerun --failed` با پیام `workflow file may be broken` انجام نشد. installer `44302846159` هنگام بررسی در حال اجرا بود. شکست Windows رفع‌شده تلقی نمی‌شود.
+- روی مبنای `6ce485938ef856b5a78a29bf83fe9eb778cfac6f`، claim IPC فقط وقتی اجرا می‌شود که supervisor صاحب lease، guard آن را نصب کرده باشد؛ guard قبل از ایجاد نشست همان بررسی store/epoch/marker و هویت اختیاری فایل را در barrier انجام می‌دهد و پس از انتظار، lease و grant دوباره سنجیده می‌شوند. تست با child/HTTP، IPC و panelSession واقعی و SQLite موقت جایگزینی فایل وسط claim را آزمود: claim رد شد، نشست ساخته نشد و پذیرش بسته ماند. Electron، readiness و AuthService شبیه‌سازی شدند؛ نوشتن در همان inode، restore خارجی و recovery همچنان پوشش قطعی ندارند و خواندن هویت فایل اختیاری است، نه fingerprint کامل. شش تست مرتبط، typecheck، redline و build:check محلی گذشتند؛ هشدار stub `$connect` در backup باقی است. Windows و build کامل این تغییر، نصب، گوشی و تونل اجرا نشدند؛ readiness false است. SHA-256 registry `9c64e7c25b7375e37bb5f678f3675285129ff0da108caa14051a397cc4efebbd`، IPC `1996283244869d8f67f99785f517c9aa010798749fa70565354d183517d46f44`، supervisor `620ca98d4890464db04442bb3115782c371a339567188fae3cbdbbc64bc29388`، تست `98db20ca74581ae0d0ee37525cee543bb133cb134dfbedef20deeb997ba95bda`.
+- روی مبنای `feb016a04ad712a4d7c4ff55ee2fdcb2b78ef6f9`، supervisor آزمایشی درست پیش از بازکردن پذیرش دوباره وضعیت barrier را می‌سنجد و خطای startup فوراً پذیرش را می‌بندد، بدون انتظار برای خروج child. تست جدید با child واقعی و barrier واقعیِ دارای wrapper کنترل‌شده شروع restore بین پایان بررسی و بازشدن پذیرش را آزمود؛ مسیر خطا پس از بازشدن پذیرش جداگانه تزریق و آزموده نشد. شش تست loopback مرتبط، typecheck، redline و build:check محلی گذشتند؛ هشدار stub `$connect` در آزمون backup باقی بود. محدودیت‌های هویت فایل، restore خارجی، recovery و اتصال Electron همچنان برقرارند؛ readiness خاموش است. Windows این تغییر، build کامل، نصب، گوشی و تونل اجرا نشدند. SHA-256 supervisor `47d157587eafafd4d32d87c5ba531bd7af2f5f04b0caae3c039c82f48a1ae7cd`؛ تست `32ceb55e2579f040dbf3f52bff199d0e7bafc874a01b89882842fc5f099de732`.
+- روی مبنای `491bc315757e61f42a20260926f10dc9fb4c4d1d`، supervisor آزمایشی پس از راه‌اندازی child و تخلیه اولیه outbox، پیش از بازکردن پذیرش، store/epoch/marker و هویت اختیاری فایل را دوباره بررسی می‌کند؛ خطا یا timeout شروع را بسته نگه می‌دارد. تست child واقعی و SQLite موقت جایگزینی فایل در میان بررسی startup و بسته‌بودن درخواست قبل و بعد از شکست را آزمود. این چک fingerprint کامل نیست و overwrite همان inode، نویسنده خارجی، crash و پنجره‌های race بدون قفل مشترک را حل نمی‌کند؛ Electron هنوز متصل نیست و readiness false است. شش تست مرتبط، typecheck، redline و build:check محلی گذشتند؛ هشدار stub مربوط به `$connect` در آزمون backup باقی است. YAML با js-yaml تأیید شد؛ دو تلاش با کتابخانه‌های نصب‌نشده `yaml` و PyYAML قابل اجرا نبود. Windows این تغییر، build کامل، نصب واقعی، گوشی و تونل اجرا نشدند. SHA-256 supervisor `42851c8542173d80386e57d05ef58d4c84171eb98cc270750ea5e8b5a6628aa6` و تست `db4a5e9bd3d3dcecee7734506d4176c5ab36a5ae8221fead7f34fadcfc94eb51`.
+- روی مبنای `7a8a2888fffb97db6d7070fc7eeb48ee65c976b0`، بررسی‌های approval و ارسال mirror نیز داخل همان barrier عملیاتی قرار گرفتند؛ restore پس از بستن grantها منتظر بررسی هویت در حال اجرا می‌ماند. تست جدید از handler و `BackupService` واقعی، child/HTTP واقعی و SQLite موقت استفاده می‌کند و نشان می‌دهد کپی تا آزادشدن بررسی معوق آغاز نمی‌شود. Electron و Prisma در هارنس جایگزین‌اند و مانند تست قبلی reconnect/audit پس از replace به‌علت نبود `$connect` در stub اثبات نشده است. این تغییر پوشش writer خارجی، resync، هویت کامل DB یا اتصال Electron را کامل نمی‌کند و readiness=false.
+- ده زیرآزمون مرتبط، typecheck، redline و `build:check` محلی گذشتند؛ Windows تغییر جدید و گوشی اجرا نشدند. SHA-256 supervisor `cc228ab3e0da1f7e908ec33a7ac72bc1751af3abc6656e0a69f00c9b143f8229`، تست `320a6411cb748e011920d5c048da1ff5459eab15d959080a99bbcc7f78e8bc0f`. هر دو CI ویندوز روی `7a8a288` موفق: remote `44290178710` و installer `44290187650`؛ این اجرای نصب یا گوشی نیست.
+- روی مبنای `1fdab03e4ffac77ad3f06a19d1e0d97eec07668e`، supervisor به‌صورت اختیاری مسیر فایل DB می‌گیرد و هویت فایل (device/inode، بدون symlink یا hardlink) را قبل و بعد از خواندن marker می‌سنجد؛ این بررسی در مسیر approval، mirror، snapshot و audit موجود استفاده می‌شود و در تغییر/خطا پذیرش را می‌بندد، grantها را لغو و child را متوقف می‌کند. تست جدید با دو SQLite موقت و HTTP/child واقعی، نوشتن عادی و سپس جابه‌جایی فایل هنگام درخواست موبایل و لغو grant و درخواست را گذراند. این **حفاظت محدود آزمایشی** است: جایگزینی در همان inode، تغییر خارج از بازه چک، rollback، مقایسه قبل از restart و resync را تضمین نمی‌کند؛ مسیر Electron هنوز این گزینه را به کار نمی‌برد و readiness خاموش است. تست ثابت نمی‌کند بررسی approval یا polling زودتر جایگزینی را دیده است.
+- هفت زیرآزمون مرتبط، typecheck، redline و `build:check` محلی موفق شدند؛ build کامل Prisma در این محیط به شبکه binaries.prisma.sh دسترسی ندارد، و Windows این تغییر هنوز اجرا نشد. SHA-256 supervisor `3991ff1ba552103840b91ad3da95429a659c0c2fa0edf0ab6e29d1131678ec3e` و تست `cc2c37b1f43ec241c175cebd1729dc713196573a5a7e2e77927e74c1e1a6c5bb`. هیچ دیتای واقعی استفاده نشد.
+- روی مبنای `53b7f2f1f0d17248c465cfd5d10a9b40b6295835`، supervisor آزمایشی پیش از پردازش approval و ارسال فهرست درخواست‌ها، epoch و marker را دوباره بررسی می‌کند؛ تغییر، خطا یا timeout باعث بستن admission، لغو grantها و توقف child می‌شود. آزمون جدید با child واقعی و marker تزریقی تغییر هم‌زمان با درخواست را آزمود. این **اثر انگشت DB نیست**: کپی بدون تغییر marker، writer خارجی، دسترسی قبل از تشخیص و resync همچنان حل نشده‌اند؛ مسیر Electron وصل نیست و readiness=false. تست جدید هم ثابت نمی‌کند کدام بررسی هم‌زمان (approval یا polling) ابتدا تغییر را دید.
+- روی working tree همین گام ۹ زیرآزمون مرتبط، typecheck، redline و `build:check` گذشتند؛ `build:check` تولید Prisma یا نصب‌کننده نیست. SHA-256 supervisor `fa2e69cec4ce129ecd587331bd13d8334a6452dfc1a2ce65a4b9cebe2d48a1d0` و آزمون `77781418a55eb664ec49f69c976ee35f9e46c67850acf0b837de67680912354a`. تست Windows این گام، Electron واقعی، دستگاه و شبکه واقعی اجرا نشدند. روی commit `53b7f2f`، Windows remote `44286840907` و installer `44286851575` موفق شدند.
+- کار ثبت‌نشده روی مبنای `1dd6a5477b13df400418a95f5de424b98d4db815`: با مجوز مالک، IPC واقعی `backupApply` و ورودی عمومی `mergeBackup` به هماهنگی **اختیاری و آزمایشی** supervisor وصل شده‌اند؛ `BackupService` دست نخورده و wrapper ادغام منطق مالی را بازنویسی نمی‌کند. guard برای دو blob دقیق IPC و MergeService محدود شده است. اتصال Electron/startup محصول، مستقیم‌خوانی `backupService.apply` خارج IPC، writer خارجی، چرخه بازیابی و resync، کلید، تغییر DB خارج از این مسیرها و دوام قطع برق حل نشده‌اند؛ readiness=false.
+- تست‌های جدید روی SQLite موقت و child واقعی، replace از IPC، merge از IPC و merge مستقیم و بسته‌شدن پنل/grant را گذراندند؛ handler و BackupService واقعی‌اند اما Electron/Prisma هارنس جایگزین‌اند. در تست replace هارنس `$connect` ندارد، پس audit پس از جایگزینی با TypeError ثبت نشد؛ این تست موفقیت audit، relaunch واقعی یا Windows را اثبات نمی‌کند. شروع مجدد پس از restore هنوز مانع ledger/epoch دارد. ۲۴ زیرآزمون مرتبط و typecheck/redline/build بدون engine محلی گذشتند؛ Windows تغییر اجرا نشد.
+- دو اجرای تست موجود `fix-zip-audit-high-08-merge-financial-ledgers.mjs` در Node 22 و 24 پیش از رسیدن به merge با خطای migration `StoreCreditDelivery_valid_handoff` شکست خوردند. در این تست `buildDatabase` همه migrationها را بدون ledger اجرا می‌کند و سپس migrator را مجدداً اجرا می‌کند؛ trigger جدید مانع بازتعریف جدول قدیمی می‌شود. فیکسچر جدید merge از DB خالی با migrator واقعی ساخته شد و ۶۹ migration بدون baseline انجام شد؛ این جای موفقیت تست قدیمی را نمی‌گیرد و تست/harness موجود تغییر نکرده است.
+- regression مالی جداگانه روی working tree: `fix-s181-merge-maintenance-bigint.mjs` انتظار فقط یک کوئری مالی خام را داشت اما اکنون کوئری WooSync هم شناسایی شد (۱۶/۱)؛ `fix-s188-review-186.mjs` در انتظار رد بازپرداخت نقدی و فیکسچر بدهکار بدون اطلاعات هویتی شکست خورد (۱۴/۲). فایل‌های SalesService، WooSyncService، MaintenanceService، تست‌ها و harness نسبت به HEAD این گام تغییر ندارند؛ علت و انطباق قطعی این انتظارات نیاز به بررسی دارد، نباید تست را دور زد. سه تست دیگر backup در همان اجرای regression گذشتند. مالک درخواست کرد تست‌های قدیمی دوباره اجرا نشوند و تمرکز بر تکمیل کنترل راه دور باشد؛ این شکست‌ها در این گام رفع یا دوباره تأیید نشده‌اند.
+- SHA-256: IPC `02ac3347264296e899112e4f7add84556d02bae272616b62f0cf46df4350acbe`؛ MergeService `4694d2bc86399b0ddaee734c53234a09fba625cfed7df1cda1c694cf1ca981e7`؛ هماهنگ‌کننده `386eabce2b102c9c252a407a8728c5555d79f9051ab6bf6d0a46c66913596410`؛ supervisor `d09573b891bf34f6d37c78975aad1fe2fbd2a2d729211235f096ab48663127b4`.
+- روی مبنای `795338639fc4d88591ecce3ad4b8b7ccea897f58`، در restoreExclusive آزمایشی دارای revocation، پس از تخلیه و پیش از اجرای عملیات، epoch جدید در cloud state ثبت و بازخوانی می‌شود؛ بعد از آغاز restore، همان supervisor دیگر sync، refresh، invoice و approval جدید نمی‌پذیرد. ledgerهای پیش‌فرض به epoch قبلی متصل‌اند، بنابراین startup مجدد با آنها بسته می‌ماند؛ resync و بازسازی امن ledger هنوز پیاده نشده است. ledger تزریقی دلخواه، rollback فایل‌های state، قطع برق و نویسنده خارجی چنین تضمینی از این تست ندارند. مسیر واقعی backup/merge همچنان متصل نیست و readiness خاموش است.
+- آزمون `remote-restore-epoch-fence-loopback.mjs` با child و دو SQLite موقت، چرخش قبل از copy و رد restart با ledgerهای پیش‌فرض قبلی را آزمود، نه BackupService یا Electron. اجرای اولیه regression به‌علت تغییر پیام خطای barrier در یک تست شکست خورد؛ پیام سازگار شد و سپس ۲۴ زیرآزمون، typecheck، redline، YAML و build محلی بدون engine واقعی گذشتند. Windows این تغییر، نصب و گوشی اجرا نشدند. SHA-256 supervisor `5dd1ee36365e6329c534a5286af5587a1e10fcaba23d1b4690413d57ea2ff863` و تست `c7ac67fa38476e285021905c0a86b2180a07404560574483748ea7aff571219f`.
+- مالک صریحاً اجازه داد **بدون تغییر `BackupService`** مسیرهای شروع restore و merge با عملیات هاب هماهنگ و قفل شوند. این مجوز، تغییر منطق مالی، برداشتن readiness، یا ادعای پوشش restore خارجی را مجاز نمی‌کند. هماهنگی تمام مسیرهای واقعی و بازگشایی امن پس از چرخش epoch همچنان باید پیاده‌سازی و با DB موقت آزموده شود.
+- روی مبنای `c7b936b1fe3285143cf59f1ef73e86e057be091e`، `restoreExclusive` آزمایشی پیش از اولین await، admission را پایدار می‌بندد و grant/درخواست‌ها را لغو می‌کند؛ bridge نیز وضعیت barrier را می‌سنجد. پس از موفقیت نیز admission برای همان supervisor باز نمی‌شود. تست جدید HTTP و child واقعی، grant تأییدشده موبایل و panelSession، خواندن در حال اجرا و جایگزینی SQLite موقت پس از تخلیه را آزمود. این فراخوانی مستقیم آزمایشی است: مسیر واقعی `backupService.apply` و `mergeBackup` به آن وصل نشده، چرخش epoch/resync و محافظت restart یا نویسنده خارجی اثبات نشده و `BackupService` تغییر نکرده است. ۲۵ زیرآزمون مرتبط، typecheck، redline، YAML و build محلی بدون engine واقعی گذشتند؛ Windows این تغییر، Electron، نصب و گوشی اجرا نشدند. SHA-256 supervisor `8081e2dd54e1b96db4375cd8367ad8cc6d998dca08566a97c1f3f98619a6889f` و تست `ff8e81afe34190ced4847715a79a28e425c6759df2b4de50f2b465e0efb398d4`.
+- مقایسه marker/epoch، قفل اتمیک نیست. restore موجود در `BackupService.ts` با خواندن و همگام‌سازی هاب serialize نشده؛ timeout هم query واقعی را لغو نمی‌کند. راهکار نباید فایل مالی یا `BackupService.ts` را بازنویسی کند و هیچ تستی نباید روی داده واقعی باشد.
+- کار محلی انجام‌شده: `experimentalRestoreBarrier.ts` قرارداد درون‌پردازه‌ای تخلیه کارهای فعال، جلوگیری از ورود کار جدید و بسته‌ماندن پس از شکست restore را فراهم می‌کند. اتصال اختیاری آزمایشی آن به supervisor، انتظار پایان query واقعی بعد از timeout و رد کار جدید هنگام restore را با پردازه هاب و دیتابیس موقت می‌آزماید؛ snapshot هم هنگام بستن و بعد از تخلیه نامعتبر می‌شود. این به مسیر restore واقعی یا `BackupService` وصل نیست، query را لغو نمی‌کند، هماهنگی همه پردازه‌ها و چرخش epoch و ابطال را تضمین نمی‌کند.
+- تصمیم جدید مالک: به `BackupService` دست زده نشود و هاب خودش تغییر را تشخیص دهد. این شرط را فعلاً نمی‌توان امن و کامل تضمین کرد: marker موجود **بعد از** جایگزینی DB نوشته می‌شود و نوشتن آن می‌تواند شکست بخورد؛ polling یا مقایسه محتوا به‌تنهایی جلوی صدور grant در فاصله قبل از تشخیص را نمی‌گیرد و restore همسان یا تغییر قابل مشاهده‌نشده را تضمیناً تشخیص نمی‌دهد. بنابراین چرخش epoch، ابطال سراسری و resync واقعی بدون اتصال و هماهنگی مطمئن انجام نشده است؛ هاب غیرفعال می‌ماند و هیچ تغییر در `BackupService` داده نشده است.
+
+## وضعیت کلید خاموش و بررسی ویندوز
+- روی مبنای `0fa30f7d8ee289df443b59d2fd9a054aa94db877`، supervisor آزمایشی برای snapshot از پیام شروع یک‌بارمصرف استفاده می‌کند: child پیش از خواندن منبع ساعت monotonic و wall خودش را ثبت می‌کند و در زمان دریافت نتیجه بیشینه زمان سپری‌شده را برای انقضا به کار می‌برد؛ ساعت دو پردازه مقایسه نمی‌شود. شناسه تکراری/نامعتبر، ساعت child برگشته و snapshot دیررس رد می‌شوند و invalidate توکن را باطل می‌کند. این تغییر برای کاهش حساسیت مسیر supervisor به اختلاف ساعت است، نه اثبات علت واقعی شکست متناوب Windows؛ مسیر IPC قدیمی timestamp برای سازگاری تست موجود باقی است. رفتار sleep و تغییر ساعت بعد از انتشار و امنیت restore همچنان نیازمند بررسی است.
+- تست جدید `remote-snapshot-child-clock-loopback.mjs`، ساعت والد عمداً ۶۰ ثانیه جلو، خواندن کند بیش از سقف، استفاده مجدد و ابطال توکن را با child و HTTP واقعی و فایل‌های موقت آزمود. ۳۳ زیرآزمون مرتبط، typecheck، redline، بررسی YAML و build محلی بدون engine واقعی گذشتند. SHA-256 supervisor `24f6e6d14d85c5793c09f03614eafde8b23e47d6a60bac1e436c9024512203db`، child `0c3f4565ee607ea56ec1a8b06c5f58febf5f415f38c024a084728dee2d978630`، تست `921f176307f8307bd7acf357df5ec9d38df0e5bb7265a0cbba07e95cea050d1c`. Windows این تغییر، نصب و گوشی اجرا نشدند؛ اجرای Windows `44278103182` روی نسخه قبل `0fa30f7` موفق بود که به‌تنهایی رفع علت متناوب را ثابت نمی‌کند. readiness همچنان false است.
+- تنظیم اختیاری `remote-settings.json` در userData فقط با محتوای دقیق `{"enabled":true}` اجازه کار می‌دهد؛ غیبت، خطا یا مقدار دیگر خاموش است. این یک opt-in مستقل است و `remoteImplementationReady()` همچنان ثابت `false` بوده و حتی تنظیم روشن قابلیت ناتمام را فعال نمی‌کند. تست `remote-user-setting.mjs` شکل‌های تنظیم را، و `remote-cloud-disabled.mjs` نبود listener/اتصال، درخواست HTTP، timer، دسترسی دیتابیس و نوشتن state را در مسیر سرویس با وابستگی‌های جایگزین‌شده بررسی کرد؛ Electron کامل و فعال‌سازی واقعی آزموده نشده‌اند. ردپای کد آزموده‌شده روی مبنای `f436368b37b3b72c1cb2a7813fc76baf2423087d`: سرویس `b96e0da4d1283313530ad59a10da0c40bd25eee9822cf4e52e7e0f84bca1a07f`، تنظیمات `31f4fb98f4755f2575bc3d7b905c5d7817d4ec6ad350857241cfec6dc4d7018c`، تست `a55b44b8fba3c445434df86d36c878186cba602c008c1954094ae38b52ed230b` (SHA-256).
+- برای `6589f4d233dbb7132de343c86af7d9d777a859b1`، اجرای نصب‌کننده `43892427826` در typecheck شکست خورد و ساخت نصب‌کننده اجرا نشد؛ اجرای سازگاری `43892098899` نیز شکست خورد. اجرای نصب‌کننده `43893270766` روی `bc3e2cf` نیز شکست خورد. build محلی بدون engine واقعی موفق بود و نصب‌پذیری را اثبات نمی‌کند؛ typecheck محلی فقط همان دو خطای قدیمی ثبت‌شده را داشت.
+- برای commit `3c0ba5b0fc5b1806563ba621dea6712381dcf4da`، اجرای سازگاری ویندوز `43878875651` پس از موفقیت چند تست اولیه در گام `Test supervisor snapshot restore detection on isolated SQLite` شکست خورد؛ علت دقیق در خروجی مرحله از این محیط قابل دریافت نبود. اجرای installer `43879150946` در مرحله `Typecheck application` شکست خورد و مرحله ساخت نصب‌کننده اجرا نشد. بنابراین هیچ‌یک گواه build موفق ویندوز نیستند.
+
+- در اجرای Windows compatibility شماره `43894875709` روی `f176dfe`، تست snapshot restore شکست خورد؛ دریافت log از این محیط با EOF ناموفق بود و علت دقیق مشخص نیست. نصب‌کننده `43895622923` در typecheck شکست خورد و ساخته نشد. در `d77aa20`، اجرای سازگاری `43900567602` در مرحله چندتستی ابطال شبکه شکست خورد و نصب‌کننده `43900580258` در typecheck شکست خورد. پس از تقسیم آن مرحله، اجرای `43901236795` روی `5c235e15f91dd7fa528fbb0d55500b9d83370229` مشخصاً در `remote-panic-panel-session-loopback` شکست خورد و مراحل بعدی اجرا نشدند؛ نصب‌کننده `43901249991` نیز در typecheck شکست خورد. لاگ Actions از این محیط EOF می‌دهد و علت دقیق تست مشخص نیست. بدون تغییر تست یا harness، workflow اکنون خروجی شکست همین تست را به annotation محدود منتقل می‌کند؛ نتیجه ویندوز این تغییر هنوز اجرا نشد. YAML به‌صورت محلی parse شد و خود تست روی Linux موفق بود، که جای نتیجه ویندوز نیست.
+
+- اجرای ویندوز `43903378543` روی `abcf6a9d201632b577f83f1e81a2683570b83fe1` دوباره در `remote-panic-panel-session-loopback` شکست خورد. annotation نشان می‌دهد خطای `EPERM` در `rmSync` پاک‌سازی پوشه موقت در خط ۴۹ تست رخ داده است؛ احتمال بازماندن اتصال SQLite هارنس مطرح است، اما تا رفع و اجرای دوباره ویندوز قطعی نیست. با اجازه صریح مالک، تنها پاک‌سازی همان تست اصلاح شد تا اتصال Prisma هارنس پیش از حذف پوشه بسته شود؛ assertionها و خود harness تغییر نکردند. SHA-256 تست اصلاح‌شده `aa5d428c42c177228118b033a196d8d77a159271f7763c2e611b1004117e399d` روی مبنای `059bd71c14e76f46a6823826c3fa9e9111a55468` است. آزمون Linux و build بدون engine موفق بود؛ در اجرای Windows `43904806228` روی `6f9ab9d77fd62b7b92399737f00ca2be66ba546c` این تست و تست اعلان موفق شدند، ولی مرحله بعدی snapshot restore شکست خورد. خروجی تشخیصی آن مرحله نیز به annotation اضافه شد و نتیجه ویندوز تغییر workflow هنوز اجرا نشد. تست‌های بعد از گام شکست در اجرای قبلی اجرا نشدند.
+
+- اجرای سازگاری ویندوز `43905455797` روی `14653bf781a321408d0bacd3e621449657a60b3c` همه مراحل تست، از جمله تست پاک‌سازی اصلاح‌شده و snapshot restore، و build را گذراند؛ سپس در typecheck به همان دو خطای قدیمی `SalesService.ts` شکست خورد. موفقیت یک اجرا علت شکست متناوب قبلی snapshot restore را ثابت نمی‌کند. نصب‌کننده و گوشی آماده تحویل نیستند.
+
+- اجرای Windows `43907972134` روی `753406c` دوباره در آزمون supervisor شکست خورد. annotation نشان می‌دهد زیرآزمون `overlapping refresh` با `Hub rejected snapshot` شکست خورده؛ سایر زیرآزمون‌های همان مرحله گذشتند. علت دقیق رد snapshot هنوز معلوم نیست؛ نباید آن را به موفقیت اجرای قبل نسبت داد. نصب‌کننده `43907987717` در typecheck شکست خورد.
+
+- در Windows `43909187335` روی `62ecb59` دو زیرآزمون supervisor با `Hub rejected snapshot` شکست خوردند؛ دلیل دقیق پیام قبلی مشخص نبود. بدون تضعیف بررسی زمان یا نمایش داده، child اکنون کد خطای محدود و غیرحساس را به پاسخ دارای شناسه اضافه می‌کند. تست واقعی child `remote-snapshot-rejection-loopback.mjs` رد DTO نامعتبر و عدم افشای محتوا را آزمود؛ خروجی قدیمی بدون شناسه حفظ شد. مبنا `62ecb59f566be418a42815eb74d4d2602dd9ba2f`، SHA-256 child `b0c05d0ced8f1106f99413b3cb9f0771f25c944b24a280266e0b8570d3141da5`، supervisor `8c48046045502948390c509ae66b8b64608ca554f9ada0cd3f3bc9ea742912e0`، تست `3ef3c3eb026e6eb5da0957f897e1be63323a4693017d4679ecb2b038d16aacd7`. این تشخیص است نه ادعای رفع شکست متناوب. Windows `43910188761` روی `5b20d48317c4c178147903e254588f5f73657f5d` همه تست‌ها و build را گذراند و فقط در دو خطای قدیمی typecheck شکست خورد؛ چون snapshot در این اجرا شکست نخورد، علت خطای متناوب قبلی همچنان نامعلوم است. تلاش `gh run rerun --failed` برای همین اجرا با پیام `cannot be rerun; its workflow file may be broken` شکست خورد.
+
+## موارد مشخصِ باقی‌مانده فاز ۱ تا ۴
+این بخش در مرحلهٔ ۵ بازنویسی شد؛ متن قبلی مربوط به پیش از اتصال میزبان دسکتاپ بود و در تاریخچهٔ git هست.
+- **انجام‌شده، فقط با تست loopback** (Linux در این محیط و workflow ویندوز؛ با DB و کلید موقت):
+  - راه‌اندازی هاب از میزبان دسکتاپ، با opt-in پیش‌فرض خاموش، صفحهٔ راه‌اندازی مالک، پورت ثابت ۴۷۸۲۱ و بسته‌بندی هاب و Node در نصب‌کننده؛
+  - درخواست مجوز پنل از صفحهٔ قفل، Number Matching و PIN روی گوشی، claim یک‌بارمصرف و انقضا؛
+  - ابطال با ACK پایدار و replay، Panic P1/P2 از گوشی با latch پایدار، اعلان دسکتاپ و بازیابی فقط پشت دسکتاپ با رمز مدیر و PIN مالک؛
+  - اثر انگشت DB، epoch تازه و توقف هنگام restore؛
+  - دعوت، تأیید و حذف عضو و (مرحلهٔ ۵) اجازهٔ تأیید پنل برای مدیر از گوشی.
+- **اجرا نشده** (دستگاه یا شبکهٔ واقعی لازم است): نصب و اجرای Windows، Electron/DPAPI/safeStorage، گوشی و مرورگر واقعی، tunnel/HTTPS واقعی و Prisma واقعی.
+- **انجام نشده** (طراحی بزرگ‌تر؛ در این کار پیاده نشد):
+  - ~~نمای زندهٔ مجوزهای باز روی گوشی (تصمیم ۱۴ طرح موبایل)~~ — **انجام شد در مرحلهٔ ۷** (بند «مرحلهٔ ۷ — نمای زندهٔ مجوزهای باز» در پایان)؛
+  - ~~هشدار درخواست مشکوک~~ — **انجام شد در مرحلهٔ ۸** (بند «مرحلهٔ ۸ — هشدار درخواست مشکوک» در پایان)؛
+  - ~~بازیابی OWNER~~ — **انجام شد در مرحلهٔ ۹** با مسیر رایانه (حضور فیزیکی و رمز مدیر). کدهای بازیابی چاپی از راه دور عمداً ساخته نشدند (انتخاب کم‌ریسک؛ بند «مرحلهٔ ۹» در پایان)؛
+  - تلگرام اختیاری — **ساخته نشد:** طرح موبایل (فاز ۴) آن را «فقط ابر» تعریف می‌کند (Webhook/رله). پس به سرور واقعی نیاز دارد و مثل بقیهٔ موارد سرور بیرون از این کار است؛
+  - ردهٔ SENSITIVE_MONEY و عملیات یک‌بارمصرف مالی. فقط ردهٔ NORMAL برای سه پنل `products`، `settings` و `secondary-stock` وصل است. **عمداً ساخته نشد** (انتخاب کم‌ریسک):
+    - پنل‌های پولی طرح (نسیه/تخفیف، صندوق/شیفت) به جریان مالی وصل‌اند، و دستور مالک سخت‌گیری روی پول، فروش و DB و دست نزدن به فایل‌های مالی است؛
+    - جدول قواعد رده (`panel_tier_rules`) در طرح، در ابر نگه داشته می‌شود؛
+  - مسیر `gt-` در PasswordField: در AuthService با `if (false && …)` خاموش است، پس تأیید گوشی فقط پنل را باز می‌کند، نه یک عملیات. **عمداً خاموش ماند**، به همان دلیل بند بالا: روشن کردن آن یعنی تأیید یک عملیات مالی مشخص از گوشی؛
+  - ~~کانال `remoteAuth:banner` فقط stub است~~ — **انجام شد در مرحلهٔ ۷**: خط آبی بالای پنلِ بازشده با تأیید گوشی، با زمان باقی‌مانده؛
+  - ~~PWA آفلاین~~ — **انجام شد در مرحلهٔ ۱۰** به شکل کم‌ریسک: وقتی رایانه در دسترس نیست، گوشی صفحهٔ توضیح فارسی می‌بیند. service worker هنوز هیچ‌چیز (نه داده، نه صفحه) را در گوشی ذخیره نمی‌کند، پس بدون اتصال داده‌ای دیده نمی‌شود (بند «مرحلهٔ ۱۰» در پایان)؛
+  - ~~live/coalescing و هشدارهای سلامت~~ — **چراغ سلامت انجام شد در مرحلهٔ ۱۱** به شکل محلی: کارت «وضعیت سیستم فروشگاه» برای مالک در گوشی، با همان آستانه‌های معماری §۵ (سبز زیر ۴۵ ثانیه، زرد تا ۲ دقیقه، قرمز پس از آن)، و اعلان و پیام دسکتاپ وقتی هاب خودبه‌خود متوقف شود (بند «مرحلهٔ ۱۱» در پایان).
+    - «coalesce» در معماری §۵ مربوط به WebSocket سرور ابری است (حداکثر یک پیام در ۲ ثانیه). هاب محلی WebSocket ندارد: نمای زنده هر ۱ ثانیه از نسخهٔ گوشی رسم و هر ۵ ثانیه دوباره خوانده می‌شود. پس این بخش برای مسیر فعلی کاربرد ندارد و چیزی ساخته نشد؛
+    - Heartbeat ابری (`chainHash`، `outboxDepth`، `loop_lag_ms` و pull-on-demand) و هشدارهای قانون‌محور از `audit_mirror` به سرور ابری واقعی نیاز دارند و مثل بقیهٔ موارد سرور ساخته نشدند. هشدار «درخواست زیاد» در مرحلهٔ ۸ و توقف پس از restore در مرحلهٔ ۵ به شکل محلی وجود دارند؛
+  - ~~بازیابی خودکار قفل پس از crash، قطع برق یا خاموش‌شدن ویندوز با برنامهٔ باز~~ — **انجام شد در مرحلهٔ ۱۲**، با اجازهٔ مالک برای `app.requestSingleInstanceLock()` در `index.ts`. قفل کهنه فقط وقتی پاک می‌شود که هیچ صاحب زنده‌ای ممکن نباشد؛ در هر تردید مثل قبل بسته می‌ماند (بند «مرحلهٔ ۱۲» در پایان).
+- راهنمای `docs/REMOTE-USER-TEST.md` در مرحلهٔ ۶ مطابق کد نهایی بازنویسی شد (بند پایانی).
+
+## موانع مشترک پذیرش
+- شواهد typecheck روی `e6b38e40d06ae8ebd032f2c21f7ab602e5ac330a`: مقایسه `git diff f3eb7ede7ee3f9177d37045b5c04f015276ba1ad e6b38e40 -- src/main/services/SalesService.ts` خالی نیست (۶۷۳ خط افزوده، ۱۰۳ خط حذف‌شده). در مقابل، `git diff 2834bafbc863b09df12175b36e192e6fd78ad501 e6b38e40 -- src/main/services/SalesService.ts` خالی است: فایل از مبنای بررسی پیش از کار راه دور تغییر نکرده است. خط ۷۷۹۶ از پایه `f3eb7ed` و خط ۹۳۲۱ از commit قدیمی `58696740` قبل از `2834baf` است؛ `PaymentKind` در آن commit نیز `CHEQUE` نداشت. پس ادعای خالی بودن diff از پایه شاخه صحیح نیست و تغییرات مالی قدیمی را برنگردانده‌ایم.
+- خروجی typecheck: `SalesService.ts(7796,38): error TS2345: Argument of type 'Date | null' is not assignable to parameter of type 'Date'. Type 'null' is not assignable to type 'Date'.` و `SalesService.ts(9321,87): error TS2339: Property 'CHEQUE' does not exist on type '{ readonly CASH: "CASH"; readonly CARD: "CARD"; readonly CREDIT: "CREDIT"; readonly CUSTOM: "CUSTOM"; readonly EXCHANGE_CREDIT: "EXCHANGE_CREDIT"; readonly STORE_CREDIT: "STORE_CREDIT"; }'.` فایل مالی دست نخورده و دور زدن typecheck مجاز نیست. installer، HTTPS واقعی و گوشی اثبات نشده‌اند.
+- مقایسه marker یا تست محلی به معنی atomic بودن restore، امنیت ارتباط واقعی یا تکمیل Panic نیست. در صورت عدم دسترسی به محیط واقعی، نتیجه صریحاً «تست نشده» می‌ماند.
+
+### رفع محدود دو خطای قدیمی typecheck با مجوز مالک
+- مبنا `919f8e13609cdda5408134fee987247efcc2e412`؛ مالک صریحاً اجازه اصلاح فقط دو خطای قدیمی را با احتیاط مالی داد. هیچ schema، migration یا داده واقعی تغییر نکرد. در lookup برگشت، در شاخه خطا، `deadline == null` نیز پیام «مهلت معتبر در سابقه ثبت نشده» را ایجاد می‌کند؛ کد معتبر با تاریخ تهی همچنان بدون انقضاست و تاریخ صریح گذشته همچنان رد می‌شود. بررسی null از رسیدن مقدار نامعتبر به قالب‌بند تاریخ جلوگیری می‌کند.
+- برای مابه‌التفاوت تعویض، شناسایی چک تنها با کلید ثابت `CHEQUE_METHOD_KEY` است؛ `PaymentMethod.kind` طبق schema رشته غیرتهی نیست بلکه ستون غیرnullable با default `CUSTOM` است و enum `PaymentKind` عضو `CHEQUE` ندارد؛ نوع پرداخت ثبت‌شده `PaymentEntryKind.CHEQUE` بدون تغییر باقی مانده است. شاخه ناموجود `PaymentKind.CHEQUE` در runtime مقدار undefined بود و برای رکورد معتبر با kind موجود اثر نداشت. هیچ دسته‌بندی مالی، مقصد، مبلغ یا وضعیت چک تغییر داده نشد.
+- پیش از تغییر شش تست مالی مرتبط پاس شدند و پس از تغییر ۸ تست روی SQLiteهای موقت/هارنس پاس شدند: `fix-s223-item6b-exchange-d-by-cheque`، `fix-s223-item8-return-code-null-expiry`، `fix-s223-item6-cheque-replacement`، `fix-r1-b07-return-code-expiry`، `fix-exchange-credit-tender-reversal-and-cheque`، `fix-s224-no-overpay-anywhere`، `fix-s113-cheque-destination-policy`، `fix-s199-exchange-return-parent-debt`. اینها اثبات همه حالات مالی یا رفتار DB تولید نیستند. typecheck محلی بدون خطا گذشت؛ build محلی با Prisma بدون engine گذشت، نه build نصبی. دو تست اصلی به workflow Windows افزوده شدند؛ Windows روی تغییر جدید هنوز اجرا نشد.
+- SHA-256 نسخه مبنا `SalesService.ts`: `62ff5ff7f2b319356d18000734008bf0e7c17fb510d07fc06f6e49c36f499300`؛ نسخه آزموده‌شده `dda75d6e41ae4e1034bf00b044bf02f4a48d07686d96ba92e3ed5fbc7f38ee64`؛ guard `864fc7dcbd04d4c3001a4f3b4d0f9d44d7c001ebf62281ee62d92f063895c7d3`. redline فقط همان دو blob دقیق را مستثنا می‌کند و هر تغییر اضافه به فایل مالی همچنان رد می‌شود؛ آزمون جدید و ۶ آزمون موجود guard پاس شدند. `BackupService` تغییر نکرده است. نصب گوشی، Electron کامل و شبکه واقعی اجرا نشدند و readiness همچنان false است.
+
+- Windows `43920471172` روی `7c557f2c52ab29ab42c2bbee44bc820be9f6930d` همه مراحل از جمله دو تست مالی روی SQLite موقت، build و typecheck را گذراند. اما installer `43920482676` پس از typecheck موفق در آزمون مالی موجود `deep-e2e-followup-scenario13-no-method-auto-credit-and-independent-limit-gates.mjs` شکست خورد و مرحله ساخت installer اجرا نشد. تست در خط ۴۴ فروش ۱۰۰۰ ریالی با پرداخت ۱۲۰۰ ایجاد می‌کند، ولی قاعده متأخر S224 به‌درستی اضافه‌پرداخت را ممنوع کرده؛ همین تست روی working tree فعلی دو بار متوالی با همان خطا شکست خورد. در این گام نه قاعده مالی تغییر می‌کند، نه تست حذف یا دور زده می‌شود. سازگاری تست با داده تاریخی باید با حفظ پوشش و مجوز صریح تغییر تست بررسی شود؛ سایر مراحل installer بعد از این شکست اجرا نشدند.
+
+- مالک اجازه محدود سازگارسازی همان تست مالی `deep-e2e-followup-scenario13-no-method-auto-credit-and-independent-limit-gates.mjs` را داد؛ هیچ تست یا harness موجود دیگری تغییر نکرد. تست همچنان همه assertionهای قبلی تعویض، محدودیت مستقل رمز، اعتبار دارای پشتوانه، عدم پرداخت نقد و موجودی را حفظ می‌کند؛ علاوه بر آن رد اضافه‌پرداخت جدید و rollback، رد برگشت تأییدنشده و نبود اعتبار خودکار را می‌سنجد. برای داده تاریخی، فقط در SQLite موقت، ابتدا فاکتور مجاز ۱۰۰۰ ساخته و سپس ردیف Payment و paidTotal به وضعیت تاریخی ۱۲۰۰/۲۰۰ تنظیم و کنترل می‌شوند؛ این دست‌کاری نه migration است و نه روی داده مشتری انجام شده. انتخاب صریح `overpayAsCredit` و تصمیم برگشت لازم است؛ هیچ گیت مالی یا مبلغ در کد محصول تغییر نکرد.
+- روی مبنای `6e7ff1707a2365384e3f965ff74533b11f9cce9c` و working tree حامل تست با SHA-256 `bba94777ddf0cab2bb12764343ac3fd8e450b2c95ea0f9a47e6db3dcf5de83a3`، همه ۱۱ تست `fix-s223-item*`، `fix-s224-no-overpay-anywhere`، دو سناریوی lineage 05/06، `test/acceptance-db-session54` (۹۴/۰)، `mgmt-losses-net-adjust`، `fix-exchange-partial-cash-refund` و `deep-e2e-refund-decision-state-machine` گذشتند. همه ۱۸ تستی که workflow نصب‌کننده فهرست می‌کند نیز در Linux با SQLite هارنس موقت گذشتند؛ typecheck، syntax، redline و build بدون Prisma engine واقعی گذشت. این تست‌ها پوشش کامل همه حالات مالی یا پذیرش روی داده تولید نیستند؛ Windows تغییر جدید، نصب گوشی و ارتباط واقعی هنوز اجرا نشدند.
+- Windows روی `6394e6f6cff059d99945c5566fed499f5e3eb89d`: اجرای سازگاری `43923174856` همه تست‌ها، build و typecheck را گذراند؛ workflow نصب‌کننده `43923187467` پس از migration روی DB موقت، ۱۸ تست مالی، typecheck و syntax، ساخت و بارگذاری artifact نصب‌کننده را گذراند. این فقط موفقیت pipeline ساخت است؛ نصب اجرایی روی ویندوز یا تست گوشی/تونل انجام نشده و installer برای قابلیت راه دور آماده تحویل نیست، چون readiness=false و ادغام Electron و restore امن ناتمام‌اند.
+
+- تست جدید restore هم‌زمان با sync منتظر mirror و timeout روی مبنای `db17be5defaca51b3a1babf2e7bd30caa420cdd8` با child/HTTP، IPC، رجیستری، panelSession و SQLite موقت پاس شد: جلسه بسته شد، تغییر DB پیش از تخلیه رخ نداد، sync منتظر رد و restore به‌علت توقف child ناموفق و barrier در FAILED باقی ماند. برخلاف انتظار اولیه، در timeout این مسیر restore موفق و epoch تازه ایجاد نمی‌شود؛ recovery و resync امن همچنان لازم است. Electron، auth و readiness شبیه‌سازی شدند؛ سناریوی restore بدون timeout در همین ترتیب هنوز اجرا نشد. SHA-256 تست `83354038c5c18b8e4bd3212234bc280915b2f44182b846becfe9117d460da06b`. دو تست loopback، typecheck، redline، YAML و build:check محلی پاس شدند؛ Windows این تغییر، نصب واقعی، گوشی و تونل اجرا نشدند.
+
+- روی مبنای `f276510affcec37b7841954696af5d8b75018417`، برخورد دو کار foreground بر خواننده تک‌پردازه بازتولید شد: تأیید گوشی حین query معلق sync به قطع اتصال منجر شد. صف محدود ۶۴تایی در supervisor کارهای foreground را به‌ترتیب اجرا می‌کند؛ کار منتظر پس از timeout پیکربندی‌شده یا بسته‌شدن barrier اجرا نمی‌شود و همچنان از ابتدا در barrier شمرده می‌شود. تست loopback جدید با child/HTTP، IPC، رجیستری، پنل و SQLite موقت نشان داد تأیید حین sync منتظر می‌ماند، پس از تخلیه پذیرفته و claim می‌شود و نشست قبلی و epoch حفظ می‌شوند؛ پیش از اصلاح اتصال قطع شد. Electron، auth و readiness شبیه‌سازی شدند. صف می‌تواند پاسخ را به تأخیر بیندازد و timeout کل زنجیرهٔ واقعی گوشی/تونل و تعامل چند درخواست باید جداگانه آزموده شود؛ این اصلاح fingerprint یا resync نیست. شانزده تست مرتبط محلی، typecheck، redline، YAML، diff-check و build:check گذشتند. در محیط تازه، typecheck نخست به‌دلیل تولیدنشدن Prisma client شکست خورد و دانلود معمول Prisma به‌علت محدودیت شبکه شکست خورد؛ فقط برای تولید typeها، مسیر engine به `/bin/true` اشاره داده شد و سپس typecheck موفق شد؛ اجرای Prisma واقعی یا build معمول با این روش اثبات نشده است. SHA-256 supervisor `c4ff14ad09b3b02cba820d8d35a78f8b0e8bbad4258af25de876a6ff6e3bad8d` و تست `d545fa2e44fe1cf420f916683d8b7eceb5c0b7fbbd8332795d21e0234b2b65b5`. Windows این تغییر، نصب، Electron/DPAPI واقعی، گوشی و تونل اجرا نشدند؛ readiness=false.
+
+- روی `fe37f725758346b10cb3304d2bc7f813ed912d67` دو تست loopback با SQLite موقت و child/HTTP، IPC و رجیستری اضافه شد: restore بدون timeout ضمن بستن نشست، تا تخلیه mirror صبر می‌کند، sync منتظر رد می‌شود و سپس عمل restore و تغییر epoch انجام می‌شوند؛ در تأیید منتظر بیش از timeout صف، پاسخ 403 و claim ناموفق است و نشست قبلی می‌ماند. اینها بازیابی ledger و resync نیستند. ۹ تست مرتبط، typecheck، redline، YAML، diff-check و build:check محلی گذشتند؛ Electron، auth و readiness شبیه‌سازی شدند. SHA-256 تست restore `75be13e381a1e8d4a2f400f62d56da5d2be9846edec221f9669df420aa95964b` و timeout تأیید `5062e7e0b586cda774fdd507a88e7f2729058e0c725d65fcf5d4e6e72585c65f`. Windows این تست‌ها، نصب و گوشی اجرا نشدند.
+- Windows installer `44345302583` روی `db17be5` در تست runtime بسته‌بندی‌شده شکست خورد؛ دریافت لاگ EOF و علت دقیق نامعلوم است. Windows remote `44345668714` روی `f276510` در `remote-restore-admission-drain-loopback` شکست خورد؛ علت دقیق نامعلوم است و همان تست روی Linux/Node 22 در working tree فعلی گذشت. installer `44345686006` روی `f276510` موفق بود. اجرای remote `44345284288` و هر دو workflow روی `fe37f72` هنگام ثبت در جریان بودند. موفقیت لینوکس دلیل رفع خطای Windows نیست؛ نصب، Electron/DPAPI، گوشی و تونل اجرا نشدند و readiness=false.
+- برای تشخیص شکست Windows `44345668714`، wrapper workflow بدون تغییر خود تست، خروجی خطا را در annotation نیز ثبت می‌کند؛ علت شکست هنوز معلوم و رفع قطعی نشده است. همان تست روی Linux/Node 22، typecheck، redline، YAML و build:check محلی روی مبنای `24960be17eebcfed8089e9a9a2bc066f978e5f94` گذشتند؛ Prisma صرفاً با engine ساختگی برای تولید type آماده شد، نه اجرای واقعی آن. SHA-256 workflow `a59a59091ae16e829aeff0e3a70db18cb5834055584b840ae7ee8a8c084c19c1` و تست بدون تغییر `ff8e81afe34190ced4847715a79a28e425c6759df2b4de50f2b465e0efb398d4`. remote `44345284288` روی `db17be5` موفق شد؛ Windows این wrapper، نصب، Electron/DPAPI، گوشی و تونل اجرا نشدند.
+- Windows remote `44347681086` روی `24960be17eebcfed8089e9a9a2bc066f978e5f94` در `remote-approval-timeout-revokes-loopback` شکست خورد؛ annotation فقط exit 1 را نشان می‌دهد و دریافت لاگ EOF داد، بنابراین علت و ارتباط آن با تغییر صف نامعلوم است. این دومین اجرای خاتمه‌یافتهٔ ناموفق remote پس از `44345668714` است؛ اجرای میانی `44347054007` و اجرای `44348263796` هنگام ثبت در جریان‌اند، پس توالی نهایی آن‌ها هنوز معلوم نیست. طبق شرط توقف پس از دو شکست، ادامه توسعه متوقف شد؛ تأیید رفع و تست Windows آخرین کد اجرا نشد. readiness همچنان false و نسخه آماده نصب یا آزمون گوشی نیست.
+- Windows remote `44347054007` روی `fe37f725758346b10cb3304d2bc7f813ed912d67` کامل موفق شد، ولی `44348455502` روی `4996c679531eced695bd534042872041f8fda650` در `remote-approval-queue-timeout-loopback` شکست خورد؛ پس شکست‌ها متناوب‌اند و علت هنوز اثبات نشده است. دریافت لاگ از sandbox احتمالاً به این علت EOF می‌دهد که میزبان لاگ GitHub خارج از میزبان‌های مجاز sandbox است، اما annotationها از API قابل خواندن‌اند. بنابراین `tools/ci-annotate.ps1` اضافه شد و همه مراحل تک‌فایل تست workflow راه دور ویندوز در صورت شکست، انتهای خروجی را در annotation ثبت می‌کنند؛ retry یا skip ندارد و خود تست‌ها تغییر نکرده‌اند. سه تست شکست‌خورده روی Linux/Node 22 زیر بار CPU هر کدام ۵ از ۵ پاس شدند. بازتولید موقت و commitنشده نشان داد اگر tick هنگام کار foreground پیش از رسیدن approval به child فهرست را خالی کند، approval فوراً با 403 رد و grant ساخته نمی‌شود، اما assertion انتظار تست شکست می‌خورد؛ اینکه علت شکست ویندوز همین باشد اثبات نشده است. اجرای Windows این wrapper هنوز انجام نشده است.
+- روی مبنای `af206284cfa7b040f5c8dac071ff325dca2569b8`، **انتقال صریح epoch با هاب متوقف و resync** پیاده شد تا پس از restore یا fence عدم‌قطعیت، startup برای همیشه بسته نماند. مسیر کم‌خطر انتخاب‌شده: پذیرش خودکار فقط در **شروع بعدی برنامه** و پیش از هر listener انجام می‌شود، وقتی هیچ grant و درخواستی در این پردازه وجود ندارد؛ همان supervisor پس از restore هرگز دوباره باز نمی‌شود و کاربر باید برنامه را دوباره باز کند. (۱) باز کردن cloud state با marker فعلی restore، در صورت تغییر marker، epoch تصادفی تازه با `lastAcked=0` و anchor خالی ثبت می‌کند؛ (۲) ledgerهای ابطال و replay فقط اگر سالم، متعلق به همین store و مربوط به epoch قبلی باشند و epoch فعلی هنوز چیزی ACK نکرده باشد، برای epoch جدید از نو نوشته می‌شوند (اول replay، بعد ابطال؛ پس از crash ادامه می‌یابد). ledger گم‌شده، خراب، متعلق به store دیگر یا state دارای ACK هرگز بازسازی یا پذیرفته نمی‌شود و شکست، قفل را آزاد می‌کند. (۳) فقط با opt-in صریح host و ledger خالی دسکتاپ، child مکان‌نمای تحویل ابطال را به epoch جدید و صفر می‌برد بدون آنکه چیزی را ACK کند؛ اگر Panic latch باشد یک ابطال ALL تازه صف می‌شود تا دسکتاپ آن را دوباره اعمال و بازیابی محلی ACK تازه بخواهد. audit از صفر با کلیدهای epoch جدید دوباره ارسال می‌شود و بسته‌های قدیمی با کلید epoch قبلی نامعتبرند. محدودیت: جایگزینی که marker را تغییر ندهد در startup تشخیص داده نمی‌شود و همچنان فقط با هویت فایل و anchor در زمان اجرا محدود می‌شود؛ fingerprint کامل محتوا، قفل همه نویسنده‌ها و دوام قطع برق حل نشده‌اند.
+- در همین مرحله، `stop()` ناموفق supervisor (child مرده/قطع IPC، timeout تأیید توقف یا خطای ارسال) فقط پس از مشاهده خروج واقعی پردازه child (با kill و انتظار محدود) خطا را گزارش می‌کند. علت: annotation شکست Windows remote `44351330543` روی `af20628` در `remote-restore-admission-drain-loopback` نشان داد اجرای ۲۳ ثانیه‌ای در پاک‌سازی پوشه موقت با `EPERM` شکست خورده است؛ خطای finally می‌تواند خطای اصلی را پنهان کند و child در حال خروج روی Windows فایل‌هایش را قفل نگه می‌دارد. این فرضیه علت ۲۳ ثانیه را اثبات نمی‌کند؛ خود تست تغییر نکرده است. installer `44351350418` روی `af20628` و remote `44348263796` روی `5199297` موفق بودند.
+- تست‌های جدید: `remote-epoch-resync-loopback.mjs` (supervisor، child/HTTP، cloudReader و SQLite موقت واقعی: sync، تأیید و claim، Panic، restoreExclusive، شکست باز کردن عادی با ledger قبلی، انتقال در باز کردن state، ارسال مجدد ابطال ALL، بازیابی محلی، sync مجدد audit پایگاه بازیابی‌شده از صفر، تأیید تازه، و موارد منفی ledger خراب/گم‌شده/store دیگر/ACKشده و تغییر مکان‌نما در identity)، `remote-desktop-host-epoch-transition.mjs` (host واقعی `CloudSyncService` با Electron/Prisma/safeStorage/readiness شبیه‌سازی‌شده: تغییر marker با هاب متوقف، epoch جدید، Panic دوباره اعلام‌شده، بازیابی از IPC، تأیید تازه، بدون تغییر epoch با همان marker، و رد ledger خراب) و `remote-supervisor-failed-stop-exit.mjs` (child واقعی: قطع IPC و عدم پاسخ به stop). کنترل منفی: با برگرداندن هر یک از سه تغییر (باز کردن state با marker، opt-in چرخش، انتظار خروج child) تست مربوط شکست خورد. ۹۹ فایل تست workflow راه دور به‌علاوه سه تست جدید (۱۰۲ فایل) روی Linux/Node 22 اجرا شدند: ۱۰۱ موفق؛ `remote-windows-node24.mjs` به Node 24 نیاز دارد و محلی اجرا نشد. typecheck، redline، YAML، diff-check و build:check محلی گذشتند؛ Prisma فقط با engine ساختگی برای type تولید شد. SHA-256: state `7d8dfff56e49c849cc19ec9d5d551c62e03cc863671e8a38b1a74e30005173eb`، host `a146d769f1500b993c58d88b95ffcbe9efbb0c8a0a77f8d228efdb163fd41610`، supervisor `eb8bc918bcc9f4d83cc628b19dc02b7bc9b482fb16ab04028acff9eec8e40091`، child `9687ff9fbdede5d10f69e72bf2188f14ac158301b652912e0c37f0bfeb13cfeb`، identity `207b3546cf1b6d7464a92f619236e475f178f68e4088689d4ae9b5d24abab736`، تست resync `2d92afc9eb910d2cdf36267aad06576108c02671187bf3f81d2926326dd0bbe5`، تست host `657f975df6f6bd5c0403368a3de49af07701282a2027a158020e24dd5688550d`، تست stop `0edbb5aff15b80d40169013ab596e313981b2d4d0242c7516227ec9be53bb34b`. Windows این تغییر، نصب، Electron/DPAPI واقعی، گوشی و تونل اجرا نشدند؛ readiness=false و نسخه آماده نصب نیست.
+- تأیید `64c6e1618e8122e321cb8a661c070d18f76cdc18`: typecheck روی export تمیز همان commit (بدون هیچ تغییر بعدی) دوباره اجرا شد و گذشت؛ ادعای typecheck بولت قبلی اکنون اثبات شده است. هر دو CI ویندوز روی همین commit موفق شدند: remote `44356536011` (شامل `remote-restore-admission-drain-loopback` که در `44351330543` با EPERM شکست خورده بود، و سه تست جدید آن مرحله) و installer `44356555721`. یک اجرای موفق، رفع قطعی شکست متناوب قبلی را ثابت نمی‌کند.
+- مرحله ۳ — **fingerprint ترکیبی پایگاه داده پیش از هر تأیید و ارسال**، روی مبنای `64c6e1618e8122e321cb8a661c070d18f76cdc18`، بدون تغییر `BackupService` و فایل‌های مالی. ماژول جدید `cloud/databaseFingerprint.ts` بدون باز کردن SQLite و بدون نوشتن در shop.db، داخل هر خواندن marker این‌ها را می‌سنجد: هویت فایل (device/inode، فایل عادی تک‌لینکی)، فیلدهای ثابت header (magic، اندازه صفحه، encoding، application id) و **غیرنزولی بودن شمارنده تغییر فایل** در header؛ این شمارنده در حالت journal پیش‌فرض (DELETE) با هر commit و VACUUM زیاد می‌شود، پس نسخه قدیمی‌تری که روی همان فایل (حتی همان inode) کپی شود شمارنده کمتری دارد. شمارنده فقط وقتی مقایسه و پذیرفته می‌شود که فایل `-journal` قبل و بعد از خواندن در فهرست پوشه نباشد (خود journal هرگز باز نمی‌شود). supervisor علاوه بر این، anchor آخرین audit تأییدشده و **ردیف high-water** (جدیدترین ردیف AuditLog که دیده است؛ باید بدون تغییر بماند و فقط جلو برود) را با یک کوئری تک‌snapshot جدید (`auditTail` در cloudReader) بررسی می‌کند. این بررسی کامل پیش از این موارد اجرا می‌شود: پردازش approval گوشی، claim دسکتاپ، ارسال دوره‌ای فهرست درخواست‌ها، انتشار snapshot، ارسال داده فاکتور (قبل و بعد از خواندن)، **درست پیش از ارسال هر batch audit** (hook جدید `beforeSend` در `auditSync`)، بازیابی Panic و پیش از باز شدن پذیرش در startup. هر تفاوت یا خواندن نامطمئن یعنی: بستن admission، لغو همه grantها و درخواست‌ها، توقف sync، fence به epoch تصادفی تازه با cursor صفر و kill کردن child (fail-closed).
+- ادامه مرحله ۳: (۱) **resync پس از fence:** در شروع بعدی برنامه، انتقال صریح epoch (از `64c6e16`) ledgerها را به epoch fence‌شده می‌برد و کل تاریخچه audit پایگاهِ فعلی دوباره ارسال می‌شود. (۲) **مانع پنهانی که رفع شد:** child کشته‌شده (SIGTERM/TerminateProcess) نمی‌توانست `remote-hub.lock` را آزاد کند و چون قفل کهنه عمداً خودکار شکسته نمی‌شود، شروع بعدی برای همیشه بسته می‌ماند و resync عملاً ناممکن بود؛ تست جدید پیش از رفع دقیقاً همین را نشان داد. اکنون child توکن قفل را در پیام ready گزارش می‌کند و supervisor **فقط پس از مشاهده خروج همان child** و فقط اگر فایل هنوز همان توکن را داشته باشد قفل را حذف می‌کند؛ هر تردید قفل را نگه می‌دارد. پس از crash هم‌زمان برنامه و child یا قطع برق، قفل همچنان باید دستی بررسی شود. (۳) **جایگزینی وقتی برنامه بسته است:** supervisor خط‌مبنای تأییدشده (epoch، شمارنده، ردیف high-water) را به‌صورت اتمیک در `state/database-fingerprint.json` می‌نویسد (حداکثر هر ۱۰ ثانیه و یک بار پس از توقف تأییدشده). host در startup اگر شمارنده کمتر شده یا ردیف high-water ثبت‌شده وجود نداشته باشد یا تغییر کرده باشد، حتی با marker بدون تغییر، epoch تازه و resync را آغاز می‌کند. فایل خراب هرگز نادیده گرفته یا بازنویسی نمی‌شود و startup بسته می‌ماند؛ نبود فایل یعنی «اطلاعاتی نیست» (اولین اجرا).
+- محدودیت‌های صریح مرحله ۳ (حل نشده): این fingerprint هش کامل محتوا یا قفل نویسنده‌ها نیست. موارد زیر تشخیص داده **نمی‌شوند**: نویسنده خارجی که ردیف‌ها را درجا ویرایش کند ولی به AuditLog دست نزند (شمارنده بالا می‌رود)؛ جایگزینی ساختگی که شمارنده بیشتر و همان ردیف high-water را داشته باشد؛ حالت‌های WAL/MEMORY/OFF برای journal (برنامه WAL را فعال نمی‌کند، ولی این تضمین نشده است). پاک‌سازی نگهداری (`MaintenanceService`) فقط ردیف‌های قدیمی‌تر از مهلت را حذف می‌کند؛ اگر ردیف high-water یا anchor حذف شود نتیجه fail-closed و epoch تازه است. شکست فاز دوم commit می‌تواند مثبت کاذب بدهد (بستن امن). اگر `CopyFile` روی Windows هویت فایل را عوض کند، پیام خطا فرق می‌کند؛ تست مربوط هر دو پیام را می‌پذیرد.
+- تست‌های مرحله ۳ (همه روی SQLite موقت): `remote-db-fingerprint.mjs` (۶ زیرآزمون: commit عادی و VACUUM، کپی قدیمی روی همان inode، تعویض با rename، لینک یا header نامعتبر، journal حین commit، خط‌مبنای پایدار و `changedEpoch`)؛ `remote-db-fingerprint-swap-loopback.mjs` (۷ زیرآزمون با IPC، رجیستری، panelSession، cloudReader، supervisor و child/HTTP واقعی: نوشتن عادی، تراکنش باز و VACUUM بدون مثبت کاذب؛ تعویض درجا حین approval، پیش از claim، وسط sync پیش از ارسال و پس از خواندن batch؛ fence ← restart با ماژول تازه ← انتقال epoch ← resync کامل `{sent:3,lastAcked:3}` ← تأیید تازه؛ و حذف‌نشدن قفلی که توکن دیگری دارد)؛ `remote-desktop-host-db-fingerprint.mjs` (host واقعی `CloudSyncService` با پایگاه ساخته‌شده از migrationها: جایگزینی با هاب متوقف و marker بدون تغییر، epoch تازه، تأیید تازه و رد فایل خراب). کنترل منفی: حذف مقایسه شمارنده، حذف high-water، حذف بررسی پیش از ارسال audit، حذف‌نکردن قفل، حذف قفل بدون توکن و نادیده گرفتن خط‌مبنا در host، هر کدام دست‌کم یک تست را شکست دادند و فایل‌ها با `cmp` به حالت قبل برگشتند. همه ۱۰۵ فایل تست workflow روی Linux/Node 22 اجرا شدند: ۱۰۳ موفق؛ `remote-windows-node24.mjs` به Node 24 نیاز دارد (اجرا نشد) و `fix-s223-item8-return-code-null-expiry.mjs` شکست خورد که روی export تمیز `64c6e16` هم به همان شکل شکست می‌خورد (بولت بعد). typecheck، redline، YAML، diff-check و build:check گذشتند؛ Prisma فقط با engine ساختگی برای type تولید شد. SHA-256: fingerprint `bd67b8cb0cdc2599e998fea7f54861cb0c1e94c52b44f640a1181f11160807a5`، supervisor `6c5e5698e969b8ad2daea0869b10ca2fe9349ce3e0040aa503aebebf9f619063`، child `69ce430e30c1c9857eab5fb33fd54c0e7cfa5efc66330dedf21a22cd55d0d335`، cloudReader `6f324c528f2ad5f1f08e58f68798743e7bb8f8e33b77e465cd5805ca22cf74e2`، auditSync `1ba6c9eccdce58ce12e8fea5e916a41aea220d9d2d4ea85814328dd84a61c91a`، state `a123581d5d7c8fbe7e5602b0fe6d372cc5f1523a56bc236cf04287486934abdb`، host `5ad4f73ccbff948f1ef8a6c3e425fe40abef165685b005eeddecfbd7ef520c3c`، تست‌ها `a814c38731f49bbf1b4a5dc4824aefff87b65a02d0b6237e6c751450baa114c5` و `90f342f127f623ec5b57aa98cbd0cc4b5a81444244082c6598d1683b7542c884` و `fb7c86934a1d904ff98413619a56dde60f11326509ab05eecf901cb32000bb1b`، workflow `ba0011cb736323fb6489d52da8d151dc9472354900c286a604e0d5926a56ec0a`.
+- تست موجود `fix-s223-item8-return-code-null-expiry.mjs` به ساعت روز وابسته است: انقضا با `tehranEndOfDayAfter` پایان روز تهران است، اما تست `Math.round((expiresAt-issuedAt)/روز)` را دقیقاً برابر N می‌خواهد؛ پیش از ساعت ۱۲ تهران (۰۸:۳۰ UTC) نتیجه N+1 می‌شود. اجرای ساعت ۰۸:۰۰ UTC هم روی working tree و هم روی export تمیز `64c6e16` همین ۳ شکست را داد؛ اجراهای قبلی حدود ساعت ۱۷ UTC موفق بودند. محصول تغییر نکرد و تست بدون مجوز مالک اصلاح نشد. اگر CI ویندوز این مرحله را صبح به وقت تهران اجرا کند، ممکن است بی‌ارتباط با remote قرمز شود و مراحل بعدی آن (build و تست child بسته‌بندی‌شده) اجرا نشوند.
+- اجرا نشده در مرحله ۳: Windows (تا نتیجه CI پس از push)، Prisma واقعی، Electron/DPAPI، نصب، گوشی و تونل. readiness=false است و نسخه آماده نصب نیست. مراحل ۴ تا ۶ باقی است.
+- نتیجه CI روی `d37422f`: installer `44484312700` موفق. remote `44484304921` در گام ۸۲ (`remote-db-fingerprint-swap-loopback.mjs`، زیرآزمون «پایگاه دیگر پس از خواندن batch») با `attempt to write a readonly database` در خط ۲۵۴ شکست خورد؛ گام‌های بعدی (از جمله fix-s223 در گام ۱۰۱ و build) skip شدند، پس fix-s223 روی این commit اجرا نشد. علت ریشه‌ای که روی Linux به‌طور قطعی بازتولید شد: kill fail-closed وسط یک نوشتن هاب (روی Windows یعنی TerminateProcess) یک journal داغ (hot rollback journal) باقی می‌گذارد و اتصال فقط‌خواندنی نمی‌تواند آن را برگرداند (`SQLITE_READONLY_ROLLBACK`، errcode 776). این فقط مشکل تست نبود: بازرسی فقط‌خواندنی خود child در شروع بعدی هم همین خطا را می‌داد، پس پس از هر kill fail-closed (یا قطع برق) وسط نوشتن، هاب **برای همیشه** بالا نمی‌آمد.
+- رفع محصول (`experimentalHubChild.ts`): پیش از بازرسی هویت، فقط وقتی `remote-hub.sqlite-journal` یک فایل عادی تک‌لینکی است و اتصال فقط‌خواندنی دقیقاً errcode 776 می‌دهد، یک‌بار با اتصال خواندنی-نوشتنی journal برگردانده می‌شود. تنها نوشتن پیش از شناسایی همین rollback استاندارد SQLite به آخرین وضعیت commitشده است؛ سپس بررسی «پایگاه اختصاصی هاب» و key check مثل قبل اجرا می‌شود. journal با لینک سخت رد می‌شود؛ symlink را خود SQLite هم دنبال نمی‌کند (`unable to open database file`). تست جدید `remote-hub-hot-journal-restart.mjs` (۳ زیرآزمون: هاب کشته‌شده وسط نوشتن دوباره بالا می‌آید، journal حذف می‌شود، ورود گوشی کار می‌کند و تغییرات commitنشده برگشته‌اند؛ پایگاه بیگانه و کلید دیگر با journal داغ همچنان رد می‌شوند و جدول هاب ساخته نمی‌شود؛ journal کهنهٔ غیرداغ بی‌ضرر است و journal لینک‌شده رد و هرگز replay نمی‌شود). جهش H1 (حذف rollback) و H2 (حذف بررسی نوع فایل journal) گرفته شدند؛ H3 (پذیرش هر خطای probe) هم‌ارز است، چون اتصال نوشتنی همان خطا را می‌دهد.
+- تغییر تست `remote-db-fingerprint-swap-loopback.mjs` (که خود همین کار در `d37422f` اضافه کرده بود): فقط دو خواندن پایانی پایگاه هاب پس از kill fail-closed از فقط‌خواندنی به خواندنی-نوشتنی تغییر کرد تا journal داغ به وضعیت commitشده برگردد؛ هیچ assertion حذف یا تضعیف نشد (۷/۷). تست‌های قدیمی‌تری که پس از kill، هاب را فقط‌خواندنی می‌خوانند ممکن است به همین علت روی Windows گاه‌به‌گاه شکست بخورند (فرضیه، اثبات‌نشده)؛ بدون مجوز مالک تغییر نکردند.
+- مرحله ۴، بخش اول — **راه‌اندازی مالک از روی رایانه، بدون برداشتن readiness**: (۱) `cloud/remoteSetup.ts`: ساخت انحصاری `userData/remote-hub` (state با storeId تصادفی `store_<32hex>`، epoch تصادفی، lastAcked=0، marker بازیابی فعلی؛ هر دو ledger؛ کلیدهای انتقال رمزشده با safeStorage؛ و در آخر `config.json`). پوشهٔ موجود هرگز بازنویسی یا تعمیر نمی‌شود؛ ساخت نیمه‌کاره `partial` می‌ماند. (۲) `cloud/remoteSetupIpc.ts`: شش کانال `remoteSetup:*` (status، configure، complete، enable، disable، reset)، فقط از قاب اصلی همان پنجرهٔ برنامه. هر تغییر در Main با `assertManagerPassword` (همان گیت و قفل رمز مدیر) سنجیده می‌شود؛ ورودی نامعتبر پیش از بررسی رمز رد می‌شود تا تلاشی از قفل مصرف نشود؛ هر بار فقط یک عملیات. (۳) پورت ثابت loopback (پیش‌فرض ۴۷۸۲۱) در `config.json` به شکل `{version:1,origin,port}`؛ child دقیقاً همان پورت را listen می‌کند و supervisor گزارش پورت دیگر را رد می‌کند. پیکربندی بدون port یعنی پورت موقت (سازگاری). (۴) bootstrap مالک: `CloudSyncService` فقط وقتی `hub/remote-hub.sqlite` وجود ندارد، نام کاربری/رمز/PIN مالک گوشی را یک‌بار به child می‌دهد و ذخیره نمی‌کند (child فقط هش نمک‌دار نگه می‌دارد). اگر شروع اول شکست بخورد (مثلاً پورت گرفته)، صفحه «تکمیل راه‌اندازی» را نشان می‌دهد. (۵) opt-in: خاموش (پیش‌فرض یا فایل نامعتبر) یعنی هیچ پورت، اتصال یا تایمری؛ «خاموش کردن» اول تنظیم را false می‌نویسد و بعد هاب را متوقف می‌کند تا شروع بعدی هم خاموش بماند. (۶) «حذف راه‌اندازی» فقط پس از توقف تأییدشده پوشه را به `remote-hub-removed-…` تغییر نام می‌دهد (پاک نمی‌کند). (۷) پیش از گرفتن قفل state، قفل کهنهٔ child (`Remote hub lock present`) و پورت گرفته (`Remote port in use`) پیام روشن فارسی می‌گیرند؛ این‌ها فقط تشخیص‌اند و قفل و listen خود child مرجع می‌ماند. (۸) `registerRemoteAuthHandlers` علاوه بر readiness، مقداردهی رجیستری توسط host را هم لازم دارد. (۹) خروجی main کدشکسته است (`out/main/chunks`) و `__dirname` قبلی در chunk به `out/main/renderer` اشاره می‌کرد، یعنی بررسی قاب بازیابی Panic در نسخهٔ بسته‌بندی‌شده همیشه رد می‌شد؛ اکنون پوشهٔ اسکریپت ورودی (`require.main`) مبناست. روی نصب واقعی Windows اجرا نشده است.
+- نقطهٔ ورود UI (تصمیم کم‌ریسک): `pages/Settings.tsx` و `components/Shell.tsx` مسیر مجاز redline نیستند و منوی `index.ts` را fix-s84 قفل کرده است. پس یک دکمهٔ «کنترل از راه دور با گوشی» بالای صفحهٔ تنظیمات (داخل `ManagerGate` بازشدهٔ پنل settings) و مسیر `#/remote-link` (۲ خط `main.tsx`، داخل همان `ManagerGate`) اضافه شد. صفحهٔ جدید `pages/RemoteLink.tsx`: راه‌اندازی اول (آدرس https، پورت، نام کاربری، رمز و PIN مالک گوشی با تکرار)، تکمیل، روشن/خاموش، و حذف با تأیید دومرحله‌ای؛ رمز مدیر پس از هر عمل پاک می‌شود. `RemoteRequestBox` فقط وقتی هاب همین رایانه روشن است نمایش داده می‌شود. بودجه‌ها نسبت به `2834baf`: main.tsx ‏۲/۲، preload ‏۲/۳ (همان خط allowlist)، index.ts ‏۲/۲، ManagerGate ‏۱۰/۱۵.
+- readiness هنوز false است: در build تولیدی همهٔ کد راه دور حذف درختی می‌شود (مثلاً `registerRemoteSetupHandlers` به یک `return` خالی کامپایل می‌شود)، پس هیچ بخشی از این مرحله در نسخهٔ نصبی در دسترس نیست و **نسخهٔ آمادهٔ نصب وجود ندارد**. گام بعد (برداشتن readiness پشت همین opt-in) به مجوز صریح مالک برای تغییر ۱۰ تستی نیاز دارد که `remoteImplementationReady()===false` را assert می‌کنند.
+- تست‌ها و شواهد این مرحله (همه روی پوشه و SQLite موقت؛ Electron، safeStorage، رمز مدیر و readiness شبیه‌سازی‌شده): `remote-setup-files.mjs` ۵/۵؛ `remote-hub-fixed-port.mjs` ۲/۲ (child فقط همان پورت، پورت نامعتبر پیش از هر فایل رد، پورت گرفته بدون قفل باقی‌مانده؛ supervisor پورت را اعتبارسنجی می‌کند، فقط در صورت تنظیم می‌فرستد و child دروغگو را رد می‌کند)؛ `remote-setup-host-loopback.mjs` ۱/۱ (بدون opt-in هیچ پورتی باز نیست؛ قاب غیرمجاز FORBIDDEN؛ ورودی نامعتبر بدون فایل و بدون مصرف تلاش رمز؛ راه‌اندازی، bootstrap مالک و پورت ثابت؛ ورود گوشی، آینهٔ درخواست، تأیید با PIN و claim؛ خاموش یعنی پورت بسته، پایان grant و خاموش ماندن در شروع بعدی؛ روشن کردن دوباره؛ اجرای دوبارهٔ برنامه با ماژول‌های تازه روی همان پورت؛ حذف؛ پورت گرفته و سپس «تکمیل»)؛ `remote-hub-hot-journal-restart.mjs` ۳/۳. جهش‌های M1 تا M12 و H1–H2 همه گرفته شدند (M9/M10 ابتدا فقط با timeout؛ تست اصلاح شد تا پردازه‌ها را در finally ببندد و سریع شکست بخورد). مجموعهٔ workflow (۱۰۹ فایل): ۱۰۸ موفق؛ فقط `remote-windows-node24.mjs` که روی Linux انتظار می‌رود. typecheck صفر، `npm run build:check` صفر، redline OK، diff-check OK. SHA-256 (۱۶ نویسهٔ اول): remoteSetup.ts `138f0e21e9332311`، remoteSetupIpc.ts `7ff1c85227c227e1`، experimentalHubChild.ts `8352d4b74ea15c29`، experimentalHubSupervisor.ts `2d7b8a38b984bdc5`، CloudSyncService.ts `c1b857456c81a53c`، RemoteGrantRegistry.ts `dddee1746dc3cb09`، ipc/remoteAuth.ts `508397fc7738c4f6`، main/index.ts `9274c21cbde06f0f`، preload/index.ts `68fba2145e833f6c`، remoteAuthChannels.ts `ac3d5b97ef0a8b51`، RemoteLink.tsx `5bf904dea618d155`، renderer main.tsx `8a6ae477167fbacf`، ManagerGate.tsx `d31e398a816e5ed4`، RemoteRequestBox.tsx `fab4f1b3b6e173a9`، remote-setup-files.mjs `8c14121e678bdbd1`، remote-hub-fixed-port.mjs `65d9d59829752262`، remote-setup-host-loopback.mjs `59eac788df81c549`، remote-hub-hot-journal-restart.mjs `ec17c2649f000476`، remote-db-fingerprint-swap-loopback.mjs `2a197db165139aff`، workflow `1b2b66acb3a9593d`.
+- محدودیت‌ها و **اجرا نشده** در این مرحله: Windows (تا نتیجهٔ CI پس از push)، Electron/DPAPI/safeStorage واقعی، مسیر واقعی `assertManagerPassword` داخل این IPC (در تست جعلی است)، بررسی URL قاب روی نصب واقعی Windows (کدگذاری مسیر)، تغییر نام پوشه روی Windows با handle باز، گوشی، تونل و Prisma واقعی. رمز مالک گوشی در طول عمر هاب در حافظهٔ پردازهٔ Main (گزینه‌های supervisor) می‌ماند (رشتهٔ JS قابل صفر کردن نیست). بررسی پورت فقط تشخیص است (فاصلهٔ بررسی تا استفاده). مراحل ۴ (برداشتن readiness)، ۵ و ۶ باقی است.
+- نتیجهٔ CI روی `abaa478`: installer `44490987556` موفق. remote `44490978642` در گام ۵۹ (`remote-hub-supervisor.mjs`، تست موجود و بدون تغییر) شکست خورد: ۴ زیرآزمون از ۱۵ (۱۱، ۱۲، ۱۳ و ۱۵) هر کدام دقیقاً پس از پنجرهٔ ۳۰۰۰ میلی‌ثانیه‌ای خود تست با `Hub child unavailable` (تایمر شروع supervisor) رد شدند؛ یعنی child تازه (پوشهٔ جدید با bootstrap مالک) در ۳ ثانیه ready نشد، در حالی که شروع‌های تازهٔ زیرآزمون‌های ۹ و ۱۰ در همان اجرا موفق بودند. گام‌های بعدی skip شدند؛ پس fix-s223، تست‌های جدید مرحلهٔ ۴ و build روی این commit در CI **اجرا نشدند**. روی Linux همین فایل دو بار ۱۵/۱۵ گذشت (شروع تازه حدود ۱۵۰ms). علت تعیین نشد: تغییر child در `abaa478` برای هاب تازه فقط یک `lstat` اضافه می‌کند (journal وجود ندارد) و scrypt با N=16384 حدود ۵۰ms است. این مورد شکست گاه‌به‌گاه Windows ثبت می‌شود؛ **رفع نشده** و تست تغییر نکرد (حد ۳۰۰۰ms در خود تست است و تغییرش مجوز مالک می‌خواهد).
+- پنجرهٔ شروع جدا (تغییر محصول): supervisor گزینهٔ اختیاری `startupTimeoutMs` گرفت (عدد صحیح ۱۰۰ تا ۱۲۰۰۰۰؛ پیش‌فرض همان `timeoutMs`) که فقط برای ready شدن child به کار می‌رود؛ همهٔ عملیات بعدی همان `timeoutMs` را دارند، پس رفتار تست‌های موجود عوض نمی‌شود. میزبان دسکتاپ (`CloudSyncService`) ۳۰۰۰۰ms می‌دهد. دلیل: نخستین شروع پس از نصب روی رایانهٔ کند (اسکن آنتی‌ویروس روی node.exe) ممکن است از ۵ ثانیه بیشتر شود؛ شروعِ timeout‌شده پاک‌سازی را تأیید نمی‌کند، پس قفل state تا راه‌اندازی دوبارهٔ برنامه می‌ماند (needsRestart) و child ممکن است وسط bootstrap مالک kill شود. هزینه (تصمیم کم‌ریسک): خاموش کردن یا بستن برنامه در حین یک شروعِ گیرکرده تا ۳۰ ثانیه منتظر پایان شروع می‌ماند و سپس تمیز متوقف می‌کند. قطع فوری عمداً اضافه نشد، چون child را وسط bootstrap می‌کشد و ممکن است هاب نیمه‌ساخته یا قفل باقی‌مانده بگذارد.
+- تست‌های این بخش: `remote-hub-startup-window.mjs` ۲/۲ (رد مقدار نامعتبر؛ بدون پنجره، timeout عملیات اعمال می‌شود؛ با پنجره، child کند پذیرفته می‌شود؛ میزبان دسکتاپ با CloudSyncService، supervisor و child/HTTP واقعی و راه‌اندازی مالک، با childی که ۶ ثانیه دیر بالا می‌آید، روی پورت ثابت بالا می‌آید و تمیز خاموش می‌شود). جهش‌های S1 تا S4 (تایمر بی‌توجه به پنجره، میزبان بدون پنجره، حذف حد بالا، پیش‌فرض طولانی) همه گرفته شدند. `remote-hub-start-timing.mjs` فقط تشخیصی است: زمان شروع node خالی، هاب تازه و راه‌اندازی دوباره (هر کدام ۴ بار) را به‌صورت annotation از نوع notice چاپ می‌کند تا حتی در اجرای موفق از API خوانده شود؛ تنها assertion آن حد ۳۰ ثانیه است. یک بار پیش از گام supervisor و یک بار پس از آن با `if: always()` اجرا می‌شود. روی Linux: node خالی ۲۶ تا ۳۶ms، هاب تازه ۱۴۶ تا ۱۷۲ms، راه‌اندازی دوباره ۵۱ تا ۶۱ms.
+- تست opt-in خاموش (مرحلهٔ ۴): `remote-optin-off-no-port.mjs` ۱/۱. با readiness باز (شبیه‌سازی‌شده) و همه چیز آماده (config، کلیدها، پایگاه هاب با مالک، node.exe و child)، شش حالت خاموش (نبود فایل، `false`، JSON خراب، رشتهٔ `"true"`، کلید اضافه، پوشه به جای فایل) هر کدام در یک «شروع برنامه» با bundle تازه بررسی می‌شوند: هیچ پورت، اتصال، پردازه، تایمر یا نوشتنی ایجاد نمی‌شود؛ جز فایل تنظیم هیچ فایلی خوانده نمی‌شود؛ پایگاه فروشگاه خوانده نمی‌شود؛ هیچ IPC جدید و هیچ IPC مجوز (`remoteAuth:*`) ثبت نمی‌شود؛ دادهٔ برنامه تغییر نمی‌کند و پورت پیکربندی‌شده بسته است. یافتهٔ ثبت‌شده: پس از اجرای هاب و خاموش کردن در همان پردازه، handlerهای `remoteAuth:*` ثبت‌شده ولی بی‌اثر می‌مانند (`remoteAuth:request` با `Remote admission closed` رد می‌شود؛ recover و claim مقدار `ok:false` می‌دهند) و تست همین را assert می‌کند. جهش‌های O1 تا O6 (نادیده گرفتن opt-in، پذیرش رشته، پذیرش کلید اضافه، خواندن فایل دیگر پیش از opt-in، ثبت IPC مجوز هنگام شروع، حذف بررسی admission) همه با assertion مربوط گرفته شدند.
+- شواهد پیش از commit این بخش: suite کامل workflow (اکنون ۱۱۲ فایل) روی Linux/Node 22 ۱۱۱/۱۱۲ گذشت؛ تنها شکست `remote-windows-node24.mjs` است که روی Linux انتظار می‌رود، و fix-s223 در ساعت ۰۹:۰۸ UTC موفق بود. typecheck 0؛ build:check 0 و سپس child دوباره ساخته شد (۱۳۱۲۴۶ بایت، بدون تغییر چون child عوض نشد)؛ redline OK؛ diff-check 0. SHA-256 (۱۶ نویسهٔ اول): `experimentalHubSupervisor.ts` `a046598e964f0b02`، `CloudSyncService.ts` `fbe9d2bca00af148`، workflow `0c6c0cab3b054f07`، `remote-optin-off-no-port.mjs` `a2a9858a0f3b142d`، `remote-hub-startup-window.mjs` `69978e7d2492b62f`، `remote-hub-start-timing.mjs` `9dd7cc08e76ba26f`. **اجرا نشده:** Windows (تا نتیجهٔ CI پس از push)، اسکن آنتی‌ویروس واقعی، Electron/DPAPI، نصب، گوشی، تونل و Prisma واقعی. readiness هنوز false است و نسخهٔ آمادهٔ نصب وجود ندارد.
+- نتیجهٔ CI روی `8aaed41`: installer `44494055009` موفق. remote `44494043775` گام supervisor را (که روی `abaa478` شکست خورده بود) و همهٔ گام‌های پیش از ۷۹ را گذراند. دو notice زمان شروع روی Windows (Node 24.22.2، ۴ CPU) پیش و پس از گام supervisor: node خالی ۴۵ تا ۴۹ms، هاب تازه ۵۹۳ تا ۶۹۸ms، راه‌اندازی دوباره ۷۵ تا ۸۲ms؛ پس شکست ۳ ثانیه‌ای `abaa478` یک کندی گذرای بیش از ۵ برابری بوده است، نه هزینهٔ عادی شروع. سپس در گام ۷۹ تست موجود `remote-restore-epoch-fence-loopback.mjs` پس از ۸٫۶ ثانیه (روی Linux حدود ۰٫۲ ثانیه) با `EPERM` در `rmSync` پاک‌سازی finally شکست خورد. چون خطای finally خطای اصلی را پنهان می‌کند، معلوم نیست بدنهٔ تست گذشته بود یا نه. گام‌های بعدی (از جمله تست‌های جدید opt-in خاموش و پنجرهٔ شروع، build و fix-s223) روی این commit **اجرا نشدند**. علت تعیین نشد. بررسی کد: پس از `restoreExclusive` child کشته نمی‌شود و `stop` تا `timeoutMs` (۵۰۰۰ در این تست) منتظر تأیید می‌ماند؛ زمان ۸٫۶ ثانیه با یک timeout توقف سازگار است (فرضیه، اثبات‌نشده). ارسال ابطال child سقف ۳ ثانیه دارد و `cloudState` حلقهٔ تلاش مجدد ندارد. تست تغییر نکرد. تست تشخیصی جدید `remote-restore-stop-timing.mjs` همان جریان (child واقعی، SQLite موقت، revocation و approval) را اجرا می‌کند و زمان هر گام، خطای stop و تعداد تلاش‌های ناموفق حذف پوشه را به‌صورت notice گزارش می‌دهد؛ درست پیش از همان گام اجرا می‌شود و فقط شروع هاب را assert می‌کند. روی Linux: شروع حدود ۱۸۵ms، restore ۲ms، stop ۴ms و حذف بی‌درنگ.
+- برداشتن readiness (پایان مرحلهٔ ۴، با مجوز صریح مالک در این جلسه): `remoteImplementationReady()` اکنون true است. در build تولیدی بررسی شد که کد راه دور حذف درختی نمی‌شود: chunk `CloudSyncService` شامل `remoteSetup:status`، `remote-settings.json`، `remote-hub-child.cjs` و `startupTimeoutMs` است؛ `index.js` ماژول `remoteSetupIpc` را بار می‌کند و `registerRemoteSetupHandlers` handlerهای واقعی دارد؛ preload کانال‌ها را دارد و صفحهٔ `#/remote-link` با متن «کنترل از راه دور با گوشی» در renderer هست. پیش‌فرض خاموش است: بدون `remote-settings.json` با محتوای دقیق `{"enabled":true}` هیچ پورت، اتصال، پردازه یا تایمر راه دوری ساخته نمی‌شود (`remote-optin-off-no-port.mjs`). تنها راه روشن شدن: تنظیمات ← «کنترل از راه دور با گوشی» ← راه‌اندازی یا روشن کردن (هر دو با رمز مدیر).
+- تغییر تست‌ها با مجوز مالک: در ۱۰ تست فقط assertion «readiness خاموش است» با `remoteSettingEnabled(<پوشه>) === false` جایگزین شد و import همان تابع عوض شد (دو خط در هر فایل). `remote-cloud-disabled` و `remote-disabled-by-default` پوشهٔ خود تست را می‌سنجند (در دومی همان userData برنامه در هارنس)؛ هشت تست دیگر یک پوشهٔ تازه و خالی. هیچ assertion دیگری حذف یا تضعیف نشد. در `remote-cloud-disabled` اکنون `startCloudSync` به خواندن opt-in می‌رسد؛ تلهٔ `app.getPath` آن خطا می‌دهد که طبق قاعدهٔ محصول («هر چیز ناخوانا یعنی خاموش») خاموش حساب می‌شود، و تله‌های شبکه، نوشتن و تایمر همچنان صفرند. خط ۵۱ `remote-disabled-by-default` (الگوی منبع `remoteImplementationReady() && <RemoteRequestBox`) بدون تغییر می‌گذرد. در `remote-hub-supervisor.mjs` (مجوز جداگانه) فقط `startupTimeoutMs:30000` به گزینه‌های مشترک اضافه شد؛ timeout عملیات (۳۰۰۰) و همهٔ assertionها همان است و هیچ شروعی در آن فایل به تایمر شروع وابسته نیست.
+- اثر روشن بودن readiness برای همهٔ کاربران، حتی با opt-in خاموش: (۱) دکمهٔ «کنترل از راه دور با گوشی» بالای صفحهٔ تنظیمات باز؛ (۲) پس از بسته شدن پنلی که باز بود، یادداشت «دسترسی این پنل پایان یافت یا لغو شد.» بالای فرم رمز (مانع ورود نیست)؛ (۳) در نشست پنلی غیرمدیر (رمز دوم)، `managerSessionStatus` هر ۱ ثانیه پرسیده می‌شود؛ این خواندن با `touch=false` است، زمان بیکاری را تمدید نمی‌کند و فقط پنل منقضی را از فهرست برمی‌دارد؛ (۴) در صفحهٔ قفل هر پنل، `RemoteRequestBox` هر ۵ ثانیه `remoteSetup:status` را می‌پرسد (IPC داخلی و چند lstat کوچک؛ نه پورت و نه اتصال) و تا وقتی هاب اجرا نشده چیزی نشان نمی‌دهد. این رفتارها روی Electron واقعی **اجرا نشده‌اند**.
+- بررسی «صفحهٔ خود برنامه» برای IPC مالک (تغییر محصول در `ipc/remoteAuth.ts`): تابع `isOwnRendererPage` URL فایل را به‌صورت مسیر decodeشده مقایسه می‌کند (روی Windows بدون حساسیت به بزرگی حروف)، به جای مقایسهٔ متن کدشدهٔ Chromium با خروجی `pathToFileURL` در Node. هم `isLocalAppFrame` (شش کانال setup) و هم بازیابی Panic از همین تابع استفاده می‌کنند. دلیل: مسیر نصب پیش‌فرض NSIS نام کاربری Windows را دارد. مقایسهٔ قبلی نام فارسی و فاصله را می‌پذیرفت (کدگذاری هر دو یکسان است)، ولی حرف درایو کوچک و مسیرهای دارای `~`، `^`، `{`، `}` یا `` ` `` را (که Node کد می‌کند و Chromium احتمالاً نه) رد می‌کرد، و نتیجه FORBIDDEN برای صفحهٔ راه‌اندازی بود. scheme، host، فایل یا پوشهٔ دیگر و URL غیرقابل decode (مثل `%2F`) همچنان رد می‌شوند. تست `remote-frame-url-windows.mjs` ۴/۴ با قواعد واقعی مسیر/URL ویندوز در Node؛ جهش‌های F1 (حساسیت به حروف)، F2 (همان منطق قبلی)، F5، F6 و F8 گرفته شدند؛ F7 (حذف بررسی host) معادل است، چون URL دارای host به مسیر UNC تبدیل می‌شود و با مسیر درایو برابر نمی‌شود. کدگذاری واقعی Chromium و برنامهٔ نصب‌شده **اجرا نشده‌اند**.
+- شواهد پیش از commit این بخش: suite کامل workflow (۱۱۳ فایل، پیش از افزودن تست تشخیصی restore) روی Linux/Node 22 ۱۱۲/۱۱۳ گذشت؛ تنها شکست `remote-windows-node24.mjs` با «Node 24 required» است. تست تشخیصی restore جداگانه دو بار گذشت. `remote-hub-scheduler.mjs` ۴/۴، `remote-isolated-panel-grants.mjs` ۶/۶ (هیچ‌کدام در workflow نیستند) و `remote-installer-runtime-loopback.mjs` با پوشهٔ منابع ساختگی ۱/۱. typecheck 0؛ build:check 0؛ child دوباره ساخته شد (۱۳۱۲۴۶ بایت، بدون تغییر)؛ redline OK؛ diff-check 0؛ workflow اکنون ۱۱۴ فایل تست دارد. SHA-256 (۱۶ نویسهٔ اول): `remoteAuthChannels.ts` `218cb4f2a0e2792c`، `remoteAuth.ts` `3f20faa6f5b01d5e`، workflow `dad7854bac52587a`، `remote-frame-url-windows.mjs` `718684d4764e05b3`، `remote-restore-stop-timing.mjs` `683e704eaeebe7e3`، `remote-cloud-disabled.mjs` `08b4469172c03cd8`، `remote-disabled-by-default.mjs` `970efb6a212bbbbc`، `remote-hub-invoices-ipc.mjs` `3dab3ee56189aae9`، `remote-hub-scheduler.mjs` `eeb7d79ee8210e98`، `remote-hub-supervisor.mjs` `3cef305d555a8c8a`، `remote-installer-runtime-loopback.mjs` `33a8c7dec13e9e47`، `remote-isolated-panel-grants.mjs` `5db794aba595879f`، `remote-multiple-origins.mjs` `102fb9b23e52cb91`، `remote-packaged-child-loopback.mjs` `e1574a051b102b18`، `remote-windows-node24.mjs` `6dfd1e7f443b1dcc`.
+- **اجرا نشده** در این بخش: Windows (تا نتیجهٔ CI پس از push)، برنامهٔ نصب‌شده، Electron/DPAPI، کدگذاری واقعی Chromium، گوشی، تونل و Prisma واقعی. installer این commit قابلیت را (خاموش) دارد، اما تا پایان مراحل ۵ و ۶ و نتیجهٔ CI به‌عنوان نسخهٔ آمادهٔ آزمون معرفی نمی‌شود.
+
+### مرحلهٔ ۵: تکمیل موارد باقی‌ماندهٔ قابل‌انجام بدون سرور/تونل واقعی
+- نتیجهٔ CI برای `9857896`: سازگاری ویندوز `44496905397` (۱۱۷ گام، همه موفق) و نصب‌کننده `44496915043` موفق بودند. تست تشخیصی توقف پس از restore روی Windows (Node 24.22.3، ۴ CPU): start حدود ۵۸۵ ms، restore حدود ۸ ms، stop حدود ۱۰ ms، بدون تلاش ناموفق حذف پوشه؛ `remote-restore-epoch-fence-loopback.mjs` نیز گذشت. شکست ۸٫۵ ثانیه‌ای و EPERM اجرای `44494043775` تکرار نشد؛ یک اجرای موفق رفع علت را ثابت نمی‌کند.
+- **دکمهٔ «توقف اضطراری کامل» (P2) در PWA:** فقط برای OWNER و فقط وقتی capability `panic` باشد نشان داده می‌شود. ارسال با PIN مالک و تیک تأیید انجام می‌شود («بازگشت فقط پشت سیستم فروشگاه»). نتیجه فقط با پاسخ ۲۰۰ موفق اعلام می‌شود. در هر نتیجهٔ دیگر، نشست با `/api/session` بررسی می‌شود. اگر نشست بسته شده باشد (مثلاً ۵۰۳ «توقف ثبت شد؛ تحویل ابطال هنوز کامل نیست»)، گوشی خارج می‌شود و پیام «وضعیت را پشت سیستم فروشگاه بررسی کنید» می‌گیرد. PIN غلط فقط خطا نشان می‌دهد. صفحهٔ ورود از پیش یادآوری می‌کند که پس از P2 ورود با گوشی تا بازیابی پشت دسکتاپ ممکن نیست؛ این متن ثابت است و چیزی دربارهٔ وضعیت latch فاش نمی‌کند.
+- **اجازهٔ تأیید برای مدیر از گوشی:** `/api/capabilities` برای OWNER فهرست پنل‌های دارای سیاست تأیید (`approvalPanels`، از همان سیاست‌های هاب) را برمی‌گرداند. فرم دعوت برای نقش «مدیر» برای هر پنل یک گزینهٔ «تأیید …» با عنوان فارسی نشان می‌دهد و `approve:true` می‌فرستد. برای «بیننده» هرگز `approve` فرستاده نمی‌شود. عنوان فارسی پنل‌ها از `LOCKED_PANELS` می‌آید و در فهرست درخواست‌های گوشی هم به‌جای کلید پنل نمایش داده می‌شود. اعتبارسنجی ACL همچنان در `hubIdentity.aclValid` است. اندازهٔ child به‌خاطر کاتالوگ پنل‌ها از ۱۳۱۲۴۶ به ۱۷۸۶۰۹ بایت رسید.
+- **یک فهرست مشترک پنل‌های قابل‌باز‌شدن با گوشی:** `REMOTE_PANELS` در `shared/enums.ts` با مقدار `products`، `settings` و `secondary-stock` سه جا را تغذیه می‌کند:
+  - سیاست‌های تأیید میزبان (`CloudSyncService`)؛
+  - IPC درخواست، که درخواست برای پنل دیگر را با «این پنل با تأیید گوشی باز نمی‌شود.» رد می‌کند؛
+  - دکمهٔ درخواست در صفحهٔ قفل (`RemoteRequestBox`).
+
+  پیش از این، صفحهٔ قفل هر پنلی دکمهٔ درخواست داشت و درخواست پنل‌های دیگر روی گوشی نمایش داده نمی‌شد و تا انقضا معلق می‌ماند. دکمهٔ «بازیابی توقف اضطراری راه دور» همچنان روی همهٔ پنل‌های قفل‌دار است.
+- **رمز گوشی مالک در حافظهٔ Main:** میزبان پس از ارسال پیام شروع نخست (موفق یا ناموفق)، `owner` را در گزینه‌های supervisor به `null` تغییر می‌دهد، چون supervisor گزینه‌ها را تا پایان عمر هاب نگه می‌دارد. محدودیت: رشته‌های JavaScript قابل پاک‌کردن نیستند و تا جمع‌آوری زباله در حافظه می‌مانند؛ فقط ارجاع حذف شده است.
+- **توضیحات قدیمی کد اصلاح شد** (فقط comment، بدون تغییر رفتار). جمله‌های «readiness بسته است» یا «در برنامه راه‌اندازی/وصل نمی‌شود» در این فایل‌ها با توضیح فعلی جایگزین شدند: `CloudSyncService`، `remoteSettings`، `RemoteGrantRegistry`، `cloudState`، `auditSync`، `localAuditReceiver`، `loopbackAuditTransport`، `inProcessRevocationBridge`، `grantApprovalCoordinator`، `experimentalRestoreBarrier` و `RemoteRequestBox`. سه یادداشت قدیمی همین سند نیز علامت‌گذاری شدند (صف revoke قدیمی، پاک‌شدن نشست محلی و مانع انقضای پنل) و بخش «موارد مشخصِ باقی‌مانده» بازنویسی شد.
+- **تست‌های تازه** (همه با HTTP و child واقعی، DB و کلید موقت؛ در workflow ویندوز):
+  - `remote-panic-p2-pwa-loopback.mjs` (۲/۲) با اسکریپت واقعی PWA و DOM شبیه‌سازی‌شده:
+    - تأیید درخواست دسکتاپ از گوشی با عنوان فارسی؛
+    - رد بدون تیک و رد PIN غلط بدون اثر؛
+    - P2 واقعی: بسته‌شدن grant و پنل، `UNAVAILABLE` شدن درخواست منتظر، ACK، اعلان ALL و خروج گوشی؛
+    - رد ورود دوباره و بازیابی فقط با `assertManagerPassword` واقعی و PIN درست؛
+    - مسیر ۵۰۳ با شکست تزریقی پاک‌سازی: «موفق» اعلام نمی‌شود، گوشی خارج می‌شود و retry تحویل را کامل می‌کند.
+  - `remote-manager-approval-pwa-loopback.mjs`: دو گوشی؛ دعوت مدیر با اجازهٔ تأیید یک پنل، رد `approve` برای بیننده، تأیید عضویت، دیدن و تأیید فقط همان پنل، و حذف مدیر که grant او را با ACK می‌بندد.
+  - `remote-panels-desktop.mjs` (۳/۳): IPC واقعی در bundle ایزوله، بررسی ساختاری صفحهٔ قفل.
+  - `remote-owner-credentials-cleared.mjs`: IPC راه‌اندازی، میزبان و supervisor واقعی. بعد از شروع موفق و بعد از شروع ناموفق (child فوراً خارج می‌شود) دیگر `owner` در گزینه‌ها نمی‌ماند، و پورت اشغال پیش از supervisor رد می‌شود. پس از شروع ناموفق، میزبان طبق قاعدهٔ موجود تا راه‌اندازی دوبارهٔ برنامه بسته می‌ماند. پاک‌سازی پوشهٔ موقت در ویندوز تحمل‌پذیر است، چون قفل state آن شروع ناموفق عمداً باز می‌ماند.
+- **جهش‌ها:** ۱۵ جهش (P1 تا P15) همه گرفته شدند، از جمله:
+  - موفق اعلام‌کردن خطا؛ حذف تیک تأیید؛ نمایش P2 به غیرمالک؛
+  - `approve:false`؛ `approve` برای بیننده؛ `approvalPanels` برای مدیر؛ فهرست خالی در child؛
+  - حذف `finally` یا پاک‌کردن فقط هنگام موفقیت؛ حذف بررسی پنل در IPC یا UI؛
+  - نمایش کلید خام پنل؛ خروج‌نکردن پس از P2؛ فرض نشست بدون بررسی؛ نفرستادن فهرست به IPC.
+
+  P3 ابتدا زنده ماند، چون تست پیش از بارگذاری capabilities بررسی می‌کرد. تست اصلاح شد تا منتظر پاسخ capabilities بماند و سپس P3 گرفته شد. فایل‌ها پس از هر جهش برگردانده و بایت‌به‌بایت مقایسه شدند.
+- **شواهد پیش از commit** (مبنای `985789613de6589d5c53b8f0ba28c6305c3a8198`):
+  - suite کامل workflow (۱۱۸ فایل) روی Linux/Node 22: ۱۱۷/۱۱۸؛ تنها `remote-windows-node24.mjs` (نیازمند Node 24) رد شد؛
+  - scheduler ۴/۴، isolated-panel-grants ۶/۶، installer-runtime ۱/۱ (با child تازه)؛
+  - typecheck و build:check موفق؛ وجود کد تازه در bundle main، renderer و child بررسی شد؛
+  - redline `--base 2834baf` موفق و `git diff --check` تمیز؛ YAML با js-yaml بارگذاری شد.
+
+  SHA-256 (۱۶ نویسهٔ اول): `mobilePwaAssets.ts` `f7c3e7aa8d0bf68a`، `mobileReadOnlyHub.ts` `69a90a7d939e5f95`، `experimentalHubChild.ts` `32920ffeb5c26a3e`، `CloudSyncService.ts` `d69122062321644f`، `remoteAuth.ts` `4fb9d5656ea3bb98`، `RemoteRequestBox.tsx` `ec2db79b04d9b222`، `enums.ts` `aa280e8239b62411`، `remote-panic-p2-pwa-loopback.mjs` `f42147d0a044ed8b`، `remote-manager-approval-pwa-loopback.mjs` `19e4eb4800901161`، `remote-panels-desktop.mjs` `bb2151ecfa60aebc`، `remote-owner-credentials-cleared.mjs` `5d9843cabc6424a4`، workflow `c214bd0c0ed613f0`.
+- **اجرا نشده** در این بخش:
+  - Windows (تا نتیجهٔ CI پس از push)؛
+  - مرورگر و گوشی واقعی: DOM شبیه‌سازی‌شده است، نه Chrome یا Safari؛
+  - React mount صفحهٔ قفل؛
+  - Electron/DPAPI، تونل و Prisma واقعی.
+
+### مرحلهٔ ۶: بازنویسی راهنمای آزمون کاربر
+- `docs/REMOTE-USER-TEST.md` مطابق کد `507b3b1` بازنویسی شد. بخش ۴ تا ۷ دیگر «فعلاً اجرا نشود» نمی‌گویند و دستورهای ساده دارند:
+  - بخش ۴: تونل به `http://127.0.0.1:47821`، باز کردن آدرس https در گوشی و ورود؛
+  - بخش ۵: درخواست از صفحهٔ قفل، تأیید با کد و PIN و «فعال‌سازی مجوز همین پنل»، آزمون‌های منفی و مدیر دوم؛
+  - بخش ۶: P1، P2 و بازیابی فقط روی رایانه؛
+  - بخش ۷: restore با «جایگزینی کامل» و رفتار پس از merge.
+- عنوان، وضعیت و بخش ۱ تا ۳ هم اصلاح شدند، چون با کد نهایی تناقض داشتند («هنوز قابل اجرا نیست»، «readiness خاموش است» و نصب از سورس). اکنون:
+  - بخش ۱ نصب آزمایشی از artifact «MahakPOS-Windows-installer» روی رایانهٔ جداگانه و بررسی نبودن پورت با `netstat` را توضیح می‌دهد؛
+  - بخش ۲ تست‌های خودکار اختیاری است؛
+  - بخش ۳ راه‌اندازی، روشن و خاموش کردن از «تنظیمات ← کنترل از راه دور با گوشی» را توضیح می‌دهد.
+- متن دکمه‌ها و پیام‌های راهنما با کد مقایسه شد: `RemoteLink.tsx`، `RemoteRequestBox.tsx`، `ManagerGate.tsx`، `mobilePwaAssets.ts`، `mobileReadOnlyHub.ts`، اعلان `CloudSyncService`، زمان‌های `RemoteGrantRegistry` (۴، ۳ و ۳ دقیقه؛ سقف ۱۰ دقیقه) و قفل ۱۵ دقیقه‌ای پس از ۵ خطا در `hubIdentity`. رفتار restore با `restoreExclusive` و `experimentalRestoreBarrier` بررسی شد: ابطال پیش از drain و عملیات انجام می‌شود، و پس از merge پذیرش تا راه‌اندازی دوباره بسته می‌ماند.
+- این commit فقط سند است و کدی تغییر نکرد. کد همان `507b3b1` است که suite آن پیش از commit بخش ۵ اجرا شد. پیش از این commit فقط redline و `git diff --check` دوباره اجرا شدند. SHA-256 راهنما (۱۶ نویسهٔ اول): `b6256c79f39ef0f3`.
+- **اجرا نشده:**
+  - هیچ‌یک از مراحل راهنما روی Windows، گوشی، تونل یا نصب واقعی؛
+  - تنظیم تونل (هیچ ارائه‌دهنده‌ای آزموده نشد)؛
+  - رفتار SmartScreen و آنتی‌ویروس؛
+  - بازگشت خودکار هاب پس از restore روی برنامهٔ نصب‌شده. این مورد در تست loopback میزبان پوشش دارد، نه در Electron واقعی.
+
+### رفع شکست CI پس از مرحلهٔ ۵ و ۶
+- **نتیجهٔ CI:**
+  - `507b3b1`: سازگاری ویندوز `44501406447` شکست خورد و نصب‌کننده `44501416144` موفق بود.
+  - `904840b`: سازگاری ویندوز `44502244193` شکست خورد و نصب‌کننده `44502251750` موفق بود.
+  - در هر دو اجرا، گام‌های ۱ تا ۹۴ گذشتند، از جمله تست تازهٔ P2 در گام ۹۴ (حدود ۱۸ ثانیه). شکست در گام ۹۵ بود (`remote-manager-approval-pwa-loopback.mjs`): `EPERM` در `rmSync` پاک‌سازی پوشهٔ موقت در خط ۱۱۴.
+  - چون خطای `finally` خطای اصلی را می‌پوشاند، بدنهٔ تست جداگانه بررسی شد. مدت ۱۶ ثانیه با کندی عادی ویندوز می‌خواند (همان تست روی Linux حدود ۲٫۲ ثانیه است)، ولی گذشتن بدنه روی ویندوز ثابت نشده است.
+  - گام‌های ۹۶ به بعد اجرا نشدند؛ پس `remote-panels-desktop.mjs` و `remote-owner-credentials-cleared.mjs` هنوز روی ویندوز اجرا نشده‌اند.
+  - تست تشخیصی توقف پس از restore روی ویندوز (Node 24.22.2): start حدود ۵۹۹ ms، restore حدود ۹ ms، stop حدود ۱۲ ms، بدون شکست حذف پوشه.
+- **علت، با شاهد:** یک preload موقت روی Linux پیش از هر `rmSync` همهٔ handleهای باز زیر آن پوشه را در همهٔ پردازه‌ها فهرست کرد. خود پردازهٔ تست هنوز `shop-isolated.db` هارنس را باز داشت؛ این فایل از مسیر `panelSession` ← `AuthService` ← `db/client` باز می‌شود. ویندوز فایل باز را حذف نمی‌کند.
+- **اصلاح:** همان الگوی مصوب مالک برای `remote-panic-panel-session-loopback.mjs` به کار رفت: `prisma.$disconnect()` پیش از حذف پوشه. هیچ assertion تغییر نکرد. این تست را خودم در مرحلهٔ ۵ ساخته‌ام و تغییر فقط پاک‌سازی است. پس از اصلاح، probe پوشه را تمیز نشان داد.
+- **probe کل suite workflow** (۱۱۸ فایل، Linux/Node 22): ۱۱۷ فایل گذشت؛ تنها `remote-windows-node24.mjs` رد شد، که Node 24 لازم دارد. فقط دو فایل هنگام `rmSync` handle باز داشتند:
+  - `remote-owner-credentials-cleared.mjs`: قفل state پس از شروع ناموفق عمداً باز می‌ماند و پاک‌سازی آن در ویندوز تحمل‌پذیر است؛
+  - `remote-startup-barrier-race-loopback.mjs` (تست قدیمی؛ تغییر نکرد): رقابت خروج child. این تست از قبل `maxRetries` دارد و پیش‌تر روی ویندوز گذشته است.
+- SHA-256 تست اصلاح‌شده (۱۶ نویسهٔ اول): `c65922b104a7674b`.
+- **اجرا نشده:** ویندوز این اصلاح، تا نتیجهٔ CI پس از push.
+
+### توقف هاب پس از بازگردانی، پیش از راه‌اندازی دوبارهٔ برنامه (خلأ مسیر واقعی restore)
+- **یافته:** در مسیر واقعی «جایگزینی کامل»، `BackupService` (خط ۶۴۲) با `app.relaunch()` و `app.exit(0)` تمام می‌شود و `app.exit` رویداد `before-quit` را اجرا نمی‌کند. میزبان هاب را متوقف نمی‌کرد، پس `cloud-state.lock` (که خود Main نگه می‌دارد) روی دیسک می‌ماند. در شروع بعدی، `openSync(lockPath,'wx')` با EEXIST رد می‌شد و کنترل از راه دور تا «حذف راه‌اندازی» و راه‌اندازی دوباره بسته می‌ماند. تست‌های قبلی `app.exit` و `app.relaunch` را بی‌اثر کرده بودند یا میزبان را پیش از restore عادی متوقف می‌کردند، پس این خلأ را نشان نمی‌دادند. ادعای بخش ۷ راهنما در مرحلهٔ ۶ («پس از باز شدن دوباره روشن است») تا این اصلاح ثابت نشده بود.
+- **اصلاح:**
+  - supervisor گزینهٔ اختیاری `afterRestore` دارد (فقط تابع پذیرفته می‌شود). این تابع پس از پایان هر `restoreExclusive`، موفق یا ناموفق، یک بار و بیرون از barrier (با `setImmediate`) فراخوانی می‌شود.
+  - میزبان `stopAfterRestore` را می‌دهد: علت ثابت `Remote stopped after backup restore` را ثبت می‌کند و `stopCloudSync` را اجرا می‌کند. خاموش شدن child قفل `remote-hub.lock` را آزاد می‌کند و `state.close` فایل `cloud-state.lock` را حذف می‌کند.
+  - پذیرش راه دور پس از restore از قبل تا یک راه‌اندازی کنترل‌شده بسته بود، پس هیچ قابلیتی کم نشد.
+  - پس از ادغام یا بازگردانی ناموفق، کنترل از راه دور تا «روشن کردن» یا شروع دوبارهٔ برنامه خاموش می‌ماند و صفحهٔ راه‌اندازی علت را به فارسی نشان می‌دهد (`RemoteLink.tsx`).
+  - `before-quit` اکنون برای توقفی که در جریان است هم صبر می‌کند (`!stopping`). پیش از این، بستن برنامه وسط توقف (مثلاً بلافاصله پس از «خاموش کردن») می‌توانست قفل state را باقی بگذارد.
+- **تست تازه `remote-host-restore-relaunch-loopback.mjs` (۳/۳):** میزبان، راه‌اندازی، IPC بکاپ، `BackupService`، supervisor و child/HTTP واقعی‌اند؛ DB و کلیدها موقت‌اند؛ Electron و Prisma stub هارنس هستند.
+  1. بستن برنامه وسط توقف، `quit` را تا پایان توقف نگه می‌دارد و هنگام `app.quit` قفل state وجود ندارد.
+  2. بازگردانی ناموفق (شناسهٔ بکاپ نامعتبر، پس از fence) هاب را متوقف می‌کند و هر دو قفل آزاد می‌شوند. relaunch رخ نمی‌دهد، شروع بعدی دوباره روشن می‌شود و علت پاک می‌شود.
+  3. تأیید گوشی، باز شدن پنل و یک درخواست منتظر، سپس «جایگزینی کامل» از IPC: grant و پنل بسته و درخواست `UNAVAILABLE` می‌شوند.
+     - در لحظهٔ `app.exit`: هاب متوقف است، هیچ‌یک از دو قفل وجود ندارد و listener باقی نمی‌ماند.
+     - سپس یک **پردازهٔ تازهٔ Node** (به‌جای relaunch واقعی Electron) میزبان را در شروع برنامه روشن می‌کند. ورود مالک ۲۰۰ است، `restoreMarker` برابر hash فایل `last-restore.txt` است و epoch با epoch fence‌شده فرق دارد.
+- **جهش‌ها:** شش جهش R1 تا R6 همه گرفته شدند:
+  - R1: نبودن `afterRestore` در میزبان؛
+  - R2: فراخوانی‌نکردن آن در supervisor؛
+  - R3: `before-quit` بدون `!stopping`؛
+  - R4: نبودن علت؛
+  - R5: نبودن توقف؛
+  - R6: فراخوانی فقط پس از موفقیت.
+
+  R6 ابتدا زنده ماند و زیرآزمون بازگردانی ناموفق برای پوشش آن اضافه شد. فایل‌ها پس از هر جهش برگردانده و بایت‌به‌بایت مقایسه شدند. probe handleها پاک‌سازی پوشه را تمیز نشان داد.
+- **CI `6550823`:**
+  - سازگاری ویندوز `44505180529` در گام ۹۶ (`remote-panels-desktop.mjs`) شکست خورد. علت: الگوی `/const PANELS = REMOTE_PANELS\n/` با checkout دارای CRLF در ویندوز نمی‌خواند.
+  - اصلاح به `\r?\n` انجام شد و هیچ بررسی‌ای ضعیف نشد. شبیه‌سازی CRLF روی دو فایل منبعی که تست می‌خواند پاس شد.
+  - گام‌های ۱ تا ۹۵ گذشتند، از جمله تست مدیر پس از اصلاح EPERM.
+  - نصب‌کنندهٔ `44505190172` موفق بود.
+  - تشخیص توقف پس از restore روی ویندوز: start حدود ۸۷۱ ms، restore حدود ۱۲ ms، stop حدود ۹ ms.
+- **محدودیت باقی‌مانده:**
+  - توقف باید در ۱٫۲ ثانیهٔ پیش از `app.exit` تمام شود. توقف معمول در CI ویندوز حدود ۱۰ ms بوده است. اگر طول بکشد، قفل می‌ماند و رفتار بسته‌ماندن همان پیام قفل است.
+  - ~~خاموش‌شدن یا راه‌اندازی دوبارهٔ ویندوز با برنامهٔ باز (بدون `before-quit`)، قطع برق یا crash هنوز قفل باقی می‌گذارد. طبق تصمیم معماری («`.lock` تک‌نمونه»)، قفل خودکار شکسته نمی‌شود. برنامه `requestSingleInstanceLock` ندارد و بودجهٔ تغییر `index.ts` پر است، پس باقی‌ماندن قفل قابل اثبات نیست.~~
+  - ~~این رفتار در بخش ۳ راهنما صریح نوشته شد: پیش از خاموش کردن ویندوز برنامه را ببندید؛ در غیر این صورت «حذف راه‌اندازی» و راه‌اندازی دوباره لازم است.~~
+  - ~~**تصمیم ممکن مالک:** اجازهٔ افزودن `app.requestSingleInstanceLock()` به `index.ts`.~~ مالک «بله» گفت. **حل شد در مرحلهٔ ۱۲**:
+    - `.lock` تک‌نمونه همان است: با `'wx'` و توکن ساخته و بررسی می‌شود؛
+    - فقط قفلی پاک می‌شود که صاحب زنده ندارد؛
+    - بخش ۳ راهنما به‌روز شد (بند «مرحلهٔ ۱۲» در پایان).
+- **شواهد پیش از commit** (مبنای `65508235d75f85225841f9cf9c20168a5b297fc4`):
+  - suite کامل workflow (۱۱۹ فایل) روی Linux/Node 22: ۱۱۸/۱۱۹؛ تنها `remote-windows-node24.mjs` رد شد؛
+  - scheduler ۴/۴، isolated-panel-grants ۶/۶، installer-runtime ۱/۱؛
+  - typecheck و build:check موفق؛ علت توقف و `afterRestore` در bundle main و متن در renderer دیده شد؛
+  - child دوباره ساخته شد (۱۷۸۶۰۹ بایت)؛ redline `--base 2834baf` و `git diff --check` تمیز؛ YAML بارگذاری شد (۱۱۸ گام).
+  - SHA-256 (۱۶ نویسهٔ اول): supervisor `7a03b4593811e773`، `CloudSyncService.ts` `156a79efc863a51a`، `RemoteLink.tsx` `db4c7e41b9d5e6cb`، `remote-panels-desktop.mjs` `caac45972b5ef1d2`، `remote-host-restore-relaunch-loopback.mjs` `0de85cb957c2afc6`، workflow `82c839170c2a39bd`، راهنما `900294ca244b72dd`.
+- **اجرا نشده:**
+  - Windows این تغییر، تا نتیجهٔ CI؛
+  - Electron واقعی: `app.exit`، relaunch، صفحهٔ `RemoteLink` (React mount نشده)؛
+  - `$connect` واقعی Prisma پس از restore (هارنس آن را ندارد)؛
+  - ادغام از IPC در این تست. fence ادغام در `remote-backup-real-merge-ipc-loopback.mjs` پوشش دارد و توقف پس از آن همان hook است.
+- **نتیجهٔ CI برای `dc76388`** (همین تغییر):
+  - سازگاری ویندوز `44508362548` موفق بود: همهٔ ۱۲۲ گام job، بدون گام ناموفق یا ردشده.
+  - تست‌های تازه روی ویندوز (Node 24.22.2) گذشتند: P2 در گام ۹۴ (۳۱ ثانیه)، مدیر در گام ۹۵ (۲۸ ثانیه)، پنل‌ها در گام ۹۶ (۱ ثانیه)، رمز مالک در گام ۹۷ (۲۵ ثانیه) و restore و relaunch در گام ۹۸ (۵۵ ثانیه).
+  - تشخیص توقف پس از restore: start حدود ۸۶۸ ms، restore حدود ۱۱ ms، stop حدود ۱۱ ms، بدون شکست حذف پوشه.
+  - در یک نمونهٔ `remote-hub-start-timing.mjs`، شروع تازهٔ هاب یک بار ۱۱٫۸ ثانیه طول کشید (نمونه‌های دیگر حدود ۶۵۰ ms بودند). این زیر سقف ۳۰ ثانیهٔ تست و پنجرهٔ شروع میزبان است. علت معلوم نیست و شکست نیست.
+  - نصب‌کنندهٔ `44508377104` موفق بود. artifact «MahakPOS-Windows-installer» ۵۱۸٬۵۷۱٬۱۳۶ بایت است و تا ۲۰۲۶-۱۲-۱۹ می‌ماند.
+  - نصب واقعی، Electron، گوشی و تونل اجرا نشده‌اند.
+
+## مرحلهٔ ۷ — نمای زندهٔ مجوزهای باز (تصمیم ۱۴) و خط آبی دسکتاپ (به‌جای stub بنر)
+روی مبنای `5dc43dac11f49582ae9df6aae73c4a693606db98`؛ ادامهٔ «ادامه بده» برای موارد «انجام نشده». فقط مسیر واقعی سیم‌کشی شد.
+- **گوشی مالک — «مجوزهای باز الان»:** درست بالای «بستن همه مجوزها» (همان P1 موجود؛ endpoint تازه‌ای ساخته نشد).
+  - مسیر: رجیستری دسکتاپ (`listActiveGrants`) ← همان tick هر ۰٫۵ ثانیهٔ bridge، پس از همان بررسی anchor/اثر انگشت DB ← پیام جدای `openGrants` در کانال خصوصی child ← `GET /api/grants` ← PWA.
+  - داده فقط نام پنل، باز/منتظر فعال‌سازی و زمان باقی‌مانده است. توکن، شناسهٔ درخواست، شناسهٔ عضو و پنجره فرستاده نمی‌شوند.
+  - زمان باقی‌مانده: برای پنل بازشده، کمترینِ «۳ دقیقه بی‌استفادگی» و «سقف TTL»؛ برای تأیید فعال‌نشده، مهلت ۳ دقیقه‌ای فعال‌سازی. child سنّ نسخه را از آن کم می‌کند.
+  - PWA هر ۵ ثانیه دوباره می‌پرسد و هر ثانیه شمارش معکوس را نشان می‌دهد. درخواست‌ها روی هم نمی‌افتند و پس از خروج، تایمر متوقف می‌شود.
+  - اگر دسکتاپ بیش از ۳ ثانیه نسخهٔ تازه نفرستد (برنامه بسته، مشغول یا خطا)، پاسخ 503 است و گوشی «وضعیت مجوزهای باز الان در دسترس نیست…» می‌گوید. هیچ‌وقت در این حالت «هیچ پنلی باز نیست» گفته نمی‌شود؛ برای همین `clearMirror` عمداً فهرست خالی مجوز نمی‌فرستد.
+  - پس از P1 تأییدشده، فهرست بلافاصله خالی نشان داده می‌شود (ACK دسکتاپ یعنی همه بسته شده‌اند) و پرسش بعدی یک دورهٔ کامل ۵ ثانیه‌ای بعد است.
+- **دسکتاپ — خط آبی بالای پنل:** «این پنل با تأیید گوشی مدیر باز است؛ اگر استفاده نشود … دیگر بسته می‌شود.»
+  - کانال `remoteAuth:banner` دیگر stub نیست: فقط همان پنجره و همان پنل، فقط grant فعال‌شده، بدون تمدید زمان بی‌استفادگی (`remotePanelSecondsLeft`).
+  - رندرر وضعیت هاب را هر ۵ ثانیه و فقط وقتی هاب روشن است وضعیت مجوز را هر ثانیه می‌پرسد. وقتی opt-in خاموش است کانال grant صدا زده نمی‌شود، چون آن handler ثبت نشده است.
+  - `ManagerGate`: فقط import و همان خط قبلاً تغییر‌یافتهٔ شاخهٔ باز. بودجه ۱۲ از ۱۵.
+- **انتخاب‌های کم‌ریسک (بدون سؤال از مالک):**
+  - فقط OWNER نمای زنده را می‌بیند؛ MANAGER حتی با اجازهٔ تأیید همان پنل 403 می‌گیرد؛
+  - نام تأییدکننده نشان داده نمی‌شود، چون جست‌وجوی تازهٔ عضو با شناسه لازم بود؛
+  - «بستن همه» همان P1 با PIN مالک است.
+- **تست** `tests/audit-fixes/remote-live-grants-loopback.mjs` (۴ آزمون، به workflow ویندوز اضافه شد):
+  1. سرتاسری با handlerهای واقعی IPC دسکتاپ (request، claim، banner)، رجیستری، panelSession، supervisor، child و HTTP و اسکریپت واقعی PWA با DOM و تایمر شبیه‌سازی‌شده:
+     - فهرست خالی، تأییدشدهٔ فعال‌نشده، فعال‌شده با شمارش معکوس؛
+     - بنر فقط برای همان پنجره و پنل، و بدون تمدید؛
+     - query طولانی دسکتاپ ← «در دسترس نیست» و HTTP 503، سپس بازگشت؛
+     - P1 از گوشی فهرست و پنل و بنر را می‌بندد؛ خروج تایمر را متوقف می‌کند.
+  2. مرز HTTP هاب با DB هویت موقت:
+     - مالک فیلدهای دقیق می‌بیند و فیلد اضافه حذف می‌شود؛
+     - بدون نشست 401، هاب بدون این قابلیت 404، مدیرِ دارای اجازهٔ تأیید 403 و بدون capability؛
+     - نسخهٔ کهنه یا داده‌های نامعتبر 503.
+  3. پایشگر بنر رندرر (bundle واقعی) با IPC و تایمر شبیه‌سازی‌شده.
+  4. child واقعی با پیام‌های مستقیم:
+     - پیام نامعتبر یا خارج از ترتیب نادیده گرفته می‌شود؛
+     - سن نسخه از زمان کم می‌شود؛
+     - بدون نسخهٔ تازه 503.
+- **mutation:** ۲۳ جهش (L1–L24 بدون L3) در `/home/user/mut4/mut7.py` همه گرفته شدند، از جمله:
+  - `clearMirror` با فهرست خالی؛
+  - حذف بررسی کهنگی، نقش مالک یا اعتبارسنجی کلیدها؛
+  - بنر برای پنجرهٔ دیگر یا grant فعال‌نشده، یا تمدید زمان با خواندن؛
+  - تایمر تکراری؛ خالی‌نکردن پس از P1؛ نبودِ قطع تایمر هنگام خروج.
+
+  L19 و L21 ابتدا فرار کردند و آزمون ۴ برای آن‌ها اضافه شد. همهٔ فایل‌ها بازگردانده و با `cmp` مقایسه شدند.
+- **اجرا (Linux، Node 22):**
+  - مجموعهٔ workflow `s7a`: ۱۱۹ از ۱۲۰ (فقط `remote-windows-node24.mjs` که Windows/Node 24 می‌خواهد)؛
+  - تست تازه ۳ بار موازی پایدار؛
+  - scheduler و isolated-panel-grants و installer-runtime با child تازه؛
+  - typecheck، `build:check` (bundle اصلی شامل `openGrants`، child شامل `/api/grants`، رندرر شامل متن خط آبی)؛
+  - redline، `git diff --check` و YAML.
+- **SHA-256 (۱۶ نویسهٔ اول):** RemoteGrantRegistry `d2e63e4300bd7806`، experimentalApprovalBridge `7a37e93b05b61df6`، experimentalHubChild `6402ff1bec865a4e`، mobileReadOnlyHub `09593f2d85e07006`، mobilePwaAssets `05b762f6fc4bf357`، remoteAuth `6bdd3ebef32e3592`، RemoteRequestBox `628c08e3b454117d`، ManagerGate `a088482d26393a18`، تست `5a90cfc78d3badd7`.
+- راهنمای `docs/REMOTE-USER-TEST.md` (بخش‌های ۲، ۵ و ۶) به‌روز شد.
+- **اجرا نشده:**
+  - mount واقعی React برای خط آبی؛
+  - مرورگر و گوشی واقعی (شمارش معکوس روی صفحهٔ واقعی)؛
+  - Electron و ویندوز واقعی، tunnel/HTTPS.
+- **CI مرحلهٔ ۷ (`28f8e66f39282bcd2dfb1cef0e6ee9bc1d8d2d31`):** نصب‌کنندهٔ `44519051361` موفق بود (artifact «MahakPOS-Windows-installer» ۵۱۸٬۵۹۱٬۲۲۰ بایت، تا ۲۰۲۶-۱۲-۱۹). remote `44519043336` موفق بود (۱۲۳ گام؛ تست نمای زنده در گام ۹۹ روی Windows/Node 24 گذشت). نصب واقعی، Electron، گوشی و تونل اجرا نشده‌اند.
+
+## مرحلهٔ ۸ — هشدار درخواست مشکوک (تصمیم ۱۵)
+روی مبنای `28f8e66f39282bcd2dfb1cef0e6ee9bc1d8d2d31`.
+- **رفتار:** اگر برای یک پنل در ۱۰ دقیقه بیش از ۳ درخواست ثبت شود (یعنی از درخواست چهارم)، در گوشی تأییدکننده‌ها:
+  - کنار گزینه نوشته می‌شود «— هشدار: N درخواست در ۱۰ دقیقه»؛
+  - زیر فهرست هم یک خط هشدار می‌آید: «هشدار درخواست مشکوک: «کالاها» در ۱۰ دقیقهٔ اخیر N بار درخواست شده است. پیش از تأیید با فروشگاه تماس بگیرید و کد را با دقت مقایسه کنید.»
+- **مسیر:** شمارش در رجیستری دسکتاپ هنگام ساخت هر درخواست (`requestCode`) ← همان کپی درخواست‌ها روی tick ۰٫۵ ثانیه‌ای ← child ← issuer (همان ACL تأیید) ← `GET /api/requests` ← PWA. فیلد جدیدی در IPC دسکتاپ یا ساختار درخواست ساخته نشد.
+- **انتخاب‌های کم‌ریسک (بدون سؤال از مالک):**
+  - فقط هشدار است و هیچ‌چیز را قفل نمی‌کند. قفل‌کردن باعث می‌شد کارمند فروشگاه کاری را که واقعاً لازم دارد نتواند انجام دهد، و تأیید همچنان کد شش‌رقمی و PIN می‌خواهد؛
+  - شمارش برای هر پنل جداست، چون یک کارمند ممکن است در ۱۰ دقیقه برای پنل‌های مختلف درخواست بدهد؛
+  - هر کس اجازهٔ تأیید آن پنل را دارد (مالک یا مدیر مجاز) هشدار را می‌بیند؛ بیننده و مدیرِ بدون اجازه نه؛
+  - شمارش فقط در حافظه است. با بستن و باز کردن برنامه از صفر شروع می‌شود و چیزی روی دیسک یا DB نوشته نمی‌شود؛
+  - فیلد `recent` فقط وقتی فرستاده می‌شود که بیش از ۳ باشد، تا خروجی درخواست‌های عادی و تست‌های قبلی دقیقاً همان بماند؛
+  - هر لایه (child، issuer و hub) مقدار خارج از بازهٔ ۴ تا ۱۰۰۰ را رد می‌کند. child کل کپی را نادیده می‌گیرد و hub پاسخ 503 می‌دهد؛
+  - حداکثر ۲۵۶ پنل و ۱۰۰۰ زمان برای هر پنل در حافظه نگه داشته می‌شود. این سقف دفاعی است، چون IPC فقط سه پنل را می‌پذیرد، و با mutation آزموده نشده است.
+- **تست** `tests/audit-fixes/remote-suspicious-request-loopback.mjs` (۳ آزمون، به workflow ویندوز اضافه شد):
+  1. سرتاسری با handler واقعی `remoteAuth:request`، رجیستری، supervisor، child و HTTP و اسکریپت واقعی PWA در DOM شبیه‌سازی‌شده:
+     - سه درخواست بدون هشدار؛
+     - چهارمی با هشدار روی گزینه و خط هشدار؛
+     - پنل دیگر بدون هشدار؛
+     - تأیید با PIN همچنان موفق.
+  2. DB هویت موقت، issuer و hub واقعی:
+     - مدیرِ مجاز هم هشدار را می‌بیند و بیننده نه؛
+     - پنل دیگر برای مدیر بدون اجازه پنهان است؛
+     - پنجمی از همان پنجره شمارش ۵ دارد؛
+     - پس از جابه‌جایی ساعت یکنواخت به بیش از ۱۰ دقیقه، شمارش از نو شروع می‌شود؛
+     - hub و issuer مقدارهای نامعتبر را رد می‌کنند.
+  3. child واقعی کپی دارای شمارش نامعتبر یا کلید اضافه را کامل نادیده می‌گیرد.
+- **mutation:** ۱۶ جهش Q1–Q16 در `/home/user/mut4/mut8.py` همه گرفته شدند. از جمله:
+  - آستانه‌های ۴ و ۳ و ≥؛
+  - پنجرهٔ ۶۰ دقیقه و حذف پاک‌کردن زمان‌های قدیمی؛
+  - شمارش سراسری به‌جای هر پنل؛
+  - حذف `recent` در هر یک از سه لایه؛
+  - حذف اعتبارسنجی یا مرزها در child، issuer و hub؛
+  - حذف خط هشدار یا متن گزینه در PWA؛
+  - فرستادن `recent` برای همه.
+
+  همهٔ فایل‌ها بازگردانده و با `cmp` مقایسه شدند.
+- **اجرا (Linux، Node 22):**
+  - مجموعهٔ workflow `s8a`: ۱۱۹ از ۱۲۰. پیش از افزودن گام تازه، تنها شکست `remote-windows-node24.mjs` بود که Windows/Node 24 می‌خواهد؛
+  - تست تازه ۳ بار موازی پایدار؛
+  - ۲۵ تست `remote-*` خارج از workflow هم اجرا شدند، از جمله `remote-mobile-approval-http`، `remote-mobile-members-http`، `remote-grant-registry-security` و `remote-approval-coordinator`: ۲۳ پاس. دو شکست از پیش وجود داشتند و ورودی‌هایشان با HEAD یکسان است:
+    - `remote-redline-check.mjs` (۲ از ۶، از قبل ثبت شده)؛
+    - `remote-redline-approved-financial-fix.mjs`: مخزن موقت آن فقط SalesService دارد، ولی ابزار redline اکنون `package.json`، `ipc/index.ts` و `MergeService.ts` را هم pin می‌کند («Cannot verify approved package.json»). در هیچ workflowی نیست و بدون اجازه تغییر داده نشد؛
+  - scheduler، isolated-panel-grants و installer-runtime با child تازه؛
+  - typecheck و `build:check`؛
+  - redline، `git diff --check` و YAML (۱۲۰ گام).
+- **SHA-256 (۱۶ نویسهٔ اول):** RemoteGrantRegistry `efa1845620f8e607`، experimentalHubChild `132f24b2c6217c45`، experimentalRemoteCommandIssuer `1f3719838b7a39fe`، mobileReadOnlyHub `268c2ac689037967`، mobilePwaAssets `9049121e0fc9bb8b`، تست `5cf3f724cdace9bf`.
+- راهنمای `docs/REMOTE-USER-TEST.md` (بخش ۲ و آزمون‌های منفی بخش ۵) به‌روز شد.
+- **اجرا نشده:** گوشی و مرورگر واقعی، Electron و ویندوز واقعی، و tunnel/HTTPS.
+- **CI مرحلهٔ ۸ (`cadcd2a1d5806b72efaab9d10eb38b5e4b4bc78d`):**
+  - remote `44522059106` موفق بود (۱۲۴ گام؛ تست هشدار درخواست مشکوک در گام ۱۰۰ روی Windows/Node 24 گذشت)؛
+  - نصب‌کنندهٔ `44522071258` موفق بود (artifact «MahakPOS-Windows-installer» ۵۱۸٬۶۵۵٬۱۴۵ بایت، تا ۲۰۲۶-۱۲-۱۹)؛
+  - نصب واقعی، Electron، گوشی و تونل اجرا نشده‌اند.
+
+## مرحلهٔ ۹ — بازیابی OWNER روی رایانه (طرح موبایل §۴)
+روی مبنای `cadcd2a1d5806b72efaab9d10eb38b5e4b4bc78d`.
+- **رفتار:** در صفحهٔ «کنترل از راه دور با گوشی» بخش «فراموشی رمز یا PIN گوشی مالک» اضافه شد. با رمز مدیر برنامه و فقط روی همین رایانه، نام کاربری، رمز و PIN تازه برای مالک گوشی گذاشته می‌شود.
+  - مدیرها و بیننده‌ها و نشست‌هایشان می‌مانند؛
+  - نشست‌های گوشی مالک بسته می‌شوند؛
+  - قفل‌های ورود و PIN مالک صفر می‌شوند؛
+  - دعوت‌های استفاده‌نشده باطل می‌شوند؛
+  - پنل‌هایی که با تأیید مالک باز است از راه همان صف ابطال عضو (MEMBER) با ACK پایدار بسته می‌شوند. تأیید تازه تا آن ACK منتظر می‌ماند؛
+  - ردیف `OWNER_REPLACED_LOCALLY` در زنجیرهٔ هش حسابرسی هاب ثبت می‌شود؛
+  - P2 فعال برداشته نمی‌شود: پس از جایگزینی، بازیابی P2 همچنان جداست و با PIN تازه انجام می‌شود. PIN قبلی دیگر کار نمی‌کند.
+- **مسیر:**
+  1. `remoteSetup:complete` با `replace: true`. ترتیب: اعتبارسنجی ورودی، سپس رمز مدیر (همان قفل AuthService)، سپس شرط روشن بودن هاب؛
+  2. `replaceRemoteOwner` در CloudSyncService؛
+  3. `replaceOwner` در supervisor (صف `guarded`، با mutual exclusion با بازیابی P2)؛
+  4. پیام خصوصی `replaceOwner` به child و پاسخ `ownerReplaced`؛
+  5. `replaceOwnerLocally` در hubIdentity، در یک تراکنش.
+  رمز و PIN تازه فقط در همان پیام IPC جابه‌جا می‌شوند و در Main یا فایل نگه داشته نمی‌شوند؛ child فقط hash نمک‌دار ذخیره می‌کند.
+- **انتخاب‌های کم‌ریسک (بدون سؤال از مالک):**
+  - **کدهای بازیابی چاپی که از گوشی و از راه دور کار کنند ساخته نشدند.** آن‌ها یک مسیر بدون نشست روی اینترنت برای گرفتن حساب مالک می‌ساختند. هاب فقط وقتی کار می‌کند که برنامهٔ رایانه باز است، و طرح §۴ خودش مسیر رایانه با `assertManagerPassword` را «ساده‌ترین و امن‌ترین» می‌داند. رمز مدیر روی رایانه همین حالا هم با «حذف راه‌اندازی» و راه‌اندازی دوباره کل هاب را عوض می‌کند، پس این مسیر قدرت تازه‌ای نمی‌دهد. اگر مالک کدهای چاپی را بخواهد، تصمیم خود اوست؛
+  - **کانال تازه ساخته نشد**، چون `remote-setup-host-loopback.mjs` فهرست دقیق شش handler راه‌اندازی را deepEqual می‌کند و preload فهرست ثابت دارد. به‌جای آن `complete` پرچم صریح `replace: true` گرفت. بدون پرچم، رفتار قبلی (`OWNER_EXISTS`) دقیقاً همان است و مقدار غیر از `true` پیام `INVALID_INPUT` می‌گیرد؛
+  - فیلدی به `RemoteSetupStatus` یا پیکربندی شروع child اضافه نشد؛
+  - هاب باید روشن باشد (`NOT_RUNNING`). در حالت «مالک هنوز ساخته نشده» `OWNER_REQUIRED` برمی‌گردد. این شرط با mutation آزموده نشده، چون در آن حالت هاب روشن نیست و `NOT_RUNNING` هم همین را رد می‌کند؛
+  - نام کاربری عضو دیگر، حتی عضو حذف‌شده، پذیرفته نمی‌شود (`OWNER_REPLACE`) و چیزی عوض نمی‌شود؛
+  - گوشی مالکِ قبلی خودکار به صفحهٔ ورود نمی‌رود و با «به‌روزرسانی» پیام «لطفاً وارد شوید» می‌بیند. این رفتار موجود PWA است و تغییر داده نشد.
+- **تست** `tests/audit-fixes/remote-owner-recovery-loopback.mjs` (۳ آزمون، به workflow ویندوز اضافه شد):
+  1. سرتاسری با IPC واقعی راه‌اندازی، CloudSyncService، supervisor، child و HTTP، رجیستری، panelSession و `remoteAuth:recover`، روی DB فروشگاه موقت:
+     - ورودی نامعتبر پیش از رمز مدیر رد می‌شود؛ رمز مدیر غلط یا نام کاربری مدیر چیزی را عوض نمی‌کند؛
+     - پس از جایگزینی: نشست قبلی مالک 401، رمز قبلی رد، رمز تازه پذیرفته؛
+     - پنل تأییدشده با مالک روی رایانه بسته می‌شود؛ دعوت معلق رد می‌شود؛ نشست مدیر می‌ماند؛
+     - PIN قبلی تأیید نمی‌کند و PIN تازه تأیید می‌کند؛
+     - P2، سپس جایگزینی دوباره: ورود همچنان رد است، بازیابی با PIN قبلی رد و با PIN تازه موفق است، و مدیر دوباره وارد می‌شود؛
+     - با هاب خاموش `NOT_RUNNING`.
+  2. hubIdentity روی DB موقت:
+     - بدون مالک false؛ ورودی‌های نامعتبر و نام عضو یا عضو حذف‌شده هیچ تغییری نمی‌دهند؛
+     - پس از جایگزینی: نرمال‌سازی نام، صفر شدن قفل‌ها، بسته شدن فقط نشست مالک، صف ابطال MEMBER، باطل شدن دعوت؛
+     - ردیف حسابرسی با زنجیرهٔ هش درست؛ P2 latched می‌ماند.
+  3. child واقعی: پیام‌های بدشکل (کلید اضافه یا کم، نوع غلط، id نامعتبر) پاسخی نمی‌گیرند و چیزی را عوض نمی‌کنند. مقدار ردشده `ok:false` و پیام درست `ok:true` می‌گیرد.
+- **mutation:** ۱۸ جهش K1–K6 و K8–K15 و K18–K21 در `/home/user/mut4/mut9.py` همه گرفته شدند. از جمله:
+  - نبستن نشست‌ها؛ باطل‌نکردن دعوت‌ها؛ نبودِ صف ابطال؛ صفر نکردن قفل‌ها؛
+  - حذف بررسی نام تکراری یا بررسی تعداد مالک؛
+  - حذف حسابرسی؛ برداشتن P2؛ نام نرمال‌نشده؛
+  - حذف اعتبارسنجی پیام در child؛ child همیشه ok؛ نادیده گرفتن پاسخ در supervisor؛
+  - میزبانی که بدون کار true برمی‌گرداند؛
+  - حذف رمز مدیر، بررسی `replace` یا شرط روشن بودن.
+
+  K7 (رمز برابر PIN) هم‌ارز است: PIN شش‌رقمی هیچ‌وقت با رمز ۱۰ نویسه‌ای برابر نیست. همهٔ فایل‌ها بازگردانده و با `cmp` مقایسه شدند.
+- **اجرا (Linux، Node 22):**
+  - مجموعهٔ workflow `s9a`: ۱۲۱ از ۱۲۲ (فقط `remote-windows-node24.mjs`)، از جمله `remote-setup-host-loopback.mjs`، `remote-hub-child-process.mjs` و `remote-desktop-host-panic-recovery.mjs`؛
+  - ۲۴ تست `remote-*` خارج از workflow: ۲۲ پاس، و همان دو شکست redline از پیش ثبت‌شده؛
+  - تست تازه ۳ بار موازی پایدار؛
+  - scheduler، isolated-panel-grants و installer-runtime با child تازه؛
+  - typecheck و `build:check` (bundle رندرر شامل بخش تازه، child شامل `replaceOwnerLocally`)؛
+  - redline، `git diff --check` و YAML (۱۲۱ گام).
+- **SHA-256 (۱۶ نویسهٔ اول):** hubIdentity `2067160c2fce32eb`، experimentalHubChild `9fccf1ac9c3d6b4d`، experimentalHubSupervisor `ed1b6d0a1f192089`، CloudSyncService `1df2ffeb67bef661`، remoteSetupIpc `4e11edc61ba6e762`، remoteAuthChannels `777d693a40cb00fd`، RemoteLink `6d9a7062ff94988c`، تست `e5ee52f047c63bd9`.
+- راهنمای `docs/REMOTE-USER-TEST.md` (بخش ۲ و بند «د» بخش ۶) به‌روز شد.
+- **اجرا نشده:**
+  - mount واقعی React صفحهٔ RemoteLink (بخش تازه فقط در bundle دیده شد)؛
+  - `assertManagerPassword` واقعی؛
+  - Electron، DPAPI و ویندوز واقعی؛
+  - گوشی، مرورگر و tunnel/HTTPS.
+
+## مرحلهٔ ۱۰ — صفحهٔ «اتصال برقرار نیست» در گوشی (PWA آفلاین، کم‌ریسک)
+روی مبنای `6c8ba744fe4a1c37ec537afd2d835b6b8c083513`.
+- **رفتار:** service worker گوشی (`/mobile-sw.js`) فقط درخواست باز کردن صفحهٔ اصلی (GET، navigate، همان origin، مسیر `/`) را می‌گیرد و آن را از شبکه می‌خواند. صفحهٔ ساده و ثابت فارسی «اتصال به سیستم فروشگاه برقرار نیست» با دکمهٔ «تلاش دوباره» در این حالت‌ها نشان داده می‌شود:
+  - شبکه قطع است (fetch خطا می‌دهد)؛
+  - تونل خطای دروازه یا مبدأ می‌دهد: 502 تا 504 یا 520 تا 530 (مثلاً 530 وقتی Cloudflare Tunnel وصل نیست).
+
+  این صفحه در خود worker ساخته می‌شود، با وضعیت 503، `cache-control: no-store`، CSP بسته و بدون اسکریپت. پاسخ‌های دیگر (200، 421 هاب، 404 یا 500 و غیره) همان‌طور نشان داده می‌شوند. درخواست‌های داده (`/api/…`)، فایل‌های صفحه و مسیرهای دیگر اصلاً گرفته نمی‌شوند.
+- **انتخاب‌های کم‌ریسک (بدون سؤال از مالک):**
+  - طرح فاز ۱ «PWA آفلاین (IndexedDB)» یعنی نگه داشتن داده در گوشی. این کار انجام **نشد**، چون دادهٔ مالی و حضانت روی گوشی می‌ماند و کدِ موجود صریحاً می‌گوید هیچ پاسخ احرازشده یا مالی cache نشود. هیچ Cache Storage، IndexedDB یا localStorage به کار نرفت، و دو تست قدیمی که `caches.` و `/api/` را در worker ممنوع می‌کنند بدون تغییر پاس‌اند؛
+  - صفحه فقط برای خطاهای «رایانه در دسترس نیست» نشان داده می‌شود، نه هر خطایی، تا خطای پیکربندی (مثلاً 421 برای Host نادرست) پنهان نشود؛
+  - ثبت worker همان ثبت قبلی است و تغییری نکرد. پس صفحه فقط پس از یک بار باز شدن درست صفحه کار می‌کند.
+- **تست** `tests/audit-fixes/remote-pwa-offline-page-loopback.mjs` (۲ آزمون، به workflow ویندوز اضافه شد):
+  - worker واقعی از هاب واقعی روی HTTP گرفته و در یک vm به‌جای scope مرورگر اجرا می‌شود. fetch آن واقعاً به هاب، به یک «تونل» ساختگی با کدهای خطا، یا به پورت بسته می‌رود؛
+  - هاب روشن: صفحهٔ اصلی بدون تغییر؛ 421 نمایش داده می‌شود؛
+  - ۹ درخواست دیگر (داده، فایل‌ها، origin دیگر، POST، حالت cors) گرفته نمی‌شوند و worker درخواستی هم نمی‌فرستد؛
+  - هاب خاموش، بی‌شبکه، و ۱۲ کد دروازه همه صفحهٔ توضیح را می‌دهند. ۱۲ کد دیگر همان پاسخ اصلی را می‌دهند؛
+  - هاب دوباره روشن: صفحهٔ اصلی از شبکه؛
+  - دسترسی به caches، indexedDB، localStorage، sessionStorage و cookieStore در دام ثبت می‌شود و هیچ دسترسی‌ای رخ نداد؛
+  - install/activate فقط کنترل را می‌گیرند.
+- **mutation:** ۱۴ جهش O1–O14 در `/home/user/mut4/mut10.py` همه گرفته شدند: حذف هر شرط navigate، GET، مسیر یا origin؛ بازه‌های کد کوچک‌تر یا بزرگ‌تر (۵۰۰ به بالا، ۵۳۱)؛ حذف حالت قطع شبکه؛ وضعیت 200؛ حذف no-store یا CSP؛ دسترسی به `caches`؛ حذف skipWaiting. فایل بازگردانده و با `cmp` مقایسه شد.
+- **اجرا (Linux، Node 22):**
+  - مجموعهٔ workflow `s10a`: ۱۲۲ از ۱۲۳ (فقط `remote-windows-node24.mjs`)، از جمله همهٔ تست‌های PWA؛
+  - ۲۴ تست `remote-*` خارج از workflow: ۲۲ پاس، و همان دو شکست redline از پیش ثبت‌شده. `remote-mobile-readonly-http` و `remote-mobile-invoices-ui` که worker را بررسی می‌کنند پاس‌اند؛
+  - تست تازه ۳ بار موازی پایدار؛
+  - scheduler، isolated-panel-grants و installer-runtime با child تازه (child شامل worker تازه، بدون `caches.`)؛
+  - typecheck و `build:check`؛
+  - redline، `git diff --check` و YAML (۱۲۲ گام).
+- **SHA-256 (۱۶ نویسهٔ اول):** mobilePwaAssets `ca8d09991892edc9`، تست `1fd3528a16a91490`.
+- راهنما: بخش ۴ گام ۷ و فهرست دستورهای بخش ۲.
+- **اجرا نشده:** مرورگر واقعی (Chrome یا Safari) و service worker واقعی آن، گوشی، Cloudflare یا تونل دیگر، و HTTPS واقعی. رفتار هر ارائه‌دهندهٔ تونل در قطع اتصال ممکن است کد دیگری باشد.
+
+## مرحلهٔ ۱۱ — چراغ سلامت در گوشی مالک و اعلان توقف ناگهانی هاب روی دسکتاپ
+روی مبنای `1bee3f21e32992355582fd05a99d34149d3ab9aa`.
+- **رفتار — دسکتاپ:**
+  - پیش از این مرحله، اگر child هاب خودبه‌خود از کار می‌افتاد، مجوزها بسته می‌شدند ولی میزبان خبردار نمی‌شد. نمونه: بررسی‌های خود هاب پس از تغییر پایگاه داده بیرون از برنامه، یا بسته شدن برنامهٔ هاب. صفحهٔ «کنترل از راه دور با گوشی» تا خاموش کردن دستی «روشن» نشان می‌داد (`running` فقط به وجود شیء هاب نگاه می‌کرد).
+  - اکنون supervisor پس از پایان گام‌های ایمنی (بستن پذیرش، ابطال مجوزها، رد کارهای در انتظار) گزینهٔ تازهٔ `onUnavailable` را یک بار صدا می‌زند، با `setImmediate`. برای توقف خواسته‌شده، شروع ناموفق یا پس از stop صدا زده نمی‌شود و خطای خود callback نادیده گرفته می‌شود.
+  - میزبان (`CloudSyncService`) در این حالت:
+    - خطای `Remote hub stopped unexpectedly` را ثبت می‌کند؛
+    - اعلان ویندوز «کنترل از راه دور برای ایمنی متوقف شد و دسترسی‌های راه دور بسته شدند…» را نشان می‌دهد؛
+    - `stopCloudSync()` را صدا می‌زند.
+
+    چون پاک‌سازی child تأیید نمی‌شود، `needsRestart` می‌ماند و روشن کردن دوباره تا بستن و باز کردن برنامه رد می‌شود (fail closed).
+  - صفحه: «وضعیت: روشن نشده (خطا)»، توضیح فارسی همین خطا، و پیام موجود «خاموش شدن قبلی تأیید نشد…».
+- **رفتار — گوشی (فقط مالک):**
+  - کارت «وضعیت سیستم فروشگاه» بالای «مجوزهای باز الان». چراغ آن یکی از این‌هاست: «● خوب»، «● با تأخیر یا در انتظار»، «● مشکل» یا «● وضعیت در دسترس نیست»؛
+  - خط «آخرین داده از سیستم فروشگاه: … پیش»: از ۴۵ ثانیه زرد و از ۲ دقیقه قرمز، همان آستانه‌های معماری §۵. اگر داده هنوز نرسیده باشد، زرد است با توضیح «حدود نیم دقیقه پس از روشن شدن هاب» (زمان‌بند: نخستین بار ۲۰ ثانیه پس از شروع، سپس هر ۳۰ ثانیه)؛
+  - خط «ارتباط زنده با سیستم فروشگاه»: سن نسخهٔ درخواست‌ها که دسکتاپ هر نیم ثانیه می‌فرستد. از ۳ ثانیه بی‌خبری قرمز «قطع است»، همان مرز کهنگی نمای زندهٔ مرحلهٔ ۷؛
+  - خط «تأیید از راه دور» یکی از این سه است:
+    - «آماده»؛
+    - زرد «موقتاً بسته است تا بستن دسترسی‌ها روی سیستم فروشگاه تأیید شود»، وقتی ابطالی منتظر ACK دسکتاپ است؛
+    - «تا برقراری ارتباط زنده ممکن نیست»؛
+  - این دو خط فقط وقتی دیده می‌شوند که تأیید از راه دور پیکربندی شده و نخستین نسخهٔ درخواست‌ها رسیده باشد. در برنامهٔ واقعی این حدود نیم ثانیه پس از روشن شدن است؛
+  - داده‌ها:
+    - `GET /api/health` فقط برای مالک است: مدیر و بیننده 403 می‌گیرند و بی‌نشست 401؛
+    - پاسخ دقیقاً `{dataAgeMs,linkAgeMs,revocationPending}` است: فقط سن‌ها روی ساعت child، بدون دادهٔ فروشگاه؛
+    - هر مقدار نامعتبر پاسخ 503 می‌دهد: منفی، غیرصحیح، بیش از ۳۰ روز یا نوع نادرست؛
+    - capability `health:true` فقط برای مالک است. بدون provider، مسیر 404 است و capability وجود ندارد؛
+  - کارت هنگام ورود و با هر «به‌روزرسانی» خوانده می‌شود و تایمر ندارد؛
+  - خطای درخواست یا دادهٔ نامعتبر «● وضعیت در دسترس نیست» نشان می‌دهد، حتی درست پس از یک «خوب». اگر خود رایانه در دسترس نباشد (همهٔ درخواست‌ها، از جمله capability، خطا بدهند)، کارت پنهان نمی‌شود و همین را نشان می‌دهد. این حالت هنگام نوشتن راهنما پیدا و در همین مرحله اصلاح شد: پیش از اصلاح، کارت ناپدید می‌شد؛
+  - با خروج، کارت پنهان و پاسخ دیررس نادیده گرفته می‌شود.
+- **انتخاب‌های کم‌ریسک (بدون سؤال از مالک):**
+  - کارت خودش تازه نمی‌شود (فقط با ورود و «به‌روزرسانی»)، تا درخواست دوره‌ای تازه‌ای اضافه نشود. نمای زندهٔ مجوزها همچنان هر ۵ ثانیه خوانده می‌شود؛
+  - پس از توقف ناگهانی، هاب خودکار دوباره روشن نمی‌شود؛ مالک برنامه را می‌بندد و باز می‌کند؛
+  - وقتی رایانه در دسترس نیست، بخش‌های دیگر داشبورد همچنان متن خام خطای مرورگر را نشان می‌دهند (مثلاً `Failed to fetch`). این رفتار از پیش بوده است. تابع مشترک `api()` تغییر نکرد، چون تست‌های vm-DOM موجود به آن وابسته‌اند؛
+  - coalescing و Heartbeat ابری: بند «موارد مشخصِ باقی‌مانده» در بالا.
+- **تست** `tests/audit-fixes/remote-health-loopback.mjs` (۵ آزمون؛ به workflow ویندوز اضافه شد و workflow اکنون ۱۲۳ گام دارد):
+  1. **دسکتاپ:** میزبان واقعی (bundle تازه با electron و auth ساختگی)، هاب واقعی و گوشی روی HTTP.
+     - پنل با تأیید گوشی باز می‌شود. سپس فایل restore بیرون از مسیر برنامه نوشته می‌شود، و بررسی‌های خود هاب child را می‌کشند.
+     - میزبان خودش متوجه می‌شود: پنل و پورت گوشی بسته می‌شوند و دقیقاً یک اعلان با متن درست می‌آید. وضعیت راه‌اندازی `needsRestart` و همان خطا را نشان می‌دهد. متن صفحه هم بررسی می‌شود: تابع `explain` خودِ `RemoteLink.tsx` جدا اجرا می‌شود؛ React mount نشده است.
+     - «روشن کردن» پاسخ RESTART می‌دهد و شروع دوباره رد می‌شود. یک توقف خواسته‌شده اعلان نمی‌دهد.
+  2. **supervisor:**
+     - گزینهٔ غیرتابع رد می‌شود؛
+     - شروع ناموفق و stop خواسته‌شده گزارش نمی‌شوند؛
+     - child که خودش خارج شود دقیقاً یک بار گزارش می‌شود؛
+     - پس از آن، stop با «cleanup not confirmed» و refresh با unavailable رد می‌شوند.
+  3. **هاب:**
+     - فقط مالک: مدیر و بیننده 403 می‌گیرند و به provider نمی‌رسند؛
+     - capability فقط برای مالک؛
+     - null مجاز است و فیلد اضافه حذف می‌شود؛
+     - ۱۱ شکل نامعتبر (از جمله provider خطادهنده) پاسخ 503 می‌دهند؛
+     - بدون provider: مسیر 404 و بدون capability.
+  4. **child (fork واقعی):**
+     - سن ارتباط روی ساعت child بزرگ می‌شود (نه عدد ثابت)؛
+     - سن داده از snapshot با captureId می‌آید و پس از انقضای داشبورد هم می‌ماند؛
+     - پیام snapshot قدیمی‌تر (با `capturedAtMs`) هم آن را تازه می‌کند؛
+     - P1 بدون دسکتاپ در دسترس، ابطال در انتظار را نشان می‌دهد.
+  5. **صفحهٔ گوشی (vm-DOM):**
+     - مرزهای ۴۴٫۹۹۹/۴۵ ثانیه، ۱۱۹٫۹۹۹/۱۲۰ ثانیه و ۲٫۹۹۹/۳ ثانیه؛
+     - دادهٔ نرسیده، ابطال در انتظار، و ۵ شکل نامعتبر؛
+     - پس از «خوب»: پاسخ 503، قطع شبکه، و رایانهٔ در دسترس‌نبودنی (همهٔ درخواست‌ها خطا)؛
+     - پاسخ دیررس پس از خروج؛
+     - مدیر، و مالکِ هابی که سلامت ندارد، هیچ‌وقت کارت را نمی‌بینند و آن را درخواست نمی‌کنند، حتی وقتی درخواست‌ها خطا بدهند؛
+     - هیچ تایمری ساخته نمی‌شود.
+- **mutation:** ۳۲ جهش (H1–H4 و H6–H33) در `/home/user/mut4/mut11.py`. روی کد و تست نهایی ۳۱ مورد گرفته شدند (H9 با timeout):
+  - گزارش هنگام stop، شروع ناموفق یا دو بار؛
+  - حذف اعلان، stop یا متن خطا در میزبان؛
+  - حذف بررسی نوع گزینه؛
+  - هاب: دسترسی غیرمالک، capability برای دیگران، هر بررسی اعتبار، و فرستادن فیلد اضافه؛
+  - child: به‌روز کردن سن داده فقط در یکی از دو مسیر، سن ارتباط ثابت، و ابطال همیشه false؛
+  - صفحه: هر آستانه، متن «در دسترس نیست»، شرط capability، `stopHealth` هنگام خروج، بررسی نسل، و پنهان شدن کارت وقتی رایانه در دسترس نیست؛
+  - متن صفحهٔ دسکتاپ.
+
+  جزئیات جهش‌های فرارکرده و حذف‌شده:
+  - **H4 هم‌ارز است** (صدا زدن همزمان به‌جای `setImmediate`): در هر دو حالت همهٔ گام‌های ایمنی پیش از callback انجام شده‌اند و میزبان تفاوتی نمی‌بیند؛
+  - **H5 حذف شد:** بررسی دوبارهٔ «child در پایان شروع مرده» کد مرده بود. پس از بررسی `dead` در شروع تا `returned=true` هیچ await نیست، پس از کد برداشته شد؛
+  - **H28 و H29** در دور اول فرار کردند: ماندن «خوب» قدیمی پس از خطا، و متن صفحهٔ دسکتاپ. با قوی‌تر شدن تست گرفته شدند.
+
+  فایل‌ها پس از هر جهش بازگردانده و با `cmp` برابر شدند.
+- **اجرا (Linux، Node 22):**
+  - مجموعهٔ workflow روی کد نهایی (`s11c`): ۱۲۳ از ۱۲۴، فقط `remote-windows-node24.mjs`. همهٔ تست‌های PWA پاس شدند، از جمله چهار تست vm-DOM موجود؛
+  - ۲۴ تست `remote-*` خارج از workflow: ۲۲ پاس، و همان دو شکست redline از پیش ثبت‌شده؛
+  - تست تازه ۳ بار موازی پایدار بود؛
+  - scheduler، isolated-panel-grants و installer-runtime با child تازه پاس شدند؛
+  - typecheck و `build:check` موفق بودند. در bundle، `onUnavailable`، `Remote hub stopped unexpectedly`، `/api/health` و `health-tools` وجود دارند؛
+  - redline، `git diff --check` و YAML (۱۲۳ گام) موفق بودند.
+- **شکست گذرا (ثبت شد، رفع نشد):** `remote-live-grants-loopback.mjs` (تست مرحلهٔ ۷) یک بار در اجرای فشاری `s11a` با `snapshot-expired` شکست خورد.
+  - علت: این تست یک refresh را ۳٫۳ ثانیه نگه می‌دارد و هاب snapshot پنج‌ثانیه‌ای را رد می‌کند. زمان اندازه‌گیری‌شده زیر بار سه‌تایی ۳۳۵۵ تا ۳۳۵۷ میلی‌ثانیه بود، یعنی حدود ۱٫۶ ثانیه حاشیه. این محیط ۲ هستهٔ پردازنده دارد و سه تست سنگین را هم‌زمان اجرا می‌کند؛
+  - همین تست در `s8a`–`s10a`، `s11b`، `s11c` و ۹ اجرای جداگانه پاس شد. درخواست سلامتی که این مرحله اضافه کرد چند میلی‌ثانیه است؛
+  - تست قفل است و بدون اجازه تغییر نکرد.
+- **CI مرحله‌های ۹ و ۱۰:**
+
+  | commit | remote | installer |
+  |---|---|---|
+  | `6c8ba74` | 44524307844 ✓ | 44524317911 ✓ |
+  | `1bee3f2` | 44525977293 ✓ | 44525986106 ✗ |
+
+  شکست installer برای `1bee3f2` در گام ۱۲ «Verify Windows hub runtime from unpacked installer resources» بود:
+  - در `remote-installer-runtime-loopback.mjs`، child بسته‌بندی‌شده در ۱۰ ثانیهٔ تست اعلام آمادگی نکرد. تایمر شروع خطای «Hub child unavailable» داد؛
+  - در سه اجرای موفق قبلی این گام حدود ۲ ثانیه طول کشید؛
+  - تنها تغییر سورس بین `6c8ba74` و `1bee3f2` متن ثابت service worker است، و workflow remote همان commit پاس شد؛
+  - لاگ کار از این محیط در دسترس نیست (فقط annotation). بازتولید و رفع نشد و شکست گذرای ویندوز ثبت شد. push این مرحله آن را دوباره اجرا می‌کند؛
+  - پس برای مرحلهٔ ۱۰ نصب‌کننده‌ای ساخته نشد. آخرین نصب‌کنندهٔ سبز از `6c8ba74` است.
+- **SHA-256 (۱۶ نویسهٔ اول):**
+  - supervisor `1366428e71f6381a`
+  - CloudSyncService `8e2cb3a4128dce5f`
+  - RemoteLink `6a0ae7b9a0c5ef31`
+  - mobileReadOnlyHub `28e3be887044b9d3`
+  - child `ac3de250769948fe`
+  - mobilePwaAssets `bea47b48513e2f46`
+  - تست `29dcd5f0a70cb8ff`
+- **راهنما:** بخش ۳ (توقف ناگهانی هاب)، بخش ۴ گام ۸ (کارت سلامت)، و فهرست دستورهای بخش ۲.
+- **اجرا نشده:**
+  - گوشی و مرورگر واقعی؛
+  - اعلان واقعی ویندوز (Electron Notification)؛
+  - Electron واقعی؛
+  - تایمرهای واقعی مرورگر؛
+  - mount واقعی React صفحهٔ `RemoteLink`؛
+  - تونل و HTTPS واقعی؛
+  - قطع واقعی رایانه پشت تونل (کد پاسخ هر ارائه‌دهندهٔ تونل ممکن است فرق کند).
+- **CI همین مرحله (`5bf5bce`):**
+  - remote 44534929337 ✓: ۱۲۷ گام کار، بدون شکست. گام سلامت روی ویندوز پاس شد؛
+  - installer 44534945474 ✓: گام ۱۲ حدود ۲ ثانیه طول کشید. شکست گذرای `1bee3f2` تکرار نشد، ولی تکرار نشدن به معنای رفع نیست؛
+  - artifact «MahakPOS-Windows-installer»: ۵۱۸٬۶۴۵٬۲۶۰ بایت، تا ۲۰۲۶-۱۲-۱۹.
+
+## مرحلهٔ ۱۲ — بازیابی امن قفل کهنه پس از crash، قطع برق یا خاموش شدن ویندوز (تک‌نمونه با `requestSingleInstanceLock`)
+روی مبنای `434575a61165f6b0f8e9d6bdff2ec3c7a6d5323b`، با اجازهٔ مالک برای `app.requestSingleInstanceLock()` در `src/main/index.ts`. هیچ منطق مالی، `BackupService`، قالب قفل یا فایل child تغییر نکرد.
+- **مشکل پیشین:**
+  - crash، قطع برق، یا خاموش شدن ویندوز با برنامهٔ باز، `cloud-state.lock` (میزبان) و `remote-hub.lock` (child) را جا می‌گذاشت. کنترل از راه دور تا «حذف راه‌اندازی» بسته می‌ماند؛
+  - خلأ مرحلهٔ ۱۱ که در این مرحله پیدا شد: پس از توقف ناگهانی هاب، stop تأیید نمی‌شود و state باز می‌ماند. با بستن برنامه، `before-quit` زود برمی‌گردد (هاب دیگر null است)، پس `cloud-state.lock` روی دیسک می‌ماند. یعنی توصیهٔ «برنامه را کامل ببندید و دوباره باز کنید» در عمل به همان پیام قفل می‌رسید. آزمون ۲ همین را نشان می‌دهد (EEXIST بدون قفل تک‌نمونه)؛
+  - بدون قفل تک‌نمونه، باز کردن دوبارهٔ برنامه نسخهٔ کامل دومی روی همان پایگاه داده باز می‌کرد، با زمان‌بندهای خودش.
+- **تغییر `index.ts`:** ۳ خط؛ بودجهٔ redline از ۲ به ۵، دقیقاً به اندازهٔ خطوط افزوده:
+  1. `if (!app.requestSingleInstanceLock()) app.quit()` در سطح بالا، پیش از ready؛
+  2. `second-instance`: فقط پنجرهٔ زنده (`!isDestroyed()`) را از حالت کوچک بیرون می‌آورد و focus می‌کند؛
+  3. نخستین خط ready: `if (!app.hasSingleInstanceLock()) return`.
+     - دلیل: در سورس Electron 33 (`browser.cc` و `electron_browser_main_parts.cc`)، `DidFinishLaunching` حتی پس از `app.quit()` رویداد ready را می‌فرستد و `whenReady` را resolve می‌کند؛
+     - بدون این خط، نمونهٔ دوم `prepareDatabase`، migration و زمان‌بندها را روی همان پایگاه داده اجرا می‌کرد. اکنون نمونهٔ دوم هیچ کاری نمی‌کند؛
+     - در import، `db/client` فقط `DATABASE_URL` را تنظیم می‌کند و `PrismaClient` تنبل می‌سازد (بدون اتصال).
+- **بازیابی:** `CloudSyncService.recoverStaleLocks`، پیش از بررسی قفل هاب. هر دو قفل فقط وقتی پاک می‌شوند که همهٔ این شرط‌ها برقرار باشد:
+  - این فرایند قفل تک‌نمونهٔ Electron را برای همین userData دارد: `app.hasSingleInstanceLock()` دقیقاً `true` است. بدون این تابع، یا با هر مقدار دیگر، رفتار مثل قبل بسته است. کلید قفل Electron همان `DIR_USER_DATA` است (`electron_api_app.cc`)، پس هیچ میزبان دیگری زنده نیست؛ میزبان تنها صاحب ممکن قفل state است؛
+  - child هاب با فرایند دسکتاپ می‌میرد:
+    - روی ویندوز، هر فرزند غیر detached در job با `KILL_ON_JOB_CLOSE` است (libuv `src/win/process.c`)، و supervisor فرزند را بدون `detached` fork می‌کند؛
+    - در جاهای دیگر، child با قطع IPC خودش خاموش می‌شود؛
+  - این ماژول state یا هاب باز ندارد؛
+  - پورت ثابت آزاد است، پس هابی گوش نمی‌دهد:
+    - پورت اشغال «Remote port in use» را گزارش می‌کند، یعنی علت واقعی؛
+    - پیکربندی قدیمی بدون پورت ثابت بازیابی نمی‌شود؛
+  - هر قفل فایل معمولی با یک پیوند است (نه symlink، junction، پوشه یا hard link) و دقیقاً ۶۴ نویسهٔ hex کوچک دارد، همان توکنی که صاحبان قفل می‌نویسند؛
+  - همه یا هیچ: اگر یک قفل مشکوک باشد، هیچ‌کدام پاک نمی‌شود و خطای پیشین می‌ماند.
+
+  این‌ها تغییر نکردند: قالب قفل‌ها، توکن‌ها، `ownsLock`، `releaseLock` و پاک‌سازی توکن‌دار supervisor. اگر برخلاف انتظار صاحب قبلی زنده باشد، بررسی توکن خودش در استفادهٔ بعدی fail closed می‌کند. پس از بازیابی یک خط `console.warn` ثبت می‌شود.
+- **انتخاب‌های کم‌ریسک (بدون سؤال از مالک):**
+  - قفل مشکوک پاک نمی‌شود و «حذف راه‌اندازی» مثل قبل لازم است. نمونه: قفل خالی، اگر برق درست در لحظهٔ ساخت قفل قطع شود؛
+  - زمان فایل (mtime) بررسی نمی‌شود، چون پس از قطع برق ساعت رایانه ممکن است عقب برود (باتری CMOS)؛
+  - پس از توقف ناگهانی، در همان فرایند بازیابی انجام نمی‌شود: `failed` همچنان شروع دوباره را تا باز شدن دوبارهٔ برنامه رد می‌کند؛
+  - متن‌های صفحه تغییر نکردند. «قفل اجرای قبلی هاب باقی مانده است… برنامه را ببندید و باز کنید؛ اگر ماند…» و «خاموش شدن قبلی تأیید نشد…» اکنون با رفتار واقعی جور است.
+- **تست** `tests/audit-fixes/remote-stale-lock-recovery-loopback.mjs` (۴ آزمون؛ به workflow ویندوز اضافه شد و workflow اکنون ۱۲۴ گام دارد):
+  1. **crash:** دسکتاپ قبلی در فرایند جداگانه اجرا می‌شود (bundle واقعی میزبان و هاب واقعی) و با SIGKILL (روی ویندوز TerminateProcess) کشته می‌شود.
+     - پیش از کشتن: ماژول دسکتاپ دوم، حتی با قفل تک‌نمونه، «Remote port in use» می‌گیرد و هیچ قفلی دست نمی‌خورد. هاب در حال اجرا همچنان پاسخ می‌دهد؛
+     - پس از کشتن، پورت بسته می‌شود. روی ویندوز یعنی child هم با job مرده است؛
+     - روی Linux، child با قطع IPC قفل خودش را پاک می‌کند. تست همان توکن پیش از crash را دوباره می‌نویسد تا وضعیت قطع برق ساخته شود. روی ویندوز قفل خودش می‌ماند؛ این در diagnostic ثبت می‌شود؛
+     - بدون قفل تک‌نمونه («Remote hub lock present» و قفل‌ها دست‌نخورده)، در هر سه حالت: نبودِ تابع، false، و مقدار truthy غیر از true؛
+     - با قفل تک‌نمونه:
+       - هر دو قفل پاک می‌شوند و هاب روی همان پورت روشن می‌شود؛
+       - قفل‌های تازه توکن تازه دارند؛
+       - `storeId` و epoch تغییر نمی‌کنند؛
+       - ورود مالک 200 است؛
+       - stop خواسته‌شده هر دو قفل را پاک می‌کند.
+  2. **توقف ناگهانی:** دسکتاپ در فرایند جداگانه.
+     - restore بیرون از مسیر برنامه (همان محرک مرحلهٔ ۱۱) هاب را می‌خواباند و `needsRestart` می‌آید. قفل state می‌ماند و قفل child را supervisor پاک کرده است. سپس برنامه بسته می‌شود (کشتن فرایند)؛
+     - شروع دوباره بدون قفل تک‌نمونه: EEXIST، یعنی همان خلأ پیشین؛
+     - با قفل تک‌نمونه:
+       - قفل بازیابی می‌شود؛
+       - epoch تازه است (به خاطر restore بیرونی) و `storeId` همان است؛
+       - ورود 200 و stop تمیز.
+  3. **fail closed:** ۱۰ حالت. در هر حالت هیچ مسیری تغییر نمی‌کند (نوع، تعداد پیوند و محتوا) و هیچ بازیابی گزارش نمی‌شود:
+     - ۶۳ hex، hex بزرگ، و newline انتهایی؛
+     - قفل state خالی (EEXIST)؛
+     - قفل state سالم با قفل هاب خراب (همه یا هیچ)؛
+     - hard link، پوشه، و symlink با نام هدف ۶۴ بایتی. اگر سیستم اجازهٔ symlink ندهد، این حالت رد و ثبت می‌شود؛
+     - پورت اشغال؛
+     - پیکربندی بدون پورت ثابت.
+
+     سپس یک قفل تنهای سالمِ هاب بازیابی می‌شود.
+  4. **قرارداد سورس `index.ts`:**
+     - یک درخواست قفل، در سطح بالا و پیش از ready؛
+     - نخستین خط ready همان بازگشت است؛
+     - `second-instance` فقط با پنجرهٔ زنده کار می‌کند؛
+     - ترتیب: قفل، سپس `prepareDatabase`، سپس `startCloudSync`.
+
+     رفتار واقعی Electron اجرا نشده است.
+- **mutation:** ۲۲ جهش (L1–L22) در `/home/user/mut4/mut12.py`، و ۱۸ مورد گرفته شدند:
+  - حذف بررسی تابع، مقایسهٔ ناقص با true، و `===false`؛
+  - حذف شرط پورت null، حذف بررسی پورت، و بررسی پورت دیگر؛
+  - حذف `isFile` یا `nlink`، و پذیرش hex بزرگ؛
+  - `some` به‌جای `every`، و پاک کردن پیش از سنجیدن همه؛
+  - حذف فراخوانی، بازیابی نکردن قفل state، جابه‌جایی پس از بررسی قفل هاب، و حذف `console.warn`؛
+  - سه جهش `index.ts`: حذف خط ready، حذف `app.quit()`، و حذف `isDestroyed`.
+
+  جهش‌های فرارکرده هم‌ارزند:
+  - L3 (حذف `state || hub`): از `startCloudSync` قابل رسیدن نیست (دفاع لایه‌ای)؛
+  - L8 (حذف بررسی اندازه) و L10 (regex بی‌لنگر): این دو یکدیگر را می‌پوشانند؛
+  - L19 (حذف بازگشت زودهنگام بدون قفل): فقط یک بررسی پورت اضافه می‌شود.
+
+  L1 همهٔ آزمون‌ها را از راه `before()` شکست داد: راه‌اندازی با electron ساختگی بدون این تابع خطای TypeError می‌دهد. فایل‌ها پس از هر جهش بازگردانده و با `cmp` برابر شدند.
+- **اجرا (Linux، Node 22):**
+  - مجموعهٔ workflow (`s12a`): ۱۲۴ از ۱۲۵، فقط `remote-windows-node24.mjs`؛
+  - ۲۴ تست `remote-*` خارج از workflow: ۲۲ پاس. همان دو شکست redline ماندند، با خطوط نتیجهٔ یکسان با مرحلهٔ ۱۱؛
+  - scheduler، isolated-panel-grants و installer-runtime پاس شدند؛
+  - تست تازه ۳ بار موازی پایدار بود (۴/۴)؛
+  - typecheck و `build:check` موفق بودند و ترتیب در `out/main/index.js` بررسی شد. child دوباره ساخته شد و با ساخت مرحلهٔ ۱۱ بایت‌به‌بایت یکسان است (سورس child تغییر نکرد)؛
+  - redline `--base 2834baf`، `git diff --check` و YAML (۱۲۴ گام) موفق بودند.
+- **SHA-256 (۱۶ نویسهٔ اول):**
+  - `index.ts` `5dc58446adeb5881`
+  - CloudSyncService `47ddc24bd16643ef`
+  - تست `e9a0441cb07ba993`
+  - workflow `2b036d04c615c1a7`
+  - redline-check `036b2691ab634336`
+  - راهنما `577a22a37da60dce`
+- **راهنما:** بخش ۲ (دستور تست تازه)؛ بخش ۳ (آزمون قطع ناگهانی با `taskkill /F /T /IM MahakPOS.exe`، آزمون یک نسخه، و نکته‌های تازه).
+- **CI `434575a`** (فقط سند): remote 44538422938 ✓ و installer 44538434196 ✓. artifact ۵۱۸٬۶۴۵٬۷۵۱ بایت، تا ۲۰۲۶-۱۲-۱۹.
+- **اجرا نشده:**
+  - Electron واقعی: قفل تک‌نمونه، رویداد `second-instance`، focus پنجره روی ویندوز، و اینکه نمونهٔ دوم به پایگاه داده دست نمی‌زند؛
+  - خاموش شدن واقعی ویندوز، قطع برق، و `taskkill` روی برنامهٔ نصب‌شده؛
+  - مسیر job object ویندوز فقط در CI (آزمون ۱) اجرا می‌شود، با Node، نه با برنامهٔ نصب‌شده؛
+  - گوشی، تونل و HTTPS واقعی.
+- **CI همین مرحله (`fbd7b27`):**
+  - installer 44549312671 ✓: گام ۱۲ حدود ۱ ثانیه طول کشید. artifact «MahakPOS-Windows-installer»: ۵۱۸٬۶۵۹٬۰۷۲ بایت، تا ۲۰۲۶-۱۲-۱۹؛
+  - remote 44549299149 ✗ در گام ۱۰۳: تست مرحلهٔ ۱۱ `remote-health-loopback.mjs`، آزمون ۴ (child)، خط ۲۵۸. آزمون‌های ۱، ۲، ۳ و ۵ همان فایل پاس شدند؛
+    - child پیام snapshot قدیمی را با `ok:false` رد کرد. در این پیام `capturedAtMs` همان `Date.now()` والد است و `snapshotMaxAgeMs` برابر ۳۰۰ است. تست کد دلیل را چاپ نمی‌کند و لاگ کامل کار از این محیط در دسترس نیست (فقط annotation)؛
+    - سورس child و این تست از `434575a` تغییر نکرده‌اند (`git diff` خالی) و همین گام در `5bf5bce` و `434575a` پاس شد. مرحلهٔ ۱۲ فقط `index.ts` و میزبان را تغییر داد، و آزمون ۴ child را مستقیم fork می‌کند؛
+    - محتمل‌ترین علت: مسابقهٔ ساعت بین دو فرایند روی ویندوز. `Date.now()` هر فرایند جداگانه با ساعت سیستم هم‌گام می‌شود و child زمانِ «آینده» را fail closed با `clock-future` رد می‌کند. علت ممکن دیگر تأخیر ۳۰۰ میلی‌ثانیه یا بیشتر است (`snapshot-expired`). روی Linux ساعت بین فرایندها یکی است و بازتولید نشد؛
+    - رفع نشد. تست قفل است و بررسی‌های تازگی child نباید ضعیف شوند. پیشنهاد، نیازمند اجازهٔ مالک: فقط در همین خط تست، اختلاف ساعت دو فرایند در نظر گرفته شود (زمان capture کمی در گذشته و مرز همان‌قدر جابه‌جا)، یا با دلیل `clock-future` یک بار دوباره فرستاده شود؛
+    - گام‌های ۱۰۴ تا ۱۲۸ اجرا نشدند (skipped)، از جمله تست تازهٔ این مرحله. push همین سند هر دو workflow را دوباره اجرا می‌کند. تکرار نشدن به معنای رفع نیست.
+- **CI سند همین مرحله (`5e40af3`، فقط همین TODO):**
+  - installer 44552525317 ✓ (typecheck، ساخت نصب‌کننده و گام ۱۲ پاس). artifact «MahakPOS-Windows-installer»: ۵۱۸٬۶۵۹٬۶۰۴ بایت، تا ۲۰۲۶-۱۲-۱۹؛
+  - remote 44552510967 ✗ در گام ۷۴: تست قدیمی `remote-supervisor-grant-replay-loopback.mjs` (آزمون «supervisor persists mobile approval replay after state store is reopened»)، خط ۳۴: `rmSync` در `finally` روی ویندوز EPERM داد و ممکن است خطای اصلیِ پیش از آن را پنهان کرده باشد. این تست و `experimentalHubSupervisor.ts` از `434575a` تغییر نکرده‌اند و روی Linux پاس می‌شوند؛
+  - گام‌های ۷۵ تا ۱۲۸ اجرا نشدند (skipped)، از جمله تست مرحلهٔ ۱۲ (گام ۱۰۴). پس تست مرحلهٔ ۱۲ روی ویندوز **هنوز اجرا نشده است**؛
+  - دو شکست پیاپی، هر دو در تست‌های قدیمیِ بدون تغییر و با علت متفاوت. طبق قاعده متوقف شدم. منتظر تصمیم مالک: (۱) اجازهٔ اجرای دوبارهٔ CI؛ (۲) اجازهٔ محدود برای مقاوم کردن فقط `remote-health-loopback.mjs:258` (اختلاف ساعت دو فرایند؛ بررسی‌های child سخت‌گیر می‌مانند) و `remote-supervisor-grant-replay-loopback.mjs:34` (تکرار `rmSync` هنگام EPERM).
+- **ZIP سورس برای نصب با CMD (درخواست مالک):** از همان commitی ساخته شد که این یادداشت را دارد (فقط تغییر سند) و commit بعدی آن را در `deliverables/` گذاشت. ZIPهای قدیمی داخل مخزن در آن نیستند و `VERSION.txt` داخل آن SHA کد را نشان می‌دهد. این دو commit با `[skip ci]` push شدند تا بدون اجازهٔ مالک CI دوباره اجرا نشود؛ پس برای آن‌ها نتیجهٔ CI وجود ندارد. کد (`src`، تست‌ها، ابزارها و workflowها) با `5e40af3` یکی است و فقط سندها، `VERSION.txt` و خود ZIP تغییر کرده‌اند.
+- **راهنمای CMD به‌روز شد** (`INSTALL-WINDOWS-CMD.md` و `.txt`): جملهٔ کهنهٔ «دو خطای typecheck در `SalesService.ts` مانع ساخت است» (رفع‌شده در `7c557f2`) و «قابلیت موبایل فعال نشده است» با وضعیت واقعی جایگزین شد: قابلیت هست، پیش‌فرض خاموش است و روی دستگاه واقعی اجرا نشده است. در `docs/REMOTE-USER-TEST.md` بخش ۲ هم ZIP شاخه به‌عنوان منبع دوم اضافه شد.
+
+### مرحلهٔ ۱۲ — مقاوم‌سازی دو تست ناپایدار ویندوز (با اجازهٔ مالک)
+
+- **اجازهٔ مالک:** هر دو مورد درخواستی را داد: اجرای دوبارهٔ CI، و اجازهٔ محدود برای همان دو خط تست. شرط: منطق مالی تغییر نکند. هیچ فایل `src`، مالی یا `BackupService` تغییر نکرد؛ از هر تست فقط **یک خط** عوض شد.
+- **`remote-health-loopback.mjs:258`** (علت شکست 44549299149):
+  - **علت، با شاهد:**
+    - در Node 24 روی ویندوز، `Date.now()` هر فرایند جداگانه حساب می‌شود (V8، `deps/v8/src/base/platform/time.cc`، کلاس `Clock`): زمان درشت سیستم (`GetSystemTimeAsFileTime`، یک tick تایمر حدود ۱۵٫۶ میلی‌ثانیه) به‌اضافهٔ زمان سپری‌شدهٔ QPC. پس ساعت دو فرایند می‌تواند تا حدود یک tick با هم فرق کند.
+    - این خط پیام قدیمی snapshot را با `capturedAtMs` = `Date.now()` فرایند تست می‌فرستاد. child (بدون تغییر) هر زمانِ «آینده» را با `captured > wall` و دلیل `clock-future` رد می‌کند.
+    - کد واقعی این پیام قدیمی را هرگز نمی‌فرستد. فقط پروتکل `captureId` را به کار می‌برد که سن را داخل خود child اندازه می‌گیرد. پس فقط همین گام تست در معرض این مسابقه بود.
+  - **بازتولید روی Linux:** یک preload فقط `Date.now()` همان child را جابه‌جا کرد.
+    - خط قدیمی با ساعت child به اندازهٔ ۱۵− میلی‌ثانیه دقیقاً در `:258` شکست خورد (`expected: true`، `actual: false`)، مثل CI.
+    - خط جدید با ۰، ±۱۵ و ±۲۰ پاس شد. کل فایل با ±۱۵ هم ۵/۵ پاس شد.
+    - با ۴۰− میلی‌ثانیه، خط جدید با پیام «older snapshot rejected (clock-future)» شکست خورد. یعنی child سخت‌گیر مانده و دلیل رد حالا چاپ می‌شود.
+  - **تغییر:**
+    - زمان capture ۲۵ میلی‌ثانیه در گذشته گذاشته می‌شود. این ۲۵ میلی‌ثانیه از حاشیهٔ ۵۰ میلی‌ثانیه‌ای همان assertion سن داده (خط ۲۶۰، بدون تغییر) کم می‌شود و ±۲۵ میلی‌ثانیه برای اختلاف ساعت می‌ماند.
+    - فقط اگر child با `snapshot-expired` رد کند (توقف زمان‌بندی ۲۷۵ میلی‌ثانیه یا بیشتر)، یک بار با شناسهٔ ۴ دوباره فرستاده می‌شود. ارسال دوم باید پذیرفته شود.
+    - دلیل رد در پیام شکست چاپ می‌شود.
+- **`remote-supervisor-grant-replay-loopback.mjs:34`** (علت شکست 44552510967):
+  - `rmSync` در `finally` حالا `maxRetries:10, retryDelay:100` دارد. Node هنگام EPERM، EBUSY یا ENOTEMPTY با تأخیر خطی دوباره تلاش می‌کند، حداکثر حدود ۵٫۵ ثانیه.
+  - `finally` تست سلامت از قبل همین گزینه‌ها را داشت.
+  - اگر EPERM خطای اصلیِ بدنهٔ تست را پنهان کرده بود، آن خطا حالا دیده می‌شود.
+- **آزمون محلی:**
+  - هر دو فایل ۳ بار پشت سر هم و ۳ بار موازی پاس شدند (سلامت ۵/۵، replay ۱/۱).
+  - مجموعهٔ کامل `s13a` ۱۲۴/۱۲۵ پاس شد (فقط `remote-windows-node24.mjs` که مخصوص ویندوز است). `x13a` ۲۲/۲۴ شد (همان دو شکست شناخته‌شدهٔ redline). نتیجهٔ هر فایل با مرحلهٔ ۱۲ یکی است.
+  - redline `--base 2834baf` OK است و `git diff --check` تمیز است.
+- **CI همین commit (`7c076f7`):**
+  - remote 44565010522 ✓: هر ۱۲۸ گام پاس شد (۰ شکست، ۰ رد شده). گام ۷۴ (replay) و گام ۱۰۳ (سلامت) پاس شدند. **گام ۱۰۴، تست مرحلهٔ ۱۲، برای اولین بار روی ویندوز اجرا و پاس شد.** annotationها فقط هشدار عمومی Node 20 و یادداشت‌های زمان‌بندی بودند؛
+  - installer 44565033445 ✓: typecheck، ساخت نصب‌کننده و بررسی runtime هاب پاس شدند. artifact «MahakPOS-Windows-installer»: ۵۳۷٬۳۰۴٬۲۰۷ بایت، تا ۲۰۲۶-۱۲-۱۹. بزرگ‌تر شدنش به خاطر ZIP سورس قبلی داخل مخزن است، چون ZIP سورسِ داخل artifact همهٔ فایل‌های مخزن را دارد؛
+  - یک اجرای سبز ثابت نمی‌کند ناپایداری برای همیشه رفته است. علت خط ۲۵۸ بازتولید و رفع شد؛ تکرار `rmSync` فقط کاهش‌دهنده است.
+- **وضعیت مرحلهٔ ۱۲: آماده (CI).** کار بخش ایجنت تمام است. هنوز اجرا نشده: نصب ویندوز واقعی، گوشی، تونل و موارد فهرست «اجرا نشده» بالا.
+- **ZIP سورس جدید برای CMD:** از commit همین یادداشت ساخته شد (فقط سند؛ کد همان `7c076f7`) و commit بعدی آن را در `deliverables/` گذاشت. این دو commit با `[skip ci]` آمدند، چون کد تغییر نکرده است؛ اجرای سبز مربوط به آن‌ها همان `7c076f7` است. ZIP قبلی (`a005fc7…`) کهنه است.
+- **راهنماها به‌روز شدند:** `INSTALL-WINDOWS-CMD.md` و `.txt` (وضعیت: آماده برای آزمون شما) و `docs/REMOTE-USER-TEST.md` بخش ۱ و ۲ (اجرای مربوط به commitهای `[skip ci]` و انتخاب ZIP درست).
+- **راهنمای آزمون پس از پرسش مالک دربارهٔ فرم «راه‌اندازی اول»** (فقط سند، `[skip ci]`؛ کد همان `7c076f7` و ZIP موجود برای کد معتبر است):
+  - بخش ۳ `docs/REMOTE-USER-TEST.md`: قاعدهٔ هر خانه مطابق کد (`RemoteLink.tsx`، `remoteSetup.ts`، `remoteSetupIpc.ts`)، پاک کردن `https://` پیش‌فرض پیش از چسباندن، جای «رمز مدیر برنامه»، نام کاربری انگلیسی، و این‌که تفاوت رمز گوشی با رمز برنامه در کد بررسی نمی‌شود؛
+  - ملاک `netstat` خط `LISTENING` شد: `0.0.0.0:0` در ستون آدرس مقابل عادی است، و خط‌های `ESTABLISHED`/`TIME_WAIT` روی `127.0.0.1` اتصال تونل‌اند. متن قبلی ممکن بود «نادرست» اشتباهی بسازد؛
+  - بخش ۴: تونل موقت Cloudflare (`cloudflared tunnel --url http://127.0.0.1:47821`) **فقط برای آزمون**، چون آدرسش ثابت نیست (سند معماری هم فقط named را ثابت می‌داند). برای فروشگاه آدرس ثابت لازم است. Funnel همچنان ممنوع است؛
+  - بررسی در سورس (نه اجرا): cloudflared در `ingress/origin_proxy.go` سرآیند Host را فقط با `httpHostHeader` عوض می‌کند، پس Host اصلی به هاب می‌رسد و بررسی ۴۲۱ هاب می‌گذرد. Tailscale Serve در `ipn/ipnlocal/serve.go` هم `r.Out.Host = r.In.Host` دارد. تونل واقعی در این محیط **اجرا نشده** است.
+- **نخستین یافتهٔ آزمون واقعی مالک (Windows 10 22H2، اینترنت ایران؛ 2026-11-20):**
+  - **تونل موقت Cloudflare** روی رایانهٔ مالک (cloudflared 2026.11.1):
+    - با فیلترشکن روشن (کارت مجازی `Arman VPN`)، جست‌وجوی SRV برای `argotunnel.com` با `no such host` شکست خورد و تونل وصل نشد؛
+    - با فیلترشکن خاموش، DNS و HTTP/2 روی TCP 7844 کار کرد ولی QUIC (UDP 7844) بسته بود. حالت `auto` حدود ۲٫۵ دقیقه QUIC را امتحان کرد و پس از یک قطع دوباره به QUIC برگشت و دیگر وصل نشد. با `--protocol http2` در ۱ ثانیه وصل شد؛
+    - اتصال HTTP/2 تقریباً هر ۴۴ ثانیه بسته شد («connection with edge closed») و بعد از ۲ تا ۵۴ ثانیه دوباره وصل شد. در ۱۲٫۶ دقیقه، حدود ۷۸٪ وقت وصل بود. نظم ۴۴ ثانیه‌ای با قطع عمدی در شبکه سازگار است (اثبات نشده). تونل named هم به همین سرورها و درگاه وصل می‌شود، پس احتمالاً همین رفتار را دارد. راهنما: پیش از خرید دامنه، با اینترنت دیگری هم آزموده شود؛ گزینهٔ سرور داخل ایران (`OVERLAY_RELAY` در سند معماری) بعداً بررسی شود.
+  - **راه‌اندازی در برنامه:** پیام «فایل‌های لازم کنترل از راه دور در نصب یا پوشهٔ داده پیدا نشد.» آمد. فایل‌های راه‌اندازی ساخته شدند ولی هاب روشن نشد و صفحه «تکمیل راه‌اندازی» را نشان داد.
+    - این پیام از `existingDirectory`/`existingFile` در `startConfigured` است (`ENOENT` یا `Remote directory/file unavailable`). محتمل‌ترین علت: برنامه با `RUN-WINDOWS.cmd` (electron-vite dev) باز شده است. در آن حالت `process.resourcesPath` پوشهٔ `resources` خود Electron در `node_modules` است و `remote\node.exe` و `remote-hub-child.cjs` را ندارد. این دو فقط با `BUILD-WINDOWS.cmd` (postbuild و `win.extraResources`) کنار برنامهٔ نصب‌شده قرار می‌گیرند. از مالک پرسیده شد برنامه را چطور باز کرده است؛ هنوز تأیید نشده.
+    - راهنماها اصلاح شدند (فقط سند، `[skip ci]`): `INSTALL-WINDOWS-CMD.md`/`.txt` می‌گویند کنترل از راه دور با `RUN-WINDOWS.cmd` کار نمی‌کند، و بخش ۳ `docs/REMOTE-USER-TEST.md` معنی این پیام و راه ادامه را دارد. پیشنهاد بعدی (کد، هنوز انجام نشده): وقتی `app.isPackaged` نادرست است، پیام صریح «فقط در نسخهٔ نصب‌شده» نشان داده شود.
+  - **علت تأیید شد:** متن پنجرهٔ اجرای مالک (`npm run dev` در `C:\Users\Valiasr\Desktop\so`) این خطا را دارد: `[remote] startup unavailable Error: ENOENT: no such file or directory, lstat '...\node_modules\electron\dist\resources\remote'`. پس برنامه از سورس (electron-vite dev) اجرا شده بود، نه نسخهٔ نصب‌شده. قدم بعد مالک: ساخت نصب‌کننده با `BUILD-WINDOWS.cmd` در cmd با دسترسی مدیر، چون استخراج winCodeSign در electron-builder 25 بدون دسترسی ساخت symlink شکست می‌خورد (گزارش‌های عمومی). ساخت با Node 24 روی رایانهٔ واقعی هنوز **اجرا نشده** است.
+  - **پوشهٔ داده:** همین متن مسیر پشتیبان خودکار را `C:\Users\Valiasr\AppData\Roaming\mahak-pos\backups\...` نشان داد. پس پوشهٔ داده `%APPDATA%\mahak-pos` است (از `name` در package.json؛ electron-builder `productName` را به package.json بسته اضافه نمی‌کند). بخش ۱ `docs/REMOTE-USER-TEST.md` که `%APPDATA%\MahakPOS` می‌گفت اصلاح شد.
+  - **بیرون از کار راه دور، فقط ثبت (کد مالی دست نخورد):** همان اجرا هنگام شروع چند خطای Prisma داشت: `P1008` («The database failed to respond to a query within the configured timeout») در `custodyState.upsert` و `P2028` (تراکنش ۵ ثانیه‌ای پس از ۵٫۶ ثانیه بسته شد) در `ipc:custody:status` و `ipc:shift:current`، درست پس از `[backup] auto backup`. علت بررسی نشده است؛ احتمال‌ها: رقابت با پشتیبان خودکار هنگام شروع، نسخهٔ دیگری از برنامه روی همان DB، یا اسکن آنتی‌ویروس. بعداً با اجازهٔ مالک بررسی شود.
+- **یافتهٔ دوم آزمون واقعی: `BUILD-WINDOWS.cmd` روی رایانهٔ مالک شکست خورد** (Node 24.12.0، cmd با دسترسی مدیر). typecheck، `prisma generate`، ساخت electron-vite و bundle هاب (`remote-hub-child.cjs`، ۱۹۲٫۳ کیلوبایت) موفق بودند. بعد `tools/build-remote-hub.mjs:26` با `Packaging Node license is missing` متوقف شد.
+  - **علت (بررسی‌شده در سورس، نه حدس):** نصب‌کنندهٔ MSI رسمی Node برای ویندوز (`tools/msvs/msi/nodemsi/product.wxs` در `v24.12.0`) فقط `node.exe`، `nodevars.bat`، `install_tools.bat` و فایل‌های npm/corepack را در `C:\Program Files\nodejs` نصب می‌کند. متن مجوز را فقط در صفحهٔ نصب نشان می‌دهد (`LICENSE.rtf`) و فایل `LICENSE` کنار `node.exe` نمی‌گذارد. CI با `actions/setup-node` از بستهٔ zip استفاده می‌کند که `LICENSE` دارد. برای همین این شکست در CI دیده نشد و فقط روی رایانهٔ واقعی ظاهر شد.
+  - **راه موقت که به مالک داده شد** (بدون تغییر کد و بدون دور زدن بررسی): یک دستور `node -e` متن `LICENSE` دقیقاً همان نسخهٔ Node (`process.version`) را از `api.github.com/repos/nodejs/node/contents/LICENSE?ref=<version>` با `Accept: application/vnd.github.raw` می‌گیرد. اگر متن با `Node.js is licensed for use as follows:` شروع نشود رد می‌کند، و در غیر این صورت آن را کنار `node.exe` می‌نویسد. منطق دستور در این محیط با `v24.12.0` آزموده شد و خروجی با فایل مرجع بایت‌به‌بایت یکی بود (۱۴۳٬۳۱۰ بایت). روی رایانهٔ مالک هنوز **اجرا نشده** است.
+  - **اصلاح کد برنامه‌ریزی‌شده (هنوز انجام نشده):** `build-remote-hub.mjs` وقتی `LICENSE` کنار `node.exe` نیست، همین متن نسخهٔ دقیق را بگیرد و بسنجد، و اگر نشد پیام روشن بدهد. همراه با آزمون و به‌روزرسانی راهنماها.
+  - **نتیجه پس از راه موقت:** دستور مالک `OK: C:\Program Files\nodejs\LICENSE` چاپ کرد. اجرای دوبارهٔ `BUILD-WINDOWS.cmd` (cmd با دسترسی مدیر، Node 24.12.0) با `Build completed. Check the dist folder for the installer.` تمام شد. electron-builder 25.1.8 با `oneClick=true perMachine=false` این‌ها را ساخت: `dist\win-unpacked\MahakPOS.exe` و `dist\MahakPOS Setup 0.1.0.exe` و blockmap. امضای کد انجام نشد (`no signing info identified`) و آیکون پیش‌فرض Electron به کار رفت. پس **ساخت نصب‌کننده با Node 24 روی رایانهٔ واقعی یک بار موفق اجرا شد**. نصب و اجرای نسخهٔ نصب‌شده هنوز گزارش نشده است.
+- **یافتهٔ سوم آزمون واقعی (جدی): نسخهٔ نصب‌شده اصلاً باز نمی‌شود.** نصب `dist\MahakPOS Setup 0.1.0.exe` در `C:\Users\Valiasr\AppData\Local\Programs\mahak-pos` انجام شد. هنگام شروع، این خطا آمد: `A JavaScript error occurred in the main process — Error: Cannot find module '.prisma/client/default'` (Require stack: `resources\app.asar\node_modules\@prisma\client\default.js` ← `app.asar\out\main\index.js`).
+  - **علت (بازتولیدشده در این محیط):** electron-builder 25.1.8 فقط بسته‌های فهرست‌شده در درخت وابستگی را در `app.asar` می‌گذارد. کلاینت تولیدشدهٔ Prisma در `node_modules/.prisma/client` بستهٔ فهرست‌شده نیست، پس جا می‌ماند.
+    - ساخت `--linux dir` با electronDist ساختگی و همین package.json: در `app.asar` فقط `node_modules/@prisma/client` بود و `.prisma` نبود.
+    - افزودن الگوی رشته‌ای `node_modules/.prisma/**/*` به `build.files` هم اثری نداشت.
+    - FileSet `{"from":"node_modules/.prisma","to":"node_modules/.prisma","filter":["**/*"]}` در `build.files` آن را در `app.asar` گذاشت، و electron-builder به‌خاطر فایل اجرایی موتور، کل `.prisma` را در `app.asar.unpacked` هم باز کرد.
+  - **چرا CI ندید:** گردش‌کار نصب‌کننده فقط می‌سازد و runtime هاب را در `win-unpacked/resources` می‌آزماید. هرگز `MahakPOS.exe` یا Prisma را از چیدمان بسته اجرا نمی‌کند. پس «installer ✓» در ردیف‌های قبلی یعنی «ساخته شد»، نه «باز می‌شود». پیکربندی `files` از پیش از کار راه دور (`2834baf`) همین بوده است. پس نصب‌کننده‌های پیش از این کار هم احتمالاً همین خطا را داشتند (اجرا نشده).
+  - **اصلاح لازم:** تغییر `package.json` (پین‌شده در redline با blob دقیق و بودجهٔ ۲ خط). **نیازمند اجازهٔ صریح مالک است؛ پرسیده شد و هنوز انجام نشده.** همراه آن: پین تازه در `tools/redline-check.mjs`، گام CI که Prisma را با Node خود Electron از `win-unpacked` بار کند و یک پرس‌وجو روی DB موقت بزند، و اصلاح `build-remote-hub.mjs` برای LICENSE.
+- **اصلاح بسته‌بندی Prisma (با اجازهٔ صریح مالک، ۲۰۲۶-۱۱-۲۰: «بله اجازه میدم ولی باید حواست باشه چیزی رو خراب نکنی»):**
+  - **تغییر:**
+    - `package.json`: یک FileSet به `build.files` اضافه شد: `{"from": "node_modules/.prisma", "to": "node_modules/.prisma", "filter": ["**/*"]}`. `extraResources` و بقیهٔ فایل دست نخورد. diff نسبت به `2834baf` چهار خط افزوده و یک خط حذف است؛
+    - `tools/redline-check.mjs`: پین blob تازهٔ `6714bb14eb5f6d261151deb5fd764fd36229a2f4` و بودجهٔ `package.json` از ۲ به ۵، با یادداشت اجازهٔ مالک؛
+    - `tools/packaged-prisma-smoke.cjs`: آزمون تازه؛
+    - گام CI «Verify the packaged app loads Prisma Client and its query engine» در `windows-installer.yml`، پس از ساخت. `MahakPOS.exe` بسته‌شده را با `ELECTRON_RUN_AS_NODE=1` اجرا می‌کند، Prisma را از `resources\app.asar` بار می‌کند و `SELECT 1` را روی یک فایل SQLite خالی موقت می‌زند. بدون `PRISMA_PACKAGED_OK` گام شکست می‌خورد (fail-closed). به DB فروشگاه یا دادهٔ کاربر دست نمی‌زند.
+  - **شواهد محلی** (Linux، electron-builder 25.1.8، electronDist ساختگی، موتور ساختگی Prisma):
+    - `app.asar` قبل ۴۳۲ مدخل و بعد ۴۴۸ مدخل داشت. تفاوت فقط ۱۶ مدخل افزوده زیر `node_modules/.prisma` است و هیچ مدخلی حذف نشد. `resources/prisma` و `resources/print` بایت‌به‌بایت یکی‌اند. `.prisma` در `app.asar.unpacked` هم باز شد؛
+    - asar قدیم پس از extract: `require('@prisma/client')` با همان خطای مالک (`Cannot find module '.prisma/client/default'`) شکست خورد. asar تازه: بار شد؛
+    - آزمون smoke روی چیدمان قدیم `PRISMA_LOAD_FAILED` با کد ۱ داد. روی چیدمان تازه بار شد و پرس‌وجو فقط به‌خاطر نبودِ موتور واقعی در این محیط شکست خورد («could not locate the Query Engine»). مسیر `.asar` بدون Electron کد ۲ داد. پوشه‌های موقت پاک شدند؛
+    - redline OK است. جهش (افزودن یک مدخل به همان FileSet) با «package.json differs from the owner-approved packaging configuration» گرفته شد؛
+    - typecheck OK.
+  - **آزمون‌ها:**
+    - `windows-cmd-scripts` ۱ پاس و ۱ رد شده؛
+    - `remote-redline-check` ۴ پاس و ۲ شکست، و `remote-redline-approved-financial-fix` ۰ از ۱؛ هر دو همان شکست‌های شناخته‌شدهٔ fixture بدون package.json؛
+    - `fix-s222-print-phase5-raw`: همان ۸ شکست از پیش موجود (روی درخت قبلی یکسان). بررسی `extraResources` آن پاس است؛
+    - `remote-packaged-child-loopback` ۱/۱. `remote-installer-runtime-loopback` با چیدمان محلی ۱/۱ (شاهد بسته‌بندی نیست).
+  - **اجرا نشده:** نتیجهٔ CI همین commit (پس از push ثبت می‌شود) و باز شدن نسخهٔ نصب‌شده روی رایانهٔ مالک.
+  - راهنماها: `INSTALL-WINDOWS-CMD.md`/`.txt` این‌ها را دارند: cmd مدیر، راه موقت LICENSE، اجرای نصب‌کننده با دوبار کلیک، و هشدار اینکه ZIP `118406a3…` و قبل از آن نصب‌کنندهٔ معیوب می‌سازند. بخش ۱ `docs/REMOTE-USER-TEST.md` معنی این خطا را دارد.
+  - **CI اول (`beaac1f`): نصب‌کننده 44762930957 ✗ در گام تازهٔ ۱۲**، به‌خاطر اشکال خود آزمون smoke، نه بسته:
+    - مسیر نسبی `dist\win-unpacked\resources\app.asar` به `require()` داده شده بود و Node آن را نام بسته فرض کرد (`Cannot find module 'dist\\win-unpacked\\...\\@prisma\\client'`). تا گام ۱۱ (typecheck، آزمون‌های مالی، ساخت نصب‌کننده) همه پاس بودند؛
+    - اصلاح: مسیرها با `path.resolve` مطلق می‌شوند. با مسیر نسبی آزموده شد: چیدمان قدیم `PRISMA_LOAD_FAILED` (`.prisma/client/default`) داد و چیدمان تازه بار شد؛
+    - همین اجرا نشان داد اجرای `MahakPOS.exe` بسته با `ELECTRON_RUN_AS_NODE=1` زیر `cmd /c` کار می‌کند: پشتهٔ خطا `node:electron/js2c/node_init` را دارد، و خروجی و کد خروج برگشتند.
+  - **CI پس از اصلاح (`eb2880b`):**
+    - نصب‌کننده 44764681993 ✓ با همهٔ ۱۷ گام. **گام ۱۲ تازه پاس شد:** `MahakPOS.exe` بسته‌شده (Electron در حالت Node) Prisma Client را از `resources\app.asar` بار کرد و `SELECT 1` را با موتور واقعی ویندوز روی SQLite موقت اجرا کرد. گام بدون `PRISMA_PACKAGED_OK` و کد ۰ پاس نمی‌شود. گام ۱۳ (runtime هاب) و ساخت ZIPها هم پاس شدند. متن خام لاگ از این محیط قابل دانلود نیست (blob.core.windows.net مسدود است)؛
+    - remote برای `beaac1f` (همان package.json) 44762918280 ✓. remote برای `eb2880b` (44764666446) هنگام این یادداشت در حال اجرا بود.
+  - **برای پوشهٔ ساخت مالک:** یک دستور `node -e` فقط `package.json` را از `api.github.com` (`ref=eb2880b…`) می‌گیرد و پیش از نوشتن، SHA-256 آن را با `2d061757e23e640daf42004fef51e845bcca62453bae2e0e2163e855bf3eb321` (۲۱۹۹ بایت، LF) مقایسه می‌کند. در این محیط آزموده شد و فایل نوشته‌شده با blob مخزن بایت‌به‌بایت یکی بود.
+  - ZIP سورس `deliverables/…118406a3…` هنوز `package.json` قدیم را دارد و نصب‌کنندهٔ ساخته‌شده از آن باز نمی‌شود. ZIP تازه هنوز ساخته نشده است.
+  - remote برای `eb2880b` (44764666446) هم ✓ تمام شد.
+  - **ZIP سورس تازه برای CMD** (به درخواست مالک):
+    - فایل: `deliverables/MAHAK-KLAD-2df8a2af89279fd17d00a2eba8fe1b4095532b25-source.zip`، ۲۰٬۴۰۷٬۸۸۵ بایت، SHA-256 `4c34c4716dd7451e0eb767cb9b12c13485e4a1db518de5d51eae4619cb2c8d67`. در commit `470e401` با `[skip ci]` آمد. ریشهٔ `VERSION.txt` به‌روز شد؛
+    - بررسی ZIP:
+      - ۳۸۶۸ فایل، برابر با درخت git بدون `*.zip`؛
+      - ۸ فایل یکسان و ۳۸۵۹ فایل فقط با تبدیل LF→CRLF؛ هیچ فایل ناجور؛
+      - هر ۲۴۵ نام غیر ASCII پرچم UTF-8 دارند؛ پوشهٔ پیشوند ندارد؛ `unzip -tq` بدون خطا؛
+      - `package.json` داخل ZIP همان FileSet را دارد؛
+    - دانلود دوباره از GitHub (API، `ref=470e401…`) بایت‌به‌بایت یکی بود؛
+    - نسبت به ZIP قبلی (`118406a3`) هیچ فایلی حذف نشده و `package-lock.json` تغییر نکرده است. پس ریختن ZIP تازه روی پوشهٔ ساخت قبلی و ساخت دوباره بدون `SETUP-WINDOWS.cmd` درست است.
+
+- **تست واقعی مالک روی رایانه — عصر ۲۰۲۶-۱۱-۲۰ (ZIP `2df8a2a`، کد `eb2880b`):**
+  - **پوشهٔ تازه:** `so` خالی شد و ZIP تازه باز شد. چون تاریخ پوشه‌ها نشان می‌داد دو بار باز شده، یک دستور `node -e` اجرا شد. این دستور SHA-256 خود ZIP را چک می‌کند، اندازه و CRC32 هر فایل را با فهرست مرکزی ZIP مقایسه می‌کند و فایل‌های روی دیسک را می‌شمارد. پیش از دادن به مالک، اینجا روی نسخهٔ سالم و نسخه‌های خراب‌شده آزموده شد. خروجی رایانهٔ مالک: `RESULT: OK good=3868 bad=0 files-on-disk=3868`.
+  - **`SETUP-WINDOWS.cmd`:** پاس (Prisma Client 5.22.0 ساخته شد؛ «Setup finished»).
+  - **`BUILD-WINDOWS.cmd` در cmd مدیر:** پاس، بدون خطای LICENSE، چون `C:\Program Files\nodejs\LICENSE` از قبل مانده بود. electron-builder 25.1.8 بود و nsis با `oneClick=true` و `perMachine=false` ساخته شد («Build completed»).
+  - **نصب روی نصب معیوب قبلی:** به گزارش مالک برنامه باز شد، یعنی خطای `.prisma/client/default` دیگر نیامد. ورود مدیر هم انجام شد؛ نوار پایین «کاربر: مدیر» را نشان می‌داد.
+  - **صفحهٔ کنترل از راه دور:** راه‌اندازی نیمه‌کارهٔ اجرای dev (آدرس قدیم `motorcycles-…`) «روشن نشده (خطا)» و «مالک گوشی هنوز ساخته نشده است.» را نشان می‌داد. «حذف راه‌اندازی…» و بعد «بله، حذف شود»، پس از نوشتن رمز مدیر، کار کرد.
+  - **یافتهٔ ظاهری (اصلاح نشده):** `.btn` در `styles.css:143` حالت `:disabled` ندارد، پس دکمهٔ غیرفعال دقیقاً مثل دکمهٔ فعال دیده می‌شود.
+    - کلیک اول مالک روی «حذف راه‌اندازی…» «هیچ کاری نکرد»، چون کادر رمز مدیر خالی بود.
+    - همهٔ دکمه‌های RemoteLink رمز مدیرِ بالای صفحه را می‌خواهند و این رمز پس از هر کار پاک می‌شود.
+    - اصلاح کم‌خطر بعدی: راهنمای «اول رمز مدیر را بنویسید» فقط در RemoteLink، یا یک ظاهر غیرفعال. این کار ساخت تازه می‌خواهد.
+  - **تونل موقت و راه‌اندازی اول:** آدرس تازه `https://steady-should-downloaded-webmaster.trycloudflare.com` بود. «راه‌اندازی اول» موفق شد و «وضعیت: روشن» را با همین آدرس و `127.0.0.1:47821` نشان داد (عکس مالک). **این اولین بار است که هاب داخل برنامهٔ نصب‌شده روی رایانهٔ واقعی روشن شد.** بررسی netstat هنوز اجرا نشده است.
+  - **گوشی (اندروید، Chrome):** ساعت 18:18:47 UTC خطای 1033 (Cloudflare Tunnel error) آمد، یعنی همان لحظه تونل به لبهٔ Cloudflare وصل نبود. صفحهٔ هاب هنوز روی گوشی باز نشده است. پس ورود گوشی، تأیید و Panic اجرا نشده‌اند.
+  - **cloudflared روی اینترنت‌های مالک:**
+    - Wi-Fi خانه (از 17:55 تا حدود 18:39 UTC؛ اصلاح‌شده، یادداشت اول این بازه‌ها را به هات‌اسپات نسبت داده بود):
+      - ثبت با http2 انجام می‌شود ولی معمولاً ۲۰ تا ۸۰ ثانیه دوام می‌آورد. بعد خطای «connection with edge closed» یا خطای control stream می‌آید؛
+      - دوره‌هایی هم `dial tcp 198.41.x.x:7844: ... actively refused` آمد (18:02 تا 18:05 و 18:31 تا 18:36)؛
+      - یک «ثبت» ۵ دقیقه‌ای (Registered 18:16:41، Lost 18:21:38) هم بود، ولی **خطای 1033 گوشی در 18:18:47 وسط همین بازه آمد**؛
+      - پس اتصال بی‌صدا مرده بود، احتمالاً چون بسته‌ها بی‌صدا دور ریخته می‌شدند و cloudflared دیر فهمید. خط Registered یعنی وصل، نه کارکرد، و صبر کردن برای آن کمکی نمی‌کند.
+    - هات‌اسپات گوشی (اینترنت سیم‌کارت):
+      - زمان دقیق عوض شدن شبکه گزارش نشده است. احتمالاً لحظه‌اش 18:39:25 است، وقتی خطای `An established connection was aborted by the software in your host machine` آمد؛
+      - پس از آن دو اتصال ۴۹ و ۵۶ ثانیه‌ای دیده شد، با همان الگو.
+    - برداشت: احتمالاً فیلترینگ در سطح کشور ترافیک تونل Cloudflare (پورت 7844) را می‌زند، نه ISP محلی.
+  - **منبع cloudflared** (master `518d7f7`، 2026-11-17):
+    - `cmd/cloudflared/tunnel/quick_tunnel.go:217-219` تونل موقت را به `ha-connections=1` مجبور می‌کند. لاگ مالک هم `Settings: map[ha-connections:1 …]` دارد.
+    - تونل نام‌دار پیش‌فرض ۴ اتصال دارد (`cmd.go:782-783`، پرچم پنهان). شاید قطع‌های تک‌اتصالی را بپوشاند، ولی آزموده نشده است. قطع هم‌زمان یا RST همچنان به آن هم می‌خورد.
+    - backoff ناظر بی‌پایان است (`retry.NewBackoff(…, true)`). آدرس‌های لبه فقط یک بار در شروع resolve می‌شوند (`edgediscovery.ResolveEdge` در NewSupervisor) و دوباره استفاده می‌شوند.
+    - پس تونل در حال اجرا با عوض شدن شبکه آدرسش را نگه می‌دارد. روشن کردن VPN رایانه پس از شروع هم از خطای DNS شروعِ قبلی (`lookup argotunnel.com: no such host`) در امان است. این آزمون هنوز انجام نشده است.
+  - **Tailscale:**
+    - #9158 (ایران، ۲۰۲۳): «Service unavailable for legal reasons»؛ ورود و صفحهٔ مدیریت بسته‌اند.
+    - #9263 و #9424: کارمند Tailscale نوشته «legally required to deny service».
+    - اندروید فقط یک VPN فعال دارد، پس گوشی نمی‌تواند Tailscale را با فیلترشکن یکجا داشته باشد.
+    - الحاقیهٔ ۱ معماری هم Tailscale پیش‌فرض را برای فروشگاه واقعی کنار گذاشته است. دنبال نشد و به مالک گفته شد.
+  - **گزینه‌های گفته‌شده به مالک:**
+    1. آزمون مجانی همین حالا: روشن کردن VPN رایانه، در حالی که تونل در حال اجراست.
+    2. راه دائمی: VPS ایرانی + دامنه + HTTPS (خانوادهٔ `VPS_PUBLIC` در الحاقیهٔ ۱).
+       - رایانه یک تونل خروجی (مثلاً `ssh -R`) به VPS باز می‌کند و هاب روی `127.0.0.1` می‌ماند؛ کد برنامه تغییری نمی‌خواهد.
+       - تصمیمش با مالک است، چون هزینه دارد.
+  - **اجرا نشده:** باز شدن صفحه و ورود روی گوشی، تأیید، Panic، بررسی netstat، تک‌نمونه، DPAPI، بازگردانی، قطع برق.
+
+- **ادامهٔ تست ۲۰۲۶-۱۱-۲۰: VPN رایانه و تصمیم تونل بعدی:**
+  - **Arman VPN روی رایانه، روشن‌شده وقتی تونل از قبل در حال اجرا بود:**
+    - از روشن شدن VPN تا 18:55:56 UTC هیچ اتصالی ثبت نشد؛
+    - همهٔ تلاش‌ها `dial tcp 198.41.x.x:7844: ... actively refused` بودند (18:49 تا 18:54)؛
+    - در پایان `lookup cfd-features.argotunnel.com: no such host` آمد، همان نشانهٔ DNS با VPN روشن در آزمون‌های قبلی.
+    - برداشت: این VPN هم پورت 7844 و هم نام‌های argotunnel را می‌بندد.
+  - **نتیجه:** تونل Cloudflare روی هیچ‌کدام از مسیرهای مالک (Wi-Fi، سیم‌کارت، VPN) قابل استفاده نیست. خرید دامنه برای تونل نام‌دار Cloudflare توصیه نمی‌شود، چون همان اتصال 7844 را به کار می‌برد. Tailscale هم به دلایل ثبت‌شدهٔ بالا دنبال نشد.
+  - **تصمیم کم‌خطر بعدی** (جزئیات فنی با عامل است، طبق دستور مالک): آزمون تونل SSH رایگان `localhost.run` با SSH خود ویندوز، بدون دانلود و بدون پورت 7844.
+    - دستور مالک: `ssh -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -R 80:127.0.0.1:47821 nokey@localhost.run`؛
+    - سازگاری با هاب:
+      - هاب فقط Host برابر آدرس پیکربندی‌شده می‌خواهد (`mobileReadOnlyHub.ts:145-146`، وگرنه 421)؛
+      - برای POST هم Origin برابر و `x-mahak-request: 1` می‌خواهد (`:152`)؛
+      - هیچ سرآیند مخصوص Cloudflare یا WebSocket لازم نیست. محدودیت ورود بر پایهٔ `socket.remoteAddress` است، که از هر تونلی 127.0.0.1 می‌شود (همان وضع trycloudflare)؛
+    - شاهد اینکه Host عمومی دست‌نخورده جلو فرستاده می‌شود: خطای Vite «Blocked request. This host ("….lhr.life") is not allowed» که کاربران localhost.run گزارش کرده‌اند (github.com/c0ldfront/knowledge PR #26)؛
+    - محدودیت‌های طرح رایگان، طبق اسناد localhost.run (docs/forever-free و docs/faq):
+      - نام دامنه «پس از چند ساعت» و با هر اتصال تازهٔ `nokey` عوض می‌شود. یعنی قطع شدن SSH به معنی آدرس تازه و حذف و راه‌اندازی دوباره در برنامه است؛
+      - سقف سرعت دارد؛
+      - صفحهٔ هشدار میانی در اسناد ذکر نشده است؛
+    - فقط برای آزمایش: مثل trycloudflare، TLS در سرور سرویس باز می‌شود. پس از آزمون راه‌اندازی حذف شود و برای فروشگاه رمز و PIN تازه گذاشته شود؛
+    - آزمون پیشنهادی پیش از راه‌اندازی دوباره: باز کردن آدرس `lhr.life` روی گوشی، در حالی که برنامه هنوز با آدرس trycloudflare پیکربندی شده است. پاسخ 421 `{"error":"آدرس معتبر نیست"}` یعنی مسیر گوشی تا هاب کار می‌کند؛
+    - اگر این هم فیلتر شد، راه پایدار سرور داخل ایران (رله) و دامنه است (`VPS_PUBLIC` و `OVERLAY_RELAY` در الحاقیهٔ ۱). تصمیم هزینه با مالک است.
+  - **اجرا نشده:** اجرای localhost.run روی رایانهٔ مالک، و همهٔ موارد گوشی (ورود، تأیید، Panic)، netstat، تک‌نمونه، DPAPI، بازگردانی و قطع برق.
+
+- **localhost.run روی رایانهٔ مالک (۲۰۲۶-۱۱-۲۰، از حدود 19:07 UTC، VPN رایانه خاموش):**
+  - SSH وصل شد و آدرس `https://77892abb7e2782.app.lhr.life` داد. کلاینت تازهٔ localhost.run رابط تمام‌صفحه نشان می‌دهد، با «p pause»، نوار «burst» و فهرست «events». قالب دامنه `.app.lhr.life` است.
+  - گوشی مالک، روی 4G و بی VPN و با زدن روی همان لینک، در 19:14 UTC صفحهٔ متنی `no tunnel` گرفت. پس خود lhr.life از گوشی در دسترس است، ولی آن لحظه تونلی به آن نام وصل نبود.
+  - از خود رایانه هم `curl -sS -m 20 --ssl-no-revoke -w " CODE=%{http_code}" https://77892abb7e2782.app.lhr.life/` نتیجهٔ `no tunnel CODE=502` داد. پنجرهٔ SSH هیچ خطا یا خط تازه‌ای نشان نمی‌داد.
+  - **علت ثابت نشده است.** دو احتمال:
+    1. اتصال SSH مثل cloudflared بریده شده است؛
+    2. مالک برای فرستادن متن، آن را با موس از همان پنجره انتخاب و کپی کرده بود. در کنسول ویندوز، انتخاب متن (QuickEdit) نوشتن برنامه روی کنسول را تا برداشته شدن انتخاب نگه می‌دارد، و ssh و رابط تمام‌صفحه ممکن است گیر کرده باشند.
+    - با `ServerAliveInterval=30`، اگر اتصال مرده بود و ssh گیر نبود، باید حدود ۹۰ ثانیه بعد با پیام Timeout خارج می‌شد. چنین پیامی دیده نشد.
+    - همین احتمال برای 1033 در 18:18 (وسط «ثبت» ۵ دقیقه‌ای cloudflared) هم هست، اگر آن موقع متن پنجره انتخاب شده بود. ولی خطاهای `actively refused` و قطع‌های پیاپی cloudflared در زمان‌های دیگر شبکه‌ای‌اند و با این توضیح نمی‌خوانند.
+  - **آزمون دوباره:**
+    - همان دستور با `-T`: بی PTY، پس بی رابط تمام‌صفحه و بی کلید p؛
+    - بی انتخاب متن در پنجره؛ فقط اسکرین‌شات؛
+    - آزمون فوری با همان curl از پنجرهٔ دیگر.
+    - نتیجه در یادداشت بعدی ثبت می‌شود.
+
+- **localhost.run، تلاش دوم با `-T` (۲۰۲۶-۱۱-۲۰، حدود 19:35 تا 19:39 UTC):**
+  - **شیوهٔ اجرا:** رابط تمام‌صفحه نیامد و فقط متن ساده آمد.
+    - QR در cmd به‌صورت رشته‌های خام ANSI (`□[0m□[7m`) نمایش داده شد، چون PTY نبود.
+    - پیام سرویس: «This domain periodically rotates to a new one.»
+    - مالک متن پنجره را انتخاب نکرد و فقط اسکرین‌شات فرستاد.
+  - **گوشی مالک (Chrome، 4G) در 19:39 UTC پاسخ `{"error":"آدرس معتبر نیست"}` گرفت:**
+    - درخواست گوشی از localhost.run و SSH گذشت و به هاب برنامهٔ نصب‌شده روی `127.0.0.1:47821` رسید؛
+    - هاب 421 داد، چون Host با آدرس پیکربندی‌شدهٔ قبلی (trycloudflare) نمی‌خواند (`mobileReadOnlyHub.ts:145-146`). این همان رفتار مورد انتظار است.
+  - **این اولین رسیدن واقعی گوشی به هاب نصب‌شده از راه یک تونل است.** ورود، تأیید، Panic و ماندگاری تونل هنوز اجرا نشده‌اند.
+  - **گام بعد:** حذف راه‌اندازی و «راه‌اندازی اول» با آدرس تازه. آدرس زنده عمداً اینجا ثبت نمی‌شود.
+
+- **پایان تلاش دوم localhost.run و تصمیم بعدی (۲۰۲۶-۱۱-۲۰ و روز بعد):**
+  - **راه‌اندازی دوباره:** «راه‌اندازی اول» با آدرس تازهٔ `….app.lhr.life` موفق شد. عکس مالک در 23:18 به وقت ایران (19:48 UTC) پیام سبز، «وضعیت: روشن»، آدرس تازه و `127.0.0.1:47821` را نشان داد.
+  - **ورود ناموفق:** هنگام ورود روی گوشی دوباره `no tunnel` آمد.
+    - پس تونل بین 19:39 و زمان تلاش ورود (پس از 19:48 UTC) از کار افتاد، یعنی پس از چند تا حدود ۱۵ دقیقه.
+    - مالک پنجرهٔ SSH را بی‌عکس بست، پس معلوم نیست ssh قطع شد یا دامنه چرخید («This domain periodically rotates»).
+    - ورود گوشی هنوز اجرا نشده است.
+  - مالک رایانه را خاموش کرد و روز بعد از نو شروع می‌شود.
+  - **تصمیم کم‌خطر:** آزمون Pinggy. طرح رایگانش تونل ۶۰ دقیقه‌ای و زیردامنهٔ تصادفی دارد و SSH را روی پورت 443 می‌برد.
+    - دستور: `ssh -p 443 -T -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -R0:127.0.0.1:47821 free@a.pinggy.io`؛
+    - **Host:** راهنماهای خود Pinggy برای برنامه‌هایی که Host عمومی را رد می‌کنند (Ollama، Jan، Claude Code UI) `u:Host:localhost:PORT` اضافه می‌کنند. یعنی پیش‌فرض Pinggy همان Host عمومی را جلو می‌فرستد، و هاب همین را لازم دارد؛
+    - **ویندوز:** راهنمای Pinggy می‌گوید به‌جای localhost از 127.0.0.1 استفاده شود؛
+    - پس از ۶۰ دقیقه یا هر قطع، آدرس تازه می‌آید و راه‌اندازی دوباره لازم است. پس آزمون گوشی (ورود، تأیید، Panic) باید در یک نشست انجام شود؛
+    - اگر این هم بریده شد، راه پایدار سرور داخل ایران است. تصمیم هزینه با مالک است.
+  - **اولین گام روز بعد:** باز کردن برنامه پس از روشن کردن رایانه و دیدن وضعیت کنترل از راه دور.
+    - این آزمون واقعیِ ماندن انتخاب «روشن» و بالا آمدن خودکار هاب پس از راه‌اندازی دوبارهٔ ویندوز است؛
+    - تا حالا اجرا نشده است.
+
+- **روز دوم (۲۰۲۶-۱۱-۲۱)، پیش از آزمون Pinggy:**
+  - **آزمون پس از راه‌اندازی دوباره دیده نشد:** مالک به‌جای فقط دیدن وضعیت، راه‌اندازی را حذف کرد. پس روشن شدن خودکار هاب پس از راه‌اندازی دوبارهٔ ویندوز دیده نشد و همچنان «اجرا نشده» است.
+  - **اصلاح دستور یادداشت قبل:** دستور رسمی Pinggy اکنون `free.pinggy.io` است، نه `free@a.pinggy.io`.
+    - دستور مالک: `ssh -p 443 -T -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -R0:127.0.0.1:47821 free.pinggy.io`؛
+    - راهنمای رسمی: اگر رمز خواست، فقط Enter.
+  - **قالب آدرس رایگان:** `https://<حروف>-<IP عمومی با خط تیره>.run.pinggy-free.link`. IP عمومی مالک داخل آدرس است، پس آدرس زنده ثبت نمی‌شود.
+  - **صفحهٔ screening (طبق مستندات Pinggy):** مرورگر در هر مرورگر یک بار صفحهٔ هشداری با دکمهٔ «Enter site» می‌بیند. کلاینت‌های غیرمرورگر، User-Agent سفارشی و سرآیند `X-Pinggy-No-Screen` بی‌صفحه رد می‌شوند.
+    - **انتظار (اجرا نشده):** پس از «Enter site»، کوکی همان میزبان درخواست‌های هم‌مبدأ PWA (`/mobile.js` و `/api/*`) را رد می‌کند.
+    - **کوکی‌ها:** تجزیهٔ کوکی هاب (`mobileReadOnlyHub.ts:60-67`) کوکی‌های اضافه را تحمل می‌کند و فقط یک سرآیند Cookie لازم دارد.
+    - **اگر به `/?…` برگرداند:** اگر Pinggy پس از «Enter site» با query به `/?…` برگرداند، هاب 404 `{"error":"یافت نشد"}` می‌دهد، چون دارایی‌ها با `req.url` دقیق جور می‌شوند. راه: باز کردن دوبارهٔ آدرس بی‌پسوند.
+    - **manifest:** درخواست manifest معمولاً بی‌کوکی است و ممکن است صفحهٔ هشدار بگیرد. نصب PWA بخشی از این آزمون نیست.
+  - **HTTP/1.1:** طبق یک آزمون سرعت مستقل (LocalCan)، Pinggy با HTTP/1.1 پاسخ می‌دهد.
+
+- **Pinggy روی رایانهٔ مالک (۲۰۲۶-۱۱-۲۱، VPN خاموش):** نتیجه ناموفق.
+  - خروجی: `Warning: Permanently added '[free.pinggy.io]:443' (RSA) to the list of known hosts.` و سپس `Connection to 172.104.241.168 port 443 timed out`.
+  - یعنی اتصال TCP و تبادل کلید SSH آغاز شد، سپس جریان داده متوقف ماند. ssh پیش از احراز هویت پس از ServerAliveInterval 30 × 3 قطع کرد.
+  - برداشت (ثابت نشده): SSH روی 443 به IP خارجی در این شبکه مسدود یا خفه می‌شود.
+  - Pinggy روی این شبکه بن‌بست است.
+- **اصلاح یادداشت «آزمون پس از راه‌اندازی دوباره دیده نشد»:** مالک می‌گوید پس از روشن کردن دوبارهٔ ویندوز، با باز کردن برنامه «وضعیت» روشن بود و سپس خودش آن را حذف کرد.
+  - پس انتخاب «روشن» پس از یک راه‌اندازی کامل ویندوز ماند و هاب خودکار بالا آمد (گزارش مالک).
+  - netstat در آن لحظه اجرا نشد.
+- **تصمیم کم‌خطر (رایگان، پاسخ به «یک راه دیگه»):** تونل‌های رایگان خارجی کنار گذاشته شدند. آزمون عملکردی از راه Wi-Fi خانه کامل می‌شود.
+  - **روش:** Caddy v2.11.9 فقط برای آزمون، به‌عنوان پایان‌دهندهٔ TLS:
+    `caddy reverse-proxy --from https://<IP شبکهٔ محلی>:8443 --to 127.0.0.1:47821 --internal-certs --disable-redirects`.
+  - **وارسی‌شده در کد Caddy v2.11.9:**
+    - `modules/caddyhttp/reverseproxy/command.go`:
+      - Host ورودی دست‌نخورده می‌ماند، مگر با `--change-host-header`؛
+      - شنونده `:8443` روی همهٔ کارت‌هاست، با MatchHost روی همان IP؛
+      - `--disable-redirects` پورت HTTP را نمی‌گیرد؛
+      - `--internal-certs` از CA محلی استفاده می‌کند؛
+      - admin endpoint خاموش است.
+    - `modules/caddypki/pki.go:100-106`: شکست نصب ریشه در trust store فقط ثبت می‌شود و جلوی شروع را نمی‌گیرد. مالک به پرسش نصب گواهی «No» می‌گوید.
+    - بایگانی goreleaser پوشهٔ بسته‌بندی ندارد، پس `caddy.exe` در ریشهٔ zip است.
+    - sha256 فایل zip طبق digest دارایی GitHub: `ad93112d335ee687100c4c9f11bced16ca590377976b7fe7883882b9e797e472` (18,384,117 B). دانلود خود zip از sandbox ممکن نبود، چون release-assets در فهرست مجاز نیست.
+  - **هاب:** همچنان فقط روی `127.0.0.1` است. فقط Caddy روی شبکهٔ محلی گوش می‌دهد، با یک قانون فایروال برای همین آزمون. پس از آزمون پاک می‌شود: `netsh advfirewall firewall delete rule name="MahakPOS LAN test"`.
+  - **پذیرش آدرس:** آدرس `https://<IP>:8443` از `normalizeMobileOrigins` و بررسی RemoteLink (فقط `startsWith('https://')`) می‌گذرد.
+  - **گوشی:** هشدار «گواهی نامعتبر» مورد انتظار است (Advanced ← Proceed).
+    - ثبت service worker روی صفحهٔ دارای خطای گواهی شکست می‌خورد و PWA آن را می‌گیرد (`.catch(()=>{})`). صفحهٔ آفلاین در این آزمون سنجیده نمی‌شود.
+    - روی آن مبدأ فقط کوکی `mahak_session` هست، پس یک سرآیند Cookie می‌رسد.
+    - fetch و کوکی Secure باید کار کنند (اجرا نشده).
+  - **محدودهٔ اثبات:** این آزمون فقط مسیر نرم‌افزار را ثابت می‌کند: هاب نصب‌شده + PWA + ورود/تأیید/Panic روی گوشی واقعی. انتقال اینترنتی را ثابت نمی‌کند.
+  - **راه پایدار فروشگاه:** سرور داخل ایران + دامنه/TLS (VPS_PUBLIC) یا relay. تصمیم هزینه با مالک است.
+
+- **اصلاح یادداشت Pinggy (توضیح مالک، ۲۰۲۶-۱۱-۲۱):** همان اجرای Pinggy (با خروجی `Permanently added '[free.pinggy.io]:443' (RSA)` و `Connection to 172.104.241.168 port 443 timed out`) با **VPN روشن** روی رایانه بوده است، نه خاموش.
+  - **چرا همان اجرا:** هشدار «Permanently added» فقط در اولین اتصال می‌آید، پس متن مالک همان اجرای اسکرین‌شات است.
+  - **نتیجه:** پس برداشت «SSH روی 443 در این شبکه مسدود است» ثابت نیست. شکست می‌تواند از خود VPN باشد، یا از رد شدن IP آن VPN از سوی Pinggy.
+  - **گام بعد:** Pinggy با VPN خاموش.
+    - اگر آدرس داد، آزمون اینترنتی واقعی از 4G گوشی، در همان ۶۰ دقیقه؛
+    - اگر باز timed out شد، طرح Wi-Fi با Caddy.
+
+- **Pinggy با VPN خاموش (۲۰۲۶-۱۱-۲۱، حدود 08:30 UTC، عکس مالک از صفحه):** باز هم ناموفق.
+  - **خروجی:** `valiasr@free.pinggy.io's password:` و پس از Enter، `Connection closed by 139.162.187.153 port 443`.
+  - **برداشت:**
+    - این بار DNS به IP دیگری از Pinggy رسید. تبادل کلید کامل شد و ssh به مرحلهٔ رمز رسید.
+    - درست پس از فرستادن رمز خالی، طرف مقابل اتصال را بی هیچ پیامی بست.
+    - علت ثابت نشده است. دو احتمال: ۱) یک جعبهٔ میانی، اتصال غیر TLS روی 443 را پس از دادهٔ بیشتر می‌بندد؛ ۲) Pinggy (مثلاً بر پایهٔ موقعیت IP) اتصال را رد می‌کند.
+  - **نتیجه:** Pinggy روی این شبکه، با VPN و بی آن، بن‌بست است.
+  - **گام بعد:** آزمون Wi-Fi با Caddy. گام اول، دانلود و وارسی sha256 است.
+
+- **آزمون Wi-Fi، گام ۱، دانلود Caddy (۲۰۲۶-۱۱-۲۱، خروجی متنی مالک):**
+  - دانلود: `17.5M` در `0:03:49`.
+  - `certutil` عدد `ad93112d335ee687100c4c9f11bced16ca590377976b7fe7883882b9e797e472` داد که دقیقاً با digest دارایی GitHub برابر است.
+  - `caddy\caddy.exe version` عبارت `v2.11.9 h1:bhZtcRKQOq0fuLvEgCdPYvUxXyGn9kzjG4lh2332DTE=` داد.
+  - مسیر فایل: `%USERPROFILE%\Downloads\caddy\caddy.exe`.
+  - **گام بعد:** قانون فایروال فقط برای همین برنامه و TCP 8443 (`profile=any`)، و `ipconfig` برای IP شبکهٔ محلی.
+
+- **آزمون Wi-Fi، گام ۲ (خروجی متنی مالک):**
+  - **فایروال:** دستور `netsh advfirewall firewall add rule name="MahakPOS LAN test" dir=in action=allow program=...\caddy.exe protocol=TCP localport=8443 profile=any` نتیجهٔ `Ok.` داد، پس cmd مدیر است.
+  - **ipconfig:**
+    - `Unknown adapter Arman VPN` با IPv4 `198.18.0.1`، یعنی VPN آرمان (حالت TUN) هنگام اجرا وصل بود؛
+    - `Wireless LAN adapter Wi-Fi 2` با `192.168.1.6`، که IP شبکهٔ محلی رایانه است؛
+    - `vEthernet (WSL)` با `192.168.144.1`؛
+    - `NoDramaVPN` و چند کارت دیگر بی IP.
+  - **گام بعد:** با VPN رایانه خاموش، اجرای `"%USERPROFILE%\Downloads\caddy\caddy.exe" reverse-proxy --from https://192.168.1.6:8443 --to 127.0.0.1:47821 --internal-certs --disable-redirects`. به پرسش ویندوز برای نصب گواهی «No» گفته می‌شود.
+
+- **آزمون Wi-Fi، گام ۳، Caddy روشن شد (اسکرین‌شات مالک، 08:46:50 تا 08:46:52 UTC):**
+  - **نصب گواهی ریشه:** خط `installing root certificate` آمد، سپس `ERROR failed to install root certificate` با پیام «The operation was canceled by the user.». مالک «No» زد و Caddy ادامه داد. همان رفتار `pki.go:100-106`.
+  - **سرور:** `enabling HTTP/3 listener {"addr": ":8443"}` و `server running {"name": "proxy", "protocols": ["h1","h2","h3"]}`.
+  - **پراکسی:** `caddy proxying {"from": "https://192.168.1.6:8443", "to": ["127.0.0.1:47821"]}`.
+  - **گواهی:** `certificate obtained successfully {"identifier": "192.168.1.6", "issuer": "local"}`.
+  - **HTTP/3:** قانون فایروال فقط TCP است، پس HTTP/3 (UDP) از گوشی بسته می‌ماند و Chrome روی TCP (h2) می‌ماند. پیامد عملکردی ندارد.
+  - **گام بعد:** «راه‌اندازی اول» با `https://192.168.1.6:8443`.
+
+- **آزمون Wi-Fi، گام ۴ و ۵: نخستین ورود واقعی گوشی به هاب نصب‌شده (اسکرین‌شات مالک، 12:26 به وقت ایران = 08:56 UTC، ۲۰۲۶-۱۱-۲۱):**
+  - **راه‌اندازی:** مالک «راه‌اندازی اول» را با `https://192.168.1.6:8443` انجام داد. عکس وضعیت رایانه فرستاده نشد.
+  - **گوشی:** Chrome روی Wi-Fi و بی VPN، با نشانگر «Not secure» (عبور از هشدار گواهی محلی). بخش «مدیریت اعضا» دیده می‌شود: «ساخت دعوت»، «تأیید عضو در انتظار»، «حذف عضو» و تیک‌های «تأیید انبار مرکزی» و «تأیید تنظیمات».
+    - این بخش فقط با `user.role==='OWNER'` نمایان می‌شود (`owner-tools`). پس ورود مالک از راه Caddy به هاب نصب‌شده انجام شد. این اولین بار است.
+  - **پرسش‌های مالک و پاسخ:**
+    - **۱) کار نکردن قبلی از اینترنت بود؟** آری، بخش نرم‌افزار کار می‌کند. شکست‌ها در مسیر اینترنت تا رایانه بود (تونل‌های رایگان خارجی). برای بیرون از فروشگاه، مسیر پایدار داخلی لازم است.
+    - **۲) گزارش فروش روی گوشی کجاست؟** صفحهٔ گوشی گزارش فروش یا جمع ندارد. نزدیک‌ترین بخش «فهرست خام فاکتورها» است:
+      - تاریخ شمسی `1405/08/01` با ارقام لاتین؛
+      - هر بار ۵۰ فاکتور، با فاصلهٔ ۱۰ ثانیه؛
+      - پیش‌نویس و باطل را هم نشان می‌دهد؛
+      - برای هر فاکتور مبلغ و پرداخت‌شده را نشان می‌دهد، بی جمع.
+      - **تصمیم با مالک:** گزارش فروش واقعی روی گوشی قابلیت تازه است، به داده‌های مالی می‌خورد (فقط خواندنی) و تصمیمش با مالک است.
+  - **احتمال مشکل کاربری (اجرا نشده):** کادرهای تاریخ `inputmode="numeric"` دارند. ممکن است صفحه‌کلید عددی اندروید «/» نداشته باشد.
+  - **گام بعد:** «فهرست خام فاکتورها» برای امروز (1405/08/30)، سپس آزمون تأیید مجوز و Panic (§4–7).
+
+- **یافتهٔ آزمون مالک: «فهرست خام فاکتورها» روی گوشی دیده نمی‌شود (۲۰۲۶-۱۱-۲۱).**
+  - **علت در کد:**
+    - `invoice-tools` فقط وقتی نمایان می‌شود که `/api/capabilities` مقدار `invoices:true` بدهد. یعنی `options.reader.invoiceFactsPage` تابع باشد (`mobileReadOnlyHub.ts:279`).
+    - این تابع فقط با `enableInvoiceFacts:true` به فرزند می‌رسد (`experimentalHubSupervisor.ts:276,560` و `experimentalHubChild.ts:236,326`).
+    - مسیر واقعی `CloudSyncService.ts` (`hubOptions`، حدود خط 150) این گزینه را نمی‌دهد. پل فاکتور از `b5054a5` («Add opt-in isolated invoice read bridge») اختیاری مانده و در نسخهٔ نصبی روشن نشده است.
+    - پس در نسخهٔ نصبی، بخش فاکتور یک تکهٔ جدا و وصل‌نشده است.
+  - **طرح مالک:** `docs/طرح-اپ-موبایل-کنترل-از-راه-دور-1405-08-23.md` این‌ها را می‌خواهد:
+    - «فروش امروز (نقد/کارت/نسیه/چک)» (خط 120)؛
+    - «لیست فاکتورها … فقط خواندنی» (خط 126)؛
+    - «جزئیات هر فاکتور + روش پرداخت» (خط 127)؛
+    - «اسم و شماره مشتری در اپ دیده شود ✅» (خط 205).
+  - **تصمیم کم‌خطر:** در نسخهٔ بعدی، `enableInvoiceFacts:true` در `CloudSyncService.ts` روشن می‌شود.
+    - این فایل در فهرست مجاز redline است و بودجهٔ خطی ندارد.
+    - فقط خواندنی است: `cloudReader.invoiceFactsPage` با بازهٔ تاریخ، حداکثر ۲۰۰ ردیف و اعتبارسنجی. ACL مشاهده پیش و پس از خواندن بررسی می‌شود.
+    - همراهش یک تست مسیر واقعی لازم است. این کار با اصلاح‌های کوچک دیگر در یک ساخت انجام می‌شود، پس از پایان آزمون‌های همین نسخه.
+  - **گزارش فروش جمع‌دار (فروش امروز به تفکیک روش پرداخت):** قابلیت تازه است، به خواندن داده‌های مالی مربوط است و تصمیمش با مالک است. اصل «عدد آبی عیناً از Snapshot» برقرار است.
+- **پیش‌نیاز آزمون تأیید مجوز (§5):**
+  - تا نشست مدیر باز است، `canOpen` برای همهٔ پنل‌ها true است (`useManagerSession.tsx:233-236`) و صفحهٔ قفل نمی‌آید. پس اول باید «خروج مدیر» (Shell) زده شود.
+  - **پنجره‌های زمانی:** درخواست ۴ دقیقه و فعال‌سازی پس از تأیید ۳ دقیقه اعتبار دارد. پس گام‌های رایانه، گوشی و دوباره رایانه یک‌جا و پشت سر هم به مالک داده می‌شوند.
+
+- **آزمون تأیید مجوز (§5) روی دستگاه واقعی: موفق، به گزارش مالک (۲۰۲۶-۱۱-۲۱، بی اسکرین‌شات، از راه Wi-Fi و Caddy):**
+  - مالک نوشت «بله کار می‌کنه» برای این زنجیره: «خروج مدیر»، «کالاها»، «درخواست مجوز از مدیر (راه دور)» روی رایانه؛ «به‌روزرسانی»، انتخاب درخواست، کد، PIN و «تأیید مجوز» روی گوشی؛ «فعال‌سازی مجوز همین پنل» روی رایانه.
+  - **نخستین بار است** که RemoteRequestBox و RemoteGrantBanner در برنامهٔ نصب‌شده با گوشی واقعی کار کردند.
+  - آزمون‌های منفی §5 (کد غلط، انقضای ۴ و ۳ دقیقه، هشدار درخواست مشکوک، بسته شدن پس از ۱۰ یا ۳ دقیقه) **اجرا نشده‌اند**.
+- **پرسش مالک: «فقط برای کالاها مجوز صادر می‌شود؟»**
+  - **پاسخ:** فعلاً سه پنل: «کالاها»، «تنظیمات» و «انبار مرکزی».
+    - `REMOTE_PANELS = ['products', 'settings', 'secondary-stock']` در `src/shared/enums.ts:872`، با توضیح «فقط پنل‌های غیرعملیاتی؛ عملیات مالی یک‌بارمصرف خاموش است».
+  - **پنل‌های دیگر:** پنل‌های قفل‌دار دیگر (حدود ۳۰ پنل در `src/shared/panels.ts`) دکمهٔ درخواست ندارند. نمونه‌ها: برگشت از فروش، تخفیف پنل فروش، بستن صندوق، نسیه، فاکتور خرید و گزارشات فروش.
+  - **دلیل:** طبق قید ثابت مالک، منطق مالی بی اجازهٔ صریح تغییر نمی‌کند. ردهٔ SENSITIVE_MONEY/یک‌بارمصرف هم کنار گذاشته شده است.
+  - **افزودن پنل‌های تازه:** تصمیم با مالک است.
+    - پنل‌های فقط‌گزارشی ساده‌ترند؛
+    - پنل‌های پول‌محور طراحی «فقط همان یک عملیات» لازم دارند (طرح مالک، خط 132).
+- **گام بعد:** Panic P1 («بستن همه مجوزها») روی دستگاه واقعی.
+
+- **Panic P1 («بستن همه مجوزها») روی دستگاه واقعی: موفق، به گزارش مالک (۲۰۲۶-۱۱-۲۱):**
+  - مالک P1 را هم برای «کالاها» و هم برای «انبار مرکزی» زد. هر دو بار همهٔ مجوزها بسته شدند.
+  - اسکرین‌شات (نمونه-25) پنل «انبار مرکزی» را با بنر آبی RemoteGrantBanner نشان می‌دهد: «…اگر استفاده نشود ۲:۳۷ دیگر بسته می‌شود.»
+  - P2، بازیابی و آزمون‌های منفی هنوز اجرا نشده‌اند.
+- **پرسش طراحی مالک (همان اسکرین‌شات):** درون «انبار مرکزی»، که با تأیید گوشی باز است، کادر «چک‌باکس «برداشت خودکار از انبار مرکزی» — ورود با رمز» باز هم رمز مدیر می‌خواهد. مالک این را تناقض می‌داند.
+  - **واقعیت کد:**
+    - درون `SecondaryStock.tsx` سه قفل ریز مستقل هست:
+      - `posCentralWithdrawToggle` (خط 631)؛
+      - `secondaryToStore` (خط 1184)؛
+      - `secondaryToStoreNewProduct` (`NewStoreProductModal.tsx:254`).
+    - هر سه طبق طراحی اصلی برنامه از قفل خود ماژول جدا هستند، چون روی موجودی واقعی فروشگاه یا رفتار فاکتور فروش اثر دارند (`src/shared/panels.ts`).
+    - **مجوز گوشی** فقط کلید همان پنل را به `panels` نشست می‌افزاید (`canOpen` در `useManagerSession.tsx:233-236`). پس مثل «رمز دوم اختصاصی همان پنل» رفتار می‌کند، نه مثل «رمز مدیر» که `isManager` را روشن می‌کند و همه را باز می‌کند.
+    - این قفل‌های ریز در `REMOTE_PANELS` نیستند. پس RemoteRequestBox در آن‌ها فقط «بازیابی توقف اضطراری راه دور» نشان می‌دهد.
+  - **ارزیابی:** باگ نیست. محدودیت عمدی و سازگار با طراحی قفل‌های ریز است. ولی تجربهٔ کاربری گنگ است و برنامه توضیح نمی‌دهد.
+  - **گزینه‌ها برای مالک:**
+    1. **بماند** و در نسخهٔ بعد، پیام روشن در همین کادرها بیاید: «این گزینه قفل جدا دارد و با تأیید گوشی باز نمی‌شود…». کم‌خطر است، فقط در `RemoteRequestBox.tsx` است و منطق مالی تغییر نمی‌کند.
+    2. **قفل‌های ریز هم جداگانه از گوشی قابل درخواست شوند.** چون روی موجودی یا فروش اثر دارند، اجازهٔ صریح مالک لازم است.
+    - گزینهٔ «مجوز پنل، قفل‌های ریز درونش را هم باز کند» به `panelSession.ts` (بودجه 24/24 پر) و معنای مجوز دست می‌زند و پیشنهاد نمی‌شود.
+
+- **تصمیم مالک دربارهٔ پرسش قفل‌های ریز (۲۰۲۶-۱۱-۲۱): «فعلا نمیخام چیزی رو تغییر بدی».**
+  - **خواستهٔ کلی مالک:**
+    - مدیرِ واردشده در هیچ ماژول یا بخشی دوباره رمز نخواهد؛
+    - مجوز گوشی کل ماژول را، با قفل‌های ریزش، باز کند تا مدیر رمزش را به کسی ندهد.
+  - **محل ثبت:** این‌ها به‌عنوان طرح تغییرات جدا در `docs/طرح-تغییرات-رمز-مدیر-و-مجوز-راه-دور-1405-08-30.md` ثبت شد. در آن هست:
+    - متن کامل مالک؛
+    - چهار سازوکار رمزخواهی، با ۳۳ جای `assertManagerPassword` و ۲۳ فایل `PasswordField`؛
+    - طرح پیشنهادی، پرسش‌ها، ریسک‌ها و بودجه‌ها.
+  - **کد:** هیچ کدی تغییر نکرد. گزینه‌های «۱/۲» پیام قبلی کنار رفتند.
+  - **کارهای کوچک منتظر:** کارهای ساخت بعدی، از جمله روشن کردن فهرست فاکتورها، به بند ۷ همان طرح رفتند و منتظر «اجازهٔ شروع» مالک‌اند.
+  - **گام بعد:** آزمون P2 («توقف اضطراری کامل») و بازیابی روی دستگاه واقعی.
+
+- **Panic P2 («توقف اضطراری کامل») روی دستگاه واقعی: موفق، به گزارش مالک (۲۰۲۶-۱۱-۲۱):**
+  - گوشی بیرون آمد. ورود دوباره با همان رمز قبلی رد شد.
+  - اعلان ویندوز و ادامهٔ عادی فروش روی رایانه گزارش نشده‌اند و نامعلوم‌اند.
+- **تصمیم مالک:** آزمون بیشتر نمی‌خواهد («ظاهرا همه قسمت‌ها فعلا داره خوب کار می‌کنه») و فعلاً روی طرح تازهٔ رمز کار نمی‌شود، چون تغییرات تازهٔ دیگری در راه است.
+  - **آخرین گام آزمون:** بازیابی پس از P2 پشت رایانه (§6 بند ج)، سپس ورود دوباره با گوشی.
+  - **سپس جمع کردن ابزار آزمون:** بستن Caddy و `netsh advfirewall firewall delete rule name="MahakPOS LAN test"`.
+  - **اجرا نشده و فعلاً کنار گذاشته شده:** آزمون‌های منفی §5 و §6، بند «د» (فراموشی رمز یا PIN)، §7 (restore)، taskkill یا قطع برق و single-instance.
+
+- **بازیابی پس از P2 روی دستگاه واقعی: موفق، به گزارش مالک (۲۰۲۶-۱۱-۲۱):** مالک نوشت «درست کار می‌کنه».
+  - مسیر: «بازیابی توقف اضطراری راه دور» پشت رایانه با رمز مدیر و PIN، سپس ورود دوبارهٔ گوشی.
+  - **پرسش طراحی مالک:** اگر مدیر در شهر دیگری باشد، بازیابی پشت رایانه او را ناچار می‌کند رمز مدیر را به فروشنده بگوید. این تناقض است.
+  - **تصمیم مالک:** «فعلا کدی رو تغییر نده». این مورد در بند ۸ و ۹ همان طرح ثبت شد، با پیشنهاد کدهای بازیابی یک‌بارمصرف فقط روی رایانه (ر۱) و سخت‌تر کردن زدن اشتباهی P2 (ر۵).
+  - **کد:** هیچ کدی تغییر نکرد.
+- **جمع‌بندی آزمون واقعی ۲۰۲۶-۱۱-۲۱ (از راه Wi-Fi و Caddy، نسخهٔ نصبی ساخته‌شده از 2df8a2a یعنی کد eb2880b):**
+  - **گزارش مالک (اجرا شده):** ورود مالک، تأیید مجوز «کالاها» و «انبار مرکزی»، P1، P2 و بازیابی.
+  - **اجرا نشده:**
+    - مسیر اینترنتی پایدار؛
+    - آزمون‌های منفی؛
+    - بند «د» §6، §7، taskkill/قطع برق، single-instance و service worker؛
+    - فهرست فاکتورها (در نسخهٔ نصبی خاموش است).
+
+- **جمع کردن ابزار آزمون (۲۰۲۶-۱۱-۲۱، گزارش مالک):**
+  - پس از بستن پنجرهٔ Caddy، لینک گوشی دیگر به رایانه وصل نشد. همان رفتار مورد انتظار است، چون هاب فقط روی `127.0.0.1` است.
+  - حذف قانون فایروال هنوز گزارش نشده است.
+  - **پرسش مالک دربارهٔ هدف P2** و امکان دور زدنش با Caddy پاسخ داده شد و در بند ۱۰ طرح تغییرات ثبت شد. پاسخ: latch در `remote_identity_panic` هاب است و مسیر انتقال اثری ندارد.
+
+- **افزوده‌های مالک به طرح تغییرات (۲۰۲۶-۱۱-۲۱؛ فقط ثبت، هیچ کدی تغییر نکرد):**
+  - **روشن‌سازی قید «خط قرمز»:** منظور مالک **منطق مالی** است، مثل کد یا بارکد اعتباری، برگشت از فروش و تعویض‌های زنجیره‌ای. این منطق نباید خراب شود. قابلیت تازه‌ای که قوی‌ترش کند پسندیده است. تغییر فایل‌های مالی همچنان اجازهٔ موردی می‌خواهد.
+  - **سه مورد تازه:**
+    - مجوز از راه دور برای همهٔ ماژول‌ها و قفل‌های داخلی؛
+    - نمای کامل فقط‌خواندنی همهٔ ماژول‌ها و گزارش‌ها روی گوشی مالک؛
+    - زمان‌ها: درخواست ۱۰ دقیقه به‌جای ۴ دقیقه، و مدت مجوز قابل تنظیم ۱۰ تا ۶۰ دقیقه در تنظیمات.
+  - **محل ثبت:** بخش‌های ۱۱ تا ۱۴ و جدول «فهرست موارد طرح» در `docs/طرح-تغییرات-رمز-مدیر-و-مجوز-راه-دور-1405-08-30.md`.
+  - **شمار کنونی موارد طرح:** ۷ مورد اصلی، ۲ اصل کلی، ۳ اصلاح کوچک و ۱ تصمیم زیرساختی.
+
+- **اصلاح و تأیید مالک در طرح تغییرات (۲۰۲۶-۱۱-۲۱؛ فقط ثبت):**
+  - **زمان‌ها:** مالک برداشت زمان‌ها را تأیید کرد: انتظار درخواست ۱۰ دقیقه؛ مدت باز ماندن ماژول به دست مدیر، ۱۰ تا ۶۰ دقیقه.
+  - **مورد ۲ اصلاح شد:** مجوز ماژول، بخش‌های قفل‌دار داخلش را باز **نمی‌کند**. هر چیزی که مدیر قفل کرده، مجوز جدا می‌خواهد. نمونه‌های مالک: «نسیه» در «گزارشات فروش» و «مدیریت اعتبار خرید».
+    - بخش ۱۵ و اصل «ج» افزوده شدند.
+    - بند ۳-ب، جدول بخش ۹ و بخش ۱۲ هماهنگ شدند.
+
+- **تصمیم مالک (۲۰۲۶-۱۱-۲۱؛ فقط ثبت):** دربارهٔ کارهای رمزدارِ بی‌قفلِ جدا در داخل ماژولی که با مجوز باز است، مالک با این پیشنهاد موافقت کرد:
+  - کارهای عادی با مجوز ماژول؛
+  - کارهای پول‌جابه‌جاکن، مثل بازپرداخت کارتی برگشت یا تعویض و Master Override صندوق، با مجوز جدا.
+  - این تصمیم در بخش ۱۵ و ۳-ب طرح ثبت شد. طرح هنوز ۷ مورد اصلی دارد و مالک موارد تازه می‌فرستد.
+
+- **مورد ۸ طرح تغییرات (۲۰۲۶-۱۱-۲۱؛ فقط ثبت): «صفر کردن» برنامه در تنظیمات.**
+  - قفل جدا و مجوز راه دور جدا دارد. پیش از صفر کردن، بکاپ خودکار در پوشهٔ بکاپ‌ها گرفته می‌شود.
+  - الگوی موجود `runInternalBackup()` در `MaintenanceService.ts:463-473` همین است: «بکاپ نشد، هیچ چیزی پاک نشد».
+  - پرسش باز برای مالک: صفر کامل یا فقط تراکنش‌ها.
+  - محل ثبت: بخش ۱۶ طرح. طرح اکنون ۸ مورد اصلی دارد.
+
+- **مورد ۸ (صفر کردن): تصمیم مالک (۲۰۲۶-۱۱-۲۱؛ فقط ثبت).**
+  - گزینهٔ ۳ انتخاب شد: هر دو حالت، «کامل» و «فقط تراکنش‌ها».
+  - «کامل» یعنی همه‌چیز از اول، با تنظیمات و اتصال موجودی سایت. کلید اتصال افزونهٔ MAHAK Stock Sync باید دوباره وارد شود.
+  - **استثناهای پیشنهادی کم‌خطر:**
+    - پوشهٔ بکاپ‌ها؛
+    - رمز مدیر، تا کسی که با مجوز راه دور صفر می‌کند مدیر نشود؛
+    - راه‌اندازی کنترل از راه دور.
+  - **موجودی در حالت تراکنش‌ها:** تیک پیش‌فرض روشن (پیشنهاد).
+  - محل ثبت: بخش ۱۶ طرح.
+
+- **مورد ۹ طرح تغییرات (۲۰۲۶-۱۱-۲۱؛ فقط ثبت): آیکون SVG اختصاصی برای هر پنل و ماژول.**
+  - هر پنل تازه هم باید آیکون داشته باشد. پیشنهاد: فیلد `icon` اجباری در نوع مشترک ماژول‌ها.
+  - مالک پیشنهادهای مورد ۸ را هم تأیید کرد: استثناهای حالت کامل و تیک موجودی.
+  - دو تصویر مالک در `docs/plan-assets/` نگه داشته شد.
+  - محل ثبت: بخش ۱۷ طرح. طرح اکنون ۹ مورد اصلی دارد.
+- **پاسخ مالک به سه پرسش مورد ۹ (۲۰۲۶-۱۱-۲۱؛ فقط ثبت):**
+  - آیکون فقط روی کاشی‌ها و منوی بالا دست نمی‌خورد؛ رنگ‌ها کمی ملایم‌تر.
+  - کاشی برای ۶ ماژول بی‌کاشی: شرط مالک (بی مهاجرت، ساده، سبک) با بررسی کد برقرار بود، پس انجام می‌شود. قفل‌ها روی خود صفحه‌اند.
+  - تأیید پیشنهادهای مورد ۸ در بخش ۱۶ و جدول خلاصه هم ثبت شد.
+  - محل ثبت: بخش ۱۷ طرح.
+- **مورد ۱۰ طرح تغییرات (۲۰۲۶-۱۱-۲۱؛ فقط ثبت): کادر معرفی توسعه‌دهنده در گوشهٔ پایین‌چپ صفحهٔ اصلی.**
+  - محتوا: نام، شماره، نشان واتس‌اپ و تلگرام.
+  - پیش‌فرض: فقط نمایشی، بی مهاجرت.
+  - پاسخ مشورتی به پرسش عکس: روی صفحهٔ اصلی نه؛ در پنجرهٔ «درباره»، اختیاری.
+  - تصویر مالک: `docs/plan-assets/item10-dashboard-corner.png`.
+  - محل ثبت: بخش ۱۸ طرح. طرح اکنون ۱۰ مورد اصلی دارد.
+- **تصمیم مورد ۱۰ (۲۰۲۶-۱۱-۲۱؛ فقط ثبت): گزینهٔ «الف».**
+  - بدون عکس پرسنلی؛ دایرهٔ حروف اول نام («ا.م») به رنگ برند، یا لوگو اگر مالک بفرستد.
+  - پنجرهٔ «درباره» ساخته نمی‌شود.
+  - محل ثبت: بخش ۱۸ طرح.
+- **مورد ۱۱ طرح تغییرات (۲۰۲۶-۱۱-۲۱؛ فقط ثبت): نام نمایشی «ARKA POS» و آیکون از لوگوی مالک.**
+  - **پاسخ ریسک:** کم‌ریسک، به شرطی که این سه دست نخورند:
+    - `name`=`mahak-pos` (پوشهٔ داده‌ها)؛
+    - `appId`=`ir.shop.mahakpos` (شناسهٔ ویندوز)؛
+    - نام فایل `MahakPOS.exe` (با `executableName`؛ CI و سنجاق).
+  - شواهد از electron-builder 25.1.8 روی GitHub: نام پوشهٔ نصب، GUID و تغییر نام میان‌بر.
+  - لوگو و تصویر میان‌بر در `docs/plan-assets/item11-*` نگه داشته شد. لوگو جای حروف اول در کادر مورد ۱۰ را هم می‌گیرد.
+  - محل ثبت: بخش ۱۹ طرح. طرح اکنون ۱۱ مورد اصلی دارد.
+- **مورد ۱۱، تأیید و نام دقیق (۲۰۲۶-۱۱-۲۱؛ فقط ثبت):**
+  - مالک طرح را کامل تأیید کرد. نام دقیق «ArkaPOS» است، بی فاصله.
+  - PNG «شفاف» فرستاده‌شده واقعاً شفاف نبود: همهٔ آلفاها ۲۵۵ بود و شطرنجی جزو خود تصویر است (Matplotlib). پس زمینه را خودمان از لوگوی اصلی ۱۲۵۴ پیکسلی برمی‌داریم.
+  - محل ثبت: بخش ۱۹ طرح.
+- **مورد ۱۲ طرح تغییرات (۲۰۲۶-۱۱-۲۱؛ فقط ثبت): بارکد اعتباری برگشت و تعویض.**
+  - **یافته‌ها:**
+    - رسید برگشت همین حالا کد ندارد.
+    - سند تعویض کد و بارکد دارد، بی‌سقف دوباره چاپ می‌شود (از صفحهٔ برگشت و گزارشات فروش) و هر چاپش `printCount` را بالا می‌برد.
+    - گواهی جدا فقط یک بار چاپ می‌شود، ولی با پنجرهٔ چاپ ویندوز (`silent:false`). یعنی چند نسخه یا PDF شدنی است؛ این از روی کد است و آزموده نشده.
+    - مصرف، کاربر و شیفت را ثبت می‌کند، ولی جزئیات اعتبار ستون شیفت ندارد.
+  - **پیشنهاد:**
+    - سند تعویض بی کد؛
+    - گواهی یک‌باره، بی پنجره، با چاپگر فیزیکی؛
+    - «بارکد جایگزین» با تأیید مدیر یا مجوز گوشی؛
+    - ستون شیفت در دفتر مصرف.
+  - چهار تست موجود رفتار فعلی را قفل کرده‌اند و تغییرشان اجازهٔ مالک می‌خواهد.
+  - محل ثبت: بخش ۲۰ طرح. طرح اکنون ۱۲ مورد اصلی دارد.

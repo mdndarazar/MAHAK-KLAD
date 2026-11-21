@@ -1,0 +1,518 @@
+name: Remote hub Windows Node 24 compatibility
+
+on:
+  push:
+    branches:
+      - arena/e478473a-mahak-klad
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-node24:
+    name: Windows Node 24 compatibility (experimental)
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out current commit
+        uses: actions/checkout@v4
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Test disabled cloud service has no side effects
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-cloud-disabled.mjs
+      - name: Test remote IPC window ownership and cleanup
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-ipc-window-lifecycle.mjs
+      - name: Test remote IPC cannot extend idle grants
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-ipc-idle-no-keepalive.mjs
+      - name: Test renderer session monitoring
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-renderer-session-monitor.mjs
+      - name: Test remote IPC and child approval window lifecycle
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-ipc-hub-window-loopback.mjs
+      - name: Test remote IPC claim and panic on loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-ipc-claim-panic-loopback.mjs
+      - name: Test desktop host with provisioned temporary hub
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-desktop-host-loopback.mjs
+      - name: Test desktop host member revocation and acknowledgement
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'remote-desktop-member-revocation.log'
+          cmd /c "node --import ./test/harness/register.mjs tests/audit-fixes/remote-desktop-host-member-revocation.mjs > `"$log`" 2>&1"
+          $code = $LASTEXITCODE
+          Get-Content -LiteralPath $log
+          if ($code -ne 0) {
+            $text = Get-Content -LiteralPath $log -Raw
+            if ($text.Length -gt 12000) { $text = $text.Substring($text.Length - 12000) }
+            $text = $text.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Desktop host member revocation test::$text"
+            exit $code
+          }
+      - name: Test desktop host panic recovery
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-desktop-host-panic-recovery.mjs
+      - name: Test uncertain desktop host startup shutdown
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-host-failed-start-stop.mjs
+      - name: Test desktop reports unconfirmed child shutdown
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-host-unconfirmed-shutdown.mjs
+      - name: Test database replacement during IPC claim on loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-ipc-claim-db-fence-loopback.mjs
+      - name: Test audit sync failure closes remote grants
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-audit-sync-invalidates-grants.mjs
+      - name: Test audit uncertainty fences old epoch
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-sync-uncertainty-epoch-fence.mjs
+      - name: Test snapshot detects database replacement and fences epoch
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-refresh-db-epoch-fence.mjs
+      - name: Test approval query timeout revokes before drain
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-approval-timeout-revokes-loopback.mjs
+      - name: Test sync query timeout revokes before drain
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-sync-timeout-revokes-loopback.mjs
+      - name: Test snapshot query timeout revokes before drain
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-refresh-timeout-revokes-loopback.mjs
+      - name: Test sync waits for active mirror anchor
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-sync-after-mirror-read-loopback.mjs
+      - name: Test approval during foreground sync
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-approval-during-sync-loopback.mjs
+      - name: Test queued approval timeout closes without grant
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-approval-queue-timeout-loopback.mjs
+      - name: Test restore with queued sync
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-restore-queued-sync-loopback.mjs
+      - name: Test restore with queued sync and mirror timeout
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-restore-waiting-mirror-timeout-loopback.mjs
+      - name: Test busy reader defers request mirror
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-mirror-reader-busy-loopback.mjs
+      - name: Test busy reader clears earlier request mirror
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-mirror-busy-clears-loopback.mjs
+      - name: Test same-inode audit anchor before request mirror
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-request-mirror-audit-fence-loopback.mjs
+      - name: Test same-inode audit anchor before snapshot publication
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-refresh-audit-fence-loopback.mjs
+      - name: Test same-inode audit anchor change before approval and claim
+        run: |
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-approval-audit-anchor.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-ipc-claim-audit-anchor.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test user setting and experimental panic latch
+        shell: pwsh
+        run: |
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-user-setting.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-identity.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test conservative revocation clock handling
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-revocation-clock-conservative.mjs
+      - name: Test experimental two-process loopback revocation
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'remote-network-revocation.log'
+          cmd /c "node --import ./test/harness/register.mjs tests/audit-fixes/remote-network-revocation.mjs > `"$log`" 2>&1"
+          $code = $LASTEXITCODE
+          Get-Content -LiteralPath $log
+          if ($code -ne 0) {
+            $text = Get-Content -LiteralPath $log -Raw
+            if ($text.Length -gt 12000) { $text = $text.Substring($text.Length - 12000) }
+            $text = $text.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Remote two-process revocation test::$text"
+            exit $code
+          }
+      - name: Test experimental forged revocation ACK
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-network-ack.mjs
+      - name: Test isolated hub on temporary SQLite
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-windows-node24.mjs
+      - name: Test remote-supervisor-revocation-loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-supervisor-revocation-loopback.mjs
+      - name: Test remote-revocation-failure-admission-loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-revocation-failure-admission-loopback.mjs
+      - name: Test remote-revocation-transport-failure-loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-revocation-transport-failure-loopback.mjs
+      - name: Test remote-revocation-cleanup-failure
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-revocation-cleanup-failure.mjs
+      - name: Test remote-durable-revocation-ledger
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-durable-revocation-ledger.mjs
+      - name: Test remote-supervisor-durable-revocation
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'remote-durable-revocation-test.log'
+          cmd /c "node --import ./test/harness/register.mjs tests/audit-fixes/remote-supervisor-durable-revocation.mjs > `"$log`" 2>&1"
+          $code = $LASTEXITCODE
+          Get-Content -LiteralPath $log
+          if ($code -ne 0) {
+            $text = Get-Content -LiteralPath $log -Raw
+            if ($text.Length -gt 12000) { $text = $text.Substring($text.Length - 12000) }
+            $text = $text.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Remote durable revocation test::$text"
+            exit $code
+          }
+      - name: Test remote-supervisor-panic-loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-supervisor-panic-loopback.mjs
+      - name: Test remote-supervisor-panic-failure-loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-supervisor-panic-failure-loopback.mjs
+      - name: Test remote-supervisor-stop-cleanup-loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-supervisor-stop-cleanup-loopback.mjs
+      - name: Test remote-supervisor-admission-lifecycle-loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-supervisor-admission-lifecycle-loopback.mjs
+      - name: Test remote-panic-source-rate-loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-panic-source-rate-loopback.mjs
+      - name: Test remote-expiry-panic-failure-loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-expiry-panic-failure-loopback.mjs
+      - name: Test remote-panic-panel-session-loopback
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'remote-panel-test.log'
+          cmd /c "node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-panel-session-loopback.mjs > `"$log`" 2>&1"
+          $code = $LASTEXITCODE
+          Get-Content -LiteralPath $log
+          if ($code -ne 0) {
+            $text = Get-Content -LiteralPath $log -Raw
+            if ($text.Length -gt 12000) { $text = $text.Substring($text.Length - 12000) }
+            $text = $text.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Remote panel session test::$text"
+            exit $code
+          }
+      - name: Test remote-panic-notification-loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-panic-notification-loopback.mjs
+      - name: Test remote-panic-levels-loopback
+        shell: pwsh
+        run: |
+          $output = & node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-levels-loopback.mjs 2>&1 | Out-String
+          $result = $LASTEXITCODE
+          Write-Output $output
+          if ($result -ne 0) {
+            $detail = $output -replace '%','%25' -replace "`r",'%0D' -replace "`n",'%0A'
+            if ($detail.Length -gt 10000) { $detail = $detail.Substring($detail.Length - 10000) }
+            Write-Output "::error title=Remote panic levels test::$detail"
+            exit $result
+          }
+      - name: Test remote-panic-p1-failure-loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-panic-p1-failure-loopback.mjs
+      - name: Test remote-panic-pwa-loopback
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'remote-panic-pwa-loopback.log'
+          cmd /c "node --import ./test/harness/register.mjs tests/audit-fixes/remote-panic-pwa-loopback.mjs > `"$log`" 2>&1"
+          $code = $LASTEXITCODE
+          Get-Content -LiteralPath $log
+          if ($code -ne 0) {
+            $text = Get-Content -LiteralPath $log -Raw
+            if ($text.Length -gt 12000) { $text = $text.Substring($text.Length - 12000) }
+            $text = $text.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Remote panic PWA test::$text"
+            exit $code
+          }
+      - name: Test remote-panic-local-recovery-loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-panic-local-recovery-loopback.mjs
+      - name: Test remote-panic-preserve-local-loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-panic-preserve-local-loopback.mjs
+      - name: Test remote-panel-expiry-gate-loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-panel-expiry-gate-loopback.mjs
+      - name: Test remote-snapshot-rejection-loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-snapshot-rejection-loopback.mjs
+      - name: Diagnostic hub child start timing (before supervisor test)
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-hub-start-timing.mjs
+      - name: Test supervisor snapshot restore detection on isolated SQLite
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'remote-supervisor-test.log'
+          cmd /c "node --import ./test/harness/register.mjs tests/audit-fixes/remote-hub-supervisor.mjs > `"$log`" 2>&1"
+          $code = $LASTEXITCODE
+          Get-Content -LiteralPath $log
+          if ($code -ne 0) {
+            $text = Get-Content -LiteralPath $log -Raw
+            if ($text.Length -gt 12000) { $text = $text.Substring($text.Length - 12000) }
+            $text = $text.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Remote supervisor test::$text"
+            exit $code
+          }
+      - name: Diagnostic hub child start timing (after supervisor test)
+        if: always()
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-hub-start-timing.mjs
+      - name: Test audit sync epoch race checks with isolated state files
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-audit-state-races.mjs
+      - name: Test isolated cloud state lock ownership
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-cloud-state.mjs
+      - name: Test experimental transport vault with a simulated protector
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-transport-vault.mjs
+      - name: Test experimental command issuer using isolated SQLite
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-command-issuer.mjs
+      - name: Test experimental cross-process mobile approval and revocation
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-cross-process-approval-loopback.mjs
+      - name: Test experimental approval fence race
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-approval-fence-race.mjs
+      - name: Test approval restore marker fence over loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-approval-restore-marker-loopback.mjs
+      - name: Test approval database replacement fence over loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-approval-database-replacement-loopback.mjs
+      - name: Test startup database replacement fence over loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-startup-database-fence-loopback.mjs
+      - name: Test restore beginning during startup over loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-startup-barrier-race-loopback.mjs
+      - name: Test experimental approval bridge failure and replay
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-approval-bridge-security.mjs
+      - name: Test experimental durable grant replay ledger
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-grant-replay-ledger.mjs
+      - name: Test supervisor grant replay after state reopen
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-supervisor-grant-replay-loopback.mjs
+      - name: Test approval admission latch over loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-approval-admission-latch-loopback.mjs
+      - name: Test mobile approval and panic across hub restart
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-mobile-approval-panic-restart-loopback.mjs
+      - name: Test child-clock snapshot freshness
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-snapshot-child-clock-loopback.mjs
+      - name: Test restore admission drain over loopback
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'remote-restore-admission-drain.log'
+          cmd /c "node --import ./test/harness/register.mjs tests/audit-fixes/remote-restore-admission-drain-loopback.mjs > `"$log`" 2>&1"
+          $code = $LASTEXITCODE
+          Get-Content -LiteralPath $log
+          if ($code -ne 0) {
+            $text = Get-Content -LiteralPath $log -Raw
+            if ($text.Length -gt 12000) { $text = $text.Substring($text.Length - 12000) }
+            $text = $text.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Remote restore admission drain test::$text"
+            exit $code
+          }
+      - name: Diagnostic restore then stop timing (before restore epoch fence test)
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-restore-stop-timing.mjs
+      - name: Test restore epoch fence over loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-restore-epoch-fence-loopback.mjs
+      - name: Test explicit epoch transition and resync over loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-epoch-resync-loopback.mjs
+      - name: Test desktop host epoch transition after restore
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-desktop-host-epoch-transition.mjs
+      - name: Test failed hub stop waits for child exit
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-supervisor-failed-stop-exit.mjs
+      - name: Test database fingerprint on temporary SQLite
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-db-fingerprint.mjs
+      - name: Test mid-operation database swap, fail-closed restart and resync over loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-db-fingerprint-swap-loopback.mjs
+      - name: Test desktop host database fingerprint across restarts
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-desktop-host-db-fingerprint.mjs
+      - name: Test hub restart after a kill mid-write (hot rollback journal)
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-hub-hot-journal-restart.mjs
+      - name: Test owner setup files, strict configuration and opt-in setting
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-setup-files.mjs
+      - name: Test fixed loopback hub port in child and supervisor
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-hub-fixed-port.mjs
+      - name: Test owner setup IPC, fixed port, opt-in off and reset over loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-setup-host-loopback.mjs
+      - name: Test opt-in off means no port, connection, process, timer or write
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-optin-off-no-port.mjs
+      - name: Test a slow first hub start within its own startup window
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-hub-startup-window.mjs
+      - name: Test the own-page check for owner IPC with Windows install paths
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-frame-url-windows.mjs
+      - name: Test the PWA full Panic (P2) button end to end, including an undelivered stop
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-panic-p2-pwa-loopback.mjs
+      - name: Test manager approval permission from the owner's phone and removal
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-manager-approval-pwa-loopback.mjs
+      - name: Test phone approval is offered only for panels with an approval policy
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-panels-desktop.mjs
+      - name: Test owner phone credentials are dropped after the first hub start
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-owner-credentials-cleared.mjs
+      - name: Test a restore through the backup IPC stops the hub before the relaunch and the relaunch resumes
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-host-restore-relaunch-loopback.mjs
+      - name: Test the owner's live view of open grants on the phone and the desktop banner
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-live-grants-loopback.mjs
+      - name: Test the suspicious-request warning on the phone (more than three in ten minutes)
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-suspicious-request-loopback.mjs
+      - name: Test OWNER recovery at the computer (new phone credentials with the manager password)
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-owner-recovery-loopback.mjs
+      - name: Test the phone's built-in page when the shop computer cannot be reached (nothing stored)
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-pwa-offline-page-loopback.mjs
+      - name: Test health of the remote link (unexpected hub stop on the desktop, owner health card on the phone)
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-health-loopback.mjs
+      - name: Test stale lock recovery after a crash (single-instance lock, fail closed, running hub untouched)
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-stale-lock-recovery-loopback.mjs
+      - name: Test backup coordination lifecycle
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-coordination-lifecycle.mjs
+      - name: Test backup IPC security fence
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-ipc-fence-loopback.mjs
+      - name: Test real replacement through backup IPC
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-real-replace-ipc-loopback.mjs
+      - name: Test backup drains approval identity checks
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'remote-backup-approval-drain.log'
+          cmd /c "node --import ./test/harness/register.mjs tests/audit-fixes/remote-backup-approval-drain-loopback.mjs > `"$log`" 2>&1"
+          $code = $LASTEXITCODE
+          Get-Content -LiteralPath $log
+          if ($code -ne 0) {
+            $text = Get-Content -LiteralPath $log -Raw
+            if ($text.Length -gt 12000) { $text = $text.Substring($text.Length - 12000) }
+            $text = $text.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=Remote backup approval drain test::$text"
+            exit $code
+          }
+      - name: Test backup drains guarded panel claim
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-claim-drain-loopback.mjs
+      - name: Test real merge through backup IPC
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-real-merge-ipc-loopback.mjs
+      - name: Test direct merge fence
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-backup-direct-merge-loopback.mjs
+      - name: Test experimental in-process revocation bridge
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-authenticated-approval.mjs
+      - name: Test experimental revocation signatures and restore barrier
+        shell: pwsh
+        run: |
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-revocation-envelope.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-restore-barrier.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test experimental identity and pending revocations
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-hub-identity.mjs
+      - name: Test read-only invoice facts using isolated SQLite
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-invoice-facts-readonly.mjs
+      - name: Test experimental mobile invoice API using isolated SQLite
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-mobile-invoices-http.mjs
+      - name: Test experimental cross-process invoice reads using isolated SQLite
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-hub-invoices-ipc.mjs
+      - name: Test simulated multiple HTTPS origins on loopback
+        shell: pwsh
+        run: ./tools/ci-annotate.ps1 tests/audit-fixes/remote-multiple-origins.mjs
+      - name: Test mobile invoice capability and UI scripts
+        shell: pwsh
+        run: |
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-mobile-invoices-capabilities.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-mobile-invoices-ui.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test CMD scripts with mocked npm and isolated files
+        shell: pwsh
+        run: |
+          $output = & node tests/audit-fixes/windows-cmd-scripts.mjs 2>&1 | Out-String
+          $result = $LASTEXITCODE
+          Write-Output $output
+          if ($result -ne 0) {
+            $detail = $output -replace '%','%25' -replace "`r",'%0D' -replace "`n",'%0A'
+            if ($detail.Length -gt 10000) { $detail = $detail.Substring(0,10000) }
+            Write-Output "::error title=Windows CMD test details::$detail"
+            exit $result
+          }
+          node tests/audit-fixes/windows-cmd-env-guards.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify disabled remote and existing password behavior
+        shell: pwsh
+        run: |
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-disabled-by-default.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --import ./test/harness/register.mjs tests/audit-fixes/remote-gt-password-collision.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test return-code expiry and exchange cheque on isolated SQLite
+        shell: pwsh
+        run: |
+          node --import ./test/harness/register.mjs tests/audit-fixes/fix-s223-item8-return-code-null-expiry.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --import ./test/harness/register.mjs tests/audit-fixes/fix-s223-item6b-exchange-d-by-cheque.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build application sources
+        run: npm run build
+      - name: Test built hub child on Windows loopback
+        run: node --import ./test/harness/register.mjs --test tests/audit-fixes/remote-packaged-child-loopback.mjs
+      - name: Typecheck application
+        run: npm run typecheck

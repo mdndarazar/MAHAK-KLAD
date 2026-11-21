@@ -1,3 +1,4 @@
-SHA=8216a266fd5aca74931d4be3d515752f2f5a7fff
-branch=arena/76a92283-mahak-klad
-date=2026-11-14T17:34:47Z
+SHA=2df8a2af89279fd17d00a2eba8fe1b4095532b25
+branch=arena/e478473a-mahak-klad
+date=2026-11-20T16:12:16Z
+note=packaging fix: the generated Prisma client now ships in app.asar (owner-approved package.json FileSet), so the installed app no longer fails with "Cannot find module .prisma/client/default"; code identical to eb2880b, CI green there (installer 44764681993 incl. the new step that loads Prisma from the packaged app and runs a query on Windows; remote 44764666446); remote is OFF by default; the fixed installed app has not yet been opened on the owner PC
