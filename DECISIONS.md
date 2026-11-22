@@ -1801,3 +1801,11 @@ S142-6 — سؤال: گیت نبودن رمز مدیر روی issueManual/bulkIs
 ### Plan1405-D5 — انتخاب‌های فنی مرحلهٔ ۱ (کاشی‌ها، کادر توسعه‌دهنده، P2 گوشی)
 
 - شرح کامل: بخش ۱۷-۱ بند ۴ سند معماری. منوی بالا (`Shell.tsx`) و `lib/shortcuts.ts` دست نخوردند؛ آرایهٔ `TILES` در `Dashboard.tsx` ماند (`sms-wiring`).
+
+### Plan1405-D6 — انتخاب‌های فنی مرحلهٔ ۲ (بسته‌بندی ArkaPOS)
+
+- شرح کامل: بخش ۱۷-۱ بند ۵ سند معماری. نشست ۲۲۵.
+- `package.json` فقط پنج فیلد بخش ۴-۵ عوض شد؛ `name` (`mahak-pos`)، `build.appId` (`ir.shop.mahakpos`) و نبودِ `productName` سطح بالا همان ماند، پس پوشهٔ داده (`%APPDATA%\mahak-pos`)، پوشهٔ نصب و GUID نصب عوض نمی‌شوند. `build.executableName` = `MahakPOS` نام exe و بررسی CI را نگه می‌دارد.
+- ICO: تا ۴۸ پیکسل نشان «AP»، از ۶۴ لوگوی کامل، روی کاشی سفید (گزینهٔ «ب» مالک). بی بستهٔ npm تازه.
+- `src/main/index.ts` دست نخورد؛ عنوان پنجره از `<title>` در `src/renderer/index.html` می‌آید.
+- پس از این مرحله `package.json` در `tools/redline-plan-1405.mjs` (`PINS`) با sha256 پین شد.

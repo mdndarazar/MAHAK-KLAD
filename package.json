@@ -1,9 +1,9 @@
 {
   "name": "mahak-pos",
   "version": "0.1.0",
-  "description": "نرم‌افزار فروش و انبارداری فروشگاه پوشاک (فاز اول - آفلاین)",
+  "description": "ArkaPOS — فروش و انبارداری",
   "main": "out/main/index.js",
-  "author": "",
+  "author": "ArkaPOS",
   "license": "UNLICENSED",
   "scripts": {
     "dev": "electron-vite dev",
@@ -46,7 +46,8 @@
   },
   "build": {
     "appId": "ir.shop.mahakpos",
-    "productName": "MahakPOS",
+    "productName": "ArkaPOS",
+    "executableName": "MahakPOS",
     "files": [
       "out/**/*",
       "prisma/schema.prisma",
@@ -64,6 +65,7 @@
       }
     ],
     "win": {
+      "icon": "branding/arkapos.ico",
       "extraResources": [{"from":"out/main/remote-hub-child.cjs","to":"remote/remote-hub-child.cjs"},{"from":"build/remote-runtime/node.exe","to":"remote/node.exe"},{"from":"build/remote-runtime/LICENSE","to":"remote/LICENSE"}],
       "target": [
         "nsis"

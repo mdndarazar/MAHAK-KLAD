@@ -1444,3 +1444,11 @@
   - آزمون تازه: `tests/audit-fixes/plan1405-dashboard-tiles.mjs` (۲۲/۰).
   - **شاهد روی همین درخت:** `npx tsc --noEmit -p tsconfig.json` exit 0؛ `npx electron-vite build` exit 0 (لوگو در `out/renderer/assets`)؛ هفت آزمون صفحهٔ گوشی سبز (در خط پایه هم سبز)؛ `sms-wiring` همان دو شکست قدیمی خط پایه (بررسی کاشی سبز)؛ سناریوی طلایی بایت‌به‌بایت برابر؛ `tools/redline-plan-1405.mjs` سبز.
   - **انجام نشد (اجازه لازم):** کار کوچک ۴ (LICENSE نود در `tools/build-remote-hub.mjs`).
+- **طرح ۱۴۰۵ — مرحلهٔ ۲ انجام شد** (۲۰۲۶-۱۱-۲۲؛ مورد ۱۱: ArkaPOS).
+  - نام نمایشی، آیکون (ICO هفت‌اندازه‌ای، گزینهٔ «ب»)، Publisher، متن میان‌بر و عنوان پنجره «ArkaPOS» شد. آیکون‌های ۱۹۲ و ۵۱۲ صفحهٔ گوشی هم نشان «AP» شدند.
+  - همان ماند: `name` = `mahak-pos`، `appId` = `ir.shop.mahakpos`، نام exe = `MahakPOS.exe`؛ پس پوشهٔ داده `%APPDATA%\mahak-pos` و پوشهٔ نصب `%LOCALAPPDATA%\Programs\mahak-pos` عوض نمی‌شوند.
+  - راهنمای نصب: نام تازهٔ نصب‌کننده `dist\ArkaPOS Setup 0.1.0.exe` و فرمان‌های cmd پیش از نصب (کپی پوشهٔ داده، دیدن نام پوشه‌ها).
+  - آزمون نگهبان تازه `tests/audit-fixes/plan1405-arkapos-packaging.mjs` (۱۶/۰). `package.json` در redline پین شد.
+  - **شاهد روی همین درخت:** typecheck exit 0؛ `npx electron-vite build` exit 0 (`<title>ArkaPOS</title>` در خروجی)؛ `remote-mobile-readonly-http.mjs` و `windows-cmd-scripts.mjs` سبز؛ سناریوی طلایی برابر؛ redline سبز.
+  - **تأییدنشده:** ساخت واقعی نصب‌کننده، نام میان‌بر و ارتقای روی نسخهٔ قبلی فقط با CI نصب‌کننده و آزمون مالک روی ویندوز دیده می‌شوند.
+- **یادداشت CI کامیت مرحلهٔ ۰ (`65cbee0`):** کار «Remote hub Windows Node 24» در گام ۶۸ (`remote-approval-restore-marker-loopback.mjs`) شکست خورد. علت در annotation: `EPERM, Permission denied` هنگام `rmSync` پوشهٔ موقت در پاک‌سازی پایان آزمون (قفل فایل ویندوز روی ماشین CI)، نه شکست یک بررسی. آن کامیت فقط سند، آزمون، ابزار و یک پروندهٔ تازهٔ بی‌استفاده (`gateCatalog.ts`) داشت. همین آزمون روی `eb2880b` سبز بود. بی اجازهٔ مالک دوباره اجرا نشد؛ نتیجهٔ کامیت‌های بعدی ملاک است.

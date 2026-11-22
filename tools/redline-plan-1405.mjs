@@ -121,7 +121,10 @@ const UNCHANGED_GLOB = [/(^|\/)custodyReconciliation\.ts$/, /(^|\/)cashExplainer
  * پین‌های پس از هر مرحله: پرونده‌ای که دامنه‌اش بسته شد، از آن پس باید دقیقاً همین
  * محتوا را داشته باشد (sha256). مرحلهٔ ۲ برای `package.json` این‌جا پر می‌شود.
  */
-const PINS = new Map(Object.entries({}))
+const PINS = new Map(Object.entries({
+  // مرحلهٔ ۲ (ArkaPOS): فقط پنج فیلد §۴-۵؛ از این پس package.json دقیقاً همین است.
+  'package.json': '19a5a6caf19b719341ce2a556646376399bd54d77e93575d1c9a0d8e6b698385'
+}))
 
 // ---------------------------------------------------------------------------
 const inScope = (p) => SCOPE.some((s) => p === s || p.startsWith(s + '/'))
