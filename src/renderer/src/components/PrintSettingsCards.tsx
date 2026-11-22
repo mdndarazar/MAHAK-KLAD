@@ -477,6 +477,7 @@ export function PrinterCards({
         heightMm={preview?.heightMm ?? 'AUTO'}
         onClose={() => setPreview(null)}
       />
+      <CertificatePrinterCard printers={printers} />
     </div>
   )
 }
@@ -932,5 +933,72 @@ export function PrintAdvanced({
         </div>
       </div>
     </details>
+  )
+}
+
+/** نام چاپگر مجازی (فقط راهنمای رابط؛ داوری نهایی با main است). */
+const VIRTUAL_PRINTER = /pdf|xps|one\s*note|fax|document\s*writer|print\s*to\s*file/i
+
+/**
+ * طرح ۱۴۰۵ · مورد ۱۲ (معماری §۴-۳) — «چاپگر گواهی اعتبار»: چاپ نخست و چاپ دوباره‌ی فروشنده فقط روی همین چاپگر و
+ * بی پنجره انجام می‌شود. چاپگر مجازی (PDF، XPS، OneNote، Fax) پذیرفته نیست تا فایل کپیِ گواهی ساخته نشود.
+ * این تشخیص فقط از روی نام است؛ «مانع» است، نه «سد».
+ */
+function CertificatePrinterCard({ printers }: { printers: PrinterLiteView[] }) {
+  const [saved, setSaved] = useState<string | null>(null)
+  const [value, setValue] = useState('')
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    call<{ printerName: string }>(CH.creditCertificatePrinterGet)
+      .then((r) => {
+        setSaved(r?.printerName ?? '')
+        setValue(r?.printerName ?? '')
+      })
+      .catch(() => setSaved(''))
+  }, [])
+  const windowsDefault = printers.find((p) => p.isDefault)?.name ?? ''
+  const effective = value || windowsDefault
+  const blocked = !effective || VIRTUAL_PRINTER.test(effective)
+  const save = async () => {
+    setSaving(true)
+    setMsg(null)
+    try {
+      const r = await call<{ printerName: string }>(CH.creditCertificatePrinterSet, { printerName: value })
+      setSaved(r?.printerName ?? '')
+      setMsg({ text: 'چاپگر گواهی ذخیره شد.', ok: true })
+    } catch (e: any) {
+      setMsg({ text: String(e?.message ?? e), ok: false })
+    } finally {
+      setSaving(false)
+    }
+  }
+  return (
+    <div className="rounded border border-indigo-300 bg-indigo-50 p-3 space-y-2">
+      <div className="font-bold">چاپگر گواهی اعتبار (برگشت و تعویض)</div>
+      <div className="kbd leading-6">
+        گواهی بارکد اعتبار در صفحه‌ی برگشت/تعویض بی پنجره و فقط روی این چاپگر چاپ می‌شود. چاپگرهای مجازی مثل PDF، XPS،
+        OneNote یا Fax پذیرفته نیستند تا از گواهی فایل کپی ساخته نشود (تشخیص فقط از روی نام چاپگر است).
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <select className="inp" value={value} onChange={(e) => setValue(e.target.value)} disabled={saved === null}>
+          <option value="">(چاپگر پیش‌فرض ویندوز{windowsDefault ? `: ${windowsDefault}` : ''})</option>
+          {printers.map((p) => (
+            <option key={p.name} value={p.name} disabled={VIRTUAL_PRINTER.test(p.name)}>
+              {p.displayName || p.name}
+              {p.isDefault ? ' — پیش‌فرض ویندوز' : ''}
+              {VIRTUAL_PRINTER.test(p.name) ? ' — مجازی، پذیرفته نیست' : ''}
+            </option>
+          ))}
+        </select>
+        <button className="btn btn-primary" disabled={saving || saved === null || value === saved} onClick={() => void save()}>
+          {saving ? 'در حال ذخیره…' : 'ذخیره‌ی چاپگر گواهی'}
+        </button>
+      </div>
+      {blocked && (
+        <div className="text-rose-700">چاپگر گواهی را در تنظیمات تعیین کنید؛ چاپگر پیش‌فرض ویندوز مجازی است یا پیدا نشد.</div>
+      )}
+      {msg && <div className={msg.ok ? 'text-emerald-700' : 'text-rose-700'}>{msg.text}</div>}
+    </div>
   )
 }

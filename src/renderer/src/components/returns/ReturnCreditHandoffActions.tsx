@@ -17,6 +17,11 @@ export type HandoffCredit = {
 export default function ReturnCreditHandoffActions({ credits }: { credits?: HandoffCredit[] }) {
   const [busyId, setBusyId] = useState<number | null>(null)
   const [printedIds, setPrintedIds] = useState<Set<number>>(new Set())
+  /** طرح ۱۴۰۵ · مورد ۱۲ — چاپ دوباره‌ی فروشنده: یک بار، همان شیفت، با دلیل (سرور همه را دوباره می‌سنجد). */
+  const [reprintFor, setReprintFor] = useState<number | null>(null)
+  const [reasonCode, setReasonCode] = useState<'INCOMPLETE' | 'OTHER'>('INCOMPLETE')
+  const [explanation, setExplanation] = useState('')
+  const [reprintedIds, setReprintedIds] = useState<Set<number>>(new Set())
   const [activeIds, setActiveIds] = useState<Set<number>>(new Set())
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -32,7 +37,27 @@ export default function ReturnCreditHandoffActions({ credits }: { credits?: Hand
       const result = await call<any>(CH.creditDeliveryPrint, { id: credit.id, copies: 1 })
       const warnings = Array.isArray(result?.warnings) ? result.warnings.filter(Boolean) : []
       setPrintedIds((current) => new Set(current).add(credit.id))
-      setNotice(warnings.length ? warnings.join('\n') : `گواهی بارکد ${credit.publicReference} برای چاپ فرستاده شد؛ اعتبار از زمان صدور فعال بوده است.`)
+      setNotice(warnings.length ? warnings.join('\n') : result?.message ?? `گواهی بارکد ${credit.publicReference} به صف چاپگر رفت؛ اعتبار از زمان صدور فعال بوده است.`)
+    } catch (cause: any) {
+      setError(String(cause?.message ?? cause))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const explanationOk = reasonCode === 'INCOMPLETE' || explanation.replace(/\s/g, '').length >= 10
+  const sellerReprint = async (credit: HandoffCredit) => {
+    if (busyId != null || !explanationOk) return
+    setBusyId(credit.id)
+    setNotice(null)
+    setError(null)
+    try {
+      const result = await call<any>(CH.creditSellerReprint, { id: credit.id, reasonCode, explanation: reasonCode === 'OTHER' ? explanation.trim() : '' })
+      const warnings = Array.isArray(result?.warnings) ? result.warnings.filter(Boolean) : []
+      setReprintedIds((current) => new Set(current).add(credit.id))
+      setReprintFor(null)
+      setExplanation('')
+      setNotice([result?.message ?? 'چاپ به صف چاپگر رفت. اگر کاغذ بیرون نیامد، به مدیر بگویید.', ...warnings].join('\n'))
     } catch (cause: any) {
       setError(String(cause?.message ?? cause))
     } finally {
@@ -79,13 +104,49 @@ export default function ReturnCreditHandoffActions({ credits }: { credits?: Hand
                   <button className="btn" disabled={busyId != null} onClick={() => void printCertificate(credit)}>
                     {busyId === credit.id ? 'در حال چاپ…' : 'چاپ گواهی بارکد'}
                   </button>
+                ) : reprintedIds.has(credit.id) ? (
+                  <span className="kbd">چاپ دوباره انجام شد؛ نسخه‌ی دیگر فقط از مدیر</span>
                 ) : (
-                  <span className="kbd">گواهی قبلاً چاپ شده؛ چاپ مجدد فقط با تأیید مدیر</span>
+                  <button className="btn" disabled={busyId != null} onClick={() => { setReprintFor(reprintFor === credit.id ? null : credit.id); setReasonCode('INCOMPLETE'); setExplanation('') }}>
+                    چاپ دوباره (با دلیل)
+                  </button>
                 )}
                 <button className="btn btn-primary" disabled={busyId != null} onClick={() => void confirmHandoff(credit)}>
                   {busyId === credit.id ? 'در حال ثبت…' : 'ثبت سابقه‌ی تحویل واقعی (اختیاری)'}
                 </button>
               </>
+              {reprintFor === credit.id && alreadyPrinted && !reprintedIds.has(credit.id) && (
+                <div className="w-full rounded border border-amber-300 bg-amber-50 p-2 space-y-2">
+                  <div className="font-bold">چرا دوباره چاپ می‌کنید؟ (فقط یک بار و فقط در همین شیفت؛ مدیر این را می‌بیند)</div>
+                  <div className="flex flex-wrap gap-3">
+                    <label className="flex items-center gap-1">
+                      <input type="radio" name={`reprint-reason-${credit.id}`} checked={reasonCode === 'INCOMPLETE'} onChange={() => setReasonCode('INCOMPLETE')} />
+                      چاپ ناقص
+                    </label>
+                    <label className="flex items-center gap-1">
+                      <input type="radio" name={`reprint-reason-${credit.id}`} checked={reasonCode === 'OTHER'} onChange={() => setReasonCode('OTHER')} />
+                      سایر
+                    </label>
+                  </div>
+                  {reasonCode === 'OTHER' && (
+                    <input
+                      className="inp w-full"
+                      maxLength={300}
+                      placeholder="توضیح (دست‌کم ۱۰ حرف)"
+                      value={explanation}
+                      onChange={(e) => setExplanation(e.target.value)}
+                    />
+                  )}
+                  <div className="flex gap-2">
+                    <button className="btn btn-primary" disabled={busyId != null || !explanationOk} onClick={() => void sellerReprint(credit)}>
+                      {busyId === credit.id ? 'در حال چاپ…' : 'چاپ دوباره'}
+                    </button>
+                    <button className="btn" disabled={busyId != null} onClick={() => setReprintFor(null)}>
+                      انصراف
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )
         })}

@@ -79,6 +79,8 @@ const ALLOWED_EXISTING = new Map(Object.entries({
   [`${PG}SalesReports.tsx`]: null, [`${PG}WooSync.tsx`]: null,
   // و) بسته‌بندی و راهنما
   'package.json': 8, 'src/renderer/index.html': 2, 'INSTALL-WINDOWS-CMD.md': null, 'INSTALL-WINDOWS-CMD.txt': null,
+  // کار کوچک ۴ بخش ۷ طرح — بیرون از ۱۰-۱؛ مالک ۱۴۰۵/۰۹/۰۱ «پیام فارسی روشن» را جدا تأیید کرد (Plan1405-D8)
+  'tools/build-remote-hub.mjs': 24,
   // ۱۰-۴ — آزمون‌های موجودی که با دامنهٔ دقیق تغییر می‌کنند
   'tests/audit-fixes/fix-s181-backup-apply-gate.mjs': 4, 'tests/audit-fixes/fix-s183-credit-remainder-and-passwords.mjs': 2,
   'tests/audit-fixes/fix-s187-settings-second-third-password.mjs': 12, 'tests/audit-fixes/fix-cred-med-03-credit-settings-strict-gate.mjs': 28,
@@ -88,7 +90,9 @@ const ALLOWED_EXISTING = new Map(Object.entries({
   'tests/audit-fixes/fix-credit-recovery-reprint-no-double-use.mjs': 76, 'tests/audit-fixes/fix-credit-return-exchange-void-after-print.mjs': 24,
   'tests/audit-fixes/fix-return-exchange-credit-handoff.mjs': 10, 'tests/audit-fixes/fix-financial-global-credit-return-integration.mjs': 10,
   'tests/audit-fixes/fix-credit-invoice-recovery-lookup.mjs': 2, 'tests/audit-fixes/fix-s347-manager-session-main-first.mjs': 4,
-  'tests/audit-fixes/fix-s128-maintenance-archive-gate.mjs': 2
+  'tests/audit-fixes/fix-s128-maintenance-archive-gate.mjs': 2,
+  // مورد ۱۲ — بیرون از ۱۰-۴؛ اجازهٔ جدای مالک ۱۴۰۵/۰۹/۰۱ (Plan1405-D8): s316 فقط `:132` و `:141`، s329 فقط `:72`
+  'tests/audit-fixes/fix-s316-return-credit-ux.mjs': 4, 'tests/audit-fixes/fix-s329-return-exchange-report-credit-redaction.mjs': 2
 }))
 
 // §۶ — پرونده‌های تازهٔ مجاز (الگو).

@@ -351,7 +351,9 @@ export const CREDIT_REDEMPTION_HEADERS = [
   'کلید Idempotency',
   'برگشت‌خورده',
   'دلیل برگشت',
-  'توضیح'
+  'توضیح',
+  /** طرح ۱۴۰۵ · مورد ۱۲ — فقط نمایشی، آخرِ ردیف تا جای ستون‌های قبلی (و جمع در خانه‌ی ۳) نلغزد */
+  'شیفت'
 ]
 
 export function redemptionRow(r: any): (string | number | null)[] {
@@ -366,7 +368,54 @@ export function redemptionRow(r: any): (string | number | null)[] {
     String(r.idempotencyKey ?? ''),
     r.reversed ? 'بله' : '',
     String(r.reversedReason ?? ''),
-    String(r.note ?? '')
+    String(r.note ?? ''),
+    String(r.shiftName ?? '')
+  ]
+}
+
+/**
+ * طرح ۱۴۰۵ · مورد ۱۲ (معماری §۴-۳ بند ۴) — تب «چاپ دوباره»: ستون‌ها و سلول‌ها همین‌جا تعریف می‌شوند (نه در JSX).
+ * «مشکوک» یعنی اعتبار پس از چاپ دوباره مصرف شده است؛ تصمیمش در main گرفته می‌شود و این‌جا فقط نشان داده می‌شود.
+ */
+export const CREDIT_SELLER_REPRINT_HEADERS = [
+  'تاریخ',
+  'ساعت',
+  'فروشنده',
+  'شیفت',
+  'دلیل',
+  'شماره چاپ',
+  'مبلغ',
+  'برگشت/تعویض',
+  'مصرف شده؟ (چه کسی، کدام شیفت)',
+  'تحویل به مشتری ثبت شد؟',
+  'وضعیت'
+]
+
+/** ستون‌های عددی تب «چاپ دوباره» (`creditCellText` قالبشان را می‌گذارد). */
+export function sellerReprintCellFormat(col: unknown): 'money' | 'count' | 'text' {
+  const i = Math.round(Number(col))
+  return i === 6 ? 'money' : i === 5 ? 'count' : 'text'
+}
+
+export function sellerReprintRow(r: any): (string | number)[] {
+  const used = Array.isArray(r?.used) ? r.used : []
+  const usedText = used.length
+    ? used.map((u: any) => `${String(u?.byName ?? '')}${u?.shiftName ? ` · ${String(u.shiftName)}` : ''} · ${String(u?.atJalali ?? '')} ${String(u?.atTime ?? '')}`.trim()).join('؛ ')
+    : 'خیر'
+  const reason = `${String(r?.reasonLabel ?? '')}${r?.explanation ? `: ${String(r.explanation)}` : ''}`
+  const status = r?.released ? 'چاپ نشد (آزاد شد)' : r?.suspicious ? (r?.sameSeller ? '⚠️ مشکوک · مصرف به دست همان فروشنده' : '⚠️ مشکوک') : 'عادی'
+  return [
+    String(r?.atJalali ?? ''),
+    String(r?.atTime ?? ''),
+    String(r?.sellerName ?? ''),
+    String(r?.shiftName ?? '—'),
+    reason,
+    intOf(r?.printNo),
+    intOf(r?.amount),
+    String(r?.docLabel ?? ''),
+    usedText,
+    r?.deliveryRecorded == null ? '—' : r.deliveryRecorded ? 'بله' : 'خیر',
+    status
   ]
 }
 
@@ -1668,7 +1717,7 @@ export function creditExport(kind: CreditExportKind, data: any): CreditExportShe
         sheetName: 'دفتر مصرف',
         headers: CREDIT_REDEMPTION_HEADERS,
         rows: body,
-        totals: ['جمع', '', '', sum(body, 3), '', '', '', '', '', '', '']
+        totals: ['جمع', '', '', sum(body, 3), '', '', '', '', '', '', '', '']
       }
     }
     case 'timeline': {
@@ -2047,7 +2096,7 @@ export function creditBreakdownCellFormat(col: unknown): CreditCellFormat {
 // ---------------------------------------------------------------------------
 
 /** نماهای صفحه‌ی «مدیریت اعتبار خرید». `detail` تب ندارد (از فهرست باز می‌شود). */
-export type CreditView = 'dashboard' | 'list' | 'detail' | 'reminders' | 'reminderLogs' | 'batches' | 'settings'
+export type CreditView = 'dashboard' | 'list' | 'detail' | 'reminders' | 'reminderLogs' | 'batches' | 'reprints' | 'settings'
 
 /** تب‌های بالای صفحه، به همین ترتیب. تنها منبع نوار تب‌ها. */
 export const CREDIT_VIEW_TABS: readonly { view: CreditView; label: string }[] = [
@@ -2056,6 +2105,8 @@ export const CREDIT_VIEW_TABS: readonly { view: CreditView; label: string }[] = 
   { view: 'reminders', label: 'یادآوری' },
   { view: 'reminderLogs', label: 'لاگ یادآوری' },
   { view: 'batches', label: 'دسته‌ها' },
+  /** طرح ۱۴۰۵ · مورد ۱۲ — چاپ‌های دوباره‌ی فروشنده برای بازبینی روزانه‌ی مدیر */
+  { view: 'reprints', label: 'چاپ دوباره' },
   { view: 'settings', label: 'تنظیمات' }
 ]
 
@@ -2070,6 +2121,7 @@ export const CREDIT_VIEW_CHANNELS: Record<CreditView, string> = {
   reminders: 'creditReminderCandidates',
   reminderLogs: 'creditReminderLogs',
   batches: 'creditBatchList',
+  reprints: 'creditSellerReprints',
   settings: 'creditSettingsGet'
 }
 
@@ -2169,6 +2221,8 @@ export function creditViewRequest(view: CreditView, filter: CreditViewFilterLike
         },
         envelope: 'array'
       }
+    case 'reprints':
+      return { channel, payload: { take: Math.min(take, 2000) }, envelope: 'object' }
     default:
       return null
   }

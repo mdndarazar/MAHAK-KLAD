@@ -152,6 +152,14 @@ export const IPC = {
   creditDeliveryConfirm: 'credit:delivery:confirm',
   /** First print of a pending return/exchange credit; never activates it. */
   creditDeliveryPrint: 'credit:delivery:print',
+  /** طرح ۱۴۰۵ · مورد ۱۲ — چاپ دوباره‌ی گواهی به دست فروشنده: یک بار، همان شیفت، با دلیل؛ بی پنجره و با چاپگر گواهی */
+  creditSellerReprint: 'credit:seller-reprint',
+  /** تب «چاپ دوباره» در مدیریت اعتبار (فقط خواندن) و «دیدم» مدیر */
+  creditSellerReprints: 'credit:seller-reprints',
+  creditSellerReprintsSeen: 'credit:seller-reprints:seen',
+  /** چاپگر گواهی اعتبار (`credit.certificatePrinter`)؛ نام‌های مجازی پذیرفته نمی‌شوند */
+  creditCertificatePrinterGet: 'credit:certificate-printer:get',
+  creditCertificatePrinterSet: 'credit:certificate-printer:set',
   /** تولید گروهی (۱ تا هزاران) با Batch Insert و سنجش ظرفیت کد */
   creditBulkIssue: 'credit:bulk:issue',
   /** فهرست دسته‌های تولید گروهی (مبنای چاپ دسته‌ای) */

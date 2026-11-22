@@ -82,12 +82,31 @@ export function createMessengerDb(client: Client = defaultPrisma) {
     for (const part of chunks([...ids.credits])) {
       const rows = await db.storeCredit.findMany({ where: { id: { in: part } }, select: { id: true, userId: true, issuedAt: true } })
       for (const c of rows) { data.credits.set(c.id, { userId: c.userId ?? null, issuedAt: ms(c.issuedAt) }); if (c.userId) users.add(c.userId) }
-      // مرحلهٔ ۴ (مورد ۱۲): چاپ دوبارهٔ فروشنده با `sellerReprint: true` در `after` ثبت می‌شود.
-      const reprints = await db.auditLog.findMany({
-        where: { action: 'CREDIT_REPRINT', entity: 'StoreCredit', entityId: { in: part }, after: { contains: '"sellerReprint":true' } },
-        select: { entityId: true }
+      // مرحلهٔ ۴ (مورد ۱۲): چاپ دوبارهٔ فروشنده با `sellerReprint: true` در `after` رزرو می‌شود و اگر چاپ قطعاً
+      // رد شد، ردیف «آزاد شد» (`releasedFrom`) می‌آید. رزروِ آزادشده چاپ دوباره حساب نمی‌شود.
+      const reserved = await db.auditLog.findMany({
+        where: { action: 'CREDIT_REPRINT', entity: 'StoreCredit', entityId: { in: part }, after: { contains: '"path":"SELLER_CERTIFICATE' } },
+        orderBy: { id: 'asc' }, select: { id: true, entityId: true, after: true }
       })
-      for (const r of reprints) if (r.entityId) data.reprinted.add(r.entityId)
+      const released = new Set<number>()
+      const active: Array<{ id: number; creditId: number; reasonCode: string }> = []
+      for (const r of reserved) {
+        let a: any = null
+        try { a = JSON.parse(r.after ?? 'null') } catch {}
+        if (a?.path === 'SELLER_CERTIFICATE_RELEASED' && Number.isSafeInteger(a.releasedFrom)) released.add(a.releasedFrom)
+        else if (a?.path === 'SELLER_CERTIFICATE' && a.sellerReprint === true && r.entityId) active.push({ id: r.id, creditId: r.entityId, reasonCode: String(a.reasonCode ?? '') })
+      }
+      for (const s of active) {
+        if (released.has(s.id)) continue
+        data.reprinted.add(s.creditId)
+        // کاغذِ همین چاپ دوباره: نخستین ردیف `markPrinted` همان اعتبار پس از رزرو
+        const next = await db.auditLog.findMany({
+          where: { action: 'CREDIT_REPRINT', entity: 'StoreCredit', entityId: s.creditId, id: { gt: s.id } },
+          orderBy: { id: 'asc' }, take: 5, select: { id: true, after: true }
+        })
+        const paper = next.find((x: any) => !String(x.after ?? '').includes('"path":"SELLER_CERTIFICATE'))
+        if (paper) data.sellerPapers.set(paper.id, s.reasonCode)
+      }
     }
     for (const { creditId, paymentId } of ids.redemptions) {
       const row = await db.storeCreditRedemption.findFirst({ where: { creditId, paymentId }, orderBy: { id: 'desc' }, select: { userId: true, at: true } })
@@ -136,8 +155,8 @@ export function createMessengerDb(client: Client = defaultPrisma) {
   }
 
   // ---- خلاصهٔ ساعت ۲۴ (فقط خواندن) ----
-  async function auditRowsInRange(actions: string[], from: Date, to: Date): Promise<Array<{ userId: number | null; action: string; after: string | null; entityId: number | null }>> {
-    return db.auditLog.findMany({ where: { action: { in: actions }, at: { gte: from, lt: to } }, select: { userId: true, action: true, after: true, entityId: true } })
+  async function auditRowsInRange(actions: string[], from: Date, to: Date): Promise<Array<{ id: number; userId: number | null; action: string; after: string | null; entityId: number | null }>> {
+    return db.auditLog.findMany({ where: { action: { in: actions }, at: { gte: from, lt: to } }, select: { id: true, userId: true, action: true, after: true, entityId: true } })
   }
   async function cashSessionsClosed(from: Date, to: Date): Promise<Array<{ id: number; shiftId: number | null; closedBy: number | null; counted: number | null; difference: number }>> {
     const rows = await db.cashSession.findMany({

@@ -132,7 +132,11 @@ export const SETTING_KEYS = {
    */
   creditSettings: 'credit.settings',
   /** ماژول اختیاری حضانت صندوق/نشست کارکنان؛ پیش‌فرض خاموش تا رفتار قدیمی دست‌نخورده بماند. */
-  custodyConfig: 'custody.config'
+  custodyConfig: 'custody.config',
+  /** طرح ۱۴۰۵ · مورد ۱۲ — چاپگر گواهی اعتبار در مسیر فروشنده (`{ printerName }`؛ خالی = پیش‌فرض ویندوز اگر مجازی نباشد) */
+  creditCertificatePrinter: 'credit.certificatePrinter',
+  /** طرح ۱۴۰۵ · مورد ۱۲ — زمان آخرین «دیدم» مدیر در تب «چاپ دوباره» (`{ at }`) */
+  creditSellerReprintSeenAt: 'credit.sellerReprintSeenAt'
 } as const
 
 export type CustodyMode = 'SINGLE_SHIFT' | 'MULTI_SHIFT'

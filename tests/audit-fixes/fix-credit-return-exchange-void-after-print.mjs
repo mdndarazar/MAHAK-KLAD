@@ -109,8 +109,8 @@ returnCredit = seed.one('SELECT * FROM "StoreCredit" WHERE id=?', returnCredit.i
 assert.equal(invoiceCountBefore(), beforeReturnVoid, 'voiding return creates no invoice')
 await expectCanceledBarcodeRejected(returnCredit, 'اعتبارِ برگشت فروش')
 
-// 2) An exchange issues a linked barcode printed on the exchange receipt; then
-// the manager prints the same saved row again and voids the whole exchange.
+// 2) An exchange issues a linked barcode (not printed on the exchange receipt); its
+// certificate is printed, the manager prints the same saved row again and voids the whole exchange.
 const exchangedSale = await invoice()
 const replacementVariant = variant(200)
 const exchange = await salesService.createExchange({
@@ -127,14 +127,14 @@ assert.ok(exchangeCredit?.code)
 printSetup()
 const exchangePrint = await printService.printExchange({ returnId: exchange.returnId, deviceName: 'Axiom', silent: true, userId })
 assert.equal(exchangePrint.returnId, exchange.returnId)
-assert.ok(mock.state.windows.at(-1)?._html?.includes(exchangeCredit.code), 'exchange receipt prints this credit code')
+assert.ok(!mock.state.windows.at(-1)?._html?.includes(exchangeCredit.code), 'exchange receipt carries no credit code (plan 1405 item 12)')
 exchangeCredit = seed.one('SELECT * FROM "StoreCredit" WHERE id=?', exchangeCredit.id)
-assert.equal(Number(exchangeCredit.printCount), 1, 'exchange receipt print is recorded')
+assert.equal(Number(exchangeCredit.printCount), 0, 'exchange receipt print is not a credit copy (plan 1405 item 12)')
+await printService.printCredit({ id: exchangeCredit.id, deviceName: 'Axiom', silent: true, markPrinted: true, userId })
 const recoveryPrint = await printService.printCredit({ id: exchangeCredit.id, deviceName: 'Axiom', silent: true, markPrinted: true, userId })
 assert.equal(recoveryPrint.id, exchangeCredit.id)
 const recoveryHtml = mock.state.windows.at(-1)?._html ?? ''
-assert.ok(recoveryHtml.includes(exchangeCredit.code), 'manager print reuses the same code')
-assert.ok(recoveryHtml.includes('نسخه‌ی مجدد'), 'manager copy is marked as a reprint')
+assert.ok(recoveryHtml.includes(exchangeCredit.code) && recoveryHtml.includes('نسخه‌ی مجدد'), 'manager reprint reuses the same code and is marked as a reprint')
 exchangeCredit = seed.one('SELECT * FROM "StoreCredit" WHERE id=?', exchangeCredit.id)
 assert.equal(Number(exchangeCredit.printCount), 2)
 assert.equal(exchangeCredit.status, 'ACTIVE')

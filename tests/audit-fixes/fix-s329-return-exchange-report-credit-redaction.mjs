@@ -69,7 +69,7 @@ truthy('exchangeList کد را به DTO گزارش نمی‌فرستد', !/store
 truthy('returnList کد را به DTO گزارش نمی‌فرستد', !/storeCreditCode/.test(returnList) && /storeCreditReference/.test(returnList))
 truthy('جدول/A4/Excel گزارش فروش به فیلد امن وصل‌اند', !/storeCreditCode/.test(reports) && /storeCreditReference/.test(reports))
 truthy('گزارش عملکرد و دفتر رویداد کد را نمی‌فرستند', !/storeCreditCode/.test(staff) && !/storeCreditCode/.test(ledger))
-truthy('چاپ سند فقط در main کد را مستقیماً از رکورد اعتبار می‌خواند', /storeCreditCode: credit\?\.code \?\? null/.test(print) && !/row\.storeCreditCode/.test(print))
+truthy('سند تعویض بارکد اعتباری نمی‌گیرد و کد خود سند می‌ماند (طرح ۱۴۰۵ مورد ۱۲)', /storeCreditCode: null,/.test(print) && !/storeCreditCode: credit\?\.code/.test(print) && !/row\.storeCreditCode/.test(print) && /exchangeReturnCode: exchangeInvoice\?\.returnCode/.test(print))
 
 const userId = seed.user('مدیر تست گزارش امن اعتبار')
 const categoryId = seed.category('پوشاک')

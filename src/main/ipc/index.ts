@@ -39,7 +39,11 @@ import { registerMessengerHandlers } from '../services/cloud/messenger/messenger
 import { barcodePng } from '../services/BarcodeService'
 import { backupService } from '../services/BackupService'
 import { maintenanceService } from '../services/MaintenanceService'
-import { printHtml } from '../print/printer'
+import { printHtml, isPrintOutcomeUnknown } from '../print/printer'
+import {
+  certificatePrinterDevice, FIRST_PRINT_QUEUED_MESSAGE, markSellerReprintsSeen, readCertificatePrinter, releaseSellerReprint,
+  reserveSellerReprint, saveCertificatePrinter, SELLER_REPRINT_QUEUED_MESSAGE, sellerReprintList, withRedemptionShifts
+} from '../services/storeCreditSellerReprint'
 import { runPrintDiagnose } from '../print/diagnose'
 // نشست ۲۲۲ · فاز ۵ — دروازه‌ی مسیر RAW (بخش ۷.۱ طرح)
 import { assertRawMethodAllowed } from '../print/raw/gate'
@@ -827,13 +831,16 @@ export function registerIpcHandlers(): void {
   })
   handle(IPC.creditDetail, async (p) => {
     await assertCreditRead('دیدن جزئیات یک اعتبار خرید')
-    return storeCreditService.detail(p ?? {})
+    // طرح ۱۴۰۵ · مورد ۱۲ — ستون «شیفت» دفتر مصرف، فقط نمایشی و بیرون از StoreCreditService
+    return withRedemptionShifts(await storeCreditService.detail(p ?? {}))
   })
   handle(IPC.creditInvoiceLookup, async (p) => {
     assertManagerSession('بازیابی اعتبارهای مرتبط با فاکتور')
     await assertCreditRead('بازیابی اعتبارهای مرتبط با فاکتور')
     return storeCreditService.linkedCreditsForInvoice({ code: p?.code })
   })
+  /** طرح ۱۴۰۵ · مورد ۱۲ — یک چاپ گواهی هم‌زمان برای هر اعتبار (دو کلیک پشت‌سرهم دو کاغذ «اصل» نسازد). */
+  const creditPrintInFlight = new Set<number>()
   const assertCreditDeliveryPanel = async (action: string) => {
     try {
       await assertPanelUnlocked(PANEL_KEYS.salesReturn, action)
@@ -859,8 +866,56 @@ export function registerIpcHandlers(): void {
       !['ACTIVE', 'DRAFT'].includes(String(credit.status)) || String(delivery?.status) !== 'PENDING')
       throw new BusinessError('فقط اعتبار زنده‌ی برگشت/تعویض با سابقه‌ی چاپِ در انتظار ثبت قابل چاپ نخست است.')
     if (Number(credit.printCount ?? 0) > 0)
-      throw new BusinessError('این گواهی قبلاً چاپ شده است؛ چاپ دوباره باید با تایید مدیر از مدیریت اعتبار انجام شود.')
-    return printService.printCredit(await withOptionalSessionActor({ id, copies: 1 }))
+      throw new BusinessError('این گواهی قبلاً چاپ شده است. اگر کاغذ ناقص بود، «چاپ دوباره (با دلیل)» را بزنید؛ فقط یک بار و در همان شیفت.')
+    // طرح ۱۴۰۵ · مورد ۱۲ — main خودش بی پنجره، یک نسخه و چاپگر گواهی را می‌گذارد (مقدارهای رابط نادیده‌اند)
+    if (creditPrintInFlight.has(id)) throw new BusinessError('چاپ همین گواهی در جریان است؛ چند لحظه صبر کنید.')
+    creditPrintInFlight.add(id)
+    try {
+      const result = await printService.printCredit(await withOptionalSessionActor({ id, copies: 1, sellerCertificate: true }))
+      return { ...result, message: FIRST_PRINT_QUEUED_MESSAGE }
+    } finally {
+      creditPrintInFlight.delete(id)
+    }
+  })
+  /**
+   * طرح ۱۴۰۵ · مورد ۱۲ (معماری §۴-۳) — چاپ دوباره‌ی فروشنده: یک بار، همان شیفت (یا همان روز)، با دلیل.
+   * رزرو پیش از چاپ نوشته می‌شود؛ فقط رد یا لغو قطعی آزادش می‌کند و نتیجه‌ی نامعلوم «چاپ‌شده» می‌ماند.
+   */
+  handle(IPC.creditSellerReprint, async (p) => {
+    await assertCreditDeliveryPanel('چاپ دوباره‌ی گواهی اعتبار برگشت/تعویض به دست فروشنده')
+    const actor = await withOptionalSessionActor({ id: Number(p?.id) })
+    await certificatePrinterDevice()
+    const reserved = await reserveSellerReprint({ creditId: actor.id, userId: actor.userId, reasonCode: p?.reasonCode, explanation: p?.explanation })
+    if (creditPrintInFlight.has(reserved.creditId)) {
+      await releaseSellerReprint({ auditId: reserved.auditId, creditId: reserved.creditId, userId: actor.userId })
+      throw new BusinessError('چاپ همین گواهی در جریان است؛ چند لحظه صبر کنید.')
+    }
+    creditPrintInFlight.add(reserved.creditId)
+    try {
+      const result = await printService.printCredit({ id: reserved.creditId, userId: actor.userId, sellerCertificate: true })
+      return { ...result, message: SELLER_REPRINT_QUEUED_MESSAGE }
+    } catch (err) {
+      if (!isPrintOutcomeUnknown(err)) {
+        await releaseSellerReprint({ auditId: reserved.auditId, creditId: reserved.creditId, userId: actor.userId })
+          .catch((releaseErr) => console.error('[seller-reprint] release failed', releaseErr))
+      }
+      throw err
+    } finally {
+      creditPrintInFlight.delete(reserved.creditId)
+    }
+  })
+  handle(IPC.creditSellerReprints, async (p) => {
+    await assertCreditRead('دیدن سابقه‌ی چاپ دوباره‌ی گواهی اعتبار')
+    return sellerReprintList(p ?? {})
+  })
+  handle(IPC.creditSellerReprintsSeen, async () => {
+    await assertCreditPanel('ثبت «دیدم» برای چاپ‌های دوباره‌ی فروشنده')
+    return markSellerReprintsSeen()
+  })
+  handle(IPC.creditCertificatePrinterGet, async () => ({ printerName: await readCertificatePrinter() }))
+  handle(IPC.creditCertificatePrinterSet, async (p) => {
+    await assertPanelUnlocked(PANEL_KEYS.settings, 'تعیین چاپگر گواهی اعتبار')
+    return saveCertificatePrinter(await withOptionalSessionActor({ printerName: p?.printerName }))
   })
   handle(IPC.creditDeliveryConfirm, async (p) => {
     await assertCreditDeliveryPanel('ثبت تحویل واقعی بارکد برگشت/تعویض به مشتری')
@@ -933,7 +988,8 @@ export function registerIpcHandlers(): void {
   /** سند/PDF/پیش‌نمایش خودِ credential را دارد؛ فقط نشست واقعی مدیر مجاز است. */
   handle(IPC.printCredit, async (p) => {
     assertManagerSession('چاپ اعتبار خرید')
-    return printService.printCredit(await withOptionalSessionActor(p ?? {}))
+    // طرح ۱۴۰۵ · مورد ۱۲ — مسیر گواهی فروشنده فقط از هندلرهای main؛ رمزِ چاپ دوباره‌ی مدیر دور زده نمی‌شود
+    return printService.printCredit({ ...(await withOptionalSessionActor(p ?? {})), sellerCertificate: false })
   })
   handle(IPC.printCreditBatch, async (p) => {
     assertManagerSession('چاپ دسته اعتبار خرید')

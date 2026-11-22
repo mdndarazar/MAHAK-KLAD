@@ -54,7 +54,8 @@ export const EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = Object.
   SETTINGS_UPDATE: [],
   CREDIT_VOID: [],
   CREDIT_DELETE: [],
-  CREDIT_REPRINT: [],
+  /** مرحلهٔ ۴ (مورد ۱۲): فقط برچسب‌های ثابت ردیف‌های فروشنده؛ توضیح آزاد هرگز خوانده نمی‌شود. */
+  CREDIT_REPRINT: ['path', 'reasonCode'],
   CREDIT_AMOUNT_CHANGE: [],
   CREDIT_SUSPEND: [],
   CREDIT_REACTIVATE: [],
@@ -85,11 +86,13 @@ export interface LookupData {
   /** کلید `${creditId}:${paymentId}` */
   redemptions: Map<string, { userId: number | null; at: number }>
   reprinted: Set<number>
+  /** مرحلهٔ ۴ (مورد ۱۲): ردیف کاغذِ `markPrinted` که چاپ دوبارهٔ فروشنده است ⇒ کد دلیل («INCOMPLETE»/«OTHER») */
+  sellerPapers: Map<number, string>
   handovers: Map<number, { fromUserId: number | null; receiverUserId: number | null; expectedAtStart: unknown; countedAtStart: unknown; differenceCash: unknown }>
 }
 export const emptyLookups = (): LookupData => ({
   users: new Map(), shifts: new Map(), invoices: new Map(), customers: new Map(), payments: new Map(),
-  credits: new Map(), redemptions: new Map(), reprinted: new Set(), handovers: new Map()
+  credits: new Map(), redemptions: new Map(), reprinted: new Set(), sellerPapers: new Map(), handovers: new Map()
 })
 
 export interface IdsNeeded {
@@ -186,6 +189,7 @@ export function collectAuditIds(rows: readonly AuditRowLite[], includeCustomerNa
     if (row.entity === 'SaleInvoice' && row.entityId) ids.invoices.add(row.entityId)
     if (row.entity === 'Payment' && row.entityId) ids.payments.add(row.entityId)
     if (includeCustomerName && intId(f.customerId)) ids.customers.add(f.customerId as number)
+    if (row.action === 'CREDIT_REPRINT' && row.entity === 'StoreCredit' && row.entityId) ids.credits.add(row.entityId)
     if (row.action === 'STORE_CREDIT_REDEEM' && row.entityId) {
       ids.credits.add(row.entityId)
       const paymentId = intId(f.paymentId)
@@ -471,8 +475,17 @@ function mapRow(row: AuditRowLite, ctx: EventContext, h: ReturnType<typeof makeH
     case 'CREDIT_VOID':
     case 'CREDIT_DELETE':
       return [h.event(row, `⛔ ${row.action === 'CREDIT_VOID' ? 'ابطال' : 'ابطال و بایگانی'} اعتبار${row.entityId ? ` #${num(row.entityId)}` : ''}`, [`کاربر: ${h.who(row.userId)}`], { important: true })]
-    case 'CREDIT_REPRINT':
+    case 'CREDIT_REPRINT': {
+      // مرحلهٔ ۴ (مورد ۱۲): رزرو و آزادسازیِ چاپ دوبارهٔ فروشنده فقط دفترند؛ خبر با ردیف کاغذ واقعی می‌رود (یک پیام برای یک کاغذ).
+      if (typeof f.path === 'string' && f.path.startsWith('SELLER_CERTIFICATE')) return []
+      const sellerReason = ctx.data.sellerPapers.get(row.id)
+      if (sellerReason !== undefined) {
+        return [h.event(row, `🖨️ چاپ دوبارهٔ گواهی اعتبار به دست فروشنده${row.entityId ? ` #${num(row.entityId)}` : ''}`, [
+          `کاربر: ${h.who(row.userId)}`, `دلیل: ${sellerReason === 'OTHER' ? 'سایر' : 'چاپ ناقص'}`
+        ], { important: true })]
+      }
       return [h.event(row, `🖨️ چاپ دوبارهٔ اعتبار${row.entityId ? ` #${num(row.entityId)}` : ''}`, [`کاربر: ${h.who(row.userId)}`], { important: true })]
+    }
     case 'CREDIT_AMOUNT_CHANGE':
       return [h.event(row, `✏️ تغییر مبلغ اعتبار${row.entityId ? ` #${num(row.entityId)}` : ''}`, [`کاربر: ${h.who(row.userId)}`], { important: true })]
     case 'CREDIT_SUSPEND':

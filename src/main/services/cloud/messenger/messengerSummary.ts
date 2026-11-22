@@ -66,14 +66,18 @@ export async function buildDailySummary(day: string, deps: SummaryDeps, ctx: { o
     return perUser.get(key)!
   }
   let grants = 0, codes = 0, reprints = 0
+  // مرحلهٔ ۴ (مورد ۱۲): «چاپ دوبارهٔ بارکد» = کاغذهای `markPrinted`؛ رزرو فروشنده جدا و فقط اگر آزاد نشده باشد
+  const sellerReserved: Array<{ id: number; userId: number | null }> = []
+  const sellerReleased = new Set<number>()
   for (const row of counted) {
     if (row.action === 'VOID') slot(row.userId).voids++
     else if (row.action === 'SALE_PRICE_OVERRIDE' || row.action === 'EXCHANGE_PRICE_OVERRIDE') slot(row.userId).manual++
     else if (row.action === 'CREDIT_REPRINT') {
-      reprints++
-      let seller = false
-      try { seller = JSON.parse(row.after ?? 'null')?.sellerReprint === true } catch {}
-      if (seller) slot(row.userId).reprints++
+      let after: any = null
+      try { after = JSON.parse(row.after ?? 'null') } catch {}
+      if (after?.path === 'SELLER_CERTIFICATE_RELEASED') { if (Number.isSafeInteger(after.releasedFrom)) sellerReleased.add(after.releasedFrom) }
+      else if (after?.path === 'SELLER_CERTIFICATE') { if (after.sellerReprint === true) sellerReserved.push({ id: row.id, userId: row.userId }) }
+      else reprints++
     } else if (row.action === 'ACCESS_EVENT') {
       let kind = ''
       try { kind = String(JSON.parse(row.after ?? 'null')?.kind ?? '') } catch {}
@@ -81,6 +85,7 @@ export async function buildDailySummary(day: string, deps: SummaryDeps, ctx: { o
       else if (kind === ACCESS_EVENT_KINDS.REMOTE_GRANT_OPENED || kind === ACCESS_EVENT_KINDS.SCHEDULED_GRANT_OPENED) grants++
     }
   }
+  for (const s of sellerReserved) if (!sellerReleased.has(s.id)) slot(s.userId).reprints++
   if (!abnormal.disabled) for (const row of abnormal.rows) slot(row.userId).abnormal++
 
   const rows = staff.rows ?? []

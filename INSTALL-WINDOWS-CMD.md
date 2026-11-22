@@ -57,6 +57,7 @@ BUILD-WINDOWS.cmd
 node -e "const path=require('path'),fs=require('fs');const dest=path.join(path.dirname(process.execPath),'LICENSE');fetch('https://api.github.com/repos/nodejs/node/contents/LICENSE?ref='+process.version,{headers:{'Accept':'application/vnd.github.raw','User-Agent':'mahak-pos-build'}}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.text()}).then(t=>{if(!t.startsWith('Node.js is licensed for use as follows:'))throw new Error('unexpected content');fs.writeFileSync(dest,t);console.log('OK: '+dest)}).catch(e=>{console.error('FAILED: '+e.message);process.exit(1)})"
 ```
 
+- از این نسخه، خود ساخت هم همین توضیح و همین دستور را (به فارسی و انگلیسی) چاپ می‌کند و با خطا می‌ایستد؛ چیزی را خودش دانلود نمی‌کند.
 - نصب‌کننده را با دوبار کلیک در File Explorer اجرا کنید، نه از داخل پنجرهٔ cmd مدیر.
 - **مهم:** نصب‌کننده‌ای که از سورس‌های پیش از اصلاح `package.json` (۲۰۲۶-۱۱-۲۰) ساخته شود، از جمله ZIP `118406a3…`، هنگام باز شدن خطای `Cannot find module '.prisma/client/default'` می‌دهد. علتش این بود که کلاینت تولیدشدهٔ Prisma در بسته قرار نمی‌گرفت. این اشکال با اجازهٔ مالک اصلاح شد؛ از سورس تازه استفاده کنید.
 

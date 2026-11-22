@@ -1,5 +1,6 @@
 import { prisma } from '../db/client'
 import { barcodePng } from './BarcodeService'
+import { certificatePrinterDevice } from './storeCreditSellerReprint'
 import { PANEL_KEYS } from '@shared/panels'
 import { settingsService } from './SettingsService'
 import { salesService } from './SalesService'
@@ -210,35 +211,22 @@ function printMarkWarning(scope: string): string {
   return `چاپ انجام شد، اما ثبت شمارنده/سابقه‌ی چاپ ${scope} کامل نشد؛ برای بررسی Audit Log و جلوگیری از نسخه‌ی تکراری با مدیر هماهنگ کنید.`
 }
 
-function logCreditMarkFailure(scope: string, err: unknown): void {
-  console.error(`[print-credit] ${scope} markPrinted failed`, err)
+/**
+ * طرح ۱۴۰۵ · مورد ۱۲ — بارکد «کد فاکتور (برگشت از فروش)» خودِ سند تعویض یا برگشت، با همان تنظیم‌های رسید فروش.
+ * فقط کد فاکتور؛ هرگز کد اعتبار. نبودن تصویر جلوی چاپ را نمی‌گیرد (کد به‌صورت نوشته هست).
+ */
+async function documentCodeBarcode(code: string | null | undefined, tpl: ReceiptTemplate): Promise<string | null> {
+  if (!code || !tpl.showReturnCode || !tpl.showReturnBarcode) return null
+  try {
+    return await barcodePng(code, { scale: 2, height: 10 })
+  } catch (e) {
+    console.error('[print] document barcode failed', e)
+    return null
+  }
 }
 
-/**
- * A printed exchange receipt can contain redeemable credit barcodes. Track each
- * physical copy against those existing records so a later certificate print is
- * correctly labelled as a reprint. This changes print audit only, never value,
- * remaining balance, uses, or status.
- */
-async function markExchangeCreditCopiesPrinted(input: {
-  creditIds: readonly number[]
-  copies: number
-  userId?: number | null
-  uncertain?: boolean
-}): Promise<number> {
-  let failures = 0
-  const copies = Math.max(0, Math.round(Number(input.copies) || 0))
-  for (let copy = 0; copy < copies; copy++) {
-    for (const id of input.creditIds) {
-      try {
-        await storeCreditService.markPrinted({ id, userId: input.userId ?? null, uncertain: input.uncertain === true })
-      } catch (err) {
-        failures++
-        logCreditMarkFailure('exchange receipt', err)
-      }
-    }
-  }
-  return failures
+function logCreditMarkFailure(scope: string, err: unknown): void {
+  console.error(`[print-credit] ${scope} markPrinted failed`, err)
 }
 
 export const printService = {
@@ -432,27 +420,20 @@ export const printService = {
       orderBy: { id: 'asc' }
     })
     const credit = linkedCredits[linkedCredits.length - 1] ?? null
-    const storeCredits = await Promise.all(linkedCredits.map(async (row: any) => {
-      let barcodeDataUrl: string | null = null
-      if (row.code && tpl.showReturnBarcode) {
-        try {
-          barcodeDataUrl = await barcodePng(row.code, { scale: 2, height: 10 })
-        } catch (e) {
-          // نبودن تصویر بارکد نباید جلوی چاپ سند را بگیرد (کد به‌صورت متن چاپ است)
-          console.error('[print] store credit barcode failed', e)
-        }
-      }
+    /**
+     * طرح ۱۴۰۵ · مورد ۱۲ (معماری §۴-۳) — سند تعویض بی کد و بی بارکد: کد و تصویر بارکد اصلاً به داده‌ی
+     * این سند نمی‌رسند (لایه‌ی دوم کنار قالب). گواهی هر اعتبار جدا و یک بار چاپ می‌شود.
+     */
+    const storeCredits = linkedCredits.map((row: any) => {
       const isSourceSuccessor = String(row.note ?? '').includes('جانشین')
       return {
-        code: String(row.code ?? ''),
         amount: toNumberRial(row.amount),
         expiresJalali: row.expiresAt ? toJalaliDate(row.expiresAt) : null,
         statusLabel: CREDIT_STATUS_LABELS[String(row.status)] ?? String(row.status),
         deliveryPending: String(row.status) === 'DRAFT' && (row.returnId != null || row.exchangeInvoiceId != null),
-        label: isSourceSuccessor ? 'جانشینِ غیرنقدیِ سهم اعتبارِ منشأدار' : 'بارکدِ جداگانه‌ی سهم وجه واقعی',
-        barcodeDataUrl
+        label: isSourceSuccessor ? 'جانشینِ غیرنقدیِ سهم اعتبارِ منشأدار' : 'سهم وجه واقعی'
       }
-    }))
+    })
 
     const exchangeInvoice = row.exchangeInvoiceId
       ? await prisma.saleInvoice.findUnique({
@@ -460,6 +441,8 @@ export const printService = {
           select: { returnCode: true }
         })
       : null
+    /** طرح ۱۴۰۵ · مورد ۱۲ (تصمیم مالک ۱۴۰۵/۰۹/۰۱) — بارکد کد خودِ فاکتور تعویض برای تعویض و برگشت زنجیره‌ای (اعتبار نیست). */
+    const exchangeReturnBarcodeDataUrl = await documentCodeBarcode(exchangeInvoice?.returnCode, tpl)
 
     return {
       exchangeReceiptNo: row.exchangeReceiptNo ?? null,
@@ -471,6 +454,7 @@ export const printService = {
       cashierName: row.userName || sale.cashierName,
       shiftName: row.shiftName,
       exchangeReturnCode: exchangeInvoice?.returnCode ?? null,
+      exchangeReturnBarcodeDataUrl,
       returnedItems: row.returnedItems.map((i) => ({
         name: i.name,
         qty: i.qty,
@@ -490,15 +474,12 @@ export const printService = {
       cashReceived: row.cashReceived,
       cashRefunded: row.cashRefunded,
       cardRefunded: row.cardRefunded,
-      storeCreditCode: credit?.code ?? null,
+      storeCreditCode: null,
       storeCreditAmount: row.storeCreditAmount,
       storeCreditStatusLabel: row.storeCreditStatusLabel,
       storeCreditExpiresJalali: credit?.expiresAtJalali ?? null,
-      storeCreditBarcodeDataUrl: storeCredits[0]?.barcodeDataUrl ?? null,
+      storeCreditBarcodeDataUrl: null,
       storeCredits,
-      // Internal main-process bookkeeping; exchangeReceiptHtml ignores this.
-      // Used only to audit barcodes that the printed receipt actually contains.
-      storeCreditIds: linkedCredits.map((credit: any) => Number(credit.id)).filter((id: number) => Number.isSafeInteger(id) && id > 0),
       note: row.note
     }
   },
@@ -529,7 +510,6 @@ export const printService = {
     const tpl = await settingsService.receiptTemplate()
     const data = await this.exchangeDataFor(returnId, tpl)
     const html = exchangeReceiptHtml(data, tpl)
-    const creditIds = [...new Set(data.storeCreditIds ?? [])]
     /** نشست ۲۲۲ · فاز ۱ — همان اندازه‌ی کاغذ فاکتور (سند تعویض هم رسید حرارتی است). */
     const spec = receiptPageSpec(tpl, 'RETAIL')
     /** فاز ۳ — نام چاپگر از resolver (بدون fallback خودکار). */
@@ -537,45 +517,25 @@ export const printService = {
     const copies = Math.min(Math.max(Math.round(input.copies ?? tpl.copies ?? 1), 1), 5)
     const singleDialogJob = input.silent === false && tpl.printMethod !== 'RAW' && copies > 1
     const jobs = singleDialogJob ? 1 : copies
-    let markFailures = 0
+    /**
+     * طرح ۱۴۰۵ · مورد ۱۲ — سند تعویض دیگر کد و بارکد ندارد، پس چاپش `printCount` اعتبارها را بالا نمی‌برد
+     * و «چاپ نخست» گواهی جدا باز می‌ماند (معماری §۴-۳).
+     */
     for (let i = 0; i < jobs; i++) {
       const copiesInJob = singleDialogJob ? copies : 1
-      try {
-        await printMaybeRaw({
-          method: tpl.printMethod,
-          html,
-          deviceName,
-          silent: input.silent ?? true,
-          copies: copiesInJob,
-          pageSize: { widthMm: spec.widthMm, heightMm: spec.heightMm, heightSafetyMm: tpl.heightSafetyMm },
-          rawDpi: tpl.rawDpi,
-          rawInvert: tpl.rawInvert,
-          cutMode: tpl.cutMode
-        })
-      } catch (err) {
-        // Printer outcome may be unknown (for example a driver crash after spool).
-        // Conservatively count the affected copy/copies so a later credit print
-        // cannot be mislabeled as the first copy.
-        if (creditIds.length && isPrintOutcomeUnknown(err)) {
-          markFailures += await markExchangeCreditCopiesPrinted({
-            creditIds,
-            copies: copiesInJob,
-            userId: input.userId,
-            uncertain: true
-          })
-        }
-        throw err
-      }
-      if (creditIds.length) {
-        markFailures += await markExchangeCreditCopiesPrinted({
-          creditIds,
-          copies: copiesInJob,
-          userId: input.userId
-        })
-      }
+      await printMaybeRaw({
+        method: tpl.printMethod,
+        html,
+        deviceName,
+        silent: input.silent ?? true,
+        copies: copiesInJob,
+        pageSize: { widthMm: spec.widthMm, heightMm: spec.heightMm, heightSafetyMm: tpl.heightSafetyMm },
+        rawDpi: tpl.rawDpi,
+        rawInvert: tpl.rawInvert,
+        cutMode: tpl.cutMode
+      })
     }
-    const warnings = markFailures ? [printMarkWarning('اعتبارهای روی سند تعویض')] : []
-    return { copies, returnId, markFailed: markFailures > 0, warnings }
+    return { copies, returnId, markFailed: false, warnings: [] as string[] }
   },
 
   /**
@@ -595,6 +555,7 @@ export const printService = {
         invoice: {
           select: {
             receiptNo: true,
+            returnCode: true,
             deductInventory: true,
             customer: { select: { name: true } },
             user: { select: { displayName: true } },
@@ -614,7 +575,7 @@ export const printService = {
      * نشست ۳۱۶ · خواسته‌ی مالک — «رسید برگشت سند حسابداری شیفت است و نباید
      * *اصلاً* بارکد/کد اعتبار داخلش باشد.»
      *
-     * پس دیگر بارکد ساخته نمی‌شود و کد اعتبار هم در payload نمی‌رود؛ فقط
+     * پس دیگر بارکد اعتبار ساخته نمی‌شود و کد اعتبار هم در payload نمی‌رود؛ فقط
      * فهرستِ «مبلغ + نوع + تاریخ اعتبارِ» اعتبارهایِ لینک‌شده به این برگشت
      * (هم اعتبار تسویه‌ی روش بازپرداختِ STORE_CREDIT — `ret.storeCreditId` —
      * و هم اعتبار باقیمانده‌ی اضافه‌دریافت — `returnId` که نشست ۳۱۶ هنگام
@@ -677,9 +638,18 @@ export const printService = {
       })
     }
 
+    /**
+     * طرح ۱۴۰۵ · مورد ۱۲ (تصمیم مالک ۱۴۰۵/۰۹/۰۱) — کد خودِ فاکتور اصلی و بارکدش برای برگشت زنجیره‌ای از همان فاکتور.
+     * این کد اعتبار نیست؛ کد و بارکد اعتبار همچنان فقط روی برگهٔ گواهی اعتبار چاپ می‌شوند.
+     */
+    const sourceReturnCode = ret.invoice?.returnCode ?? null
+    const sourceReturnBarcodeDataUrl = await documentCodeBarcode(sourceReturnCode, tpl)
+
     return {
       returnId: ret.id,
       sourceReceiptNo: ret.invoice?.receiptNo ?? 0,
+      sourceReturnCode,
+      sourceReturnBarcodeDataUrl,
       dateJalali: ret.returnedAtJalali || toJalaliDate(ret.returnedAt),
       time: ret.returnedAtTime || toClock(ret.returnedAt),
       shopName: tpl.shopName,
@@ -1035,9 +1005,18 @@ export const printService = {
     reprint?: boolean
     /** نشست ۳۱۶ — رمز مدیر/رمز دوم/رمز سومِ ماژول اعتبار برای آزاد کردن چاپ دوباره */
     password?: string | null
+    /**
+     * طرح ۱۴۰۵ · مورد ۱۲ (معماری §۴-۳) — مسیر گواهیِ فروشنده (چاپ نخست و چاپ دوباره‌ی فروشنده): main خودش
+     * «بی پنجره»، یک نسخه و چاپگر گواهی مدیر را می‌گذارد و `silent`، `copies`، `deviceName` و `reprint` رابط را
+     * نادیده می‌گیرد. فقط هندلرهای main این را می‌گذارند.
+     */
+    sellerCertificate?: boolean
   }) {
     const id = Math.round(Number(input?.id ?? 0))
     if (!id) throw new BusinessError('اعتباری برای چاپ مشخص نشده است.')
+    // طرح ۱۴۰۵ · مورد ۱۲ — مسیر گواهی فروشنده: مقدارهای رابط کنار می‌روند (بی پنجره، یک نسخه، چاپگر گواهی، همیشه شمرده)
+    if (input?.sellerCertificate === true)
+      input = { id, userId: input.userId ?? null, markPrinted: true, silent: true, copies: 1, deviceName: await certificatePrinterDevice() }
     /**
      * نشست ۳۱۶ · خواسته‌ی مالک — «چاپ دوباره‌ی کد اعتبار یعنی پول چاپ کردن:
      * باید زیر نظر مدیر باشد.» پس هر چاپی که renderer صریحاً «دوباره» اعلام
