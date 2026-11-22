@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { REMOTE_SETUP_CHANNELS, type RemoteSetupStatus } from '@shared/remoteAuthChannels'
 import { toLatinDigits } from '@shared/jalali'
 import { call } from '../lib/api'
+import MessengerSettings from '../components/MessengerSettings'
 
 /**
  * راه‌اندازی کنترل از راه دور (فقط روی همین رایانه). هر تغییر در Main با رمز مدیر
@@ -84,7 +85,7 @@ export default function RemoteLink() {
   const portValue = () => Number(port || status?.defaultPort || 0)
 
   if (loadError && !status) {
-    return <div className="bg-white rounded shadow p-4 space-y-2"><h1 className="font-bold">کنترل از راه دور با گوشی</h1><div>{loadError}</div></div>
+    return <div className="space-y-3 max-w-2xl"><div className="bg-white rounded shadow p-4 space-y-2"><h1 className="font-bold">کنترل از راه دور با گوشی</h1><div>{loadError}</div></div><MessengerSettings /></div>
   }
   if (!status) return <div className="bg-white rounded shadow p-4">در حال خواندن وضعیت…</div>
 
@@ -231,6 +232,9 @@ export default function RemoteLink() {
           )}
         </div>
       )}
+
+      {/* طرح ۱۴۰۵ · موردهای ۱۳ و ۱۵ — مستقل از هاب؛ با هاب خاموش هم کار می‌کند */}
+      <MessengerSettings />
     </div>
   )
 }

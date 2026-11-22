@@ -35,6 +35,7 @@ import { printService } from '../services/PrintService'
 import { exportTableFile } from '../services/ExportService'
 import { authService, assertManagerPassword, assertPanelPasswordStrict } from '../services/AuthService'
 import { desktopBackupCoordinationActive, withDesktopBackupCoordination } from '../services/cloud/desktopBackupCoordination'
+import { registerMessengerHandlers } from '../services/cloud/messenger/messengerIpc'
 import { barcodePng } from '../services/BarcodeService'
 import { backupService } from '../services/BackupService'
 import { maintenanceService } from '../services/MaintenanceService'
@@ -1952,4 +1953,6 @@ export function registerIpcHandlers(): void {
     await assertSms('حذف شماره از فهرست «لغو ۱۱»')
     return smsOptOutService.remove((p as any)?.id, { userId: await shiftService.currentStaffId() })
   })
+  // طرح ۱۴۰۵ · موردهای ۱۳ و ۱۵ — پیام‌رسان تلگرام و بله (پیش‌فرض خاموش؛ خطایش فروشگاه را نمی‌خواباند)
+  try { registerMessengerHandlers() } catch (error) { console.error('[messenger] unavailable', error) }
 }

@@ -755,5 +755,22 @@ export const IPC = {
   /** دفتر انصراف‌ها («لغو ۱۱») */
   smsOptOutList: 'sms:optOut:list',
   smsOptOutAdd: 'sms:optOut:add',
-  smsOptOutRemove: 'sms:optOut:remove'
+  smsOptOutRemove: 'sms:optOut:remove',
+
+  // -------------------------------------------------------------------------
+  // طرح ۱۴۰۵ · موردهای ۱۳ و ۱۵ — پیام‌رسان تلگرام و بله (معماری §۴-۱). فقط از پنجرهٔ اصلی
+  // برنامه؛ هر تغییر با رمز تایپی مدیر (دستهٔ ۱). کلید ربات هرگز از main برنمی‌گردد.
+  // -------------------------------------------------------------------------
+  messengerStatus: 'messenger:status',
+  messengerSaveBot: 'messenger:bot:save',
+  messengerRemoveBot: 'messenger:bot:remove',
+  messengerSetEnabled: 'messenger:enabled',
+  messengerSetOptions: 'messenger:options',
+  messengerPairStart: 'messenger:pair:start',
+  messengerPairConfirm: 'messenger:pair:confirm',
+  messengerPairCancel: 'messenger:pair:cancel',
+  messengerRecipientUpdate: 'messenger:recipient:update',
+  messengerRecipientRemove: 'messenger:recipient:remove',
+  messengerTest: 'messenger:test',
+  messengerResetVault: 'messenger:vault:reset'
 } as const

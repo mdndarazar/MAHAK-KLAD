@@ -1809,3 +1809,12 @@ S142-6 — سؤال: گیت نبودن رمز مدیر روی issueManual/bulkIs
 - ICO: تا ۴۸ پیکسل نشان «AP»، از ۶۴ لوگوی کامل، روی کاشی سفید (گزینهٔ «ب» مالک). بی بستهٔ npm تازه.
 - `src/main/index.ts` دست نخورد؛ عنوان پنجره از `<title>` در `src/renderer/index.html` می‌آید.
 - پس از این مرحله `package.json` در `tools/redline-plan-1405.mjs` (`PINS`) با sha256 پین شد.
+
+### Plan1405-D7 — انتخاب‌های فنی مرحلهٔ ۳ (پیام‌رسان تلگرام و بله؛ موارد ۱۳ و ۱۵)
+
+- شرح کامل: بخش ۱۷-۱ بند ۶ سند معماری. نشست ۲۲۵.
+- جا: `src/main/services/cloud/messenger/` (ده پرونده). راه‌اندازی از `registerIpcHandlers` در `src/main/ipc/index.ts` (دو خط)؛ `src/main/index.ts` و `CloudSyncService.ts` دست نخوردند (آزمون «خاموش = هیچ خواندن، زمان‌سنج یا IPC تازه» در `remote-optin-off-no-port` سبز می‌ماند).
+- بی پروندهٔ تنظیمات: نه زمان‌سنج، نه اتصال، نه قلاب `before-quit`، نه نوشتن.
+- قلاب‌های مرحله‌های بعد (ثابت‌های روش و `ACCESS_EVENT` در `gateCatalog.ts`؛ `sellerReprint: true`؛ قلاب‌های صفر کردن؛ `botButtons`/`canApprove` خاموش) اکنون آمدند و با ردیف‌های ساختگی آزموده شدند.
+- خط ⚠️ پیش از بازگردانی و ادغام: نشانهٔ «در جریان» بیرون از پایگاه داده تا نتیجه روشن شود؛ رمز اشتباه هشدار دروغ نمی‌سازد.
+- رمز دستهٔ ۱ با `auth.assertManagerPassword` (همان `remoteSetupIpc.ts`)؛ اسکن جاهای فراخوانی بی‌تغییر.

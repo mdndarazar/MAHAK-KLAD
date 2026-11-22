@@ -10,6 +10,12 @@ let owner: { run?:Exclusive } | undefined
 const activeBackups=new Set<symbol>()
 const context=new AsyncLocalStorage<symbol>()
 
+/** طرح ۱۴۰۵ · مورد ۱۳ (معماری §۴-۱): پیام‌رسان پیش و پس از هر بازگردانی یا ادغام از راه برنامه خبر می‌گیرد.
+ * فقط سطح اول (نه ورود دوبارهٔ mergeBackup درون apply)؛ خطای قلاب هرگز کار بکاپ را عوض نمی‌کند. */
+type BackupHooks = { before():void; after(outcome:{ok:boolean;result?:unknown}):void }
+let backupHooks: BackupHooks | undefined
+export function setDesktopBackupHooks(hooks:BackupHooks | undefined):void { backupHooks=hooks }
+
 /** Reserve synchronously before child startup so backup cannot overlap startup. */
 export function reserveDesktopBackupCoordination() {
   if (owner || activeBackups.size) throw new Error('Remote backup coordination unavailable')
@@ -36,16 +42,20 @@ export async function withDesktopBackupCoordination<T>(operation:()=>Promise<T>)
   const parent=context.getStore()
   if (parent && activeBackups.has(parent)) return operation()
   if (owner && activeBackups.size) throw new Error('Remote backup coordination unavailable')
+  const hooks=backupHooks
+  try {hooks?.before()} catch {}
+  let outcome:{ok:boolean;result?:unknown}={ok:false}
   // Preserve existing concurrent local-only backup behavior while preventing
   // supervisor startup until every such operation has completed.
   const token=Symbol('backup-operation');activeBackups.add(token)
   try {
     const reservation=owner
-    if (!reservation) return await context.run(token,operation)
+    if (!reservation) { const value=await context.run(token,operation);outcome={ok:true,result:value};return value }
     if (!reservation.run) throw new Error('Remote backup coordination unavailable')
     let result:T|undefined,completed=false
     await reservation.run(async()=>{result=await context.run(token,operation);completed=true})
     if (!completed) throw new Error('Remote backup operation unavailable')
+    outcome={ok:true,result}
     return result as T
-  } finally {activeBackups.delete(token)}
+  } finally {activeBackups.delete(token);try {hooks?.after(outcome)} catch {}}
 }
