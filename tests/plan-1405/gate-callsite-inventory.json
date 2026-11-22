@@ -1,0 +1,172 @@
+{
+  "src/main/ipc/index.ts": {
+    "assertManagerPassword": {
+      "pending": 9
+    },
+    "assertManagerSession": {
+      "pending": 23
+    },
+    "assertPanelPasswordStrict": {
+      "pending": 1
+    },
+    "assertPanelUnlocked": {
+      "known": 51
+    },
+    "authService.verify": {
+      "known": 1
+    },
+    "authService.verifyPanel": {
+      "known": 1
+    }
+  },
+  "src/main/services/AuthService.ts": {
+    "assertManagerPassword": {
+      "pending": 5
+    },
+    "authService.verifyPanel": {
+      "known": 2
+    }
+  },
+  "src/main/services/BackupService.ts": {
+    "assertPanelPasswordStrict": {
+      "pending": 5
+    }
+  },
+  "src/main/services/bridgeDiagnosticsService.ts": {
+    "assertPanelUnlocked": {
+      "known": 4
+    },
+    "assertPanelUnlockedStrict": {
+      "known": 1
+    }
+  },
+  "src/main/services/CardTransferService.ts": {
+    "assertPanelPassword": {
+      "known": 3
+    }
+  },
+  "src/main/services/CustodyPlanService.ts": {
+    "assertManagerSession": {
+      "pending": 3
+    }
+  },
+  "src/main/services/CustodyService.ts": {
+    "assertManagerPassword": {
+      "pending": 2
+    },
+    "assertManagerSession": {
+      "pending": 6
+    }
+  },
+  "src/main/services/financialInspectorService.ts": {
+    "assertPanelUnlocked": {
+      "known": 2
+    }
+  },
+  "src/main/services/MaintenanceService.ts": {
+    "assertManagerPassword": {
+      "pending": 1
+    }
+  },
+  "src/main/services/panelSession.ts": {
+    "assertPanelPasswordStrict": {
+      "pending": 1
+    }
+  },
+  "src/main/services/PartyService.ts": {
+    "assertPanelPassword": {
+      "known": 1
+    }
+  },
+  "src/main/services/PeriodLockService.ts": {
+    "assertManagerPassword": {
+      "pending": 1
+    }
+  },
+  "src/main/services/PriceAdjustService.ts": {
+    "assertPanelPassword": {
+      "known": 1
+    }
+  },
+  "src/main/services/PrintService.ts": {
+    "assertPanelPasswordStrict": {
+      "pending": 1
+    }
+  },
+  "src/main/services/ProductService.ts": {
+    "assertPanelPassword": {
+      "known": 2
+    }
+  },
+  "src/main/services/PurchaseService.ts": {
+    "assertPanelPassword": {
+      "known": 2
+    }
+  },
+  "src/main/services/SalesService.ts": {
+    "assertManagerPassword": {
+      "pending": 5
+    },
+    "assertPanelPassword": {
+      "known": 5
+    },
+    "assertPanelPasswordStrict": {
+      "pending": 6
+    },
+    "verifyManagerCorrectionApproval": {
+      "identity": 2
+    }
+  },
+  "src/main/services/SecondaryStockService.ts": {
+    "assertPanelPassword": {
+      "known": 3
+    }
+  },
+  "src/main/services/SettingsService.ts": {
+    "assertManagerPassword": {
+      "pending": 6
+    },
+    "assertPanelPassword": {
+      "known": 6
+    },
+    "assertPanelPasswordStrict": {
+      "pending": 1
+    }
+  },
+  "src/main/services/ShiftService.ts": {
+    "assertPanelPasswordStrict": {
+      "pending": 2
+    }
+  },
+  "src/main/services/sms/SmsCredentials.ts": {
+    "assertManagerPassword": {
+      "pending": 2
+    }
+  },
+  "src/main/services/StaffService.ts": {
+    "assertManagerSession": {
+      "pending": 4
+    },
+    "assertPanelPassword": {
+      "known": 1
+    }
+  },
+  "src/main/services/StocktakeReminderService.ts": {
+    "assertPanelPassword": {
+      "known": 2
+    }
+  },
+  "src/main/services/StoreCreditService.ts": {
+    "assertManagerSession": {
+      "pending": 1
+    },
+    "assertPanelPasswordStrict": {
+      "pending": 4
+    }
+  },
+  "src/main/services/VariantPurgeService.ts": {
+    "assertPanelPassword": {
+      "known": 1
+    }
+  }
+}
