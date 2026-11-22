@@ -25,6 +25,8 @@ function explain(error: string | null): string | null {
   if (error.includes('lock')) return REASONS.HUB_LOCKED
   return 'روشن شدن هاب انجام نشد.'
 }
+/** طرح ۱۴۰۵ · کار کوچک ۵ بخش ۷ طرح: در اجرای توسعه (npm run dev) هاب و Node همراه ساخته نمی‌شوند. */
+const DEV_RUN = Boolean((import.meta as any).env?.DEV)
 
 export default function RemoteLink() {
   const [status, setStatus] = useState<RemoteSetupStatus | null>(null)
@@ -117,6 +119,7 @@ export default function RemoteLink() {
     <div className="space-y-3 max-w-2xl">
       <div className="bg-white rounded shadow p-4 space-y-2">
         <h1 className="text-brand font-bold">کنترل از راه دور با گوشی</h1>
+        {DEV_RUN && <div role="note" className="rounded px-3 py-2 bg-sky-50 border border-sky-300">کنترل از راه دور فقط در نسخهٔ نصب‌شدهٔ برنامه کار می‌کند؛ در اجرای توسعه (npm run dev) هاب و Node همراه ساخته نمی‌شوند.</div>}
         {!status.ready ? <div>این نسخه هنوز کنترل از راه دور را فعال نکرده است.</div> : (
           <div className="space-y-1">
             <div>وضعیت: <b>{status.running ? 'روشن' : status.busy ? 'در حال تغییر…' : status.enabled ? 'روشن نشده (خطا)' : 'خاموش'}</b></div>
@@ -127,6 +130,8 @@ export default function RemoteLink() {
           </div>
         )}
         {status.ready && managerField}
+        {/* طرح ۱۴۰۵ · کار کوچک ۳ بخش ۷ طرح: چرا دکمه‌ها غیرفعال‌اند */}
+        {status.ready && !managerPassword && !busy && <div className="kbd">دکمه‌های این صفحه تا وقتی رمز مدیر را در کادر بالا نزنید، غیرفعال می‌مانند.</div>}
         {message && <div role="status" className={`rounded px-3 py-2 border ${message.ok ? 'bg-emerald-50 border-emerald-300' : 'bg-amber-50 border-amber-300'}`}>{message.text}</div>}
       </div>
 

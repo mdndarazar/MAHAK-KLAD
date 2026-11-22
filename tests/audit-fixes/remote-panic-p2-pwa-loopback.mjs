@@ -51,7 +51,7 @@ test('PWA approval, then the PWA P2 button closes the panel, latches login and i
     class Element { constructor() { this.hidden = false; this.value = ''; this.checked = false; this.children = []; this.events = {}; this._text = '' } addEventListener(e, f) { this.events[e] = f } appendChild(c) { this.children.push(c) } set textContent(v) { this._text = String(v); this.children = [] } get textContent() { return this._text } fire(e) { return this.events[e]({ preventDefault() {} }) } }
     const elements = new Map(), el = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id) }
     for (const id of ['dashboard', 'owner-tools', 'invoice-tools', 'invoice-acl-label', 'invoice-next', 'panic-close-tools', 'panic-tools', 'approval-acl']) el(id).hidden = true
-    assert.match(mobileHtml, /id="panic-tools" hidden/); assert.match(mobileHtml, /id="panic-confirm" type="checkbox"/)
+    assert.match(mobileHtml, /id="panic-tools" hidden/); assert.match(mobileHtml, /id="panic-confirm" type="text"/)
     assert.match(mobileHtml, /پس از «توقف اضطراری کامل»، ورود با گوشی تا بازیابی پشت سیستم فروشگاه ممکن نیست/)
     vm.runInNewContext(mobileJs, { document: { getElementById: el, createElement: () => new Element() }, navigator: {}, fetch, console }, { timeout: 1000 })
     const until = async (check, what) => { const deadline = Date.now() + 8000; while (!check()) { if (Date.now() > deadline) assert.fail(what); await new Promise(r => setTimeout(r, 25)) } }
@@ -80,17 +80,17 @@ test('PWA approval, then the PWA P2 button closes the panel, latches login and i
     // Without the confirmation tick nothing is sent.
     el('panic-pin').value = '746392'
     await el('panic-form').fire('submit')
-    assert.match(el('message').textContent, /گزینهٔ تأیید را علامت بزنید/); assert.equal(calls.includes('/api/panic'), false)
+    assert.match(el('message').textContent, /کلمهٔ «توقف» را در کادر تأیید تایپ کنید/); assert.equal(calls.includes('/api/panic'), false)
     // A wrong PIN is refused: the owner stays signed in and the panel stays open.
-    el('panic-pin').value = '000000'; el('panic-confirm').checked = true
+    el('panic-pin').value = '000000'; el('panic-confirm').value = 'توقف'
     await el('panic-form').fire('submit')
     assert.equal(calls.includes('/api/panic'), true)
     assert.match(el('message').textContent, /توقف اضطراری تأیید نشد/)
-    assert.equal(el('dashboard').hidden, false); assert.equal(el('panic-pin').value, ''); assert.equal(el('panic-confirm').checked, false)
+    assert.equal(el('dashboard').hidden, false); assert.equal(el('panic-pin').value, ''); assert.equal(el('panic-confirm').value, '')
     assert.equal(isGrantActiveForWindow('products', 42), true); assert.equal(session.isPanelUnlocked('products', 42), true)
     assert.deepEqual(notices, [])
     // The real P2: desktop panel and pending request closed, acknowledged, desktop notified, phone signed out.
-    el('panic-pin').value = '746392'; el('panic-confirm').checked = true
+    el('panic-pin').value = '746392'; el('panic-confirm').value = 'توقف'
     await el('panic-form').fire('submit')
     assert.equal(isGrantActiveForWindow('products', 42), false); assert.equal(session.isPanelUnlocked('products', 42), false)
     assert.equal(getRequestStatus(43, 'products', pending.requestId), 'UNAVAILABLE')
@@ -149,7 +149,7 @@ test('an undelivered P2 is never reported as success: the phone is signed out an
     assert.ok(createGrant({ panel: 'products', ownerWindowId: 42, tier: 'NORMAL', mode: 'PANEL', memberId: 'owner', requestId: asked.requestId, ttlMs: 60000 }))
     assert.equal(consumeOneShot(42, 'products', asked.gt.slice(3)), true); assert.equal(session.isPanelUnlocked('products', 42), true)
 
-    el('panic-pin').value = '746392'; el('panic-confirm').checked = true
+    el('panic-pin').value = '746392'; el('panic-confirm').value = 'توقف'
     await el('panic-form').fire('submit')
     // 503 with the session cleared: signed out, told to check at the desktop, never told it succeeded.
     assert.match(el('message').textContent, /تحویل ابطال هنوز کامل نیست/)
