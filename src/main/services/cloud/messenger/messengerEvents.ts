@@ -90,10 +90,21 @@ export interface LookupData {
   /** مرحلهٔ ۴ (مورد ۱۲): ردیف کاغذِ `markPrinted` که چاپ دوبارهٔ فروشنده است ⇒ کد دلیل («INCOMPLETE»/«OTHER») */
   sellerPapers: Map<number, string>
   handovers: Map<number, { fromUserId: number | null; receiverUserId: number | null; expectedAtStart: unknown; countedAtStart: unknown; differenceCash: unknown }>
+  /** مرز تجمیعی حضانت (کشو + کارت‌خوان) که رویداد بستن نهایی به آن اشاره می‌کند؛ عددها همان ثبت‌شده‌اند. */
+  boundaries: Map<number, AggregateBoundaryLite>
+}
+/** فقط ستون‌های عددی و نوع مرز؛ هیچ متن آزاد. */
+export interface AggregateBoundaryLite {
+  observedOperationalTotal: unknown
+  operationalExpectedTotal: unknown
+  theoreticalExpectedTotal: unknown
+  newDifference: unknown
+  totalTheoreticalDifference: unknown
+  baselineSource: string | null
 }
 export const emptyLookups = (): LookupData => ({
   users: new Map(), shifts: new Map(), invoices: new Map(), customers: new Map(), payments: new Map(),
-  credits: new Map(), redemptions: new Map(), reprinted: new Set(), sellerPapers: new Map(), handovers: new Map()
+  credits: new Map(), redemptions: new Map(), reprinted: new Set(), sellerPapers: new Map(), handovers: new Map(), boundaries: new Map()
 })
 
 export interface IdsNeeded {
@@ -549,10 +560,42 @@ function accessEvent(row: AuditRowLite, f: Record<string, unknown>, h: ReturnTyp
   }
 }
 
+function custodyPayload(ev: Pick<CustodyEventLite, 'payloadJson'>): Record<string, unknown> {
+  try { const p = ev.payloadJson ? JSON.parse(ev.payloadJson) : null; if (p && typeof p === 'object' && !Array.isArray(p)) return p } catch {}
+  return {}
+}
+/** شناسهٔ مرز تجمیعی بستن نهایی (برای خواندن دسته‌ای عددهایش در `messengerDb`). */
+export function custodyBoundaryId(ev: Pick<CustodyEventLite, 'type' | 'payloadJson'>): number | null {
+  return ev.type === 'FINAL_AGGREGATE_CLOSE' ? intId(custodyPayload(ev).aggregateBoundaryId) : null
+}
+const NOT_MEASURED = 'سنجیده نشد؛ این نشست بی شمارش جمع کشو و کارت‌خوان شروع شده بود، پس مرجعی برای سنجش نبود'
+/**
+ * عددهای بستن نهایی تجمیعی، عیناً از مرز ثبت‌شده (طرح §۲۱ بند ۴: سند تکمیل‌شده پیام کامل دارد).
+ * `diff` فقط وقتی عدد است که مغایرت واقعاً سنجیده شده باشد.
+ */
+function aggregateCloseLines(b: AggregateBoundaryLite | undefined, payload: Record<string, unknown>): { lines: string[]; diff: number | null } {
+  if (!b) return { lines: ['شمرده و مرجع: ثبت نشده'], diff: null }
+  const counted = `شمرده (کشو + کارت‌خوان): ${rialOrMissing(b.observedOperationalTotal)}`
+  if (b.baselineSource === 'ADOPTION') {
+    const movement = n(payload.unreconciledSegmentMovement)
+    return { lines: [counted, `مغایرت: ${NOT_MEASURED}`, movement !== null ? `گردش نقد و کارت‌خوان این نشست: ${rial(movement)}` : ''], diff: null }
+  }
+  const diff = n(b.newDifference)
+  const lines = [`${counted} · مرجع: ${rialOrMissing(b.operationalExpectedTotal)}`, `مغایرت: ${differenceText(diff)}`]
+  const operational = n(b.operationalExpectedTotal), theoretical = n(b.theoreticalExpectedTotal)
+  if (theoretical !== null && operational !== null && theoretical !== operational)
+    lines.push(`مرجع کل دوره (نظری مدیر): ${rial(theoretical)} · اختلاف کل دوره: ${differenceText(n(b.totalTheoreticalDifference))}`)
+  return { lines, diff }
+}
+/** پوشش اضطراری و Master Override: عددهای خود رویداد (در حالت شمارش پایه، مرجعی نیست). */
+function coverLines(payload: Record<string, unknown>): string[] {
+  if (payload.aggregateBootstrap === true) return [`شمرده: ${rialOrMissing(payload.countedCash)}`, `مغایرت: ${NOT_MEASURED}`]
+  return [`شمرده: ${rialOrMissing(payload.countedCash)} · مرجع: ${rialOrMissing(payload.expectedCash)} · مغایرت: ${differenceText(n(payload.differenceCash))}`]
+}
+
 /** رویدادهای حضانت از جدول خودشان (طرح §۲۱ بند ۴). */
 export function custodyEventToEvents(ev: CustodyEventLite, ctx: EventContext): MessengerEvent[] {
-  let payload: Record<string, unknown> = {}
-  try { const p = ev.payloadJson ? JSON.parse(ev.payloadJson) : null; if (p && typeof p === 'object' && !Array.isArray(p)) payload = p } catch {}
+  const payload = custodyPayload(ev)
   // یک بستن، یک پیام: بستن‌های حضانت `CASH_CLOSE` هم می‌نویسند و همان پیام کافی است.
   if (intId(payload.cashSessionId)) return []
   const at = toMs(ev.at)
@@ -581,14 +624,27 @@ export function custodyEventToEvents(ev: CustodyEventLite, ctx: EventContext): M
       return make('✖️ تحویل صندوق لغو شد', [`تحویل‌دهنده: ${who(handover?.fromUserId ?? ev.actorUserId)} · شمرده: ${rialOrMissing(handover?.countedAtStart)}`])
     case 'HANDOVER_RECOUNT_ABORTED': return make('✖️ شمارش دوبارهٔ تحویل نیمه‌کاره ماند', [`کاربر: ${who(ev.actorUserId)}`], { important: true })
     case 'EMERGENCY_COVER_FREEZE': return make('🚨 پوشش اضطراری صندوق شروع شد', [`کاربر: ${who(ev.actorUserId)}`])
-    case 'EMERGENCY_COVER_COMPLETED': return make('🚨 پوشش اضطراری صندوق انجام شد', [`کاربر: ${who(ev.actorUserId)}`, ev.managerUserId ? `مدیر: ${who(ev.managerUserId)}` : ''], { important: true })
+    case 'EMERGENCY_COVER_COMPLETED': return make('🚨 پوشش اضطراری صندوق انجام شد', [`کاربر: ${who(ev.actorUserId)}`, ev.managerUserId ? `مدیر: ${who(ev.managerUserId)}` : '', ...coverLines(payload)], { important: true })
     case 'EMERGENCY_COVER_ABORTED': return make('🚨 پوشش اضطراری صندوق نیمه‌کاره ماند', [`کاربر: ${who(ev.actorUserId)}`], { important: true })
     case 'MASTER_OVERRIDE_FREEZE': return make('🛡️ Master Override شروع شد', [`کاربر: ${who(ev.actorUserId)}`])
-    case 'MASTER_OVERRIDE_COMPLETED': return make('🛡️ Master Override انجام شد', [`مدیر: ${who(ev.managerUserId ?? ev.actorUserId)}`], { important: true })
+    case 'MASTER_OVERRIDE_COMPLETED': return make('🛡️ Master Override انجام شد', [`مدیر: ${who(ev.managerUserId ?? ev.actorUserId)}`, ...coverLines(payload)], { important: true })
     case 'MASTER_OVERRIDE_ABORTED': return make('🛡️ Master Override نیمه‌کاره ماند', [`کاربر: ${who(ev.actorUserId)}`], { important: true })
     case 'ROLLOVER_UNRESOLVED': return make('⚠️ صندوق بسته نشد و به روز بعد رفت', [shift ? `شیفت: ${shift}` : '', `کاربر: ${who(ev.actorUserId)}`], { important: true })
     case 'CUSTODIAN_ARCHIVED_UNRESOLVED': return make('⚠️ مسئول صندوق بایگانی شد و صندوقش بسته نشده است', [shift ? `شیفت: ${shift}` : ''], { important: true })
-    case 'FINAL_AGGREGATE_CLOSE': return make('🔁 بستن نهایی صندوق تجمیعی (حضانت)', [`کاربر: ${who(ev.actorUserId)}`])
+    case 'FINAL_AGGREGATE_CLOSE': {
+      const boundaryId = intId(payload.aggregateBoundaryId)
+      const { lines, diff } = aggregateCloseLines(boundaryId ? ctx.data.boundaries?.get(boundaryId) : undefined, payload)
+      const out = make('🔁 بستن نهایی صندوق تجمیعی (حضانت)', [`کاربر: ${who(ev.actorUserId)}`, ...lines], { important: diff !== null && diff !== 0 })
+      // طرح §۲۵-۴ بند «د»: همان آستانهٔ «سقف مجاز مغایرت صندوق» که برای بستن صندوق عادی هست.
+      if (diff !== null && ctx.threshold > 0 && Math.abs(diff) > ctx.threshold) {
+        out.push({
+          code: `E-${ev.id}-D`, at, title: `🚨 مغایرت بزرگ در بستن نهایی صندوق تجمیعی · ${fmtAt(at, ctx.offsetHours)}`,
+          lines: [`مغایرت: ${differenceText(diff)}`, `سقف مجاز مغایرت: ${rial(ctx.threshold)}`, `کاربر: ${who(ev.actorUserId)}`],
+          important: true, handover: true, system: true, day: officialDay(at, ctx.offsetHours)
+        })
+      }
+      return out
+    }
     case 'FINAL_AGGREGATE_CLOSE_ABORTED': return make('✖️ بستن نهایی صندوق تجمیعی نیمه‌کاره ماند', [`کاربر: ${who(ev.actorUserId)}`], { important: true })
     default: return []
   }

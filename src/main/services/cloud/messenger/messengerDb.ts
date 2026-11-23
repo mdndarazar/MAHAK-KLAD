@@ -7,7 +7,7 @@
 import { createHash } from 'node:crypto'
 import { prisma as defaultPrisma } from '../../../db/client'
 import { SETTING_KEYS, parseAccountingPolicy, parseOfficialTimeConfig } from '@shared/receipt'
-import type { AuditRowLite, CustodyCountLite, CustodyEventLite, IdsNeeded, LookupData } from './messengerEvents'
+import { custodyBoundaryId, type AuditRowLite, type CustodyCountLite, type CustodyEventLite, type IdsNeeded, type LookupData } from './messengerEvents'
 import { emptyLookups } from './messengerEvents'
 
 type Client = typeof defaultPrisma
@@ -67,11 +67,14 @@ export function createMessengerDb(client: Client = defaultPrisma) {
   async function fetchLookups(ids: IdsNeeded, custody?: { events: CustodyEventLite[]; counts: CustodyCountLite[] }): Promise<LookupData> {
     const data = emptyLookups()
     const users = new Set(ids.users), shifts = new Set(ids.shifts), invoices = new Set(ids.invoices), handovers = new Set(ids.handovers)
+    const boundaries = new Set<number>()
     for (const ev of custody?.events ?? []) {
       if (ev.actorUserId) users.add(ev.actorUserId)
       if (ev.managerUserId) users.add(ev.managerUserId)
       if (ev.shiftId) shifts.add(ev.shiftId)
       if (ev.handoverId) handovers.add(ev.handoverId)
+      const boundaryId = custodyBoundaryId(ev)
+      if (boundaryId) boundaries.add(boundaryId)
     }
     for (const c of custody?.counts ?? []) if (c.countedByUserId) users.add(c.countedByUserId)
 
@@ -122,6 +125,19 @@ export function createMessengerDb(client: Client = defaultPrisma) {
         data.handovers.set(h.id, { fromUserId: h.fromUserId ?? null, receiverUserId: receiver, expectedAtStart: h.expectedAtStart, countedAtStart: h.countedAtStart, differenceCash: h.differenceCash })
         if (h.fromUserId) users.add(h.fromUserId)
         if (receiver) users.add(receiver)
+      }
+    }
+    // بستن نهایی تجمیعی: شمرده، مرجع و مغایرت فقط در مرز ثبت‌شده‌اند (نه در `CASH_CLOSE`).
+    for (const part of chunks([...boundaries])) {
+      const rows = await db.custodyAggregateBoundary.findMany({
+        where: { id: { in: part } },
+        select: { id: true, observedOperationalTotal: true, operationalExpectedTotal: true, theoreticalExpectedTotal: true, newDifference: true, totalTheoreticalDifference: true, baselineSource: true }
+      })
+      for (const b of rows) {
+        data.boundaries.set(b.id, {
+          observedOperationalTotal: b.observedOperationalTotal, operationalExpectedTotal: b.operationalExpectedTotal, theoreticalExpectedTotal: b.theoreticalExpectedTotal,
+          newDifference: b.newDifference, totalTheoreticalDifference: b.totalTheoreticalDifference, baselineSource: b.baselineSource ?? null
+        })
       }
     }
     for (const part of chunks([...invoices])) {
