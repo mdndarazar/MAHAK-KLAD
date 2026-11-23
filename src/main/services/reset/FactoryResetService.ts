@@ -231,12 +231,17 @@ export function createFactoryResetService(overrides: Partial<FactoryResetDeps> =
     for (const path of [file, `${file}-journal`, `${file}-wal`, `${file}-shm`]) await rm(path, { force: true }).catch(() => undefined)
   }
 
+  /**
+   * تغییر نام با چند تلاش. ویندوز پرونده‌ای را که اتصالی بازش کرده جابه‌جا نمی‌کند؛ اگر کاری هم‌زمان (مثلاً پرسش
+   * دوره‌ای صفحه) Prisma را دوباره وصل کرده باشد، پیش از تلاش بعدی دوباره جدا می‌شود. حداکثر حدود ۵ ثانیه.
+   */
   async function renameRetry(from: string, to: string): Promise<void> {
     for (let attempt = 1; ; attempt++) {
       try { await deps.rename(from, to); return } catch (error) {
         const code = String((error as { code?: unknown })?.code ?? '')
-        if (attempt >= 10 || !['EBUSY', 'EPERM', 'EACCES'].includes(code)) throw error
+        if (attempt >= 25 || !['EBUSY', 'EPERM', 'EACCES'].includes(code)) throw error
         await new Promise((resolve) => setTimeout(resolve, 200))
+        await deps.main.disconnect().catch(() => undefined)
       }
     }
   }
@@ -437,6 +442,7 @@ export function createFactoryResetService(overrides: Partial<FactoryResetDeps> =
       for (const [from, to] of moved.reverse()) {
         try { await renameRetry(to, from) } catch { restored = false }
       }
+      await deps.main.disconnect().catch(() => undefined)
       await deps.main.connect().catch(() => undefined)
       if (!restored) {
         console.error('[factory-reset] could not restore the database name', error)
@@ -444,6 +450,8 @@ export function createFactoryResetService(overrides: Partial<FactoryResetDeps> =
       }
       throw error
     }
+    // اتصالی که در همین فاصله (به پروندهٔ گذرا) باز شده باشد، بسته می‌شود؛ سپس اتصال به پایگاه تازه
+    await deps.main.disconnect().catch(() => undefined)
     await deps.main.connect().catch(() => undefined)
     return basename(before)
   }

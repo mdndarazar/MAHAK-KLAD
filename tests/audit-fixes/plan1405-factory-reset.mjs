@@ -290,12 +290,18 @@ async function runChild(MODE) {
   console.log(`\n[${MODE}] ۵) صفر کردن واقعی`)
   calls.length = 0
   addGateTicket(9, 'credit.void', 60_000, 'PASSWORD')
-  const svc = createFactoryResetService({ ...stub(), main: { query: (q, ...v) => db.$queryRawUnsafe(q, ...v), disconnect: async () => { calls.push('disconnect'); await db.$disconnect() }, connect: async () => { calls.push('connect') } } })
+  // «فقط تراکنش‌ها»: نخستین تغییر نام یک بار EBUSY می‌دهد (مثل ویندوز وقتی پرسشی هم‌زمان Prisma را دوباره وصل کرده)
+  let renames = 0
+  const busyOnce = MODE === 'transactions' ? { rename: async (a, b) => { if (++renames === 1) { const e = new Error('EBUSY'); e.code = 'EBUSY'; throw e } return fsRename(a, b) } } : {}
+  const svc = createFactoryResetService({ ...stub(busyOnce), main: { query: (q, ...v) => db.$queryRawUnsafe(q, ...v), disconnect: async () => { calls.push('disconnect'); await db.$disconnect() }, connect: async () => { calls.push('connect') } } })
   let receipt = null
   try { receipt = await svc.run(VALID) } catch (e) { check('صفر کردن انجام شد', false, String(e?.message ?? e)) }
   if (!receipt) { console.log(`RESULT ${JSON.stringify({ ok, bad })}`); process.exit(1) }
   check('صفر کردن انجام شد', true)
-  check('ترتیب: پیام ⚠️، before(reset)، توقف، جدا شدن Prisma، اتصال، after(ok, willRestart)', calls.join(',') === 'notice,before:reset,stop,disconnect,connect,after:true:reset:true', calls.join(','))
+  const wantCalls = `notice,before:reset,stop,disconnect,${MODE === 'transactions' ? 'disconnect,' : ''}disconnect,connect,after:true:reset:true`
+  check(MODE === 'transactions'
+    ? 'ترتیب: پیام ⚠️، before(reset)، توقف، جدا شدن Prisma، EBUSY ⇒ جدا شدن دوباره و تلاش دوباره، جدا شدن پایانی و اتصال، after(ok, willRestart)'
+    : 'ترتیب: پیام ⚠️، before(reset)، توقف، جدا شدن Prisma، جدا شدن پایانی و اتصال، after(ok, willRestart)', calls.join(',') === wantCalls, calls.join(','))
   check('همهٔ بلیت‌های یک‌بار پاک شدند', !peekGateTicket(9, 'credit.void'))
   check('هنوز باز شدن دوباره نیامده (منتظر دکمه یا ۶۰ ثانیه)', !calls.includes('relaunch'))
   check('دکمهٔ «همین حالا دوباره باز شود» کار می‌کند', svc.relaunchNow().ok === true && calls.filter((c) => c === 'relaunch').length === 1)

@@ -264,6 +264,7 @@ export default function FactoryResetSection() {
               <input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} disabled={busy} />
               می‌دانم برگشت فقط با بکاپ ممکن است.
             </label>
+            {err && <div className="rounded px-3 py-2 border bg-amber-100 border-amber-300 whitespace-pre-line">{err}</div>}
           </div>
         )}
       </Modal>
