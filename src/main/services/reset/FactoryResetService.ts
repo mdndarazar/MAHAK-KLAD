@@ -190,8 +190,8 @@ export function defaultFactoryResetDeps(): FactoryResetDeps {
     migrate: (client, file) => applyMigrations(client, file),
     main: {
       query: (sql, ...values) => prisma.$queryRawUnsafe(sql, ...values),
-      disconnect: () => prisma.$disconnect(),
-      connect: () => prisma.$connect()
+      disconnect: async () => { await prisma.$disconnect() },
+      connect: async () => { await prisma.$connect() }
     },
     protectedBackup: (label) => createProtectedBackup(label),
     listBackups: () => backupService.list(),
@@ -280,10 +280,12 @@ export function createFactoryResetService(overrides: Partial<FactoryResetDeps> =
   }) {
     const { mode, oldFile, newFile } = ctx
     await removeDbFile(newFile)
+    // migrator روی اتصال جدای خودش (همان الگوی بکاپ‌های قدیمی در MergeService)؛ سپس اتصال کار روی ساختار کامل
+    const migrateClient = deps.openClient(newFile)
+    try { await deps.migrate(migrateClient, newFile) } finally { await migrateClient.$disconnect().catch(() => undefined) }
     const client = deps.openClient(newFile)
     let attached = false
     try {
-      await deps.migrate(client, newFile)
       const tables = await tableNames(client, 'main')
       const unclassified = tables.filter((t) => !resetFate(t, mode))
       if (unclassified.length) throw new Error(`Unclassified tables: ${unclassified.join(', ')}`)
