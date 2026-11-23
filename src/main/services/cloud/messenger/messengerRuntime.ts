@@ -13,9 +13,8 @@
  */
 import * as electron from 'electron'
 import { databaseFile } from '../../../db/client'
-import { salesService } from '../../SalesService'
-import { staffReportService } from '../../StaffReportService'
 import { setDesktopBackupHooks } from '../desktopBackupCoordination'
+import { sharedTodaySummary, todaySummaryDeps } from '../phoneReports'
 import { createBotRemoteBridge } from '../botRemoteBridge'
 import { remoteApprovalsLive } from '../../CloudSyncService'
 import { noteAccessEvent } from '../../locks/accessEvents'
@@ -47,26 +46,15 @@ function databasePath(): string | null {
   try { return url.startsWith('file:') ? url.slice(5) : databaseFile() } catch { return null }
 }
 
-/** آخرین بکاپ موفق (تازه‌ترین پروندهٔ بکاپ)، برای خلاصهٔ ساعت ۲۴. */
-async function lastBackupAt(): Promise<number | null> {
-  const { backupService } = await import('../../BackupService')
-  const list = await backupService.list()
-  const times = list.map((entry) => new Date(entry.at).getTime()).filter((t) => Number.isFinite(t))
-  return times.length ? Math.max(...times) : null
-}
-
 export function messengerEngine(): MessengerEngine {
   if (engine) return engine
   engine = createMessengerEngine({
     dir: electron.app.getPath('userData'),
     storage: electron.safeStorage ?? null,
     db: createMessengerDb(),
-    summary: {
-      salesSummary: (filter) => salesService.summary(filter) as never,
-      staffPerformance: (filter) => staffReportService.performance(filter) as never,
-      abnormalDiscounts: (filter) => staffReportService.abnormalDiscounts(filter) as never,
-      lastBackupAt
-    },
+    // مرحلهٔ ۷ (§۴-۷): همان تابع‌های گزارش و همان «خلاصهٔ امروز» از پیش ساختهٔ گوشی
+    summary: todaySummaryDeps(),
+    today: sharedTodaySummary(),
     fetchFor: sessionFetch,
     databasePath: databasePath(),
     schedule: true,

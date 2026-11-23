@@ -15,7 +15,8 @@ import { createBotApi, type ApiResult, type BotApi, type FetchLike } from './mes
 import { auditAnchorHash, type MessengerDb } from './messengerDb'
 import { auditPageToEvents, collectAuditIds, custodyCountToEvents, custodyEventToEvents, type AuditRowLite } from './messengerEvents'
 import { fmtAt, fmtClock, num, officialDay, packItems, renderItem, scrubText, splitText } from './messengerFormat'
-import { buildDailySummary, type SummaryDeps } from './messengerSummary'
+import type { SummaryDeps } from './messengerSummary'
+import { createTodaySummary, type TodaySummary } from '../todaySummary'
 import { createBotController, type BotRemote } from './messengerBot'
 import {
   BACKOFF_MAX_MS, BACKOFF_MIN_MS, HEARTBEAT_MS, OUTBOX_MAX, PAIRING_TTL_MS, PROVIDER_INFO, QUEUE_TTL_MS, READ_GAP_MS, READ_PAGE,
@@ -73,6 +74,8 @@ export interface EngineDeps {
   remote?: BotRemote | null
   /** مهلت long polling خواندن پیوستهٔ دکمه‌ها (ثانیه)؛ آزمون کوتاه می‌گیرد */
   botPollSeconds?: number
+  /** مرحلهٔ ۷ (§۴-۷): «خلاصهٔ امروز» مشترک با گوشی؛ نباشد ⇒ نسخهٔ خود موتور با همان سازنده */
+  today?: TodaySummary | null
 }
 
 interface PairingState {
@@ -89,6 +92,8 @@ export function createMessengerEngine(deps: EngineDeps) {
   const now = deps.now ?? (() => Date.now())
   const log = deps.log ?? ((message: string, error?: unknown) => console.error(`[messenger] ${message}`, error ?? ''))
   const store = createMessengerStore(deps.dir, deps.storage)
+  // مرحلهٔ ۷ (§۴-۷): ربات و خلاصهٔ ساعت ۲۴ همان سازندهٔ «خلاصهٔ امروز» گوشی را می‌خوانند.
+  const today: TodaySummary = deps.today ?? createTodaySummary({ deps: () => ({ ...deps.summary, db: deps.db }), offsetHours: () => offsetHours(), now })
   let vault: VaultRead = { state: 'absent' }
   let settings: MessengerSettings | null = null
   /** گاوصندوق هنوز خوانده نشده؛ پیش از هر تغییر خوانده می‌شود تا تنظیمات موجود هرگز با پیش‌فرض رونویسی نشود. */
@@ -135,10 +140,10 @@ export function createMessengerEngine(deps: EngineDeps) {
       await deliverNowBounded(5000)
     },
     summary: async () => {
-      const offset = await offsetHours(), t = now()
-      const day = officialDay(t, offset)
-      const s = await buildDailySummary(day, { ...deps.summary, db: deps.db }, { offsetHours: offset, now: t })
-      return { title: `📊 خلاصهٔ امروز تا ساعت ${fmtClock(t, offset)}`, lines: [...s.lines, ...(s.sellerSections.length ? ['— به تفکیک فروشنده —', ...s.sellerSections.flat()] : [])] }
+      // نسخهٔ از پیش ساختهٔ همین روز اگر تازه است؛ وگرنه یک محاسبهٔ تک‌اجرا. ساعت = زمان ساخت همان نسخه.
+      const snap = await today.latest()
+      const s = snap.summary
+      return { title: `📊 خلاصهٔ امروز تا ساعت ${fmtClock(snap.at, snap.offsetHours)}`, lines: [...s.lines, ...(s.sellerSections.length ? ['— به تفکیک فروشنده —', ...s.sellerSections.flat()] : [])] }
     },
     offsetHours: () => offsetHours(),
     now,
@@ -313,7 +318,7 @@ export function createMessengerEngine(deps: EngineDeps) {
     const yesterday = jalaliAddDays(officialDay(now(), offset), -1)
     if (!cursor.summaryDay) { cursor.summaryDay = yesterday; store.writeCursor(cursor); return }
     if (cursor.summaryDay >= yesterday) return
-    const summary = await buildDailySummary(yesterday, { ...deps.summary, db: deps.db }, { offsetHours: offset, now: now() })
+    const summary = await today.forDay(yesterday, { offsetHours: offset, now: now() })
     const late = now() - summary.endAt > 10 * 60_000
     const at = late ? now() : summary.endAt
     for (const r of settings.recipients) {

@@ -20,6 +20,7 @@ import { createHubIdentity } from './hubIdentity'
 import { startMobileReadOnlyHub } from './mobileReadOnlyHub'
 import { createLocalAuditReceiver } from './localAuditReceiver'
 import { isInvoiceDate, parseInvoicePage } from './invoiceFactsValidation'
+import { PHONE_REPORT_PANELS, PHONE_REPORT_SECTIONS, isPhoneSection, parsePhoneReport, parsePhoneReportRequest, type PhoneReportValue } from './phoneReportCatalog'
 import { normalizeMobileOrigins } from './mobileOrigins'
 import { drainNetworkRevocations } from './inProcessRevocationBridge'
 import { createExperimentalRemoteCommandIssuer } from './experimentalRemoteCommandIssuer'
@@ -119,6 +120,32 @@ function requestInvoices(from:string,to:string,afterId:number,limit:number):Prom
   })
 }
 
+// Plan 1405 stage 7 (§4-7): phone report sections are read by the parent from the
+// desktop's own read functions; this process only forwards a validated request and
+// a validated fixed DTO. One pending read at a time.
+let reportId=0
+let reportPending: null | {id:number; section:string; resolve:(value:PhoneReportValue)=>void; reject:(error:Error)=>void; timer:ReturnType<typeof setTimeout>} = null
+function failReport() {
+  const pending=reportPending
+  if (!pending) return
+  reportPending=null;clearTimeout(pending.timer);pending.reject(new Error('Report read unavailable'))
+}
+function requestReport(section:string, request:Record<string,unknown>, member:string):Promise<PhoneReportValue> {
+  let fields:Record<string,unknown>
+  try {
+    if (shuttingDown || !process.connected || reportPending || reportId >= Number.MAX_SAFE_INTEGER || !isPhoneSection(section) ||
+        typeof member !== 'string' || !member || member.length > 64) throw new Error('Invalid report request')
+    const {section:_section,...rest}=parsePhoneReportRequest({...request,section})
+    fields=rest
+  } catch { return Promise.reject(new Error('Invalid report request')) }
+  const id=++reportId
+  return new Promise((resolve,reject) => {
+    const timer=setTimeout(() => { if (reportPending?.id === id) failReport() },15_000)
+    reportPending={id,section,resolve,reject,timer}
+    try { send({type:'reportRead',id,section,request:fields,member}) } catch { failReport() }
+  })
+}
+
 function releaseLock() {
   if (lockFd === undefined) return
   let owns = false
@@ -135,7 +162,7 @@ async function closeServer(server: Server | undefined): Promise<void> {
 async function shutdown() {
   if (shuttingDown) return
   shuttingDown = true
-  failInvoice();failApprovals()
+  failInvoice();failReport();failApprovals()
   if (revocationTimer) clearInterval(revocationTimer)
   if (mobile) { await mobile.closeNow().catch(() => {}); mobile = undefined }
   if (revocationActive) await revocationActive.catch(() => {})
@@ -233,7 +260,7 @@ async function start(input: unknown) {
     db.prepare('INSERT INTO remote_transport_meta (id,key_check) VALUES (1,?)').run(keyCheck.toString('hex'))
   }
   const approvalPanels:string[]=approval===undefined ? [] : [...approval.panels]
-  const panels=[...new Set([...(config.invoiceFacts === true ? ['custody','shifts','invoices'] : ['custody','shifts']),...approvalPanels])]
+  const panels=[...new Set([...(config.invoiceFacts === true ? ['custody','shifts','invoices',...PHONE_REPORT_PANELS] : ['custody','shifts']),...approvalPanels])]
   const identity = createHubIdentity(db, { panels, approvalPanels })
   recoveryIdentity=identity;recoveryEpoch=revocation === undefined ? '' : revocation.epoch
   const count = db.prepare('SELECT COUNT(*) AS n FROM remote_members').get()?.n
@@ -320,7 +347,8 @@ async function start(input: unknown) {
       linkAgeMs:approvalController && mirror ? age(mirror.at) : null,
       revocationPending:identity.pendingRevocations(1).length>0}
   }
-  mobile = await startMobileReadOnlyHub({ origins, identity, health, ...(approvalController ? {approval:approvalController} : {}), ...(drain ? {drainRevocations:drain} : {}), reader: {
+  mobile = await startMobileReadOnlyHub({ origins, identity, health, ...(approvalController ? {approval:approvalController} : {}), ...(drain ? {drainRevocations:drain} : {}),
+    ...(config.invoiceFacts === true ? { reports:{ sections:PHONE_REPORT_SECTIONS, read:requestReport } } : {}), reader: {
     latestBoundaryTotals:async () => current().boundary,
     openShiftsPage:async () => current().shifts,
     ...(config.invoiceFacts === true ? { invoiceFactsPage:requestInvoices } : {})
@@ -431,6 +459,14 @@ process.on('message', message => {
         snapshot = value; snapshotAt = performance.now() - (wall - captured); lastDataAt = snapshotAt; lastSnapshotCapture = captured
         response(true)
       } catch { snapshot = null; response(false,'invalid-payload') }
+      return
+    }
+    if (message.type === 'reportReadResult' && reportPending && message.id === reportPending.id) {
+      const pending=reportPending;reportPending=null;clearTimeout(pending.timer)
+      try {
+        if (message.ok !== true || !sameKeys(message,'id,ok,type,value') || !isPhoneSection(pending.section)) throw new Error('Report read unavailable')
+        pending.resolve(parsePhoneReport(pending.section,message.value))
+      } catch { pending.reject(new Error('Report read unavailable')) }
       return
     }
     if (message.type === 'invoiceReadResult' && invoicePending && message.id === invoicePending.id) {

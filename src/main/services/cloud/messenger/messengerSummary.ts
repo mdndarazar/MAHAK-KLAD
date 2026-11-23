@@ -36,6 +36,21 @@ export interface DailySummary {
   invoiceCount: number
   /** زمان «ساعت ۲۴» همان روز */
   endAt: number
+  /**
+   * مرحلهٔ ۷ (معماری §۴-۷): همان عددهای خط‌های بالا، بی قالب، برای «خلاصهٔ امروز» گوشی و آزمون برابری.
+   * مبلغ‌ها رشتهٔ عدد صحیح‌اند و دقیقاً همان عددی‌اند که `rial()` قالب می‌کند.
+   */
+  numbers: DailySummaryNumbers
+}
+export interface DailySummaryNumbers {
+  count: number; grandTotal: string; cashTotal: string; cardTotal: string; managerAccountTotal: string
+  otherTotal: string; creditTotal: string; returnCount: number; exchangeCount: number
+}
+/** همان عددی که `rial()` نشان می‌دهد (`money(Number(n) || 0)`)، به رشتهٔ عدد صحیح. */
+const amountOf = (n: unknown): string => {
+  if (typeof n === 'bigint') return n.toString()
+  const r = Math.round(Number(n) || 0)
+  return Object.is(r, -0) ? '0' : String(r)
 }
 
 const STATE_FA = (diff: number): string => (diff === 0 ? 'تطبیق کامل' : diff < 0 ? `کسری ${rial(Math.abs(diff))}` : `اضافه ${rial(diff)}`)
@@ -128,5 +143,10 @@ export async function buildDailySummary(day: string, deps: SummaryDeps, ctx: { o
       `تخفیف غیرعادی ${num(extra.abnormal)} · ابطال ${num(extra.voids)} · قیمت دستی ${num(extra.manual)} · چاپ دوبارهٔ بارکد ${num(extra.reprints)}`
     ])
   }
-  return { day, title: `📊 خلاصهٔ روز ${faDigits(day)}`, lines, sellerSections, invoiceCount: Number(sales.count) || 0, endAt }
+  const numbers: DailySummaryNumbers = {
+    count: Math.trunc(Number(sales.count) || 0), grandTotal: amountOf(sales.grandTotal), cashTotal: amountOf(sales.cashTotal),
+    cardTotal: amountOf(sales.cardTotal), managerAccountTotal: amountOf(sales.managerAccountTotal), otherTotal: amountOf(sales.otherTotal),
+    creditTotal: amountOf(sales.creditTotal), returnCount: returns, exchangeCount: exchanges
+  }
+  return { day, title: `📊 خلاصهٔ روز ${faDigits(day)}`, lines, sellerSections, invoiceCount: Number(sales.count) || 0, endAt, numbers }
 }

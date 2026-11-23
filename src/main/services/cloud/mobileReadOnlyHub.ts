@@ -14,6 +14,7 @@ import { mobileHtml, mobileCss, mobileJs, mobileManifest, mobileWorker } from '.
 import { icon192, icon512 } from './mobilePwaIcons'
 import { isInvoiceDate, parseInvoicePage } from './invoiceFactsValidation'
 import { normalizeMobileOrigins } from './mobileOrigins'
+import { PHONE_REPORT_MAX_DAYS, isPhoneSection, jalaliSpanDays, parsePhoneReport, parsePhoneReportRequest, phoneReportPanel, type PhoneReportRequest } from './phoneReportCatalog'
 
 type Session = { id: string; role: string; username: string }
 type Identity = {
@@ -50,7 +51,9 @@ type ApprovalController = {
  * last live request copy (null = none yet / approvals off), and whether a
  * revocation is still waiting for the desktop's ACK (approvals wait for it). */
 type Health = () => { dataAgeMs: number | null; linkAgeMs: number | null; revocationPending: boolean }
-type Options = { origin?: string; origins?: readonly string[]; identity: Identity; reader: Reader; drainRevocations?: () => { remaining: boolean } | Promise<{ remaining: boolean }>; approval?: ApprovalController; health?: Health }
+/** Plan 1405 stage 7 (§4-7): fixed read-only phone report sections (one VIEW ACL panel each). */
+type ReportController = { sections: readonly string[]; read(section: string, request: Record<string, unknown>, member: string): Promise<unknown> }
+type Options = { origin?: string; origins?: readonly string[]; identity: Identity; reader: Reader; drainRevocations?: () => { remaining: boolean } | Promise<{ remaining: boolean }>; approval?: ApprovalController; health?: Health; reports?: ReportController }
 const TOKEN = /^[A-Za-z0-9_-]{43}$/
 const MAX_BODY = 8192
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
@@ -120,6 +123,13 @@ export function createMobileReadOnlyHandler(options: Options) {
   // Shared across sessions so many clients cannot fan out DB reads. The real
   // query must settle before releasing the slot; never queue expensive reads.
   let invoiceBusy=false, lastInvoiceRead=-Infinity
+  // Plan 1405 stage 7: one report read at a time for all sessions, at least 3 s apart.
+  let reportBusy=false, lastReportRead=-Infinity
+  const reportSections=(token:string):{reports?:string[]}=>{
+    if (!options.reports || !Array.isArray(options.reports.sections)) return {}
+    const visible=options.reports.sections.filter(section=>isPhoneSection(section) && !!options.identity.authorize(token,phoneReportPanel(section),'VIEW'))
+    return visible.length ? {reports:visible} : {}
+  }
   // Plan 1405 §4-8: number and time only; absent unless a notice is waiting.
   const recoveryNotice=(token:string):{recoveryNotice?:{at:number;n:number}}=>{
     if (typeof options.identity.takeRecoveryNotice!=='function') return {}
@@ -224,6 +234,10 @@ export function createMobileReadOnlyHandler(options: Options) {
           try { data=await readBody(req) } catch { send(400,{error:'درخواست معتبر نیست'});return }
           if (Object.keys(data).sort().join(',') !== 'afterId,fromDay,toDay' || !isInvoiceDate(data.fromDay) || !isInvoiceDate(data.toDay) ||
               data.fromDay > data.toDay || !Number.isSafeInteger(data.afterId) || (data.afterId as number) < 0) { send(400,{error:'درخواست معتبر نیست'});return }
+          // Plan 1405 stage 7 (§4-7): a phone range is at most 31 days.
+          let span=Infinity
+          try { span=jalaliSpanDays(data.fromDay,data.toDay) } catch {}
+          if (!(span <= PHONE_REPORT_MAX_DAYS - 1)) { send(400,{error:'بازه حداکثر ۳۱ روز است'});return }
           if (!options.identity.authorize(token,'invoices','VIEW')) { send(403,{error:'اجازه مشاهده این بخش را ندارید'});return }
           const now=performance.now()
           if (invoiceBusy || now < lastInvoiceRead || now-lastInvoiceRead < 10_000) { send(429,{error:'برای دریافت دوباره کمی صبر کنید'});return }
@@ -234,6 +248,28 @@ export function createMobileReadOnlyHandler(options: Options) {
             if (!options.identity.authorize(token,'invoices','VIEW')) { send(403,{error:'اجازه مشاهده این بخش را ندارید'});return }
             send(200,{invoices:result,hasMore:result.length===50});return
           } finally { invoiceBusy=false }
+        }
+        if (path === '/api/report' && options.reports) {
+          const token=cookie(req), principal=token ? options.identity.whoAmI(token) : null
+          if (!token || !principal) { send(401,{error:'لطفاً وارد شوید'});return }
+          if (!/^application\/json(?:\s*;|\s*$)/i.test(header(req,'content-type') ?? '')) { send(400,{error:'درخواست معتبر نیست'});return }
+          let data: Record<string,unknown>
+          try { data=await readBody(req) } catch { send(400,{error:'درخواست معتبر نیست'});return }
+          let request: PhoneReportRequest
+          try { request=parsePhoneReportRequest(data) } catch { send(400,{error:'درخواست معتبر نیست؛ بازه حداکثر ۳۱ روز است'});return }
+          if (!options.reports.sections.includes(request.section)) { send(404,{error:'یافت نشد'});return }
+          const panel=phoneReportPanel(request.section)
+          if (!options.identity.authorize(token,panel,'VIEW')) { send(403,{error:'اجازه مشاهده این بخش را ندارید'});return }
+          const now=performance.now()
+          if (reportBusy || now < lastReportRead || now-lastReportRead < 3_000) { send(429,{error:'برای دریافت دوباره چند ثانیه صبر کنید'});return }
+          reportBusy=true;lastReportRead=now
+          try {
+            const {section,...fields}=request
+            const value=parsePhoneReport(section,await options.reports.read(section,fields,text(principal.username,64)))
+            // Membership and permissions may change while the read is pending.
+            if (!options.identity.authorize(token,panel,'VIEW')) { send(403,{error:'اجازه مشاهده این بخش را ندارید'});return }
+            send(200,value);return
+          } finally { reportBusy=false }
         }
         if (path === '/api/invite/accept' || path === '/api/invite/create' || path === '/api/member/approve' || path === '/api/member/remove') {
           if (!loginAllowed(req.socket.remoteAddress ?? 'unknown')) { send(429,{error:'تعداد تلاش‌ها زیاد است؛ بعداً دوباره تلاش کنید'});return }
@@ -292,6 +328,7 @@ export function createMobileReadOnlyHandler(options: Options) {
             ...(user.role==='OWNER' && typeof options.approval?.grants==='function' ? {grants:true} : {}),
             ...(user.role==='OWNER' && typeof options.health==='function' ? {health:true} : {}),
             ...(user.role==='OWNER' && Array.isArray(options.approval?.panels) ? {approvalPanels:options.approval.panels.filter(panel=>typeof panel==='string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(panel)).slice(0,128)} : {}),
+            ...reportSections(token),
             ...(user.role==='OWNER' ? recoveryNotice(token) : {})});return
         }
         if (path === '/api/grants' && typeof options.approval?.grants === 'function') {

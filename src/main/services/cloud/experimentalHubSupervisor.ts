@@ -21,6 +21,7 @@ import { lstatSync, readFileSync, realpathSync, unlinkSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { isInvoiceDate, parseInvoicePage } from './invoiceFactsValidation'
+import { isPhoneSection, parsePhoneReport, parsePhoneReportRequest } from './phoneReportCatalog'
 import { normalizeMobileOrigins } from './mobileOrigins'
 import { createAuditSync } from './auditSync'
 import { createLoopbackAuditTransport } from './loopbackAuditTransport'
@@ -70,6 +71,10 @@ type Options = {
   persistFingerprint?: (value:{epoch:string; counter:number; highWaterId:number; highWaterHash:string})=>void
   // Experimental explicit opt-in only; not sufficient to enable production.
   enableInvoiceFacts?: boolean
+  // Plan 1405 stage 7 (§4-7): the fixed read-only phone report sections, answered in
+  // this process (the child never opens shop.db). Requires enableInvoiceFacts; the
+  // child enables the report routes with that same start flag (no new start field).
+  reports?: (section:string, request:Record<string,unknown>, member:string)=>Promise<unknown>
   // Optional in-process experiment only. Every restore must use restoreExclusive,
   // and no other component may bypass the gate or start queries on this reader.
   restoreBarrier?: ReturnType<typeof createExperimentalRestoreBarrier>
@@ -123,6 +128,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
       (options.reader.invoiceFactsPage !== undefined && typeof options.reader.invoiceFactsPage !== 'function') ||
       (options.enableInvoiceFacts !== undefined && typeof options.enableInvoiceFacts !== 'boolean') ||
       (options.enableInvoiceFacts === true && typeof options.reader.invoiceFactsPage !== 'function') ||
+      (options.reports !== undefined && (typeof options.reports !== 'function' || options.enableInvoiceFacts !== true)) ||
       (options.verifyLocalRecoveryPassword !== undefined && (typeof options.verifyLocalRecoveryPassword !== 'function' || !options.revocation)) ||
       (options.onUnavailable !== undefined && typeof options.onUnavailable !== 'function') ||
       (options.revocation !== undefined && (!options.revocation || !(options.revocation.key instanceof Uint8Array) ||
@@ -274,6 +280,9 @@ export async function startExperimentalHubSupervisor(options: Options) {
   let revocationCleanupFailed = false
   let invoiceBusy=false, invoiceLastRead=-Infinity, invoiceLastId=0, recoveryBusy=false
   const invoiceReader=options.enableInvoiceFacts === true ? reader.invoiceFactsPage!.bind(reader) : undefined
+  // Plan 1405 stage 7: one phone report at a time, at least 2 s apart (the child waits 3 s).
+  let reportBusy=false, reportLastRead=-Infinity, reportLastId=0
+  const reportReader=invoiceReader ? options.reports : undefined
   let stopPromise: Promise<void> | null = null
   const activeTasks = new Set<Promise<unknown>>()
   function track<T>(task: Promise<T>): Promise<T> {
@@ -532,6 +541,49 @@ export async function startExperimentalHubSupervisor(options: Options) {
           else failRead()
         } catch { failRead() }
       }).catch(() => { failRead() }).finally(() => { invoiceBusy=false }))
+    }
+    else if (message.type === 'reportRead' && invoiceReader) {
+      // Plan 1405 stage 7 (§4-7): the same marker/epoch/fingerprint/barrier checks as an
+      // invoice read. The (possibly slow) desktop read itself runs outside the foreground
+      // queue, so it never delays the mirror, the audit sync or an approval; the short
+      // identity checks before and after it are serialized there as usual.
+      const id=message.id, section=message.section, member=message.member
+      if (!Number.isSafeInteger(id) || id <= reportLastId || id <= 0) return
+      reportLastId=id
+      const failReport=() => { try { if (!closed && !dead) send({type:'reportReadResult',id,ok:false}) } catch {} }
+      const now=performance.now()
+      let request:ReturnType<typeof parsePhoneReportRequest>
+      try {
+        if (!reportReader || closed || dead || storeInvalidated || reportBusy || now < reportLastRead || now-reportLastRead < 2_000 ||
+            Object.keys(message).sort().join(',') !== 'id,member,request,section,type' || !isPhoneSection(section) ||
+            typeof member !== 'string' || !member || member.length > 64 || !object(message.request)) throw new Error('Invalid report request')
+        request=parsePhoneReportRequest({...message.request,section})
+      } catch { failReport();return }
+      reportBusy=true;reportLastRead=now
+      const short=<T>(operation:()=>Promise<T>):Promise<T> => foreground(async()=>{ try { return await operation() } finally { if (reader.waitForIdle) await reader.waitForIdle() } })
+      const outer=(operation:()=>Promise<void>):Promise<void> => barrier ? barrier.run(operation) : operation()
+      void track(outer(async () => {
+        try {
+          const initial=await short(async()=>{
+            const loaded=state.load()
+            if (!loaded) throw new Error('Restore detected')
+            if (await readRestoreMarker() !== loaded.restoreMarker) throw new Error('Restore detected')
+            if (revocationConfig && fingerprint && !await verifiedDatabaseIdentity()) throw new Error('Database identity unavailable')
+            return {storeId:loaded.storeId,epoch:loaded.epoch,restoreMarker:loaded.restoreMarker}
+          })
+          const {section:_section,...fields}=request
+          const value=parsePhoneReport(request.section,await reportReader!(request.section,fields,member))
+          await short(async()=>{
+            const current=state.load()
+            if (!current || current.storeId !== initial.storeId || current.epoch !== initial.epoch ||
+                current.restoreMarker !== initial.restoreMarker || await readRestoreMarker() !== initial.restoreMarker) throw new Error('Restore detected')
+            if (barrier && barrier.status().state !== 'OPEN') throw new Error('Restore in progress')
+            if (revocationConfig && fingerprint && !await verifiedDatabaseIdentity()) throw new Error('Database identity unavailable')
+          })
+          if (!closed && !dead && !storeInvalidated) send({type:'reportReadResult',id,ok:true,value})
+          else failReport()
+        } catch { failReport() }
+      }).catch(() => { failReport() }).finally(() => { reportBusy=false }))
     }
     else if ((message.type === 'snapshot' || message.type === 'panicRecovered' || message.type === 'ownerReplaced' ||
               message.type === 'recoveryCodes' || message.type === 'panicState') && Number.isSafeInteger(message.id)) {

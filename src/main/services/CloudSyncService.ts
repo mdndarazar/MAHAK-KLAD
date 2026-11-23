@@ -17,6 +17,7 @@ import { noteAccessEvent } from './locks/accessEvents'
 import { addGateTicket, clearGateTickets } from './locks/tickets'
 import { lockDurationMs } from './locks/durations'
 import { closeAllUnlocksFromRemote, setRemoteApprovalsStopped, setRemoteRecoveryHooks } from './locks/unlockHooks'
+import { phoneReportsStarted, phoneReportsStopped, readPhoneReport } from './cloud/phoneReportSource'
 import { remoteImplementationReady } from '../../shared/remoteAuthChannels'
 import { remoteSettingEnabled } from './cloud/remoteSettings'
 import { createCloudReader } from './cloud/cloudReader'
@@ -162,6 +163,9 @@ async function startConfigured(owner:RemoteOwner|null):Promise<void> {
     const hubOptions:Parameters<typeof startExperimentalHubSupervisor>[0]={nodeExecutable,childFile,directory:hubDir,origin,owner:hubExists ? null : owner,auditKey:keys.auditKey,
       ...(port!==null ? {mobilePort:port} : {}),
       snapshotMaxAgeMs:60_000,reader,state:localState,databaseFile:dbFile,restoreBarrier:barrier,coordinateDesktopBackup:true,afterRestore:stopAfterRestore,
+      // Plan 1405 stage 7 (§4-7): the raw invoice list and the fixed read-only report
+      // sections for the phone, answered here from the desktop's own read functions.
+      enableInvoiceFacts:true,reports:readPhoneReport,
       // First start after install can be slow (antivirus scanning node.exe);
       // a timed-out start keeps the state lock until the application restarts.
       startupTimeoutMs:30_000,
@@ -219,6 +223,8 @@ async function startConfigured(owner:RemoteOwner|null):Promise<void> {
     localScheduler=createExperimentalHubScheduler(localHub)
     localScheduler.start()
     state=localState;hub=localHub;scheduler=localScheduler
+    // Plan 1405 stage 7: the precomputed «خلاصهٔ امروز» refreshes only while the hub runs.
+    phoneReportsStarted()
     // P2 survives restarts: the desktop's bot buttons stay closed while it is latched.
     void localHub.approvalsStopped().then(setRemoteApprovalsStopped,()=>setRemoteApprovalsStopped(true))
   } catch (error) {
@@ -311,6 +317,7 @@ export function stopCloudSync():Promise<void> {
     if (failed && !hub) return
     const oldScheduler=scheduler,oldHub=hub,oldState=state
     scheduler=null;hub=null;state=null
+    phoneReportsStopped() // no stale «خلاصهٔ امروز» survives a stop or a restore
     // stop() marks the scheduler stopped synchronously; initiate child shutdown
     // immediately as well, so a stuck parent read cannot leave its port alive.
     let timer:ReturnType<typeof setTimeout>|undefined

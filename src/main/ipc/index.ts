@@ -36,6 +36,7 @@ import { exportTableFile } from '../services/ExportService'
 import { authService, assertManagerPassword, assertPanelPasswordStrict } from '../services/AuthService'
 import { desktopBackupCoordinationActive, withDesktopBackupCoordination } from '../services/cloud/desktopBackupCoordination'
 import { registerMessengerHandlers } from '../services/cloud/messenger/messengerIpc'
+import { registerPhoneReports } from '../services/cloud/phoneReports'
 import { barcodePng } from '../services/BarcodeService'
 import { backupService } from '../services/BackupService'
 import { maintenanceService } from '../services/MaintenanceService'
@@ -2033,4 +2034,6 @@ export function registerIpcHandlers(): void {
   try { registerRecoveryCodeHandlers() } catch (error) { console.error('[recovery-codes] unavailable', error) }
   // طرح ۱۴۰۵ · موردهای ۱۳ و ۱۵ — پیام‌رسان تلگرام و بله (پیش‌فرض خاموش؛ خطایش فروشگاه را نمی‌خواباند)
   try { registerMessengerHandlers() } catch (error) { console.error('[messenger] unavailable', error) }
+  // طرح ۱۴۰۵ · مرحلهٔ ۷: خوانندهٔ ثابت گزارش‌های گوشی برای میزبان هاب (بی زمان‌سنج تا هاب روشن شود)
+  try { registerPhoneReports() } catch (error) { console.error('[phone-reports] unavailable', error) }
 }
