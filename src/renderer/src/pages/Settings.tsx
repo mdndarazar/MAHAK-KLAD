@@ -106,6 +106,7 @@ import ManagerGate from '../components/ManagerGate'
 import { STAFF_ROLES, STAFF_ROLE_LABELS } from '@shared/enums'
 import { broadcastPanelLocksChanged } from '../hooks/usePanelLocks'
 import OneTimeCodesSettings from '../components/OneTimeCodesSettings'
+import FactoryResetSection from '../components/FactoryResetSection'
 import { broadcastSettingsChanged } from '../hooks/useSettings'
 import { DEFAULT_DISCOUNT_TRANSFER_SETTINGS, type DiscountTransferSettings } from '@shared/discountTransfer'
 import {
@@ -179,6 +180,8 @@ type Tab =
   | 'custody'
   /** جلسه ۱۹ · بند ۹ — «تاریخ و ساعت رسمی» (افست دستی + بررسی ساعت سیستم) */
   | 'time'
+  /** طرح ۱۴۰۵ · مورد ۸ — «صفر کردن برنامه» (§۴-۲) */
+  | 'reset'
 
 /**
  * ===========================================================================
@@ -2142,6 +2145,9 @@ export default function Settings() {
           </button>
           <button className={`btn ${tab === 'purge' ? 'btn-primary' : ''}`} onClick={() => setTab('purge')}>
             حذف گزارشات فروش
+          </button>
+          <button className={`btn ${tab === 'reset' ? 'btn-primary' : ''}`} onClick={() => setTab('reset')}>
+            صفر کردن برنامه
           </button>
         </div>
         <div className="ms-auto flex gap-1">
@@ -5150,6 +5156,8 @@ export default function Settings() {
               </div>
             </section>
           )}
+
+          {tab === 'reset' && <FactoryResetSection />}
 
           {tab === 'purge' && (
             <section className="space-y-3">

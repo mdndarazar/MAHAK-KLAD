@@ -132,13 +132,13 @@ export async function runBackup(opts: { scheduled?: boolean } = {}): Promise<str
  * طرح ۱۴۰۵ §۴-۲ (مورد ۸) — «بکاپ محافظت‌شده» پیش از صفر کردن: یک کپی کامل در `backups/imported/` و یک ردیف در
  * `backup.imports`، مثل بکاپ‌های واردشده؛ پس چرخش ندارد و در فهرست بازگردانی می‌آید. پیش از ثبت ردیف، فایل با
  * همان سنجش بکاپ‌های واردشده (`summarizeBackup` ← `assertValidBackupFile`) سنجیده می‌شود؛ شکست ⇒ فایل پاک و خطا.
+ * چک‌پوینت WAL را صداکننده (صفر کردن) درست پیش از همین تابع می‌زند.
  */
 export async function createProtectedBackup(label: string): Promise<{ id: string; fileName: string; path: string; size: number }> {
   const dir = importedDir()
   await mkdir(dir, { recursive: true })
   const id = `imported-${Date.now()}-factory-reset.db`
   const target = join(dir, id)
-  await prisma.$queryRawUnsafe('PRAGMA wal_checkpoint(TRUNCATE)').catch(() => null)
   await copyFile(databaseFile(), target)
   try {
     await summarizeBackup(target)

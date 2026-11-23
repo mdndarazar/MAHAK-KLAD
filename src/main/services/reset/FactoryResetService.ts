@@ -498,6 +498,8 @@ export function createFactoryResetService(overrides: Partial<FactoryResetDeps> =
           result = (await deps.coordinate(async () => {
             stopped = true
             await deps.stopServices()
+            // WAL را داخل پروندهٔ اصلی بنویس تا بکاپ و کپی کامل باشند (WAL در این برنامه خاموش است؛ احتیاط)
+            await deps.main.query('PRAGMA wal_checkpoint(TRUNCATE)').catch(() => null)
             const backup = await deps.protectedBackup(BACKUP_LABEL)
             const built = await buildFreshDatabase({ mode, oldFile: db, newFile, userId, backup, at })
             const previous = await swapDatabase(db, newFile, stamp)

@@ -11,7 +11,7 @@
  * ردیف‌به‌ردیف، هرگز `prisma migrate reset`). آزمون `plan1405-factory-reset.mjs` هر مدل و هر جدول بی‌طبقه را
  * رد می‌کند؛ خود سرویس هم پیش از جابه‌جایی، جدولِ بی‌طبقه را «شکست، هیچ چیزی پاک نشد» می‌شمارد.
  *
- * leaf است (بی import از main) تا آزمون و رابط بی بسته‌بندی سرویس‌ها بخوانندش.
+ * leaf است (فقط `@shared/gateCatalog`، بی import از main) تا آزمون بی بسته‌بندی سرویس‌ها بخواندش.
  */
 
 export type ResetMode = 'transactions' | 'full'
@@ -188,18 +188,5 @@ export function resetFate(table: string, mode: ResetMode): ResetFate | null {
   return r ? r[mode] : null
 }
 
-/**
- * تأیید تایپی «صفر» (معماری §۴-۲): «ي/ی» و «ك/ک» یکی، رقم فارسی و عربی مثل لاتین، و فاصله، نیم‌فاصله و
- * نشانه‌های جهت متن نادیده. فقط واژهٔ «صفر» پذیرفته می‌شود.
- */
-export function normalizeResetConfirm(raw: unknown): string {
-  return String(raw ?? '')
-    .normalize('NFC')
-    .replace(/[يى]/g, 'ی')
-    .replace(/ك/g, 'ک')
-    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
-    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-    .replace(/[\s\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff\u0640]/g, '')
-}
-export const RESET_CONFIRM_WORD = 'صفر'
-export const resetConfirmMatches = (raw: unknown): boolean => normalizeResetConfirm(raw) === RESET_CONFIRM_WORD
+/** تأیید تایپی «صفر» (معماری §۴-۲): همان تابع رابط، از `@shared/gateCatalog`. */
+export { normalizeResetConfirm, RESET_CONFIRM_WORD, resetConfirmMatches } from '@shared/gateCatalog'

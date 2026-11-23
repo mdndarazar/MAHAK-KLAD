@@ -272,3 +272,19 @@ export const ACCESS_EVENT_KINDS = Object.freeze({
   MANAGER_LOGOUT: 'MANAGER_LOGOUT'
 } as const)
 export type AccessEventKind = keyof typeof ACCESS_EVENT_KINDS
+
+/**
+ * مرحلهٔ ۸ (معماری §۴-۲) — تأیید تایپی «صفر» برای قفل کار `system.factory-reset`، در رابط و main یکسان: «ي/ی» و
+ * «ك/ک» یکی، رقم فارسی و عربی مثل لاتین، و فاصله، نیم‌فاصله، کشیده و نشانه‌های جهت متن نادیده. فقط «صفر».
+ */
+export function normalizeResetConfirm(raw: unknown): string {
+  return String(raw ?? '')
+    .normalize('NFC')
+    .replace(/[يى]/g, 'ی')
+    .replace(/ك/g, 'ک')
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\s\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff\u0640]/g, '')
+}
+export const RESET_CONFIRM_WORD = 'صفر'
+export const resetConfirmMatches = (raw: unknown): boolean => normalizeResetConfirm(raw) === RESET_CONFIRM_WORD
