@@ -274,6 +274,9 @@ async function report(cookie, body) {
 const noSecrets = (r, label) => { for (const s of secrets()) assert.ok(!r.text.includes(s), `${label}: no ${s.slice(0, 3)}… in the response`) }
 const changes = () => sql.prepare('SELECT total_changes() AS n').get().n
 
+// a Persian username longer than 64 UTF-8 bytes (the identity allows 64 Unicode letters)
+const VIEWER = 'بینندهگزارشهایفروشگاهارکاپوسشعبهیک'
+assert.ok(Buffer.byteLength(VIEWER, 'utf8') > 64 && VIEWER.length <= 64)
 try {
   const owner = (await send('/api/login', { method: 'POST', body: { username: 'owner', password: 'owner-test-password' } })).cookie
   assert.ok(owner)
@@ -285,10 +288,10 @@ try {
     const invite = await send('/api/invite/create', { method: 'POST', cookie: owner, body: { role: 'VIEWER', pin: '746392', acl: [{ panel: 'view.today', view: true, approve: false }, { panel: 'view.stock', view: true, approve: false }] } })
     assert.equal(invite.status, 200)
     assert.equal((await send('/api/invite/create', { method: 'POST', cookie: owner, body: { role: 'VIEWER', pin: '746392', acl: [{ panel: 'view.today', view: true, approve: true }] } })).status, 403, 'a report panel is view-only')
-    assert.equal((await send('/api/invite/accept', { method: 'POST', body: { invite: invite.json.invite, username: 'viewer', password: 'viewer-test-password', pin: '482931' } })).status, 200)
-    assert.equal((await send('/api/member/approve', { method: 'POST', cookie: owner, body: { username: 'viewer', pin: '746392' } })).status, 200)
+    assert.equal((await send('/api/invite/accept', { method: 'POST', body: { invite: invite.json.invite, username: VIEWER, password: 'viewer-test-password', pin: '482931' } })).status, 200)
+    assert.equal((await send('/api/member/approve', { method: 'POST', cookie: owner, body: { username: VIEWER, pin: '746392' } })).status, 200)
   })
-  const viewer = (await send('/api/login', { method: 'POST', body: { username: 'viewer', password: 'viewer-test-password' } })).cookie
+  const viewer = (await send('/api/login', { method: 'POST', body: { username: VIEWER, password: 'viewer-test-password' } })).cookie
 
   await test('ACL, request bounds and rate: 401, 403 per section, 400 over 31 days, 429 within 3 s', async () => {
     assert.deepEqual((await send('/api/capabilities', { cookie: viewer })).json, { invoices: false, reports: ['today', 'stock'] })
@@ -404,7 +407,7 @@ try {
     const key = (v) => `${v.after.recipientName}|${v.after.titleFa}`
     assert.equal(new Set(rows.map(key)).size, rows.length, 'one row per member and section')
     assert.equal(rows.filter((v) => v.after.recipientName === 'owner' && v.after.titleFa === 'گزارش گوشی: وضعیت سیستم').length, 1, 'three status reads, one row')
-    assert.ok(rows.some((v) => v.after.recipientName === 'viewer' && v.after.titleFa === 'گزارش گوشی: خلاصهٔ فروش امروز'))
+    assert.ok(rows.some((v) => v.after.recipientName === VIEWER && v.after.titleFa === 'گزارش گوشی: خلاصهٔ فروش امروز'), 'a long Persian member name is recorded as is')
   })
 
   await test('a stopped hub keeps no precomputed summary; the phone gets «not ready», never stale numbers', async () => {

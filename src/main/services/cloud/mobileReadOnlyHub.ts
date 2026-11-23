@@ -265,7 +265,8 @@ export function createMobileReadOnlyHandler(options: Options) {
           reportBusy=true;lastReportRead=now
           try {
             const {section,...fields}=request
-            const value=parsePhoneReport(section,await options.reports.read(section,fields,text(principal.username,64)))
+            // The identity allows 3-64 Unicode letters (up to 256 UTF-8 bytes): pass it as is.
+            const value=parsePhoneReport(section,await options.reports.read(section,fields,principal.username))
             // Membership and permissions may change while the read is pending.
             if (!options.identity.authorize(token,panel,'VIEW')) { send(403,{error:'اجازه مشاهده این بخش را ندارید'});return }
             send(200,value);return
