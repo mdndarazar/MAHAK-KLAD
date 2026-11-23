@@ -42,6 +42,8 @@
  * ===========================================================================
  */
 
+import { GATE_ACTION_LOCK_KEYS, GATE_CATALOG, GATE_GROUPS, GATE_PART_KEYS, type GateCatalogEntry } from './gateCatalog'
+
 /** کلید هر پنل قفل‌دار — همین رشته، کلید ذخیره‌سازی رمز دومش هم هست. */
 export const PANEL_KEYS = {
   settings: 'settings',
@@ -205,7 +207,55 @@ export const PANEL_KEYS = {
    * لغو یک پیامِ زمان‌بندی‌شده برگشت‌پذیر است، ولی لغو گروهی می‌تواند
    * ده‌ها پیام را با یک کلیک بخواباند؛ پس قفل جدا دارد.
    */
-  smsDanger: 'sms-danger'
+  smsDanger: 'sms-danger',
+
+  // ------------------------------------------------------------------------
+  // طرح ۱۴۰۵ (معماری §۳-۳ و §۳-۱۰) — هفت «قسمت» تازه که امروز «فقط نشست مدیر» بودند،
+  // و ۳۶ «قفل کار» (`act-*`). عنوان، گروه و رده از `gateCatalog.ts` می‌آیند.
+  // ------------------------------------------------------------------------
+  creditPrint: 'credit-print',
+  staff: 'staff',
+  staffSensitiveFile: 'staff-sensitive-file',
+  custodySettings: 'custody-settings',
+  custodyControlReport: 'custody-control-report',
+  custodyDiscrepancyCases: 'custody-discrepancy-cases',
+  custodyWorkPlans: 'custody-work-plans',
+  actBackupExport: 'act-backup-export',
+  actBackupSettings: 'act-backup-settings',
+  actBackupNow: 'act-backup-now',
+  actBackupForget: 'act-backup-forget',
+  actBackupRestore: 'act-backup-restore',
+  actBackupMerge: 'act-backup-merge',
+  actFactoryReset: 'act-factory-reset',
+  actCreditReprint: 'act-credit-reprint',
+  actCreditIssueManual: 'act-credit-issue-manual',
+  actCreditCodeReveal: 'act-credit-code-reveal',
+  actCreditInvoiceLookup: 'act-credit-invoice-lookup',
+  actPaymentsEditOpenShift: 'act-payments-edit-open-shift',
+  actChequeEditCleared: 'act-cheque-edit-cleared',
+  actChequeVoidCleared: 'act-cheque-void-cleared',
+  actChequeStatus: 'act-cheque-status',
+  actChequeReplace: 'act-cheque-replace',
+  actRefundFull: 'act-refund-full',
+  actRefundCardReturn: 'act-refund-card-return',
+  actRefundCardExchange: 'act-refund-card-exchange',
+  actChargesBelowAuto: 'act-charges-below-auto',
+  actPriceBelowReference: 'act-price-below-reference',
+  actOverpayCreditAboveCap: 'act-overpay-credit-above-cap',
+  actClosedPeriodEntry: 'act-closed-period-entry',
+  actCloseStaleSession: 'act-close-stale-session',
+  actForceStaffChange: 'act-force-staff-change',
+  actMasterOverride: 'act-master-override',
+  actAccountingPolicy: 'act-accounting-policy',
+  actExchangeOverpayGuard: 'act-exchange-overpay-guard',
+  actClockOffset: 'act-clock-offset',
+  actShiftByClock: 'act-shift-by-clock',
+  actOvertimeCap: 'act-overtime-cap',
+  actSettingsManagerSections: 'act-settings-manager-sections',
+  actRawSensitiveSetting: 'act-raw-sensitive-setting',
+  actSalesReportsPurge: 'act-sales-reports-purge',
+  actDataArchivePurge: 'act-data-archive-purge',
+  actCostLedgerRebuild: 'act-cost-ledger-rebuild'
 } as const
 
 export type PanelKey = (typeof PANEL_KEYS)[keyof typeof PANEL_KEYS]
@@ -216,7 +266,17 @@ export interface PanelDef {
   title: string
   /** یک خط توضیح این‌که این رمز دوم به چه کسی داده می‌شود */
   hint: string
+  /** طرح ۱۴۰۵ §۳-۳ — «قسمت» (مجوز با مدت) یا «قفل کار» (کد و مجوز یک بار) */
+  kind: PanelKind
+  /** نام ماژولی که در «قفل ماژول‌ها» و گوشی زیرش می‌آید */
+  group: string
+  /** ردهٔ کد: عادی (۲۵ کلید)، پولی (۱۲ کلید)، حساس (۷ قسمت تازه و همهٔ قفل‌های کار) */
+  tier: PanelTier
 }
+
+export type PanelKind = 'part' | 'action'
+export type PanelTier = 'normal' | 'money' | 'sensitive'
+type PanelBase = Omit<PanelDef, 'kind' | 'group' | 'tier'>
 
 /**
  * فهرست کامل پنل‌های قفل‌دار، به ترتیبی که در «تنظیمات رمز» نشان داده می‌شوند.
@@ -224,7 +284,7 @@ export interface PanelDef {
  * ⚠️ افزودن یک پنل قفل‌دار جدید = یک ردیف اینجا + یک `ManagerGate` با همان کلید.
  * این کار **اجباری** است، نه اختیاری (قانون پروژه را در بالای همین فایل ببینید).
  */
-export const LOCKED_PANELS: readonly PanelDef[] = [
+const BASE_PANELS: readonly PanelBase[] = [
   {
     key: PANEL_KEYS.wholesaleInvoices,
     title: 'فاکتورهای فروش عمده (فهرست)',
@@ -401,6 +461,66 @@ export const LOCKED_PANELS: readonly PanelDef[] = [
 ]
 
 /**
+ * طرح ۱۴۰۵ §۳-۳ — رده‌بندی ۳۷ کلید امروز: [گروه، رده]. همه «قسمت»اند؛ پنج کلید استثنا
+ * (credit-void، credit-bulk-issue، credit-settings، sms-provider، woo-sync) هم قسمت‌اند و هم کلید
+ * روشن/خاموش و رمز دوم/سوم کارهای خودشان (۲۵-۱۱). کلید بی‌رده در آزمون کاتالوگ رد می‌شود.
+ */
+const PG = Object.freeze({
+  wholesale: 'فاکتور فروش عمده', sales: GATE_GROUPS.sales, reports: GATE_GROUPS.reports, stock: 'کالا و انبار',
+  management: GATE_GROUPS.management, woo: GATE_GROUPS.woo, salesCredit: GATE_GROUPS.salesCredit,
+  returns: GATE_GROUPS.returns, cashClose: GATE_GROUPS.cashClose, consolidation: 'تجمیع و انتقال',
+  settings: GATE_GROUPS.settings, purchase: 'فاکتور خرید', price: 'تخفیف و تغییر قیمت',
+  charges: GATE_GROUPS.charges, credit: GATE_GROUPS.credit, sms: GATE_GROUPS.sms
+} as const)
+const BASE_CLASS: Readonly<Record<string, readonly [string, PanelTier]>> = Object.freeze({
+  'wholesale-invoices': [PG.wholesale, 'normal'], 'wholesale-invoice-module': [PG.wholesale, 'normal'],
+  pos: [PG.sales, 'normal'], 'pos-print-toggle': [PG.sales, 'normal'], 'card-transfers': [PG.reports, 'money'],
+  'staff-performance': [PG.reports, 'normal'], stocktake: [PG.stock, 'normal'], 'sales-reports': [PG.reports, 'normal'],
+  'bridge-diagnostics': [PG.reports, 'normal'], 'management-reports': [PG.management, 'normal'],
+  'woo-sync': [PG.woo, 'normal'], 'management-profit': [PG.management, 'normal'],
+  'sales-credit': [PG.salesCredit, 'money'], 'sales-return': [PG.returns, 'money'],
+  'sales-return-correction': [PG.returns, 'money'], 'cash-close': [PG.cashClose, 'money'],
+  consolidation: [PG.consolidation, 'money'], settings: [PG.settings, 'normal'], products: [PG.stock, 'normal'],
+  purchase: [PG.purchase, 'normal'], 'secondary-stock': [PG.stock, 'normal'], 'pos-discount': [PG.sales, 'money'],
+  'pos-central-withdraw-toggle': [PG.sales, 'normal'], 'price-adjust': [PG.price, 'money'],
+  'secondary-to-store': [PG.stock, 'normal'], 'secondary-to-store-new-product': [PG.stock, 'normal'],
+  'charges-tax-pos': [PG.charges, 'normal'], 'charges-service-pos': [PG.charges, 'normal'],
+  'charges-tax-wholesale': [PG.charges, 'normal'], 'charges-service-wholesale': [PG.charges, 'normal'],
+  'credit-management': [PG.credit, 'money'], 'credit-bulk-issue': [PG.credit, 'money'],
+  'credit-void': [PG.credit, 'money'], 'credit-settings': [PG.credit, 'money'],
+  'sms-panel': [PG.sms, 'normal'], 'sms-provider': [PG.sms, 'normal'], 'sms-danger': [PG.sms, 'normal']
+})
+
+/** ۴۳ ردیف تازه (۷ قسمت + ۳۶ قفل کار)، همه «حساس»؛ عنوان و گروه از همان کاتالوگ. */
+const PLAN1405_ROWS: readonly PanelDef[] = [
+  ...GATE_PART_KEYS.map((key): PanelDef => ({
+    key: key as PanelKey, title: GATE_CATALOG[key].titleFa, kind: 'part', group: GATE_CATALOG[key].group, tier: 'sensitive',
+    hint: `رمز دوم این قسمت را فقط به کسی بدهید که باید «${GATE_CATALOG[key].titleFa}» را ببیند یا تغییر دهد.`
+  })),
+  ...GATE_ACTION_LOCK_KEYS.map((key): PanelDef => {
+    const row = Object.values(GATE_CATALOG).find((e) => e.lockKey === key) as GateCatalogEntry
+    return {
+      key: key as PanelKey, title: row.titleFa, kind: 'action', group: row.group, tier: 'sensitive',
+      hint: row.lockKind === 'policy'
+        ? 'قفل یک کار؛ روشن/خاموش در «سیاست حسابداری». رمز دوم/سوم هر بار تایپ می‌شود؛ کد حساس یا مجوز راه دور یک بار.'
+        : 'قفل یک کار: رمز دوم/سوم آن هر بار تایپ می‌شود؛ کد حساس یا مجوز راه دور فقط یک بار آن را باز می‌کند.'
+    }
+  })
+]
+
+/**
+ * فهرست کامل کلیدهای قفل (۸۰ کلید)، به ترتیبی که در «تنظیمات رمز» نشان داده می‌شوند.
+ * هر ردیف `kind`، `group` و `tier` دارد (طرح ۱۴۰۵ §۳-۳).
+ */
+export const LOCKED_PANELS: readonly PanelDef[] = Object.freeze([
+  ...BASE_PANELS.map((p): PanelDef => {
+    const [group, tier] = BASE_CLASS[p.key] ?? ['', 'normal']
+    return { ...p, kind: 'part', group, tier }
+  }),
+  ...PLAN1405_ROWS
+])
+
+/**
  * مورد ۴ — متن گیت چک‌باکس «برداشت خودکار از انبار مرکزی».
  * یک تنظیم واحد در سه محل (پنل فروش، فاکتور فروش عمده، تنظیمات انبار مرکزی) ⇒
  * یک قفل و یک متن، در یک جا نوشته می‌شود تا هر سه‌جا یکسان بماند.
@@ -457,9 +577,11 @@ export function panelTitle(key: string): string {
  */
 /**
  * پنل‌هایی که قفلشان *قابل برداشتن نیست* (قاعده‌ی ۴ بالا).
- * عمداً یک فهرست کوتاه و ثابت است، نه یک گزینه‌ی تنظیمات.
+ * طرح ۱۴۰۵ (۲۵-۱۱، اصل «د»): همهٔ قفل‌ها خاموش‌شدنی‌اند، از جمله «تنظیمات»؛ پس فهرست خالی است.
+ * کارهای خطرناک داخل تنظیمات (بازگردانی، ادغام، پاک‌سازی، صفر کردن) هر کدام «قفل کار» جدای خودشان را
+ * دارند و با خاموش شدن قفل «تنظیمات» خاموش نمی‌شوند (§۳-۱، «جدا بودن»).
  */
-export const ALWAYS_LOCKED_PANELS: readonly string[] = [PANEL_KEYS.settings]
+export const ALWAYS_LOCKED_PANELS: readonly string[] = []
 
 /**
  * ===========================================================================

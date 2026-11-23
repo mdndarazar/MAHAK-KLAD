@@ -1,7 +1,7 @@
 import { Outlet, useNavigate } from 'react-router-dom'
 import { useHotkeys } from '../hooks/useHotkeys'
 import { ROUTE_BY_SHORTCUT } from '../lib/shortcuts'
-import { toJalaliDateTime } from '@shared/jalali'
+import { faDigits, toJalaliDateTime } from '@shared/jalali'
 import { useManagerSession } from '../hooks/useManagerSession'
 import { useEffect, useMemo, useState } from 'react'
 import { StocktakeReminderChip } from './StocktakeReminderBadge'
@@ -9,6 +9,7 @@ import { ShiftSessionChip } from './ShiftSessionModal'
 import { CustodyChip } from './CustodyChip'
 import { DebtReminderBanner } from './DebtReminderBanner'
 import PrinterPickerHost from './PrinterPickerModal'
+import GateUnlockDialog from './GateUnlockDialog'
 import { isAnyModalOpen } from './Modal'
 
 /** پنل‌های پرکاربرد در نوار بالا (همان ترتیب کار روزانه‌ی فروشگاه). */
@@ -35,7 +36,7 @@ const NAV = [
 
 export default function Shell() {
   const nav = useNavigate()
-  const { isManager, panels, ready, securityError, isLoggingOut, logout } = useManagerSession()
+  const { isManager, panels, ready, securityError, isLoggingOut, logout, idleMs, idleLeftMs } = useManagerSession()
   const [now, setNow] = useState(new Date())
   const [exitError, setExitError] = useState<string | null>(null)
 
@@ -71,6 +72,10 @@ export default function Shell() {
   )
   useHotkeys(map)
 
+  // طرح ۱۴۰۵ §۴-۹: وقتی نیمی از زمان قفل بی‌کاری گذشته، شمارش معکوس کنار «خروج مدیر» (فقط روی صفحه)
+  const leftMs = isManager && idleMs > 0 ? idleLeftMs() : null
+  const idleLeft = leftMs !== null && leftMs <= idleMs / 2 ? Math.ceil(leftMs / 1000) : null
+
   const accessStatus = securityError ? (
     <span className="text-[11px] px-2 py-1 rounded bg-amber-500 text-slate-950 font-bold whitespace-nowrap" title={securityError}>
       بررسی وضعیت دسترسی
@@ -80,6 +85,12 @@ export default function Shell() {
   ) : isManager ? (
     <>
       <span className="text-xs px-2 py-1 rounded bg-white/15 font-bold whitespace-nowrap">مدیر پشت سیستم است</span>
+      {idleLeft !== null ? (
+        <span role="status" className="text-xs px-2 py-1 rounded bg-amber-400 text-slate-950 font-bold whitespace-nowrap"
+          title="نشست مدیر باز مانده است؛ اگر کارتان تمام شده، «خروج مدیر» را بزنید">
+          ⚠️ نشست مدیر باز مانده · قفل خودکار تا {faDigits(`${Math.floor(idleLeft / 60)}:${String(idleLeft % 60).padStart(2, '0')}`)}
+        </span>
+      ) : null}
       <button
         className="text-xs px-2 py-1 rounded bg-white/30 hover:bg-white/45 font-bold whitespace-nowrap disabled:opacity-60"
         onClick={() => void exitCurrentAccess()}
@@ -148,11 +159,12 @@ export default function Shell() {
       {exitError ? <div className="bg-amber-100 text-amber-950 border-b border-amber-300 px-3 py-1 text-xs">{exitError}</div> : null}
       <DebtReminderBanner />
       <PrinterPickerHost />
+      <GateUnlockDialog />
       <main className="flex-1 overflow-auto p-3">
         <Outlet />
       </main>
       <footer className="h-7 bg-slate-800 text-slate-200 text-[11px] flex items-center gap-4 px-3">
-        <span>{isManager ? 'کاربر: مدیر' : panels.length ? 'کاربر: دسترسی محدود' : 'کاربر: کارمند'}</span>
+        <span className={isManager ? 'px-1 rounded bg-amber-400 text-slate-950 font-bold' : undefined}>{isManager ? 'کاربر: مدیر' : panels.length ? 'کاربر: دسترسی محدود' : 'کاربر: کارمند'}</span>
         <span className="kbd">F2 فروش · F3 خرید · F8 کالاها · F9 گزارشات · F10 صندوق · F11 تجمیع</span>
         <span className="kbd">
           {securityError

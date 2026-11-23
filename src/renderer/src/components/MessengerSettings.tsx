@@ -106,7 +106,7 @@ export default function MessengerSettings() {
         )}
         {status.lastError && status.enabled && <div className="kbd">{status.lastError}</div>}
         <label className="block">رمز مدیر برنامه (برای هر تغییر در این بخش)
-          <PasswordField className="inp w-full" autoComplete="off" value={password} disabled={busy} onChange={(e) => setPassword(e.target.value)} />
+          <PasswordField typedOnly className="inp w-full" autoComplete="off" value={password} disabled={busy} onChange={(e) => setPassword(e.target.value)} />
         </label>
         {needPassword && !busy && <div className="kbd">دکمه‌های تغییر تا وقتی رمز مدیر را نزنید، غیرفعال می‌مانند.</div>}
         <div className="flex gap-2">
@@ -136,7 +136,7 @@ export default function MessengerSettings() {
               {showForm ? (
                 <div className="space-y-2">
                   <label className="block">کلید ربات {LABEL[p]}
-                    <PasswordField className="inp w-full" autoComplete="off" value={tokens[p]} disabled={busy} onChange={(e) => setTokens({ ...tokens, [p]: e.target.value.trim() })} />
+                    <PasswordField typedOnly className="inp w-full" autoComplete="off" value={tokens[p]} disabled={busy} onChange={(e) => setTokens({ ...tokens, [p]: e.target.value.trim() })} />
                   </label>
                   {p === 'telegram' && (
                     <label className="block">پراکسی (اختیاری؛ مثلاً پورت فیلترشکن: socks5://127.0.0.1:10808)

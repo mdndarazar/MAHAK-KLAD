@@ -11,6 +11,8 @@ import { SETTING_KEYS, parseBackupConfig, type BackupConfig } from '@shared/rece
 import { toJalaliDate, toClock } from '@shared/jalali'
 import type { BackupEntry, MergeReport } from '@shared/types'
 import { assertPanelPasswordStrict } from './AuthService'
+import { gateAction } from './locks/gate'
+import { backupApplyGateIds } from '@shared/gateCatalog'
 import { PANEL_KEYS } from '@shared/panels'
 
 /**
@@ -259,11 +261,11 @@ export const backupService = {
   async createManual(input: { userId?: number | null; managerPassword?: string | null } = {}) {
     // RE-AUDIT-HIGH-03: این خروجی یک کپی کاملِ قابل‌انتقال از دیتابیس مالی است؛
     // دیالوگ ویندوز گیت امنیتی نیست و IPC مستقیم نباید آن را دور بزند.
-    const scope = await assertPanelPasswordStrict(
+    const scope = await gateAction('backup.export-file', async () => await assertPanelPasswordStrict(
       PANEL_KEYS.settings,
       input?.managerPassword ?? null,
       'تهیه‌ی فایل بکاپ کامل در مسیر دلخواه'
-    )
+    ))
     const win = focusedWindow()
     const defaultPath = join(app.getPath('documents'), `پشتیبان-فروشگاه-${stamp()}.db`)
     const options = {
@@ -392,11 +394,11 @@ export const backupService = {
      * فروشنده مدرک قبل از دستکاری را از IPC مستقیم حذف می‌کرد. پنل تنظیمات
      * همیشه قفل است؛ رمز مدیر یا دوم/سوم همین پنل.
      */
-    await assertPanelPasswordStrict(
+    await gateAction('backup.auto-settings', async () => await assertPanelPasswordStrict(
       PANEL_KEYS.settings,
       input?.managerPassword ?? null,
       'تغییر تنظیمات بکاپ خودکار'
-    )
+    ))
     const before = await readBackupConfig()
     const next = parseBackupConfig({
       ...before,
@@ -455,11 +457,11 @@ export const backupService = {
      * به پاک‌سازی اسناد تبدیل کند. زمان‌بند داخلی همچنان مستقیماً runBackup را
      * صدا می‌زند و نیازی به رمز ندارد؛ این گیت فقط IPC دستی است.
      */
-    const scope = await assertPanelPasswordStrict(
+    const scope = await gateAction('backup.run-now', async () => await assertPanelPasswordStrict(
       PANEL_KEYS.settings,
       input?.managerPassword ?? null,
       'تهیه‌ی بکاپ فوری و چرخش نسخه‌های قبلی'
-    )
+    ))
     const path = await runBackup()
     const info = path ? await stat(path).catch(() => null) : null
     await audit(prisma, {
@@ -500,11 +502,11 @@ export const backupService = {
      * نشست ۲۰۶ — بدون این گیت، فروشنده بکاپ قبل از دستکاری را از IPC پاک
      * می‌کرد و ردّ دزدی از بین می‌رفت. تأیید قبل از unlink.
      */
-    await assertPanelPasswordStrict(
+    await gateAction('backup.forget', async () => await assertPanelPasswordStrict(
       PANEL_KEYS.settings,
       input?.managerPassword ?? null,
       'حذف فایل بکاپ از فهرست'
-    )
+    ))
     const ledger = await readLedger()
     const row = ledger.find((r) => r.id === id)
     const rest = ledger.filter((r) => r.id !== id)
@@ -571,13 +573,13 @@ export const backupService = {
         'نوع بازگردانی باید «جایگزینی کامل» یا «ادغام» باشد؛ مقدار نامعتبر پذیرفته نمی‌شود و هیچ فایلی جایگزین نمی‌شود.'
       )
     // نشست ۱۸۴ — مخرب‌ترین عملیات برنامه؛ هیچ مسیری نباید بی‌رمز باشد.
-    const scope = await assertPanelPasswordStrict(
+    const scope = await gateAction(backupApplyGateIds(input?.mode), async () => await assertPanelPasswordStrict(
       PANEL_KEYS.settings,
       input?.managerPassword ?? null,
       input?.mode === 'merge'
         ? 'ادغام یک فایل بکاپ با داده‌ی فعلی'
         : 'جایگزینی کامل داده‌ی فعلی با یک فایل بکاپ'
-    )
+    ))
     const path = await this.resolve(input?.id)
     // فایل imported قدیمی یا auto روی دیسک ممکن است از نسخه‌ای قبل از gate
     // آمده باشد؛ پیش از safety-backup یا replace، SQLite/schema آن را دوباره

@@ -14,6 +14,7 @@ import {
   type ShiftConfig
 } from '@shared/receipt'
 import { openSecret, sealSecret, vaultReady } from './PanelVault'
+import { emptyPanelPasswordScope, gatePasses } from './locks/gate'
 import { toLatinDigits, faDigits, toJalaliDate, toClock } from '@shared/jalali'
 import {
   ALWAYS_LOCKED_PANELS,
@@ -78,9 +79,9 @@ interface StoredAuth {
   changedAt?: string
 }
 
-/** رمز ورودی کاربر → شکل استاندارد (ارقام لاتین، بدون فاصله‌ی اضافه). */
+/** رمز ورودی کاربر → شکل استاندارد (ارقام لاتین، بدون فاصله‌ی اضافه). طرح ۱۴۰۵ §۳-۶: نشانگر U+2063 حذف می‌شود. */
 function normalize(raw: unknown): string {
-  return toLatinDigits(String(raw ?? '')).trim()
+  return toLatinDigits(String(raw ?? '')).replace(/\u2063/g, '').trim()
 }
 
 function derive(password: string, salt: string): string {
@@ -579,6 +580,7 @@ async function noteSuccess(gate: string): Promise<void> {
  * ===========================================================================
  */
 export async function assertManagerPassword(password: string | null | undefined, action: string): Promise<void> {
+  if (await gatePasses(normalize(password))) return // طرح ۱۴۰۵ §۳-۴ (فقط کار پوشانده‌شده، درون IPC)
   // RE-AUDIT-HIGH-02: این باید دقیقاً همان گیت authService.verify باشد؛ نام
   // قدیمیِ 'manager' یک شمارنده‌ی جدا می‌ساخت و قفل __manager__ را دور می‌زد.
   const gate = MANAGER_GATE
@@ -749,6 +751,8 @@ export async function assertPanelPassword(
     // قفل خاموش ⇒ همان مسیر `verifyPanel` بدون رمز (سیاست قفل ماژول‌ها)
     if (!isPanelLockEnabled(await readPanelLocks(), normalizePanelKey(panel) ?? panel))
       return 'OPEN'
+    const via = emptyPanelPasswordScope(panel) // طرح ۱۴۰۵ §۳-۵: نشست مدیر یا قسمتِ بازشده با مجوز، فقط درون IPC
+    if (via) return via
     throw new BusinessError(
       `«${action}» تأیید مدیر لازم دارد. رمز مدیر (یا رمز دوم همین پنل) را وارد کنید.`
     )
@@ -787,6 +791,8 @@ export async function assertPanelPasswordStrict(
   action: string
 ): Promise<'MANAGER' | 'PANEL'> {
   const pass = normalize(password)
+  const gated = await gatePasses(pass) // طرح ۱۴۰۵ §۳-۴ (فقط کار پوشانده‌شده، درون IPC)
+  if (gated) return gated
   if (!pass)
     throw new BusinessError(
       `«${action}» همیشه رمز می‌خواهد، حتی اگر قفل این ماژول خاموش باشد. ` +
@@ -796,6 +802,24 @@ export async function assertPanelPasswordStrict(
   if (res.scope === 'OPEN')
     throw new BusinessError(`«${action}» همیشه رمز می‌خواهد. رمز واردشده پذیرفته نشد.`)
   return res.scope
+}
+
+/**
+ * طرح ۱۴۰۵ §۳-۴ بند ۴ — رمز دوم/سوم جدای خود «قفل کار» (اگر مدیر برای همان کلید رمز گذاشته باشد).
+ * بی شمارش اشتباه: نابرابری یعنی «همان مسیر امروز» که خودش، مثل امروز، روی کلید خودش می‌شمارد.
+ */
+export async function actionKeyPasswordMatches(key: string, password: string): Promise<boolean> {
+  const record = (await readPanels())[key]
+  if (!record || !password) return false
+  let how = panelMatches(record, password) ? 'رمز دوم اختصاصی' : ''
+  if (!how) {
+    const cfg = await readShiftConfig(), shiftNo = await currentShiftNumber(cfg)
+    const rec = shiftNo && (cfg.templates ?? [])[shiftNo - 1] ? record.shifts?.[String(shiftNo)] : undefined
+    if (rec && rec.enabled !== false && sameHash(rec.hash, derive(password, rec.salt))) how = `رمز سوم شیفت ${faDigits(shiftNo ?? 0)}`
+  }
+  if (!how) return false
+  await audit(prisma, { action: 'SETTINGS_UPDATE', entity: 'Setting', note: `کار «${panelTitle(key)}» با ${how} (بدون نشست مدیر)` }).catch(() => undefined)
+  return true
 }
 
 /**

@@ -780,5 +780,10 @@ export const IPC = {
   messengerRecipientUpdate: 'messenger:recipient:update',
   messengerRecipientRemove: 'messenger:recipient:remove',
   messengerTest: 'messenger:test',
-  messengerResetVault: 'messenger:vault:reset'
+  messengerResetVault: 'messenger:vault:reset',
+  // طرح ۱۴۰۵ — دروازهٔ مرکزی قفل‌ها (§۳-۷، §۳-۱۳، §۳-۱۷)
+  gateUnlock: 'gate:unlock',
+  gateCloseAll: 'gate:close-all',
+  lockDurationsGet: 'lock-durations:get',
+  lockDurationsSet: 'lock-durations:set'
 } as const

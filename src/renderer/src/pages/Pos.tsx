@@ -2216,6 +2216,7 @@ export default function Pos() {
                     {operatorStaff.map((staff) => <option key={staff.id} value={staff.id}>{staff.name} ({staff.role === 'MANAGER' ? 'مدیر' : 'صندوقدار'})</option>)}
                   </select>
                   <PasswordField
+                    typedOnly
                     value={saleOperatorPassword}
                     placeholder="رمز شخصی حضانت اپراتور — فقط برای همین فروش"
                     onChange={(event) => setSaleOperatorPassword(event.target.value)}

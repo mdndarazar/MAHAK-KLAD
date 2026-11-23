@@ -1,3 +1,4 @@
+import PasswordField from '../components/PasswordField'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { call, CH } from '../lib/api'
@@ -2632,8 +2633,7 @@ export default function SalesReports() {
             </p>
             <label className="block">
               <span className="font-bold">رمز مجوز عملیات</span>
-              <input
-                type="password"
+              <PasswordField
                 dir="ltr"
                 className="inp w-full mt-1"
                 value={exCorrectionUnlockPassword}
@@ -2688,8 +2688,7 @@ export default function SalesReports() {
             </label>
             <label className="block">
               <span className="font-bold">رمز تأیید ابطال (اجباری مگر مدیر قفل را خاموش کرده باشد)</span>
-              <input
-                type="password"
+              <PasswordField
                 dir="ltr"
                 className="inp w-full"
                 value={exVoidAuthPassword}
@@ -2779,7 +2778,7 @@ export default function SalesReports() {
             <label className="block"><span>پیگیری پرداخت کارت/بانک (اگر مبلغ دارد)</span><input className="inp w-full" value={exCorrectionPayoutReference} onChange={(e) => setExCorrectionPayoutReference(e.target.value)} /></label>
             <label className="block"><span className="font-bold">وضعیت اعتبار صادرشده از همین تعویض</span><select className="inp w-full" value={exCorrectionCreditOutcome} onChange={(e) => setExCorrectionCreditOutcome(e.target.value)}><option value="NONE">اعتباری صادر نشده است</option><option value="CANCELED_UNUSED">اعتبار مصرف‌نشده لغو شد</option><option value="REMAINS_ACTIVE">اعتبار هنوز باقی است</option><option value="CONSUMED">اعتبار کامل مصرف شده است</option></select></label>
             <label className="block"><span>یادداشت تسویه/مغایرت</span><input className="inp w-full" value={exCorrectionNote} onChange={(e) => setExCorrectionNote(e.target.value)} /></label>
-            <label className="block"><span>رمز اصلاح جبرانی (در نصب تازه اجباری)</span><input type="password" dir="ltr" className="inp w-full" value={exCorrectionAuthPassword} onChange={(e) => { setExCorrectionAuthPassword(e.target.value); setExCorrectionErr(null) }} placeholder="رمز مدیر یا رمز اختصاصی اصلاح/ابطال" /></label>
+            <label className="block"><span>رمز اصلاح جبرانی (در نصب تازه اجباری)</span><PasswordField dir="ltr" className="inp w-full" value={exCorrectionAuthPassword} onChange={(e) => { setExCorrectionAuthPassword(e.target.value); setExCorrectionErr(null) }} placeholder="رمز مدیر یا رمز اختصاصی اصلاح/ابطال" /></label>
             <div className="rounded border border-amber-300 bg-amber-50 p-2 space-y-2">
               <p className="font-bold">تأیید شخصی مدیر — فقط روز بعد یا دوره‌ی بسته</p>
               <select className="inp w-full" value={exCorrectionApproverUserId ?? ''} onChange={(e) => { setExCorrectionApproverUserId(e.target.value ? Number(e.target.value) : null); setExCorrectionErr(null) }}><option value="">انتخاب مدیر تأییدکننده…</option>{exVoidManagers.map((manager) => <option key={manager.id} value={manager.id}>{manager.name}{manager.hasCorrectionApprovalPassword ? '' : ' — رمز شخصی تعریف نشده'}</option>)}</select>

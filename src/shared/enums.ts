@@ -1,3 +1,5 @@
+import { LOCKED_PANELS } from './panels'
+import { GATE_ACTION_IDS } from './gateCatalog'
 export const StockReason = {
   SALE: 'SALE',
   /** موجودی اولیه‌ی واریانت در لحظه‌ی تعریف کالا (ورود از فرم کالا) */
@@ -766,7 +768,9 @@ export const AuditAction = {
   /** حذف یک شماره از فهرست لغو */
   SMS_OPT_OUT_REMOVE: 'SMS_OPT_OUT_REMOVE',
   /** اجرای زمان‌بند خودکار یادآوری اعتبار */
-  SMS_AUTO_RUN: 'SMS_AUTO_RUN'
+  SMS_AUTO_RUN: 'SMS_AUTO_RUN',
+  ACCESS_EVENT: 'ACCESS_EVENT', // طرح ۱۴۰۵ §۳-۹ — رویدادهای خود دسترسی (کد، مجوز راه دور، مدت‌ها)
+  FACTORY_RESET: 'FACTORY_RESET' // طرح ۱۴۰۵ §۴-۲ — صفر کردن برنامه
 } as const
 
 /** وضعیت یک روز در پنل «تجمیع و انتقال». */
@@ -868,5 +872,5 @@ export function normalizeStaffRole(raw: unknown): StaffRole {
 export const REMOTE_GRANT_TIER = ['NORMAL', 'SENSITIVE_MONEY'] as const
 export const REMOTE_GRANT_STATE = ['PENDING', 'ACTIVE', 'CONSUMED', 'EXPIRED', 'REVOKED'] as const
 export const REMOTE_AUTH_MODE = ['SELLER_REQUESTED', 'OWNER_PUSHED'] as const
-// پنل‌هایی که با تأیید گوشی باز می‌شوند — فقط پنل‌های غیرعملیاتی؛ عملیات مالی یک‌بارمصرف خاموش است
-export const REMOTE_PANELS = ['products', 'settings', 'secondary-stock'] as const
+// طرح ۱۴۰۵ §۳-۳ — مجوز گوشی برای همهٔ قفل‌ها: همهٔ کلیدهای «قسمت» (مجوز با مدت) و همهٔ شناسه‌های کار (یک بار)
+export const REMOTE_PANELS: readonly string[] = Object.freeze([...LOCKED_PANELS.filter((p) => p.kind === 'part').map((p) => p.key as string), ...GATE_ACTION_IDS])

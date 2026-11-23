@@ -61,8 +61,8 @@ ok('روی کلید پنل تنظیمات است', /assertPanelPasswordStrict\(\
    * اگر روزی از این فهرست بیرون بیاید، گیت بی‌صدا بی‌اثر می‌شود.
    */
   const panels = await import('../../src/shared/panels.ts')
-  ok('پنل تنظیمات در ALWAYS_LOCKED_PANELS است (گیت با خاموش کردن قفل دور نمی‌خورد)',
-    panels.ALWAYS_LOCKED_PANELS.includes(panels.PANEL_KEYS.settings))
+  ok('طرح ۱۴۰۵: تنظیمات خاموش‌شدنی است، ولی بازگردانی و ادغام هر کدام قفل کار جدای خود را دارند',
+    !panels.ALWAYS_LOCKED_PANELS.includes(panels.PANEL_KEYS.settings) && ['act-backup-restore', 'act-backup-merge'].every((k) => panels.LOCKED_PANELS.some((p) => p.key === k && p.kind === 'action')))
 }
 
 // ---------------------------------------------------------------------------

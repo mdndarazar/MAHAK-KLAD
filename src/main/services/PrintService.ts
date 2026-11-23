@@ -1034,7 +1034,8 @@ export const printService = {
        * از رندر سنجیده می‌شود.
        */
       const { assertPanelPasswordStrict } = await import('./AuthService')
-      await assertPanelPasswordStrict(PANEL_KEYS.creditManagement, input?.password, 'چاپ دوباره‌ی سند اعتبار خرید')
+      const { gateAction } = await import('./locks/gate')
+      await gateAction('credit.reprint-manager', () => assertPanelPasswordStrict(PANEL_KEYS.creditManagement, input?.password, 'چاپ دوباره‌ی سند اعتبار خرید'))
     }
     const tpl = await settingsService.receiptTemplate()
     const settings = await readCreditSettings()

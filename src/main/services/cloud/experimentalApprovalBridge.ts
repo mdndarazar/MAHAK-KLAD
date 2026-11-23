@@ -5,7 +5,7 @@ import { listActiveGrants, listPendingRequests } from '../RemoteGrantRegistry'
 import { createGrantApprovalCoordinator } from './grantApprovalCoordinator'
 import type { GrantReplayStore } from './signedCommandVerifier'
 
-type Policy = {tier:'NORMAL';mode:'PANEL';ttlMs:number}
+type Policy = {tier:'NORMAL';mode:'PANEL';ttlMs:number}|{tier:'SENSITIVE_MONEY';mode:'ONE_SHOT';ttlMs:number}
 export function createExperimentalApprovalBridge(options:{key:Uint8Array;storeId:string;epoch:string;policies:Readonly<Record<string,Policy>>;replayStore:GrantReplayStore;appliedRevocation:()=>number;isClosed:()=>boolean;send:(message:Record<string,unknown>)=>void;onReplayFailure:()=>void}) {
   const {key,storeId,epoch}=options
   if (!(key instanceof Uint8Array) || key.byteLength!==32 || !options.replayStore || typeof options.replayStore.consume!=='function' || typeof options.onReplayFailure!=='function') throw new Error('Invalid approval bridge')

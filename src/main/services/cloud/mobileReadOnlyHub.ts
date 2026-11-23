@@ -281,7 +281,7 @@ export function createMobileReadOnlyHandler(options: Options) {
             ...(user.role==='OWNER' && typeof options.identity.panicClose==='function' && typeof options.drainRevocations==='function' ? {panicClose:true} : {}),
             ...(user.role==='OWNER' && typeof options.approval?.grants==='function' ? {grants:true} : {}),
             ...(user.role==='OWNER' && typeof options.health==='function' ? {health:true} : {}),
-            ...(user.role==='OWNER' && Array.isArray(options.approval?.panels) ? {approvalPanels:options.approval.panels.filter(panel=>typeof panel==='string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(panel)).slice(0,20)} : {})});return
+            ...(user.role==='OWNER' && Array.isArray(options.approval?.panels) ? {approvalPanels:options.approval.panels.filter(panel=>typeof panel==='string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(panel)).slice(0,128)} : {})});return
         }
         if (path === '/api/grants' && typeof options.approval?.grants === 'function') {
           if (user.role !== 'OWNER') { send(403,{error:'فقط مالک مجاز است'});return }

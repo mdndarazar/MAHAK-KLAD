@@ -118,7 +118,7 @@ assert.equal(seed.count('StoreCredit'), countBefore)
 // lookup IPC itself is manager-session gated on the main side.
 const ipcSource = readFileSync(new URL('../../src/main/ipc/index.ts', import.meta.url), 'utf8')
 const uiSource = readFileSync(new URL('../../src/renderer/src/pages/CreditManagement.tsx', import.meta.url), 'utf8')
-assert.match(ipcSource, /handle\(IPC\.creditInvoiceLookup, async \(p\) => \{\s*assertManagerSession/)
+assert.match(ipcSource, /handle\(IPC\.creditInvoiceLookup, async \(p\) => \{\s*await gateSession\('credit\.invoice-lookup', \(\) => assertManagerSession/)
 assert.match(uiSource, /const printLinkedCredit = async \(creditId: number\)[\s\S]*?await printOne\(creditId\)/)
 assert.doesNotMatch(uiSource, /printLinkedCredit[\s\S]{0,300}creditIssue/,
   'invoice recovery must not call a credit-issue operation')

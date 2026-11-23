@@ -1485,7 +1485,7 @@ export default function SalesReturn() {
           <div className="flex flex-wrap gap-2 items-end">
             <label>
               <div className="kbd">رمز مدیر</div>
-              <input type="password" className="inp w-40" dir="ltr" value={lockPw} onChange={(e) => setLockPw(e.target.value)} />
+              <PasswordField className="inp w-40" dir="ltr" value={lockPw} onChange={(e) => setLockPw(e.target.value)} />
             </label>
             <label className="flex-1 min-w-[240px]">
               <div className="kbd">دلیل ثبت در دوره‌ی بسته (اجباری)</div>
@@ -1505,7 +1505,7 @@ export default function SalesReturn() {
           <div className="flex flex-wrap gap-2 items-end">
             <label>
               <div className="kbd">رمز مدیر برای سقف اعتبار</div>
-              <input type="password" className="inp w-40" dir="ltr" value={creditLimitPw} onChange={(e) => setCreditLimitPw(e.target.value)} />
+              <PasswordField className="inp w-40" dir="ltr" value={creditLimitPw} onChange={(e) => setCreditLimitPw(e.target.value)} />
             </label>
             <button className="btn" onClick={() => { setCreditLimitNeeded(false); setCreditLimitPw('') }}>انصراف</button>
           </div>
@@ -1862,8 +1862,7 @@ export default function SalesReturn() {
                   <>
                     <label>
                       <div className="kbd">رمز مدیر</div>
-                      <input
-                        type="password"
+                      <PasswordField
                         className="inp w-40"
                         dir="ltr"
                         value={managerPw}
@@ -2489,8 +2488,7 @@ export default function SalesReturn() {
                   <span className="kbd block">فقط مدیر با رمز و دلیل می‌تواند تخفیف را نادیده بگیرد؛ این رویداد در Audit ثبت می‌شود.</span>
                   {managerFullRefund && (
                     <span className="flex flex-wrap gap-2 mt-2">
-                      <input
-                        type="password"
+                      <PasswordField
                         className="inp w-40"
                         dir="ltr"
                         placeholder="رمز مدیر"
@@ -2844,7 +2842,7 @@ export default function SalesReturn() {
             </label>
             <label className="block">
               <span>رمز اصلاح جبرانی (در نصب تازه اجباری)</span>
-              <input type="password" dir="ltr" className="inp w-full" value={correctionAuthPassword} onChange={(e) => { setCorrectionAuthPassword(e.target.value); setCorrectionErr(null) }} placeholder="رمز مدیر یا رمز اختصاصی اصلاح/ابطال" />
+              <PasswordField dir="ltr" className="inp w-full" value={correctionAuthPassword} onChange={(e) => { setCorrectionAuthPassword(e.target.value); setCorrectionErr(null) }} placeholder="رمز مدیر یا رمز اختصاصی اصلاح/ابطال" />
             </label>
             <div className="rounded border border-amber-300 bg-amber-50 p-2 space-y-2">
               <p className="font-bold">تأیید شخصی مدیر — فقط روز بعد یا دوره‌ی بسته</p>
@@ -2888,8 +2886,7 @@ export default function SalesReturn() {
             </label>
             <label className="block">
               <span className="font-bold">رمز تأیید ابطال (در نصب تازه اجباری)</span>
-              <input
-                type="password"
+              <PasswordField
                 dir="ltr"
                 className="inp w-full"
                 value={voidAuthPassword}

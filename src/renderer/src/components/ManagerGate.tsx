@@ -165,6 +165,7 @@ export default function ManagerGate({
           <div className="mb-1 font-bold">رمز مدیر{hasSecond ? ` یا رمز اختصاصی «${panelTitle(panel)}»` : ''}</div>
           {/* مورد ۲ — همین اینپوت با آیکون چشم: کاربر می‌تواند رمز تایپ‌شده را ببیند */}
           <PasswordField
+            typedOnly
             ref={inputRef}
             className="inp text-center text-lg tracking-widest"
             value={password}

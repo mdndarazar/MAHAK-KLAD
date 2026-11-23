@@ -85,7 +85,24 @@ interface BackupConfigView {
   fallback: boolean
 }
 import { CHARGE_KINDS, CHARGE_SCOPES, CHARGE_KIND_LABELS, CHARGE_SCOPE_LABELS } from '@shared/charges'
-import { LOCKED_PANELS } from '@shared/panels'
+import { LOCKED_PANELS, PANEL_KEYS, type PanelDef } from '@shared/panels'
+import { GATE_CATALOG } from '@shared/gateCatalog'
+
+/** طرح ۱۴۰۵ §۳-۳ — ۸۰ کلید، گروه‌بندی‌شده زیر نام ماژول (ترتیب نخستین دیده‌شدن هر گروه)، با نشان «پولی» و «یک بار». */
+const GROUPED_PANELS: readonly PanelDef[] = [...new Set(LOCKED_PANELS.map((p) => p.group))].flatMap((g) => LOCKED_PANELS.filter((p) => p.group === g))
+/** سه کلید «سیاست حسابداری»: روشن/خاموششان همان‌جاست، نه در «قفل ماژول‌ها» */
+const POLICY_LOCK_KEYS = new Set(Object.values(GATE_CATALOG).filter((e) => e.lockKind === 'policy').map((e) => e.lockKey))
+const groupHeader = (panel: PanelDef, i: number, span: number) =>
+  i === 0 || GROUPED_PANELS[i - 1].group !== panel.group ? (
+    <tr><td colSpan={span} className="bg-slate-100 font-bold">{panel.group}</td></tr>
+  ) : null
+const panelBadges = (panel: PanelDef) => (
+  <>
+    {panel.tier === 'money' ? <span className="ms-1 text-[11px] px-1 rounded bg-amber-200 text-amber-900">پولی</span> : null}
+    {panel.kind === 'action' ? <span className="ms-1 text-[11px] px-1 rounded bg-sky-100 text-sky-900">قفل کار · کد و مجوز یک بار</span> : null}
+  </>
+)
+import ManagerGate from '../components/ManagerGate'
 import { STAFF_ROLES, STAFF_ROLE_LABELS } from '@shared/enums'
 import { broadcastPanelLocksChanged } from '../hooks/usePanelLocks'
 import { broadcastSettingsChanged } from '../hooks/useSettings'
@@ -1911,10 +1928,6 @@ export default function Settings() {
       setStaffError(null)
       setLegacyShiftPlanReview(null)
     }
-    if (!isManager && (tab === 'staff' || tab === 'custody')) {
-      setTab('receipt')
-      return
-    }
     if (tab === 'backup') {
       void loadBackups()
       void loadBackupConfig()
@@ -2092,8 +2105,8 @@ export default function Settings() {
           >
             سیاست حسابداری
           </button>
-          {isManager ? (
-            <>
+          {/* طرح ۱۴۰۵ §۳-۱۰ دستهٔ ۲: دو تب همیشه هستند؛ محتوا با قسمت خودشان (`staff`، `custody-settings`) باز می‌شود */}
+          <>
               <button
                 className={`btn ${tab === 'staff' ? 'btn-primary' : ''}`}
                 onClick={() => setTab('staff')}
@@ -2108,8 +2121,7 @@ export default function Settings() {
               >
                 حضانت صندوق
               </button>
-            </>
-          ) : null}
+          </>
           {/* ---------------- جلسه ۱۹ · بند ۹ ---------------- */}
           <button
             className={`btn ${tab === 'time' ? 'btn-primary' : ''}`}
@@ -2928,13 +2940,13 @@ export default function Settings() {
                 <h2 className="font-bold border-b pb-1">تغییر رمز مدیریتی</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                   <Field label="رمز فعلی">
-                    <PasswordField value={curPw} onChange={(e) => setCurPw(e.target.value)} />
+                    <PasswordField typedOnly value={curPw} onChange={(e) => setCurPw(e.target.value)} />
                   </Field>
                   <Field label="رمز جدید">
-                    <PasswordField value={newPw} onChange={(e) => setNewPw(e.target.value)} />
+                    <PasswordField typedOnly value={newPw} onChange={(e) => setNewPw(e.target.value)} />
                   </Field>
                   <Field label="تکرار رمز جدید">
-                    <PasswordField value={newPw2} onChange={(e) => setNewPw2(e.target.value)} />
+                    <PasswordField typedOnly value={newPw2} onChange={(e) => setNewPw2(e.target.value)} />
                   </Field>
                 </div>
                 <button className="btn btn-primary" onClick={() => void changePassword()} disabled={pwBusy}>
@@ -3011,7 +3023,7 @@ export default function Settings() {
                     />
                   </Field>
                   <Field label="رمز مدیر (تغییر تنظیمات امنیتی)">
-                    <PasswordField value={securityPw} onChange={(e) => setSecurityPw(e.target.value)} />
+                    <PasswordField typedOnly value={securityPw} onChange={(e) => setSecurityPw(e.target.value)} />
                   </Field>
                   <div className="flex items-end">
                     <button
@@ -3051,12 +3063,12 @@ export default function Settings() {
                   نمی‌شود و اگر قفل را دوباره روشن کنید، همان رمز قبلی کار می‌کند.
                   <br />
                   <b>تغییر این بخش «رمز مدیر» می‌خواهد</b> (نه رمز دوم پنل تنظیمات) و هر تغییر همان لحظه ذخیره می‌شود.
-                  پنل «تنظیمات» عمداً در فهرست نیست: بازگردانی بکاپ، حذف گزارشات و سبک‌سازی دیتابیس داخل همین پنل است،
-                  پس قفلش قابل برداشتن نیست.
+                  طرح ۱۴۰۵: همهٔ قفل‌ها خاموش‌شدنی‌اند، از جمله «تنظیمات»؛ ولی کارهای خطرناک داخل هر ماژول (مثل بازگردانی
+                  بکاپ، پاک‌سازی و ابطال) «قفل کار» جدای خودشان را دارند و با خاموش شدن قفل ماژول خاموش نمی‌شوند.
                 </div>
                 <div className="md:w-1/3">
                   <Field label="رمز مدیر (برای تایید تغییر قفل‌ها)">
-                    <PasswordField value={panelManagerPw} onChange={(e) => setPanelManagerPw(e.target.value)} />
+                    <PasswordField typedOnly value={panelManagerPw} onChange={(e) => setPanelManagerPw(e.target.value)} />
                   </Field>
                 </div>
                 {/* مورد ۵ — هشدار زرد جای «شکست بی‌صدا» */}
@@ -3084,22 +3096,25 @@ export default function Settings() {
                       </tr>
                     </thead>
                     <tbody>
-                      {LOCKED_PANELS.map((panel) => {
+                      {GROUPED_PANELS.map((panel, i) => {
                         const always = panelLocks.alwaysLocked.includes(panel.key)
-                        const on = always || panelLocks.locks[panel.key] !== false
+                        const policy = POLICY_LOCK_KEYS.has(panel.key)
+                        const on = always || policy || panelLocks.locks[panel.key] !== false
                         return (
-                          <tr key={`lock-${panel.key}`} className={!on ? 'bg-amber-50' : ''}>
+                          <Fragment key={`lock-${panel.key}`}>
+                          {groupHeader(panel, i, 3)}
+                          <tr className={!on ? 'bg-amber-50' : ''}>
                             <td>
-                              <div className="font-bold">{panel.title}</div>
+                              <div className="font-bold">{panel.title}{panelBadges(panel)}</div>
                               <div className="kbd">{panel.hint}</div>
                             </td>
                             <td className={on ? 'font-bold' : 'text-amber-700 font-bold'}>
                               {on ? '🔒 قفل روشن' : '🔓 قفل خاموش — بدون رمز باز می‌شود'}
                             </td>
                             <td>
-                              {always ? (
+                              {always || policy ? (
                                 <span className="kbd">
-                                  قفلش قابل برداشتن نیست (بکاپ و حذف گزارشات داخل همین پنل است)
+                                  {policy ? 'روشن/خاموش در «سیاست حسابداری»' : 'قفلش قابل برداشتن نیست'}
                                 </span>
                               ) : (
                                 <label className="flex items-center gap-2 cursor-pointer">
@@ -3117,6 +3132,7 @@ export default function Settings() {
                               )}
                             </td>
                           </tr>
+                          </Fragment>
                         )
                       })}
                     </tbody>
@@ -3137,7 +3153,7 @@ export default function Settings() {
                 </div>
                 <div className="md:w-1/3">
                   <Field label="رمز مدیر (برای تایید همین بخش)">
-                    <PasswordField value={panelManagerPw} onChange={(e) => setPanelManagerPw(e.target.value)} />
+                    <PasswordField typedOnly value={panelManagerPw} onChange={(e) => setPanelManagerPw(e.target.value)} />
                   </Field>
                 </div>
                 {/* مورد ۵ — هشدار زرد جای «شکست بی‌صدا» */}
@@ -3182,7 +3198,7 @@ export default function Settings() {
                       </tr>
                     </thead>
                     <tbody>
-                      {LOCKED_PANELS.map((panel) => {
+                      {GROUPED_PANELS.map((panel, i) => {
                         const state = panelAuth.find((x) => x.key === panel.key)
                         const enabled = !!state?.enabled
                         const shifts = state?.shifts ?? []
@@ -3191,6 +3207,7 @@ export default function Settings() {
                         const shown = revealed[panel.key]
                         return (
                           <Fragment key={panel.key}>
+                            {groupHeader(panel, i, 5)}
                             <tr>
                               {/* ---- مورد ۷: آکاردئون رمزهای سوم؛ پیش‌فرض بسته ---- */}
                               <td className="text-center">
@@ -3207,7 +3224,7 @@ export default function Settings() {
                                 </button>
                               </td>
                               <td>
-                                <div className="font-bold">{panel.title}</div>
+                                <div className="font-bold">{panel.title}{panelBadges(panel)}</div>
                                 <div className="kbd">{panel.hint}</div>
                               </td>
                               <td className={enabled ? 'text-emerald-700 font-bold' : ''}>
@@ -3226,6 +3243,7 @@ export default function Settings() {
                               </td>
                               <td>
                                 <PasswordField
+                                  typedOnly
                                   placeholder="حداقل ۴ رقم"
                                   value={panelPw[panel.key] ?? ''}
                                   onChange={(e) => setPanelPw((prev) => ({ ...prev, [panel.key]: e.target.value }))}
@@ -3324,6 +3342,7 @@ export default function Settings() {
                                                 </td>
                                                 <td>
                                                   <PasswordField
+                                                    typedOnly
                                                     placeholder="حداقل ۴ رقم"
                                                     value={shiftPw[id] ?? ''}
                                                     onChange={(e) =>
@@ -4459,12 +4478,13 @@ export default function Settings() {
           )}
 
           {/* ==================== جلسه ۱۸ · بند ۲ — کارمندان ==================== */}
-          {isManager && tab === 'staff' && (
-            <>
+          {tab === 'staff' && (
+            <ManagerGate panel={PANEL_KEYS.staff} inline title="کارمندان فروشگاه"
+              reason="ثبت و ویرایش کارمندان با قسمت «کارمندان» باز می‌شود: نشست مدیر، رمز دوم/سوم همین قسمت، کد یک‌بارمصرف یا مجوز راه دور. نقش «مدیر» و رمز شخصی تأیید اصلاح فقط با نشست خود مدیر.">
               <h2 className="font-bold text-lg">کارمندان فروشگاه</h2>
               <div className="rounded border-2 border-sky-300 bg-sky-50 p-3 leading-7">
-                این بخش <b>سیستم ورود کاربر نیست</b>. ثبت کارمند و پروندهٔ او فقط با نشست اصلی مدیر انجام می‌شود؛ رمز دوم
-                پنل تنظیمات به این بخش دسترسی نمی‌دهد. اطلاعات هویتی و بانکی از فهرست عمومی کارکنان و تب
+                این بخش <b>سیستم ورود کاربر نیست</b>. ثبت کارمند با قسمت «کارمندان» و پروندهٔ حساس او با قسمت «پروندهٔ حساس
+                پرسنلی» باز می‌شود؛ رمز دوم پنل تنظیمات به این بخش دسترسی نمی‌دهد. اطلاعات هویتی و بانکی از فهرست عمومی کارکنان و تب
                 <b>عملکرد کارمندان</b> جدا هستند.
               </div>
 
@@ -4530,6 +4550,7 @@ export default function Settings() {
                     <label title="فقط هنگام اصلاح/ابطال دیرهنگام یا دوره‌بسته استفاده می‌شود؛ خالی گذاشتن آن رمز قبلی مدیر را تغییر نمی‌دهد.">
                       <div className="mb-1 font-bold">رمز شخصی تأیید اصلاح دیرهنگام</div>
                       <PasswordField
+                        typedOnly
                         value={staffCorrectionApprovalPw}
                         onChange={(e) => setStaffCorrectionApprovalPw(e.target.value)}
                         placeholder={staffDraft.id ? 'خالی = بدون تغییر' : 'حداقل ۴ نویسه'}
@@ -4622,11 +4643,13 @@ export default function Settings() {
                   )}
                 </tbody>
               </table>
-            </>
+            </ManagerGate>
           )}
 
           {/* ==================== حضانت صندوق — فقط پیکربندی ساختاری ==================== */}
-          {isManager && tab === 'custody' && (
+          {tab === 'custody' && (
+            <ManagerGate panel={PANEL_KEYS.custodySettings} inline title="تنظیمات حضانت صندوق"
+              reason="تنظیمات ساختاری حضانت با قسمت «تنظیمات حضانت صندوق» باز می‌شود: نشست مدیر، رمز دوم/سوم همین قسمت، کد یک‌بارمصرف یا مجوز راه دور.">
             <section className="space-y-4" dir="rtl">
               <div>
                 <h2 className="font-bold text-lg">تنظیمات حضانت صندوق</h2>
@@ -4654,6 +4677,7 @@ export default function Settings() {
                 <CustodyAdminChip />
               </div>
             </section>
+            </ManagerGate>
           )}
 
           {/* ==================== جلسه ۱۹ · بند ۹ — تاریخ و ساعت رسمی ==================== */}

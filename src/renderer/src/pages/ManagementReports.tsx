@@ -1,3 +1,4 @@
+import PasswordField from '../components/PasswordField'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLatestGate } from '@shared/latestRequest'
 import { call, CH } from '../lib/api'
@@ -1173,8 +1174,7 @@ function ProfitPane({ filter }: { filter: any }) {
     <div className={`space-y-3 text-sm ${faint ? 'bg-amber-50/40 -m-3 p-3 rounded' : ''}`}>
       {err ? <div className="bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded p-2">{err}</div> : null}
       <div className="flex flex-wrap justify-end gap-2 items-center">
-        <input
-          type="password"
+        <PasswordField
           className="border rounded px-2 py-1 text-xs"
           placeholder="رمز مدیر برای بازسازی"
           value={mgrPass}

@@ -23,6 +23,9 @@ export interface ManagerSession {
   unlockPanel: (panel: string, password: string) => Promise<'MANAGER' | 'PANEL'>
   /** Main-first: پس از revoke موفق Main، UI پاک می‌شود. */
   logout: () => Promise<void>
+  /** طرح ۱۴۰۵ §۴-۹: کل زمان قفل بی‌کاری و زمان باقی‌مانده (بی رندر دوباره؛ Shell خودش هر ثانیه می‌خواند) */
+  idleMs: number
+  idleLeftMs: () => number
 }
 
 type MainSessionStatus = {
@@ -47,7 +50,9 @@ const FALLBACK: ManagerSession = {
   },
   logout: async () => {
     throw new Error('وضعیت مدیر در دسترس نیست؛ برنامه را یک بار ببندید و باز کنید.')
-  }
+  },
+  idleMs: 0,
+  idleLeftMs: () => 0
 }
 
 const ManagerContext = createContext<ManagerSession>(FALLBACK)
@@ -235,9 +240,10 @@ export function ManagerSessionProvider({ children }: { children: ReactNode }) {
     [ready, securityError, isManager, panels]
   )
 
+  const idleLeftMs = useCallback(() => Math.max(0, idleMs - (Date.now() - lastActivity.current)), [idleMs])
   const value = useMemo<ManagerSession>(
-    () => ({ isManager, since, panels, ready, securityError, isLoggingOut, canOpen, login, unlockPanel, logout }),
-    [isManager, since, panels, ready, securityError, isLoggingOut, canOpen, login, unlockPanel, logout]
+    () => ({ isManager, since, panels, ready, securityError, isLoggingOut, canOpen, login, unlockPanel, logout, idleMs, idleLeftMs }),
+    [isManager, since, panels, ready, securityError, isLoggingOut, canOpen, login, unlockPanel, logout, idleMs, idleLeftMs]
   )
 
   return <ManagerContext.Provider value={value}>{children}</ManagerContext.Provider>

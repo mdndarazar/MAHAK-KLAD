@@ -1,3 +1,4 @@
+import PasswordField from './PasswordField'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
@@ -484,9 +485,8 @@ export default function ShiftSessionModal({
               )}
               <label className="block">
                 <div className="kbd">رمز مدیر</div>
-                <input
+                <PasswordField
                   className="inp"
-                  type="password"
                   value={managerPassword}
                   onChange={(e) => setManagerPassword(e.target.value)}
                   autoComplete="off"

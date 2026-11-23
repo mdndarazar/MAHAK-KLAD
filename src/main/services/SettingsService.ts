@@ -6,6 +6,8 @@ import { audit } from './AuditService'
  * import نمی‌کند (فقط db/client، AuditService، errors، PanelVault و shared)، پس چرخه‌ای ساخته نمی‌شود.
  */
 import { assertManagerPassword, assertPanelPassword, assertPanelPasswordStrict } from './AuthService'
+import { gateAction } from './locks/gate'
+import { accountingPolicyGateIds, settingsSaveGateIds, shiftChangeGateIds } from '@shared/gateCatalog'
 import { BusinessError } from '../errors'
 // نشست ۲۲۲ · فاز ۵ — دروازه‌ی روشن‌کردن مسیر RAW (بخش ۷.۱ طرح)
 import { assertRawMethodAllowed } from '../print/raw/gate'
@@ -373,10 +375,12 @@ export const settingsService = {
   async setAccountingPolicy(
     input: { policy?: unknown; userId?: number | null; managerPassword?: string | null } = {}
   ) {
-    await assertManagerPassword(
+    // طرح ۱۴۰۵ §۳-۱۰: سه کلید قفل (گیت قیمت دستی، قفل دورهٔ بسته، سقف اعتبار) دستهٔ ۱؛ بقیه قفل کار
+    const policyGateIds = accountingPolicyGateIds(await this.accountingPolicy(), parseAccountingPolicy(input.policy))
+    await gateAction(policyGateIds, () => assertManagerPassword(
       input?.managerPassword ?? null,
       'تغییر سیاست حسابداری (سقف مجاز مغایرت صندوق، گیت قیمت دستی، قفل دوره‌ی بسته، سقف اعتبار خرید)'
-    )
+    ))
     const before = await this.accountingPolicy()
     const next = parseAccountingPolicy(input.policy)
     await writeKey(SETTING_KEYS.accountingPolicy, next)
@@ -413,11 +417,11 @@ export const settingsService = {
   async saveCreditSettings(
     input: { settings?: unknown; userId?: number | null; panelPassword?: string | null } = {}
   ): Promise<CreditSettings> {
-    await assertPanelPasswordStrict(
+    await gateAction('credit.settings-save', () => assertPanelPasswordStrict(
       PANEL_KEYS.creditSettings,
       input?.panelPassword ?? null,
       'ذخیره‌ی تنظیمات اعتبار خرید (طول کد، دفعات مصرف، مدت اعتبار)'
-    )
+    ))
     const before = await this.creditSettings()
     const next = parseCreditSettings(input?.settings ?? DEFAULT_CREDIT_SETTINGS)
     await writeKey(SETTING_KEYS.creditSettings, next)
@@ -522,7 +526,7 @@ export const settingsService = {
     const before = await this.discountTransferPolicy()
     const next = parseDiscountTransferSettings({ preventExtraRefund: input.preventExtraRefund })
     if (before.preventExtraRefund !== next.preventExtraRefund)
-      await assertManagerPassword(input?.managerPassword ?? null, 'تغییر چک‌باکس جلوگیری از بازپرداخت اضافه در تعویض')
+      await gateAction('settings.exchange-overpay-guard', () => assertManagerPassword(input?.managerPassword ?? null, 'تغییر چک‌باکس جلوگیری از بازپرداخت اضافه در تعویض'))
     await writeKey(SETTING_KEYS.discountTransferPolicy, next)
     await audit(prisma, {
       action: 'SETTINGS_UPDATE',
@@ -667,7 +671,7 @@ export const settingsService = {
      * پیش از هر نوشتن رمز مدیر می‌خواهد. افست روی تشخیص شیفت و گزارش‌های زمانی اثر دارد.
      */
     if (!sameJson(next, before))
-      await assertManagerPassword(input?.managerPassword ?? null, 'تغییر افست ساعت رسمی')
+      await gateAction('settings.clock-offset', () => assertManagerPassword(input?.managerPassword ?? null, 'تغییر افست ساعت رسمی'))
     await writeKey(SETTING_KEYS.officialTime, next)
     await audit(prisma, {
       action: 'SETTINGS_UPDATE',
@@ -746,7 +750,7 @@ export const settingsService = {
      * settings:set و saveBundle)؛ این کانال فوری همان گیت را می‌گیرد، فقط وقتی مقدار واقعاً عوض شود.
      */
     if (next.byTime !== before.byTime)
-      await assertManagerPassword(input?.managerPassword ?? null, 'تغییر سوییچ «تعیین شیفت بر اساس ساعت»')
+      await gateAction('settings.shift-by-clock', () => assertManagerPassword(input?.managerPassword ?? null, 'تغییر سوییچ «تعیین شیفت بر اساس ساعت»'))
     await writeKey(SETTING_KEYS.shiftConfig, next)
     await audit(prisma, {
       action: 'SETTINGS_UPDATE',
@@ -774,7 +778,7 @@ export const settingsService = {
     const before = await this.shiftConfig()
     const next = parseShiftConfig({ ...before, overtimeMaxMinutes: mins })
     if (next.overtimeMaxMinutes !== before.overtimeMaxMinutes)
-      await assertManagerPassword(input?.managerPassword ?? null, 'تغییر «سقف اضافه‌کاری شیفت»')
+      await gateAction('settings.overtime-cap', () => assertManagerPassword(input?.managerPassword ?? null, 'تغییر «سقف اضافه‌کاری شیفت»'))
     await writeKey(SETTING_KEYS.shiftConfig, next)
     await audit(prisma, {
       action: 'SETTINGS_UPDATE',
@@ -851,8 +855,15 @@ export const settingsService = {
         }
       }
     }
+    // طرح ۱۴۰۵ §۳-۱۰: هر بخشِ تغییرکرده شناسهٔ خودش را می‌خواهد (اصل «ج»)؛ امنیتی دستهٔ ۱ است
+    const bundleGateIds = managerSections.length ? settingsSaveGateIds({
+      security: managerSections.includes('تنظیمات امنیتی (قفل موقت)'),
+      clockOffset: managerSections.includes('افست ساعت رسمی'),
+      shift: managerSections.includes('تنظیمات شیفت') ? shiftChangeGateIds(await this.shiftConfig(), parseShiftConfig(input.shift), 'settings.manager-sections') : [],
+      other: managerSections.some((s) => s.startsWith('تنظیمات فروش'))
+    }) : []
     if (managerSections.length)
-      await assertManagerPassword(input?.managerPassword ?? null, 'تغییر ' + managerSections.join('، '))
+      await gateAction(bundleGateIds, () => assertManagerPassword(input?.managerPassword ?? null, 'تغییر ' + managerSections.join('، ')))
     if (autoCentralChanged && !managerSections.length)
       await assertPanelPassword(
         PANEL_KEYS.posCentralWithdrawToggle,

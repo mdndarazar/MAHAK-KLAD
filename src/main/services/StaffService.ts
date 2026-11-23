@@ -12,6 +12,8 @@ import {
   createManagerCorrectionApprovalSecret,
   hasManagerCorrectionApprovalSecret
 } from './AuthService'
+import { gateSession } from './locks/gate'
+import { staffSaveGateIds } from '@shared/gateCatalog'
 
 /**
  * ===========================================================================
@@ -303,6 +305,19 @@ async function readActiveId(): Promise<number | null> {
   return user?.isActive ? user.id : null
 }
 
+/**
+ * طرح ۱۴۰۵ §۳-۱۰ دستهٔ ۱ — فقط دو فیلد «کلیدسازی»اند: نقش «مدیر» (دادن یا گرفتن) و رمز شخصی تأیید اصلاح.
+ * این دو فقط با نشست خود مدیر؛ بقیهٔ ثبت و ویرایش کارمند قسمت «کارمندان» (`staff`) است.
+ */
+async function staffManagerFieldsTouched(input: { id?: unknown; role?: unknown; correctionApprovalPassword?: unknown }): Promise<boolean> {
+  if (String(input?.correctionApprovalPassword ?? '').trim()) return true
+  const id = Math.round(Number(input?.id ?? 0))
+  const role = normalizeStaffRole(input?.role)
+  if (!(id > 0)) return role === 'MANAGER'
+  const before = await prisma.user.findUnique({ where: { id }, select: { role: true } })
+  return !before || (before.role === 'MANAGER') !== (role === 'MANAGER')
+}
+
 export const staffService = {
   /** فهرست کامل کارمندان (غیرفعال‌ها هم، با برچسب خودشان). */
   async list(params: { includeInactive?: boolean } = {}) {
@@ -354,7 +369,8 @@ export const staffService = {
     if (id > 0 && !before) throw new Error('این کارمند پیدا نشد.')
     if (input.managerSession === true) {
       // نشست اصلی مدیر، اختیار کامل دارد و نیازی به رمز دوم Settings ندارد.
-      assertManagerSession(id > 0 ? 'ویرایش کارمند' : 'ثبت کارمند تازه')
+      const staffGateIds = staffSaveGateIds(await staffManagerFieldsTouched(input))
+      await gateSession(staffGateIds, () => assertManagerSession(id > 0 ? 'ویرایش کارمند' : 'ثبت کارمند تازه'))
     } else {
       // مسیر legacy فقط برای سازگاری کانال‌های قدیمی/تست نگه داشته شده است؛
       // UI جدید Settings این مسیر را تولید نمی‌کند.
@@ -484,7 +500,7 @@ export const staffService = {
    * عمومی نباید آن را reuse کند.
    */
   async personnel(input: { userId?: unknown } = {}) {
-    assertManagerSession('دیدن پروندهٔ حساس پرسنلی')
+    await gateSession('staff-sensitive-file', () => assertManagerSession('دیدن پروندهٔ حساس پرسنلی'))
     const userId = Math.round(Number(input.userId ?? 0))
     if (!Number.isSafeInteger(userId) || userId <= 0) throw new BusinessError('کارمند را انتخاب کنید.')
     const [user, profile] = await Promise.all([
@@ -530,7 +546,7 @@ export const staffService = {
     bankIban?: unknown
     bankAccountHolder?: unknown
   } = {}) {
-    assertManagerSession('ویرایش پروندهٔ حساس پرسنلی')
+    await gateSession('staff-sensitive-file', () => assertManagerSession('ویرایش پروندهٔ حساس پرسنلی'))
     const userId = Math.round(Number(input.userId ?? 0))
     if (!Number.isSafeInteger(userId) || userId <= 0) throw new BusinessError('کارمند را انتخاب کنید.')
     const [user, before] = await Promise.all([
@@ -586,7 +602,8 @@ export const staffService = {
     /** Required only while archiving the current active drawer custodian. */
     custodyArchiveReason?: unknown
   } & PersonnelInput) {
-    assertManagerSession('ثبت یا ویرایش کامل کارمند')
+    const staffGateIds = staffSaveGateIds(await staffManagerFieldsTouched(input))
+    await gateSession(staffGateIds, () => assertManagerSession('ثبت یا ویرایش کامل کارمند'))
     const name = String(input?.name ?? '').trim()
     if (!name) throw new BusinessError('نام کارمند را وارد کنید.')
     const role = normalizeStaffRole(input?.role)

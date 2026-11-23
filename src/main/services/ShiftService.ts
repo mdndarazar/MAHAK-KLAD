@@ -5,6 +5,7 @@ import { custodyService, type CustodyFence } from './CustodyService'
 import { audit, auditOrThrow } from './AuditService'
 import { BusinessError } from '../errors'
 import { assertManagerPassword, assertPanelPasswordStrict } from './AuthService'
+import { gateAction } from './locks/gate'
 import {
   toJalaliDate,
   jalaliToday,
@@ -822,11 +823,11 @@ export const shiftService = {
        * برمی‌گرداند؛ یعنی نشست جامانده‌ی دیشب فقط با یک دلیل سه‌حرفی و بدون
        * هیچ رمزی بسته می‌شد و پول آن شیفت بی‌شمارش می‌ماند.
        */
-      await assertPanelPasswordStrict(
+      await gateAction('shift.close-stale-session', () => assertPanelPasswordStrict(
         PANEL_KEYS.cashClose,
         input.managerPassword,
         `بستن نشست جامانده‌ی ${faDigits(initialOpen!.dayJalali)} و باز کردن نشست تازه`
-      )
+      ))
     }
     if (initialForced) {
       if (requestedReason.length < 3)
@@ -839,7 +840,7 @@ export const shiftService = {
        * با قفل خاموش، نسخه‌ی معمولی `OPEN` می‌داد و هر کسی می‌توانست نشست
        * همکارش را ببندد و صندوقش را به نام خودش باز کند.
        */
-      await assertPanelPasswordStrict(PANEL_KEYS.cashClose, input.managerPassword, 'تعویض اجباری کارمند نشست')
+      await gateAction('shift.force-staff-change', () => assertPanelPasswordStrict(PANEL_KEYS.cashClose, input.managerPassword, 'تعویض اجباری کارمند نشست'))
     }
 
     /**

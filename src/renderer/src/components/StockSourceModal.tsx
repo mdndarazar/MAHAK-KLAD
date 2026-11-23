@@ -1,3 +1,4 @@
+import PasswordField from './PasswordField'
 import { useEffect, useMemo, useState } from 'react'
 import Modal from './Modal'
 import { faDigits } from '@shared/jalali'
@@ -286,8 +287,7 @@ export default function StockSourceModal({
       {passwordRequired && hasForeignSource && chain.complete && (
         <div className="rounded px-3 py-2 border-2 bg-violet-50 border-violet-400 space-y-1">
           <label className="block font-bold">{passwordLabel}</label>
-          <input
-            type="password"
+          <PasswordField
             className="inp w-64"
             value={password}
             autoFocus

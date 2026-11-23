@@ -13,10 +13,13 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
-const { GATE_CATALOG } = await import('../../src/shared/gateCatalog.ts')
+const catalogModule = await import('../../src/shared/gateCatalog.ts')
+const { GATE_CATALOG } = catalogModule
+/** تابع‌های فهرست‌ساز کاتالوگ (نامشان با GateIds تمام می‌شود؛ §۳-۱۰ زیر جدول دستهٔ ۱) */
+const GATE_ID_HELPERS = new Set(Object.keys(catalogModule).filter((k) => k.endsWith('GateIds') && typeof catalogModule[k] === 'function'))
 
-/** تا پایان مرحلهٔ ۵ «در انتظار پوشاندن» مجاز است. */
-const PENDING_ALLOWED = true
+/** مرحلهٔ ۵ تمام شد: هیچ «در انتظار پوشاندن»ی مجاز نیست. */
+const PENDING_ALLOWED = false
 
 const GATES = ['assertManagerPassword', 'assertPanelPasswordStrict', 'assertManagerSession', 'assertPanelPassword',
   'assertPanelUnlocked', 'assertPanelUnlockedStrict', 'verifyManagerCorrectionApproval']
@@ -75,7 +78,11 @@ function isDefinition(text, start, openParen) {
   return !!after && (after[1] === '{' || after[1] === ':')
 }
 
-const WRAP = /(gateAction|gateSession)\(\s*'([^']+)'\s*,\s*(?:async\s*)?\(\)\s*=>\s*(?:await\s+)?$/
+/**
+ * پوشاندن: شناسهٔ متنی (`'credit.void'`)، یا فهرستی از یک تابع کاتالوگ (`backupApplyGateIds(mode)`)، یا متغیری که
+ * نامش با GateIds تمام می‌شود و در همان پرونده از یک تابع کاتالوگ پر شده است (`const rawGateIds = rawSettingGateIds(`).
+ */
+const WRAP = /(gateAction|gateSession)\(\s*(?:'([^']+)'|([A-Za-z_$][\w$]*GateIds)(\((?:[^()]|\([^()]*\))*\))?)\s*,\s*(?:async\s*)?\(\)\s*=>\s*(?:await\s+)?$/
 const found = {} // file -> fn -> { unwrapped, wrapped: [ids] }
 const problems = []
 for (const file of walk('src')) {
@@ -90,8 +97,11 @@ for (const file of walk('src')) {
       if (isDefinition(text, m.index, m.index + m[0].length - 1)) continue
       const slot = ((found[rel] ??= {})[name] ??= { unwrapped: 0, wrapped: [] })
       const w = before.match(WRAP)
-      if (w) slot.wrapped.push(w[2])
-      else slot.unwrapped++
+      if (!w) { slot.unwrapped++; continue }
+      if (w[2]) { slot.wrapped.push(w[2]); continue }
+      const helper = w[4] ? w[3] : (new RegExp(`const ${w[3]} = [^\\n]*?([A-Za-z_$][\\w$]*GateIds)\\(`).exec(text) ?? [])[1]
+      if (helper && GATE_ID_HELPERS.has(helper)) slot.wrapped.push(`<${helper}>`)
+      else problems.push(`${rel}: ${name} wrapped with «${w[3]}» that is not filled from a gateCatalog *GateIds helper`)
     }
   }
 }
@@ -101,7 +111,7 @@ for (const [file, fns] of Object.entries(found)) {
   for (const [fn, slot] of Object.entries(fns)) {
     wrappedTotal += slot.wrapped.length
     unwrappedTotal += slot.unwrapped
-    for (const id of slot.wrapped) if (!GATE_CATALOG[id]) problems.push(`${file}: ${fn} wrapped with unknown gate id «${id}»`)
+    for (const id of slot.wrapped) if (!id.startsWith('<') && !GATE_CATALOG[id]) problems.push(`${file}: ${fn} wrapped with unknown gate id «${id}»`)
     const exp = EXPECTED[file]?.[fn]
     if (!exp) { if (slot.unwrapped) problems.push(`${file}: ${fn} ×${slot.unwrapped} unclassified gate call`); continue }
     const want = (exp.identity ?? 0) + (exp.known ?? 0) + (exp.pending ?? 0)

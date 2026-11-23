@@ -57,17 +57,12 @@ export default function WooSync() {
     setMsg(null)
   }
 
-  const askManagerPassword = (reason: string): string | null => {
-    const pass = window.prompt(`${reason}
-رمز مدیر را وارد کنید:`)
-    if (pass == null) return null
-    if (!pass.trim()) {
-      setErr('برای این تصمیم، رمز مدیر لازم است.')
-      setMsg(null)
-      return null
-    }
-    return pass
-  }
+  /**
+   * طرح ۱۴۰۵ §۳-۷ — شش کار «موجودی سایت» دیگر رمز را با پنجرهٔ پرسش مرورگر نمی‌گیرند: بی رمز صدا زده می‌شوند و
+   * اگر قفلشان روشن و باز نبود، main با `GATE_REQUIRED` رد می‌کند و پنجرهٔ سراسری «باز کردن قفل این کار» باز
+   * می‌شود (نشست مدیر، رمز دوم/سوم، کد یا مجوز راه دور). قفل خاموش یعنی بی رمز.
+   */
+  const managerPassword = null
 
   // Mutationهای لینک باید شمارنده‌ها و صف تأیید را هم تازه کنند؛ load() کامل فرم تنظیمات را بازنویسی می‌کند، پس فقط پنل تازه می‌شود.
   const refreshPanel = async (rows?: WooLinkRow[]) => {
@@ -146,8 +141,6 @@ export default function WooSync() {
   const createLink = async () => {
     if (!selectedVariantId || !selectedCatalog) return setErr('یک کالای فروشگاه و یک محصول سایت انتخاب کنید.')
     if (selectedCatalog.stockQuantity == null) return setErr('این محصول سایت موجودی مستقل عددی ندارد؛ اتصال امن نیست.')
-    const managerPassword = decision === WooResumeDecision.VERIFY_ONLY ? null : askManagerPassword('اتصال اولیه با انتخاب مرجع موجودی')
-    if (decision !== WooResumeDecision.VERIFY_ONLY && managerPassword == null) return
     setBusy(true)
     try {
       await call(CH.wooLinkCreate, {
@@ -197,8 +190,6 @@ export default function WooSync() {
   }
 
   const retryParked = async () => {
-    const managerPassword = askManagerPassword('پردازش دستی رویدادهای پارک‌شده سایت')
-    if (managerPassword == null) return
     setBusy(true)
     try {
       const r = await call<any>(CH.wooParkedRetry, { managerPassword })
@@ -239,8 +230,6 @@ export default function WooSync() {
 
   const applyResumeDecision = async (decision: string) => {
     if (!resumePreview) return
-    const managerPassword = askManagerPassword('وصل دوباره/حل اختلاف موجودی سایت')
-    if (managerPassword == null) return
     setBusy(true)
     try {
       await call(CH.wooLinksResumeApply, {
@@ -265,8 +254,6 @@ export default function WooSync() {
 
   const unlink = async (id: number) => {
     if (!confirm('اتصال این کالا به سایت قطع دائم شود؟ موجودی هیچ طرفی تغییر نمی‌کند.')) return
-    const managerPassword = askManagerPassword('قطع دائم اتصال موجودی سایت')
-    if (managerPassword == null) return
     setBusy(true)
     try {
       const rows = await call<WooLinkRow[]>(CH.wooLinksUnlink, { linkId: id, managerPassword })
@@ -280,8 +267,6 @@ export default function WooSync() {
   }
 
   const resolveApproval = async (approvalId: number, decision: string) => {
-    const managerPassword = askManagerPassword('تصمیم صف تأیید موجودی سایت')
-    if (managerPassword == null) return
     setBusy(true)
     try {
       const r = await call<any>(CH.wooApprovalResolve, { approvalId, decision, managerPassword })
@@ -312,8 +297,6 @@ export default function WooSync() {
   }
 
   const resumeProductGroupMahak = async (id: number) => {
-    const managerPassword = askManagerPassword('وصل گروهی رنگ/سایزهای محصول با مرجع MAHAK')
-    if (managerPassword == null) return
     setBusy(true)
     try {
       const res = await call<any>(CH.wooLinksResumeProductMahak, { linkId: id, managerPassword })

@@ -8,6 +8,8 @@
  * ===========================================================================
  */
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { performance } from 'node:perf_hooks'
+import { currentGateCall } from './locks/callContext'
 import { BusinessError } from '../errors'
 import { isPanelLockEnabled, normalizePanelKey, PANEL_KEYS } from '@shared/panels'
 import { readPanelLocks } from './AuthService'
@@ -35,7 +37,9 @@ export function panelSessionTtlMs(): number {
 }
 
 type Scope = 'MANAGER' | 'PANEL'
-type Entry = { expiresAt: number; scope: Scope; openedAt: number; generation: number; remoteAllowed?: (touch: boolean) => boolean }
+type Entry = { expiresAt: number; scope: Scope; openedAt: number; generation: number; remoteAllowed?: (touch: boolean) => boolean; hardEnd?: number }
+/** طرح ۱۴۰۵ §۳-۱۴ — سقف سخت هر نشست نگهبان‌دار (مجوز راه دور، کد، زمان‌بندی‌شده) با ساعت یکنواخت. */
+const GUARDED_MAX_MS = 60 * 60_000
 
 /**
  * کلید صفر فقط برای تست‌های مستقیم و callerهای قدیمیِ بیرون از IPC است. در
@@ -102,7 +106,8 @@ function alive(key: string, owner: number, touch: boolean): Entry | null {
   if (entry.remoteAllowed) {
     try { permitted = entry.remoteAllowed(touch) === true } catch { permitted = false }
   }
-  if (!permitted || entry.expiresAt <= Date.now()) {
+  // طرح ۱۴۰۵ §۳-۱۴: نشست نگهبان‌دار فقط از نگهبان خودش (و سقف سخت) پیروی می‌کند، نه از بی‌کاری عمومی پنل.
+  if (!permitted || (entry.remoteAllowed ? (entry.hardEnd ?? 0) <= performance.now() : entry.expiresAt <= Date.now())) {
     // The check may revoke synchronously; never delete a replacement session.
     if (bucket(owner) === entries && entries?.get(key) === entry) {
       entries.delete(key)
@@ -110,7 +115,7 @@ function alive(key: string, owner: number, touch: boolean): Entry | null {
     }
     return null
   }
-  if (touch) entry.expiresAt = Date.now() + ttlMs
+  if (touch && !entry.remoteAllowed) entry.expiresAt = Date.now() + ttlMs
   return entry
 }
 
@@ -166,6 +171,7 @@ export function noteRemotePanelUnlocked(panel: string, owner: number, allowed?: 
   notePanelUnlocked(panel, 'PANEL', owner); const entries = bucket(owner), entry = entries?.get(key)
   if (!entry) throw new Error('Remote panel session unavailable')
   entry.remoteAllowed = allowed
+  entry.hardEnd = performance.now() + GUARDED_MAX_MS
   return () => { if (entries && bucket(owner) === entries && entries.get(key) === entry) clearPanelScope(panel, owner) }
 }
 export function clearPanelScope(panel: string, explicitOwner?: number): void {
@@ -181,6 +187,11 @@ export function clearPanelScope(panel: string, explicitOwner?: number): void {
 export function isPanelUnlocked(panel: string, explicitOwner?: number): boolean {
   const owner = ownerOf(explicitOwner)
   return !!alive(MANAGER_KEY, owner, true) || !!alive(normalizePanelKey(panel) ?? panel, owner, true)
+}
+
+/** طرح ۱۴۰۵: آیا همین قسمت با یک نشست نگهبان‌دار (مجوز راه دور، کد یا زمان‌بندی‌شده) برای sender فعلی باز است؟ */
+export function isGuardedPanelOpen(panel: string, explicitOwner?: number): boolean {
+  return !!alive(normalizePanelKey(panel) ?? panel, ownerOf(explicitOwner), true)?.remoteAllowed
 }
 
 /** آیا فقط نشست اصلی مدیر برای sender فعلی معتبر است؟ */
@@ -257,12 +268,20 @@ export const CREDIT_READ_PANEL = PANEL_KEYS.creditManagement
 /**
  * نمای انحصاری پل تطبیق هنوز هر بار رمز تازه می‌خواهد، اما بعد از تأیید همان
  * پنجره را برای readهای بعدی باز می‌گذارد.
+ * طرح ۱۴۰۵ §۳-۱۴ (اصل «د»): درون IPC سه حالت بی رمز می‌گذرند: قفل خاموش (نمای پل تطبیق بی رمز باز است)،
+ * نشست مدیر، و نشست نگهبان‌دار همان کلید.
  */
 export async function assertPanelUnlockedStrict(
   panel: string,
   password: string | null | undefined,
   action: string
 ): Promise<'MANAGER' | 'PANEL'> {
+  if (currentGateCall()) {
+    const key = normalizePanelKey(panel) ?? panel
+    if (!isPanelLockEnabled(await readPanelLocks(), key)) return 'PANEL'
+    if (isManagerSessionUnlocked()) return 'MANAGER'
+    if (isGuardedPanelOpen(key)) return 'PANEL'
+  }
   const { assertPanelPasswordStrict } = await import('./AuthService')
   const scope = await assertPanelPasswordStrict(panel, password, action)
   notePanelUnlocked(panel, scope)

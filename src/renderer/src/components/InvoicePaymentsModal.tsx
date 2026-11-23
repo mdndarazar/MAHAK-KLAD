@@ -964,7 +964,7 @@ export default function InvoicePaymentsModal({
               <div className="flex flex-wrap gap-2 items-end">
                 <label>
                   <div className="kbd">رمز مدیر</div>
-                  <input type="password" className="inp w-40" dir="ltr" value={lockPw} onChange={(e) => setLockPw(e.target.value)} />
+                  <PasswordField className="inp w-40" dir="ltr" value={lockPw} onChange={(e) => setLockPw(e.target.value)} />
                 </label>
                 <label className="flex-1 min-w-[240px]">
                   <div className="kbd">دلیل اصلاح در دوره‌ی بسته (اجباری)</div>

@@ -71,7 +71,7 @@ console.log('\n— ۱) قرارداد: تنظیمات دیگر فقط-مدیر �
 ok('فهرست MANAGER_ONLY خالی است', MANAGER_ONLY_PANELS.length === 0)
 ok('تنظیمات در آن نیست', !MANAGER_ONLY_PANELS.includes(PANEL_KEYS.settings))
 ok('helper هم false می‌دهد', !isManagerOnlyPanel(PANEL_KEYS.settings))
-ok('قفل ورود به تنظیمات همچنان همیشه روشن است', ALWAYS_LOCKED_PANELS.includes(PANEL_KEYS.settings) && isAlwaysLocked(PANEL_KEYS.settings))
+ok('طرح ۱۴۰۵ (۲۵-۱۱): قفل ورود به تنظیمات هم خاموش‌شدنی است', !ALWAYS_LOCKED_PANELS.includes(PANEL_KEYS.settings) && !isAlwaysLocked(PANEL_KEYS.settings))
 
 console.log('\n— ۲) تعریف رمز دوم تنظیمات رمز مدیر می‌خواهد —')
 await rejects('بدون رمز مدیر', () => authService.setPanelPassword({ panel: PANEL_KEYS.settings, password: 'set-2222' }), 'رمز مدیر')
@@ -139,10 +139,9 @@ await rejects(
   () => authService.setPanelLocks({ managerPassword: 'set-2222', locks: { [PANEL_KEYS.products]: false } }),
   'رمز مدیر'
 )
-await rejects(
-  'خاموش کردن قفل خودِ تنظیمات حتی با رمز مدیر',
-  () => authService.setPanelLocks({ managerPassword: PW, locks: { [PANEL_KEYS.settings]: false } }),
-  'قابل برداشتن نیست'
+ok(
+  'طرح ۱۴۰۵: خاموش کردن قفل خودِ تنظیمات با رمز مدیر پذیرفته می‌شود',
+  (await authService.setPanelLocks({ managerPassword: PW, locks: { [PANEL_KEYS.settings]: false } }))?.locks?.[PANEL_KEYS.settings] === false
 )
 
 console.log('\n— ۷) عملیات سیاست‌ساز همچنان فقط رمز مدیر —')

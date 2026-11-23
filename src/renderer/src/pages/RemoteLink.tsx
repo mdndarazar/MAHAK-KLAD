@@ -3,6 +3,7 @@ import { REMOTE_SETUP_CHANNELS, type RemoteSetupStatus } from '@shared/remoteAut
 import { toLatinDigits } from '@shared/jalali'
 import { call } from '../lib/api'
 import MessengerSettings from '../components/MessengerSettings'
+import RemoteGrantControls from '../components/RemoteGrantControls'
 
 /**
  * راه‌اندازی کنترل از راه دور (فقط روی همین رایانه). هر تغییر در Main با رمز مدیر
@@ -233,6 +234,8 @@ export default function RemoteLink() {
         </div>
       )}
 
+      {/* طرح ۱۴۰۵ · مورد ۷ و §۳-۱۷ — مدت مجوز راه دور و «بستن همه»؛ مستقل از روشن بودن هاب */}
+      <RemoteGrantControls />
       {/* طرح ۱۴۰۵ · موردهای ۱۳ و ۱۵ — مستقل از هاب؛ با هاب خاموش هم کار می‌کند */}
       <MessengerSettings />
     </div>

@@ -100,7 +100,7 @@ type Options = {
   onUnavailable?: ()=>void
   // Experimental opt-in, not wired to Electron. When omitted, the replay store
   // must already be explicitly initialized in the exclusive cloud state store.
-  approval?: {key:Uint8Array;policies:Readonly<Record<string,{tier:'NORMAL';mode:'PANEL';ttlMs:number}>>;replayStore?:GrantReplayStore}
+  approval?: {key:Uint8Array;policies:Readonly<Record<string,{tier:'NORMAL';mode:'PANEL';ttlMs:number}|{tier:'SENSITIVE_MONEY';mode:'ONE_SHOT';ttlMs:number}>>;replayStore?:GrantReplayStore}
   timeoutMs?: number
 }
 const object = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -136,9 +136,9 @@ export async function startExperimentalHubSupervisor(options: Options) {
         Buffer.from(options.approval.key).equals(Buffer.from(options.revocation.key)) ||
         (options.approval.replayStore===undefined ? typeof options.state?.openGrantReplayLedger!=='function' :
           !options.approval.replayStore || typeof options.approval.replayStore.consume!=='function') || !options.approval.policies ||
-        Object.keys(options.approval.policies).length<1 || Object.keys(options.approval.policies).length>64 ||
+        Object.keys(options.approval.policies).length<1 || Object.keys(options.approval.policies).length>128 ||
         Object.entries(options.approval.policies).some(([panel,p])=>! /^[A-Za-z0-9_.:-]{1,128}$/.test(panel) || panel==='custody' ||
-          !p || p.tier!=='NORMAL' || p.mode!=='PANEL' || !Number.isSafeInteger(p.ttlMs) || p.ttlMs<=0 || p.ttlMs>600_000))) ||
+          !p || !((p.tier==='NORMAL' && p.mode==='PANEL') || (p.tier==='SENSITIVE_MONEY' && p.mode==='ONE_SHOT')) || !Number.isSafeInteger(p.ttlMs) || p.ttlMs<=0 || p.ttlMs>3_600_000))) ||
       !options.state || typeof options.state.load !== 'function' ||
       typeof options.state.save !== 'function' || typeof options.readRestoreMarker !== 'function' ||
       (options.databaseFile !== undefined && (typeof options.databaseFile !== 'string' || !isAbsolute(options.databaseFile) || !options.revocation)) ||

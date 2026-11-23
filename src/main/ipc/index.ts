@@ -79,6 +79,12 @@ import {
   CREDIT_READ_PANEL
 } from '../services/panelSession'
 import { PANEL_KEYS } from '@shared/panels'
+import { blankGateMarkers, runInGateCall } from '../services/locks/callContext'
+import { clearGateTickets } from '../services/locks/tickets'
+import { gateAction, gateSession } from '../services/locks/gate'
+import { registerLockHandlers } from '../services/locks/lockIpc'
+import { setAccessEventWriter } from '../services/locks/accessEvents'
+import { backupApplyGateIds, creditPrintGateIds, rawSettingGateIds } from '@shared/gateCatalog'
 import { trendService, stockInsightService, profitService, costEngine, targetService } from '../services/management'
 import { smsService, smsCampaignService, smsOptOutService } from '../services/sms'
 import { BusinessError } from '../errors'
@@ -106,6 +112,7 @@ function sessionOwnerOf(event: IpcMainInvokeEvent): number {
     sender.once('destroyed', () => {
       observedIpcSenders.delete(id)
       clearPanelSessionsForOwner(id)
+      clearGateTickets({ owner: id })
     })
   }
   return id
@@ -120,13 +127,14 @@ function handle<T>(channel: string, fn: (payload: any) => Promise<T> | T) {
        * تغییر تک‌تک سرویس‌ها، `assertPanelUnlocked` فقط نشست پنجره‌ی درخواست
        * را می‌بیند و نشست پنجره‌ی دیگری هرگز مجوز نمی‌دهد.
        */
-      return await runWithPanelSessionOwner(owner, async () => {
+      // طرح ۱۴۰۵ §۳-۸ و §۳-۶: بافت هر فراخوانی (بلیت یک‌بار، ثبت روش) و خالی کردن نشانگر پیش از سرویس
+      return await runWithPanelSessionOwner(owner, () => runInGateCall(owner, async () => {
         /**
          * مرز BigInt در گلوگاه مشترک IPC است تا مقدار bigint هرگز به renderer
          * نرسد و نتیجه‌ی queryهای جدید هم از قلم نیفتد.
          */
-        return { ok: true, data: stripBigInts(await fn(payload), channel) }
-      })
+        return { ok: true, data: stripBigInts(await fn(blankGateMarkers(payload)), channel) }
+      }))
     } catch (err: any) {
       // کدهای ساختاریافته‌ی کسب‌وکاری (مثل SESSION_REQUIRED) برای رفتار UI به رندرر عبور می‌کنند
       const code =
@@ -399,8 +407,10 @@ async function setRawSetting(input: any): Promise<{ key: string }> {
     throw new Error(`تغییر مستقیم تنظیم «${key}» از این مسیر مجاز نیست؛ از پنل رسمی همان تنظیم استفاده کنید.`)
 
   const actorId = await shiftService.currentStaffId()
-  if (RAW_SETTING_MANAGER_KEYS.has(key))
-    await assertManagerPassword(input?.managerPassword, `تغییر تنظیم حساس «${key}»`)
+  if (RAW_SETTING_MANAGER_KEYS.has(key)) {
+    const rawGateIds = rawSettingGateIds(key, (await prisma.setting.findUnique({ where: { key } }))?.value ?? null, input?.value)
+    await gateAction(rawGateIds, () => assertManagerPassword(input?.managerPassword, `تغییر تنظیم حساس «${key}»`))
+  }
 
   const before = (await prisma.setting.findUnique({ where: { key } }))?.value ?? null
   const value = String(input?.value ?? '')
@@ -506,7 +516,7 @@ export function registerIpcHandlers(): void {
   handle(IPC.wooLinkCreate, async (p) => {
     await assertPanelUnlocked(PANEL_KEYS.wooSync, 'اتصال کالا به موجودی سایت')
     const d = String((p ?? {}).decision ?? 'MAHAK_WINS')
-    if (d === 'WOO_WINS' || d === 'MAHAK_WINS') await assertManagerPassword((p ?? {}).managerPassword ?? null, 'اتصال اولیه با انتخاب مرجع موجودی')
+    if (d === 'WOO_WINS' || d === 'MAHAK_WINS') await gateAction('woo.connect-initial', () => assertManagerPassword((p ?? {}).managerPassword ?? null, 'اتصال اولیه با انتخاب مرجع موجودی'))
     return wooSyncService.linkCreate(await withOptionalSessionActor(p ?? {}))
   })
   handle(IPC.wooLinksPause, async (p) => {
@@ -519,12 +529,12 @@ export function registerIpcHandlers(): void {
   })
   handle(IPC.wooLinksResumeApply, async (p) => {
     await assertPanelUnlocked(PANEL_KEYS.wooSync, 'وصل دوباره موجودی سایت')
-    await assertManagerPassword((p ?? {}).managerPassword ?? null, 'وصل دوباره/حل اختلاف موجودی سایت')
+    await gateAction('woo.reconnect', () => assertManagerPassword((p ?? {}).managerPassword ?? null, 'وصل دوباره/حل اختلاف موجودی سایت'))
     return wooSyncService.resumeApply(await withOptionalSessionActor(p ?? {}))
   })
   handle(IPC.wooLinksUnlink, async (p) => {
     await assertPanelUnlocked(PANEL_KEYS.wooSync, 'قطع دائم اتصال موجودی سایت')
-    await assertManagerPassword((p ?? {}).managerPassword ?? null, 'قطع دائم اتصال موجودی سایت')
+    await gateAction('woo.disconnect', () => assertManagerPassword((p ?? {}).managerPassword ?? null, 'قطع دائم اتصال موجودی سایت'))
     return wooSyncService.unlink(await withOptionalSessionActor(p ?? {}))
   })
   handle(IPC.wooSyncNow, async () => {
@@ -533,7 +543,7 @@ export function registerIpcHandlers(): void {
   })
   handle(IPC.wooParkedRetry, async (p) => {
     await assertPanelUnlocked(PANEL_KEYS.wooSync, 'پردازش دوباره رویدادهای پارک‌شده سایت')
-    await assertManagerPassword((p ?? {}).managerPassword ?? null, 'پردازش دستی رویدادهای پارک‌شده سایت')
+    await gateAction('woo.parked-process', () => assertManagerPassword((p ?? {}).managerPassword ?? null, 'پردازش دستی رویدادهای پارک‌شده سایت'))
     // actor نشست به service می‌رسد تا resolvedBy در approvalهای اعمال‌شده ثبت شود.
     const actor = await withOptionalSessionActor(p ?? {})
     return wooSyncService.retryParked(100, actor?.userId ?? null)
@@ -544,7 +554,7 @@ export function registerIpcHandlers(): void {
   })
   handle(IPC.wooApprovalResolve, async (p) => {
     await assertPanelUnlocked(PANEL_KEYS.wooSync, 'تأیید/رد تصمیم موجودی سایت')
-    await assertManagerPassword((p ?? {}).managerPassword ?? null, 'تأیید/رد تصمیم موجودی سایت')
+    await gateAction('woo.decision', () => assertManagerPassword((p ?? {}).managerPassword ?? null, 'تأیید/رد تصمیم موجودی سایت'))
     return wooSyncService.resolveApproval(await withOptionalSessionActor(p ?? {}))
   })
   handle(IPC.wooLinksPauseProduct, async (p) => {
@@ -553,7 +563,7 @@ export function registerIpcHandlers(): void {
   })
   handle(IPC.wooLinksResumeProductMahak, async (p) => {
     await assertPanelUnlocked(PANEL_KEYS.wooSync, 'وصل گروهی رنگ/سایزهای محصول')
-    await assertManagerPassword((p ?? {}).managerPassword ?? null, 'وصل گروهی رنگ/سایز با مرجع MAHAK')
+    await gateAction('woo.bulk-link', () => assertManagerPassword((p ?? {}).managerPassword ?? null, 'وصل گروهی رنگ/سایز با مرجع MAHAK'))
     return wooSyncService.resumeProductGroupMahak(await withOptionalSessionActor(p ?? {}))
   })
   handle(IPC.wooLogs, async (p) => {
@@ -656,7 +666,7 @@ export function registerIpcHandlers(): void {
   handle(IPC.salePurgePreview, (p) => salesService.purgePreview(p ?? {}))
   handle(IPC.salePurge, async (p) => {
     const payload = await withSessionActor(p ?? {})
-    await assertManagerPassword(payload.managerPassword, 'پاک‌سازی گزارشات فروش')
+    await gateAction('reports.sales-purge', () => assertManagerPassword(payload.managerPassword, 'پاک‌سازی گزارشات فروش'))
     return salesService.purge(payload)
   })
   // ---- فروش نسیه: پرداختی چندمرحله‌ای و چک ----
@@ -835,7 +845,7 @@ export function registerIpcHandlers(): void {
     return withRedemptionShifts(await storeCreditService.detail(p ?? {}))
   })
   handle(IPC.creditInvoiceLookup, async (p) => {
-    assertManagerSession('بازیابی اعتبارهای مرتبط با فاکتور')
+    await gateSession('credit.invoice-lookup', () => assertManagerSession('بازیابی اعتبارهای مرتبط با فاکتور'))
     await assertCreditRead('بازیابی اعتبارهای مرتبط با فاکتور')
     return storeCreditService.linkedCreditsForInvoice({ code: p?.code })
   })
@@ -951,7 +961,7 @@ export function registerIpcHandlers(): void {
    * جعلی/نسخهٔ مجدد ساختگی ثبت کند.
    */
   handle(IPC.creditMarkPrinted, async (p) => {
-    assertManagerSession('ثبت چاپ سند اعتبار خرید')
+    await gateSession('credit-print', () => assertManagerSession('ثبت چاپ سند اعتبار خرید'))
     return storeCreditService.markPrinted(await withOptionalSessionActor(p ?? {}))
   })
   handle(IPC.creditReminderCandidates, async (p) => {
@@ -987,20 +997,20 @@ export function registerIpcHandlers(): void {
   handle(IPC.creditSettingsSet, async (p) => settingsService.saveCreditSettings(await withOptionalSessionActor(p ?? {})))
   /** سند/PDF/پیش‌نمایش خودِ credential را دارد؛ فقط نشست واقعی مدیر مجاز است. */
   handle(IPC.printCredit, async (p) => {
-    assertManagerSession('چاپ اعتبار خرید')
+    await gateSession(creditPrintGateIds(p?.reprint), () => assertManagerSession('چاپ اعتبار خرید'))
     // طرح ۱۴۰۵ · مورد ۱۲ — مسیر گواهی فروشنده فقط از هندلرهای main؛ رمزِ چاپ دوباره‌ی مدیر دور زده نمی‌شود
     return printService.printCredit({ ...(await withOptionalSessionActor(p ?? {})), sellerCertificate: false })
   })
   handle(IPC.printCreditBatch, async (p) => {
-    assertManagerSession('چاپ دسته اعتبار خرید')
+    await gateSession('credit-print', () => assertManagerSession('چاپ دسته اعتبار خرید'))
     return printService.printCreditBatch(await withOptionalSessionActor(p ?? {}))
   })
   handle(IPC.creditPdf, async (p) => {
-    assertManagerSession('خروجی PDF اعتبار خرید')
+    await gateSession('credit-print', () => assertManagerSession('خروجی PDF اعتبار خرید'))
     return printService.creditPdf(await withOptionalSessionActor(p ?? {}))
   })
   handle(IPC.creditPreviewHtml, async (p) => {
-    assertManagerSession('پیش‌نمایش چاپی اعتبار خرید')
+    await gateSession('credit-print', () => assertManagerSession('پیش‌نمایش چاپی اعتبار خرید'))
     return printService.creditHtml(Number(p?.id ?? 0))
   })
   // نشست ۳۱۷ — پیش‌نمایش/چاپ آزمایشی سند نمونه (کارت «چاپ سند اعتبار»)
@@ -1138,12 +1148,12 @@ export function registerIpcHandlers(): void {
 
   // ---- حضانت صندوق / credential شخصی کارکنان (feature flag پیش‌فرض خاموش) ----
   handle(IPC.custodyStatus, () => custodyService.status())
-  handle(IPC.custodyConfigGet, () => {
-    assertManagerSession('دیدن تنظیمات ساختاری حضانت صندوق')
+  handle(IPC.custodyConfigGet, async () => {
+    await gateSession('custody-settings', () => assertManagerSession('دیدن تنظیمات ساختاری حضانت صندوق'))
     return custodyService.config()
   })
-  handle(IPC.custodyConfigSet, (p) => {
-    assertManagerSession('تغییر تنظیمات ساختاری حضانت صندوق')
+  handle(IPC.custodyConfigSet, async (p) => {
+    await gateSession('custody-settings', () => assertManagerSession('تغییر تنظیمات ساختاری حضانت صندوق'))
     const { managerSession: _ignored, managerUserId: _managerId, managerPassword: _managerPassword, ...safe } = p ?? {}
     return custodyService.setConfig({ ...safe, managerSession: true })
   })
@@ -1158,20 +1168,20 @@ export function registerIpcHandlers(): void {
   })
   /** فهرست سبک و mask‌شده برای بازکردن/تحویل صندوق؛ داده بانکی یا credential ندارد. */
   handle(IPC.custodyStaffList, () => custodyService.staffList())
-  handle(IPC.custodyReport, (p) => {
-    assertManagerSession('دیدن گزارش کنترل حضانت')
+  handle(IPC.custodyReport, async (p) => {
+    await gateSession('custody-control-report', () => assertManagerSession('دیدن گزارش کنترل حضانت'))
     const { managerSession: _ignored, managerUserId: _managerId, managerPassword: _managerPassword, ...safe } = p ?? {}
     return custodyService.report({ ...safe, managerSession: true })
   })
   /** Main creates the export from a new manager-authorized report query. The
    * renderer can select only the already-bounded page scope, never audit rows. */
-  handle(IPC.custodyReportExport, (p) => {
-    assertManagerSession('خروجی گزارش کنترل حضانت')
+  handle(IPC.custodyReportExport, async (p) => {
+    await gateSession('custody-control-report', () => assertManagerSession('خروجی گزارش کنترل حضانت'))
     const { managerSession: _ignored, managerUserId: _managerId, managerPassword: _managerPassword, rows: _rows, headers: _headers, title: _title, ...safe } = p ?? {}
     return custodyService.exportReport({ ...safe, managerSession: true })
   })
-  handle(IPC.custodyDiscrepancyReport, (p) => {
-    assertManagerSession('دیدن پرونده‌های مغایرت کشو و کارت‌خوان')
+  handle(IPC.custodyDiscrepancyReport, async (p) => {
+    await gateSession('custody-discrepancy-cases', () => assertManagerSession('دیدن پرونده‌های مغایرت کشو و کارت‌خوان'))
     const { managerSession: _ignored, managerUserId: _managerId, managerPassword: _managerPassword, ...safe } = p ?? {}
     return custodyService.discrepancyReport({ ...safe, managerSession: true })
   })
@@ -1180,8 +1190,8 @@ export function registerIpcHandlers(): void {
     const { managerSession: _ignored, managerUserId: _managerId, managerPassword: _managerPassword, ...safe } = p ?? {}
     return custodyService.reviewDiscrepancyCase({ ...safe, managerSession: true })
   })
-  handle(IPC.custodyDiscrepancyExport, (p) => {
-    assertManagerSession('خروجی پرونده‌های مغایرت کشو و کارت‌خوان')
+  handle(IPC.custodyDiscrepancyExport, async (p) => {
+    await gateSession('custody-discrepancy-cases', () => assertManagerSession('خروجی پرونده‌های مغایرت کشو و کارت‌خوان'))
     const { managerSession: _ignored, managerUserId: _managerId, managerPassword: _managerPassword, rows: _rows, headers: _headers, title: _title, ...safe } = p ?? {}
     return custodyService.exportDiscrepancyReport({ ...safe, managerSession: true })
   })
@@ -1203,19 +1213,19 @@ export function registerIpcHandlers(): void {
     const { recoveryId, itemId, reason, idempotencyKey, decision, managerSession: _session, managerUserId: _managerId, managerPassword: _managerPassword, ..._ignored } = p ?? {}
     return custodyService.reviewLegacyRecovery({ recoveryId, itemId, reason, idempotencyKey, decision, managerSession: true })
   })
-  handle(IPC.custodyPlanList, () => {
-    assertManagerSession('دیدن برنامه‌های کاری حضانت')
+  handle(IPC.custodyPlanList, async () => {
+    await gateSession('custody-work-plans', () => assertManagerSession('دیدن برنامه‌های کاری حضانت'))
     return custodyPlanService.list()
   })
   /** فقط inventory انتقال؛ Manager session لازم است و این مسیر هیچ legacy data را تغییر نمی‌دهد. */
   handle(IPC.custodyPlanLegacyReview, () => custodyPlanService.reviewLegacy())
-  handle(IPC.custodyPlanSave, (p) => {
-    assertManagerSession('ثبت یا ویرایش برنامه کاری حضانت')
+  handle(IPC.custodyPlanSave, async (p) => {
+    await gateSession('custody-work-plans', () => assertManagerSession('ثبت یا ویرایش برنامه کاری حضانت'))
     const { managerSession: _ignored, managerUserId: _managerId, managerPassword: _managerPassword, ...safe } = p ?? {}
     return custodyPlanService.save({ ...safe, managerSession: true })
   })
-  handle(IPC.custodyPlanDelete, (p) => {
-    assertManagerSession('حذف برنامه کاری حضانت')
+  handle(IPC.custodyPlanDelete, async (p) => {
+    await gateSession('custody-work-plans', () => assertManagerSession('حذف برنامه کاری حضانت'))
     const { managerSession: _ignored, managerUserId: _managerId, managerPassword: _managerPassword, ...safe } = p ?? {}
     return custodyPlanService.remove({ ...safe, managerSession: true })
   })
@@ -1483,8 +1493,8 @@ export function registerIpcHandlers(): void {
     // Avoid closing remote access for an unauthenticated restore attempt. The
     // service repeats its existing strict check; it remains the authority.
     if (desktopBackupCoordinationActive()) {
-      await assertPanelPasswordStrict(PANEL_KEYS.settings, input.managerPassword ?? null,
-        input.mode === 'merge' ? 'ادغام یک فایل بکاپ با داده‌ی فعلی' : 'جایگزینی کامل داده‌ی فعلی با یک فایل بکاپ')
+      await gateAction(backupApplyGateIds(input.mode), () => assertPanelPasswordStrict(PANEL_KEYS.settings, input.managerPassword ?? null,
+        input.mode === 'merge' ? 'ادغام یک فایل بکاپ با داده‌ی فعلی' : 'جایگزینی کامل داده‌ی فعلی با یک فایل بکاپ'))
     }
     return withDesktopBackupCoordination(() => backupService.apply(input))
   })
@@ -1536,7 +1546,7 @@ export function registerIpcHandlers(): void {
   handle(IPC.settingsShiftByTime, async (p) => settingsService.setShiftByTime(await withOptionalSessionActor(p ?? { byTime: false })))
   handle(IPC.settingsShiftOvertimeMax, async (p) => settingsService.setShiftOvertimeMax(await withOptionalSessionActor(p ?? { minutes: 0 })))
   handle(IPC.settingsCustodySchedulingWorkflow, async (p) => {
-    assertManagerSession('تغییر روش برنامه‌ریزی حضانت صندوق')
+    await gateSession('custody-settings', () => assertManagerSession('تغییر روش برنامه‌ریزی حضانت صندوق'))
     // A panel session proves manager authorization but does not carry a
     // manager user id.  Do not mislabel the current drawer custodian (or any
     // renderer-provided id) as the approving manager in this configuration audit.
@@ -1754,16 +1764,16 @@ export function registerIpcHandlers(): void {
   handle(IPC.staffDirectory, (p) => staffService.list(p ?? {}))
   /** داده‌های هویتی و بانکی عمداً کانال جدا دارند: هیچ خواندن عادیِ staff list،
    * گزارش، export یا رمز دوم پنل اجازهٔ دیدن/ثبت آن‌ها را ندارد. */
-  handle(IPC.staffPersonnelGet, (p) => {
-    assertManagerSession('دیدن پروندهٔ حساس پرسنلی')
+  handle(IPC.staffPersonnelGet, async (p) => {
+    await gateSession('staff-sensitive-file', () => assertManagerSession('دیدن پروندهٔ حساس پرسنلی'))
     return staffService.personnel(p ?? {})
   })
-  handle(IPC.staffPersonnelSave, (p) => {
-    assertManagerSession('ویرایش پروندهٔ حساس پرسنلی')
+  handle(IPC.staffPersonnelSave, async (p) => {
+    await gateSession('staff-sensitive-file', () => assertManagerSession('ویرایش پروندهٔ حساس پرسنلی'))
     return staffService.savePersonnel(p ?? {})
   })
-  handle(IPC.staffPersonnelSaveComplete, (p) => {
-    assertManagerSession('ثبت یا ویرایش کامل کارمند')
+  handle(IPC.staffPersonnelSaveComplete, async (p) => {
+    await gateSession('staff', () => assertManagerSession('ثبت یا ویرایش کامل کارمند'))
     const { managerSession: _ignored, panelPassword: _panelPassword, userId: _userId, ...safe } = p ?? {}
     return staffService.saveComplete(safe)
   })
@@ -1837,7 +1847,7 @@ export function registerIpcHandlers(): void {
   })
   handle(IPC.mgmtCostEngineRebuild, async (p) => {
     await assertMgmt('بازسازی دفتر هزینه')
-    await assertManagerPassword((p as any)?.managerPassword, 'بازسازی دفتر هزینه گزارش مدیریت')
+    await gateAction('management.cost-ledger-rebuild', () => assertManagerPassword((p as any)?.managerPassword, 'بازسازی دفتر هزینه گزارش مدیریت'))
     return costEngine.rebuild()
   })
   handle(IPC.mgmtTargetGet, async (p) => {
@@ -2009,6 +2019,9 @@ export function registerIpcHandlers(): void {
     await assertSms('حذف شماره از فهرست «لغو ۱۱»')
     return smsOptOutService.remove((p as any)?.id, { userId: await shiftService.currentStaffId() })
   })
+  // طرح ۱۴۰۵ — دروازهٔ مرکزی قفل‌ها: راه «رمز» پنجرهٔ قفل، «بستن همه» و پروندهٔ مدت‌ها؛ ردیف‌های ACCESS_EVENT
+  registerLockHandlers(handle, { unlock: IPC.gateUnlock, closeAll: IPC.gateCloseAll, durationsGet: IPC.lockDurationsGet, durationsSet: IPC.lockDurationsSet })
+  setAccessEventWriter((after, userId) => auditOrThrow(prisma, { action: AuditAction.ACCESS_EVENT, entity: 'Access', userId, after: JSON.stringify(after) }))
   // طرح ۱۴۰۵ · موردهای ۱۳ و ۱۵ — پیام‌رسان تلگرام و بله (پیش‌فرض خاموش؛ خطایش فروشگاه را نمی‌خواباند)
   try { registerMessengerHandlers() } catch (error) { console.error('[messenger] unavailable', error) }
 }

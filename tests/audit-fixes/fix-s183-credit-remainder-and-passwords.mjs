@@ -216,7 +216,7 @@ console.log('\n— ۸) «تنظیمات» دیگر فقط-مدیر نیست (ن�
   ok('و helper هم تنظیمات را فقط-مدیر نمی‌داند', !isManagerOnlyPanel(PANEL_KEYS.settings))
   ok('بقیه‌ی پنل‌ها هم آزادند', !isManagerOnlyPanel(PANEL_KEYS.creditVoid) && !isManagerOnlyPanel(PANEL_KEYS.cashClose))
   /** قفلِ ورود به صفحه همچنان خاموش نمی‌شود؛ فقط *نوع* رمز بازکننده عوض شد. */
-  ok('ولی قفل ورود به تنظیمات همچنان قابل خاموش کردن نیست', ALWAYS_LOCKED_PANELS.includes(PANEL_KEYS.settings))
+  ok('طرح ۱۴۰۵ (۲۵-۱۱): قفل ورود به تنظیمات هم خاموش‌شدنی است', !ALWAYS_LOCKED_PANELS.includes(PANEL_KEYS.settings))
 }
 
 console.log('\n— ۹) چه چیزی عمداً فقط رمز مدیر ماند —')

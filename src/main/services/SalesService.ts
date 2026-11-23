@@ -16,6 +16,7 @@ import {
   assertPanelPasswordStrict,
   verifyManagerCorrectionApproval
 } from './AuthService'
+import { gateAction, gateProbe } from './locks/gate'
 import { wholesaleDiscountCeilingFor } from '@shared/priceAdjust'
 import { categoryAncestryPath, categoryParentMap } from '@shared/categoryAncestry'
 import { exchangeTenderTotalsOf } from '@shared/exchangeTender'
@@ -3535,8 +3536,9 @@ async function preverifyOverpayManager(
   action: string
 ): Promise<boolean> {
   const pass = String(input?.managerPassword ?? '')
-  if (!pass) return false
-  await assertManagerPassword(pass, action)
+  // طرح ۱۴۰۵ §۳-۱۰ ردیف ۲۶: رمز خالی ⇒ پرسش بی رد از دروازه (نشست مدیر یا بلیت همین کار)؛ وگرنه false مثل امروز
+  if (!pass) return gateProbe('sales.overpay-credit-above-cap')
+  await gateAction('sales.overpay-credit-above-cap', () => assertManagerPassword(pass, action))
   return true
 }
 
@@ -3743,14 +3745,14 @@ async function preverifySalePolicy(
   const decreases = overrides.filter((o) => o.enteredPrice < o.refPrice)
   let managerApproved = false
   if (decreases.length && gateOn) {
-    await assertManagerPassword(
+    await gateAction('sales.price-below-reference', () => assertManagerPassword(
       (input as any).managerPassword ?? null,
       'قیمت کمتر از قیمت مرجع (' +
         decreases
           .map((o) => `کد ${o.code}: واردشده ${money(o.enteredPrice)} ریال، مرجع ${money(o.refPrice)} ریال`)
           .join(' · ') +
         ')'
-    )
+    ))
     managerApproved = true
   }
   return { managerApproved, gateOn, overrides }
@@ -4078,10 +4080,10 @@ async function preverifySaleCharges(
     decreases.push(`حق سرویس ${money(service)} ریال به‌جای ${money(auto.serviceTotal)} ریال`)
   let managerApproved = false
   if (decreases.length && !ctx.alreadyVerified) {
-    await assertManagerPassword(
+    await gateAction('sales.charges-below-auto', () => assertManagerPassword(
       (input as any).managerPassword ?? null,
       `کمتر از مبلغ خودکار در ${who} (${decreases.join(' · ')})`
-    )
+    ))
     managerApproved = true
   }
   return {
@@ -4174,7 +4176,8 @@ async function issueOverpayCreditTx(
     if (input.managerApproved !== true)
       throw new BusinessError(
         `«صدور اعتبار ${money(amount)} ریالی از اضافه‌دریافت (بالاتر از سقف ${money(policy.storeCreditLimit)} ریال)» ` +
-          'تایید مدیر لازم دارد. رمز مدیر را وارد کنید.'
+          'تایید مدیر لازم دارد. رمز مدیر را وارد کنید.',
+        'GATE_REQUIRED:sales.overpay-credit-above-cap' // طرح ۱۴۰۵ §۳-۱۰ ردیف ۲۶: همان پیام، با کد پنجرهٔ قفل
       )
     await audit(tx, {
       action: AuditAction.STORE_CREDIT_OVER_LIMIT,
@@ -4480,7 +4483,7 @@ async function assertOpenShiftPaymentMutationPassword(
   action: string,
   opts: { requireReason: boolean }
 ): Promise<void> {
-  await assertPanelPasswordStrict(PANEL_KEYS.salesCredit, input.managerPassword ?? null, action)
+  await gateAction('sales.payments-edit-open-shift', () => assertPanelPasswordStrict(PANEL_KEYS.salesCredit, input.managerPassword ?? null, action))
   if (!opts.requireReason) return
   const why = String(input.overrideReason ?? input.reason ?? '').trim()
   if (why.length < 3)
@@ -8022,7 +8025,7 @@ export const salesService = {
         throw new BusinessError('برای بازپرداخت مبلغ کاملِ بدون کسر تخفیف، دلیل مدیر (حداقل ۳ نویسه) اجباری است.')
       // نشست ۱۸۳ — رمز دوم/سوم پنل «برگشت از فروش» هم پذیرفته می‌شود
     // نشست ۱۸۴ — پول واقعی از کشو خارج می‌شود؛ «همیشه رمز» حتی با قفل خاموش.
-    await assertPanelPasswordStrict(PANEL_KEYS.salesReturn, input.managerPassword, 'بازپرداخت مبلغ کاملِ بدون کسر تخفیف')
+    await gateAction('return.full-refund-no-discount-deduction', () => assertPanelPasswordStrict(PANEL_KEYS.salesReturn, input.managerPassword, 'بازپرداخت مبلغ کاملِ بدون کسر تخفیف'))
     }
     // نشست ۳۱۹ — گیت قفل کارت‌خوان: بازپرداخت با کارت‌خوان نیاز به تأیید مدیر دارد
     if (input.refundMethod === RefundMethod.CARD) {
@@ -8033,7 +8036,7 @@ export const salesService = {
             'از «کارت‌به‌کارت (تعهد مدیر)» استفاده کنید یا مدیر با ثبت رمز و دلیل آن را تأیید کند.'
         )
       }
-      await assertManagerPassword(o.managerPassword, 'بازپرداخت کارتی (کارت‌خوان) برگشت')
+      await gateAction('return.refund-card', () => assertManagerPassword(o.managerPassword, 'بازپرداخت کارتی (کارت‌خوان) برگشت'))
     }
     // نشست ۶۳ (S63-2) — رمز مدیر دوره‌ی بسته قبل از تراکنش
     const periodApproved = await periodLockService.preverify({
@@ -8552,7 +8555,7 @@ export const salesService = {
             'از «کارت‌به‌کارت (تعهد مدیر)» استفاده کنید یا مدیر با ثبت رمز و دلیل آن را تأیید کند.'
         )
       }
-      await assertManagerPassword(o.managerPassword, 'بازپرداخت کارتی (کارت‌خوان) تعویض')
+      await gateAction('exchange.refund-card', () => assertManagerPassword(o.managerPassword, 'بازپرداخت کارتی (کارت‌خوان) تعویض'))
     }
 
     /**
@@ -13055,11 +13058,11 @@ export const salesService = {
         pre.chequeStatus === ChequeStatus.CLEARED &&
         (amountChanged || destinationChanged || paidAtChanged)
       )
-        await assertPanelPasswordStrict(
+        await gateAction('cheque.edit-cleared', () => assertPanelPasswordStrict(
           PANEL_KEYS.salesCredit,
           (input as any)?.managerPassword ?? null,
           'ویرایش چک پاس‌شده'
-        )
+        ))
       /**
        * نشست ۲۱۱ — پرداخت نقد/کارت: مبلغ، روش، مقصد یا تاریخ بدون رمز همان
        * دزدی صندوق است. بعد از گیت دوره‌ی بسته اجرا می‌شود تا پیام «دوره»
@@ -13278,11 +13281,11 @@ export const salesService = {
       (pre.kind ?? PaymentEntryKind.CASH) === PaymentEntryKind.CHEQUE &&
       pre.chequeStatus === ChequeStatus.CLEARED
     )
-      await assertPanelPasswordStrict(
+      await gateAction('cheque.void-cleared', () => assertPanelPasswordStrict(
         PANEL_KEYS.salesCredit,
         input.managerPassword ?? null,
         'ابطال چک پاس‌شده'
-      )
+      ))
     const periodGate: PaymentPeriodGate = { managerPassword: input.managerPassword ?? null, overrideReason: input.overrideReason ?? null }
     const delMoments = pre
       ? paymentPeriodMoments([
@@ -13454,11 +13457,11 @@ export const salesService = {
      * بدون رمز ممنوع است (خوشه E / «حذف بدهی = گیت strict»). رمز مدیر یا
      * رمز دوم/سوم پنل نسیه؛ بیرون از تراکنش تا AuthLockout قفل SQLite نسازد.
      */
-    await assertPanelPasswordStrict(
+    await gateAction('cheque.status-change', () => assertPanelPasswordStrict(
       PANEL_KEYS.salesCredit,
       input.managerPassword ?? null,
       'تغییر وضعیت چک'
-    )
+    ))
 
     /**
      * نشست ۱۳۶ (S136-2) — وجه چک در روز «پاس شدن» می‌نشیند. برگرداندن چکی که در
@@ -13649,7 +13652,7 @@ export const salesService = {
      * رمز پنل نسیه بیرون از تراکنش بررسی می‌شود (AuthLockout نباید نویسندهٔ SQLite
      * را در تراکنش باز قفل کند) — همان الگوی `setChequeStatus`.
      */
-    await assertPanelPasswordStrict(PANEL_KEYS.salesCredit, input.managerPassword ?? null, 'جایگزینی چک')
+    await gateAction('cheque.replace', () => assertPanelPasswordStrict(PANEL_KEYS.salesCredit, input.managerPassword ?? null, 'جایگزینی چک'))
 
     return prisma.$transaction(async (tx) => {
       const current = await tx.payment.findUnique({

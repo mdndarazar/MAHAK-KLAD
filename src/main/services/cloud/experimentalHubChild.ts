@@ -177,11 +177,11 @@ async function start(input: unknown) {
   if (mobilePort!==undefined && (!safeInt(mobilePort,1024) || mobilePort>65535)) throw new Error('Invalid mobile port')
   if (approval!==undefined && (!okObject(revocation) || !okObject(approval) || !sameKeys(approval,'key,panels,policies,storeId') ||
       typeof approval.key!=='string' || !/^[a-f0-9]{64}$/.test(approval.key) || approval.key===revocation.key || approval.key===config.auditKey ||
-      approval.storeId!==revocation.storeId || !Array.isArray(approval.panels) || approval.panels.length<1 || approval.panels.length>64 ||
+      approval.storeId!==revocation.storeId || !Array.isArray(approval.panels) || approval.panels.length<1 || approval.panels.length>128 ||
       approval.panels.some((p:unknown)=>typeof p!=='string' || !/^[A-Za-z0-9_.:-]{1,128}$/.test(p) || p==='custody') ||
       new Set(approval.panels).size!==approval.panels.length || !okObject(approval.policies) ||
       Object.keys(approval.policies).sort().join(',')!==[...approval.panels].sort().join(',') ||
-      Object.values(approval.policies).some(p=>!okObject(p) || !sameKeys(p,'mode,tier,ttlMs') || p.tier!=='NORMAL' || p.mode!=='PANEL' || !safeInt(p.ttlMs,1) || p.ttlMs>600_000))) throw new Error('Invalid approval configuration')
+      Object.values(approval.policies).some(p=>!okObject(p) || !sameKeys(p,'mode,tier,ttlMs') || !((p.tier==='NORMAL' && p.mode==='PANEL') || (p.tier==='SENSITIVE_MONEY' && p.mode==='ONE_SHOT')) || !safeInt(p.ttlMs,1) || p.ttlMs>3_600_000))) throw new Error('Invalid approval configuration')
   if (revocation !== undefined && (!okObject(revocation) ||
       !(sameKeys(revocation,'epoch,key,port,storeId') || (sameKeys(revocation,'epoch,key,port,rotate,storeId') && revocation.rotate === true)) ||
       typeof revocation.key !== 'string' || !/^[a-f0-9]{64}$/.test(revocation.key) ||

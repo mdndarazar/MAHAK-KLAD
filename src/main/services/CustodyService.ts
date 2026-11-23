@@ -12,6 +12,8 @@ import { physicalMovementForCustodyShift, previewSegmentBoundary, recordAdoption
 import { CashMovementType } from '@shared/enums'
 import { assertManagerSession } from './panelSession'
 import { assertManagerPassword } from './AuthService'
+import { gateAction, gateSession } from './locks/gate'
+import { currentGateCall } from './locks/callContext'
 
 /**
  * Custody v2 deliberately lives beside, rather than inside, the legacy shift
@@ -868,7 +870,7 @@ export const custodyService = {
    * reconciliation evidence but never a credential hash, PIN, or raw credit
    * code. Every row comes from append-only custody/cash records. */
   async report(input: { managerUserId?: unknown; managerPassword?: unknown; from?: unknown; to?: unknown; take?: unknown; skip?: unknown; managerSession?: boolean } = {} as any) {
-    if (input.managerSession === true) assertManagerSession('دیدن گزارش کنترل حضانت')
+    if (input.managerSession === true) await gateSession('custody-control-report', () => assertManagerSession('دیدن گزارش کنترل حضانت'))
     else await this.verifyPin(input.managerUserId, input.managerPassword, { requireManager: true })
     const defaultFrom = new Date(Date.now() - 90 * 24 * 60 * 60_000)
     const parsedFrom = input.from == null ? defaultFrom : new Date(String(input.from))
@@ -1223,7 +1225,7 @@ export const custodyService = {
   async setConfig(input: { config: unknown; managerUserId?: unknown; managerPassword?: unknown; managerSession?: boolean }) {
     const current = await configOf(prisma)
     if (input.managerSession === true) {
-      assertManagerSession('تغییر تنظیمات ساختاری حضانت صندوق')
+      await gateSession('custody-settings', () => assertManagerSession('تغییر تنظیمات ساختاری حضانت صندوق'))
     } else {
       const [credentials, managers] = await Promise.all([
         prisma.custodyCredential.findMany({ where: { purpose: PURPOSE, status: 'ACTIVE' } }),
@@ -2603,7 +2605,9 @@ export const custodyService = {
       throw new BusinessError('مدیر انتخاب‌شده باید پیش از Master Override یک PIN شخصی فعال و غیرموقتِ حضانت داشته باشد.', 'MASTER_OVERRIDE_MANAGER_PIN_REQUIRED')
     /** This is intentionally the shared manager-password primitive, with its
      * existing lockout behavior—not a personal correction-PIN approval. */
-    await assertManagerPassword(String(input.managerPassword ?? ''), 'Master Override صندوق')
+    await gateAction('custody.master-override', () => assertManagerPassword(String(input.managerPassword ?? ''), 'Master Override صندوق'))
+    // طرح ۱۴۰۵ §۳-۹ (یافتهٔ ۱۹): روش واقعی تأیید در سند حضانت؛ رمز تایپی همان برچسب امروز را دارد.
+    const overrideMethod = currentGateCall()?.method?.key ?? null
 
     /** Legacy-open Shift recovery is a stricter invariant than the new input
      * contract. Preserve its fail-closed error rather than letting a missing
@@ -2649,7 +2653,7 @@ export const custodyService = {
           kind: 'MASTER_OVERRIDE_AGGREGATE_COUNT',
           countedCash: BigInt(countedCash),
           countedByUserId: manager.id,
-          authMethod: 'MANAGER_SHARED_PASSWORD',
+          authMethod: overrideMethod ?? 'MANAGER_SHARED_PASSWORD',
           note: reason,
           epochAtCount: freezeEpoch,
           idempotencyKey: `master-override:${fromShift.id}:${state.epoch}:${manager.id}`,
@@ -2684,7 +2688,7 @@ export const custodyService = {
         data: { state: 'HANDOVER_RECOUNT', activeShiftId: fromShift.id, pendingHandoverId: handover.id, epoch: freezeEpoch, updatedAt: new Date() }
       })
       if (changed.count !== 1) throw new BusinessError('وضعیت صندوق هم‌زمان تغییر کرد؛ Master Override ثبت نشد.', 'CUSTODY_STALE')
-      await writeEvent(tx, { type: 'MASTER_OVERRIDE_FREEZE', shiftId: fromShift.id, handoverId: handover.id, actorUserId: manager.id, actorKind: 'MASTER_OVERRIDE_MANAGER', authMethod: 'MANAGER_SHARED_PASSWORD', epochBefore: state.epoch, epochAfter: freezeEpoch, payload: { countedCash, reason, priorCustodianUserId: fromShift.userId } })
+      await writeEvent(tx, { type: 'MASTER_OVERRIDE_FREEZE', shiftId: fromShift.id, handoverId: handover.id, actorUserId: manager.id, actorKind: 'MASTER_OVERRIDE_MANAGER', authMethod: overrideMethod ?? 'MANAGER_SHARED_PASSWORD', epochBefore: state.epoch, epochAfter: freezeEpoch, payload: { countedCash, reason, priorCustodianUserId: fromShift.userId } })
       return { handoverId: handover.id, fromShiftId: fromShift.id, epoch: freezeEpoch, outCountId: declared.id, resumed: false }
     })
 
@@ -2697,7 +2701,7 @@ export const custodyService = {
         const nextEpoch = Number(state.epoch) + 1
         await tx.custodyHandover.update({ where: { id: override.handoverId }, data: { status: 'MASTER_OVERRIDE_ABORTED', resolutionKind: 'MASTER_OVERRIDE_ABORTED', finishedAt: new Date(), version: { increment: 1 } } })
         const changed = await tx.custodyState.updateMany({ where: { key: MAIN, state: 'HANDOVER_RECOUNT', pendingHandoverId: override.handoverId, epoch: state.epoch }, data: { state: 'ACTIVE', activeShiftId: override.fromShiftId, pendingHandoverId: null, epoch: nextEpoch, updatedAt: new Date() } })
-        if (changed.count === 1) await writeEvent(tx, { type: 'MASTER_OVERRIDE_ABORTED', shiftId: override.fromShiftId, handoverId: override.handoverId, actorUserId: manager.id, actorKind: 'MASTER_OVERRIDE_MANAGER', authMethod: 'MANAGER_SHARED_PASSWORD', epochBefore: state.epoch, epochAfter: nextEpoch, payload: { failure } })
+        if (changed.count === 1) await writeEvent(tx, { type: 'MASTER_OVERRIDE_ABORTED', shiftId: override.fromShiftId, handoverId: override.handoverId, actorUserId: manager.id, actorKind: 'MASTER_OVERRIDE_MANAGER', authMethod: overrideMethod ?? 'MANAGER_SHARED_PASSWORD', epochBefore: state.epoch, epochAfter: nextEpoch, payload: { failure } })
       })
     }
 
@@ -2748,7 +2752,7 @@ export const custodyService = {
           handoverId: override.handoverId,
           observedOperationalTotal: countedCash,
           countedByUserId: manager.id,
-          authMethod: 'MANAGER_SHARED_PASSWORD',
+          authMethod: overrideMethod ?? 'MANAGER_SHARED_PASSWORD',
           idempotencyKey: `aggregate-master-override:${override.handoverId}`,
           physicalMovement: aggregatePhysicalMovement,
           operationalDay: toJalaliDate(new Date()),
@@ -2758,11 +2762,11 @@ export const custodyService = {
         if (aggregateBoundary.newDifference !== differenceCash || (aggregateBoundary.baselineSource === 'ADOPTION') !== aggregateBootstrap)
           throw new BusinessError('محاسبهٔ مرز Master Override هم‌زمان تغییر کرد؛ عملیات ثبت نشد.', 'CUSTODY_STALE')
         await tx.custodyShiftMeta.update({ where: { shiftId: override.fromShiftId }, data: { endKind: 'MASTER_OVERRIDDEN', endedAt: closed.closedAt } })
-        await tx.custodyShiftMeta.create({ data: { shiftId: next.id, custodianUserId: manager.id, openAuth: 'MASTER_OVERRIDE_MANAGER_PASSWORD', templateId: plan?.templateId ?? null, planId: plan?.legacyPlanId ?? null, planTitle: plan?.title ?? null, scheduledEndAt: plan?.scheduledEndAt ?? null, scheduleSnapshotJson: immutableScheduleSnapshot, rolloverAt: rolloverAtForSnapshot(new Date(), cfg, scheduling, plan, immutableScheduleSnapshot), dayCutoverSnapshot: cfg.dayCutoverMinute, operationalDay: toJalaliDate(new Date()), countStatus: 'COUNTED', openEpoch: nextEpoch } })
+        await tx.custodyShiftMeta.create({ data: { shiftId: next.id, custodianUserId: manager.id, openAuth: overrideMethod ? `MASTER_OVERRIDE_${overrideMethod}` : 'MASTER_OVERRIDE_MANAGER_PASSWORD', templateId: plan?.templateId ?? null, planId: plan?.legacyPlanId ?? null, planTitle: plan?.title ?? null, scheduledEndAt: plan?.scheduledEndAt ?? null, scheduleSnapshotJson: immutableScheduleSnapshot, rolloverAt: rolloverAtForSnapshot(new Date(), cfg, scheduling, plan, immutableScheduleSnapshot), dayCutoverSnapshot: cfg.dayCutoverMinute, operationalDay: toJalaliDate(new Date()), countStatus: 'COUNTED', openEpoch: nextEpoch } })
         await tx.custodyHandover.update({ where: { id: override.handoverId }, data: { status: 'COMPLETED', finalCustodianUserId: manager.id, acceptedByUserId: manager.id, resolutionKind: 'MASTER_OVERRIDE_COMPLETED', resolutionReason: reason, expectedAtStart: BigInt(expectedCash), differenceCash: BigInt(differenceCash), ledgerWatermark: JSON.stringify({ aggregateMode: true, masterOverride: true, ready: true, accepted: true, expectedCash, countedCash, differenceCash, reason, differenceAttributedToUserId: aggregateBootstrap ? null : live.fromUserId, countId: override.outCountId, aggregateBootstrap, aggregateBoundaryId: aggregateBoundary.id, aggregateBaselineSource: aggregateBoundary.baselineSource, at: new Date().toISOString() }), toShiftId: next.id, finishedAt: new Date(), version: { increment: 1 } } })
         const changed = await tx.custodyState.updateMany({ where: { key: MAIN, state: 'HANDOVER_RECOUNT', activeShiftId: override.fromShiftId, pendingHandoverId: override.handoverId, epoch: state.epoch }, data: { state: 'ACTIVE', activeShiftId: next.id, pendingHandoverId: null, epoch: nextEpoch, updatedAt: new Date() } })
         if (changed.count !== 1) throw new BusinessError('وضعیت صندوق هم‌زمان تغییر کرد؛ Master Override ثبت نشد.', 'CUSTODY_STALE')
-        await writeEvent(tx, { type: 'MASTER_OVERRIDE_COMPLETED', shiftId: override.fromShiftId, handoverId: override.handoverId, actorUserId: manager.id, actorKind: 'MASTER_OVERRIDE_MANAGER', authMethod: 'MANAGER_SHARED_PASSWORD', epochBefore: state.epoch, epochAfter: nextEpoch, payload: { fromShiftId: override.fromShiftId, toShiftId: next.id, priorCustodianUserId: live.fromUserId, expectedCash: aggregateBootstrap ? null : expectedCash, countedCash, differenceCash, reason, countId: override.outCountId, aggregateBootstrap, aggregateBoundaryId: aggregateBoundary.id, unreconciledSegmentMovement: aggregateBootstrap ? aggregatePhysicalMovement : null } })
+        await writeEvent(tx, { type: 'MASTER_OVERRIDE_COMPLETED', shiftId: override.fromShiftId, handoverId: override.handoverId, actorUserId: manager.id, actorKind: 'MASTER_OVERRIDE_MANAGER', authMethod: overrideMethod ?? 'MANAGER_SHARED_PASSWORD', epochBefore: state.epoch, epochAfter: nextEpoch, payload: { fromShiftId: override.fromShiftId, toShiftId: next.id, priorCustodianUserId: live.fromUserId, expectedCash: aggregateBootstrap ? null : expectedCash, countedCash, differenceCash, reason, countId: override.outCountId, aggregateBootstrap, aggregateBoundaryId: aggregateBoundary.id, unreconciledSegmentMovement: aggregateBootstrap ? aggregatePhysicalMovement : null } })
         return { handoverId: override.handoverId, shiftId: next.id, state: 'ACTIVE', resumed: override.resumed }
       })
     } catch (error) {
@@ -2776,7 +2780,7 @@ export const custodyService = {
    * historical counts retain their original accounting meaning. */
   async discrepancyReport(input: { from?: unknown; to?: unknown; status?: unknown; take?: unknown; skip?: unknown; managerSession?: boolean } = {}) {
     if (input.managerSession !== true) throw new BusinessError('گزارش مغایرت فقط با نشست دوم مدیر قابل مشاهده است.', 'MANAGER_SESSION_REQUIRED')
-    assertManagerSession('دیدن پرونده‌های مغایرت کشو و کارت‌خوان')
+    await gateSession('custody-discrepancy-cases', () => assertManagerSession('دیدن پرونده‌های مغایرت کشو و کارت‌خوان'))
     const { from, to, fromJalali, toJalali } = custodyJalaliRange(input)
     const requestedStatus = String(input.status ?? 'ALL').toUpperCase()
     if (!['ALL', 'OPEN', 'CLOSED'].includes(requestedStatus)) throw new BusinessError('فیلتر وضعیت مغایرت نامعتبر است.')

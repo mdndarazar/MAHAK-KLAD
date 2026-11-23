@@ -3,6 +3,7 @@ import { REMOTE_AUTH_CHANNELS, remoteImplementationReady, type RemoteAuthRequest
 import { call, CH } from '../lib/api'
 import { faDigits, toLatinDigits } from '@shared/jalali'
 import { REMOTE_PANELS } from '@shared/enums'
+import { gateEntry } from '@shared/gateCatalog'
 
 /** Update an already-open renderer view after revoke, panic or expiry. This
  * only removes access, never extends idle time or creates a new session. */
@@ -210,7 +211,7 @@ export function RemoteRequestBox({ panel }: { panel: string }) {
             <>
               <div>کد تطبیق: <b>{current.code}</b> — آن را با مدیر مقایسه کنید.</div>
               {state === 'PENDING' && <div>در انتظار تأیید مدیر.</div>}
-              {state === 'APPROVED' && <button className="btn btn-primary w-full" disabled={busy} onClick={() => void claim()}>فعال‌سازی مجوز همین پنل</button>}
+              {state === 'APPROVED' && <button className="btn btn-primary w-full" disabled={busy} onClick={() => void claim()}>{gateEntry(panel)?.category === 3 ? 'فعال‌سازی مجوز همین کار (یک بار)' : 'فعال‌سازی مجوز همین پنل'}</button>}
               {state === 'CLAIMED' && <div>مجوز استفاده شده است.</div>}
             </>
           )}

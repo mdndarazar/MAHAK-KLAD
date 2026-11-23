@@ -250,10 +250,12 @@ try {
   ok('رد قطعی ویندوز (نام نامعتبر) ⇒ رزرو آزاد می‌شود', r.ok === false && sellerRows(creditE).length === 2 && sellerRows(creditE)[1].a.path === 'SELLER_CERTIFICATE_RELEASED' && Number(credit(creditE).printCount) === 1)
 
   console.log('\n— ۸) مسیر مدیر دست‌نخورده: رندرر نمی‌تواند رمزِ چاپ دوباره را دور بزند')
-  notePanelUnlocked('manager', 'MANAGER', sender.id)
+  // مرحلهٔ ۵ (مورد ۱): نشست مدیر چاپ دوباره را بی تایپ باز می‌کند؛ پس این‌جا بی نشست مدیر و با قسمت «چاپ» باز
+  clearPanelSessions(sender.id)
+  notePanelUnlocked(PANEL_KEYS.creditPrint, 'PANEL', sender.id)
   printers(REAL)
   r = await invoke(IPC.printCredit, { id: creditA, reprint: true, password: 'رمز-غلط', sellerCertificate: true, deviceName: 'Axiom', silent: true })
-  ok('نشست مدیر + sellerCertificate جعلی ⇒ همچنان رمز چاپ دوباره لازم است', r.ok === false && mock.state.printCalls.length === 0)
+  ok('بی نشست مدیر + sellerCertificate جعلی ⇒ همچنان قفل «چاپ دوباره» لازم است', r.ok === false && r.code === 'GATE_REQUIRED:credit.reprint-manager' && mock.state.printCalls.length === 0)
   const ipcSrc = readFileSync(new URL('../../src/main/ipc/index.ts', import.meta.url), 'utf8')
   ok('هندلر print:credit مقدار sellerCertificate را خودش false می‌کند', /printService\.printCredit\(\{ \.\.\.\(await withOptionalSessionActor\(p \?\? \{\}\)\), sellerCertificate: false \}\)/.test(ipcSrc))
 
