@@ -801,5 +801,9 @@ export const IPC = {
   // مرحلهٔ ۶ — کدهای بازیابی توقف اضطراری (§۴-۸)؛ فقط پنجرهٔ اصلی، ساخت و باطل کردن با رمز تایپی مدیر
   recoveryCodesStatus: 'remote-recovery-codes:status',
   recoveryCodesCreate: 'remote-recovery-codes:create',
-  recoveryCodesRevoke: 'remote-recovery-codes:revoke'
+  recoveryCodesRevoke: 'remote-recovery-codes:revoke',
+  // مرحلهٔ ۸ — «صفر کردن برنامه» (§۴-۲): پیش‌نمایش (فقط خواندن)، اجرا (قفل کار `system.factory-reset`) و باز شدن دوباره
+  factoryResetPreview: 'system:factory-reset:preview',
+  factoryResetRun: 'system:factory-reset:run',
+  factoryResetRelaunch: 'system:factory-reset:relaunch'
 } as const

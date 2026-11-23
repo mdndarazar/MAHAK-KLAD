@@ -2028,3 +2028,18 @@ export function startWooSyncScheduler(): void {
   }
   void tick()
 }
+
+/**
+ * طرح ۱۴۰۵ §۴-۲ (مورد ۸) — توقف زمان‌بند پیش از جابه‌جایی پایگاه داده (صفر کردن): دور بعدی برداشته می‌شود و تا
+ * پایان دور جاری (حداکثر `waitMs`) صبر می‌شود. خروجی false یعنی دور جاری هنوز تمام نشده است.
+ */
+export async function stopWooSyncScheduler(waitMs = 60_000): Promise<boolean> {
+  const until = Date.now() + Math.max(0, waitMs)
+  if (timer) clearTimeout(timer)
+  timer = null
+  while (busy && Date.now() < until) await new Promise((resolve) => setTimeout(resolve, 100))
+  // دور جاری در finally خودش دور بعدی را می‌چیند؛ آن هم برداشته می‌شود.
+  if (timer) clearTimeout(timer)
+  timer = null
+  return !busy
+}

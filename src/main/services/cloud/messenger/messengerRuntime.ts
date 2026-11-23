@@ -75,11 +75,12 @@ export function messengerEngine(): MessengerEngine {
 /** پس از روشن شدن پیام‌رسان: قلاب بکاپ و بستن برنامه (یک بار). */
 export function installMessengerHooks(): void {
   const e = messengerEngine()
+  // مرحلهٔ ۸ (§۴-۲): صفر کردن هم از همین راه می‌آید، با `kind: 'reset'`.
   setDesktopBackupHooks({
-    before: () => e.beforeDatabaseOperation('backup'),
+    before: (kind) => e.beforeDatabaseOperation(kind === 'reset' ? 'reset' : 'backup'),
     after: (outcome) => {
       const result = (outcome.result ?? null) as { mode?: unknown; willRestart?: unknown } | null
-      e.afterDatabaseOperation({ ok: outcome.ok, kind: 'backup', mode: typeof result?.mode === 'string' ? result.mode : null, willRestart: result?.willRestart === true })
+      e.afterDatabaseOperation({ ok: outcome.ok, kind: outcome.kind === 'reset' ? 'reset' : 'backup', mode: typeof result?.mode === 'string' ? result.mode : null, willRestart: result?.willRestart === true })
     }
   })
   if (quitHookInstalled) return

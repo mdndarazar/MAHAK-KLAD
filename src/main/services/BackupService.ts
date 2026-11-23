@@ -128,6 +128,35 @@ export async function runBackup(opts: { scheduled?: boolean } = {}): Promise<str
   return target
 }
 
+/**
+ * طرح ۱۴۰۵ §۴-۲ (مورد ۸) — «بکاپ محافظت‌شده» پیش از صفر کردن: یک کپی کامل در `backups/imported/` و یک ردیف در
+ * `backup.imports`، مثل بکاپ‌های واردشده؛ پس چرخش ندارد و در فهرست بازگردانی می‌آید. پیش از ثبت ردیف، فایل با
+ * همان سنجش بکاپ‌های واردشده (`summarizeBackup` ← `assertValidBackupFile`) سنجیده می‌شود؛ شکست ⇒ فایل پاک و خطا.
+ */
+export async function createProtectedBackup(label: string): Promise<{ id: string; fileName: string; path: string; size: number }> {
+  const dir = importedDir()
+  await mkdir(dir, { recursive: true })
+  const id = `imported-${Date.now()}-factory-reset.db`
+  const target = join(dir, id)
+  await prisma.$queryRawUnsafe('PRAGMA wal_checkpoint(TRUNCATE)').catch(() => null)
+  await copyFile(databaseFile(), target)
+  try {
+    await summarizeBackup(target)
+  } catch {
+    await unlink(target).catch(() => {})
+    throw new BusinessError('بکاپ پیش از صفر کردن ساخته یا سنجیده نشد؛ هیچ چیزی پاک نشد.')
+  }
+  const info = await stat(target)
+  const row: LedgerRow = { id, fileName: `${label} – ${stamp()}.db`, size: info.size, at: new Date().toISOString(), appliedAt: null, appliedMode: null }
+  try {
+    await writeLedger([...(await readLedger()), row])
+  } catch (e) {
+    await unlink(target).catch(() => {})
+    throw e
+  }
+  return { id, fileName: row.fileName, path: target, size: info.size }
+}
+
 /** بررسی هر ۶ ساعت + یک بار در استارت برنامه (بازه‌ی واقعی از تنظیمات است). */
 export function scheduleBackup(): void {
   const tick = () =>

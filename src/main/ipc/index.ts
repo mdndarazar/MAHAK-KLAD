@@ -84,6 +84,7 @@ import { blankGateMarkers, runInGateCall } from '../services/locks/callContext'
 import { clearGateTickets } from '../services/locks/tickets'
 import { gateAction, gateSession } from '../services/locks/gate'
 import { registerLockHandlers } from '../services/locks/lockIpc'
+import { registerFactoryResetHandlers } from '../services/reset/factoryResetIpc'
 import { startScheduledGrantsRuntime } from '../services/locks/scheduledGrantsRuntime'
 import { registerRecoveryCodeHandlers } from '../services/cloud/recoveryCodesIpc'
 import { setAccessEventWriter } from '../services/locks/accessEvents'
@@ -1499,7 +1500,10 @@ export function registerIpcHandlers(): void {
       await gateAction(backupApplyGateIds(input.mode), () => assertPanelPasswordStrict(PANEL_KEYS.settings, input.managerPassword ?? null,
         input.mode === 'merge' ? 'ادغام یک فایل بکاپ با داده‌ی فعلی' : 'جایگزینی کامل داده‌ی فعلی با یک فایل بکاپ'))
     }
-    return withDesktopBackupCoordination(() => backupService.apply(input))
+    const applied = await withDesktopBackupCoordination(() => backupService.apply(input))
+    // طرح ۱۴۰۵ §۳-۸: داده عوض شد ⇒ همهٔ بلیت‌های یک‌بار (همهٔ پنجره‌ها) پاک می‌شوند
+    clearGateTickets()
+    return applied
   })
   handle(IPC.backupForget, async (p) => backupService.forget(await withOptionalSessionActor(p ?? {})))
   /** تنظیمات بکاپ خودکار: مسیر ذخیره‌سازی و بازه‌ی زمانی (مورد ۶) */
@@ -2036,4 +2040,6 @@ export function registerIpcHandlers(): void {
   try { registerMessengerHandlers() } catch (error) { console.error('[messenger] unavailable', error) }
   // طرح ۱۴۰۵ · مرحلهٔ ۷: خوانندهٔ ثابت گزارش‌های گوشی برای میزبان هاب (بی زمان‌سنج تا هاب روشن شود)
   try { registerPhoneReports() } catch (error) { console.error('[phone-reports] unavailable', error) }
+  // طرح ۱۴۰۵ · مرحلهٔ ۸ (§۴-۲): «صفر کردن برنامه» — دروازه (قفل کار `system.factory-reset`) در خود سرویس
+  registerFactoryResetHandlers(handle, { preview: IPC.factoryResetPreview, run: IPC.factoryResetRun, relaunch: IPC.factoryResetRelaunch }, withOptionalSessionActor)
 }
