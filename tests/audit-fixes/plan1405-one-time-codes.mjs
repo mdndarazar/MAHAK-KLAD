@@ -31,7 +31,7 @@ const unlocks = await import('../../src/main/services/locks/unlocks.ts')
 const lockIpc = await import('../../src/main/services/locks/lockIpc.ts')
 const { codeTargetOf, redeemOneTimeCode } = await import('../../src/main/services/locks/codeRedeem.ts')
 const { setAccessEventWriter } = await import('../../src/main/services/locks/accessEvents.ts')
-const { writeLockDurations } = await import('../../src/main/services/locks/durations.ts')
+const { writeLockDurations, readLockDurations, parseLockDurations } = await import('../../src/main/services/locks/durations.ts')
 const { audit } = await import('../../src/main/services/AuditService.ts')
 const { GATE_CATALOG, GATE_ACTION_IDS, GATE_PART_KEYS } = await import('../../src/shared/gateCatalog.ts')
 const { LOCKED_PANELS, PANEL_KEYS, codeSectionOfPanel } = await import('../../src/shared/panels.ts')
@@ -268,6 +268,24 @@ try {
   const fresh = await create('sensitive')
   r = await redeem(cashClose, fresh.codes[0].code)
   ok('ساخت تازه پروندهٔ خراب را جایگزین کرد و کد کار کرد', r.ok && lockIpc.codesStatus().broken === false && existsSync(join(DIR, 'one-time-codes.json')))
+
+  console.log('\n— ۱۰) پروندهٔ مدت‌ها (§۳-۱۳): ۱، ۶، ۱۲ و ۶۰ درست؛ ۰، ۶۱ و غیرصحیح رد؛ نبود یا خرابی ⇒ ۱۰؛ رمز تایپی مدیر')
+  for (const n of [1, 6, 12, 60]) {
+    const d = await lockIpc.setLockDurations({ managerPassword: PW, sensitiveCodeMinutes: n, otherCodeMinutes: n, remoteGrantMinutes: n })
+    ok(`مدت ${n} پذیرفته شد`, d.sensitiveCodeMinutes === n && d.otherCodeMinutes === n && d.remoteGrantMinutes === n && readLockDurations().remoteGrantMinutes === n)
+  }
+  for (const bad of [0, 61, 1.5, '۱۲الف', -3]) {
+    const r = await outcome(() => lockIpc.setLockDurations({ managerPassword: PW, otherCodeMinutes: bad }))
+    ok(`مدت «${bad}» رد و عدد قبلی ماند`, !r.ok && readLockDurations().otherCodeMinutes === 60)
+  }
+  const noPw = await outcome(() => lockIpc.setLockDurations({ managerPassword: '', otherCodeMinutes: 7 }))
+  ok('تغییر مدت بی رمز تایپی مدیر رد', !noPw.ok && readLockDurations().otherCodeMinutes === 60)
+  ok('ردیف DURATIONS_CHANGED برای هر تغییر', eventsOf('DURATIONS_CHANGED').length >= 3)
+  writeFileSync(join(DIR, 'lock-durations.json'), '{"sensitiveCodeMinutes":5}')
+  ok('پروندهٔ ناقص ⇒ هر سه ۱۰', JSON.stringify(readLockDurations()) === JSON.stringify({ sensitiveCodeMinutes: 10, otherCodeMinutes: 10, remoteGrantMinutes: 10 }))
+  writeFileSync(join(DIR, 'lock-durations.json'), 'not json')
+  ok('پروندهٔ خراب ⇒ هر سه ۱۰', readLockDurations().otherCodeMinutes === 10 && parseLockDurations({ sensitiveCodeMinutes: 61, otherCodeMinutes: 1, remoteGrantMinutes: 1 }).sensitiveCodeMinutes === 10)
+  writeLockDurations({ sensitiveCodeMinutes: 10, otherCodeMinutes: 10, remoteGrantMinutes: 10 })
 } finally {
   unlocks.setUnlockClockForTests(null)
   codes.setCodeClockForTests(null)
