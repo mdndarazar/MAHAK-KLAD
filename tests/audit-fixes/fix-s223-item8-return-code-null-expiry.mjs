@@ -74,10 +74,10 @@ const makeSale = async (key, remote = false) => {
 console.log('\n۲) صدور پیش‌فرض = ۱ روز؛ مشتری راه دور = ۷ روز')
 {
   const normal = await makeSale('s223-item8-normal')
-  const days = Math.round((n(normal.returnCodeExpiresAt) - n(normal.issuedAt)) / DAY)
+  const days = Math.floor((n(normal.returnCodeExpiresAt) - n(normal.issuedAt)) / DAY)
   check('فاکتور عادی مهلت ۱ روزه گرفت', () => assert.equal(days, 1))
   const remote = await makeSale('s223-item8-remote', true)
-  const remoteDays = Math.round((n(remote.returnCodeExpiresAt) - n(remote.issuedAt)) / DAY)
+  const remoteDays = Math.floor((n(remote.returnCodeExpiresAt) - n(remote.issuedAt)) / DAY)
   check('مشتری راه دور مهلت ۷ روزه گرفت', () => assert.equal(remoteDays, 7))
 }
 
@@ -135,7 +135,7 @@ console.log('\n۵) تغییر تنظیم فقط روی صدورهای بعدی �
   if (settingsRow) sql.prepare('UPDATE "Setting" SET value = ? WHERE key = ?').run(value, SETTING_KEYS.saleDefaults)
   else sql.prepare('INSERT INTO "Setting" (key, value) VALUES (?, ?)').run(SETTING_KEYS.saleDefaults, value)
   const after = await makeSale('s223-item8-after-setting')
-  const afterDays = Math.round((n(after.returnCodeExpiresAt) - n(after.issuedAt)) / DAY)
+  const afterDays = Math.floor((n(after.returnCodeExpiresAt) - n(after.issuedAt)) / DAY)
   check('فاکتور جدید مهلت ۵ روزه گرفت', () => assert.equal(afterDays, 5))
   check('تاریخ صریحِ فاکتور قبلی بازنویسی نشد', () => {
     const row = seed.one('SELECT returnCodeExpiresAt FROM "SaleInvoice" WHERE id = ?', before.id)

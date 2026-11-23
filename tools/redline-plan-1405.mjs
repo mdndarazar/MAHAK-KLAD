@@ -95,7 +95,9 @@ const ALLOWED_EXISTING = new Map(Object.entries({
   'tests/audit-fixes/fix-s316-return-credit-ux.mjs': 4, 'tests/audit-fixes/fix-s329-return-exchange-report-credit-redaction.mjs': 2,
   // مرحلهٔ ۵ — بیرون از ۱۰-۱؛ اجازهٔ جدای مالک ۱۴۰۵/۰۹/۰۲ (Plan1405-D9): فقط ویژگی `typedOnly` کادر «کلید API» پیامک.
   // همان روز مالک خط‌های ۱۸ تا ۲۱ و خط فهرست پنل‌ها (۴۱) در remote-panels-desktop را هم اجازه داد؛ بودجهٔ بالا کافی است.
-  'src/renderer/src/pages/SmsPanel.tsx': 2
+  'src/renderer/src/pages/SmsPanel.tsx': 2,
+  // همان روز (Plan1405-D9): آزمون وابسته به ساعت؛ فقط خط‌های ۷۷، ۸۰ و ۱۳۸ (`Math.round` ← `Math.floor`)
+  'tests/audit-fixes/fix-s223-item8-return-code-null-expiry.mjs': 6
 }))
 
 // §۶ — پرونده‌های تازهٔ مجاز (الگو).
