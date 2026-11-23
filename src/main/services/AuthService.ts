@@ -804,6 +804,18 @@ export async function assertPanelPasswordStrict(
   return res.scope
 }
 
+/** طرح ۱۴۰۵ §۳-۱۵: کد دست‌نویس برابر رمز مدیر یا هیچ رمز دوم و سومی نباشد (بی شمارش اشتباه و بی ثبت). */
+export async function secretEqualsAnyPassword(raw: string): Promise<boolean> {
+  const value = normalize(raw), stored = await read()
+  if (!value) return false
+  if (stored ? isPassword(stored, value) : value === DEFAULT_MANAGER_PASSWORD) return true
+  for (const record of Object.values(await readPanels())) {
+    const all = [record, ...Object.values(record?.shifts ?? {})]
+    if (all.some((rec) => rec && typeof rec.salt === 'string' && sameHash(rec.hash, derive(value, rec.salt)))) return true
+  }
+  return false
+}
+
 /**
  * طرح ۱۴۰۵ §۳-۴ بند ۴ — رمز دوم/سوم جدای خود «قفل کار» (اگر مدیر برای همان کلید رمز گذاشته باشد).
  * بی شمارش اشتباه: نابرابری یعنی «همان مسیر امروز» که خودش، مثل امروز، روی کلید خودش می‌شمارد.

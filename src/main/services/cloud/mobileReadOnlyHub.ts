@@ -28,6 +28,8 @@ type Identity = {
   removeMember(token: string, pin: string, username: string): { ok: true; memberId: string } | { ok: false }
   panic?(token: string, pin: string): boolean
   panicClose?(token: string, pin: string): boolean
+  /** Plan 1405 §4-8: once, at the owner's next phone login after P2 was lifted with a recovery code. */
+  takeRecoveryNotice?(token: string): { at: number; n: number } | null
 }
 type Reader = {
   latestBoundaryTotals(): Promise<unknown>
@@ -118,6 +120,14 @@ export function createMobileReadOnlyHandler(options: Options) {
   // Shared across sessions so many clients cannot fan out DB reads. The real
   // query must settle before releasing the slot; never queue expensive reads.
   let invoiceBusy=false, lastInvoiceRead=-Infinity
+  // Plan 1405 §4-8: number and time only; absent unless a notice is waiting.
+  const recoveryNotice=(token:string):{recoveryNotice?:{at:number;n:number}}=>{
+    if (typeof options.identity.takeRecoveryNotice!=='function') return {}
+    try {
+      const notice=options.identity.takeRecoveryNotice(token)
+      return notice && Number.isSafeInteger(notice.at) && Number.isSafeInteger(notice.n) && notice.n>=1 && notice.n<=5 ? {recoveryNotice:{at:notice.at,n:notice.n}} : {}
+    } catch { return {} }
+  }
   // Bounds both per-source login attempts and total in-memory source records. A
   // proxy must enforce its own limits; it may collapse all clients to one source.
   const attempts = new Map<string,{start:number; count:number}>()
@@ -281,7 +291,8 @@ export function createMobileReadOnlyHandler(options: Options) {
             ...(user.role==='OWNER' && typeof options.identity.panicClose==='function' && typeof options.drainRevocations==='function' ? {panicClose:true} : {}),
             ...(user.role==='OWNER' && typeof options.approval?.grants==='function' ? {grants:true} : {}),
             ...(user.role==='OWNER' && typeof options.health==='function' ? {health:true} : {}),
-            ...(user.role==='OWNER' && Array.isArray(options.approval?.panels) ? {approvalPanels:options.approval.panels.filter(panel=>typeof panel==='string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(panel)).slice(0,128)} : {})});return
+            ...(user.role==='OWNER' && Array.isArray(options.approval?.panels) ? {approvalPanels:options.approval.panels.filter(panel=>typeof panel==='string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(panel)).slice(0,128)} : {}),
+            ...(user.role==='OWNER' ? recoveryNotice(token) : {})});return
         }
         if (path === '/api/grants' && typeof options.approval?.grants === 'function') {
           if (user.role !== 'OWNER') { send(403,{error:'فقط مالک مجاز است'});return }

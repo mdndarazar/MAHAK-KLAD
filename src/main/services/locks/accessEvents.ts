@@ -15,7 +15,9 @@ export interface AccessEventFields {
   recipientName?: string
   decision?: string
 }
-type Writer = (after: Record<string, unknown>, userId: number | null) => unknown
+/** `AUTH_LOCKOUT` فقط برای قفل شدن کدهای یک‌بارمصرف پس از ۵ اشتباه (§۳-۱۵)؛ بقیه `ACCESS_EVENT`. */
+export type AccessRowAction = 'ACCESS_EVENT' | 'AUTH_LOCKOUT'
+type Writer = (after: Record<string, unknown>, userId: number | null, action: AccessRowAction) => unknown
 
 let writer: Writer | null = null
 
@@ -34,7 +36,19 @@ export function noteAccessEvent(kind: AccessEventKind, fields: AccessEventFields
   }
   if (typeof fields.recipientName === 'string' && fields.recipientName) after.recipientName = fields.recipientName.slice(0, 60)
   if (typeof fields.decision === 'string' && fields.decision) after.decision = fields.decision.slice(0, 40)
+  write(after, userId, 'ACCESS_EVENT')
+}
+
+function write(after: Record<string, unknown>, userId: number | null, action: AccessRowAction): void {
+  if (!writer) return
   try {
-    void Promise.resolve(writer(after, Number.isSafeInteger(userId) ? userId : null)).catch(() => undefined)
+    void Promise.resolve(writer(after, Number.isSafeInteger(userId) ? userId : null, action)).catch(() => undefined)
   } catch {}
+}
+
+/** §۳-۱۵: قفل شدن کدهای یک‌بارمصرف (۵ اشتباه ⇒ ۱۵ دقیقه) با همان `AUTH_LOCKOUT` موجود و ⚠️ پیام‌رسان. */
+export function noteCodeLockout(minutes: number, windowNo?: number): void {
+  const after: Record<string, unknown> = { kind: 'ONE_TIME_CODES', minutes }
+  if (Number.isSafeInteger(windowNo) && (windowNo as number) > 0) after.windowNo = windowNo
+  write(after, null, 'AUTH_LOCKOUT')
 }

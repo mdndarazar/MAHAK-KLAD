@@ -281,7 +281,8 @@ export async function startExperimentalHubSupervisor(options: Options) {
     void task.then(() => activeTasks.delete(task), () => activeTasks.delete(task))
     return task
   }
-  const waiting = new Map<number,{ resolve:(ok:boolean)=>void; reject:(error:Error)=>void; timer:ReturnType<typeof setTimeout> }>()
+  // `raw`: plan 1405 queries (recovery codes, approvals-stopped) resolve with the whole reply.
+  const waiting = new Map<number,{ resolve:(value:any)=>void; reject:(error:Error)=>void; timer:ReturnType<typeof setTimeout>; raw?:true }>()
   let startupResolve: ((ports:{mobilePort:number; auditPort:number})=>void) | undefined
   let startupReject: ((error:Error)=>void) | undefined
   const startup = new Promise<{mobilePort:number; auditPort:number}>((resolve,reject) => { startupResolve=resolve;startupReject=reject })
@@ -532,7 +533,8 @@ export async function startExperimentalHubSupervisor(options: Options) {
         } catch { failRead() }
       }).catch(() => { failRead() }).finally(() => { invoiceBusy=false }))
     }
-    else if ((message.type === 'snapshot' || message.type === 'panicRecovered' || message.type === 'ownerReplaced') && Number.isSafeInteger(message.id)) {
+    else if ((message.type === 'snapshot' || message.type === 'panicRecovered' || message.type === 'ownerReplaced' ||
+              message.type === 'recoveryCodes' || message.type === 'panicState') && Number.isSafeInteger(message.id)) {
       const item=waiting.get(message.id)
       if (!item) return
       waiting.delete(message.id);clearTimeout(item.timer)
@@ -540,7 +542,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
       else if (message.type === 'snapshot' && message.ok === false && typeof message.reason === 'string' &&
                ['invalid-capture','clock-regressed','clock-future','snapshot-expired','invalid-payload'].includes(message.reason)) {
         item.reject(new Error(`Hub rejected snapshot (${message.reason})`))
-      } else item.resolve(message.ok)
+      } else item.resolve(item.raw ? {...message} : message.ok)
     }
   })
   const send = (message: Record<string, any>) => {
@@ -573,6 +575,13 @@ export async function startExperimentalHubSupervisor(options: Options) {
       const id=++nextId
       const timer=setTimeout(() => { waiting.delete(id);reject(new Error('Hub snapshot timed out'));child.kill() },timeout)
       waiting.set(id,{resolve,reject,timer})
+      try { send({...message,id}) } catch (error) { clearTimeout(timer);waiting.delete(id);reject(error) }
+    })
+    const query = (message: Record<string,unknown>) => new Promise<Record<string,unknown>>((resolve,reject) => {
+      if (dead || closed || nextId >= Number.MAX_SAFE_INTEGER) { reject(new Error('Hub child unavailable'));return }
+      const id=++nextId
+      const timer=setTimeout(() => { waiting.delete(id);reject(new Error('Hub query timed out'));child.kill() },timeout)
+      waiting.set(id,{resolve,reject,timer,raw:true})
       try { send({...message,id}) } catch (error) { clearTimeout(timer);waiting.delete(id);reject(error) }
     })
     if (revocationConfig) {
@@ -722,6 +731,51 @@ export async function startExperimentalHubSupervisor(options: Options) {
             return await update({type:'recoverPanic',pin:ownerPin,lastAck:cursor.id})
           } catch { return false }
         }).finally(()=>{recoveryBusy=false}))
+      },
+      // Plan 1405 §4-8: local P2 recovery with one recovery code alone, at the
+      // computer. The same restore/epoch/identity checks as recoverPanic; the
+      // hub applies the code's own lockout. Resolves with the code number or 0.
+      recoverPanicWithCode(code:string):Promise<number> {
+        if (closed || dead || storeInvalidated || recoveryBusy || !revocationConfig || typeof code!=='string' || !code || code.length>40) return Promise.resolve(0)
+        recoveryBusy=true
+        return track(guarded(async()=>{
+          try {
+            const before=state.load()
+            if (!before || before.storeId!==revocationConfig!.storeId || before.epoch!==revocationConfig!.epoch ||
+                await readRestoreMarker()!==before.restoreMarker || (barrier && barrier.status().state!=='OPEN')) return 0
+            if (fingerprint && !await verifiedDatabaseIdentity()) return 0
+            const cursor=recoveryLedger?.load()
+            if (!cursor || !Number.isSafeInteger(cursor.id) || cursor.id<1) return 0
+            const reply=await query({type:'recoverPanicCode',code,lastAck:cursor.id})
+            return reply.ok===true && Number.isSafeInteger(reply.n) && (reply.n as number)>=1 && (reply.n as number)<=5 ? reply.n as number : 0
+          } catch { return 0 }
+        }).finally(()=>{recoveryBusy=false}))
+      },
+      // Plan 1405 §4-8: create/revoke/status of the recovery codes (the caller
+      // has verified the desktop manager password for create and revoke).
+      recoveryCodes(op:'create'|'revoke'|'status'):Promise<{ok:boolean;codes?:string[];total?:number;remaining?:number;lockedUntil?:number}> {
+        if (closed || dead || storeInvalidated || !['create','revoke','status'].includes(op)) return Promise.resolve({ok:false})
+        return track(guarded(async()=>{
+          try {
+            const reply=await query({type:'recoveryCodes',op})
+            if (reply.ok!==true) return {ok:false}
+            if (op==='create') {
+              const codes=reply.codes
+              return Array.isArray(codes) && codes.length===5 && codes.every(c=>typeof c==='string' && /^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(c)) ? {ok:true,codes:[...codes] as string[]} : {ok:false}
+            }
+            if (op==='status') {
+              const n=(v:unknown)=>Number.isSafeInteger(v) && (v as number)>=0 ? v as number : 0
+              return {ok:true,total:Math.min(5,n(reply.total)),remaining:Math.min(5,n(reply.remaining)),lockedUntil:n(reply.lockedUntil)}
+            }
+            return {ok:true}
+          } catch { return {ok:false} }
+        }))
+      },
+      // Plan 1405 §4-1-b: the desktop's bot buttons approve nothing while P2 is
+      // latched or the hub is paused. Unknown (child unavailable) counts as stopped.
+      approvalsStopped():Promise<boolean> {
+        if (closed || dead || storeInvalidated) return Promise.resolve(true)
+        return track(query({type:'panicState'}).then(reply=>reply.ok!==false,()=>true))
       },
       // OWNER recovery at the computer (design §4). Local trusted caller only,
       // after the desktop manager password was verified; never a mobile route.

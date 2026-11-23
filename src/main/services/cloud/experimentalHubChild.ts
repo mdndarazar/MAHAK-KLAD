@@ -368,6 +368,30 @@ process.on('message', message => {
       try { ok=recoveryIdentity.replaceOwnerLocally(message.username,message.password,message.pin) } catch {}
       send({type:'ownerReplaced',id:message.id,ok});return
     }
+    // Plan 1405 §4-8: P2 recovery codes (create/revoke/status after the desktop
+    // manager password; recovery with one code alone at the computer) and the
+    // approvals-stopped state for the desktop's bot buttons. Parent only.
+    if (message.type === 'recoveryCodes' && initialized && !shuttingDown && mobile && recoveryIdentity) {
+      if (!sameKeys(message,'id,op,type') || !safeInt(message.id,1) || !['create','revoke','status'].includes(message.op as string)) return
+      try {
+        if (message.op === 'create') send({type:'recoveryCodes',id:message.id,ok:true,codes:recoveryIdentity.createRecoveryCodesLocally()})
+        else if (message.op === 'revoke') send({type:'recoveryCodes',id:message.id,ok:recoveryIdentity.revokeRecoveryCodesLocally()})
+        else { const st=recoveryIdentity.recoveryCodesStatus(); send({type:'recoveryCodes',id:message.id,ok:true,total:st.total,remaining:st.remaining,lockedUntil:st.lockedUntil}) }
+      } catch { send({type:'recoveryCodes',id:message.id,ok:false}) }
+      return
+    }
+    if (message.type === 'recoverPanicCode' && initialized && !shuttingDown && mobile && recoveryEpoch && recoveryIdentity) {
+      if (!sameKeys(message,'code,id,lastAck,type') || !safeInt(message.id,1) || !safeInt(message.lastAck,1) || typeof message.code !== 'string' || message.code.length > 40) return
+      let n=0
+      try { n=recoveryIdentity.recoverPanicWithCodeLocally(message.code,recoveryEpoch,message.lastAck) } catch {}
+      send({type:'recoveryCodes',id:message.id,ok:n>0,n});return
+    }
+    if (message.type === 'panicState' && initialized && !shuttingDown && mobile && recoveryIdentity) {
+      if (!sameKeys(message,'id,type') || !safeInt(message.id,1)) return
+      let stopped=true
+      try { stopped=recoveryIdentity.approvalsStopped() } catch {}
+      send({type:'panicState',id:message.id,ok:stopped});return
+    }
     if ((message.type === 'snapshot' || message.type === 'invalidateSnapshot' || message.type === 'beginSnapshot') && initialized && !shuttingDown && mobile) {
       const id = message.id
       if (id !== undefined && (!Number.isSafeInteger(id) || id <= 0)) return

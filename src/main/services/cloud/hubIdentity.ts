@@ -25,6 +25,15 @@ const usernameValue = (v: unknown): string | null => {
   return name.length >= 3 && name.length <= 64 && /^[\p{L}\p{N}_.-]+$/u.test(name) ? name : null
 }
 const passwordOk = (v: unknown): v is string => typeof v === 'string' && v.length >= 10 && Buffer.byteLength(v, 'utf8') <= 128
+// Plan 1405 §4-8: five P2 recovery codes, 12 characters from an unambiguous
+// alphabet (no 0, O, 1, I, L), shown once as XXXX-XXXX-XXXX, case-insensitive.
+const RECOVERY_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+const RECOVERY_COUNT = 5
+const recoveryCodeValue = (v: unknown): string | null => {
+  if (typeof v !== 'string' || v.length > 40) return null
+  const code = v.toUpperCase().replace(/[\s\-_]/g, '')
+  return code.length === 12 && [...code].every(c => RECOVERY_ALPHABET.includes(c)) ? code : null
+}
 const pinOk = (v: unknown): v is string => typeof v === 'string' && /^[0-9]{6}$/.test(v)
 function derive(secret: string, salt: string) { return scryptSync(secret, Buffer.from(salt, 'hex'), 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }) }
 function makeSecret(secret: string) { const salt = randomBytes(16).toString('hex'); return { salt, hash: derive(secret, salt).toString('hex') } }
@@ -58,6 +67,13 @@ export function createHubIdentity(db: Database, options: Options) {
     CREATE TABLE IF NOT EXISTS remote_identity_panic (id INTEGER PRIMARY KEY CHECK(id=1), latched INTEGER NOT NULL CHECK(latched IN (0,1)));
     INSERT OR IGNORE INTO remote_identity_panic(id,latched) VALUES(1,0);
     CREATE TABLE IF NOT EXISTS remote_revocation_delivery (id INTEGER PRIMARY KEY CHECK(id=1), epoch TEXT NOT NULL, last_ack INTEGER NOT NULL);`)
+  // Plan 1405 §4-8: the recovery-code tables are created only when the owner
+  // first creates codes, so an existing hub database keeps its exact schema
+  // until then. Every recovery query checks for them first.
+  const recoveryReady = () => !!db.prepare("SELECT 1 AS x FROM sqlite_master WHERE type='table' AND name='remote_recovery_meta'").get()
+  const ensureRecoveryTables = () => db.exec(`CREATE TABLE IF NOT EXISTS remote_recovery_codes (n INTEGER PRIMARY KEY CHECK(n BETWEEN 1 AND 5), salt TEXT NOT NULL, hash TEXT NOT NULL, used_at INTEGER);
+    CREATE TABLE IF NOT EXISTS remote_recovery_meta (id INTEGER PRIMARY KEY CHECK(id=1), fails INTEGER NOT NULL, locked_until INTEGER NOT NULL, notice_at INTEGER NOT NULL, notice_n INTEGER NOT NULL);
+    INSERT OR IGNORE INTO remote_recovery_meta(id,fails,locked_until,notice_at,notice_n) VALUES(1,0,0,0,0);`)
   const q = (sql: string) => db.prepare(sql)
   const metaGet = q('SELECT last_clock, paused FROM remote_identity_meta WHERE id=1')
   const metaSet = q('UPDATE remote_identity_meta SET last_clock=? WHERE id=1')
@@ -313,6 +329,8 @@ export function createHubIdentity(db: Database, options: Options) {
           .run(name,p.salt,p.hash,v.salt,v.hash,id)
         sessionsDelete.run(id)
         q("UPDATE remote_invites SET status='EXPIRED' WHERE status='PENDING'").run()
+        // A new owner password and PIN invalidate every P2 recovery code (§4-8).
+        if (recoveryReady()) q('DELETE FROM remote_recovery_codes').run()
         enqueueRevoke(t,'MEMBER',id)
         audit(t,id,'OWNER_REPLACED_LOCALLY'); return true
       })
@@ -388,6 +406,85 @@ export function createHubIdentity(db: Database, options: Options) {
         return true
       })
     },
-    isPaused(): boolean { return transact(() => metaGet.get().paused !== 0) }
+    isPaused(): boolean { return transact(() => metaGet.get().paused !== 0) },
+    /** Plan 1405: approvals are stopped while P2 is latched or the hub is paused. */
+    approvalsStopped(): boolean {
+      return transact(() => metaGet.get().paused !== 0 || q('SELECT latched FROM remote_identity_panic WHERE id=1').get()?.latched !== 0)
+    },
+    /** Plan 1405 §4-8. Trusted local parent only, after the desktop manager
+     * password: five new P2 recovery codes replace all previous ones. Only salted
+     * hashes are stored; the plain codes are returned once for display. */
+    createRecoveryCodesLocally(): string[] {
+      const codes: string[] = []
+      while (codes.length < RECOVERY_COUNT) {
+        let code = ''
+        for (const b of randomBytes(24)) { if (b < 248 && code.length < 12) code += RECOVERY_ALPHABET[b % RECOVERY_ALPHABET.length] }
+        if (code.length === 12 && !codes.includes(code)) codes.push(code)
+      }
+      const rows = codes.map((code, i) => ({ n: i + 1, ...makeSecret(code) }))
+      return transact(t => {
+        ensureRecoveryTables()
+        q('DELETE FROM remote_recovery_codes').run()
+        for (const r of rows) q('INSERT INTO remote_recovery_codes(n,salt,hash,used_at) VALUES(?,?,?,NULL)').run(r.n, r.salt, r.hash)
+        audit(t, null, 'RECOVERY_CODES_CREATED')
+        return codes.map(c => `${c.slice(0, 4)}-${c.slice(4, 8)}-${c.slice(8)}`)
+      })
+    },
+    /** Trusted local parent only, after the desktop manager password. */
+    revokeRecoveryCodesLocally(): boolean {
+      return transact(t => { if (recoveryReady()) q('DELETE FROM remote_recovery_codes').run(); audit(t, null, 'RECOVERY_CODES_REVOKED'); return true })
+    },
+    /** Counts only; never a code or hash. */
+    recoveryCodesStatus(): { total: number; remaining: number; lockedUntil: number } {
+      return transact(t => {
+        if (!recoveryReady()) return { total: 0, remaining: 0, lockedUntil: 0 }
+        const total = q('SELECT COUNT(*) AS n FROM remote_recovery_codes').get()?.n ?? 0
+        const remaining = q('SELECT COUNT(*) AS n FROM remote_recovery_codes WHERE used_at IS NULL').get()?.n ?? 0
+        const lockedUntil = q('SELECT locked_until FROM remote_recovery_meta WHERE id=1').get()?.locked_until ?? 0
+        return { total, remaining, lockedUntil: lockedUntil > t ? lockedUntil : 0 }
+      })
+    },
+    /** Plan 1405 §4-8: local P2 recovery with one recovery code alone, at the
+     * computer (trusted local parent only; never a mobile route). The same
+     * delivery/ACK preconditions as `recoverPanicLocally`. A separate counter:
+     * five wrong codes lock code recovery for 15 minutes and never lock the
+     * manager-password + PIN path. Returns the code number used, or 0. */
+    recoverPanicWithCodeLocally(code: string, epoch: string, lastAck: number): number {
+      if (typeof epoch !== 'string' || !Number.isSafeInteger(lastAck) || lastAck < 1) return 0
+      const value = recoveryCodeValue(code)
+      return transact(t => {
+        const delivery=q('SELECT epoch,last_ack FROM remote_revocation_delivery WHERE id=1').get()
+        if (!delivery || delivery.epoch !== epoch || delivery.last_ack !== lastAck ||
+            q('SELECT latched FROM remote_identity_panic WHERE id=1').get()?.latched !== 1 ||
+            metaGet.get().paused !== 1 ||
+            q('SELECT 1 FROM remote_identity_revocations WHERE acknowledged_at IS NULL LIMIT 1').get() || !recoveryReady()) return 0
+        const meta = q('SELECT fails,locked_until FROM remote_recovery_meta WHERE id=1').get()
+        if (!meta || t < meta.locked_until) return 0
+        const rows = q('SELECT n,salt,hash FROM remote_recovery_codes WHERE used_at IS NULL ORDER BY n').all()
+        const hit = value ? rows.find(r => matches(value, r.salt, r.hash)) : undefined
+        if (!hit) {
+          const count = meta.fails + 1
+          q('UPDATE remote_recovery_meta SET fails=?,locked_until=? WHERE id=1').run(count >= 5 ? 0 : count, count >= 5 ? t + LOCK_MS : 0)
+          audit(t, null, 'RECOVERY_CODE_FAILED'); return 0
+        }
+        q('UPDATE remote_recovery_codes SET used_at=? WHERE n=? AND used_at IS NULL').run(t, hit.n)
+        q('UPDATE remote_recovery_meta SET fails=0,locked_until=0,notice_at=?,notice_n=? WHERE id=1').run(t, hit.n)
+        q('UPDATE remote_identity_panic SET latched=0 WHERE id=1').run()
+        q('UPDATE remote_identity_meta SET paused=0 WHERE id=1').run()
+        audit(t, null, 'PANIC_RECOVERY_CODE', String(hit.n)); return hit.n
+      })
+    },
+    /** The owner's next phone login sees once that P2 was lifted with a recovery
+     * code (number and time only). Owner sessions only; reading clears it. */
+    takeRecoveryNotice(token: string): { at: number; n: number } | null {
+      return transact(t => {
+        const s = session(token, t)
+        if (!s || s.role !== 'OWNER' || !recoveryReady()) return null
+        const m = q('SELECT notice_at,notice_n FROM remote_recovery_meta WHERE id=1').get()
+        if (!m || !Number.isSafeInteger(m.notice_at) || m.notice_at <= 0) return null
+        q('UPDATE remote_recovery_meta SET notice_at=0,notice_n=0 WHERE id=1').run()
+        return { at: m.notice_at, n: m.notice_n }
+      })
+    }
   }
 }

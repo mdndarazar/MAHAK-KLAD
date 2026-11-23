@@ -332,6 +332,25 @@ export function cancelForWindow(ownerWindowId: number, panel?: string): boolean 
   // Cancellation must not erase a credential-guessing lockout.
   return true
 }
+/**
+ * طرح ۱۴۰۵ §۴-۱-ب — «رد» با دکمهٔ ربات: همان لغو درخواستِ همان پنجره و همان قفل (مثل `cancelForWindow`)،
+ * به‌علاوهٔ یادداشت «رد شد» تا پنجرهٔ فروشنده «مدیر رد کرد» ببیند. فقط درخواستِ هنوز در انتظار با همان شناسه.
+ */
+const rejectedRequests = new Map<string, { requestId: string; at: number }>()
+export function rejectRequest(ownerWindowId: number, panel: string, requestId: string): boolean {
+  const pending = getPending(ownerWindowId, panel)
+  if (!pending || pending.requestId !== requestId) return false
+  pendingRequests.delete(keyOf(ownerWindowId, panel))
+  if (rejectedRequests.size >= 1000) rejectedRequests.clear()
+  rejectedRequests.set(keyOf(ownerWindowId, panel), { requestId, at: now() })
+  return true
+}
+/** پنجرهٔ فروشنده: آیا همین درخواست با دکمهٔ ربات رد شد؟ (تا ۱۰ دقیقه) */
+export function requestRejected(ownerWindowId: number, panel: string, requestId: string): boolean {
+  if (!validOwner(ownerWindowId) || typeof panel !== 'string' || typeof requestId !== 'string') return false
+  const r = rejectedRequests.get(keyOf(ownerWindowId, panel))
+  return !!r && r.requestId === requestId && now() - r.at < PENDING_MS
+}
 export function requestCode(panel: string, ownerWindowId: number): { code: string; gt: string; requestId: string } {
   if (admissionBlocked) throw new Error('Remote admission closed')
   if (!validOwner(ownerWindowId) || typeof panel !== 'string' || !VALID_PANEL.test(panel)) throw new Error('Invalid remote request')

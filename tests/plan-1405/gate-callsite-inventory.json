@@ -110,7 +110,7 @@
   },
   "src/main/services/locks/lockIpc.ts": {
     "assertManagerPassword": {
-      "identity": 1
+      "identity": 6
     }
   },
   "src/main/services/panelSession.ts": {

@@ -189,6 +189,10 @@ export function isPanelUnlocked(panel: string, explicitOwner?: number): boolean 
   return !!alive(MANAGER_KEY, owner, true) || !!alive(normalizePanelKey(panel) ?? panel, owner, true)
 }
 
+/** طرح ۱۴۰۵ §۳-۱۵/§۳-۱۶: نگهبانِ نشست همین کلید (بی تمدید)، تا صاحب نگهبان (کد یا زمان‌بندی‌شده) خودش را بشناسد. */
+export function sessionGuardOf(panel: string, owner: number): ((touch: boolean) => boolean) | undefined {
+  return bucket(owner)?.get(normalizePanelKey(panel) ?? panel)?.remoteAllowed
+}
 /** طرح ۱۴۰۵: آیا همین قسمت با یک نشست نگهبان‌دار (مجوز راه دور، کد یا زمان‌بندی‌شده) برای sender فعلی باز است؟ */
 export function isGuardedPanelOpen(panel: string, explicitOwner?: number): boolean {
   return !!alive(normalizePanelKey(panel) ?? panel, ownerOf(explicitOwner), true)?.remoteAllowed

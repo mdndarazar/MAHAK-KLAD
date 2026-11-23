@@ -545,6 +545,18 @@ export function panelTitle(key: string): string {
 }
 
 /**
+ * طرح ۱۴۰۵ §۳-۱۵ (۲۵-۱۰) — قسمت کد یک‌بارمصرف هر کلید قفل: فقط «قسمت»های عادی با کد «سایر ماژول‌ها»؛
+ * قسمت‌های پولی، قسمت‌های تازه و همهٔ قفل‌های کار با کد «حساس». کلید ناشناس ⇒ null («پیش‌فرض رد»).
+ * متن پرانتزهای دو قسمت در تب «رمز مدیر و خروج» هم از همین ساخته می‌شود تا متن و رفتار جدا نشوند.
+ */
+export type OneTimeCodeSection = 'sensitive' | 'other'
+export function codeSectionOfPanel(key: string): OneTimeCodeSection | null {
+  const p = LOCKED_PANELS.find((x) => x.key === key)
+  if (!p) return null
+  return p.kind === 'part' && p.tier === 'normal' ? 'other' : 'sensitive'
+}
+
+/**
  * ===========================================================================
  * بند ۱ — «مدیریت قفل رمز دوم به‌صورت ماژولار» (تنظیمات → رمز → قفل ماژول‌ها)
  *

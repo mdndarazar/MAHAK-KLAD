@@ -6,7 +6,8 @@ import { BrowserWindow, ipcMain } from 'electron'
 import { dirname, join, posix, win32 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { REMOTE_AUTH_CHANNELS, REMOTE_GT_PREFIX, remoteImplementationReady } from '../../shared/remoteAuthChannels'
-import { cancelForWindow, claimRemotePanel, getRequestStatus, remotePanelSecondsLeft, remoteRegistryInitialized, requestCode } from '../services/RemoteGrantRegistry'
+import { cancelForWindow, claimRemotePanel, getRequestStatus, remotePanelSecondsLeft, remoteRegistryInitialized, requestCode, requestRejected } from '../services/RemoteGrantRegistry'
+import { remoteRecoveryHooks } from '../services/locks/unlockHooks'
 
 // Match the application's other IPC handlers: only a live BrowserWindow may
 // own a request. A destroyed renderer must not retain pending requests or grants.
@@ -79,11 +80,23 @@ export function registerRemoteAuthHandlers(recover?: (password:string, pin:strin
     if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame) return {ok:false as const,error:'بازیابی ممکن نیست.'}
     if (!isOwnRendererPage(event.senderFrame.url)) return {ok:false as const,error:'بازیابی ممکن نیست.'}
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return {ok:false as const,error:'بازیابی ممکن نیست.'}
+    if (Object.keys(payload).join(',')==='code') {
+      // Plan 1405 §4-8: the third local option, one recovery code alone (hook registered separately).
+      const code=(payload as Record<string,unknown>).code, codeRecovery=remoteRecoveryHooks().code
+      if (!codeRecovery || typeof code!=='string' || !code || code.length>40) return {ok:false as const,error:'بازیابی ممکن نیست.'}
+      try {
+        if (!await codeRecovery(code)) return {ok:false as const,error:'بازیابی تأیید نشد.'}
+        try { remoteRecoveryHooks().recovered?.() } catch {}
+        return {ok:true as const,data:{ok:true}}
+      } catch { return {ok:false as const,error:'بازیابی تأیید نشد.'} }
+    }
     const {password,pin}=payload as Record<string,unknown>
     if (typeof password!=='string' || !password || Buffer.byteLength(password,'utf8')>128 ||
         typeof pin!=='string' || !/^[0-9]{6}$/.test(pin)) return {ok:false as const,error:'بازیابی ممکن نیست.'}
     try {
-      return await recover(password,pin) ? {ok:true as const,data:{ok:true}} : {ok:false as const,error:'بازیابی تأیید نشد.'}
+      if (!await recover(password,pin)) return {ok:false as const,error:'بازیابی تأیید نشد.'}
+      try { remoteRecoveryHooks().recovered?.() } catch {}
+      return {ok:true as const,data:{ok:true}}
     } catch { return {ok:false as const,error:'بازیابی تأیید نشد.'} }
   })
   ipcMain.handle(REMOTE_AUTH_CHANNELS.request, async (event, payload: { panel?: string }) => {
@@ -100,7 +113,9 @@ export function registerRemoteAuthHandlers(recover?: (password:string, pin:strin
     const requestId = String(payload?.requestId ?? '').trim()
     if (!panel || !requestId) return { ok: false as const, error: 'درخواست مشخص نشده' }
     const owner = ownerOf(event)
-    return { ok: true as const, data: { state: getRequestStatus(owner, panel, requestId) } }
+    const state = getRequestStatus(owner, panel, requestId)
+    // Plan 1405 §4-1-b: a request rejected with the bot's button shows «مدیر رد کرد».
+    return { ok: true as const, data: state === 'UNAVAILABLE' && requestRejected(owner, panel, requestId) ? { state, rejected: true } : { state } }
   })
 
   ipcMain.handle(REMOTE_AUTH_CHANNELS.claim, async (event, payload: { panel?: string; requestId?: string; gt?: string }) => {

@@ -781,9 +781,25 @@ export const IPC = {
   messengerRecipientRemove: 'messenger:recipient:remove',
   messengerTest: 'messenger:test',
   messengerResetVault: 'messenger:vault:reset',
+  /** مرحلهٔ ۶ (§۴-۱-ب): «پاسخ ربات به دکمه‌ها» و اجازهٔ تأیید هر گیرنده؛ هر دو رمز تایپی مدیر */
+  messengerSetBotButtons: 'messenger:bot-buttons',
+  messengerRecipientApprove: 'messenger:recipient:approve',
   // طرح ۱۴۰۵ — دروازهٔ مرکزی قفل‌ها (§۳-۷، §۳-۱۳، §۳-۱۷)
   gateUnlock: 'gate:unlock',
   gateCloseAll: 'gate:close-all',
   lockDurationsGet: 'lock-durations:get',
-  lockDurationsSet: 'lock-durations:set'
+  lockDurationsSet: 'lock-durations:set',
+  // مرحلهٔ ۶ — کدهای یک‌بارمصرف (§۳-۱۵) و مجوز زمان‌بندی‌شده (§۳-۱۶)
+  locksRedeemCode: 'locks:redeem-code',
+  locksCodesStatus: 'locks:codes:status',
+  locksCodesCreate: 'locks:codes:create',
+  locksCodesRevoke: 'locks:codes:revoke',
+  locksCodesUnlock: 'locks:codes:unlock',
+  scheduledGrantsList: 'scheduled-grants:list',
+  scheduledGrantsCreate: 'scheduled-grants:create',
+  scheduledGrantsCancel: 'scheduled-grants:cancel',
+  // مرحلهٔ ۶ — کدهای بازیابی توقف اضطراری (§۴-۸)؛ فقط پنجرهٔ اصلی، ساخت و باطل کردن با رمز تایپی مدیر
+  recoveryCodesStatus: 'remote-recovery-codes:status',
+  recoveryCodesCreate: 'remote-recovery-codes:create',
+  recoveryCodesRevoke: 'remote-recovery-codes:revoke'
 } as const

@@ -24,6 +24,7 @@ import { isGuardedPanelOpen, isManagerSessionUnlocked, isPanelUnlocked } from '.
 import { currentGateCall, currentGateFrame, noteGateMethod, runInGateFrame, type GateCall, type GateFrame, type GateMethodRecord, type GateScope } from './callContext'
 import { lockDurationMs } from './durations'
 import { addGateTicket, peekGateTicket, takeGateTicket } from './tickets'
+import { guardedEntryFor } from './unlocks'
 
 export type GateIds = string | readonly string[]
 
@@ -151,7 +152,7 @@ export async function gateSession<T>(id: GateIds, fn: () => T): Promise<T | unde
     const parts = pending.filter((e) => e.category === 2), actions = pending.filter((e) => e.category !== 2)
     if (parts.every((e) => isPanelUnlocked(e.lockKey)) && actions.every((e) => peekGateTicket(call.owner, e.id))) {
       const fromTicket = takeTickets(call, actions)
-      const method = fromTicket || (parts.length ? { key: isGuardedPanelOpen(parts[0].lockKey) ? 'REMOTE_GRANT' as const : 'PANEL_PASSWORD' as const } : null)
+      const method = fromTicket || (parts.length ? guardedMethod(call.owner, parts[0].lockKey) ?? { key: 'PANEL_PASSWORD' as const } : null)
       pass(call, entries, 'PANEL', method)
       return undefined
     }
@@ -175,11 +176,22 @@ export function emptyPanelPasswordScope(panel: string): GateScope | null {
     noteGateMethod({ key: 'MANAGER_SESSION' })
     return 'MANAGER'
   }
-  if (isGuardedPanelOpen(normalizePanelKey(panel) ?? panel)) {
-    noteGateMethod({ key: 'REMOTE_GRANT' })
+  const via = guardedMethod(currentGateCall()!.owner, normalizePanelKey(panel) ?? panel)
+  if (via) {
+    noteGateMethod(via)
     return 'PANEL'
   }
   return null
+}
+
+/**
+ * روش نشست نگهبان‌دارِ زندهٔ همین پنجره و کلید: کد یک‌بارمصرف (با شماره) یا مجوز زمان‌بندی‌شده از ثبت‌شان،
+ * وگرنه مجوز راه دور. null یعنی نشست نگهبان‌دار نیست (مثلاً رمز دوم).
+ */
+function guardedMethod(owner: number, key: string): GateMethodRecord | null {
+  if (!isGuardedPanelOpen(key)) return null
+  const entry = guardedEntryFor(owner, key)
+  return entry ? { key: entry.method, ...(entry.number ? { number: entry.number } : {}) } : { key: 'REMOTE_GRANT' }
 }
 
 /**

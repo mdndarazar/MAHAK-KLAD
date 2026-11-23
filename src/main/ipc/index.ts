@@ -83,6 +83,8 @@ import { blankGateMarkers, runInGateCall } from '../services/locks/callContext'
 import { clearGateTickets } from '../services/locks/tickets'
 import { gateAction, gateSession } from '../services/locks/gate'
 import { registerLockHandlers } from '../services/locks/lockIpc'
+import { startScheduledGrantsRuntime } from '../services/locks/scheduledGrantsRuntime'
+import { registerRecoveryCodeHandlers } from '../services/cloud/recoveryCodesIpc'
 import { setAccessEventWriter } from '../services/locks/accessEvents'
 import { backupApplyGateIds, creditPrintGateIds, rawSettingGateIds } from '@shared/gateCatalog'
 import { trendService, stockInsightService, profitService, costEngine, targetService } from '../services/management'
@@ -2020,8 +2022,15 @@ export function registerIpcHandlers(): void {
     return smsOptOutService.remove((p as any)?.id, { userId: await shiftService.currentStaffId() })
   })
   // طرح ۱۴۰۵ — دروازهٔ مرکزی قفل‌ها: راه «رمز» پنجرهٔ قفل، «بستن همه» و پروندهٔ مدت‌ها؛ ردیف‌های ACCESS_EVENT
-  registerLockHandlers(handle, { unlock: IPC.gateUnlock, closeAll: IPC.gateCloseAll, durationsGet: IPC.lockDurationsGet, durationsSet: IPC.lockDurationsSet })
-  setAccessEventWriter((after, userId) => auditOrThrow(prisma, { action: AuditAction.ACCESS_EVENT, entity: 'Access', userId, after: JSON.stringify(after) }))
+  registerLockHandlers(handle, { unlock: IPC.gateUnlock, closeAll: IPC.gateCloseAll, durationsGet: IPC.lockDurationsGet, durationsSet: IPC.lockDurationsSet,
+    redeemCode: IPC.locksRedeemCode, codesStatus: IPC.locksCodesStatus, codesCreate: IPC.locksCodesCreate, codesRevoke: IPC.locksCodesRevoke,
+    codesUnlock: IPC.locksCodesUnlock, scheduledList: IPC.scheduledGrantsList, scheduledCreate: IPC.scheduledGrantsCreate, scheduledCancel: IPC.scheduledGrantsCancel })
+  setAccessEventWriter((after, userId, action) => auditOrThrow(prisma, action === 'AUTH_LOCKOUT'
+    ? { action: AuditAction.AUTH_LOCKOUT, entity: 'OneTimeCodes', userId, after: JSON.stringify(after) }
+    : { action: AuditAction.ACCESS_EVENT, entity: 'Access', userId, after: JSON.stringify(after) }))
+  // طرح ۱۴۰۵ §۳-۱۶ و §۴-۸ — زمان‌بند مجوزهای زمان‌بندی‌شده و کانال‌های کدهای بازیابی (فقط پنجرهٔ اصلی)
+  try { startScheduledGrantsRuntime() } catch (error) { console.error('[scheduled-grants] unavailable', error) }
+  try { registerRecoveryCodeHandlers() } catch (error) { console.error('[recovery-codes] unavailable', error) }
   // طرح ۱۴۰۵ · موردهای ۱۳ و ۱۵ — پیام‌رسان تلگرام و بله (پیش‌فرض خاموش؛ خطایش فروشگاه را نمی‌خواباند)
   try { registerMessengerHandlers() } catch (error) { console.error('[messenger] unavailable', error) }
 }

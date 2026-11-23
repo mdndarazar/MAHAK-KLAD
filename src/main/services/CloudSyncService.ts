@@ -16,6 +16,7 @@ import { panelTitle } from '../../shared/panels'
 import { noteAccessEvent } from './locks/accessEvents'
 import { addGateTicket, clearGateTickets } from './locks/tickets'
 import { lockDurationMs } from './locks/durations'
+import { closeAllUnlocksFromRemote, setRemoteApprovalsStopped, setRemoteRecoveryHooks } from './locks/unlockHooks'
 import { remoteImplementationReady } from '../../shared/remoteAuthChannels'
 import { remoteSettingEnabled } from './cloud/remoteSettings'
 import { createCloudReader } from './cloud/cloudReader'
@@ -41,6 +42,8 @@ type Scheduler = ReturnType<typeof createExperimentalHubScheduler>
 let starting:Promise<void>|null=null, stopping:Promise<void>|null=null
 let hub:Hub|null=null, scheduler:Scheduler|null=null, state:Store|null=null
 let quitHookInstalled=false, quitAfterStop=false, stopRequested=false, handlersRegistered=false, failed=false, shutdownFailed=false
+// Plan 1405 §3-17: one «close all» per delivered ALL revocation (a retried delivery re-applies it).
+let lastClosedRevocation=0
 // Last startup failure message for the owner's setup page (fixed strings and
 // local file errors only; never credentials). Cleared by a successful start.
 let lastStartError:string|null=null
@@ -183,6 +186,17 @@ async function startConfigured(owner:RemoteOwner|null):Promise<void> {
         if (entry.kind==='ALL') {
           if (!electron.Notification.isSupported()) throw new Error('Desktop notification unavailable')
           new electron.Notification({title:'کنترل از راه دور',body:'دسترسی‌های راه دور بسته شدند.'}).show()
+          // Plan 1405 §3-17: P1 and P2 also close code sessions, one-time tickets and
+          // the open scheduled grant; P2 (approvals stopped) also cancels future ones.
+          if (entry.id!==lastClosedRevocation) {
+            lastClosedRevocation=entry.id
+            closeAllUnlocksFromRemote({source:'گوشی (بستن همه یا توقف اضطراری)'})
+            const live=localHub
+            if (live) void live.approvalsStopped().then(stopped=>{
+              setRemoteApprovalsStopped(stopped)
+              if (stopped) closeAllUnlocksFromRemote({cancelFuture:true,source:'توقف اضطراری کامل (P2)'})
+            },()=>setRemoteApprovalsStopped(true))
+          }
         }
         return undefined
       }},
@@ -191,11 +205,21 @@ async function startConfigured(owner:RemoteOwner|null):Promise<void> {
     if (stopRequested) throw new Error('Remote startup cancelled')
     if (!handlersRegistered) {
       registerRemoteAuthHandlers(async(password,pin)=>hub ? hub.recoverPanic(password,pin) : false,PANELS)
+      // Plan 1405 §4-8: the third local option, one recovery code alone, on the same channel.
+      setRemoteRecoveryHooks({code:async code=>{
+        const n=hub ? await hub.recoverPanicWithCode(code) : 0
+        if (!n) return false
+        noteAccessEvent('RECOVERY_CODE_USED',{number:n})
+        try { if (electron.Notification.isSupported()) new electron.Notification({title:'کنترل از راه دور',body:`توقف اضطراری کامل با کد بازیابی شمارهٔ ${n} پشت همین رایانه برداشته شد.`}).show() } catch {}
+        return true
+      },recovered:()=>setRemoteApprovalsStopped(false)})
       handlersRegistered=true
     }
     localScheduler=createExperimentalHubScheduler(localHub)
     localScheduler.start()
     state=localState;hub=localHub;scheduler=localScheduler
+    // P2 survives restarts: the desktop's bot buttons stay closed while it is latched.
+    void localHub.approvalsStopped().then(setRemoteApprovalsStopped,()=>setRemoteApprovalsStopped(true))
   } catch (error) {
     if (localScheduler) await localScheduler.stop().catch(()=>{})
     let cleanupConfirmed=!hubStartAttempted
@@ -247,6 +271,20 @@ export function startCloudSync(options?:{owner?:RemoteOwner}):Promise<void> {
  * password check: replaces the phone owner's credentials in the running hub. */
 export function replaceRemoteOwner(owner:RemoteOwner):Promise<boolean> {
   return hub && !stopping ? hub.replaceOwner(owner) : Promise.resolve(false)
+}
+
+/** Plan 1405 §4-8: P2 recovery codes in the running hub (the caller has
+ * verified the typed manager password for create and revoke). */
+export function remoteRecoveryCodes(op:'create'|'revoke'|'status'):Promise<{ok:boolean;codes?:string[];total?:number;remaining?:number;lockedUntil?:number}> {
+  return hub && !stopping ? hub.recoveryCodes(op) : Promise.resolve({ok:false})
+}
+
+/** Plan 1405 §4-1-b: the bot buttons may approve only while the hub runs and
+ * approvals are not stopped (P2 or pause), checked live in the hub. */
+export async function remoteApprovalsLive():Promise<boolean> {
+  const current=hub
+  if (!current || stopping) return false
+  try { const stopped=await current.approvalsStopped(); setRemoteApprovalsStopped(stopped); return !stopped } catch { return false }
 }
 
 /** Internal status only; no credentials, keys or paths are returned. */

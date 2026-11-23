@@ -49,7 +49,8 @@ export const EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = Object.
   PRICE_EDIT: [],
   PRICE_BULK_ADJUST: ['itemCount'],
   PRICE_BULK_REVERT: ['itemCount'],
-  AUTH_LOCKOUT: [],
+  /** مرحلهٔ ۶: قفل شدن کدهای یک‌بارمصرف (`kind: ONE_TIME_CODES`) */
+  AUTH_LOCKOUT: ['kind', 'minutes', 'windowNo'],
   PANEL_LOCKS_UPDATE: [],
   SETTINGS_UPDATE: [],
   CREDIT_VOID: [],
@@ -466,6 +467,11 @@ function mapRow(row: AuditRowLite, ctx: EventContext, h: ReturnType<typeof makeH
         n(f.itemCount) !== null ? `${num(f.itemCount)} کالا` : '', `کاربر: ${h.who(row.userId)}`
       ])]
     case 'AUTH_LOCKOUT':
+      if (f.kind === 'ONE_TIME_CODES') {
+        return [h.event(row, `🔒 ورود کد یک‌بارمصرف پس از ۵ تلاش اشتباه ${n(f.minutes) !== null ? `${num(f.minutes)} دقیقه` : ''} قفل شد`, [
+          n(f.windowNo) !== null ? `پنجرهٔ ${num(f.windowNo)}` : '', 'مدیر می‌تواند در «تنظیمات ← رمز مدیر و خروج» قفل کدها را بردارد.'
+        ], { important: true })]
+      }
       return [h.event(row, '🔒 رمز پس از تلاش‌های اشتباه قفل شد', [row.userId ? `کاربر: ${h.who(row.userId)}` : ''], { important: true })]
     case 'PANEL_LOCKS_UPDATE':
       return [h.event(row, '🔐 قفل‌های برنامه عوض شد', [`کاربر: ${h.who(row.userId)}`], { important: true })]
@@ -514,19 +520,31 @@ function accessEvent(row: AuditRowLite, f: Record<string, unknown>, h: ReturnTyp
   const where = [lock ? `قفل: ${lock}` : '', n(f.number) !== null ? `شمارهٔ ${num(f.number)}` : '', n(f.windowNo) !== null ? `پنجرهٔ ${num(f.windowNo)}` : ''].filter(Boolean).join(' · ')
   const by = `کاربر: ${h.who(row.userId)}`
   const K = ACCESS_EVENT_KINDS
+  // `decision` فقط برچسب ثابت است (قسمت کد، بازه، دلیل)؛ هیچ کد یا متن آزاد.
+  const label = typeof f.decision === 'string' ? f.decision.slice(0, 40) : ''
+  const sensitive = label === 'حساس'
   switch (kind) {
-    case K.CODE_USED: return [h.event(row, '🔑 کد یک‌بارمصرف مصرف شد', [where, by], { important: true })]
-    case K.CODE_WRONG: return [h.event(row, '🔑 کد یک‌بارمصرف اشتباه وارد شد', [where, by], { important: true })]
+    // مرحلهٔ ۶: مصرف کد «حساس» ⚠️ است (در «فقط موارد مهم» هم)؛ کد «سایر ماژول‌ها» مثل خبرهای عادی.
+    case K.CODE_USED: return [h.event(row, `🔑 کد یک‌بارمصرف ${sensitive ? 'حساس ' : ''}مصرف شد`, [where, label && !sensitive ? `قسمت: ${label}` : '', n(f.minutes) !== null ? `تا ${num(f.minutes)} دقیقه` : ''], { important: sensitive || !label })]
+    case K.CODE_WRONG: return [h.event(row, '🔑 کد یک‌بارمصرف اشتباه وارد شد', [where], { important: true })]
     case K.CODES_CREATED: return [h.event(row, '🔑 کدهای یک‌بارمصرف تازه ساخته شد', [n(f.count) !== null ? `تعداد: ${num(f.count)}` : '', lock ? `بخش: ${lock}` : '', by], { important: true })]
     case K.CODES_REVOKED: return [h.event(row, '🔑 کدهای یک‌بارمصرف باطل شد', [lock ? `بخش: ${lock}` : '', by])]
+    case K.CODES_UNLOCKED: return [h.event(row, '🔓 قفل ورود کدهای یک‌بارمصرف به دست مدیر برداشته شد', [by])]
+    case K.CODES_FILE_BROKEN: return [h.event(row, '⚠️ پروندهٔ کدهای یک‌بارمصرف خراب بود؛ همهٔ کدها باطل است. کد تازه بسازید.', [], { important: true })]
+    case K.RECOVERY_CODES_CREATED: return [h.event(row, '🆘 کدهای بازیابی توقف اضطراری تازه ساخته شد', [n(f.count) !== null ? `تعداد: ${num(f.count)}` : '', 'کدهای قبلی باطل شد.'], { important: true })]
+    case K.RECOVERY_CODES_REVOKED: return [h.event(row, '🆘 کدهای بازیابی توقف اضطراری باطل شد', [], { important: true })]
+    case K.RECOVERY_CODE_USED: return [h.event(row, `🆘 توقف اضطراری کامل با کد بازیابی${n(f.number) !== null ? ` شمارهٔ ${num(f.number)}` : ''} پشت رایانه برداشته شد`, ['اگر شما نبودید، همین حالا کدهای بازیابی را باطل کنید.'], { important: true })]
     case K.REMOTE_GRANT_OPENED: return [h.event(row, '📱 مجوز راه دور باز شد', [where, by], { important: true })]
-    case K.REMOTE_GRANT_CLOSED: return [h.event(row, '📱 مجوز راه دور بسته شد', [where, by])]
-    case K.SCHEDULED_GRANT_CREATED: return [h.event(row, '🗓️ مجوز زمان‌بندی‌شده ساخته شد', [where, by], { important: true })]
-    case K.SCHEDULED_GRANT_CANCELED: return [h.event(row, '🗓️ مجوز زمان‌بندی‌شده لغو شد', [where, by])]
-    case K.SCHEDULED_GRANT_OPENED: return [h.event(row, '🗓️ مجوز زمان‌بندی‌شده باز شد', [where])]
-    case K.SCHEDULED_GRANT_CLOSED: return [h.event(row, '🗓️ مجوز زمان‌بندی‌شده بسته شد', [where])]
-    case K.DURATIONS_CHANGED: return [h.event(row, '⚙️ مدت مجوزها و کدها عوض شد', [n(f.minutes) !== null ? `${num(f.minutes)} دقیقه` : '', by], { important: true })]
-    case K.BOT_DECISION: return [h.event(row, '🤖 تصمیم از ربات', [typeof f.recipientName === 'string' ? `گیرنده: ${f.recipientName.slice(0, 60)}` : '', typeof f.decision === 'string' ? `تصمیم: ${f.decision.slice(0, 40)}` : '', where], { important: true })]
+    case K.REMOTE_GRANT_CLOSED: return [h.event(row, '📱 مجوز راه دور بسته شد', [where, label ? `به دست: ${label}` : '', by])]
+    case K.SCHEDULED_GRANT_CREATED: return [h.event(row, '🗓️ مجوز زمان‌بندی‌شده ساخته شد', [where, label ? `بازه: ${label}` : '', by], { important: true })]
+    case K.SCHEDULED_GRANT_CANCELED:
+      if (label === 'ساعت سیستم عوض شد') return [h.event(row, '⚠️ ساعت سیستم عوض شد؛ مجوزهای زمان‌بندی‌شده لغو شد', [where], { important: true })]
+      return [h.event(row, '🗓️ مجوز زمان‌بندی‌شده لغو شد', [where, label ? `دلیل: ${label}` : '', by])]
+    case K.SCHEDULED_GRANT_OPENED: return [h.event(row, '🗓️ مجوز زمان‌بندی‌شده باز شد', [where, label])]
+    case K.SCHEDULED_GRANT_CLOSED: return [h.event(row, '🗓️ مجوز زمان‌بندی‌شده بسته شد', [where, label])]
+    case K.DURATIONS_CHANGED: return [h.event(row, '⚙️ مدت مجوزها و کدها عوض شد', [lock ? `${lock}: ${n(f.minutes) !== null ? `${num(f.minutes)} دقیقه` : ''}` : (n(f.minutes) !== null ? `${num(f.minutes)} دقیقه` : ''), by], { important: true })]
+    // تأیید، رد و «بستن همه» با دکمهٔ ربات را خود موتور پیام‌رسان همان لحظه به همهٔ گیرنده‌ها خبر می‌دهد.
+    case K.BOT_DECISION: return []
     default: return []
   }
 }
