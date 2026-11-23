@@ -1,4 +1,4 @@
-SHA=779d4f0dd53a8c01728b28bd3cc00d6df9bca8b5
+SHA=b31964a1141afd50da7251323e0161bb6a111d14
 branch=arena/e478473a-mahak-klad
-date=2026-11-21T16:24:57Z
-note=plan-review package for Claude: docs-only changes since 2df8a2a (the 13-item change plan incl. the owner red-line clarification in section 23, its assets and the corrected Claude prompt in docs/); code identical to eb2880b (the version installed on the owner PC; CI green there); not a new build; remote is OFF by default
+date=2026-11-23T13:27:04Z
+note=final delivery of plan 1405 (manager password and remote permission changes, stages 0-8); code identical to 85b3302 (only docs after it); CI green on c78afba with the same code: installer 45181023771, remote 45181011852 (all 128 steps); full local test run on 85b3302 equals the stage-0 baseline (816 files, 676 pass, 140 known failures, no regression); remote is OFF by default; not yet installed or tested on the owner PC or phone
