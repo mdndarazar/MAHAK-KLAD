@@ -65,7 +65,7 @@ test('owner grants a manager approval for one panel from the phone; removal clos
     await signIn(owner, 'owner', 'owner-test-password')
     await until(() => !owner('approval-acl').hidden, 'approval permissions shown to the owner')
     const choices = owner('approval-acl-list').children.map(label => ({ input: label.children[0], text: label.children[1].textContent }))
-    assert.deepEqual(choices.map(c => c.text), [' تأیید کالاها', ' تأیید تنظیمات'])
+    assert.deepEqual(choices.map(c => c.text), [' تأیید کالا و انبار › کالاها', ' تأیید تنظیمات'])
     choices[0].input.checked = true
     // A viewer never receives approval permission, even with a box ticked
     // (the hub would refuse such an invitation).

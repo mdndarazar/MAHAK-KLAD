@@ -32,12 +32,13 @@ const EXPECTED = {
     'pages/SalesReturn.tsx': ['lockPw', 'creditLimitPw', 'managerPw', 'fullRefundPw', 'correctionUnlockPassword', 'correctionAuthPassword', 'voidAuthPassword'],
     'pages/SecondaryStock.tsx': ['toStorePw'],
     'pages/Settings.tsx': ['bundlePw', 'discountPw', 'discountTransferPw', 'byTimePw', 'custDelPw', 'policyPw', 'timePw', 'backupGatePw', 'panelManagerPw', 'slimManagerPw', 'applyPassword'],
-    // کلید API پیامک رمز دروازه نیست؛ نشانگر دقیقش در handle() خالی و «کلید فعلی بماند» می‌شود (بیرون از §۱۰-۱)
-    'pages/SmsPanel.tsx': ['form.apiKey', 'pw'], 'pages/Stocktake.tsx': ['schedulePw']
+    'pages/SmsPanel.tsx': ['pw'], 'pages/Stocktake.tsx': ['schedulePw']
   },
   typedOnly: {
     'components/GateUnlockDialog.tsx': ['password'], 'components/ManagerGate.tsx': ['password'],
     'components/MessengerSettings.tsx': ['password', 'tokens[p]'], 'pages/Pos.tsx': ['saleOperatorPassword'],
+    // کلید API پیامک رمز دروازه نیست (رازِ غیرِرمز)؛ اجازهٔ جدای مالک ۱۴۰۵/۰۹/۰۲
+    'pages/SmsPanel.tsx': ['form.apiKey'],
     'pages/Settings.tsx': ['curPw', 'newPw', 'newPw2', 'securityPw', 'panelManagerPw', 'panelManagerPw', "panelPw[panel.key] ?? ''", "shiftPw[id] ?? ''", 'staffCorrectionApprovalPw']
   },
   rawIdentity: {

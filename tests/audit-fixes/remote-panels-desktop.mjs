@@ -14,11 +14,11 @@ import { LOCKED_PANELS } from '../../src/shared/panels.ts'
 // lock-screen button. Real IPC handlers and registry in an isolated bundle
 // (simulated Electron window); the renderer check is structural only.
 test('the phone-unlockable panels are real locked panels with titles', () => {
-  assert.deepEqual([...REMOTE_PANELS], ['products', 'settings', 'secondary-stock'])
-  for (const key of REMOTE_PANELS) {
-    const panel = LOCKED_PANELS.find(item => item.key === key)
+  assert.deepEqual([...REMOTE_PANELS].slice(0, 44), LOCKED_PANELS.filter(item => item.kind === 'part').map(item => item.key)); assert.equal(REMOTE_PANELS.length, 92)
+  return import('../../src/shared/gateCatalog.ts').then(({ GATE_CATALOG }) => { for (const key of REMOTE_PANELS) {
+    const panel = LOCKED_PANELS.find(item => item.key === key) ?? LOCKED_PANELS.find(item => GATE_CATALOG[key]?.category === 3 && item.key === GATE_CATALOG[key].lockKey)
     assert.ok(panel && typeof panel.title === 'string' && panel.title.length > 0, key)
-  }
+  } })
 })
 
 test('the request IPC refuses a panel without an approval policy; the host passes the shared list', async () => {
@@ -38,7 +38,7 @@ test('the request IPC refuses a panel without an approval policy; the host passe
     api.registerRemoteAuthHandlers(undefined, REMOTE_PANELS)
     const sender = Object.assign(new EventEmitter(), { id: 7, isDestroyed: () => false })
     const request = handlers.get('remoteAuth:request')
-    for (const panel of ['pos', 'sales-return', 'cash-close', 'constructor', 'products ']) {
+    for (const panel of ['not-a-panel', 'custody', 'act-refund-full', 'constructor', 'products ']) {
       const result = await request({ sender }, { panel })
       if (panel === 'products ') { assert.equal(result.ok, true, 'surrounding spaces are trimmed as before'); continue }
       assert.deepEqual(result, { ok: false, error: 'این پنل با تأیید گوشی باز نمی‌شود.' }, panel)
