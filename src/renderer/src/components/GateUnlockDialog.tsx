@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Modal from './Modal'
 import PasswordField from './PasswordField'
 import { RemoteRequestBox } from './RemoteRequestBox'
+import OneTimeCodeBox from './OneTimeCodeBox'
 import { call, CH, GATE_REQUIRED_EVENT } from '../lib/api'
 import { useManagerSession } from '../hooks/useManagerSession'
 import { gateEntry } from '@shared/gateCatalog'
@@ -15,7 +16,7 @@ import { faDigits } from '@shared/jalali'
  * نام فارسی کار یا قسمت را نشان می‌دهد، با این راه‌ها:
  *   ۱) «رمز»: رمز مدیر، یا رمز دوم/سوم همان کلید. برای «قفل کار» یک بلیت یک‌بار برای همین پنجره می‌سازد
  *      (رمز دوم/سوم هر بار تایپ می‌شود)؛ برای «قسمت» نشست همان قسمت. تلاش اشتباه روی همان کلید شمرده می‌شود.
- *   ۲) «کد یک‌بارمصرف»: مرحلهٔ ۶ (این‌جا فقط یادداشت).
+ *   ۲) «کد یک‌بارمصرف» (§۳-۱۵): برای کار فقط کد «حساس» (یک بار)؛ برای قسمت طبق ردهٔ آن.
  *   ۳) «درخواست مجوز از مدیر (راه دور)»: همان `RemoteRequestBox`، با شناسهٔ کار یا کلید قسمت.
  *   ۴) «بستن».
  * هیچ صفحهٔ کاری برای دکمه‌های کد و مجوز ویرایش نمی‌شود. کارِ «قفل خاموش» هرگز این پنجره را نمی‌بیند.
@@ -93,7 +94,7 @@ export default function GateUnlockDialog() {
             <button className="btn btn-primary w-full" disabled={busy || !password.trim()} onClick={() => void unlock()}>
               {busy ? 'در حال بررسی…' : isAction ? 'مجاز کردن یک بار' : 'باز کردن این بخش'}
             </button>
-            <div className="text-[12px] text-slate-500">کد یک‌بارمصرف: به‌زودی در همین پنجره.</div>
+            <OneTimeCodeBox target={entry.id} onDone={(text) => setDone(text)} />
             <RemoteRequestBox panel={entry.id} />
           </>
         )}

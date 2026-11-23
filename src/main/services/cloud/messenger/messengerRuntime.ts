@@ -8,12 +8,18 @@
  *  - راه‌اندازی از `registerIpcHandlers` (نه `src/main/index.ts`). وقتی پروندهٔ تنظیمات نیست، هیچ زمان‌سنجی،
  *    اتصالی یا قلابی ساخته نمی‌شود.
  *  - قلاب بازگردانی و ادغام از `desktopBackupCoordination` و قلاب بستن برنامه فقط وقتی پیام‌رسان روشن است.
+ *  - مرحلهٔ ۶: دکمه‌های ربات با پل `botRemoteBridge` (همان `createGrant` و لغو درخواست)، «بستن همه» با همان قلاب
+ *    «بستن همه»، و ردیف `BOT_DECISION` با همان نویسندهٔ `ACCESS_EVENT`.
  */
 import * as electron from 'electron'
 import { databaseFile } from '../../../db/client'
 import { salesService } from '../../SalesService'
 import { staffReportService } from '../../StaffReportService'
 import { setDesktopBackupHooks } from '../desktopBackupCoordination'
+import { createBotRemoteBridge } from '../botRemoteBridge'
+import { remoteApprovalsLive } from '../../CloudSyncService'
+import { noteAccessEvent } from '../../locks/accessEvents'
+import { closeAllUnlocksFromRemote } from '../../locks/unlockHooks'
 import type { FetchLike } from './messengerAdapters'
 import { createMessengerDb } from './messengerDb'
 import { createMessengerEngine, type MessengerEngine } from './messengerEngine'
@@ -64,6 +70,12 @@ export function messengerEngine(): MessengerEngine {
     fetchFor: sessionFetch,
     databasePath: databasePath(),
     schedule: true,
+    // مرحلهٔ ۶ (§۴-۱-ب): دکمه‌های ربات از همان مسیر مجوز راه دور؛ تأیید فقط با هاب روشن و بی P2.
+    remote: createBotRemoteBridge({
+      available: () => remoteApprovalsLive(),
+      closeAll: () => closeAllUnlocksFromRemote({ source: 'ربات پیام‌رسان' }),
+      note: (f) => noteAccessEvent('BOT_DECISION', { decision: f.decision, recipientName: f.recipientName, titleFa: f.titleFa, windowNo: f.windowNo })
+    }),
     powerSave: electron.powerSaveBlocker ? {
       start: () => electron.powerSaveBlocker.start('prevent-app-suspension'),
       stop: (id: number) => electron.powerSaveBlocker.stop(id)

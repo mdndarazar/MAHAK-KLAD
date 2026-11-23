@@ -48,7 +48,9 @@ const EXPECTED = {
     'pages/SalesReports.tsx': ['exVoidApproverPassword', 'exCorrectionApproverPassword'], 'pages/SalesReturn.tsx': ['correctionApproverPassword', 'voidApproverPassword']
   },
   rawKeymaking: {
-    'components/RemoteGrantControls.tsx': ['password'], 'pages/RemoteLink.tsx': ['password', 'passwordAgain', 'pin', 'pinAgain', 'managerPassword']
+    'components/RemoteGrantControls.tsx': ['password'], 'pages/RemoteLink.tsx': ['password', 'passwordAgain', 'pin', 'pinAgain', 'managerPassword'],
+    // مرحلهٔ ۶: کدهای یک‌بارمصرف، مجوز زمان‌بندی‌شده و کدهای بازیابی — همه «کلیدسازی» با رمز تایپی مدیر
+    'components/OneTimeCodesSettings.tsx': ['password'], 'components/ScheduledGrantsBox.tsx': ['password'], 'components/RecoveryCodesBox.tsx': ['password']
   },
   // صفحه رمز خالی را خودش رد نمی‌کند، پس نشست و بلیت بی ویرایش کار می‌کنند؛ fix-s143:84 همین کادر خام را می‌سنجد
   rawGateKept: { 'pages/CreditManagement.tsx': ['issueManagerPw', 'issueManagerPw'] },
@@ -81,7 +83,7 @@ ok('کادرهای typedOnly دقیقاً همین فهرست‌اند', norm(fo
 ok('ورودی‌های خام فقط هویتی، کلیدسازی، دروازهٔ نگه‌داشته یا بیرون از دروازه‌اند',
   norm(found.raw) === norm(merge(EXPECTED.rawIdentity, EXPECTED.rawKeymaking, EXPECTED.rawGateKept, EXPECTED.outside)), norm(found.raw))
 const total = [found.gate, found.typedOnly, found.raw].reduce((s, m) => s + Object.values(m).reduce((a, v) => a + v.length, 0), 0)
-ok(`شمار کل کادرها ${total}`, total === 93)
+ok(`شمار کل کادرها ${total}`, total === 96)
 
 console.log('\n— ۲) «موجودی سایت»: هیچ پنجرهٔ prompt در رابط نیست (§۳-۷)')
 ok('هیچ window.prompt یا prompt() در src/renderer', prompts.length === 0, prompts.join(','))

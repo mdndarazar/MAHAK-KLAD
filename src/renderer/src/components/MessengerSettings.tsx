@@ -15,6 +15,8 @@ interface RecipientView {
   id: string; provider: Provider; providerLabel: string; name: string; mode: Mode; modeLabel: string; trust: string
   active: boolean; inactiveReason: string | null; queued: number; expiredTotal: number; failedTotal: number
   lastSuccessAt: number | null; lastError: string | null
+  /** مرحلهٔ ۶: «می‌تواند درخواست مجوز را تأیید کند» (پیش‌فرض خاموش) */
+  canApprove: boolean
 }
 interface MessengerStatus {
   secureStorage: boolean
@@ -24,6 +26,10 @@ interface MessengerStatus {
   bots: Record<Provider, { configured: boolean; username: string; proxy: string } | null>
   includeCustomerName: boolean
   preventSleep: boolean
+  /** مرحلهٔ ۶ (§۴-۱-ب): «پاسخ ربات به دکمه‌ها»، در دسترس بودن پل راه دور و هشدار ۴۰۹ */
+  botButtons: boolean
+  botAvailable: boolean
+  botConflict: string | null
   recipients: RecipientView[]
   pairing: {
     provider: Provider; code: string; remainingSec: number; link: string | null; botUsername: string | null
@@ -174,6 +180,13 @@ export default function MessengerSettings() {
                 {MODES.map((m) => <option key={m.id} value={m.id}>{m.label} — {m.hint}</option>)}
               </select>
             </label>
+            {status.botAvailable && (
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={r.canApprove} disabled={busy || needPassword}
+                  onChange={(e) => void run(CH.messengerRecipientApprove, { id: r.id, canApprove: e.target.checked }, e.target.checked ? 'این گیرنده می‌تواند درخواست مجوز را با دکمهٔ ربات تأیید کند.' : 'اجازهٔ تأیید برداشته شد و مجوزهایی که او با ربات داده بود بسته شد.')} />
+                می‌تواند درخواست مجوز را با دکمهٔ ربات تأیید یا رد کند (و «بستن همهٔ مجوزها» را بزند)
+              </label>
+            )}
             <div className="kbd">در صف: {faDigits(r.queued)} · منقضی‌شده: {faDigits(r.expiredTotal)} · ناموفق: {faDigits(r.failedTotal)} · آخرین ارسال موفق: {when(r.lastSuccessAt)}</div>
             {r.lastError && <div className="kbd">آخرین خطا: {r.lastError}</div>}
             <div className="flex gap-2">
@@ -230,6 +243,27 @@ export default function MessengerSettings() {
           </div>
         )}
       </div>
+
+      {status.botAvailable && (
+        <div className="bg-white rounded shadow p-4 space-y-2">
+          <h3 className="font-bold">دکمه‌های ربات: تأیید یا رد درخواست مجوز از بیرون فروشگاه</h3>
+          <div className="kbd leading-6">
+            وقتی روشن است، هر درخواست مجوز فروشنده (همان درخواستی که روی گوشی می‌آید) برای گیرنده‌هایی که تیک «می‌تواند درخواست مجوز را تأیید کند»
+            دارند، با نام قفل، نشان «پولی» یا «یک بار»، کد ۶ رقمی مقایسه و شمارهٔ پنجره پیام می‌شود؛ با دکمهٔ «✅ تأیید» یا «❌ رد» تصمیم می‌گیرید.
+            با فرستادن «منو» به ربات، «بستن همهٔ مجوزها»، «مجوزهای باز» و «خلاصهٔ امروز» را دارید. تأیید فقط وقتی کار می‌کند که کنترل از راه دور
+            روشن است و «توقف اضطراری کامل» فعال نیست. مبلغ در پیام درخواست نمی‌آید؛ پس از انجام کار، خبر ⚠️ با مبلغ واقعی می‌آید.
+            این دکمه‌ها هرگز توقف اضطراری، بازیابی، PIN، تنظیمات یا ساخت رمز و کد را انجام نمی‌دهند.
+            <br />مجوزی که با ربات داده شده با «بستن همه»، توقف اضطراری، خاموش کردن همین کلید یا برداشتن تیک همان گیرنده بسته می‌شود (ربات عضو گوشی نیست
+            و «حذف عضو» رویش معنا ندارد). پیام‌های ربات از سرور شرکت تلگرام یا بله می‌گذرند؛ «تأیید دومرحله‌ای» حساب پیام‌رسان را حتماً روشن کنید.
+          </div>
+          {status.botConflict && <div role="alert" className="rounded px-3 py-2 bg-amber-50 border border-amber-300">{status.botConflict}</div>}
+          <label className="flex items-center gap-2 font-bold">
+            <input type="checkbox" checked={status.botButtons} disabled={busy || needPassword}
+              onChange={(e) => void run(CH.messengerSetBotButtons, { enabled: e.target.checked }, e.target.checked ? 'پاسخ ربات به دکمه‌ها روشن شد.' : 'پاسخ ربات به دکمه‌ها خاموش شد؛ مجوزهای داده‌شده با ربات بسته شد.')} />
+            پاسخ ربات به دکمه‌ها (پیش‌فرض خاموش)
+          </label>
+        </div>
+      )}
 
       <div className="bg-white rounded shadow p-4 space-y-2">
         <h3 className="font-bold">گزینه‌ها و راهنما</h3>

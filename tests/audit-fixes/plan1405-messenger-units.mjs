@@ -170,7 +170,7 @@ test('backup hooks run once per top-level restore or merge (not for the nested m
 test('wiring: channels exist, category-1 changes need the typed manager password, local window only, start from registerIpc', () => {
   const ipcSrc = read('src/main/services/cloud/messenger/messengerIpc.ts')
   const channels = Object.entries(IPC).filter(([k]) => k.startsWith('messenger'))
-  assert.equal(channels.length, 12)
+  assert.equal(channels.length, 14) // مرحلهٔ ۶: «پاسخ ربات به دکمه‌ها» و اجازهٔ تأیید هر گیرنده
   for (const [key] of channels) assert.ok(ipcSrc.includes(`IPC.${key},`), `handler for ${key}`)
   for (const key of ['messengerStatus', 'messengerPairCancel', 'messengerTest']) assert.match(ipcSrc, new RegExp(`handle\\(IPC\\.${key}, null,`), `${key} changes nothing`)
   const changing = channels.map(([k]) => k).filter((k) => !['messengerStatus', 'messengerPairCancel', 'messengerTest'].includes(k))

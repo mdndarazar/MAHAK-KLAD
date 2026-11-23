@@ -8,6 +8,7 @@ import { faDigits, toLatinDigits } from '@shared/jalali'
 import { panelTitle, type PanelKey } from '@shared/panels'
 import type { PanelAuthState, PanelGateStatus } from '@shared/types'
 import { RemoteGrantBanner, RemoteRequestBox } from './RemoteRequestBox'
+import OneTimeCodeBox from './OneTimeCodeBox'
 import { remoteImplementationReady } from '@shared/remoteAuthChannels'
 
 /** ثانیه ⇒ «۲:۳۵» (یا «۱:۰۵:۰۰» برای قفل‌های بلند). */
@@ -217,6 +218,8 @@ export default function ManagerGate({
             </button>
           )}
         </div>
+        {/* طرح ۱۴۰۵ §۳-۷ و §۳-۱۵: «کد یک‌بارمصرف» کنار درخواست مجوز؛ بی هاب و اینترنت هم کار می‌کند */}
+        <OneTimeCodeBox target={panel} />
         {remoteImplementationReady() && <RemoteRequestBox panel={panel} />}
 
         <div className="kbd leading-6">

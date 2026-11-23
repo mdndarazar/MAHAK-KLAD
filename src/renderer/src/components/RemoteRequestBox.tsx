@@ -77,6 +77,9 @@ export function RemoteRequestBox({ panel }: { panel: string }) {
   const [recoveryPin,setRecoveryPin]=useState('')
   const [recoveryMessage,setRecoveryMessage]=useState<string|null>(null)
   const [recoveryBusy,setRecoveryBusy]=useState(false)
+  // Plan 1405 §4-8: third option, one recovery code alone; §4-1-b: «مدیر رد کرد» after a bot rejection.
+  const [recoveryCode,setRecoveryCode]=useState('')
+  const [rejected,setRejected]=useState(false)
   // Shown only while this computer's remote hub is actually running (owner
   // opt-in on and started). A string literal on purpose: isolated tests bundle
   // this file with a minimal channels module.
@@ -98,6 +101,15 @@ export function RemoteRequestBox({ panel }: { panel: string }) {
     } catch {setRecoveryMessage('بازیابی تأیید نشد. رمز مدیر، PIN مالک و وضعیت اتصال را بررسی کنید.')}
     finally {setRecoveryPassword('');setRecoveryPin('');setRecoveryBusy(false)}
   }
+  const recoverWithCode=async()=>{
+    if (recoveryBusy || recoveryCode.replace(/[\s-]/g,'').length!==12) return
+    setRecoveryBusy(true);setRecoveryMessage(null)
+    try {
+      await call(REMOTE_AUTH_CHANNELS.recover as any,{code:recoveryCode})
+      setRecoveryMessage('توقف اضطراری با کد بازیابی برداشته شد؛ مدیر باید دوباره وارد گوشی شود. این کد دیگر کار نمی‌کند.')
+    } catch {setRecoveryMessage('بازیابی با کد تأیید نشد. کد را دوباره بپرسید؛ پس از ۵ کد اشتباه، ۱۵ دقیقه قفل می‌شود.')}
+    finally {setRecoveryCode('');setRecoveryBusy(false)}
+  }
 
   useEffect(() => {
     // Ignore late responses after a panel change or unmount. A request already
@@ -107,7 +119,7 @@ export function RemoteRequestBox({ panel }: { panel: string }) {
     setState('PENDING')
     setBusy(false)
     setError(null)
-    setRecoveryPassword('');setRecoveryPin('');setRecoveryMessage(null);setRecoveryOpen(false)
+    setRecoveryPassword('');setRecoveryPin('');setRecoveryMessage(null);setRecoveryOpen(false);setRecoveryCode('');setRejected(false)
     return () => { generation.current++ }
   }, [panel])
 
@@ -122,6 +134,7 @@ export function RemoteRequestBox({ panel }: { panel: string }) {
         if (stopped) return
         if (!['PENDING', 'APPROVED', 'CLAIMED', 'UNAVAILABLE'].includes(status?.state)) throw new Error('Invalid status')
         setState(status.state)
+        setRejected(status.state === 'UNAVAILABLE' && (status as { rejected?: unknown }).rejected === true)
         setError(null)
         if (status.state === 'CLAIMED') window.dispatchEvent(new Event('mahak-remote-sync'))
         if (status.state === 'CLAIMED' || status.state === 'UNAVAILABLE') return
@@ -199,6 +212,9 @@ export function RemoteRequestBox({ panel }: { panel: string }) {
         <label className="block">رمز مدیر برنامه<input className="inp w-full" type="password" autoComplete="off" value={recoveryPassword} disabled={recoveryBusy} onChange={e=>setRecoveryPassword(e.target.value)} /></label>
         <label className="block">PIN مالک راه دور<input className="inp w-full" type="password" inputMode="numeric" autoComplete="off" maxLength={6} value={recoveryPin} disabled={recoveryBusy} onChange={e=>setRecoveryPin(toLatinDigits(e.target.value))} /></label>
         <button type="button" className="btn" disabled={recoveryBusy || !recoveryPassword || !/^[0-9]{6}$/.test(recoveryPin)} onClick={()=>void recover()}>تأیید بازیابی</button>
+        <div className="border-t border-rose-200 pt-2">یا با «کد بازیابی» به‌تنهایی (کدی که مدیر تلفنی می‌گوید):</div>
+        <label className="block">کد بازیابی<input className="inp w-full text-center tracking-widest" dir="ltr" style={{unicodeBidi:'isolate'}} autoComplete="off" spellCheck={false} maxLength={16} placeholder="XXXX-XXXX-XXXX" value={recoveryCode} disabled={recoveryBusy} onChange={e=>setRecoveryCode(e.target.value.toUpperCase())} /></label>
+        <button type="button" className="btn" disabled={recoveryBusy || recoveryCode.replace(/[\s-]/g,'').length!==12} onClick={()=>void recoverWithCode()}>بازیابی با کد</button>
         {recoveryMessage && <div role="status">{recoveryMessage}</div>}
       </div>}
       {!current ? (remotePanel &&
@@ -207,7 +223,7 @@ export function RemoteRequestBox({ panel }: { panel: string }) {
         </button>
       ) : (
         <div className="rounded px-3 py-2 bg-sky-50 border border-sky-300 space-y-1">
-          {state === 'UNAVAILABLE' ? <div>درخواست دیگر معتبر نیست؛ آن را لغو و درخواست تازه ثبت کنید.</div> : (
+          {state === 'UNAVAILABLE' ? <div>{rejected ? 'مدیر این درخواست را رد کرد.' : 'درخواست دیگر معتبر نیست؛ آن را لغو و درخواست تازه ثبت کنید.'}</div> : (
             <>
               <div>کد تطبیق: <b>{current.code}</b> — آن را با مدیر مقایسه کنید.</div>
               {state === 'PENDING' && <div>در انتظار تأیید مدیر.</div>}

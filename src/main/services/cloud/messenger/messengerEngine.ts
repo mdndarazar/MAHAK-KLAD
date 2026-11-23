@@ -14,8 +14,9 @@ import { readDatabaseHeader } from '../databaseFingerprint'
 import { createBotApi, type ApiResult, type BotApi, type FetchLike } from './messengerAdapters'
 import { auditAnchorHash, type MessengerDb } from './messengerDb'
 import { auditPageToEvents, collectAuditIds, custodyCountToEvents, custodyEventToEvents, type AuditRowLite } from './messengerEvents'
-import { fmtAt, num, officialDay, packItems, renderItem, scrubText, splitText } from './messengerFormat'
+import { fmtAt, fmtClock, num, officialDay, packItems, renderItem, scrubText, splitText } from './messengerFormat'
 import { buildDailySummary, type SummaryDeps } from './messengerSummary'
+import { createBotController, type BotRemote } from './messengerBot'
 import {
   BACKOFF_MAX_MS, BACKOFF_MIN_MS, HEARTBEAT_MS, OUTBOX_MAX, PAIRING_TTL_MS, PROVIDER_INFO, QUEUE_TTL_MS, READ_GAP_MS, READ_PAGE,
   READ_PAGES_PER_PASS, RECIPIENT_MODE_LABELS, RECIPIENT_MODE_TRUST, defaultMessengerSettings, emptyStats, eventForMode, newPairCode,
@@ -42,7 +43,8 @@ export const MESSENGER_MESSAGES: Readonly<Record<string, string>> = Object.freez
   NOT_FOUND: 'این گیرنده پیدا نشد.',
   LIMIT: 'حداکثر ۲۰ گیرنده می‌شود ثبت کرد.',
   INVALID: 'ورودی نامعتبر است.',
-  CONFLICT: 'این ربات جای دیگری (webhook یا برنامهٔ دیگر) خوانده می‌شود. اگر برایش webhook گذاشته‌اید، آن را بردارید و دوباره تلاش کنید.'
+  CONFLICT: 'این ربات جای دیگری (webhook یا برنامهٔ دیگر) خوانده می‌شود. اگر برایش webhook گذاشته‌اید، آن را بردارید و دوباره تلاش کنید.',
+  NO_REMOTE: 'دکمه‌های ربات در این نسخه در دسترس نیست.'
 })
 function fail(code: string, detail?: string): never {
   throw new MessengerError(code, detail ? `${MESSENGER_MESSAGES[code] ?? MESSENGER_MESSAGES.INVALID} (${detail})` : MESSENGER_MESSAGES[code] ?? MESSENGER_MESSAGES.INVALID)
@@ -67,6 +69,10 @@ export interface EngineDeps {
   log?: (message: string, error?: unknown) => void
   /** مهلت‌های long polling جفت‌سازی (ثانیه)؛ آزمون کوتاه می‌گیرد */
   pairPollSeconds?: number
+  /** مرحلهٔ ۶ (§۴-۱-ب): پل دکمه‌های ربات به مسیر مجوز راه دور روی رایانه؛ نباشد ⇒ دکمه‌ها در دسترس نیستند */
+  remote?: BotRemote | null
+  /** مهلت long polling خواندن پیوستهٔ دکمه‌ها (ثانیه)؛ آزمون کوتاه می‌گیرد */
+  botPollSeconds?: number
 }
 
 interface PairingState {
@@ -106,6 +112,40 @@ export function createMessengerEngine(deps: EngineDeps) {
     chain = run.catch(() => undefined)
     return run
   }
+
+  // ------------------------------------------------------------------ دکمه‌های ربات (مرحلهٔ ۶، §۴-۱-ب)
+  const bot = createBotController({
+    settings: () => settings,
+    active: () => running && !!settings?.enabled && !!settings?.botButtons && !!deps.remote,
+    remote: deps.remote ?? null,
+    api: (provider) => botApi(provider),
+    pairingProvider: () => pairing && now() <= pairing.expiresAt ? pairing.provider : null,
+    exclusive,
+    notifyAll: async (title, lines, important) => {
+      enqueueMany([systemEvent(title, lines, { important }, await offsetHours())])
+      await deliverNowBounded(5000)
+    },
+    conflict: async (provider) => {
+      if (!settings?.botButtons) return
+      const next = JSON.parse(JSON.stringify(settings)) as MessengerSettings
+      next.botButtons = false
+      try { persist(next) } catch (error) { log('could not turn bot buttons off', error) }
+      await bot.revoke(next.recipients.map((r) => r.id), '⌛ پاسخ ربات به دکمه‌ها خاموش شد.')
+      enqueueMany([systemEvent(`⚠️ ربات ${PROVIDER_INFO[provider].label} جای دیگری در حال استفاده است`, ['پاسخ ربات به دکمه‌ها خاموش شد و ربات فقط خبر می‌دهد.', 'اگر برای ربات webhook گذاشته‌اید یا برنامهٔ دیگری آن را می‌خواند، آن را بردارید و دوباره روشن کنید.'], { important: true }, await offsetHours())])
+      await deliverNowBounded(5000)
+    },
+    summary: async () => {
+      const offset = await offsetHours(), t = now()
+      const day = officialDay(t, offset)
+      const s = await buildDailySummary(day, { ...deps.summary, db: deps.db }, { offsetHours: offset, now: t })
+      return { title: `📊 خلاصهٔ امروز تا ساعت ${fmtClock(t, offset)}`, lines: [...s.lines, ...(s.sellerSections.length ? ['— به تفکیک فروشنده —', ...s.sellerSections.flat()] : [])] }
+    },
+    offsetHours: () => offsetHours(),
+    now,
+    log,
+    schedule: !!deps.schedule,
+    pollSeconds: deps.botPollSeconds ?? 25
+  })
 
   function load(): VaultRead {
     loaded = true
@@ -411,6 +451,7 @@ export function createMessengerEngine(deps: EngineDeps) {
       await maybeSummary()
       if (t - lastHeartbeatAt >= HEARTBEAT_MS) { lastHeartbeatAt = t; store.writeHeartbeat({ version: 1, at: t, clean: false }) }
       await deliverAll()
+      await bot.tick()
     } catch (error) {
       lastError = 'خواندن یا ارسال رویدادها انجام نشد؛ دوباره تلاش می‌شود.'
       log('tick failed', error)
@@ -518,7 +559,7 @@ export function createMessengerEngine(deps: EngineDeps) {
     if (!loaded) load()
     const t = now()
     if (pairing && t > pairing.expiresAt) pairing = null
-    const bot = (provider: MessengerProvider) => {
+    const botInfo = (provider: MessengerProvider) => {
       const b = settings?.bots[provider]
       return b ? { configured: true, username: b.username, proxy: b.proxy } : null
     }
@@ -527,16 +568,20 @@ export function createMessengerEngine(deps: EngineDeps) {
       vault: vault.state,
       enabled: !!settings?.enabled,
       running,
-      bots: { telegram: bot('telegram'), bale: bot('bale') },
+      bots: { telegram: botInfo('telegram'), bale: botInfo('bale') },
       includeCustomerName: !!settings?.includeCustomerName,
       preventSleep: !!settings?.preventSleep,
+      /** مرحلهٔ ۶: «پاسخ ربات به دکمه‌ها» و هشدار ۴۰۹ */
+      botButtons: !!settings?.botButtons,
+      botAvailable: !!deps.remote,
+      botConflict: bot.status().conflict,
       recipients: (settings?.recipients ?? []).map((r) => {
         const box = store.readOutbox(r.id)
         return {
           id: r.id, provider: r.provider, providerLabel: PROVIDER_INFO[r.provider].label, name: r.name, mode: r.mode,
           modeLabel: RECIPIENT_MODE_LABELS[r.mode], trust: RECIPIENT_MODE_TRUST[r.mode], active: r.active, inactiveReason: r.inactiveReason,
           queued: box.items.length, expiredTotal: box.stats.expiredTotal, failedTotal: box.stats.failedTotal,
-          lastSuccessAt: box.stats.lastSuccessAt, lastError: box.stats.lastError
+          lastSuccessAt: box.stats.lastSuccessAt, lastError: box.stats.lastError, canApprove: r.canApprove
         }
       }),
       pairing: pairing ? {
@@ -596,6 +641,7 @@ export function createMessengerEngine(deps: EngineDeps) {
         persist(next)
         for (const r of removed) store.removeOutbox(r.id)
       })
+      await bot.revoke(removed.map((r) => r.id), '⌛ ربات برداشته شد.')
     }),
     setEnabled: (enabled: boolean) => exclusive(async () => {
       const next = editable()
@@ -610,6 +656,7 @@ export function createMessengerEngine(deps: EngineDeps) {
           persist(next)
         })
         haltRuntime()
+        await bot.revoke(next.recipients.map((r) => r.id), '⌛ اعلان‌ها خاموش شد.')
       }
     }),
     setOptions: (opts: { includeCustomerName?: boolean; preventSleep?: boolean }) => exclusive(async () => {
@@ -648,7 +695,40 @@ export function createMessengerEngine(deps: EngineDeps) {
         store.removeOutbox(id) // صف او همان لحظه پاک می‌شود
         nextAt.delete(id); backoff.delete(id)
       })
+      await bot.revoke([id], '⌛ این گیرنده حذف شد.')
     }),
+    /**
+     * مرحلهٔ ۶ (§۴-۱-ب): «پاسخ ربات به دکمه‌ها» (رمز مدیر را IPC سنجیده است). پیش از اعمال به همه خبر داده می‌شود.
+     * خاموش کردن مجوزهایی را که با ربات داده شده‌اند هم می‌بندد.
+     */
+    setBotButtons: (enabled: boolean) => exclusive(async () => {
+      if (!deps.remote) fail('NO_REMOTE')
+      const next = editable()
+      if (enabled === next.botButtons) { if (enabled) bot.clearConflict(); return }
+      await announceThenApply(enabled ? '🤖 پاسخ ربات به دکمه‌ها به دست مدیر روشن شد' : '🤖 پاسخ ربات به دکمه‌ها به دست مدیر خاموش شد', enabled
+        ? ['گیرنده‌هایی که اجازهٔ تأیید دارند، درخواست مجوز را با دکمهٔ ربات تأیید یا رد می‌کنند و «بستن همهٔ مجوزها» را می‌زنند.', 'برای امنیت، «تأیید دومرحله‌ای» حساب پیام‌رسان خود را روشن کنید.']
+        : ['ربات از این پس فقط خبر می‌دهد؛ مجوزهایی که با ربات داده شده بود بسته شد.'], () => {
+        next.botButtons = enabled
+        persist(next)
+      })
+      bot.clearConflict()
+      if (!enabled) await bot.revoke(next.recipients.map((r) => r.id), '⌛ پاسخ ربات به دکمه‌ها خاموش شد.')
+    }),
+    /** مرحلهٔ ۶: تیک «می‌تواند درخواست مجوز را تأیید کند» برای یک گیرنده (پیش‌فرض خاموش). */
+    setRecipientApprove: (id: string, canApprove: boolean) => exclusive(async () => {
+      if (!deps.remote) fail('NO_REMOTE')
+      const next = editable()
+      const r = next.recipients.find((x) => x.id === id)
+      if (!r) fail('NOT_FOUND')
+      if (r!.canApprove === canApprove) return
+      await announceThenApply(canApprove ? '🤖 اجازهٔ تأیید با ربات به یک گیرنده داده شد' : '🤖 اجازهٔ تأیید با ربات از یک گیرنده برداشته شد', [`گیرنده: ${r!.name} (${PROVIDER_INFO[r!.provider].label})`], () => {
+        r!.canApprove = canApprove
+        persist(next)
+      })
+      if (!canApprove) await bot.revoke([id], '⌛ اجازهٔ تأیید این گیرنده برداشته شد.')
+    }),
+    /** فقط آزمون: یک بار خواندن دکمه‌ها (long polling با مهلت کوتاه). */
+    botPollOnce: (provider: MessengerProvider, timeoutSec?: number) => bot.pollOnce(provider, timeoutSec),
     pairStart: (provider: MessengerProvider) => exclusive(async () => {
       editable()
       if (!settings?.bots[provider]) fail('NO_BOT')

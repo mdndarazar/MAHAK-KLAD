@@ -2,7 +2,7 @@
  * طرح ۱۴۰۵ · موردهای ۱۳ و ۱۵ — دو آداپتور، یک کد (معماری §۴-۱-الف).
  *
  * تلگرام `https://api.telegram.org` و بله `https://tapi.bale.ai` هر دو همان Bot API را دارند:
- * `getMe`، `sendMessage`، `getUpdates` (و در مرحلهٔ ۶ `answerCallbackQuery` و `editMessageText`).
+ * `getMe`، `sendMessage`، `getUpdates`، و برای دکمه‌های ربات (مرحلهٔ ۶) `answerCallbackQuery` و `editMessageText`.
  * فقط درخواست بیرون‌رونده؛ هیچ درگاه شنودی باز نمی‌شود. `fetch` از بیرون داده می‌شود: در برنامه
  * `session.fetch` الکترون (با پراکسی اختیاری فقط برای تلگرام)، در آزمون سرور ساختگی روی loopback.
  *
@@ -36,7 +36,12 @@ export type ApiResult<T> =
 
 export interface BotUser { id: number; username?: string; first_name?: string }
 export interface BotChat { id: number; type: string; first_name?: string; last_name?: string; username?: string; title?: string }
-export interface BotUpdate { update_id: number; message?: { message_id: number; chat: BotChat; text?: string; date?: number } }
+export interface BotMessage { message_id: number; chat: BotChat; text?: string; date?: number }
+/** مرحلهٔ ۶ (دکمه‌های ربات): فشردن دکمهٔ inline؛ `data` همان `callback_data` (حداکثر ۶۴ بایت) است. */
+export interface BotCallbackQuery { id: string; from?: { id: number }; message?: BotMessage; data?: string }
+export interface BotUpdate { update_id: number; message?: BotMessage; callback_query?: BotCallbackQuery }
+/** دکمه‌های inline (فقط `callback_data`؛ هیچ پیوند یا دادهٔ دیگر) */
+export interface InlineKeyboard { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> }
 
 const UNSENT = /ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|ENETDOWN|UND_ERR_CONNECT_TIMEOUT|ERR_NAME_NOT_RESOLVED|ERR_NAME_RESOLUTION_FAILED|ERR_CONNECTION_REFUSED|ERR_CONNECTION_TIMED_OUT|ERR_INTERNET_DISCONNECTED|ERR_ADDRESS_UNREACHABLE|ERR_PROXY_CONNECTION_FAILED|ERR_TUNNEL_CONNECTION_FAILED|ERR_SOCKS_CONNECTION_FAILED|ERR_NETWORK_ACCESS_DENIED|ERR_NETWORK_CHANGED|ERR_CONNECTION_FAILED/
 
@@ -97,12 +102,18 @@ export function createBotApi(provider: MessengerProvider, token: string, fetchIm
   return {
     provider,
     getMe: () => call<BotUser>('getMe', {}, 15000),
-    /** متن ساده، بی قالب‌بندی (مالک «متن مرتب» را انتخاب کرد، طرح §۲۱) */
-    sendMessage: (chatId: number, text: string) =>
-      call<{ message_id: number }>('sendMessage', { chat_id: chatId, text, disable_web_page_preview: true }, 15000),
-    /** فقط هنگام جفت‌سازی (و در مرحلهٔ ۶، با «پاسخ ربات به دکمه‌ها»). `offset` به‌روزرسانی‌های قبلی را تأیید می‌کند. */
-    getUpdates: (offset: number, timeoutSec: number) =>
-      call<BotUpdate[]>('getUpdates', { offset, timeout: Math.max(0, Math.min(25, timeoutSec)), allowed_updates: ['message'] }, (Math.max(0, Math.min(25, timeoutSec)) + 10) * 1000)
+    /** متن ساده، بی قالب‌بندی (مالک «متن مرتب» را انتخاب کرد، طرح §۲۱)؛ مرحلهٔ ۶: دکمه‌های inline اختیاری */
+    sendMessage: (chatId: number, text: string, keyboard?: InlineKeyboard) =>
+      call<{ message_id: number }>('sendMessage', { chat_id: chatId, text, disable_web_page_preview: true, ...(keyboard ? { reply_markup: keyboard } : {}) }, 15000),
+    /** فقط هنگام جفت‌سازی، و با «پاسخ ربات به دکمه‌ها» (مرحلهٔ ۶) پیوسته. `offset` به‌روزرسانی‌های قبلی را تأیید می‌کند. */
+    getUpdates: (offset: number, timeoutSec: number, allowed: readonly string[] = ['message']) =>
+      call<BotUpdate[]>('getUpdates', { offset, timeout: Math.max(0, Math.min(25, timeoutSec)), allowed_updates: [...allowed] }, (Math.max(0, Math.min(25, timeoutSec)) + 10) * 1000),
+    /** مرحلهٔ ۶: پاسخ کوتاه به فشردن دکمه (مثلاً «منقضی شد») */
+    answerCallbackQuery: (callbackId: string, text?: string) =>
+      call<boolean>('answerCallbackQuery', { callback_query_id: callbackId, ...(text ? { text: text.slice(0, 190) } : {}) }, 10000),
+    /** مرحلهٔ ۶: نشان دادن نتیجه روی پیام درخواست (و برداشتن دکمه‌ها) */
+    editMessageText: (chatId: number, messageId: number, text: string, keyboard?: InlineKeyboard) =>
+      call<unknown>('editMessageText', { chat_id: chatId, message_id: messageId, text, ...(keyboard ? { reply_markup: keyboard } : {}) }, 10000)
   }
 }
 export type BotApi = ReturnType<typeof createBotApi>

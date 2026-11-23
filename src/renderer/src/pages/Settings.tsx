@@ -105,6 +105,7 @@ const panelBadges = (panel: PanelDef) => (
 import ManagerGate from '../components/ManagerGate'
 import { STAFF_ROLES, STAFF_ROLE_LABELS } from '@shared/enums'
 import { broadcastPanelLocksChanged } from '../hooks/usePanelLocks'
+import OneTimeCodesSettings from '../components/OneTimeCodesSettings'
 import { broadcastSettingsChanged } from '../hooks/useSettings'
 import { DEFAULT_DISCOUNT_TRANSFER_SETTINGS, type DiscountTransferSettings } from '@shared/discountTransfer'
 import {
@@ -3050,6 +3051,9 @@ export default function Settings() {
                   <b> این بخش با همین دکمه، همان لحظه ذخیره می‌شود</b> (نیازی به دکمه‌ی «ذخیره‌ی تنظیمات» بالا نیست).
                 </div>
               </section>
+
+              {/* ============ طرح ۱۴۰۵ §۳-۱۵ — کدهای یک‌بارمصرف دوقسمتی و دو مدت کد ============ */}
+              <OneTimeCodesSettings />
 
               {/* ============ بند ۱ — قفل رمز دوم به‌صورت ماژولار ============ */}
               <section className="space-y-2">

@@ -128,5 +128,14 @@ export function registerMessengerHandlers(): void {
     await messengerEngine().sendTest(input.id)
   })
   handle(IPC.messengerResetVault, 'بازنشانی تنظیمات پیام‌رسان', async () => { await messengerEngine().resetVault() })
+  // مرحلهٔ ۶ (§۴-۱-ب): «پاسخ ربات به دکمه‌ها» و اجازهٔ تأیید هر گیرنده — هر دو کلیدسازی (رمز تایپی مدیر)
+  handle(IPC.messengerSetBotButtons, ACTION, async (input) => {
+    if (typeof input.enabled !== 'boolean') throw new MessengerError('INVALID', 'ورودی نامعتبر است.')
+    await messengerEngine().setBotButtons(input.enabled)
+  })
+  handle(IPC.messengerRecipientApprove, ACTION, async (input) => {
+    if (typeof input.id !== 'string' || typeof input.canApprove !== 'boolean') throw new MessengerError('INVALID', 'ورودی نامعتبر است.')
+    await messengerEngine().setRecipientApprove(input.id, input.canApprove)
+  })
   startMessengerAtLaunch()
 }

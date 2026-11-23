@@ -4,6 +4,8 @@ import { toLatinDigits } from '@shared/jalali'
 import { call } from '../lib/api'
 import MessengerSettings from '../components/MessengerSettings'
 import RemoteGrantControls from '../components/RemoteGrantControls'
+import ScheduledGrantsBox from '../components/ScheduledGrantsBox'
+import RecoveryCodesBox from '../components/RecoveryCodesBox'
 
 /**
  * راه‌اندازی کنترل از راه دور (فقط روی همین رایانه). هر تغییر در Main با رمز مدیر
@@ -214,6 +216,9 @@ export default function RemoteLink() {
         </div>
       )}
 
+      {/* طرح ۱۴۰۵ · مورد ۳ (§۴-۸) — کدهای بازیابی توقف اضطراری؛ کنار PIN در پایگاه هاب */}
+      {status.ready && status.configured && !status.ownerRequired && <RecoveryCodesBox />}
+
       {status.ready && (status.configured || status.partial) && (
         <div className="bg-white rounded shadow p-4 space-y-2">
           <h2 className="font-bold">حذف راه‌اندازی</h2>
@@ -236,6 +241,8 @@ export default function RemoteLink() {
 
       {/* طرح ۱۴۰۵ · مورد ۷ و §۳-۱۷ — مدت مجوز راه دور و «بستن همه»؛ مستقل از روشن بودن هاب */}
       <RemoteGrantControls />
+      {/* طرح ۱۴۰۵ · مورد ۱۴-ب (§۳-۱۶) — مجوز زمان‌بندی‌شده؛ بی اینترنت و بی هاب */}
+      <ScheduledGrantsBox />
       {/* طرح ۱۴۰۵ · موردهای ۱۳ و ۱۵ — مستقل از هاب؛ با هاب خاموش هم کار می‌کند */}
       <MessengerSettings />
     </div>
