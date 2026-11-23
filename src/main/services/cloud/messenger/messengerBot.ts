@@ -315,6 +315,7 @@ export function createBotController(ctx: BotContext) {
     /** هر دور حلقهٔ موتور (درون `exclusive`): پیام درخواست‌ها و راه‌اندازی خواندن پیوسته. */
     async tick(): Promise<void> {
       if (!ctx.active()) return
+      for (const [t, info] of tokens) if (info.kind === 'c' && ctx.now() > info.expiresAt) tokens.delete(t)
       await announce()
       for (const provider of ['telegram', 'bale'] as const) if (canPoll(provider)) loop(provider)
     },

@@ -114,6 +114,7 @@ function derivedKey(key:Uint8Array, storeId:string, epoch:string, purpose:string
  * hub database does not exist yet; the child bootstraps exactly one owner from
  * them and they are not stored by the desktop host. */
 async function startConfigured(owner:RemoteOwner|null):Promise<void> {
+  lastClosedRevocation=0 // revocation ids belong to one hub database (a new setup restarts them)
   const userData=app.getPath('userData'), root=join(userData,'remote-hub'), stateDir=join(root,'state'), hubDir=join(root,'hub')
   const dbFile=join(userData,'data','shop.db'), runtimeDir=join(process.resourcesPath,'remote')
   if (process.env.DATABASE_URL!==`file:${dbFile}`) throw new Error('Remote database identity unavailable')
