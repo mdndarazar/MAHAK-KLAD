@@ -5,6 +5,11 @@
  * برگشت یا تعویض دارد؛ پس زنجیره آزموده نمی‌شود). بعد فقط «تلاش» برای برگشت/تعویض دوم ثبت می‌شود تا روشن شود
  * برنامهٔ امروز آن را می‌پذیرد یا نه.
  *
+ * بخش‌های ثابتِ پس از جدول: T1 تا T9 (ابزارهای چکِ امروز)؛ X = پیچیده‌ترین سناریوی مالک در ۴-۷۸ (سه کالا، بارکد،
+ * نقد، کارت، چک در جریان/برگشتی/پاس‌شده و نسیه × شش برگشت/تعویض، در صندوق فروش و فاکتور عمده)؛ P2 = چک برگشتی که
+ * مشتری بعداً در نوبت کاری دیگری با نقد، کارت‌خوان یا واریز به کارت مدیر می‌پردازد، و چک در جریان که زودتر از
+ * سررسید با پول تسویه می‌شود. پس از اجرای ۴-۷۷ تا ۴-۷۹ عامل همهٔ این‌ها را دوباره اجرا و با عکس فوری مقایسه می‌کند.
+ *
  * فقط ابزار آزمون است: روی پایگاه دادهٔ موقت (پوشهٔ temp) اجرا می‌شود، چاپگر شبیه‌سازی‌شده است و به برنامه،
  * پایگاه واقعی یا آزمون‌های مخزن دست نمی‌زند. در پوشهٔ docs است تا هیچ اجراکنندهٔ آزمونی آن را برندارد.
  *
@@ -19,8 +24,8 @@
  * پس از هر عملیات این سنجش‌ها انجام می‌شود: گزارش فروش با ردیف‌های خام، صندوق امانی با ردیف‌های خام، دفتر
  * موجودی، موجودی با سندها، ماندهٔ هر بارکد با دفتر مصرفش، «بدهیِ» صفحهٔ پرداخت‌های فاکتور با محاسبهٔ خام، و
  * معادلهٔ ارزش:
- *   نقد + کارت + چکِ پاس‌شده + بارکدِ آورده + بدهیِ مانده  =  پول پس‌داده + کارت‌به‌کارت + اعتبار زنده + کالای مانده
- *                                                             + اضافه‌دریافتِ ثبت‌شده (طلب مشتری)
+ *   نقد + کارت + چکِ پاس‌شده + واریز به حساب مدیر + بارکدِ آورده + بدهیِ مانده
+ *     =  پول پس‌داده + کارت‌به‌کارت + اعتبار زنده + کالای مانده + اضافه‌دریافتِ ثبت‌شده (طلب مشتری)
  * و بی‌اثر بودنِ هر کارِ ردشده. برای هر برگشت/تعویض، ترتیب واقعیِ برنامه (بدهی ← بارکد ← چک/پول) کنار ترتیبی که
  * مالک خواسته (۱ کم شدن بدهی نسیه ← ۲ سهم بارکد طبق قاعدهٔ بارکد ← ۳ پیشنهاد چک (جایگزینی/ابطال) یا پول) ثبت
  * می‌شود؛ این‌ها «یافتهٔ خطا» نیستند، «فاصله با جریان مالک»اند و جدا شمرده می‌شوند.
@@ -114,12 +119,16 @@ let shiftSeq = 0, vseq = 0, keySeq = 0, chequeSeq = 0
 function rawCredit(id) { return seed.one('SELECT * FROM "StoreCredit" WHERE id=?', id) }
 function rawPhysical(shiftId) {
   const p = seed.one(`SELECT
-    COALESCE(SUM(CASE WHEN m.kind='CASH' AND p.kind='CASH' AND p.voidedAt IS NULL THEN p.amount ELSE 0 END),0) cash,
-    COALESCE(SUM(CASE WHEN m.kind='CARD' AND p.kind='CASH' AND p.voidedAt IS NULL THEN p.amount ELSE 0 END),0) card
+    COALESCE(SUM(CASE WHEN m.kind='CASH' AND p.kind='CASH' AND p.voidedAt IS NULL AND COALESCE(p.destination,'') <> 'MANAGER' THEN p.amount ELSE 0 END),0) cash,
+    COALESCE(SUM(CASE WHEN m.kind='CARD' AND p.kind='CASH' AND p.voidedAt IS NULL AND COALESCE(p.destination,'') <> 'MANAGER' THEN p.amount ELSE 0 END),0) card
     FROM "Payment" p JOIN "PaymentMethod" m ON m.id=p.methodId WHERE p.createdShiftId=?`, shiftId)
   const c = seed.one(`SELECT COALESCE(SUM(amount),0) amount FROM "CashMovement" WHERE shiftId=? AND type IN ('RETURN_REFUND','EXCHANGE_REFUND')`, shiftId)
   const r = seed.one(`SELECT COALESCE(SUM(refundAmount),0) amount FROM "SaleReturn" WHERE shiftId=? AND refundMethod='CARD' AND voidedAt IS NULL`, shiftId)
   return { cash: n(p.cash), card: n(p.card), refundCash: n(c.amount), refundCard: n(r.amount) }
+}
+/** پولی که مستقیم به حساب مدیر رفت (مثلاً واریز به کارت مدیر): پول واقعی است ولی به کشو/کارت‌خوان نمی‌آید. */
+function rawManager(shiftId) {
+  return n(seed.one(`SELECT COALESCE(SUM(amount),0) a FROM "Payment" WHERE createdShiftId=? AND kind='CASH' AND destination='MANAGER' AND voidedAt IS NULL`, shiftId).a)
 }
 /** چک پاس‌شده (مقصد «حساب مدیر») پول واقعیِ دریافت‌شده است ولی به کشو/کارت‌خوان نمی‌آید. */
 function clearedCheques(shiftId) {
@@ -199,13 +208,21 @@ function sig(ctx) {
 }
 
 async function verify(ctx, label) {
-  const report = await salesService.reportRows({ shiftId: ctx.shiftId })
-  const rep = { cash: n(report.totals.cashTotal), card: n(report.totals.cardTotal), refundCash: n(report.totals.refundCashTotal), refundCard: n(report.totals.refundCardTotal) }
-  const raw = rawPhysical(ctx.shiftId)
-  if (JSON.stringify(rep) !== JSON.stringify(raw)) finding(ctx, 'REPORT_VS_RAW', label, { rep, raw })
-  const blue = n(await physicalMovementForCustodyShift(ctx.shiftId))
-  const blueRaw = raw.cash + raw.card - raw.refundCash - raw.refundCard
-  if (blue !== blueRaw) finding(ctx, 'CUSTODY_VS_RAW', label, { blue, blueRaw })
+  // نوبت کاری خود سناریو، به‌علاوهٔ نوبت‌های بعدی (مشتری که روز یا شیفت دیگری برمی‌گردد و پول می‌دهد)
+  const raw = { cash: 0, card: 0, refundCash: 0, refundCard: 0 }
+  let managerIn = 0
+  for (const sid of [ctx.shiftId, ...ctx.extraShifts]) {
+    const report = await salesService.reportRows({ shiftId: sid })
+    const rep = { cash: n(report.totals.cashTotal), card: n(report.totals.cardTotal), refundCash: n(report.totals.refundCashTotal), refundCard: n(report.totals.refundCardTotal) }
+    const r = rawPhysical(sid)
+    const later = sid === ctx.shiftId ? {} : { shift: 'later' }
+    if (JSON.stringify(rep) !== JSON.stringify(r)) finding(ctx, 'REPORT_VS_RAW', label, { ...later, rep, raw: r })
+    const blue = n(await physicalMovementForCustodyShift(sid))
+    const blueRaw = r.cash + r.card - r.refundCash - r.refundCard
+    if (blue !== blueRaw) finding(ctx, 'CUSTODY_VS_RAW', label, { ...later, blue, blueRaw })
+    for (const k of Object.keys(raw)) raw[k] += r[k]
+    managerIn += rawManager(sid)
+  }
   for (const v of ctx.variants) {
     const actual = n(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', v.id).stock)
     const ledger = n(seed.one('SELECT COALESCE(SUM(delta),0) d FROM "StockMovement" WHERE variantId=?', v.id).d)
@@ -244,10 +261,12 @@ async function verify(ctx, label) {
   const live = liveCreditValue(ctx.creditFloor)
   const kept = keptGoods(ctx.shiftId)
   const writeOff = n(seed.one(`SELECT COALESCE(SUM(c.unrecoveredAmount),0) a FROM "ReturnCorrection" c JOIN "SaleReturn" r ON r.id=c.returnId WHERE r.shiftId=? AND c.status='POSTED'`, ctx.shiftId).a)
-  const inV = paidIn + chequeIn + ctx.manualIssued + writeOff + debt
+  const inV = paidIn + chequeIn + managerIn + ctx.manualIssued + writeOff + debt
   const outV = physOut + c2c + live + kept + owed
-  ctx.lastValue = { paidIn, chequeIn, manual: ctx.manualIssued, writeOff, debt, physOut, c2c, live, kept, owed, delta: inV - outV }
-  if (physOut + c2c > paidIn + chequeIn) finding(ctx, 'PHYSICAL_OUT_GT_IN', label, ctx.lastValue)
+  ctx.lastValue = managerIn
+    ? { paidIn, chequeIn, managerIn, manual: ctx.manualIssued, writeOff, debt, physOut, c2c, live, kept, owed, delta: inV - outV }
+    : { paidIn, chequeIn, manual: ctx.manualIssued, writeOff, debt, physOut, c2c, live, kept, owed, delta: inV - outV }
+  if (physOut + c2c > paidIn + chequeIn + managerIn) finding(ctx, 'PHYSICAL_OUT_GT_IN', label, ctx.lastValue)
   if (inV - outV < 0) finding(ctx, 'VALUE_LEAK_TO_CUSTOMER', label, ctx.lastValue)
   if (inV - outV > 0) finding(ctx, 'VALUE_LOSS_FOR_CUSTOMER', label, ctx.lastValue)
 }
@@ -295,7 +314,7 @@ function newCtx(id, title, opts = {}) {
   const creditFloor = n(seed.one('SELECT COALESCE(MAX(id),0) m FROM "StoreCredit"').m)
   const payFloor = n(seed.one('SELECT COALESCE(MAX(id),0) m FROM "Payment"').m)
   resetCodeGate()
-  return { id, title, shiftId, creditFloor, payFloor, variants: [], manualIssued: 0, steps: [], findings: [], findingKeys: new Set(), refusals: [], notes: [], units: [], gaps: [], lastValue: null, ...opts }
+  return { id, title, shiftId, extraShifts: [], creditFloor, payFloor, variants: [], manualIssued: 0, steps: [], findings: [], findingKeys: new Set(), refusals: [], notes: [], units: [], gaps: [], lastValue: null, ...opts }
 }
 function V(ctx, label, price, stock = 30) {
   const pid = seed.product(`${ctx.id}-${label}-${++vseq}`, cat)
@@ -747,6 +766,137 @@ await run('T9-cash-instead-of-pending-cheque', 'مشتری به جای چک در
   await toolNote(ctx, 'after', sale.invoiceId)
 })
 
+// =================================================================== part C — the owner's most complex scenario (۴-۷۸)
+/**
+ * پیچیده‌ترین سناریوی مالک (پرسش ۲۰۲۶-۱۱-۲۵؛ «آزمون مالک پس از بسته» در ۴-۷۸): سه کالا (الف ۴۰۰ هزار، ب ۳۵۰ هزار،
+ * ج ۲۵۰ هزار)؛ صندوق فروش با دو بارکد ۱۰۰ و ۵۰ هزار، فاکتور عمده با یک بارکد ۱۵۰ هزار؛ نقد ۲۰۰ هزار، کارت ۲۵۰ هزار،
+ * بقیه نسیه با بدهکار؛ بعد چک ۳۰۰ هزار (در جریان / برگشت‌خورده / پاس‌شده). شش حالت: برگشت ج، برگشت الف، برگشت کامل،
+ * تعویض الف با کالای ۳۰۰ هزار، تعویض ج با کالای ۱۵۰ هزار، تعویض الف با کالای ۵۰۰ هزار و چک تازه؛ بعد تلاش برای
+ * برگشت دوم روی همان فاکتور و روی فاکتور تعویضی. این عددها مرجع آزمون پس از اجرای ۴-۷۷ تا ۴-۷۹ است: پس از اجرا
+ * عامل همهٔ این حالت‌ها را دوباره اجرا و با همین عکس فوری مقایسه می‌کند؛ فقط تفاوت‌های خواسته‌شده پذیرفته است.
+ */
+const X_CASES = [
+  { key: 'retC', title: 'برگشت ج (۲۵۰ هزار)' },
+  { key: 'retA', title: 'برگشت الف (۴۰۰ هزار)' },
+  { key: 'full', title: 'برگشت کامل' },
+  { key: 'ex300', title: 'تعویض الف با کالای ۳۰۰ هزار', src: 'A', price: 300_000 },
+  { key: 'exC150', title: 'تعویض ج با کالای ۱۵۰ هزار', src: 'C', price: 150_000 },
+  { key: 'ex500', title: 'تعویض الف با کالای ۵۰۰ هزار، مابه‌التفاوت با چک تازه', src: 'A', price: 500_000 }
+]
+async function complexSale(ctx, channel, qstate) {
+  const A = V(ctx, 'A', 400_000), B = V(ctx, 'B', 350_000), C = V(ctx, 'C', 250_000)
+  const credits = channel === 'POS' ? [await issueManual(ctx, 100_000), await issueManual(ctx, 50_000)] : [await issueManual(ctx, 150_000)]
+  let input
+  if (channel === 'POS') {
+    input = {
+      userId, shiftId: ctx.shiftId, lines: [lineOf(A), lineOf(B), lineOf(C)],
+      payments: [{ methodId: cashM, amount: 200_000, destination: 'CASH' }],
+      storeCredits: credits.map((c) => ({ code: c.code, requestedAmount: c.amount })),
+      debtor: DEBTOR, saleRequestIdempotencyKey: `aud-${ctx.id}-x-${++keySeq}`
+    }
+  } else {
+    await step(ctx, 'wholesale page auto-check of the barcode', 'either', () => storeCreditService.lookup({ code: credits[0].code, userId }))
+    input = {
+      customerId: null, orderType: 'WHOLESALE', issuedAtJalali: today, deductInventory: true, wholesaleDiscountPercent: null,
+      invoiceDiscount: 0, invoiceTax: 0, serviceCharge: 0, lines: [lineOf(A), lineOf(B), lineOf(C)],
+      remoteCustomer: false, autoCentralWithdraw: false, storeCreditCode: credits[0].code,
+      payments: [{ methodId: cashM, amount: 200_000 }], debtor: DEBTOR, userId, shiftId: ctx.shiftId
+    }
+  }
+  const s = await step(ctx, `complex sale ${channel}: barcode(s) 150k + cash 200k, rest debt with debtor`, 'ok', () => salesService.create(input))
+  if (!s.ok) return null
+  const invoiceId = n(s.res.id)
+  if (n(s.res.storeCreditApplied ?? 0) !== 150_000) finding(ctx, 'BARCODE_APPLIED_MISMATCH', 'complex sale', { want: 150_000, got: n(s.res.storeCreditApplied ?? 0) })
+  await step(ctx, 'card 250k later (payments window)', 'ok', () => salesService.addPayment({ invoiceId, kind: 'CASH', amount: 250_000, methodId: cardM, destination: 'CARD', userId }))
+  const q = await step(ctx, 'cheque 300k (payments window)', 'ok', () => salesService.addPayment({ invoiceId, kind: 'CHEQUE', amount: 300_000, chequeNo: `XCQ-${++chequeSeq}`, bankName: 'ملت', dueDateJalali: dueJalali, userId }))
+  const chequeId = n(q.res?.payment?.id)
+  if (qstate === 'CL') await step(ctx, 'cheque CLEARED → manager account', 'ok', () => salesService.setChequeStatus({ id: chequeId, status: 'CLEARED', destination: 'MANAGER', managerPassword: PW, userId }))
+  if (qstate === 'BO') await step(ctx, 'cheque BOUNCED', 'ok', () => salesService.setChequeStatus({ id: chequeId, status: 'BOUNCED', managerPassword: PW, userId }))
+  return { invoiceId, A, B, C, chequeId, parts: { B: 150_000, C: 200_000, K: 250_000, Q: 300_000, N: 100_000 } }
+}
+for (const channel of ['POS', 'WHOLESALE'])
+  for (const q of ['P', 'BO', 'CL'])
+    for (const c of X_CASES)
+      await run(`X·${channel}·${q}·${c.key}`, `پیچیده‌ترین سناریو · ${channel === 'POS' ? 'صندوق فروش' : 'فاکتور عمده'} · چک ${QSTATE_FA[q]} · ${c.title}`, async (ctx) => {
+        const sale = await complexSale(ctx, channel, q)
+        if (!sale) return
+        const before = await snapshotInvoice(sale.invoiceId)
+        const kind = c.key.startsWith('ex') ? 'EX' : 'RET'
+        let r
+        if (c.key === 'retC') r = await ret(ctx, sale.invoiceId, { full: false, lines: [{ saleItemId: n(itemFor(sale.invoiceId, sale.C).id), qty: 1 }], method: 'CASH', label: 'return C (250k), CASH asked' })
+        else if (c.key === 'retA') r = await ret(ctx, sale.invoiceId, { full: false, lines: [{ saleItemId: n(itemFor(sale.invoiceId, sale.A).id), qty: 1 }], method: 'CASH', label: 'return A (400k), CASH asked' })
+        else if (c.key === 'full') r = await ret(ctx, sale.invoiceId, { full: true, method: 'CASH', label: 'full return, CASH' })
+        else {
+          const rv = V(ctx, 'R', c.price)
+          r = await exch(ctx, sale.invoiceId, { lines: [{ saleItemId: n(itemFor(sale.invoiceId, sale[c.src]).id), qty: 1 }], full: false, repl: [{ v: rv }], pay: 'CHEQUE', refundMode: 'CASH', label: `exchange ${c.src} → ${c.price / 1000}k` })
+        }
+        const rec = { group: 'X', tag: ctx.id, channel, nItems: 3, combo: 'BCKQN', qstate: q, action: c.key, parts: sale.parts, ok: !!r.ok }
+        ctx.units.push(rec)
+        if (!r.ok) { rec.refusal = String(r.error ?? '').split('\n')[0].slice(0, 300); return }
+        const after = await snapshotInvoice(sale.invoiceId)
+        const row = seed.one('SELECT * FROM "SaleReturn" WHERE id=?', r.returnId)
+        rec.order = orderAnalysis(before, after, row, sale, r.res, kind)
+        rec.successors = (r.res?.sourceCreditSuccessors ?? []).map((x) => n(x.amount))
+        if (kind === 'EX') {
+          rec.exchange = { diff: n(row.exchangeDiff), settlement: row.exchangeSettlement ?? null, debtReduction: n(row.debtReduction) }
+          if (r.exchangeInvoiceId) { const ch = await snapshotInvoice(r.exchangeInvoiceId); rec.exchange.child = { remaining: ch.remaining, pending: ch.pending, overpaid: ch.overpaid } }
+        }
+        await toolNote(ctx, 'after the first action', sale.invoiceId)
+        if (c.key === 'full') rec.second = 'NOTHING_LEFT'
+        else {
+          const s2 = await ret(ctx, sale.invoiceId, { full: false, lines: [{ saleItemId: n(itemFor(sale.invoiceId, sale.B).id), qty: 1 }], method: 'CASH', label: '2nd return attempt: item B on the same invoice' })
+          rec.second = s2.ok ? 'ACCEPTED' : 'REFUSED'
+        }
+        if (r.exchangeInvoiceId) {
+          const s3 = await ret(ctx, r.exchangeInvoiceId, { full: true, method: 'CASH', label: '2nd return attempt: the exchange invoice' })
+          rec.secondOnExchange = s3.ok ? 'ACCEPTED' : 'REFUSED'
+        }
+      })
+
+// =================================================================== part D — bounced cheque paid later, pending cheque paid early
+/**
+ * پرسش مالک (۲۰۲۶-۱۱-۲۵): چک برگشت می‌خورد و مشتری بعداً پولش را می‌دهد (نقد در فروشگاه، یا واریز به کارت مدیر)؛
+ * یا مشتری چکِ در جریان را زودتر از سررسید با پول تسویه می‌کند. پول در یک نوبت کاری بعدی گرفته می‌شود تا روشن شود
+ * به عدد مرجع صندوق و عدد آبیِ همان نوبت می‌رود (نقد) یا نه (کارت مدیر)، و چک چه وضعی پیدا می‌کند.
+ */
+async function laterShift(ctx) {
+  const sid = seed.insert('Shift', { name: `AUD ${ctx.id} later`, number: 700 + (++shiftSeq), dayJalali: today, openedAt: Date.now() - 1000, userId })
+  ctx.extraShifts.push(sid)
+  return sid
+}
+const P2 = [
+  { id: 'P2-bounced-cash-in-store', title: 'چک برگشتی؛ مشتری بعداً ۸۰۰ هزار نقد در فروشگاه می‌پردازد', q: 'BO', pays: [{ amount: 800_000, dest: 'CASH' }] },
+  { id: 'P2-bounced-to-manager-card', title: 'چک برگشتی؛ مشتری بعداً ۸۰۰ هزار به کارت مدیر واریز می‌کند', q: 'BO', pays: [{ amount: 800_000, dest: 'MANAGER' }] },
+  { id: 'P2-bounced-card-reader', title: 'چک برگشتی؛ مشتری بعداً ۸۰۰ هزار با کارت‌خوان فروشگاه می‌پردازد', q: 'BO', pays: [{ amount: 800_000, dest: 'CARD' }] },
+  { id: 'P2-bounced-partial-then-rest', title: 'چک برگشتی؛ مشتری اول ۳۰۰ هزار و بعد ۵۰۰ هزار نقد می‌دهد', q: 'BO', pays: [{ amount: 300_000, dest: 'CASH' }, { amount: 500_000, dest: 'CASH' }] },
+  { id: 'P2-pending-early-cash', title: 'چک در جریان؛ مشتری زودتر از سررسید ۸۰۰ هزار نقد می‌آورد', q: 'P', pays: [{ amount: 800_000, dest: 'CASH' }] },
+  { id: 'P2-pending-early-manager-card', title: 'چک در جریان؛ مشتری زودتر از سررسید ۸۰۰ هزار به کارت مدیر واریز می‌کند', q: 'P', pays: [{ amount: 800_000, dest: 'MANAGER' }] },
+  { id: 'P2-pending-void-then-cash', title: 'چک در جریان؛ راه امروز: اول ابطال چک (بی رمز) و بعد ۸۰۰ هزار نقد', q: 'P', voidFirst: true, pays: [{ amount: 800_000, dest: 'CASH' }] }
+]
+const PAY_FA = { CASH: 'cash in the store', CARD: 'by the store card reader', MANAGER: 'to the manager card' }
+for (const sc of P2)
+  await run(sc.id, sc.title, async (ctx) => {
+    const sale = await cqSale(ctx, sc.q)
+    if (!sale.ok) return
+    const sid = await laterShift(ctx)
+    const rec = { group: 'P2', tag: ctx.id, qstate: sc.q, pays: [] }
+    ctx.units.push(rec)
+    if (sc.voidFirst) {
+      const v = await step(ctx, 'void the pending cheque first (payments window, no password today)', 'either', () => salesService.deletePayment({ id: sale.chequeId, userId }))
+      rec.voidFirst = v.ok ? 'VOIDED' : 'REFUSED'
+    }
+    for (const p of sc.pays) {
+      const r = await step(ctx, `customer pays ${p.amount} ${PAY_FA[p.dest]} (later shift)`, 'either', () =>
+        salesService.addPayment({ invoiceId: sale.invoiceId, kind: 'CASH', amount: p.amount, methodId: p.dest === 'CASH' ? cashM : cardM, destination: p.dest, userId }))
+      const t = await salesService.reportRows({ shiftId: sid })
+      rec.pays.push({ amount: p.amount, dest: p.dest, ok: !!r.ok, laterShift: { cash: n(t.totals.cashTotal), card: n(t.totals.cardTotal), manager: n(t.totals.managerAccountTotal ?? 0) }, custodyPhysical: n(await physicalMovementForCustodyShift(sid)) })
+    }
+    const d = await snapshotInvoice(sale.invoiceId)
+    rec.invoice = { remaining: d.remaining, pending: d.pending, bounced: d.bounced, overpaid: d.overpaid }
+    rec.cheque = d.cheques.map((c) => `${n(c.amount)}:${c.chequeStatus}${c.voidedAt != null ? ':VOID' : ''}`)
+    await toolNote(ctx, 'after', sale.invoiceId)
+  })
+
 // =================================================================== merge shards
 function normalizeScenarios(list) {
   const secretCodes = [
@@ -768,7 +918,10 @@ function normalizeScenarios(list) {
     id: s.id,
     steps: s.steps.map((st) => [normText(stripTag(st.label, s.id)), st.ok ? 'OK' : 'REFUSED', st.expect, st.ok ? (st.brief ?? null) : normText(st.msg)]),
     findings: [...new Set(s.findings.map((f) => `${f.type} | ${normText(stripTag(f.label, s.id))}`))].sort(),
-    units: s.units.map((u) => ({ parts: u.parts, ok: u.ok, saleFailed: u.saleFailed ?? false, refusal: u.refusal ? normText(u.refusal) : null, order: u.order ?? null, exchange: u.exchange ?? null, second: u.second ?? null })),
+    units: s.units.map((u) => u.group === 'P2'
+      ? { group: 'P2', ...(u.voidFirst ? { voidFirst: u.voidFirst } : {}), pays: u.pays, invoice: u.invoice ?? null, cheque: u.cheque ?? null }
+      : { ...(u.group ? { group: u.group } : {}), parts: u.parts, ok: u.ok, saleFailed: u.saleFailed ?? false, refusal: u.refusal ? normText(u.refusal) : null, order: u.order ?? null, exchange: u.exchange ?? null, second: u.second ?? null,
+          ...(u.secondOnExchange ? { secondOnExchange: u.secondOnExchange } : {}), ...(u.successors ? { successors: u.successors } : {}) }),
     notes: s.notes.map((x) => normText(stripTag(x, s.id))),
     value: s.value
   }))
@@ -792,7 +945,9 @@ normalized = normalized.map(({ idx, ...rest }) => rest)
 // =================================================================== summary, snapshot, compare
 const findingsAll = scenarios.flatMap((s) => s.findings)
 const count = (arr) => { const m = {}; for (const x of arr) m[x] = (m[x] ?? 0) + 1; return Object.fromEntries(Object.entries(m).sort()) }
-const units = scenarios.flatMap((s) => s.units.map((u) => ({ ...u, id: s.id })))
+const units = scenarios.flatMap((s) => s.units.filter((u) => !u.group).map((u) => ({ ...u, id: s.id })))
+const xUnits = scenarios.flatMap((s) => s.units.filter((u) => u.group === 'X'))
+const p2Units = scenarios.flatMap((s) => s.units.filter((u) => u.group === 'P2'))
 const done = units.filter((u) => u.ok)
 const byAction = {}
 for (const u of units) {
@@ -818,7 +973,14 @@ const summary = {
   gapTypes: count(scenarios.flatMap((s) => s.gaps.map((g) => g.split(' | ')[0]))),
   secondAction: count(units.map((u) => u.second ?? (u.ok ? 'n/a' : 'FIRST_REFUSED'))),
   orderVsOwner: count(done.filter((u) => u.order).map((u) => (u.order.sameAsOwner ? 'SAME' : 'DIFFERENT'))),
-  byAction
+  byAction,
+  complexScenario: {
+    units: xUnits.length,
+    accepted: xUnits.filter((u) => u.ok).length,
+    secondOnSameInvoice: count(xUnits.map((u) => u.second ?? 'n/a')),
+    secondOnExchangeInvoice: count(xUnits.filter((u) => u.secondOnExchange).map((u) => u.secondOnExchange))
+  },
+  laterPayments: { scenarios: p2Units.length, payments: count(p2Units.flatMap((u) => u.pays.map((p) => `${u.qstate}${u.voidFirst ? '+void' : ''}:${p.dest}:${p.ok ? 'ACCEPTED' : 'REFUSED'}`))) }
 }
 const fullPath = join(dir, 'full.json')
 writeFileSync(fullPath, JSON.stringify({ summary, scenarios }, bigintSafe, 1))
