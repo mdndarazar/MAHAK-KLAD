@@ -9,6 +9,8 @@
  * نقد، کارت، چک در جریان/برگشتی/پاس‌شده و نسیه × شش برگشت/تعویض، در صندوق فروش و فاکتور عمده)؛ P2 = چک برگشتی که
  * مشتری بعداً در نوبت کاری دیگری با نقد، کارت‌خوان یا واریز به کارت مدیر می‌پردازد، و چک در جریان که زودتر از
  * سررسید با پول تسویه می‌شود. پس از اجرای ۴-۷۷ تا ۴-۷۹ عامل همهٔ این‌ها را دوباره اجرا و با عکس فوری مقایسه می‌کند.
+ * P3 = پرداخت بخشی نسیه (پرسش مالک ۲۰۲۶-۱۱-۲۶): نسیهٔ ۱٬۰۰۰٬۰۰۰ و پرداخت ۳۰۰٬۰۰۰ در نوبت بعد با نقد، کارت‌خوان،
+ * کارت مدیر یا بارکد اعتبار، در صندوق فروش و فاکتور عمده؛ با باقی‌مانده، گزارش همان نوبت، صندوق امانی و عدد آبی روز.
  *
  * فقط ابزار آزمون است: روی پایگاه دادهٔ موقت (پوشهٔ temp) اجرا می‌شود، چاپگر شبیه‌سازی‌شده است و به برنامه،
  * پایگاه واقعی یا آزمون‌های مخزن دست نمی‌زند. در پوشهٔ docs است تا هیچ اجراکنندهٔ آزمونی آن را برندارد.
@@ -58,7 +60,7 @@ const imp = (p) => import(pathToFileURL(REPO + p).href)
 const { harnessClient } = await imp('/test/harness/stubs/prismaClient.mjs')
 const { makeSeeder } = await imp('/test/harness/seed.mjs')
 const { salesService } = await imp('/src/main/services/SalesService.ts')
-const { storeCreditService } = await imp('/src/main/services/StoreCreditService.ts')
+const { storeCreditService, nonCashMethodId } = await imp('/src/main/services/StoreCreditService.ts')
 const { cardTransferService } = await imp('/src/main/services/CardTransferService.ts')
 const { physicalMovementForCustodyShift } = await imp('/src/main/services/CustodyAggregateService.ts')
 const { invoiceRemaining } = await imp('/src/main/services/invoiceDebt.ts')
@@ -69,7 +71,7 @@ const { IPC } = await imp('/src/shared/ipc.ts')
 const { DEFAULT_MANAGER_PASSWORD: PW, DEFAULT_RECEIPT_TEMPLATE, SETTING_KEYS } = await imp('/src/shared/receipt.ts')
 const { DEFAULT_CREDIT_SETTINGS } = await imp('/src/shared/credit.ts')
 const { PANEL_KEYS } = await imp('/src/shared/panels.ts')
-const { CHEQUE_METHOD_KEY } = await imp('/src/shared/enums.ts')
+const { CHEQUE_METHOD_KEY, STORE_CREDIT_METHOD_KEY } = await imp('/src/shared/enums.ts')
 const { toJalaliDate } = await imp('/src/shared/jalali.ts')
 
 const db = harnessClient()
@@ -897,6 +899,87 @@ for (const sc of P2)
     await toolNote(ctx, 'after', sale.invoiceId)
   })
 
+// =================================================================== part E — partial payment of a credit sale (P3)
+/**
+ * پرسش مالک (۲۰۲۶-۱۱-۲۶): مشتری ۱٬۰۰۰٬۰۰۰ نسیه دارد و ۳۰۰٬۰۰۰ می‌دهد؛ با نقد، کارت‌خوان، کارت‌به‌کارت به مدیر
+ * یا بارکد اعتبار ثبت می‌شود و بدهی خودکار ۷۰۰٬۰۰۰ می‌شود؟ پول در نوبت کاری بعدی گرفته می‌شود. ثبت می‌شود:
+ * باقی‌مانده، گزارش همان نوبت (نقد / کارت / حساب مدیر)، صندوق امانی (عدد مرجع) و عدد آبی روز (F9). خواستهٔ مالک:
+ * نقد و کارت ⇐ عدد مرجع و عدد آبی؛ کارت مدیر ⇐ هیچ‌کدام. با پول: بقیه (۷۰۰٬۰۰۰) با همان روش ⇐ «تسویه شد»، و ۱۰۰٬۰۰۰
+ * بیشتر ⇐ رد. بارکد: پنجرهٔ پرداختی‌ها روش اعتباری را نشان نمی‌دهد و درخواست مستقیم هم باید رد شود؛ بارکد سالم
+ * می‌ماند و همان بارکد بعد یک خرید ۳۰۰٬۰۰۰ را می‌پردازد (۴-۸۴: اضافه نمی‌شود). حالت بارکد در همان نوبت فروش است،
+ * چون خرید تازه فقط در نوبتِ بازِ همان لحظه ثبت می‌شود و نوبت بعدی برای این حالت چیزی را عوض نمی‌کند.
+ */
+async function dayBlue() {
+  const t = (await salesService.reportRows({ fromJalali: today, toJalali: today })).totals
+  return n(t.receivedTotal) - n(t.refundCashTotal) - n(t.refundCardTotal)
+}
+async function plainCreditSale(ctx, channel, v) {
+  const input = channel === 'POS'
+    ? { userId, shiftId: ctx.shiftId, lines: [lineOf(v)], payments: [], debtor: DEBTOR, saleRequestIdempotencyKey: `aud-${ctx.id}-p3-${++keySeq}` }
+    : { customerId: null, orderType: 'WHOLESALE', issuedAtJalali: today, deductInventory: true, wholesaleDiscountPercent: null,
+        invoiceDiscount: 0, invoiceTax: 0, serviceCharge: 0, lines: [lineOf(v)], remoteCustomer: false, autoCentralWithdraw: false,
+        storeCreditCode: null, payments: [], debtor: DEBTOR, userId, shiftId: ctx.shiftId }
+  return step(ctx, `${channel} credit sale 1,000,000 with debtor, nothing paid`, 'ok', () => salesService.create(input))
+}
+const P3_METHODS = [
+  { key: 'CASH', fa: 'نقد', methodId: () => cashM, dest: 'CASH' },
+  { key: 'CARD', fa: 'کارت‌خوان', methodId: () => cardM, dest: 'CARD' },
+  { key: 'MANAGER', fa: 'کارت‌به‌کارت به مدیر', methodId: () => cardM, dest: 'MANAGER' },
+  { key: 'BARCODE', fa: 'بارکد اعتبار', barcode: true }
+]
+for (const channel of ['POS', 'WHOLESALE'])
+  for (const m of P3_METHODS)
+    await run(`P3·${channel}·${m.key}`, `پرداخت بخشی نسیه · ${channel === 'POS' ? 'صندوق فروش' : 'فاکتور عمده'} · نسیهٔ ۱٬۰۰۰٬۰۰۰ و ۳۰۰٬۰۰۰ ${m.fa} در نوبت بعد`, async (ctx) => {
+      const sale = await plainCreditSale(ctx, channel, V(ctx, 'one', 1_000_000))
+      if (!sale.ok) return
+      const invoiceId = n(sale.res.id)
+      const sid = m.barcode ? ctx.shiftId : await laterShift(ctx)
+      const rec = { group: 'P3', channel, method: m.key, laterShift: !m.barcode, pays: [] }
+      ctx.units.push(rec)
+      const measure = async (amount, r, blue0) => {
+        const t = (await salesService.reportRows({ shiftId: sid })).totals
+        const d = await invoiceDebt(invoiceId)
+        rec.pays.push({ amount, ok: !!r.ok, remaining: d.remaining, shiftReport: { cash: n(t.cashTotal), card: n(t.cardTotal), manager: n(t.managerAccountTotal ?? 0) },
+          custodyPhysical: n(await physicalMovementForCustodyShift(sid)), dayBlueDelta: (await dayBlue()) - blue0 })
+      }
+      if (m.barcode) {
+        const credit = await issueManual(ctx, 300_000)
+        const methodId = await nonCashMethodId(db, STORE_CREDIT_METHOD_KEY)
+        const blue0 = await dayBlue()
+        const r = await step(ctx, 'customer brings a 300,000 barcode; direct request in the payments window (store-credit method)', 'refuse', () =>
+          salesService.addPayment({ invoiceId, kind: 'CASH', amount: 300_000, methodId, destination: 'CASH', userId }))
+        await measure(300_000, r, blue0)
+        const row = rawCredit(credit.id)
+        rec.credit = { amount: n(row.amount), used: n(row.usedAmount), status: row.status }
+        const nv = V(ctx, 'new', 300_000)
+        let input
+        if (channel === 'POS') {
+          input = { userId, shiftId: ctx.shiftId, lines: [lineOf(nv)], payments: [], storeCredits: [{ code: credit.code, requestedAmount: 300_000 }], saleRequestIdempotencyKey: `aud-${ctx.id}-p3b-${++keySeq}` }
+        } else {
+          await step(ctx, 'wholesale page auto-check of the barcode', 'either', () => storeCreditService.lookup({ code: credit.code, userId }))
+          input = { customerId: null, orderType: 'WHOLESALE', issuedAtJalali: today, deductInventory: true, wholesaleDiscountPercent: null,
+            invoiceDiscount: 0, invoiceTax: 0, serviceCharge: 0, lines: [lineOf(nv)], remoteCustomer: false, autoCentralWithdraw: false,
+            storeCreditCode: credit.code, payments: [], userId, shiftId: ctx.shiftId }
+        }
+        const b = await step(ctx, 'the same barcode pays a new 300,000 purchase', 'ok', () => salesService.create(input))
+        rec.newPurchase = b.ok ? { ok: true, barcodeApplied: n(b.res.storeCreditApplied ?? 0), remaining: (await invoiceDebt(n(b.res.id))).remaining } : { ok: false }
+      } else {
+        let blue0 = await dayBlue()
+        const r = await step(ctx, `customer pays 300,000 ${PAY_FA[m.dest]} (later shift)`, 'ok', () =>
+          salesService.addPayment({ invoiceId, kind: 'CASH', amount: 300_000, methodId: m.methodId(), destination: m.dest, userId }))
+        await measure(300_000, r, blue0)
+        blue0 = await dayBlue()
+        const r2 = await step(ctx, `customer pays the rest 700,000 ${PAY_FA[m.dest]}`, 'ok', () =>
+          salesService.addPayment({ invoiceId, kind: 'CASH', amount: 700_000, methodId: m.methodId(), destination: m.dest, userId }))
+        await measure(700_000, r2, blue0)
+        rec.settled = !!r2.ok && r2.res?.settled === true
+        blue0 = await dayBlue()
+        const r3 = await step(ctx, 'another 100,000 after the debt is settled', 'refuse', () =>
+          salesService.addPayment({ invoiceId, kind: 'CASH', amount: 100_000, methodId: m.methodId(), destination: m.dest, userId }))
+        await measure(100_000, r3, blue0)
+      }
+    })
+
 // =================================================================== merge shards
 function normalizeScenarios(list) {
   const secretCodes = [
@@ -918,7 +1001,9 @@ function normalizeScenarios(list) {
     id: s.id,
     steps: s.steps.map((st) => [normText(stripTag(st.label, s.id)), st.ok ? 'OK' : 'REFUSED', st.expect, st.ok ? (st.brief ?? null) : normText(st.msg)]),
     findings: [...new Set(s.findings.map((f) => `${f.type} | ${normText(stripTag(f.label, s.id))}`))].sort(),
-    units: s.units.map((u) => u.group === 'P2'
+    units: s.units.map((u) => u.group === 'P3'
+      ? { group: 'P3', channel: u.channel, method: u.method, laterShift: u.laterShift, pays: u.pays, ...(u.settled !== undefined ? { settled: u.settled } : {}), ...(u.credit ? { credit: u.credit } : {}), ...(u.newPurchase ? { newPurchase: u.newPurchase } : {}) }
+      : u.group === 'P2'
       ? { group: 'P2', ...(u.voidFirst ? { voidFirst: u.voidFirst } : {}), pays: u.pays, invoice: u.invoice ?? null, cheque: u.cheque ?? null }
       : { ...(u.group ? { group: u.group } : {}), parts: u.parts, ok: u.ok, saleFailed: u.saleFailed ?? false, refusal: u.refusal ? normText(u.refusal) : null, order: u.order ?? null, exchange: u.exchange ?? null, second: u.second ?? null,
           ...(u.secondOnExchange ? { secondOnExchange: u.secondOnExchange } : {}), ...(u.successors ? { successors: u.successors } : {}) }),
@@ -948,6 +1033,7 @@ const count = (arr) => { const m = {}; for (const x of arr) m[x] = (m[x] ?? 0) +
 const units = scenarios.flatMap((s) => s.units.filter((u) => !u.group).map((u) => ({ ...u, id: s.id })))
 const xUnits = scenarios.flatMap((s) => s.units.filter((u) => u.group === 'X'))
 const p2Units = scenarios.flatMap((s) => s.units.filter((u) => u.group === 'P2'))
+const p3Units = scenarios.flatMap((s) => s.units.filter((u) => u.group === 'P3'))
 const done = units.filter((u) => u.ok)
 const byAction = {}
 for (const u of units) {
@@ -980,7 +1066,8 @@ const summary = {
     secondOnSameInvoice: count(xUnits.map((u) => u.second ?? 'n/a')),
     secondOnExchangeInvoice: count(xUnits.filter((u) => u.secondOnExchange).map((u) => u.secondOnExchange))
   },
-  laterPayments: { scenarios: p2Units.length, payments: count(p2Units.flatMap((u) => u.pays.map((p) => `${u.qstate}${u.voidFirst ? '+void' : ''}:${p.dest}:${p.ok ? 'ACCEPTED' : 'REFUSED'}`))) }
+  laterPayments: { scenarios: p2Units.length, payments: count(p2Units.flatMap((u) => u.pays.map((p) => `${u.qstate}${u.voidFirst ? '+void' : ''}:${p.dest}:${p.ok ? 'ACCEPTED' : 'REFUSED'}`))) },
+  partialCreditPayments: { scenarios: p3Units.length, first300k: count(p3Units.map((u) => `${u.channel}:${u.method}:${u.pays[0]?.ok ? 'ACCEPTED' : 'REFUSED'}:remaining ${u.pays[0]?.remaining}:ref ${u.pays[0]?.custodyPhysical}:blue ${u.pays[0]?.dayBlueDelta}:manager ${u.pays[0]?.shiftReport?.manager}`)) }
 }
 const fullPath = join(dir, 'full.json')
 writeFileSync(fullPath, JSON.stringify({ summary, scenarios }, bigintSafe, 1))
