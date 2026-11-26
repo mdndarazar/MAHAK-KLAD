@@ -847,7 +847,8 @@ await run('K', 'حضانت صندوق: باز کردن با رمز شخصی، ف
   obs(ctx, 'morningOpen', { ok: op2.ok, countStatus: op2.data?.countStatus ?? null, newCases: countOf('CustodyDiscrepancyCase') })
   const k2 = n(op2.data?.shiftId)
   await sale(ctx, { items: [[v1]], pays: [['CASH', 700_000]], label: 'sale cash 700,000 — then nobody presses «بستن نهایی»' })
-  // گذشتن از ساعت بستن خودکار (rolloverAt همان لحظه‌ای است که هنگام باز شدن صندوق ثبت شده؛ امروز ساعت ۵ صبح)
+  // گذشتن از لحظهٔ بستن خودکار (rolloverAt هنگام باز شدن صندوق ثبت می‌شود؛ کد امروز ساعت ۵ صبح، توافق دفتر: تک‌شیفت ساعت ۲۴ (۴-۱۸)،
+  // «مغازه شب می‌بندد» شروع شیفت اول (۴-۱۷)، «۲۴ساعته» ساعت ۲۴ (۴-۲۳)؛ این سناریو به ساعت وابسته نیست)
   if (k2) sql.prepare('UPDATE "CustodyShiftMeta" SET rolloverAt=? WHERE shiftId=?').run(Date.now() - 60_000, k2)
   const st = await invoke(IPC.custodyStatus, {})
   obs(ctx, 'afterAutoClose', st.ok ? { state: st.data.state, unresolved: n(st.data.unresolvedCount), nightExpectedKnown: st.data.unresolved?.[0]?.nightExpectedCash != null, shiftClosed: k2 ? seed.one('SELECT closedAt FROM "Shift" WHERE id=?', k2)?.closedAt != null : null } : { ok: false })
