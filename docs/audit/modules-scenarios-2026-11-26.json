@@ -1,0 +1,1130 @@
+{
+ "meta": {
+  "tool": "docs/audit/modules-scenarios.mjs",
+  "programCommit": "d90e28e95acabe78f8c62ca83ee21cab381a4b67",
+  "summary": {
+   "scenarios": 12,
+   "steps": 74,
+   "refused": 17,
+   "findings": 24,
+   "logicFindings": 0,
+   "byPlan": {
+    "۴-۱۲۱": 10,
+    "۴-۱۱۷": 4,
+    "۴-۱۱۵": 2,
+    "۴-۱۱۸": 1,
+    "۴-۱۱۶": 1,
+    "۴-۱۱۴": 3,
+    "۴-۱۱۹": 1,
+    "۴-۱۲۰": 1,
+    "۴-۵۵": 1
+   },
+   "byType": {
+    "VAGUE_MESSAGE": 1,
+    "ODD_DEFAULT": 1,
+    "STALE_LAST_PURCHASE_PRICE": 1,
+    "SILENT_NEGATIVE_STOCK": 1,
+    "PAYMENT_EDIT_REWRITES_COST": 1,
+    "OVERPAID_ACCEPTED": 1,
+    "NO_VOID_PATH": 1,
+    "FUTURE_DATE_ACCEPTED": 1,
+    "DEAD_END_MESSAGE": 1,
+    "STALE_CART_MANAGER_PROMPT": 2,
+    "STALE_CART_OVERCHARGE": 1,
+    "LATIN_DIGITS": 2,
+    "LATIN_DIGITS_IRRELEVANT_NOTE": 1,
+    "REGISTER_MIX": 1,
+    "NO_PROVIDER_NOTICE": 1,
+    "LOCK_HINT_TEXT": 7
+   }
+  }
+ },
+ "scenarios": [
+  {
+   "id": "M0",
+   "title": "راه‌اندازی: نشست مالک و باز کردن صفحه‌ها با رمز همان صفحه",
+   "steps": [
+    [
+     "open session (owner)",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": []
+  },
+  {
+   "id": "M1",
+   "title": "کالاها و دسته‌ها",
+   "steps": [
+    [
+     "category «مردانه»",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "category «شلوار» under «مردانه»",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "category «زنانه»",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "product «شلوار جین» (32, 34) stock 0",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "product «پیراهن» L stock 0",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "product «مانتو» M stock 0",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "duplicate barcode on another product",
+     "REFUSED",
+     "refuse",
+     "بارکد تکراری است؛ یک مقدار دیگر وارد کنید."
+    ],
+    [
+     "duplicate code on another product",
+     "REFUSED",
+     "refuse",
+     "کد کالا تکراری است؛ یک مقدار دیگر وارد کنید."
+    ]
+   ],
+   "findings": [
+    "VAGUE_MESSAGE | ۴-۱۲۱ | بارکد تکراری: پیام نمی‌گوید بارکد مال کدام کالاست («بارکد تکراری است؛ یک مقدار دیگر وارد کنید.»)"
+   ],
+   "obs": [
+    {
+     "k": "variants",
+     "v": [
+      "J-32",
+      "J-34",
+      "S-L",
+      "M-M"
+     ]
+    },
+    {
+     "k": "duplicate barcode message",
+     "v": "بارکد تکراری است؛ یک مقدار دیگر وارد کنید."
+    },
+    {
+     "k": "duplicate code message",
+     "v": "کد کالا تکراری است؛ یک مقدار دیگر وارد کنید."
+    }
+   ]
+  },
+  {
+   "id": "M2",
+   "title": "فاکتور خرید: شماره، ثبت، ویرایش، قیمت خرید کارت کالا، ابطال",
+   "steps": [
+    [
+     "next purchase number on an empty shop",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "purchase without the purchase password",
+     "REFUSED",
+     "refuse",
+     "«ثبت فاکتور خرید (افزایش موجودی و قیمت خرید)» تأیید مدیر لازم دارد. رمز مدیر (یا رمز دوم همین پنل) را وارد کنید."
+    ],
+    [
+     "purchase A: J-32×5@600k, J-34×5@600k, S-L×4@500k, M-M×3@1.5m; discount 200k; paid 3m; ACCOUNT",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "purchase B (newer): J-32×2@650k CASH paid",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "edit OLDER purchase A: J-32 price 600k→610k (typo fix)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "POS sale J-32×3 cash",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "edit purchase A: remove J-32 line (stock 4, line 5)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "restore J-32 line in A (undo)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "purchase C (newest): J-32×1@660k CASH",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "pay the supplier later: edit OLDER A, only «paid» 3,000,000 → 5,000,000 (lines unchanged)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "purchase paid more than its total: 1 × 500,000, paid 5,000,000",
+     "OK",
+     "either",
+     null
+    ],
+    [
+     "void purchase B entirely (all lines 0) — wrong invoice entered",
+     "REFUSED",
+     "either",
+     "فاکتور خرید بدون قلم قابل ثبت نیست"
+    ],
+    [
+     "purchase list",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "purchase dated 3 days in the future",
+     "OK",
+     "either",
+     null
+    ]
+   ],
+   "findings": [
+    "FUTURE_DATE_ACCEPTED | ۴-۱۱۷ | فاکتور خرید با تاریخ سه روز بعد بی هشدار ثبت شد (شمارش انبار تاریخ آینده را رد می‌کند)",
+    "NO_VOID_PATH | ۴-۱۱۸ | فاکتور خرید اشتباه را نمی‌شود باطل کرد: «فاکتور خرید بدون قلم قابل ثبت نیست»؛ کانال حذف/ابطال هم نیست",
+    "ODD_DEFAULT | ۴-۱۱۷ | شمارهٔ نخستین فاکتور خرید در فروشگاه تازه 365 است، نه ۱",
+    "OVERPAID_ACCEPTED | ۴-۱۱۷ | فاکتور خرید ۵۰۰٬۰۰۰ ریالی با «پرداخت‌شده» ۵٬۰۰۰٬۰۰۰ بی هشدار ثبت شد؛ صفحه فقط «تسویه کامل» نشان می‌دهد",
+    "PAYMENT_EDIT_REWRITES_COST | ۴-۱۱۵ | ثبت پرداخت بعدی روی فاکتور خرید قدیمی، «قیمت خرید» کارت کالا را از ۶۶۰٬۰۰۰ (تازه‌ترین خرید) به 610000 برگرداند",
+    "SILENT_NEGATIVE_STOCK | ۴-۱۱۷ | ویرایش فاکتور خرید موجودی J-32 را بی هیچ هشداری -1 کرد",
+    "STALE_LAST_PURCHASE_PRICE | ۴-۱۱۵ | ویرایش فاکتور خرید قدیمی‌تر، «قیمت خرید» کارت کالا را از ۶۵۰٬۰۰۰ (فاکتور تازه‌تر) به 610000 برگرداند"
+   ],
+   "obs": [
+    {
+     "k": "first purchase number",
+     "v": 365
+    },
+    {
+     "k": "purchase A",
+     "v": {
+      "goods": 12500000,
+      "discount": 200000,
+      "grand": 12300000,
+      "paid": 3000000
+     }
+    },
+    {
+     "k": "J-32 card after B",
+     "v": {
+      "salePrice": 1000000,
+      "purchasePrice": 650000,
+      "stock": 7
+     }
+    },
+    {
+     "k": "J-32 card purchase price after editing older A",
+     "v": 610000
+    },
+    {
+     "k": "J-32 stock after removing the line",
+     "v": -1
+    },
+    {
+     "k": "edit result has a warning about negative stock",
+     "v": false
+    },
+    {
+     "k": "J-32 card after C",
+     "v": 660000
+    },
+    {
+     "k": "J-32 card after a payment-only edit of A",
+     "v": 610000
+    },
+    {
+     "k": "overpaid purchase accepted",
+     "v": true
+    },
+    {
+     "k": "purchase list",
+     "v": [
+      [
+       368,
+       500000,
+       5000000,
+       "CASH"
+      ],
+      [
+       367,
+       660000,
+       660000,
+       "CASH"
+      ],
+      [
+       366,
+       1300000,
+       1300000,
+       "CASH"
+      ],
+      [
+       365,
+       12350000,
+       5000000,
+       "ACCOUNT"
+      ]
+     ]
+    },
+    {
+     "k": "purchase list totals",
+     "v": {
+      "count": 4,
+      "goodsTotal": 15010000,
+      "discountTotal": 200000,
+      "grandTotal": 14810000,
+      "paidTotal": 11960000
+     }
+    },
+    {
+     "k": "future-dated purchase accepted",
+     "v": true
+    }
+   ]
+  },
+  {
+   "id": "M3",
+   "title": "انبارگردانی، مغایرت و اصلاح موجودی",
+   "steps": [
+    [
+     "count: J-34 one short, S-L one extra (surplus)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "count dated tomorrow",
+     "REFUSED",
+     "refuse",
+     "تاریخ شمارش (<تاریخ>) نمی‌تواند بعد از امروز (<تاریخ>) باشد؛ شمارش آینده‌دار شمارش‌های واقعی بعدی را در گزارش مغایرت پنهان می‌کند. هیچ شمارشی ثبت نشد."
+    ],
+    [
+     "discrepancy (only mismatched)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "shortage fix: J-34 −1 (DAMAGE) without password",
+     "REFUSED",
+     "refuse",
+     "«اصلاح دستی موجودی» تأیید مدیر لازم دارد. رمز مدیر (یا رمز دوم همین پنل) را وارد کنید."
+    ],
+    [
+     "shortage fix: J-34 −1 (DAMAGE) with password",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "surplus fix: S-L +1 with password",
+     "REFUSED",
+     "either",
+     "افزایش دستی موجودی مجاز نیست (موجودی فعلی ۶، عدد واردشده ۷). مازاد فقط از مسیر «انبارگردانی» با مجوز مدیر، دلیل و بهای صریح ثبت می‌شود؛ ورود کالا هم از فاکتور خرید واقعی."
+    ],
+    [
+     "reminder: every 30 days",
+     "OK",
+     "either",
+     null
+    ],
+    [
+     "reminder due",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [
+    "DEAD_END_MESSAGE | ۴-۱۱۶ | افزایش دستی رد می‌شود و پیام به «مسیر انبارگردانی» می‌فرستد، ولی انبارگردانی چنین راهی ندارد (صفحهٔ انبارگردانی هم می‌گوید اصلاح از پنل کالاها)"
+   ],
+   "obs": [
+    {
+     "k": "stock now",
+     "v": {
+      "J-32": 5,
+      "J-34": 5,
+      "S-L": 6,
+      "M-M": 3
+     }
+    },
+    {
+     "k": "count result",
+     "v": {
+      "mismatched": 2,
+      "items": 2
+     }
+    },
+    {
+     "k": "stock unchanged by count",
+     "v": [
+      true,
+      true
+     ]
+    },
+    {
+     "k": "discrepancy rows",
+     "v": 2
+    },
+    {
+     "k": "surplus message",
+     "v": "افزایش دستی موجودی مجاز نیست (موجودی فعلی #، عدد واردشده #). مازاد فقط از مسیر «انبارگردانی» با مجوز مدیر، دلیل و بهای صریح ثبت می‌شود؛ ورود کالا هم از فاکتور خرید واقعی."
+    },
+    {
+     "k": "stocktake channels",
+     "v": [
+      "stockCount:variants",
+      "stockCount:submit",
+      "stockCount:list",
+      "stockCount:get",
+      "stockCount:discrepancy",
+      "stocktake:schedule:get",
+      "stocktake:schedule:set",
+      "stocktake:due",
+      "stocktake:dismiss"
+     ]
+    },
+    {
+     "k": "reminder due",
+     "v": {
+      "enabled": true,
+      "due": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "M4",
+   "title": "انبار مرکزی: انبار، کالا، انتقال و انتقال به فروشگاه",
+   "steps": [
+    [
+     "warehouse «انبار پشت مغازه»",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "central item «مانتو مشکی M» qty 10 (default warehouse)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "transfer 4 to «انبار پشت مغازه»",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "central list",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "to store 3 → variant M-M without the to-store password",
+     "REFUSED",
+     "refuse",
+     "«انتقال از انبار مرکزی به انبار فروشگاه» تأیید مدیر لازم دارد. رمز مدیر (یا رمز دوم همین پنل) را وارد کنید."
+    ],
+    [
+     "to store 3 → variant M-M with password",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "central list after",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "central history",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "central rows",
+     "v": [
+      [
+       "مانتو مشکی M",
+       "انبار مرکزی",
+       6
+      ],
+      [
+       "مانتو مشکی M",
+       "انبار پشت مغازه",
+       4
+      ]
+     ]
+    },
+    {
+     "k": "M-M store stock before/after",
+     "v": [
+      3,
+      6
+     ]
+    },
+    {
+     "k": "central rows after",
+     "v": [
+      [
+       "مانتو مشکی M",
+       3
+      ],
+      [
+       "مانتو مشکی M",
+       4
+      ]
+     ]
+    },
+    {
+     "k": "history rows",
+     "v": 4
+    }
+   ]
+  },
+  {
+   "id": "M5",
+   "title": "تغییر قیمت گروهی: فوری، کف قیمت، زمان‌بندی، سبد باز",
+   "steps": [
+    [
+     "preview +10% «مردانه» (includes sub-category «شلوار»)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "apply without password",
+     "REFUSED",
+     "refuse",
+     "«تغییر گروهی قیمت» تأیید مدیر لازم دارد. رمز مدیر (یا رمز دوم همین پنل) را وارد کنید."
+    ],
+    [
+     "apply with password",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "POS sale S-L at the price shown before the change (800,000; cart opened earlier)",
+     "REFUSED",
+     "either",
+     "[GATE_REQUIRED:sales.price-below-reference] «قیمت کمتر از قیمت مرجع (کد S-L: واردشده ۸۰۰٬۰۰۰ ریال، مرجع ۸۸۰٬۰۰۰ ریال)» تایید مدیر لازم دارد. رمز مدیر را وارد کنید."
+    ],
+    [
+     "revert with password",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "preview −500,000 AMOUNT on «پیراهن» with min price 400,000",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "preview change of PURCHASE price (closed target)",
+     "REFUSED",
+     "either",
+     "تغییر گروهی «قیمت خرید» بسته است: بهای خرید فقط از فاکتور خرید واقعی می‌آید. برای اصلاح بهای یک کالا، فاکتور خریدش را اصلاح کنید؛ برای بالا/پایین بردن قیمت مغازه از هدف «قیمت فروش» استفاده کنید. هیچ تغییری ثبت نشد."
+    ],
+    [
+     "schedule −20% on «مانتو» from +1h to +3h",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "POS sale «مانتو» from a cart filled before the sale started, paid during the sale (old price 2,500,000)",
+     "OK",
+     "either",
+     null
+    ],
+    [
+     "POS sale «مانتو» at the discounted price 2,000,000 (during the sale)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "POS sale «مانتو» from a cart filled during the sale, paid after the sale ended (2,000,000)",
+     "REFUSED",
+     "either",
+     "[GATE_REQUIRED:sales.price-below-reference] «قیمت کمتر از قیمت مرجع (کد M-M: واردشده ۲٬۰۰۰٬۰۰۰ ریال، مرجع ۲٬۵۰۰٬۰۰۰ ریال)» تایید مدیر لازم دارد. رمز مدیر را وارد کنید."
+    ],
+    [
+     "price change history",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [
+    "LATIN_DIGITS | ۴-۱۲۱ | عنوان تاریخچهٔ تغییر قیمت با رقم انگلیسی: «10٪ افزایش قیمت روی قیمت فروش · دسته‌ی «مردانه» و زیردسته‌هایش»",
+    "LATIN_DIGITS | ۴-۱۲۱ | عنوان تاریخچهٔ تغییر قیمت با رقم انگلیسی: «20٪ تخفیف روی قیمت فروش · ۱ کالای انتخاب‌شده»",
+    "STALE_CART_MANAGER_PROMPT | ۴-۱۱۴ | سبدی که پیش از تغییر قیمت باز بود، هنگام پرداخت رمز مدیر می‌خواهد: ««قیمت کمتر از قیمت مرجع (کد S-L: واردشده ۸۰۰٬۰۰۰ ریال، مرجع ۸۸۰٬۰۰۰ ریال)» تایید مدیر لازم دارد. رمز مدیر را وارد کنید.»",
+    "STALE_CART_MANAGER_PROMPT | ۴-۱۱۴ | پایان حراج زمان‌بندی‌شده وسط فروش: سبد باز رمز مدیر می‌خواهد: ««قیمت کمتر از قیمت مرجع (کد M-M: واردشده ۲٬۰۰۰٬۰۰۰ ریال، مرجع ۲٬۵۰۰٬۰۰۰ ریال)» تایید مدیر لازم دارد. رمز مدیر را وارد کنید.»",
+    "STALE_CART_OVERCHARGE | ۴-۱۱۴ | سبدی که پیش از شروع حراج پر شده بود، با قیمت قدیمی ۲٬۵۰۰٬۰۰۰ (به‌جای ۲٬۰۰۰٬۰۰۰ حراج) بی هیچ هشداری ثبت شد"
+   ],
+   "obs": [
+    {
+     "k": "preview",
+     "v": [
+      [
+       "J-32",
+       1000000,
+       1100000
+      ],
+      [
+       "J-34",
+       1000000,
+       1100000
+      ],
+      [
+       "S-L",
+       800000,
+       880000
+      ]
+     ]
+    },
+    {
+     "k": "prices after +10%",
+     "v": {
+      "J32": 1100000,
+      "SL": 880000,
+      "MM": 2500000
+     }
+    },
+    {
+     "k": "prices after revert",
+     "v": {
+      "J32": 1000000,
+      "SL": 800000
+     }
+    },
+    {
+     "k": "floor preview",
+     "v": [
+      [
+       800000,
+       400000
+      ]
+     ]
+    },
+    {
+     "k": "purchase target",
+     "v": "تغییر گروهی «قیمت خرید» بسته است: بهای خرید فقط از فاکتور خرید واقعی می‌آید. برای اصلاح بهای یک کالا، فاکتور خریدش را اصلاح کنید؛ برای بالا/پایین بردن قیمت مغازه از هدف «قیمت فروش» استفاده کنید. هیچ تغییری ثبت نشد."
+    },
+    {
+     "k": "M-M price right after scheduling",
+     "v": 2500000
+    },
+    {
+     "k": "scheduler at start+1m",
+     "v": {
+      "started": 1,
+      "ended": 0,
+      "failed": 0,
+      "price": 2000000
+     }
+    },
+    {
+     "k": "scheduler at end+1m",
+     "v": {
+      "started": 0,
+      "ended": 1,
+      "failed": 0,
+      "price": 2500000
+     }
+    },
+    {
+     "k": "history",
+     "v": [
+      [
+       "20٪ تخفیف روی قیمت فروش · ۱ کالای انتخاب‌شده",
+       "ENDED"
+      ],
+      [
+       "10٪ افزایش قیمت روی قیمت فروش · دسته‌ی «مردانه» و زیردسته‌هایش",
+       "REVERTED"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "M6",
+   "title": "عوارض و مالیات و حق سرویس: پیش‌فرض، فروش تکی، فاکتور عمده",
+   "steps": [
+    [
+     "charges (fresh install)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "save POS tax without password",
+     "REFUSED",
+     "refuse",
+     "«ذخیره‌ی «عوارض و مالیات · پنل فروش (خرده)»» تأیید مدیر لازم دارد. رمز مدیر (یا رمز دوم همین پنل) را وارد کنید."
+    ],
+    [
+     "save POS tax 9% «مردانه», 0% «شلوار»",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "save POS service fixed 20,000 per line (fallback)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "POS sale «پیراهن» with tax 0 (page computed before the change)",
+     "REFUSED",
+     "either",
+     "عوارض و مالیات کالای «پیراهن» باید ۷۲٬۰۰۰ ریال باشد، نه ۰ ریال. در پنل فروش (خرده) عوارض دستی ممکن نیست و با رمز مدیر هم باز نمی‌شود. مبلغ عوارض و حق سرویس را برنامه از «تنظیمات عوارض/حق سرویس» همین پنل و دسته‌ی کالا حساب می‌کند؛ صفحه را تازه کنید تا تنظیمات جدید خوانده شود و دوباره ثبت کنید."
+    ],
+    [
+     "POS sale «پیراهن» with tax 72000 + service 20,000",
+     "OK",
+     "either",
+     null
+    ],
+    [
+     "POS sale «شلوار جین» (0% child rule) tax 0 + service",
+     "OK",
+     "either",
+     null
+    ],
+    [
+     "save WHOLESALE tax 9% «مردانه»",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "wholesale «پیراهن» with tax 0 (below the automatic 72,000)",
+     "REFUSED",
+     "either",
+     "[GATE_REQUIRED:sales.charges-below-auto] «کمتر از مبلغ خودکار در فاکتور فروش عمده (عوارض و مالیات ۰ ریال به‌جای ۷۲٬۰۰۰ ریال)» تایید مدیر لازم دارد. رمز مدیر را وارد کنید."
+    ],
+    [
+     "wholesale «پیراهن» with tax 72,000",
+     "REFUSED",
+     "either",
+     "در فاکتور فروش عمده عوارض فقط در سطح فاکتور ثبت می‌شود؛ عوارض روی ردیف کالا (۷۲٬۰۰۰ ریال) پذیرفته نیست. مبلغ عوارض و حق سرویس را برنامه از «تنظیمات عوارض/حق سرویس» همین پنل و دسته‌ی کالا حساب می‌کند؛ صفحه را تازه کنید تا تنظیمات جدید خوانده شود و دوباره ثبت کنید."
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "charges fresh",
+     "v": {
+      "pos": {
+       "tax": {
+        "enabled": true,
+        "rules": [],
+        "fallback": null
+       },
+       "service": {
+        "enabled": true,
+        "rules": [],
+        "fallback": null
+       }
+      },
+      "wholesale": {
+       "tax": {
+        "enabled": true,
+        "rules": [],
+        "fallback": null
+       },
+       "service": {
+        "enabled": true,
+        "rules": [],
+        "fallback": null
+       }
+      }
+     }
+    },
+    {
+     "k": "server message for wrong tax",
+     "v": "عوارض و مالیات کالای «پیراهن» باید ۷۲٬۰۰۰ ریال باشد، نه ۰ ریال. در پنل فروش (خرده) عوارض دستی ممکن نیست و با رمز مدیر هم باز نمی‌شود. مبلغ عوارض و حق سرویس را برنامه از «تنظیمات عوارض/حق سرویس» همین پنل و دسته‌ی کالا حساب می‌کند؛ صفحه را تازه کنید تا تنظیمات جدید خوانده شود و دوباره ثبت کنید."
+    },
+    {
+     "k": "server-required tax",
+     "v": 72000
+    },
+    {
+     "k": "POS invoice",
+     "v": {
+      "grand": 892000,
+      "tax": 72000,
+      "service": 20000
+     }
+    },
+    {
+     "k": "jeans",
+     "v": {
+      "grand": 1020000,
+      "tax": 0,
+      "service": 20000
+     }
+    },
+    {
+     "k": "wholesale tax 0",
+     "v": "GATE_REQUIRED:sales.charges-below-auto «کمتر از مبلغ خودکار در فاکتور فروش عمده (عوارض و مالیات ۰ ریال به‌جای ۷۲٬۰۰۰ ریال)» تایید مدیر لازم دارد. رمز مدیر را وارد کنید."
+    },
+    {
+     "k": "wholesale tax 72,000",
+     "v": " در فاکتور فروش عمده عوارض فقط در سطح فاکتور ثبت می‌شود؛ عوارض روی ردیف کالا (۷۲٬۰۰۰ ریال) پذیرفته نیست. مبلغ عوارض و حق سرویس را برنامه از «تنظیمات عوارض/حق سرویس» همین پنل و دسته‌ی کالا حساب می‌کند؛ صفحه را تازه کنید تا تنظیمات جدید خوانده شود و دوباره ثبت کنید."
+    }
+   ]
+  },
+  {
+   "id": "M7",
+   "title": "گزارش مدیریت در برابر گزارشات فروش (امروز)",
+   "steps": [
+    [
+     "sales report summary today",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "management snapshot today",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "management profit today",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "management trend (روند) today",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [
+    "LATIN_DIGITS_IRRELEVANT_NOTE | ۴-۱۱۹ | زیر نمودار «روند» گزارش مدیریت: «نمایش 1 از 5 ردیف — جمع‌های پایین صفحه روی کل 5 ردیف بازه حساب شده‌اند، نه فقط ردیف‌های دیده‌شده.»"
+   ],
+   "obs": [
+    {
+     "k": "sales summary",
+     "v": {
+      "count": 5,
+      "goodsTotal": 9300000,
+      "taxTotal": 72000,
+      "serviceTotal": 40000,
+      "discountTotal": 0,
+      "grandTotal": 9412000,
+      "cashTotal": 9412000,
+      "cardTotal": 0,
+      "returnedTotal": 0
+     }
+    },
+    {
+     "k": "mgmt snapshot keys",
+     "v": [
+      "invoice",
+      "cash",
+      "credit",
+      "notes"
+     ]
+    },
+    {
+     "k": "mgmt profit",
+     "v": {
+      "revenue": 9300000,
+      "fifoCost": 5835493,
+      "realProfit": 3464507,
+      "soldQty": 7
+     }
+    },
+    {
+     "k": "trend warnings",
+     "v": [
+      "نمایش 1 از 5 ردیف — جمع‌های پایین صفحه روی کل 5 ردیف بازه حساب شده‌اند، نه فقط ردیف‌های دیده‌شده."
+     ]
+    },
+    {
+     "k": "sales vs management agree",
+     "v": true
+    }
+   ]
+  },
+  {
+   "id": "M8",
+   "title": "پنل پیامکی: قالب‌ها، برآورد، لغو ۱۱، ارسال بی سرویس‌دهنده",
+   "steps": [
+    [
+     "sms dashboard",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "estimate a Persian text to 3 recipients",
+     "OK",
+     "either",
+     null
+    ],
+    [
+     "opt-out add 09121234567",
+     "OK",
+     "either",
+     null
+    ],
+    [
+     "manual send without any provider",
+     "OK",
+     "either",
+     null
+    ],
+    [
+     "sms settings",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [
+    "NO_PROVIDER_NOTICE | ۴-۱۲۰ | ارسال دستی بی سرویس‌دهندهٔ فعال فقط می‌گوید «پیام در صف ثبت شد.»",
+    "REGISTER_MIX | ۴-۱۲۱ | قالب «یادآوری اعتبار خرید (بدون تاریخ)»: «شما» با فعل خودمانی آمده: {customer_name} عزیز، شما یک کد اعتباری از {store_name} دارید؛ یادت نرفته؟ کد: {credit_code} · باقی‌مانده: {credit_remai"
+   ],
+   "obs": [
+    {
+     "k": "sms dashboard keys",
+     "v": [
+      "byStatus",
+      "thankYou",
+      "pending",
+      "todaySent",
+      "scheduled",
+      "failedFinal",
+      "unknown",
+      "sent",
+      "canceled",
+      "provider",
+      "providerService",
+      "providerAds",
+      "auto",
+      "lastSentAtJalali",
+      "lastSentAtTime"
+     ]
+    },
+    {
+     "k": "templates",
+     "v": [
+      [
+       "SALE_THANK_YOU",
+       "تشکر از خرید (پنل فروش)"
+      ],
+      [
+       "SALE_THANK_YOU_WHOLESALE",
+       "تشکر از خرید (فاکتور عمده)"
+      ],
+      [
+       "CREDIT_REMINDER",
+       "یادآوری اعتبار خرید (تاریخ‌دار)"
+      ],
+      [
+       "CREDIT_REMINDER_NO_EXPIRY",
+       "یادآوری اعتبار خرید (بدون تاریخ)"
+      ],
+      [
+       "CAMPAIGN",
+       "پیامک تبلیغاتی (انبوه)"
+      ],
+      [
+       "TEST",
+       "پیام آزمایشی اتصال"
+      ]
+     ]
+    },
+    {
+     "k": "estimate",
+     "v": {
+      "segments": 3,
+      "recipients": 3,
+      "messages": 9,
+      "toman": 0,
+      "pricePerSegment": 0,
+      "filled": false
+     }
+    },
+    {
+     "k": "opt-out add",
+     "v": "ok"
+    },
+    {
+     "k": "manual send",
+     "v": {
+      "ok": true,
+      "id": 1,
+      "duplicate": false,
+      "skipped": false,
+      "detail": "پیام در صف ثبت شد.",
+      "scheduledAtJalali": null,
+      "scheduledAtTime": null
+     }
+    },
+    {
+     "k": "sms settings",
+     "v": {
+      "auto": {
+       "enabled": false,
+       "hour": 10,
+       "minute": 0,
+       "askOnEnable": true
+      },
+      "thankYou": false,
+      "pricePerSegment": 0,
+      "optOutNote": "لغو ۱۱",
+      "storeName": "",
+      "storePhone": ""
+     }
+    }
+   ]
+  },
+  {
+   "id": "M9",
+   "title": "موجودی سایت (بی تنظیم)",
+   "steps": [
+    [
+     "site stock status",
+     "OK",
+     "either",
+     null
+    ],
+    [
+     "site connection test without settings",
+     "REFUSED",
+     "either",
+     "آدرس سایت WooCommerce تنظیم نشده است."
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "woo status",
+     "v": {}
+    },
+    {
+     "k": "woo test",
+     "v": "آدرس سایت WooCommerce تنظیم نشده است."
+    }
+   ]
+  },
+  {
+   "id": "M10",
+   "title": "پیش‌فرض‌های تنظیمات در نصب تازه",
+   "steps": [
+    [
+     "accounting policy",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "discount policy",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "accounting policy",
+     "v": {
+      "cashDifferenceThreshold": 100000,
+      "storeCreditLimit": 0,
+      "requireManagerForPriceOverride": true,
+      "lockClosedPeriods": true,
+      "abnormalDiscountPercent": 30
+     }
+    },
+    {
+     "k": "discount policy",
+     "v": {
+      "mode": "FREE",
+      "fixedMode": "PERCENT",
+      "fixedValue": 0,
+      "allowLine": true,
+      "allowInvoice": true,
+      "maxPercent": 100,
+      "wholesaleMaxPercent": 100,
+      "wholesaleMaxAmount": 0,
+      "maxAmount": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": "M11",
+   "title": "متن‌های دیدنی: راهنمای قفل‌ها در تنظیمات",
+   "steps": [],
+   "findings": [
+    "LOCK_HINT_TEXT | ۴-۱۲۱ | «انتقال از انبار مرکزی به انبار فروشگاه»: ستاره‌های **",
+    "LOCK_HINT_TEXT | ۴-۱۲۱ | «تخفیف پنل فروش (کالا + کل فاکتور)»: شمارهٔ داخلی",
+    "LOCK_HINT_TEXT | ۴-۱۲۱ | «ساخت کالای جدید هنگام انتقال از انبار مرکزی»: ستاره‌های **",
+    "LOCK_HINT_TEXT | ۴-۱۲۱ | «همگام‌سازی موجودی سایت»: انگلیسی: stock_quantity",
+    "LOCK_HINT_TEXT | ۴-۱۲۱ | «پرداخت‌های مدیر — کارت‌به‌کارت (تب گزارشات فروش)»: ستاره‌های ** · شمارهٔ داخلی · انگلیسی: ManagerGate، cardTransfer:pay، cardTransfer:cancel",
+    "LOCK_HINT_TEXT | ۴-۱۲۱ | «چک‌باکس «برداشت خودکار از انبار مرکزی»»: شمارهٔ داخلی",
+    "LOCK_HINT_TEXT | ۴-۵۵ | «Master Override صندوق»: انگلیسی: Master، Override"
+   ],
+   "obs": []
+  }
+ ]
+}
