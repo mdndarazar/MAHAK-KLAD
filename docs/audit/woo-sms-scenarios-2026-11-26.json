@@ -1,0 +1,2249 @@
+{
+ "meta": {
+  "tool": "docs/audit/woo-sms-scenarios.mjs",
+  "programCommit": "14d1efa2210048b1da916c987c00beb9eb5c5569",
+  "summary": {
+   "scenarios": 26,
+   "steps": 112,
+   "refused": 7,
+   "findings": 10,
+   "logicFindings": 0,
+   "byPlan": {
+    "پیشنهاد": 10
+   },
+   "byType": {
+    "ACCUMULATION_INCLUDES_SITE": 1,
+    "SITE_ADMIN_STOCK_IN": 1,
+    "SITE_ALIGN_DECREASE_SILENT": 1,
+    "STOCKTAKE_SITE_ORDER": 1,
+    "REORDER_IGNORES_SITE": 1,
+    "PLACEHOLDER_LITERAL": 2,
+    "TEMPLATE_UNUSED": 2,
+    "TEST_PROVIDER_SENT_LABEL": 1
+   }
+  }
+ },
+ "scenarios": [
+  {
+   "id": "W0",
+   "title": "راه‌اندازی: نشست، کالاها، فاکتورهای خرید، سایت آزمایشی",
+   "steps": [
+    [
+     "open session (owner)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "category «کفش و کیف»",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "product «کفش اسپرت» size 40",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "product «کیف دستی» (shop only)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "product «شال»",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "purchase 1: K-40×6@10,000,000, B-1×5@4,000,000, S-1×3@2,000,000",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "purchase 2 (newer, pricier): K-40×4@12,000,000",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "shop stock",
+     "v": {
+      "K40": 10,
+      "B1": 5,
+      "S1": 3
+     }
+    },
+    {
+     "k": "W0 پایان · گزارش مغازه",
+     "v": {
+      "sales": {
+       "count": 0,
+       "goods": 0,
+       "grand": 0,
+       "cash": 0
+      },
+      "profit": {
+       "revenue": 0,
+       "fifoCost": 0,
+       "realProfit": 0,
+       "lossCost": 0,
+       "damageCost": 0,
+       "profitAfterLoss": 0
+      },
+      "stockValue": {
+       "qty": 18,
+       "fifoValue": 134000000
+      },
+      "purchaseVsSale": {
+       "purchaseTotal": 134000000,
+       "fifoSoldCost": 0,
+       "accumulation": 134000000
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "W1",
+   "title": "تنظیم اتصال سایت: نشانی امن، کلید، تست، کاتالوگ",
+   "steps": [
+    [
+     "save site settings with http://example.com (not secure)",
+     "REFUSED",
+     "refuse",
+     "آدرس سایت باید با https:// امن باشد؛ ارسال کلید اتصال روی HTTP ممنوع است. فقط برای تست روی همین کامپیوتر (127.0.0.1/localhost) می‌توان از http استفاده کرد."
+    ],
+    [
+     "save site settings (local test site) + key, enabled, auto off",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "test connection",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "read catalog",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "test",
+     "v": {
+      "ok": true,
+      "site": "https://shop.example",
+      "plugin": "1.1.0",
+      "time": "2026-01-01T<ساعت>:00Z"
+     }
+    },
+    {
+     "k": "catalog",
+     "v": [
+      [
+       "p:101",
+       "Sport shoe 40",
+       true,
+       3
+      ],
+      [
+       "v:301",
+       "Shawl grey",
+       true,
+       5
+      ],
+      [
+       "p:999",
+       "Hat (not linked)",
+       true,
+       7
+      ],
+      [
+       "p:500",
+       "Belt (stock not managed)",
+       false,
+       null
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W2",
+   "title": "اتصال کالاها: «فروشگاه مرجع» و «سایت مرجع»",
+   "steps": [
+    [
+     "link K-40 ↔ site shoe, shop is the reference, no password",
+     "REFUSED",
+     "refuse",
+     "[GATE_REQUIRED:woo.connect-initial] «اتصال اولیه با انتخاب مرجع موجودی» تایید مدیر لازم دارد. رمز مدیر را وارد کنید."
+    ],
+    [
+     "link K-40 ↔ site shoe, shop is the reference (10 → site)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "link B-1 to the same site shoe (already linked)",
+     "REFUSED",
+     "refuse",
+     "این محصول/Variation سایت از قبل به یک کالای فروشگاه وصل است؛ اول همان اتصال را قطع کنید."
+    ],
+    [
+     "link B-1 to the belt (site stock not managed)",
+     "REFUSED",
+     "refuse",
+     "این محصول در سایت manage_stock ندارد؛ تا وقتی موجودی سایت مستقل نباشد، اتصال امن نیست."
+    ],
+    [
+     "link S-1 ↔ site shawl, site is the reference (site 5, shop 3)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "site shoe after link",
+     "v": 10
+    },
+    {
+     "k": "S-1 shop stock after «site is the reference»",
+     "v": [
+      3,
+      5
+     ]
+    },
+    {
+     "k": "S-1 movement",
+     "v": [
+      {
+       "reason": "WOO_SYNC_ADJUST",
+       "delta": 2,
+       "refType": "WooSync"
+      }
+     ]
+    },
+    {
+     "k": "links",
+     "v": [
+      [
+       "p:101",
+       "ACTIVE",
+       10,
+       10
+      ],
+      [
+       "v:301",
+       "ACTIVE",
+       5,
+       5
+      ]
+     ]
+    },
+    {
+     "k": "W2 پایان · گزارش مغازه",
+     "v": {
+      "sales": {
+       "count": 0,
+       "goods": 0,
+       "grand": 0,
+       "cash": 0
+      },
+      "profit": {
+       "revenue": 0,
+       "fifoCost": 0,
+       "realProfit": 0,
+       "lossCost": 0,
+       "damageCost": 0,
+       "profitAfterLoss": 0
+      },
+      "stockValue": {
+       "qty": 20,
+       "fifoValue": 138000000
+      },
+      "purchaseVsSale": {
+       "purchaseTotal": 134000000,
+       "fifoSoldCost": 0,
+       "accumulation": 134000000
+      }
+     }
+    },
+    {
+     "k": "S-1 site alignment (+2) cost lots",
+     "v": [
+      [
+       3,
+       3,
+       2000000,
+       "PURCHASE"
+      ],
+      [
+       2,
+       2,
+       2000000,
+       "NO_INVOICE"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W3",
+   "title": "فروش مغازه ⇐ موجودی سایت کم می‌شود",
+   "steps": [
+    [
+     "POS sale K-40×2 @18,000,000 cash",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "outbox after the sale",
+     "v": [
+      [
+       "STOCK_PUSH",
+       "PENDING",
+       10,
+       8
+      ]
+     ]
+    },
+    {
+     "k": "site shoe / shop",
+     "v": [
+      8,
+      8
+     ]
+    },
+    {
+     "k": "W3 پایان · گزارش مغازه",
+     "v": {
+      "sales": {
+       "count": 1,
+       "goods": 36000000,
+       "grand": 36000000,
+       "cash": 36000000
+      },
+      "profit": {
+       "revenue": 36000000,
+       "fifoCost": 20000000,
+       "realProfit": 16000000,
+       "lossCost": 0,
+       "damageCost": 0,
+       "profitAfterLoss": 16000000
+      },
+      "stockValue": {
+       "qty": 18,
+       "fifoValue": 118000000
+      },
+      "purchaseVsSale": {
+       "purchaseTotal": 134000000,
+       "fifoSoldCost": 20000000,
+       "accumulation": 114000000
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "W4",
+   "title": "فروش سایت ⇐ موجودی مغازه کم می‌شود؛ عددهای مغازه دست نمی‌خورند",
+   "steps": [
+    [
+     "sync now (site order #5001: shoe ×3)",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [
+    "ACCUMULATION_INCLUDES_SITE | پیشنهاد | کارت «انباشت در کالا» (خرید منهای بهای فروخته‌شدهٔ مغازه) پس از فروش ۳ جفت در سایت همان 114,000,000 ماند، در حالی که ارزش موجودی 30,000,000 ریال کم شد؛ یعنی جنسِ رفته به سایت هنوز «سرمایهٔ خوابیده در کالا» شمرده می‌شود"
+   ],
+   "obs": [
+    {
+     "k": "shop K-40 stock",
+     "v": 5
+    },
+    {
+     "k": "K-40 last movement",
+     "v": [
+      {
+       "reason": "WOO_SYNC_OUT",
+       "delta": -3,
+       "refType": "WooInboundEvent"
+      }
+     ]
+    },
+    {
+     "k": "W4 پایان · گزارش مغازه",
+     "v": {
+      "sales": {
+       "count": 1,
+       "goods": 36000000,
+       "grand": 36000000,
+       "cash": 36000000
+      },
+      "profit": {
+       "revenue": 36000000,
+       "fifoCost": 20000000,
+       "realProfit": 16000000,
+       "lossCost": 0,
+       "damageCost": 0,
+       "profitAfterLoss": 16000000
+      },
+      "stockValue": {
+       "qty": 15,
+       "fifoValue": 88000000
+      },
+      "purchaseVsSale": {
+       "purchaseTotal": 134000000,
+       "fifoSoldCost": 20000000,
+       "accumulation": 114000000
+      }
+     }
+    },
+    {
+     "k": "site movement cost rows (kind, qty, unit cost)",
+     "v": [
+      [
+       "EXTERNAL_SYNC",
+       3,
+       10000000
+      ]
+     ]
+    },
+    {
+     "k": "stock value change by the site order",
+     "v": -30000000
+    },
+    {
+     "k": "«انباشت در کالا» change by the site order",
+     "v": 0
+    },
+    {
+     "k": "K-40 «فروش ۳۰ روز» in the stock report (shop only)",
+     "v": {
+      "stock": 5,
+      "netSold30": 2,
+      "reorder": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "W5",
+   "title": "فروش مغازه پس از فروش سایت (ترتیب لات‌های خرید)",
+   "steps": [
+    [
+     "POS sale K-40×2 @18,000,000 cash",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "W5 پایان · گزارش مغازه",
+     "v": {
+      "sales": {
+       "count": 2,
+       "goods": 72000000,
+       "grand": 72000000,
+       "cash": 72000000
+      },
+      "profit": {
+       "revenue": 72000000,
+       "fifoCost": 42000000,
+       "realProfit": 30000000,
+       "lossCost": 0,
+       "damageCost": 0,
+       "profitAfterLoss": 30000000
+      },
+      "stockValue": {
+       "qty": 13,
+       "fifoValue": 66000000
+      },
+      "purchaseVsSale": {
+       "purchaseTotal": 134000000,
+       "fifoSoldCost": 42000000,
+       "accumulation": 92000000
+      }
+     }
+    },
+    {
+     "k": "cost of this shop sale (FIFO)",
+     "v": 22000000
+    },
+    {
+     "k": "profit of this shop sale",
+     "v": 14000000
+    }
+   ]
+  },
+  {
+   "id": "W6",
+   "title": "لغو سفارش سایت ⇐ جنس با همان بهای خرید به قفسه برمی‌گردد",
+   "steps": [
+    [
+     "sync now (order #5001 canceled: +3)",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "shop K-40 stock",
+     "v": 6
+    },
+    {
+     "k": "K-40 last movement",
+     "v": [
+      {
+       "reason": "WOO_SYNC_IN",
+       "delta": 3,
+       "refType": "WooInboundEvent"
+      }
+     ]
+    },
+    {
+     "k": "W6 پایان · گزارش مغازه",
+     "v": {
+      "sales": {
+       "count": 2,
+       "goods": 72000000,
+       "grand": 72000000,
+       "cash": 72000000
+      },
+      "profit": {
+       "revenue": 72000000,
+       "fifoCost": 42000000,
+       "realProfit": 30000000,
+       "lossCost": 0,
+       "damageCost": 0,
+       "profitAfterLoss": 30000000
+      },
+      "stockValue": {
+       "qty": 16,
+       "fifoValue": 96000000
+      },
+      "purchaseVsSale": {
+       "purchaseTotal": 134000000,
+       "fifoSoldCost": 42000000,
+       "accumulation": 92000000
+      }
+     }
+    },
+    {
+     "k": "site movement cost rows (kind, qty, unit cost)",
+     "v": [
+      [
+       "EXTERNAL_SYNC",
+       3,
+       10000000
+      ],
+      [
+       "EXTERNAL_SYNC",
+       3,
+       10000000
+      ]
+     ]
+    },
+    {
+     "k": "stock value change by the cancel",
+     "v": 30000000
+    }
+   ]
+  },
+  {
+   "id": "W7",
+   "title": "برگشت جزئی سفارش سایت",
+   "steps": [
+    [
+     "sync now (order #5002: shoe ×2)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now (order #5002 refund ×1)",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "shop K-40 stock",
+     "v": 5
+    },
+    {
+     "k": "K-40 last 2 movements",
+     "v": [
+      {
+       "reason": "WOO_SYNC_OUT",
+       "delta": -2,
+       "refType": "WooInboundEvent"
+      },
+      {
+       "reason": "WOO_SYNC_IN",
+       "delta": 1,
+       "refType": "WooInboundEvent"
+      }
+     ]
+    },
+    {
+     "k": "W7 پایان · گزارش مغازه",
+     "v": {
+      "sales": {
+       "count": 2,
+       "goods": 72000000,
+       "grand": 72000000,
+       "cash": 72000000
+      },
+      "profit": {
+       "revenue": 72000000,
+       "fifoCost": 42000000,
+       "realProfit": 30000000,
+       "lossCost": 0,
+       "damageCost": 0,
+       "profitAfterLoss": 30000000
+      },
+      "stockValue": {
+       "qty": 15,
+       "fifoValue": 86000000
+      },
+      "purchaseVsSale": {
+       "purchaseTotal": 134000000,
+       "fifoSoldCost": 42000000,
+       "accumulation": 92000000
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "W8",
+   "title": "رویداد تکراری سایت",
+   "steps": [
+    [
+     "sync now again (the program re-reads the last 50 events)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now (the site sends order #5002 again with the same event id)",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "events / K-40 stock before → after",
+     "v": [
+      [
+       7,
+       5
+      ],
+      [
+       7,
+       5
+      ]
+     ]
+    },
+    {
+     "k": "W8 پایان · گزارش مغازه",
+     "v": {
+      "sales": {
+       "count": 2,
+       "goods": 72000000,
+       "grand": 72000000,
+       "cash": 72000000
+      },
+      "profit": {
+       "revenue": 72000000,
+       "fifoCost": 42000000,
+       "realProfit": 30000000,
+       "lossCost": 0,
+       "damageCost": 0,
+       "profitAfterLoss": 30000000
+      },
+      "stockValue": {
+       "qty": 15,
+       "fifoValue": 86000000
+      },
+      "purchaseVsSale": {
+       "purchaseTotal": 134000000,
+       "fifoSoldCost": 42000000,
+       "accumulation": 92000000
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "W9",
+   "title": "سفارش کالای وصل‌نشده",
+   "steps": [
+    [
+     "sync now (order on an unlinked site product)",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "event status",
+     "v": [
+      "SKIPPED_UNMAPPED"
+     ]
+    },
+    {
+     "k": "W9 پایان · گزارش مغازه",
+     "v": {
+      "sales": {
+       "count": 2,
+       "goods": 72000000,
+       "grand": 72000000,
+       "cash": 72000000
+      },
+      "profit": {
+       "revenue": 72000000,
+       "fifoCost": 42000000,
+       "realProfit": 30000000,
+       "lossCost": 0,
+       "damageCost": 0,
+       "profitAfterLoss": 30000000
+      },
+      "stockValue": {
+       "qty": 15,
+       "fifoValue": 86000000
+      },
+      "purchaseVsSale": {
+       "purchaseTotal": 134000000,
+       "fifoSoldCost": 42000000,
+       "accumulation": 92000000
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "W10",
+   "title": "قطع موقت، سفارش سایت در زمان قطع، وصل دوباره «مغازه + سفارش‌های سایت»",
+   "steps": [
+    [
+     "pause the shoe link",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now (site order #5004 during the pause)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "POS sale K-40×1 during the pause",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "resume preview",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "resume «shop is the reference» while a real site order is held",
+     "REFUSED",
+     "refuse",
+     "در زمان توقف، سفارش/Refund واقعی سایت ثبت شده است؛ برای جلوگیری از حذف فروش واقعی، گزینه «MAHAK + سفارش‌های سایت» را انتخاب کنید یا همان رویداد ورودی را از صف تأیید اعمال کنید."
+    ],
+    [
+     "resume «shop + site orders» without password",
+     "REFUSED",
+     "refuse",
+     "[GATE_REQUIRED:woo.reconnect] «وصل دوباره/حل اختلاف موجودی سایت» تایید مدیر لازم دارد. رمز مدیر را وارد کنید."
+    ],
+    [
+     "resume «shop + site orders»",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "event status / shop stock",
+     "v": [
+      [
+       "SKIPPED_PAUSED"
+      ],
+      5
+     ]
+    },
+    {
+     "k": "new outbox rows during the pause",
+     "v": 0
+    },
+    {
+     "k": "preview",
+     "v": {
+      "mahakStock": 4,
+      "wooQty": 4,
+      "orderEvents": 1,
+      "orderDelta": -1
+     }
+    },
+    {
+     "k": "shop / site after resume",
+     "v": [
+      3,
+      3
+     ]
+    },
+    {
+     "k": "W10 پایان · گزارش مغازه",
+     "v": {
+      "sales": {
+       "count": 3,
+       "goods": 90000000,
+       "grand": 90000000,
+       "cash": 90000000
+      },
+      "profit": {
+       "revenue": 90000000,
+       "fifoCost": 52000000,
+       "realProfit": 38000000,
+       "lossCost": 0,
+       "damageCost": 0,
+       "profitAfterLoss": 38000000
+      },
+      "stockValue": {
+       "qty": 13,
+       "fifoValue": 66000000
+      },
+      "purchaseVsSale": {
+       "purchaseTotal": 134000000,
+       "fifoSoldCost": 52000000,
+       "accumulation": 82000000
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "W11",
+   "title": "اختلاف هم‌زمان: ویرایش دستی سایت درست پیش از نوشتن برنامه",
+   "steps": [
+    [
+     "POS sale K-40×1",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "POS sale K-40×1 while the link is in conflict",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "conflict: preview",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "conflict: «shop is the reference» (site admin edit dropped)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "push result",
+     "v": {
+      "sent": 0,
+      "failed": 1,
+      "skipped": 0
+     }
+    },
+    {
+     "k": "link / approvals",
+     "v": [
+      "CONFLICT",
+      [
+       [
+        "CONFLICT_RESOLUTION",
+        "OUTBOX_CONFLICT"
+       ]
+      ]
+     ]
+    },
+    {
+     "k": "conflict preview",
+     "v": {
+      "mahakStock": 1,
+      "wooQty": 5,
+      "orderEvents": 0,
+      "nonOrderEvents": 1,
+      "nonOrderDelta": 2
+     }
+    },
+    {
+     "k": "shop / site / pending approvals",
+     "v": [
+      1,
+      1,
+      0
+     ]
+    },
+    {
+     "k": "W11 پایان · گزارش مغازه",
+     "v": {
+      "sales": {
+       "count": 5,
+       "goods": 126000000,
+       "grand": 126000000,
+       "cash": 126000000
+      },
+      "profit": {
+       "revenue": 126000000,
+       "fifoCost": 76000000,
+       "realProfit": 50000000,
+       "lossCost": 0,
+       "damageCost": 0,
+       "profitAfterLoss": 50000000
+      },
+      "stockValue": {
+       "qty": 11,
+       "fifoValue": 42000000
+      },
+      "purchaseVsSale": {
+       "purchaseTotal": 134000000,
+       "fifoSoldCost": 76000000,
+       "accumulation": 58000000
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "W12",
+   "title": "سایت یا اینترنت قطع ⇐ فروش مغازه می‌ماند و بعداً فرستاده می‌شود",
+   "steps": [
+    [
+     "POS sale K-40×1 while the site is unreachable",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now (site down)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now (site back)",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "sync errors (phases)",
+     "v": [
+      "pull",
+      "reconcile"
+     ]
+    },
+    {
+     "k": "outbox status",
+     "v": [
+      [
+       "FAILED",
+       1
+      ]
+     ]
+    },
+    {
+     "k": "shop / site",
+     "v": [
+      0,
+      0
+     ]
+    },
+    {
+     "k": "W12 پایان · گزارش مغازه",
+     "v": {
+      "sales": {
+       "count": 6,
+       "goods": 144000000,
+       "grand": 144000000,
+       "cash": 144000000
+      },
+      "profit": {
+       "revenue": 144000000,
+       "fifoCost": 88000000,
+       "realProfit": 56000000,
+       "lossCost": 0,
+       "damageCost": 0,
+       "profitAfterLoss": 56000000
+      },
+      "stockValue": {
+       "qty": 10,
+       "fifoValue": 30000000
+      },
+      "purchaseVsSale": {
+       "purchaseTotal": 134000000,
+       "fifoSoldCost": 88000000,
+       "accumulation": 46000000
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "W13",
+   "title": "فروش هم‌زمان مغازه و سایت روی آخرین عددها (بیش‌فروش) و خرید بعدی",
+   "steps": [
+    [
+     "purchase 3: K-40×3@12,500,000",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "POS sale K-40×1 (its push to the site has not gone yet)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now (meanwhile the site sold all 3 pairs it was showing)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "purchase 4: K-40×2@13,000,000",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "shop / site before the race",
+     "v": [
+      3,
+      3
+     ]
+    },
+    {
+     "k": "shop / site",
+     "v": [
+      -1,
+      0
+     ]
+    },
+    {
+     "k": "W13 بیش‌فروش · گزارش مغازه",
+     "v": {
+      "sales": {
+       "count": 7,
+       "goods": 162000000,
+       "grand": 162000000,
+       "cash": 162000000
+      },
+      "profit": {
+       "revenue": 162000000,
+       "fifoCost": 100500000,
+       "realProfit": 61500000,
+       "lossCost": 0,
+       "damageCost": 0,
+       "profitAfterLoss": 61500000
+      },
+      "stockValue": {
+       "qty": 10,
+       "fifoValue": 30000000
+      },
+      "purchaseVsSale": {
+       "purchaseTotal": 171500000,
+       "fifoSoldCost": 100500000,
+       "accumulation": 71000000
+      }
+     }
+    },
+    {
+     "k": "cost lots of K-40 (qtyIn, qtyLeft, unitCost, source)",
+     "v": [
+      [
+       6,
+       0,
+       10000000,
+       "PURCHASE"
+      ],
+      [
+       4,
+       0,
+       12000000,
+       "PURCHASE"
+      ],
+      [
+       3,
+       0,
+       12500000,
+       "PURCHASE"
+      ],
+      [
+       0,
+       -1,
+       12500000,
+       "BACKORDER"
+      ]
+     ]
+    },
+    {
+     "k": "cost status of the last shop sale (EXACT = real purchase cost)",
+     "v": [
+      [
+       "EXACT",
+       12500000
+      ]
+     ]
+    },
+    {
+     "k": "K-40 negative stock is visible in the stock report",
+     "v": {
+      "stock": -1,
+      "netSold30": 9,
+      "reorder": true
+     }
+    },
+    {
+     "k": "shop / site after the purchase",
+     "v": [
+      1,
+      1
+     ]
+    },
+    {
+     "k": "W13 پایان · گزارش مغازه",
+     "v": {
+      "sales": {
+       "count": 7,
+       "goods": 162000000,
+       "grand": 162000000,
+       "cash": 162000000
+      },
+      "profit": {
+       "revenue": 162000000,
+       "fifoCost": 100500000,
+       "realProfit": 61500000,
+       "lossCost": 0,
+       "damageCost": 0,
+       "profitAfterLoss": 61500000
+      },
+      "stockValue": {
+       "qty": 11,
+       "fifoValue": 43000000
+      },
+      "purchaseVsSale": {
+       "purchaseTotal": 197500000,
+       "fifoSoldCost": 100500000,
+       "accumulation": 97000000
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "W14",
+   "title": "ورود جنس از پنل سایت (بی فاکتور خرید)",
+   "steps": [
+    [
+     "sync now (site admin adds 4 shawls)",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [
+    "SITE_ADMIN_STOCK_IN | پیشنهاد | ۴ شالی که در پنل سایت اضافه شد، بی فاکتور خرید با بهای آخرین خرید (8,000,000 ریال) به ارزش موجودی مغازه اضافه شد؛ جنس تازه باید از فاکتور خرید مغازه وارد شود"
+   ],
+   "obs": [
+    {
+     "k": "S-1 shop stock / last movement",
+     "v": [
+      9,
+      [
+       {
+        "reason": "WOO_SYNC_IN",
+        "delta": 4,
+        "refType": "WooInboundEvent"
+       }
+      ]
+     ]
+    },
+    {
+     "k": "W14 پایان · گزارش مغازه",
+     "v": {
+      "sales": {
+       "count": 7,
+       "goods": 162000000,
+       "grand": 162000000,
+       "cash": 162000000
+      },
+      "profit": {
+       "revenue": 162000000,
+       "fifoCost": 100500000,
+       "realProfit": 61500000,
+       "lossCost": 0,
+       "damageCost": 0,
+       "profitAfterLoss": 61500000
+      },
+      "stockValue": {
+       "qty": 15,
+       "fifoValue": 51000000
+      },
+      "purchaseVsSale": {
+       "purchaseTotal": 197500000,
+       "fifoSoldCost": 100500000,
+       "accumulation": 97000000
+      }
+     }
+    },
+    {
+     "k": "stock value change / purchases change",
+     "v": [
+      8000000,
+      0
+     ]
+    },
+    {
+     "k": "S-1 in the stock report (sold only on the site)",
+     "v": {
+      "stock": 9,
+      "netSold30": 0,
+      "reorder": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "W15",
+   "title": "«سایت مرجع» با عدد کمتر از مغازه",
+   "steps": [
+    [
+     "unlink the shawl",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "relink S-1, site is the reference (site 2, shop 9)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [
+    "SITE_ALIGN_DECREASE_SILENT | پیشنهاد | «سایت مرجع» 7 شال را از موجودی مغازه کم کرد (14,000,000 ریال)؛ نه کسری مغازه شمرده شد و نه پیش از تأیید گفته می‌شود که این تعداد از مغازه کم می‌شود"
+   ],
+   "obs": [
+    {
+     "k": "S-1 shop stock / movement",
+     "v": [
+      2,
+      [
+       {
+        "reason": "WOO_SYNC_ADJUST",
+        "delta": -7,
+        "refType": "WooSync"
+       }
+      ]
+     ]
+    },
+    {
+     "k": "W15 پایان · گزارش مغازه",
+     "v": {
+      "sales": {
+       "count": 7,
+       "goods": 162000000,
+       "grand": 162000000,
+       "cash": 162000000
+      },
+      "profit": {
+       "revenue": 162000000,
+       "fifoCost": 100500000,
+       "realProfit": 61500000,
+       "lossCost": 0,
+       "damageCost": 0,
+       "profitAfterLoss": 61500000
+      },
+      "stockValue": {
+       "qty": 8,
+       "fifoValue": 37000000
+      },
+      "purchaseVsSale": {
+       "purchaseTotal": 197500000,
+       "fifoSoldCost": 100500000,
+       "accumulation": 97000000
+      }
+     }
+    },
+    {
+     "k": "loss card / stock value change",
+     "v": [
+      0,
+      -14000000
+     ]
+    }
+   ]
+  },
+  {
+   "id": "W15b",
+   "title": "خرابی اتصال: مدیریت موجودی در سایت خاموش شد؛ حذف کالا در مغازه",
+   "steps": [
+    [
+     "sync now (site order #5007: shawl ×2 — the shawl sells only on the site)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "POS sale K-40×1 after the site turned off stock management for the shoe",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "broken link: preview after the site is fixed",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "broken link: «shop is the reference»",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "product «کلاه» (H-1)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "purchase 5: H-1×2@800,000",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "link H-1 ↔ site hat, shop is the reference",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "delete product «کلاه» in the shop (to the trash)",
+     "OK",
+     "either",
+     null
+    ],
+    [
+     "sync now",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "shoe link status",
+     "v": "BROKEN_REMOTE"
+    },
+    {
+     "k": "shop / site / link",
+     "v": [
+      0,
+      0,
+      "ACTIVE"
+     ]
+    },
+    {
+     "k": "hat: shop / site",
+     "v": [
+      2,
+      2
+     ]
+    },
+    {
+     "k": "delete result",
+     "v": "ok"
+    },
+    {
+     "k": "hat: link status / site stock after the delete",
+     "v": [
+      "BROKEN_LOCAL",
+      0
+     ]
+    },
+    {
+     "k": "W15b پایان · گزارش مغازه",
+     "v": {
+      "sales": {
+       "count": 8,
+       "goods": 180000000,
+       "grand": 180000000,
+       "cash": 180000000
+      },
+      "profit": {
+       "revenue": 180000000,
+       "fifoCost": 113500000,
+       "realProfit": 66500000,
+       "lossCost": 0,
+       "damageCost": 0,
+       "profitAfterLoss": 66500000
+      },
+      "stockValue": {
+       "qty": 7,
+       "fifoValue": 21600000
+      },
+      "purchaseVsSale": {
+       "purchaseTotal": 199100000,
+       "fifoSoldCost": 113500000,
+       "accumulation": 85600000
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "W17",
+   "title": "انبارگردانی هم‌زمان با سفارش سایت",
+   "steps": [
+    [
+     "purchase 6: K-40×3@13,000,000",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now (site order #5008 arrives while the clerk is counting; the pair is still on the shelf)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "submit count: K-40 = 3 (what is on the shelf)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "count detail",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [
+    "STOCKTAKE_SITE_ORDER | پیشنهاد | سفارش سایتی که وسط شمارش رسید و جنسش هنوز روی قفسه بود، در انبارگردانی «1 عدد مازاد» نشان داده شد؛ صفحهٔ شمارش نمی‌گوید که در همین فاصله سایت از این کالا فروخته است"
+   ],
+   "obs": [
+    {
+     "k": "K-40 on the shelf when counting starts",
+     "v": 3
+    },
+    {
+     "k": "count: system / counted / difference",
+     "v": [
+      2,
+      3,
+      1
+     ]
+    },
+    {
+     "k": "W17 پایان · گزارش مغازه",
+     "v": {
+      "sales": {
+       "count": 8,
+       "goods": 180000000,
+       "grand": 180000000,
+       "cash": 180000000
+      },
+      "profit": {
+       "revenue": 180000000,
+       "fifoCost": 113500000,
+       "realProfit": 66500000,
+       "lossCost": 0,
+       "damageCost": 0,
+       "profitAfterLoss": 66500000
+      },
+      "stockValue": {
+       "qty": 9,
+       "fifoValue": 47600000
+      },
+      "purchaseVsSale": {
+       "purchaseTotal": 238100000,
+       "fifoSoldCost": 113500000,
+       "accumulation": 124600000
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "W16",
+   "title": "خاموش کردن اتصال سایت",
+   "steps": [
+    [
+     "turn the site connection off",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "POS sale B-1×1 and K-40×1 with the site off",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "sync now (off)",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [
+    "REORDER_IGNORES_SITE | پیشنهاد | گزارش «مانده و کم‌فروش» فقط فروش مغازه را می‌شمارد: شال با 2 عدد فروش سایت و 0 عدد مانده، «فروش ۳۰ روز» را صفر نشان می‌دهد و هرگز به «پیشنهاد سفارش» نمی‌آید (از روی کد: اگر ۲ عدد یا بیشتر مانده باشد، پس از ۹۰ روز برچسب «بدون فروش — حراج» هم می‌گیرد)"
+   ],
+   "obs": [
+    {
+     "k": "new outbox rows with the site off",
+     "v": 0
+    },
+    {
+     "k": "sync result when off",
+     "v": {
+      "pulled": {
+       "received": 0,
+       "applied": 0,
+       "skipped": 0
+      },
+      "pushed": {
+       "sent": 0,
+       "failed": 0,
+       "skipped": 0
+      }
+     }
+    },
+    {
+     "k": "W16 پایان · گزارش مغازه",
+     "v": {
+      "sales": {
+       "count": 9,
+       "goods": 205000000,
+       "grand": 205000000,
+       "cash": 205000000
+      },
+      "profit": {
+       "revenue": 205000000,
+       "fifoCost": 130500000,
+       "realProfit": 74500000,
+       "lossCost": 0,
+       "damageCost": 0,
+       "profitAfterLoss": 74500000
+      },
+      "stockValue": {
+       "qty": 7,
+       "fifoValue": 30600000
+      },
+      "purchaseVsSale": {
+       "purchaseTotal": 238100000,
+       "fifoSoldCost": 130500000,
+       "accumulation": 107600000
+      }
+     }
+    },
+    {
+     "k": "K-40: sold on the site (gross) / «فروش ۳۰ روز» of the stock report / in «پیشنهاد سفارش» / shop stock",
+     "v": [
+      10,
+      11,
+      true,
+      1
+     ]
+    },
+    {
+     "k": "S-1: sold on the site (gross) / «فروش ۳۰ روز» of the stock report / in «پیشنهاد سفارش» / shop stock",
+     "v": [
+      2,
+      0,
+      false,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S0",
+   "title": "پنل پیامکی: سرویس‌دهنده و تست اتصال",
+   "steps": [
+    [
+     "save sms.ir line with API key, no password",
+     "REFUSED",
+     "refuse",
+     "[GATE_REQUIRED:sms.api-key-set] «ثبت کلید API سرویس‌دهنده پیامک» تایید مدیر لازم دارد. رمز مدیر را وارد کنید."
+    ],
+    [
+     "save sms.ir line with API key + password (active)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "provider test",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "provider test",
+     "v": {
+      "ok": true,
+      "detail": "اتصال برقرار است · اعتبار حساب: 250000 ریال",
+      "missing": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "S1",
+   "title": "ارسال دستی، شمار بخش‌ها، دو کلیک",
+   "steps": [
+    [
+     "manual send (62 characters)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "manual send the same text again (double click)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "manual send (72 characters)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "run queue",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "characters / parts",
+     "v": [
+      [
+       62,
+       1
+      ],
+      [
+       72,
+       2
+      ]
+     ]
+    },
+    {
+     "k": "double click → duplicate",
+     "v": true
+    },
+    {
+     "k": "queue run",
+     "v": {
+      "sent": 2,
+      "failed": 0,
+      "blocked": ""
+     }
+    },
+    {
+     "k": "provider received",
+     "v": [
+      [
+       "/send/bulk",
+       [
+        "09121111111"
+       ],
+       "t69"
+      ],
+      [
+       "/send/bulk",
+       [
+        "09122222222"
+       ],
+       "t71"
+      ]
+     ]
+    },
+    {
+     "k": "outbox",
+     "v": [
+      [
+       "MANUAL",
+       "SENT",
+       1
+      ],
+      [
+       "MANUAL",
+       "SENT",
+       2
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S2",
+   "title": "«تشکر از خرید» پس از فروش؛ عددهای فروش دست نمی‌خورند",
+   "steps": [
+    [
+     "turn «thank you» on",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "POS sale B-1×1 @7,000,000 for خانم رضایی (has a phone)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "run queue",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "turn «thank you» off",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "thank-you queued",
+     "v": [
+      "SALE_THANK_YOU",
+      "PENDING",
+      "خانم رضایی عزیز، از خرید شما در ارکاجین سپاسگزاریم. مبلغ فاکتور: ۷٬۰۰۰٬۰۰۰ ریال"
+     ]
+    },
+    {
+     "k": "thank-you status",
+     "v": [
+      [
+       "SENT"
+      ]
+     ]
+    },
+    {
+     "k": "sale effect (grand / revenue)",
+     "v": [
+      7000000,
+      7000000
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S3",
+   "title": "پیامک انبوه: «لغو ۱۱»، متغیر داخل متن، لغو پس از صف",
+   "steps": [
+    [
+     "opt-out 09123333333",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "campaign preview (3 numbers, one opted out, text with {customer_name})",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "create campaign",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "opt-out 09125555555 after the campaign was queued",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "run queue",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "manual send with {store_name} in the text",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "run queue",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [
+    "PLACEHOLDER_LITERAL | پیشنهاد | ارسال دستی با «{store_name}» در متن پذیرفته شد و «{store_name}» عیناً رفت",
+    "PLACEHOLDER_LITERAL | پیشنهاد | پیامک انبوه با «{customer_name}» در متن پذیرفته شد و همان «{customer_name}» عیناً برای مشتری رفت (نام جای‌گذاری نمی‌شود و خطا هم نمی‌دهد)"
+   ],
+   "obs": [
+    {
+     "k": "preview",
+     "v": {
+      "sendable": 2,
+      "optOutSkipped": 1,
+      "finalBody": "{customer_name} عزیز، حراج پاییزه از فردا شروع می‌شود.\nلغو ۱۱",
+      "segments": 1
+     }
+    },
+    {
+     "k": "campaign",
+     "v": {
+      "queued": 2,
+      "failed": 0
+     }
+    },
+    {
+     "k": "provider received (campaign)",
+     "v": [
+      [
+       [
+        "09124444444"
+       ],
+       "{customer_name} عزیز، حراج پاییزه از فردا شروع می‌شود.\nلغو ۱۱"
+      ]
+     ]
+    },
+    {
+     "k": "campaign rows",
+     "v": [
+      [
+       "SENT",
+       null
+      ],
+      [
+       "CANCELED",
+       "OPT_OUT"
+      ]
+     ]
+    },
+    {
+     "k": "provider received (manual with {store_name})",
+     "v": [
+      "از خرید شما در {store_name} ممنونیم."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S4",
+   "title": "قالب‌های پیامک: کدام قالب واقعاً به کار می‌رود",
+   "steps": [
+    [
+     "templates list",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "edit the «پیامک تبلیغاتی (انبوه)» template",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "campaign preview after editing the template",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [
+    "TEMPLATE_UNUSED | پیشنهاد | قالب «پیامک تبلیغاتی (انبوه)» ویرایش شد ولی پیامک انبوه از آن استفاده نمی‌کند (متن همان چیزی است که در کادر کمپین نوشته شده + «لغو ۱۱»)",
+    "TEMPLATE_UNUSED | پیشنهاد | قالب‌های «CREDIT_REMINDER»، «CREDIT_REMINDER_NO_EXPIRY»، «TEST» در صفحهٔ قالب‌ها ویرایش‌پذیرند ولی هیچ ارسالی از آن‌ها استفاده نمی‌کند؛ متن یادآوری اعتبار از تنظیمات اعتبار خرید می‌آید و «تست اتصال» فقط اعتبار حساب را می‌پرسد"
+   ],
+   "obs": [
+    {
+     "k": "templates",
+     "v": [
+      [
+       "CAMPAIGN",
+       "پیامک تبلیغاتی (انبوه)"
+      ],
+      [
+       "CREDIT_REMINDER",
+       "یادآوری اعتبار خرید (تاریخ‌دار)"
+      ],
+      [
+       "CREDIT_REMINDER_NO_EXPIRY",
+       "یادآوری اعتبار خرید (بدون تاریخ)"
+      ],
+      [
+       "SALE_THANK_YOU",
+       "تشکر از خرید (پنل فروش)"
+      ],
+      [
+       "SALE_THANK_YOU_WHOLESALE",
+       "تشکر از خرید (فاکتور عمده)"
+      ],
+      [
+       "TEST",
+       "پیام آزمایشی اتصال"
+      ]
+     ]
+    },
+    {
+     "k": "campaign final text after the template edit",
+     "v": "تخفیف ۳۰٪ کفش\nلغو ۱۱"
+    },
+    {
+     "k": "templates with no sending path (code scan)",
+     "v": [
+      "CREDIT_REMINDER",
+      "CREDIT_REMINDER_NO_EXPIRY",
+      "TEST"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S5",
+   "title": "خطاهای سرویس‌دهنده: اعتبار کم، ۵۰۳، ۵۰۰، مهلت",
+   "steps": [
+    [
+     "manual send (اعتبار کم)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "run queue (اعتبار کم)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "manual send (۵۰۳)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "run queue (۵۰۳)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "manual send (۵۰۰)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "run queue (۵۰۰)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "run queue again (provider fine now; the 500 one must not go by itself)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "retry now the «low credit» message",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "run queue",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "manual send (مهلت ۱۵ ثانیه)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "run queue (مهلت ۱۵ ثانیه)",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "run queue again (the timed-out one must not go by itself)",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "اعتبار کم: status / attempts used / error",
+     "v": [
+      "FAILED_RETRYABLE",
+      0,
+      "SMS_IR_102"
+     ]
+    },
+    {
+     "k": "۵۰۳: status / attempts used / error",
+     "v": [
+      "FAILED_RETRYABLE",
+      0,
+      "PROVIDER_HTTP"
+     ]
+    },
+    {
+     "k": "۵۰۰: status / attempts used / error",
+     "v": [
+      "UNKNOWN",
+      1,
+      "PROVIDER_HTTP"
+     ]
+    },
+    {
+     "k": "auto resend of the 500 message",
+     "v": false
+    },
+    {
+     "k": "«low credit» message after retry",
+     "v": [
+      [
+       "SENT",
+       1
+      ]
+     ]
+    },
+    {
+     "k": "مهلت ۱۵ ثانیه: status / attempts used / error",
+     "v": [
+      "UNKNOWN",
+      1,
+      "PROVIDER_TIMEOUT"
+     ]
+    },
+    {
+     "k": "timed-out message",
+     "v": [
+      "UNKNOWN"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S6",
+   "title": "سرویس‌دهندهٔ «آزمایشی»",
+   "steps": [
+    [
+     "save and activate the test (log only) line",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "manual send through the test line",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "run queue",
+     "OK",
+     "ok",
+     null
+    ],
+    [
+     "message list",
+     "OK",
+     "ok",
+     null
+    ]
+   ],
+   "findings": [
+    "TEST_PROVIDER_SENT_LABEL | پیشنهاد | با سرویس‌دهندهٔ «آزمایشی» پیامی به هیچ گوشی نمی‌رود ولی در فهرست پیام‌ها «ارسال شد» می‌خورد (توضیح فقط در ریز پیام است)"
+   ],
+   "obs": [
+    {
+     "k": "active line",
+     "v": [
+      "LOG_ONLY",
+      true
+     ]
+    },
+    {
+     "k": "test line message: status label / provider note / reached the provider",
+     "v": [
+      "ارسال شد",
+      "پیام در صف ثبت و پردازش شد، ولی ارسال واقعی انجام نشد (سرویس‌دهنده روی حالت آزمایشی است).",
+      false
+     ]
+    }
+   ]
+  }
+ ]
+}
