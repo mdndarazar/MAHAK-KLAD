@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { call, CH } from '../lib/api'
-import { money } from '@shared/jalali'
+import { jalaliToday, money } from '@shared/jalali'
+import JalaliDateInput from './JalaliDateInput'
 import { useManagerSession } from '../hooks/useManagerSession'
 
 /** This small Settings-only workspace deliberately owns no staff profile fields
@@ -63,8 +64,9 @@ function CustodyAdminModal({ onClose }: { onClose: () => void }) {
   const [pinReason, setPinReason] = useState('')
   const [report, setReport] = useState<Report | null>(null)
   const [discrepancies, setDiscrepancies] = useState<DiscrepancyReport | null>(null)
-  const [discrepancyFrom, setDiscrepancyFrom] = useState('')
-  const [discrepancyTo, setDiscrepancyTo] = useState('')
+  // ۴-۳۹: از اول تاریخ امروز.
+  const [discrepancyFrom, setDiscrepancyFrom] = useState(() => jalaliToday())
+  const [discrepancyTo, setDiscrepancyTo] = useState(() => jalaliToday())
   const [discrepancyStatus, setDiscrepancyStatus] = useState<'ALL' | 'OPEN' | 'CLOSED'>('ALL')
   const [discrepancySkip, setDiscrepancySkip] = useState(0)
   const [reviewRecoveryId, setReviewRecoveryId] = useState<number | ''>('')
@@ -153,8 +155,8 @@ function CustodyAdminModal({ onClose }: { onClose: () => void }) {
 
         {tab === 'report' ? <div>
           <div className="flex flex-wrap gap-2 items-end rounded border bg-slate-50 p-3">
-            <label className="text-sm">از تاریخ جلالی<input className="input mt-1" dir="ltr" placeholder="۱۴۰۵/۰۷/۲۰" value={discrepancyFrom} onChange={(event) => { setDiscrepancySkip(0); setDiscrepancyFrom(event.target.value) }} /></label>
-            <label className="text-sm">تا تاریخ جلالی<input className="input mt-1" dir="ltr" placeholder="۱۴۰۵/۰۷/۲۵" value={discrepancyTo} onChange={(event) => { setDiscrepancySkip(0); setDiscrepancyTo(event.target.value) }} /></label>
+            <label className="text-sm">از تاریخ جلالی<JalaliDateInput className="input mt-1" value={discrepancyFrom} onChange={(v) => { setDiscrepancySkip(0); setDiscrepancyFrom(v) }} /></label>
+            <label className="text-sm">تا تاریخ جلالی<JalaliDateInput className="input mt-1" value={discrepancyTo} onChange={(v) => { setDiscrepancySkip(0); setDiscrepancyTo(v) }} /></label>
             <label className="text-sm">وضعیت<select className="input mt-1" value={discrepancyStatus} onChange={(event) => { setDiscrepancySkip(0); setDiscrepancyStatus(event.target.value as 'ALL' | 'OPEN' | 'CLOSED') }}><option value="ALL">همه</option><option value="OPEN">باز</option><option value="CLOSED">بسته</option></select></label>
             <button className="btn-primary" disabled={busy} onClick={() => void run(async () => {
               setDiscrepancySkip(0)
