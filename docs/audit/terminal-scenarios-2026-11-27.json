@@ -1,0 +1,277 @@
+{
+ "meta": {
+  "tool": "docs/audit/terminal-scenarios.mjs",
+  "programCommit": "5f543442ab6e0b072b87a145dd5e63555e9c7898",
+  "summary": {
+   "stories": 8,
+   "steps": 13,
+   "refusals": 5,
+   "observations": 9,
+   "findings": 0,
+   "findingTypes": {}
+  }
+ },
+ "stories": [
+  {
+   "id": "T0",
+   "title": "راه‌اندازی: حضانت صندوق روشن (مثل فروشگاه مالک)، مسئول صندوق و دو فروشندهٔ صندوق فرعی با رمز شخصی",
+   "steps": [],
+   "findings": [],
+   "obs": [
+    {
+     "k": "people",
+     "v": {
+      "custodian": "مسئول صندوق (صندوق اصلی)",
+      "terminal2": "فروشندهٔ صندوق ۲",
+      "terminal3": "فروشندهٔ صندوق ۳"
+     }
+    }
+   ]
+  },
+  {
+   "id": "T1",
+   "title": "صندوق اصلی هنوز تحویل گرفته نشده: صندوق فرعی هم نمی‌فروشد (همان قفل مجاز تحویل صندوق)",
+   "steps": [
+    [
+     "صندوق ۲: POS sale 500,000 cash before the main drawer is taken over",
+     "REFUSED",
+     "refuse",
+     "[CUSTODY_AUTH_REQUIRED] برای ثبت فروش، ابتدا مسئول حاضر صندوق باید با رمز شخصی و شمارش فیزیکی صندوق را تحویل بگیرد.",
+     "۴-۱۳۸"
+    ]
+   ],
+   "findings": [],
+   "obs": []
+  },
+  {
+   "id": "T2",
+   "title": "فروش از سه پنجره: یک شمارهٔ فاکتور، یک انبار، یک مسئول (مسئول صندوق اصلی و همان شیفت)",
+   "steps": [
+    [
+     "صندوق اصلی: custodian takes over the main drawer (PIN + count 0)",
+     "OK",
+     "ok",
+     null,
+     "بند ۱۲ د"
+    ],
+    [
+     "صندوق اصلی: POS sale 500,000 cash (custodian)",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 1,
+      "replay": false
+     },
+     "امروز"
+    ],
+    [
+     "صندوق ۲: POS sale 500,000 cash (operator PIN)",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 2,
+      "replay": false
+     },
+     "۴-۱۳۸"
+    ],
+    [
+     "صندوق ۳: POS sale 500,000 card (operator PIN)",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 3,
+      "replay": false
+     },
+     "۴-۱۳۸"
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "custody evidence per sale [kind, operator, custodian, custody shift]",
+     "v": [
+      [
+       "CUSTODIAN_SESSION",
+       "مسئول صندوق",
+       "مسئول صندوق",
+       1
+      ],
+      [
+       "OPERATOR_PIN",
+       "فروشندهٔ صندوق ۲",
+       "مسئول صندوق",
+       1
+      ],
+      [
+       "OPERATOR_PIN",
+       "فروشندهٔ صندوق ۳",
+       "مسئول صندوق",
+       1
+      ]
+     ]
+    },
+    {
+     "k": "invoice owner (SaleInvoice.userId) per sale",
+     "v": [
+      [
+       1,
+       "مسئول صندوق"
+      ],
+      [
+       2,
+       "مسئول صندوق"
+      ],
+      [
+       3,
+       "مسئول صندوق"
+      ]
+     ]
+    },
+    {
+     "k": "receipt numbers",
+     "v": [
+      1,
+      2,
+      3
+     ]
+    },
+    {
+     "k": "stock after three sales (from 100)",
+     "v": 97
+    }
+   ]
+  },
+  {
+   "id": "T3",
+   "title": "قطع شبکه وسط فروش: صندوق فرعی همان درخواست را با همان کلید دوباره می‌فرستد",
+   "steps": [
+    [
+     "صندوق ۲: the same POS sale again with the same key (network retry)",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 2,
+      "replay": true
+     },
+     "۴-۱۳۸"
+    ],
+    [
+     "صندوق ۲: the same key with a different cart (2 × 500,000)",
+     "REFUSED",
+     "refuse",
+     "کلید تکرار ثبت فروش قبلاً برای درخواست متفاوتی استفاده شده است؛ فاکتور دیگری ساخته نشد.",
+     "۴-۱۳۸"
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "retry with the same key",
+     "v": {
+      "replay": true,
+      "sameInvoice": true,
+      "invoicesBefore": 3,
+      "invoicesAfter": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": "T4",
+   "title": "رمز اشتباه فروشندهٔ صندوق فرعی: رد، بی هیچ نوشتن",
+   "steps": [
+    [
+     "صندوق ۲: POS sale with a wrong operator PIN",
+     "REFUSED",
+     "refuse",
+     "[PIN_WRONG] رمز شخصی درست نیست.",
+     "۴-۱۳۸"
+    ]
+   ],
+   "findings": [],
+   "obs": []
+  },
+  {
+   "id": "T5",
+   "title": "قفل باز در پنجرهٔ اصلی در صندوق فرعی باز حساب نمی‌شود (هر پنجره نشست خودش را دارد)",
+   "steps": [
+    [
+     "صندوق اصلی: sales report summary (unlocked in this window)",
+     "OK",
+     "ok",
+     {
+      "count": 3,
+      "grandTotal": 1500000
+     },
+     "قفل"
+    ],
+    [
+     "صندوق ۲: sales report summary (unlocked only in the main window)",
+     "REFUSED",
+     "refuse",
+     "برای دیدن سرجمع گزارش فروش باید اول قفل همین بخش را باز کنید (رمز مدیر یا رمز دوم همان پنل). اگر قفل را باز کرده‌اید و این پیام را می‌بینید، مدتی بی‌کار بوده‌اید و نشست بسته شده؛ دوباره باز کنید.",
+     "قفل"
+    ]
+   ],
+   "findings": [],
+   "obs": []
+  },
+  {
+   "id": "T6",
+   "title": "کار ممنوع صندوق فرعی (برگشت): امروز هر پنجره‌ای با قفل باز می‌تواند؛ پس از ۴-۱۳۸ درگاه صندوق فرعی رد می‌کند",
+   "steps": [
+    [
+     "صندوق ۲: full return of its own sale (salesReturn unlocked in this window)",
+     "OK",
+     "either",
+     null,
+     "۴-۱۳۸"
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "return from a second window today",
+     "v": "ثبت شد (امروز مرزی برای صندوق فرعی نیست؛ ۴-۱۳۸: درگاه صندوق فرعی فقط فهرست مجاز را می‌پذیرد)"
+    }
+   ]
+  },
+  {
+   "id": "T7",
+   "title": "«بستن نهایی» صندوق اصلی با یک شمارش برای همه؛ پس از آن صندوق فرعی تا تحویل بعدی نمی‌فروشد",
+   "steps": [
+    [
+     "صندوق اصلی: «بستن نهایی» with one count for all (1,000,000)",
+     "OK",
+     "ok",
+     null,
+     "بند ۱۲ د"
+    ],
+    [
+     "صندوق ۲: POS sale after the main final close",
+     "REFUSED",
+     "refuse",
+     "[CUSTODY_AUTH_REQUIRED] برای ثبت فروش، ابتدا مسئول حاضر صندوق باید با رمز شخصی و شمارش فیزیکی صندوق را تحویل بگیرد.",
+     "۴-۱۳۸"
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "expected count for all drawers (cash + card)",
+     "v": {
+      "cash": 500000,
+      "card": 500000
+     }
+    },
+    {
+     "k": "stock and ledger at the end",
+     "v": {
+      "stock": 98,
+      "ledger": 98
+     }
+    }
+   ]
+  }
+ ]
+}
