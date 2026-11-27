@@ -381,13 +381,18 @@ function mapRow(row: AuditRowLite, ctx: EventContext, h: ReturnType<typeof makeH
         reprinted ? 'این اعتبار پیش‌تر به دست فروشنده دوباره چاپ شده بود.' : ''
       ], { important: sameIssuer || reprinted })]
     }
-    case 'SALE_PAYMENT_ADD':
+    case 'SALE_PAYMENT_ADD': {
+      // دفتر آزمون ۴-۱۴۴ — پول دریافت‌شده (نوع CASH) فقط با جای پول: «کارت (کارتخوان فروشگاه)»، «نقدی (صندوق
+      // فروشگاه)» یا «حساب مدیر»؛ بی جای پول همان «نقد». چک (۴-۱۴۱) و روش‌های دیگر مثل امروز.
+      const place = PAYMENT_DESTINATION_LABELS[String(f.destination)]
+      const how = String(f.kind) === 'CASH' && place ? place : `${PAYMENT_KIND_LABELS[String(f.kind)] ?? 'روش ثبت‌نشده'}${place ? ` · ${place}` : ''}`
       return [h.event(row, `💰 پرداخت${n(f.receiptNo) !== null ? ` · فاکتور ${num(f.receiptNo)}` : ''}`, [
-        `مبلغ: ${rialOrMissing(f.amount)} · ${PAYMENT_KIND_LABELS[String(f.kind)] ?? 'روش ثبت‌نشده'}${PAYMENT_DESTINATION_LABELS[String(f.destination)] ? ` · ${PAYMENT_DESTINATION_LABELS[String(f.destination)]}` : ''}`,
+        `مبلغ: ${rialOrMissing(f.amount)} · ${how}`,
         typeof f.dueDateJalali === 'string' ? `سررسید: ${faDigits(f.dueDateJalali)}` : '',
         n(f.remaining) !== null ? `مانده فاکتور: ${rial(f.remaining)}` : '',
         `کاربر: ${h.who(row.userId)}`
       ])]
+    }
     case 'SALE_PAYMENT_UPDATE':
       return [h.event(row, '✏️ ویرایش پرداختی', [n(f.remaining) !== null ? `مانده فاکتور: ${rial(f.remaining)}` : '', `کاربر: ${h.who(row.userId)}`])]
     case 'SALE_PAYMENT_DELETE': {
