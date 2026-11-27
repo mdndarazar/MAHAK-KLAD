@@ -12,6 +12,7 @@
  *   B8  چک روی نسیه · B9 درخواست مجوز راه دور با دکمه‌های ✅/❌ و تأیید از بله · B10 منو و «خلاصهٔ امروز»
  *   B11 «بستن نهایی» با مغایرت · B12 «تجمیع و انتقال» (امروز پس از «بستن نهایی» رد؛ ۴-۱۰۲ ج) · B13 ده فروش پشت سر هم
  *   B14 فروشی درست پس از خواندن رویدادها (بیشترین زمان رسیدن امروز)
+ *   B15 پرداخت بخشی از نسیه با کارت و با نقد (پیام «💰 پرداخت»؛ ۴-۱۴۴: فقط جای پول، نه «نقد · کارت»)
  * برای هر کار: متن پیام‌ها و دکمه‌ها (عددها «#») و «سرعت رسیدن»: چند ثانیه پس از کار، پیام به تلگرام و بله فرستاده شد.
  * ساعت ساختگی است و حلقهٔ موتور مثل برنامه هر ۱ ثانیه یک دور می‌زند (خواندن رویدادها هر ۵ ثانیه، `READ_GAP_MS`)؛ پس
  * عددها به سرعت رایانه بسته نیستند و مقایسه دقیق است. زمان شبکه تا سرور تلگرام و بله جزو آن نیست.
@@ -408,6 +409,15 @@ await engine.runOnce({})
 mark = bot.log.length
 await call('POS sale cash 400,000 (Y) right after the engine read', 'ok', IPC.saleCreate, { lines: [L(vC)], payments: [{ methodId: cashM, amount: 400_000, destination: 'CASH' }], saleRequestIdempotencyKey: `bot-sale-${++keySeq}xx` }, '۴-۹')
 await deliver('a sale right after the engine read', true, '۴-۹')
+
+// =================================================================== B15
+begin('B15', 'پرداخت بخشی از نسیهٔ B4 با کارت و با نقد (پیام «💰 پرداخت»؛ ۴-۱۴۴)')
+go('1405/09/07', '11:30')
+await call('نسیه payment 60,000 by card', 'ok', IPC.salePaymentAdd, { invoiceId: n(s4.data?.id), kind: 'CASH', amount: 60_000, destination: 'CARD', methodId: cardM }, '۴-۱۴۴')
+await deliver('نسیه payment by card', true, '۴-۱۴۴')
+go('1405/09/07', '11:40')
+await call('نسیه payment 40,000 in cash', 'ok', IPC.salePaymentAdd, { invoiceId: n(s4.data?.id), kind: 'CASH', amount: 40_000, destination: 'CASH', methodId: cashM }, '۴-۱۴۴')
+await deliver('نسیه payment in cash', true, '۴-۱۴۴')
 
 // =================================================================== خلاصه، نتیجهٔ فشرده و مقایسه
 const byType = {}

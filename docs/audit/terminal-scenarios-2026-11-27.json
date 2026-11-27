@@ -1,12 +1,12 @@
 {
  "meta": {
   "tool": "docs/audit/terminal-scenarios.mjs",
-  "programCommit": "5f543442ab6e0b072b87a145dd5e63555e9c7898",
+  "programCommit": "499ca21094897300fdbb2976f326555b4f555f6e",
   "summary": {
-   "stories": 8,
-   "steps": 13,
-   "refusals": 5,
-   "observations": 9,
+   "stories": 12,
+   "steps": 25,
+   "refusals": 7,
+   "observations": 15,
    "findings": 0,
    "findingTypes": {}
   }
@@ -218,21 +218,21 @@
   },
   {
    "id": "T6",
-   "title": "کار ممنوع صندوق فرعی (برگشت): امروز هر پنجره‌ای با قفل باز می‌تواند؛ پس از ۴-۱۳۸ درگاه صندوق فرعی رد می‌کند",
+   "title": "برگشت از پنجرهٔ دیگر با قفل برگشت باز در همان پنجره ⇐ ثبت (۴-۱۴۳: برگشت در صندوق فرعی مجاز، با برچسب صندوق)",
    "steps": [
     [
      "صندوق ۲: full return of its own sale (salesReturn unlocked in this window)",
      "OK",
      "either",
      null,
-     "۴-۱۳۸"
+     "۴-۱۴۳"
     ]
    ],
    "findings": [],
    "obs": [
     {
      "k": "return from a second window today",
-     "v": "ثبت شد (امروز مرزی برای صندوق فرعی نیست؛ ۴-۱۳۸: درگاه صندوق فرعی فقط فهرست مجاز را می‌پذیرد)"
+     "v": "ثبت شد (۴-۱۴۳: برگشت در صندوق فرعی مجاز است؛ قفل روشن و بازنشده ⇐ T11؛ برچسب صندوق ⇐ T10)"
     }
    ]
   },
@@ -269,6 +269,207 @@
      "v": {
       "stock": 98,
       "ledger": 98
+     }
+    }
+   ]
+  },
+  {
+   "id": "T8",
+   "title": "روز بعد، صندوق فرعی بی ورود فروشنده: فروش زیر نشست مسئول صندوق (حالت «مسئول صندوق»؛ ۴-۱۴۳)",
+   "steps": [
+    [
+     "صندوق اصلی: custodian takes over the main drawer (PIN + count 1,000,000)",
+     "OK",
+     "ok",
+     null,
+     "بند ۱۲ د"
+    ],
+    [
+     "صندوق اصلی: POS sale 500,000 cash (custodian)",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 4,
+      "replay": false
+     },
+     "امروز"
+    ],
+    [
+     "صندوق ۲: POS sale 500,000 cash without any operator or PIN (CUSTODIAN mode)",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 5
+     },
+     "۴-۱۴۳"
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "custody evidence of that sale [kind, operator, auth method]",
+     "v": [
+      [
+       "CUSTODIAN_SESSION",
+       "مسئول صندوق",
+       "CUSTODY_SESSION"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "T9",
+   "title": "صندوق فرعی با همهٔ روش‌های پرداخت جز نسیه و چک (۴-۱۴۳)",
+   "steps": [
+    [
+     "صندوق ۲: 3 × 500,000: two barcodes 300,000 + 200,000 and cash 1,000,000",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 6,
+      "grandTotal": 1500000,
+      "paidTotal": 1500000,
+      "creditApplied": 500000
+     },
+     "۴-۱۴۳"
+    ],
+    [
+     "صندوق ۳: 500,000: barcode 100,000 and card 400,000",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 7,
+      "grandTotal": 500000,
+      "paidTotal": 500000,
+      "creditApplied": 100000
+     },
+     "۴-۱۴۳"
+    ],
+    [
+     "صندوق ۲: 500,000: cash 200,000 + card 300,000 (split)",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 8,
+      "grandTotal": 500000,
+      "paidTotal": 500000,
+      "creditApplied": 0
+     },
+     "۴-۱۴۳"
+    ],
+    [
+     "صندوق ۳: 500,000: barcode 100,000 + cash 200,000 + card 200,000 (split; refused today in every window, ۴-۶۸)",
+     "REFUSED",
+     "either",
+     "جمع نقد و کارت از مبلغ فاکتور کمتر است. برای ثبت نسیه/پرداخت جزئی باید آن گزینه را صریح انتخاب کنید.",
+     "۴-۶۸"
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "barcodes after these sales [status, used]",
+     "v": [
+      [
+       "USED",
+       300000
+      ],
+      [
+       "USED",
+       200000
+      ],
+      [
+       "USED",
+       100000
+      ],
+      [
+       "ACTIVE",
+       0
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "T10",
+   "title": "برگشت (نقد و بارکد اعتبار) و تعویض از صندوق فرعی ⇐ ثبت؛ امروز هیچ سندی نام صندوق را ندارد (۴-۱۴۳: برچسب صندوق)",
+   "steps": [
+    [
+     "صندوق ۳: full return of the main sale of this day (cash refund)",
+     "OK",
+     "ok",
+     null,
+     "۴-۱۴۳"
+    ],
+    [
+     "صندوق ۲: return 1 of the 3 items of the barcode sale (refund as a store credit barcode)",
+     "OK",
+     "ok",
+     null,
+     "۴-۱۴۳"
+    ],
+    [
+     "صندوق ۲: exchange 1 item for the same item (difference 0)",
+     "OK",
+     "ok",
+     null,
+     "۴-۱۴۳"
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "records written by these returns and the exchange (action)",
+     "v": [
+      "CASH_MOVEMENT",
+      "RETURN_REFUND",
+      "SALE_RETURN",
+      "CREDIT_ISSUE_MANUAL",
+      "CREDIT_REACTIVATE",
+      "CREDIT_ISSUE_MANUAL",
+      "CREDIT_REACTIVATE",
+      "SALE_RETURN",
+      "SALE_RETURN",
+      "SALE_EXCHANGE"
+     ]
+    },
+    {
+     "k": "records that say which checkout did it (۴-۱۴۳: all of them)",
+     "v": 0
+    }
+   ]
+  },
+  {
+   "id": "T11",
+   "title": "قفل «برگشت از فروش و تعویض کالا» روشن و در صندوق فرعی باز نشده ⇐ رد؛ مدیر قفل را خاموش کند ⇐ ثبت (۴-۱۴۳)",
+   "steps": [
+    [
+     "صندوق ۴: return from a checkout where the return lock was never opened (lock on)",
+     "REFUSED",
+     "refuse",
+     "برای ثبت برگشت از فروش باید اول قفل همین بخش را باز کنید (رمز مدیر یا رمز دوم همان پنل). اگر قفل را باز کرده‌اید و این پیام را می‌بینید، مدتی بی‌کار بوده‌اید و نشست بسته شده؛ دوباره باز کنید.",
+     "۴-۱۴۳"
+    ],
+    [
+     "صندوق ۴: the same return from the same checkout (lock off)",
+     "OK",
+     "ok",
+     null,
+     "۴-۱۴۳"
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "manager turns the return lock off in the main program",
+     "v": "changed 1"
+    },
+    {
+     "k": "stock and ledger at the end of day 2",
+     "v": {
+      "stock": 94,
+      "ledger": 94
      }
     }
    ]

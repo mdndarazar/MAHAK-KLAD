@@ -3,7 +3,9 @@
  *
  * خواستهٔ مالک: فروشگاه شلوغ چند پنل فروش داشته باشد که همه به برنامهٔ اصلی وصل‌اند (انبار، تنظیمات، گزارش فروش و
  * گزارش مدیریت فقط روی برنامهٔ اصلی)؛ صندوق کناری فقط پنل فروش تکی دارد؛ مسئولیت با شیفتی است که صندوق اصلی را
- * تحویل گرفته («شیفت اول +زیرمجموعه هاش»)؛ برگشت و تعویض فقط در صندوق اصلی.
+ * تحویل گرفته («شیفت اول +زیرمجموعه هاش»). طرح نهایی مالک (۴-۱۴۳): صندوق فرعی فقط کمکی است و همه‌چیز در برنامهٔ اصلی؛
+ * فروش با همهٔ روش‌ها جز نسیه و چک، برگشت و تعویض؛ بی ورود فروشنده و بی قفل (کار قفل‌دار فقط در صندوق اصلی)؛ گزارش هر
+ * صندوق فقط در برنامهٔ اصلی؛ پیام ربات «صندوق ۱ · شیفت اول».
  *
  * امروز «حالت صندوق فرعی» هنوز ساخته نشده است. این ابزار همان چیزی را می‌سنجد که طرح روی آن بنا می‌شود: صندوق فرعی
  * پنجرهٔ دیگری است (فرستندهٔ دیگری) که همان کانال فروش برنامهٔ اصلی را با «اپراتور با رمز شخصی» صدا می‌زند
@@ -14,8 +16,13 @@
  *   T3  قطع شبکه وسط فروش: همان درخواست با همان کلید دوباره ⇒ فاکتور دوم ساخته نمی‌شود؛ همان کلید با سبد دیگر ⇒ رد
  *   T4  رمز اشتباه فروشنده ⇒ رد، بی هیچ نوشتن
  *   T5  قفل باز در پنجرهٔ اصلی در صندوق فرعی باز حساب نمی‌شود
- *   T6  کاری که صندوق فرعی نباید بکند (برگشت): امروز هر پنجره‌ای با قفل باز می‌تواند؛ پس از ۴-۱۳۸ درگاه صندوق فرعی رد می‌کند
+ *   T6  برگشت از پنجرهٔ دیگر با قفل برگشت باز در همان پنجره ⇐ ثبت (۴-۱۴۳: برگشت در صندوق فرعی مجاز، با برچسب صندوق)
  *   T7  «بستن نهایی» با یک شمارش برای همه؛ پس از آن صندوق فرعی تا تحویل بعدی نمی‌فروشد
+ *   T8  روز بعد، صندوق فرعی بی ورود فروشنده: فروش زیر نشست مسئول صندوق (حالت «مسئول صندوق»؛ ۴-۱۴۳)
+ *   T9  صندوق فرعی با همهٔ روش‌ها جز نسیه و چک: دو بارکد + نقد، بارکد + کارت، نقد + کارت؛ «نقد + کارت + بارکد» امروز رد (۴-۶۸)
+ *   T10 برگشت (نقد و بارکد اعتبار) و تعویض از صندوق فرعی ⇐ ثبت؛ امروز هیچ سندی نام صندوق را ندارد (۴-۱۴۳: برچسب صندوق)
+ *   T11 قفل «برگشت از فروش و تعویض کالا»: روشن و در صندوق فرعی باز نشده ⇐ رد (۴-۱۴۳: «این کار در صندوق اصلی انجام می‌شود»)؛
+ *       مدیر قفل را خاموش کند ⇐ همان برگشت در صندوق فرعی ثبت می‌شود
  *
  * هم‌زمانیِ واقعیِ دو فروش در یک لحظه این‌جا سنجیده نمی‌شود (پایگاه آزمون تراکنش‌های هم‌زمان را جدا نمی‌کند)؛
  * در اجرا، درگاه صندوق فرعی فروش‌ها را یکی‌یکی به سرویس فروش می‌دهد و آزمون با دو رایانه انجام می‌شود (۴-۱۳۸).
@@ -69,6 +76,8 @@ const { PANEL_KEYS } = await imp('/src/shared/panels.ts')
 const { jalaliStartOfDay } = await imp('/src/shared/jalali.ts')
 const { findMigrationsDir } = await imp('/src/main/db/migrator.ts')
 const { custodyService } = await imp('/src/main/services/CustodyService.ts')
+const { storeCreditService } = await imp('/src/main/services/StoreCreditService.ts')
+const { authService } = await imp('/src/main/services/AuthService.ts')
 const db = harnessClient()
 {
   const migDir = findMigrationsDir()
@@ -102,9 +111,10 @@ function obs(key, value) { story.obs.push({ k: key, v: value }); if (VERBOSE) co
 const senders = {
   main: { id: 777300, isDestroyed: () => false, once: () => {} },
   t2: { id: 9002, isDestroyed: () => false, once: () => {} },
-  t3: { id: 9003, isDestroyed: () => false, once: () => {} }
+  t3: { id: 9003, isDestroyed: () => false, once: () => {} },
+  t4: { id: 9004, isDestroyed: () => false, once: () => {} }
 }
-const NAMES = { main: 'صندوق اصلی', t2: 'صندوق ۲', t3: 'صندوق ۳' }
+const NAMES = { main: 'صندوق اصلی', t2: 'صندوق ۲', t3: 'صندوق ۳', t4: 'صندوق ۴' }
 async function call(who, label, expect, channel, payload, plan, briefOf) {
   const before = sig()
   let r
@@ -204,10 +214,10 @@ const leak = await call('t2', 'sales report summary (unlocked only in the main w
 if (leak.ok) finding('SESSION_LEAK', 'باز بودن قفل «گزارشات فروش» در پنجرهٔ اصلی به صندوق فرعی رسید', '۴-۱۳۸')
 
 // =================================================================== T6
-begin('T6', 'کار ممنوع صندوق فرعی (برگشت): امروز هر پنجره‌ای با قفل باز می‌تواند؛ پس از ۴-۱۳۸ درگاه صندوق فرعی رد می‌کند')
+begin('T6', 'برگشت از پنجرهٔ دیگر با قفل برگشت باز در همان پنجره ⇐ ثبت (۴-۱۴۳: برگشت در صندوق فرعی مجاز، با برچسب صندوق)')
 notePanelUnlocked(PANEL_KEYS.salesReturn, 'PANEL', senders.t2.id)
-const ret = await call('t2', 'full return of its own sale (salesReturn unlocked in this window)', 'either', IPC.saleReturn, { invoiceId: n(b.data?.id), full: true, refundDecision: 'METHOD', refundMethod: 'CASH' }, '۴-۱۳۸')
-obs('return from a second window today', ret.ok ? 'ثبت شد (امروز مرزی برای صندوق فرعی نیست؛ ۴-۱۳۸: درگاه صندوق فرعی فقط فهرست مجاز را می‌پذیرد)' : firstLine(ret.error).slice(0, 160))
+const ret = await call('t2', 'full return of its own sale (salesReturn unlocked in this window)', 'either', IPC.saleReturn, { invoiceId: n(b.data?.id), full: true, refundDecision: 'METHOD', refundMethod: 'CASH' }, '۴-۱۴۳')
+obs('return from a second window today', ret.ok ? 'ثبت شد (۴-۱۴۳: برگشت در صندوق فرعی مجاز است؛ قفل روشن و بازنشده ⇐ T11؛ برچسب صندوق ⇐ T10)' : firstLine(ret.error).slice(0, 160))
 
 // =================================================================== T7
 begin('T7', '«بستن نهایی» صندوق اصلی با یک شمارش برای همه؛ پس از آن صندوق فرعی تا تحویل بعدی نمی‌فروشد')
@@ -222,6 +232,80 @@ await sale('t2', 'POS sale after the main final close', 'refuse', 'term-2-000004
   if (rows.some((x, i) => x !== i + 1)) finding('RECEIPT_GAP', `شمارهٔ فاکتورها پیوسته نیست: ${JSON.stringify(rows)}`, 'شماره')
   const st = n(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', v).stock), mv = n(seed.one('SELECT COALESCE(SUM(delta),0) s FROM "StockMovement" WHERE variantId=?', v).s)
   obs('stock and ledger at the end', { stock: st, ledger: 100 + mv })
+  if (st !== 100 + mv) finding('STOCK_LEDGER_MISMATCH', `موجودی ${st} ≠ ۱۰۰ + دفتر ${mv}`, 'انبار')
+}
+
+// =================================================================== T8
+begin('T8', 'روز بعد، صندوق فرعی بی ورود فروشنده: فروش زیر نشست مسئول صندوق (حالت «مسئول صندوق»؛ ۴-۱۴۳)')
+go('1405/09/07', '09:00')
+await call('main', 'custodian takes over the main drawer (PIN + count 1,000,000)', 'ok', IPC.custodyOpen, { userId: custodian, password: CUST, operationalTotal: 1000000 }, 'بند ۱۲ د')
+go('1405/09/07', '10:00')
+const d2main = await sale('main', 'POS sale 500,000 cash (custodian)', 'ok', 'main-0000002', 'CASH', 'امروز')
+const d2t2 = await call('t2', 'POS sale 500,000 cash without any operator or PIN (CUSTODIAN mode)', 'ok', IPC.saleCreate,
+  { lines: [line], payments: [{ methodId: cashM, amount: 500000, destination: 'CASH' }], saleRequestIdempotencyKey: 'term-2-000010' }, '۴-۱۴۳', (d) => ({ receiptNo: n(d.receiptNo) }))
+if (d2t2.ok) obs('custody evidence of that sale [kind, operator, auth method]', seed.rows('SELECT e.operatorKind k, u.displayName op, e.authMethod a FROM "CustodySaleEvidence" e LEFT JOIN "User" u ON u.id=e.operatorUserId WHERE e.invoiceId=?', n(d2t2.data.id)).map((x) => [x.k, x.op, x.a]))
+
+// =================================================================== T9
+begin('T9', 'صندوق فرعی با همهٔ روش‌های پرداخت جز نسیه و چک (۴-۱۴۳)')
+go('1405/09/07', '11:00')
+const creditCode = async (amount) => {
+  const r = await storeCreditService.issueManual({ amount, multiUse: false, maxUses: 1, carryRemainder: true, days: 30, userId: owner, managerPassword: PW })
+  return seed.one('SELECT code FROM "StoreCredit" WHERE id=?', r.id).code
+}
+const k1 = await creditCode(300000), k2 = await creditCode(200000), k3 = await creditCode(100000), k4 = await creditCode(100000)
+const saleBrief = (d) => ({ receiptNo: n(d.receiptNo), grandTotal: n(d.grandTotal), paidTotal: n(d.paidTotal), creditApplied: n(d.storeCreditApplied) })
+const bc = await call('t2', '3 × 500,000: two barcodes 300,000 + 200,000 and cash 1,000,000', 'ok', IPC.saleCreate,
+  { lines: [{ ...line, qty: 3 }], payments: [{ methodId: cashM, amount: 1000000, destination: 'CASH' }], storeCredits: [{ code: k1, requestedAmount: 300000 }, { code: k2, requestedAmount: 200000 }], saleRequestIdempotencyKey: 'term-2-000011' }, '۴-۱۴۳', saleBrief)
+await call('t3', '500,000: barcode 100,000 and card 400,000', 'ok', IPC.saleCreate,
+  { lines: [line], payments: [{ methodId: cardM, amount: 400000, destination: 'CARD' }], storeCredits: [{ code: k3, requestedAmount: null }], saleRequestIdempotencyKey: 'term-3-000011' }, '۴-۱۴۳', saleBrief)
+await call('t2', '500,000: cash 200,000 + card 300,000 (split)', 'ok', IPC.saleCreate,
+  { lines: [line], splitPayment: true, payments: [{ methodId: cashM, amount: 200000, destination: 'CASH' }, { methodId: cardM, amount: 300000, destination: 'CARD' }], saleRequestIdempotencyKey: 'term-2-000012' }, '۴-۱۴۳', saleBrief)
+await call('t3', '500,000: barcode 100,000 + cash 200,000 + card 200,000 (split; refused today in every window, ۴-۶۸)', 'either', IPC.saleCreate,
+  { lines: [line], splitPayment: true, payments: [{ methodId: cashM, amount: 200000, destination: 'CASH' }, { methodId: cardM, amount: 200000, destination: 'CARD' }], storeCredits: [{ code: k4, requestedAmount: 100000 }], saleRequestIdempotencyKey: 'term-3-000012' }, '۴-۶۸', saleBrief)
+obs('barcodes after these sales [status, used]', seed.rows('SELECT status, usedAmount FROM "StoreCredit" ORDER BY id').map((x) => [x.status, n(x.usedAmount)]))
+
+// =================================================================== T10
+begin('T10', 'برگشت (نقد و بارکد اعتبار) و تعویض از صندوق فرعی ⇐ ثبت؛ امروز هیچ سندی نام صندوق را ندارد (۴-۱۴۳: برچسب صندوق)')
+go('1405/09/07', '12:00')
+const auditMark = n(seed.one('SELECT COALESCE(MAX(id),0) m FROM "AuditLog"').m)
+notePanelUnlocked(PANEL_KEYS.salesReturn, 'PANEL', senders.t3.id)
+await call('t3', 'full return of the main sale of this day (cash refund)', 'ok', IPC.saleReturn, { invoiceId: n(d2main.data?.id), full: true, refundDecision: 'METHOD', refundMethod: 'CASH' }, '۴-۱۴۳')
+notePanelUnlocked(PANEL_KEYS.salesReturn, 'PANEL', senders.t2.id)
+if (bc.ok) {
+  const invoiceId = n(bc.data.id)
+  const itemId = n(seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId=? ORDER BY id', invoiceId)?.id)
+  await call('t2', 'return 1 of the 3 items of the barcode sale (refund as a store credit barcode)', 'ok', IPC.saleReturn,
+    { invoiceId, lines: [{ saleItemId: itemId, qty: 1 }], refundDecision: 'METHOD', refundMethod: 'STORE_CREDIT' }, '۴-۱۴۳')
+  const lines = [{ saleItemId: itemId, qty: 1 }], replacements = [line]
+  const pv = await handlers.get(IPC.saleExchangePreview)({ sender: senders.t2 }, { invoiceId, lines, replacements, full: false })
+  if (pv.ok && pv.data?.ok) {
+    const diff = n(pv.data.effectiveDiff)
+    const input = { invoiceId, lines, full: false, replacements, expectedSettlementDiff: diff, requestIdempotencyKey: 'term-2-ex000001' }
+    if (pv.data.discountTransfer) input.discountTransferOption = 'NO'
+    if (diff > 0) input.methodId = cardM
+    else if (diff < 0) { input.exchangeSettlementDecision = 'METHOD'; input.refundMode = 'CASH' }
+    await call('t2', `exchange 1 item for the same item (difference ${diff})`, 'ok', IPC.saleExchangeCreate, input, '۴-۱۴۳')
+  } else story.steps.push({ label: 'صندوق ۲: exchange preview', ok: false, expect: 'ok', plan: '۴-۱۴۳', code: null, msg: firstLine(pv.ok ? pv.data?.error : pv.error) })
+}
+{
+  const rows = seed.rows('SELECT action, note FROM "AuditLog" WHERE id>? ORDER BY id', auditMark)
+  obs('records written by these returns and the exchange (action)', rows.map((x) => x.action))
+  obs('records that say which checkout did it (۴-۱۴۳: all of them)', rows.filter((x) => /صندوق: ?[۰-۹0-9]/.test(String(x.note ?? ''))).length)
+}
+
+// =================================================================== T11
+begin('T11', 'قفل «برگشت از فروش و تعویض کالا» روشن و در صندوق فرعی باز نشده ⇐ رد؛ مدیر قفل را خاموش کند ⇐ ثبت (۴-۱۴۳)')
+go('1405/09/07', '12:30')
+await call('t4', 'return from a checkout where the return lock was never opened (lock on)', 'refuse', IPC.saleReturn, { invoiceId: n(d2t2.data?.id), full: true, refundDecision: 'METHOD', refundMethod: 'CASH' }, '۴-۱۴۳')
+{
+  let off = null
+  try { off = await authService.setPanelLocks({ managerPassword: PW, locks: { [PANEL_KEYS.salesReturn]: false }, userId: owner }) } catch (e) { off = { error: firstLine(String(e?.message ?? e)).slice(0, 160) } }
+  obs('manager turns the return lock off in the main program', off?.error ?? `changed ${n(off?.changed)}`)
+}
+await call('t4', 'the same return from the same checkout (lock off)', 'ok', IPC.saleReturn, { invoiceId: n(d2t2.data?.id), full: true, refundDecision: 'METHOD', refundMethod: 'CASH' }, '۴-۱۴۳')
+{
+  const st = n(seed.one('SELECT stock FROM "ProductVariant" WHERE id=?', v).stock), mv = n(seed.one('SELECT COALESCE(SUM(delta),0) s FROM "StockMovement" WHERE variantId=?', v).s)
+  obs('stock and ledger at the end of day 2', { stock: st, ledger: 100 + mv })
   if (st !== 100 + mv) finding('STOCK_LEDGER_MISMATCH', `موجودی ${st} ≠ ۱۰۰ + دفتر ${mv}`, 'انبار')
 }
 

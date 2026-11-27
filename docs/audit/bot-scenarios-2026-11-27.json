@@ -1,14 +1,14 @@
 {
  "meta": {
   "tool": "docs/audit/bot-scenarios.mjs",
-  "programCommit": "5f543442ab6e0b072b87a145dd5e63555e9c7898",
+  "programCommit": "499ca21094897300fdbb2976f326555b4f555f6e",
   "summary": {
-   "stories": 15,
-   "steps": 23,
+   "stories": 16,
+   "steps": 25,
    "refusals": 1,
    "messages": {
-    "telegram": 20,
-    "bale": 18
+    "telegram": 22,
+    "bale": 20
    },
    "slowestSeconds": 5,
    "findings": 0,
@@ -104,6 +104,16 @@
     "label": "a sale right after the engine read",
     "tg": 5,
     "bale": 5
+   },
+   {
+    "label": "نسیه payment by card",
+    "tg": 1,
+    "bale": 1
+   },
+   {
+    "label": "نسیه payment in cash",
+    "tg": 1,
+    "bale": 1
    }
   ]
  },
@@ -900,6 +910,79 @@
      "v": [
       5,
       5
+     ]
+    }
+   ]
+  },
+  {
+   "id": "B15",
+   "title": "پرداخت بخشی از نسیهٔ B4 با کارت و با نقد (پیام «💰 پرداخت»؛ ۴-۱۴۴)",
+   "steps": [
+    [
+     "نسیه payment 60,000 by card",
+     "OK",
+     "ok",
+     null,
+     "۴-۱۴۴"
+    ],
+    [
+     "نسیه payment 40,000 in cash",
+     "OK",
+     "ok",
+     null,
+     "۴-۱۴۴"
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "نسیه payment by card: telegram",
+     "v": [
+      {
+       "send": "💰 پرداخت · فاکتور # · #/#/# ساعت #:#\nمبلغ: #٬# ریال · نقد · کارت (کارتخوان فروشگاه)\nمانده فاکتور: #٬# ریال\nکاربر: مسئول صندوق\nکد رویداد: A-#",
+       "buttons": []
+      }
+     ]
+    },
+    {
+     "k": "نسیه payment by card: bale",
+     "v": [
+      {
+       "send": "💰 پرداخت · فاکتور # · #/#/# ساعت #:#\nمبلغ: #٬# ریال · نقد · کارت (کارتخوان فروشگاه)\nمانده فاکتور: #٬# ریال\nکاربر: مسئول صندوق\nکد رویداد: A-#",
+       "buttons": []
+      }
+     ]
+    },
+    {
+     "k": "نسیه payment by card: seconds until sent (telegram, bale)",
+     "v": [
+      1,
+      1
+     ]
+    },
+    {
+     "k": "نسیه payment in cash: telegram",
+     "v": [
+      {
+       "send": "💰 پرداخت · فاکتور # · #/#/# ساعت #:#\nمبلغ: #٬# ریال · نقد · نقدی (صندوق فروشگاه)\nمانده فاکتور: #٬# ریال\nکاربر: مسئول صندوق\nکد رویداد: A-#",
+       "buttons": []
+      }
+     ]
+    },
+    {
+     "k": "نسیه payment in cash: bale",
+     "v": [
+      {
+       "send": "💰 پرداخت · فاکتور # · #/#/# ساعت #:#\nمبلغ: #٬# ریال · نقد · نقدی (صندوق فروشگاه)\nمانده فاکتور: #٬# ریال\nکاربر: مسئول صندوق\nکد رویداد: A-#",
+       "buttons": []
+      }
+     ]
+    },
+    {
+     "k": "نسیه payment in cash: seconds until sent (telegram, bale)",
+     "v": [
+      1,
+      1
      ]
     }
    ]
