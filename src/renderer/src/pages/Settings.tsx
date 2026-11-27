@@ -2864,7 +2864,7 @@ export default function Settings() {
                   </Field>
                 </div>
                 <div className="kbd">
-                  «مشتری راه دور» یک مهلت مستقل و بلندتر است (پیش‌فرض ۱۴ روز): کارمند در پنل فروش چک‌باکس «مشتری راه
+                  «مشتری راه دور» یک مهلت مستقل و بلندتر است (پیش‌فرض ۷ روز): کارمند در پنل فروش چک‌باکس «مشتری راه
                   دور» را می‌زند و مهلت برگشت همان فاکتور از این عدد حساب می‌شود، نه از مهلت عادی. با چک‌باکس «نمایش
                   مهلت برگشت روی فاکتور» در تب «قالب فاکتور چاپی» هم می‌توانید کل بلوک برگشت (کد، بارکد و مهلت) را از
                   رسید بردارید — برای فروشگاهی که مرجوعی قبول نمی‌کند. کد همچنان داخل سیستم ساخته می‌شود، پس اگر بعداً
@@ -2918,7 +2918,7 @@ export default function Settings() {
                         disabled={!sale.wholesaleReturnCode}
                         value={sale.wholesaleReturnCodeDaysRemote}
                         onChange={(e) =>
-                          setS({ wholesaleReturnCodeDaysRemote: Math.min(365, Math.max(1, +e.target.value || 14)) })
+                          setS({ wholesaleReturnCodeDaysRemote: Math.min(365, Math.max(1, +e.target.value || 7)) })
                         }
                       />
                     </Field>
@@ -2935,7 +2935,7 @@ export default function Settings() {
                 <div className="kbd">
                   هر فاکتور فروش تکی یک کد رندوم (حروف + عدد) می‌گیرد که روی رسید به‌صورت متن و بارکد چاپ می‌شود.
                   یکتایی کد فقط در بازه‌ی اعتبار تضمین می‌شود؛ بعد از انقضا همان کد می‌تواند برای فاکتور جدیدی تولید
-                  شود. پیش‌فرض ۷ روز است.
+                  شود. پیش‌فرض ۱ روز است (تا پایان روزِ بعد از خرید).
                 </div>
               </section>
             </>
