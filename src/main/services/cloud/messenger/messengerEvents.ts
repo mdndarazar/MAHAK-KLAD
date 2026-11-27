@@ -186,7 +186,9 @@ const ACTION_LABELS: Readonly<Record<string, string>> = Object.freeze({
 const AMOUNT_FIELDS = ['grandTotal', 'amount', 'total', 'refundAmount', 'applied', 'paidAmount', 'totalAmount'] as const
 
 const PAYMENT_KIND_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  CASH: 'نقد', CARD: 'کارت', CREDIT: 'نسیه', CUSTOM: 'چک یا روش دیگر', STORE_CREDIT: 'اعتبار خرید', EXCHANGE_CREDIT: 'اعتبار تعویض'
+  CASH: 'نقد', CARD: 'کارت', CREDIT: 'نسیه', CUSTOM: 'چک یا روش دیگر', STORE_CREDIT: 'اعتبار خرید', EXCHANGE_CREDIT: 'اعتبار تعویض',
+  // دفتر آزمون ۴-۱۴۱ — نوع ردیف پرداخت چک `CHEQUE` است؛ پیام «چک» می‌نویسد، نه «روش ثبت‌نشده»
+  CHEQUE: 'چک'
 })
 
 /** شناسه‌هایی که برای ساختن پیام‌های یک صفحه لازم‌اند (یک بار، دسته‌ای، خوانده می‌شوند). */
