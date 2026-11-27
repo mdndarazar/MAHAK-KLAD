@@ -14,7 +14,7 @@ import { exportTable } from '../lib/exportCsv'
 import { PANEL_KEYS } from '@shared/panels'
 import { usePanelLock } from '../hooks/usePanelLocks'
 import { useManagerSession } from '../hooks/useManagerSession'
-import { faDigits, money, toLatinDigits } from '@shared/jalali'
+import { faDigits, money, toLatinDigits, jalaliDateTimeText } from '@shared/jalali'
 import {
   CREDIT_BATCH_HEADERS,
   CREDIT_BREAKDOWN_HEADERS,
@@ -1076,7 +1076,7 @@ export default function CreditManagement() {
             <div className="p-2 flex gap-2 items-center flex-wrap border-b">
               <b>چاپ دوباره‌ی گواهی به دست فروشنده</b>
               <span className="kbd">هر اعتبار فقط یک بار و در همان شیفتِ صدور؛ «مشکوک» یعنی اعتبار پس از چاپ دوباره مصرف شده است.</span>
-              {reprints.seenAt && <span className="kbd">آخرین بازبینی: {faDigits(new Date(reprints.seenAt).toLocaleString('fa-IR-u-ca-persian'))}</span>}
+              {reprints.seenAt && <span className="kbd">آخرین بازبینی: {jalaliDateTimeText(reprints.seenAt)}</span>}
               <button className="btn btn-primary mr-auto" disabled={busy} onClick={() => void markReprintsSeen()}>
                 دیدم {reprints.newCount > 0 ? `(${faDigits(reprints.newCount)} تازه)` : ''}
               </button>

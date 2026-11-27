@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Modal from './Modal'
 import PasswordField from './PasswordField'
 import { call, CH } from '../lib/api'
-import { faDigits, money } from '@shared/jalali'
+import { faDigits, money, jalaliDateTimeText } from '@shared/jalali'
 import type {
   BridgeDiagView,
   BridgeDiagRow,
@@ -247,7 +247,7 @@ export default function BridgeDiagnosticsModal({
               {view.bridge.balanced ? 'پل بسته است' : 'پل بسته نیست'}
             </span>
             <span className="mr-auto text-xs kbd text-slate-500">
-              محاسبه‌شده: {faDigits(new Date(view.computedAtIso).toLocaleString('fa-IR'))}
+              محاسبه‌شده: {jalaliDateTimeText(view.computedAtIso)}
             </span>
           </div>
 
@@ -379,7 +379,7 @@ export default function BridgeDiagnosticsModal({
                 {view.notes.map((n) => (
                   <div key={n.id} className="text-sm leading-6 border-r-2 border-slate-300 pr-2">
                     <span className="text-xs text-slate-500 kbd">
-                      {faDigits(new Date(n.createdAtIso).toLocaleString('fa-IR'))} · {n.actorLabel}
+                      {jalaliDateTimeText(n.createdAtIso)} · {n.actorLabel}
                     </span>
                     <div className="whitespace-pre-wrap">{n.text /* متن خالص — بدون dangerouslySetInnerHTML */}</div>
                   </div>

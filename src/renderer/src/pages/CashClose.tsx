@@ -994,8 +994,8 @@ export default function CashClose() {
             {custodySegments.map((segment) => <div key={segment.shiftId} className="rounded border border-indigo-200 bg-white p-2 text-sm leading-6">
               <div className="font-bold">مسئول: {segment.custodianName ?? '—'} <span className="font-normal text-slate-500">· نشست {faDigits(segment.shiftId)}</span></div>
               <div>شیفتِ ثبت‌شده: <b>{segment.scheduleTitleSnapshot ?? 'بدون برنامه'}</b>{segment.scheduleKind === 'CANONICAL' ? ' · اصلی' : segment.scheduleKind === 'LEGACY' ? ' · قدیمی' : ''}</div>
-              <div className="text-slate-600">شروع {faDigits(new Date(segment.startedAt).toLocaleString('fa-IR'))}{segment.endedAt ? ` · پایان ${faDigits(new Date(segment.endedAt).toLocaleString('fa-IR'))}` : ' · باز'}</div>
-              {segment.scheduledEndAt ? <div className="text-slate-600">پایان برنامهٔ ثبت‌شده: {faDigits(new Date(segment.scheduledEndAt).toLocaleString('fa-IR'))}</div> : null}
+              <div className="text-slate-600">شروع {(segment as any).startedAtText ?? '—'}{segment.endedAt ? ` · پایان ${(segment as any).endedAtText ?? '—'}` : ' · باز'}</div>
+              {segment.scheduledEndAt ? <div className="text-slate-600">پایان برنامهٔ ثبت‌شده: {(segment as any).scheduledEndAtText ?? '—'}</div> : null}
             </div>)}
           </div> : <p className="text-sm text-slate-600">{shift ? 'برای این نشست، دورهٔ حضانت ثبت نشده است.' : 'در بازهٔ اخیر دورهٔ حضانتی ثبت نشده است.'}</p>}
           {custodyHandovers.length ? <div className="border-t border-indigo-200 pt-3"><h3 className="font-bold text-sm mb-2">تحویل‌ها</h3><div className="space-y-1 text-sm">

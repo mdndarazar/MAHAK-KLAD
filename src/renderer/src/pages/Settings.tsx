@@ -24,7 +24,8 @@ import {
   jalaliAddDays,
   jalaliMonthStart,
   isValidJalaliDate,
-  parseGroupedInteger
+  parseGroupedInteger,
+  jalaliDateTimeText
 } from '@shared/jalali'
 import type {
   CustomerDeleteResult,
@@ -4863,7 +4864,7 @@ export default function Settings() {
                         )} نسخه‌ی آخر نگه داشته می‌شود.`
                       : 'بکاپ خودکار خاموش است؛ فقط بکاپ دستی گرفته می‌شود.'}
                     {backupCfg?.lastAutoAt
-                      ? ` آخرین بکاپ خودکار: ${faDigits(new Date(backupCfg.lastAutoAt).toLocaleString('fa-IR'))}`
+                      ? ` آخرین بکاپ خودکار: ${jalaliDateTimeText(backupCfg.lastAutoAt)}`
                       : ''}
                     {backupCfg?.fallback
                       ? ' ⚠️ مسیر انتخابی در دسترس نیست (مثلاً فلش جدا شده)، پس موقتاً پوشه‌ی داخلی برنامه استفاده می‌شود.'

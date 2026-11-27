@@ -4,7 +4,7 @@ import { BusinessError } from '../errors'
 import { audit, auditOrThrow } from './AuditService'
 import { AuditAction } from '@shared/enums'
 import { DEFAULT_CUSTODY_CONFIG, parseCustodyConfig, parseShiftConfig, SETTING_KEYS, type CustodyConfig, type ShiftConfig, type ShiftTemplate } from '@shared/receipt'
-import { toJalaliDate, jalaliStartOfDay, jalaliEndOfDay, isValidJalaliDate, toLatinDigits } from '@shared/jalali'
+import { toJalaliDate, jalaliStartOfDay, jalaliEndOfDay, isValidJalaliDate, toLatinDigits, jalaliDateTimeText } from '@shared/jalali'
 import { shiftService } from './ShiftService'
 import { recordCashMovement } from './CashMovementService'
 import { cashboxService } from './CashboxService'
@@ -1016,6 +1016,10 @@ export const custodyService = {
             templateId: meta.templateId ?? null,
             scheduleTitleSnapshot: meta.planTitle ?? null,
             scheduledEndAt: meta.scheduledEndAt ?? null,
+            // دفتر آزمون ۴-۱۳۴ — متن نمایشی تاریخ با تقویم برنامه برای دو خط «بستن صندوق»
+            startedAtText: jalaliDateTimeText(shift.openedAt),
+            endedAtText: (meta.endedAt ?? shift.closedAt) ? jalaliDateTimeText(meta.endedAt ?? shift.closedAt) : null,
+            scheduledEndAtText: meta.scheduledEndAt ? jalaliDateTimeText(meta.scheduledEndAt) : null,
             scheduleKind: meta.templateId ? 'CANONICAL' : meta.planId ? 'LEGACY' : 'UNSCHEDULED',
             endKind: meta.endKind ?? null,
             countStatus: meta.countStatus,
