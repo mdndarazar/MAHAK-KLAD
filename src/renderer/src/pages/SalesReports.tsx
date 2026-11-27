@@ -72,7 +72,8 @@ import {
   fraudOutputRows,
   outputLastPageNotes,
   outputPageRangeNote,
-  shownInvoiceUnits
+  shownInvoiceUnits,
+  isRowsPagingWarning
 } from '@shared/reportExtraOutput'
 /**
  * جلسه ۲۴ — لایه‌ی نمایشِ خالص ماژول اعتبار. سرستون‌ها، شکل ردیف اکسل و کارت‌های
@@ -2830,9 +2831,10 @@ export default function SalesReports() {
       {/* ===================== جلسه ۱۵ · بخش ۵ — هفت بلوک صورت‌حساب ===================== */}
       {tab === 'summary' && (
         <Fragment>
-          {!!(report.warnings ?? []).length && (
+          {/* دفتر آزمون ۴-۱۱۹ — هشدار صفحه‌بندی سرور (رقم انگلیسی) کنار می‌رود؛ نسخهٔ فارسی همین صفحه پایین‌تر است */}
+          {!!(report.warnings ?? []).filter((w) => !isRowsPagingWarning(w)).length && (
             <div className="mt-3 rounded border border-red-500 bg-red-50 p-2 text-xs leading-6 text-red-700">
-              {(report.warnings ?? []).map((w, i) => (
+              {(report.warnings ?? []).filter((w) => !isRowsPagingWarning(w)).map((w, i) => (
                 <div key={i}>⚠ {w}</div>
               ))}
             </div>
@@ -2859,7 +2861,7 @@ export default function SalesReports() {
           )}
           <AccountingBlocks
             statements={report.accounting ?? null}
-            warnings={report.warnings ?? []}
+            warnings={(report.warnings ?? []).filter((w) => !isRowsPagingWarning(w))}
             range={
               report.accounting?.period?.fromJalali
                 ? `از ${faDigits(report.accounting.period.fromJalali)} تا ${faDigits(report.accounting.period.toJalali ?? '')}`
