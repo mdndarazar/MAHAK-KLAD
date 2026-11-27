@@ -9,9 +9,9 @@
 | --- | --- | --- | --- |
 | ۴-۱۰ | خانه‌های تاریخ صفحهٔ گوشی سه‌بخشی با «/» ثابت؛ پیش‌فرض امروز از سرور (سرآیند `x-mahak-today` پاسخ `/api/capabilities`؛ بدنهٔ پاسخ همان) | — | `tl-4-10-mobile-date-boxes.mjs` |
 | ۴-۳۹ | `JalaliDateInput.tsx` سه‌بخشی با «/» ثابت (منطق خالص در `jalaliDateParts.ts`)؛ گزارش حضانت با پیش‌فرض امروز | — | `tl-4-39-desktop-date-boxes.mjs` |
-| ۴-۴۰ | جداکنندهٔ هزارگان هنگام تایپ در کادرهای مبلغ `CustodyChip.tsx`؛ عدد ذخیره همان | — | `tl-4-40-amount-separators.mjs` |
+| ۴-۴۰ | جداکنندهٔ هزارگان هنگام تایپ در هفت کادر مبلغ `CustodyChip.tsx` (کادر مشترک `AmountInput.tsx`، منطق خالص `amountFormat.ts`)؛ «ریال» کنار کادر و «یعنی … تومان» زیر آن؛ عدد فرستاده‌شده همان رشتهٔ رقم لاتین | — | `tl-4-40-amount-separators.mjs` |
 | ۴-۵۰ | متن پیش‌فرض ۱/۷ روز در تنظیمات فروش و کد فاکتور؛ `\|\| 14` ⇐ ۷ | — | `tl-4-50-return-window-text.mjs` |
-| ۴-۵۵ | متن‌های دیدنی بی شمارهٔ داخلی و بی واژهٔ انگلیسی | — | `tl-4-55-visible-texts.mjs` |
+| ۴-۵۵ | متن‌های دیدنی ۹ پرونده بی شمارهٔ داخلی («(بند …)»، «(§…)») و بی واژهٔ انگلیسی (Master Override ⇐ «تحویل اضطراری صندوق به مدیر»، snapshot، override، legacy، canonical، Shift، freeze، segment، Main، Settings، evidence، pooled، Audit). استثنا: جملهٔ «شواهد نهایی و تطبیق» در `CashClose.tsx` (سطرهای ۱۲۹ و ۱۳۱ `fix-s386` آن را می‌سنجند)، پیام‌های خطای `CustodyService.ts` و واژه‌های آشنا (PIN، POS، AuditLog، VACUUM)؛ `CashClose.tsx` ۱۸ از ۲۰ خط | — | `tl-4-55-visible-texts.mjs` |
 | ۴-۶۰ | ستون‌های فارسی تب «چک‌ها»؛ نام بدهکار به‌جای «مشتری عمومی» | — | `tl-4-60-cheques-tab.mjs` |
 | ۴-۶۱ | «وضعیت» سرجمع فروش از پرداخت واقعی؛ چاپ و اکسل هم | — | `tl-4-61-status-column.mjs` |
 | ۴-۶۲ | ستون‌های فارسی سه تب «دفتر رویداد/اعتبار/ضدتقلب»؛ ستون‌های پنهان دیده شوند | — | `tl-4-62-extra-tabs.mjs` |

@@ -1932,7 +1932,7 @@ export default function SalesReturn() {
                             title={
                               priceOverrideOn
                                 ? `قیمت واقعی این کالا ${money(l.realPrice)} ریال است؛ تغییرش با رمز مدیر ثبت و در سابقه ضبط می‌شود`
-                                : 'قیمت از خودِ کالا خوانده می‌شود (بند ۱۸). برای تغییر دستی، قفل بالای همین بخش را با رمز مدیر باز کنید.'
+                                : 'قیمت از خودِ کالا خوانده می‌شود. برای تغییر دستی، قفل بالای همین بخش را با رمز مدیر باز کنید.'
                             }
                           />
                           {l.unitPrice !== l.realPrice && (
@@ -2485,7 +2485,7 @@ export default function SalesReturn() {
                 />
                 <span className="flex-1">
                   <b className="text-rose-800">بازپرداخت مبلغ کامل، بدون کسر تخفیف، با تایید مدیر</b>
-                  <span className="kbd block">فقط مدیر با رمز و دلیل می‌تواند تخفیف را نادیده بگیرد؛ این رویداد در Audit ثبت می‌شود.</span>
+                  <span className="kbd block">فقط مدیر با رمز و دلیل می‌تواند تخفیف را نادیده بگیرد؛ این رویداد در دفتر رویداد ثبت می‌شود.</span>
                   {managerFullRefund && (
                     <span className="flex flex-wrap gap-2 mt-2">
                       <PasswordField
@@ -2609,7 +2609,7 @@ export default function SalesReturn() {
               مبلغ {money(history.reduce((s, r) => s + (r.cashRefundAmount ?? 0), 0))} ریال نقد از کشوی صندوق خارج شده است ·
               هر ردیف قابل ویرایش و حذف است (موجودی انبار خودکار اصلاح می‌شود)
               <div>
-                این فهرست فقط «برگشت ساده» را نشان می‌دهد؛ تعویض‌ها در تب «تعویض کالا»ی گزارشات فروش دیده می‌شوند (بند ۱۰).
+                این فهرست فقط «برگشت ساده» را نشان می‌دهد؛ تعویض‌ها در تب «تعویض کالا»ی گزارشات فروش دیده می‌شوند.
               </div>
             </div>
           </div>
@@ -2673,7 +2673,7 @@ export default function SalesReturn() {
                       className="text-brand"
                       onClick={() => void printReturn(r.id)}
                       disabled={rowBusy || printing}
-                      title="چاپ رسید مستقل همین برگشت (بند ۱۳)"
+                      title="چاپ رسید مستقل همین برگشت"
                     >
                       چاپ
                     </button>

@@ -1686,7 +1686,7 @@ export default function Pos() {
                   void lookupCredit(creditCode)
                 }
               }}
-              title="هر بارکد جداگانه بررسی می‌شود. اعتبار pooled در سطح کل فاکتور است و بین کالاها تقسیم نمی‌شود."
+              title="هر بارکد جداگانه بررسی می‌شود. اعتبار تجمیعی در سطح کل فاکتور است و بین کالاها تقسیم نمی‌شود."
             />
             <button className="btn py-1" onClick={() => void lookupCredit(creditCode)} disabled={creditBusy || !creditCode.trim()}>
               {creditBusy ? '…' : 'بررسی'}
@@ -1877,7 +1877,7 @@ export default function Pos() {
                   <td
                     title={`عوارض این دسته: ${describeChargeRule(rule.tax)} · حق سرویس: ${describeChargeRule(
                       rule.service
-                    )} — این عدد فقط از تنظیمات دسته‌بندی می‌آید و دستی قابل تغییر نیست (بند ۲).`}
+                    )} — این عدد فقط از تنظیمات دسته‌بندی می‌آید و دستی قابل تغییر نیست.`}
                   >
                     {money(lineTax)}
                   </td>

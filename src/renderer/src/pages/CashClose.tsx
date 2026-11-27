@@ -198,7 +198,7 @@ function custodyCountKindLabel(kind: string) {
     HANDOVER_RECOUNT_DIFFERENCE_PENDING: 'بازشمارشِ اختلافِ فریز‌شده',
     HANDOVER_CANCELED: 'شاهد لغو تحویل',
     EMERGENCY_COVER_COUNT: 'شمارش پوشش اضطراری',
-    MASTER_OVERRIDE_COUNT: 'شمارش Master Override',
+    MASTER_OVERRIDE_COUNT: 'شمارش تحویل اضطراری به مدیر',
     MORNING_WITNESS: 'شمارش شاهد صبح',
     ARCHIVED_CUSTODIAN_WITNESS: 'شمارش شاهدِ مسئول آرشیوشده'
   } as Record<string, string>)[kind] ?? `شمارش ثبت‌شده (${kind})`
@@ -710,7 +710,7 @@ export default function CashClose() {
       flash(
         `«${s.sessionLabel ?? s.name}» ثبت شد · کارمند: ${s.userName ?? 'تعیین نشده'}` +
           (s.windowLabel ? ` · بازه ${faDigits(s.windowLabel)}` : '') +
-          (s.nameOverridden ? `\nنام این نشست override شد (پیشنهاد سیستم: «${s.suggestedName ?? '—'}») · دلیل ثبت شد.` : '') +
+          (s.nameOverridden ? `\nنام این نشست دستی عوض شد (پیشنهاد سیستم: «${s.suggestedName ?? '—'}») · دلیل ثبت شد.` : '') +
           '\nفروش‌های بعدی به همین نشست ثبت می‌شوند.'
       )
     }
@@ -982,26 +982,26 @@ export default function CashClose() {
         <section className="rounded border border-indigo-200 bg-indigo-50/50 p-3 space-y-3" dir="rtl">
           <div className="flex flex-wrap gap-2 items-center">
             <h2 className="font-bold text-indigo-950">خط زمانی حضانت صندوق</h2>
-            <span className="text-xs text-indigo-800">فقط‌خواندنی · نام و الگوی شیفت از snapshot زمان بازشدن نشست خوانده می‌شود.</span>
+            <span className="text-xs text-indigo-800">فقط‌خواندنی · نام و الگوی شیفت از وضعیت ثبت‌شده در زمان بازشدن نشست خوانده می‌شود.</span>
             <label className="text-xs flex items-center gap-1">بازهٔ گزارش<select className="input py-0 text-xs" value={custodyReportDays} onChange={(e) => setCustodyReportDays(Number(e.target.value) as 1 | 7 | 30 | 90 | 180)} disabled={busy || custodyUseSelectedDateRange}><option value={1}>۲۴ ساعت اخیر</option><option value={7}>۷ روز</option><option value={30}>۳۰ روز</option><option value={90}>۹۰ روز</option><option value={180}>۱۸۰ روز</option></select></label>
             <label className="text-xs flex items-center gap-1" title="از و تا تاریخِ فیلتر بالای همین صفحه استفاده می‌شود"><input type="checkbox" checked={custodyUseSelectedDateRange} disabled={busy || !isValidJalaliDate(filters.fromJalali) || !isValidJalaliDate(filters.toJalali) || jalaliEndOfDay(filters.toJalali).getTime() < jalaliStartOfDay(filters.fromJalali).getTime()} onChange={(e) => setCustodyUseSelectedDateRange(e.target.checked)} />بازهٔ شمسیِ فیلتر</label>
             <button className="btn py-0.5" disabled={busy} onClick={() => void loadCustodyTimeline(0, true)}>تازه‌سازی</button>
             <button className="btn py-0.5 mr-auto" disabled={busy || custodyExportBusy} onClick={() => void exportCustodyTimeline()}>{custodyExportBusy ? 'در حال ساخت خروجی…' : 'خروجی اکسل همین صفحه'}</button>
           </div>
           {custodyCoverage ? <div className="flex flex-wrap items-center gap-2 text-xs"><span>{custodyUseSelectedDateRange ? `بازهٔ شمسی ${faDigits(filters.fromJalali)} تا ${faDigits(filters.toJalali)}` : 'بازهٔ ثابت گزارش'} · شروع از ردیف {faDigits(custodyReportSkip + 1)}</span><button className="btn py-0.5" disabled={busy || custodyReportSkip <= 0} onClick={() => void loadCustodyTimeline(Math.max(0, custodyReportSkip - custodyCoverage.take))}>جدیدتر</button><button className="btn py-0.5" disabled={busy || !custodyCoverage.hasMoreAny} onClick={() => void loadCustodyTimeline(custodyReportSkip + custodyCoverage.take)}>قدیمی‌تر</button></div> : null}
-          {custodyCoverage?.hasMoreAny ? <div className="rounded border border-amber-400 bg-amber-50 px-2 py-1 text-xs text-amber-950">در یک یا چند بخش، evidence قدیمی‌تر از این صفحه باقی مانده است. برای همان بازهٔ ثابت، «قدیمی‌تر» را بزنید؛ این صفحه به‌تنهایی تاریخچهٔ کامل نیست.</div> : null}
+          {custodyCoverage?.hasMoreAny ? <div className="rounded border border-amber-400 bg-amber-50 px-2 py-1 text-xs text-amber-950">در یک یا چند بخش، سند قدیمی‌تر از این صفحه باقی مانده است. برای همان بازهٔ ثابت، «قدیمی‌تر» را بزنید؛ این صفحه به‌تنهایی تاریخچهٔ کامل نیست.</div> : null}
           {custodySegments.length ? <div className="grid lg:grid-cols-2 gap-2">
             {custodySegments.map((segment) => <div key={segment.shiftId} className="rounded border border-indigo-200 bg-white p-2 text-sm leading-6">
               <div className="font-bold">مسئول: {segment.custodianName ?? '—'} <span className="font-normal text-slate-500">· نشست {faDigits(segment.shiftId)}</span></div>
-              <div>شیفتِ snapshot: <b>{segment.scheduleTitleSnapshot ?? 'بدون برنامه'}</b>{segment.scheduleKind === 'CANONICAL' ? ' · canonical' : segment.scheduleKind === 'LEGACY' ? ' · Legacy' : ''}</div>
+              <div>شیفتِ ثبت‌شده: <b>{segment.scheduleTitleSnapshot ?? 'بدون برنامه'}</b>{segment.scheduleKind === 'CANONICAL' ? ' · اصلی' : segment.scheduleKind === 'LEGACY' ? ' · قدیمی' : ''}</div>
               <div className="text-slate-600">شروع {faDigits(new Date(segment.startedAt).toLocaleString('fa-IR'))}{segment.endedAt ? ` · پایان ${faDigits(new Date(segment.endedAt).toLocaleString('fa-IR'))}` : ' · باز'}</div>
-              {segment.scheduledEndAt ? <div className="text-slate-600">پایان برنامهٔ snapshot: {faDigits(new Date(segment.scheduledEndAt).toLocaleString('fa-IR'))}</div> : null}
+              {segment.scheduledEndAt ? <div className="text-slate-600">پایان برنامهٔ ثبت‌شده: {faDigits(new Date(segment.scheduledEndAt).toLocaleString('fa-IR'))}</div> : null}
             </div>)}
-          </div> : <p className="text-sm text-slate-600">{shift ? 'برای این نشست، segment حضانت ثبت نشده است.' : 'در بازهٔ اخیر segment حضانتی ثبت نشده است.'}</p>}
+          </div> : <p className="text-sm text-slate-600">{shift ? 'برای این نشست، دورهٔ حضانت ثبت نشده است.' : 'در بازهٔ اخیر دورهٔ حضانتی ثبت نشده است.'}</p>}
           {custodyHandovers.length ? <div className="border-t border-indigo-200 pt-3"><h3 className="font-bold text-sm mb-2">تحویل‌ها</h3><div className="space-y-1 text-sm">
             {custodyHandovers.map((handover) => <div key={handover.id} className="rounded bg-white border border-indigo-100 px-2 py-1">تحویل‌دهنده: <b>{handover.fromUser ?? '—'}</b> · گیرندهٔ انتخابی: {handover.selectedRecipient ?? '—'} · دریافت‌کنندهٔ نهایی: <b>{handover.finalCustodian ?? '—'}</b> · {handover.status}</div>)}
           </div></div> : null}
-          {custodySaleOperators.length ? <div className="border-t border-indigo-200 pt-3"><h3 className="font-bold text-sm mb-1">عملیات POS همان مسئولیت کشو نیست</h3><p className="text-xs text-indigo-800 mb-2">هویت عملیاتی هر فروش جداگانه ثبت می‌شود؛ مسئول مالی/فیزیکی کشو همچنان مسئول همان segment است.</p><div className="space-y-1 text-sm">
+          {custodySaleOperators.length ? <div className="border-t border-indigo-200 pt-3"><h3 className="font-bold text-sm mb-1">عملیات POS همان مسئولیت کشو نیست</h3><p className="text-xs text-indigo-800 mb-2">هویت عملیاتی هر فروش جداگانه ثبت می‌شود؛ مسئول مالی/فیزیکی کشو همچنان مسئول همان دوره است.</p><div className="space-y-1 text-sm">
             {custodySaleOperators.map((row) => <div key={row.id} className="rounded bg-white border border-indigo-100 px-2 py-1"><b>{row.receiptNo == null ? `فاکتور ${faDigits(row.invoiceId)}` : `فیش ${faDigits(row.receiptNo)}`}</b> · {custodyOperatorLabel(row)} · مسئول کشو/مالی: <b>{row.custodianName ?? '—'}</b></div>)}
           </div></div> : null}
           {(custodyTerminalCounts.length || custodyResolutions.length || custodyDispositions.length) ? <div className="border-t border-indigo-200 pt-3 space-y-3"><div><h3 className="font-bold text-sm">شواهد نهایی و تطبیق</h3><p className="text-xs text-indigo-800">آخرین اسناد پایان/recovery در همهٔ segmentها نمایش داده می‌شود؛ این داده‌ها append-only سرورند، مبلغ موردانتظار هرگز در Renderer محاسبه نمی‌شود و این بخش هیچ عملیات مالی انجام نمی‌دهد.</p></div>
@@ -1655,7 +1655,7 @@ export default function CashClose() {
             </p>
             {(priorCloseForTarget || repeatRequired) && (
               <p className="rounded border-2 border-amber-500 bg-amber-50 p-2 text-amber-900">
-                این نشست/بازه قبلاً بسته شده است. بستن دوباره فقط یک snapshot و سابقه‌ی مستقل می‌سازد؛
+                این نشست/بازه قبلاً بسته شده است. بستن دوباره فقط یک وضعیت ثبت‌شده و سابقه‌ی مستقل می‌سازد؛
                 اثر خالص نقد و انبار دوباره اعمال نمی‌شود.
               </p>
             )}

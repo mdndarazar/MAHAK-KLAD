@@ -2811,7 +2811,7 @@ export default function Settings() {
                   (با ارث‌بری از دسته‌ی بالاتر) تعیین می‌شود و خودکار روی هر ردیف فاکتور اعمال می‌گردد — و تنظیمات
                   «پنل فروش خرد» و «فاکتور فروش عمده» کاملاً از هم مستقل‌اند. مقدار قدیمی شما به‌صورت «مقدار پیش‌فرض
                   همه‌ی کالاها» به همین سیستم منتقل شد. در خودِ فاکتور هم با دکمه‌ی «دستی» می‌توانید مبلغ را برای همان
-                  یک فاکتور override کنید.
+                  یک فاکتور دستی تغییر دهید.
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {CHARGE_SCOPES.map((sc) =>
@@ -2969,7 +2969,7 @@ export default function Settings() {
               <section className="space-y-2">
                 <h2 className="font-bold border-b pb-1">رمز و امنیت — قفل موقت بعد از رمز اشتباه</h2>
                 <div className="kbd leading-6">
-                  <b>قفل خودکار بی‌کاری (بند ۴-۴۰):</b> اگر مدیر یا فروشنده‌ی دارای رمز دوم، به مدت تعیین‌شده
+                  <b>قفل خودکار بی‌کاری:</b> اگر مدیر یا فروشنده‌ی دارای رمز دوم، به مدت تعیین‌شده
                   (پیش‌فرض ۵ دقیقه) با سیستم کار نکند، نشست قفل‌دار بسته می‌شود تا صفحه برای نفر بعدی باز نماند.
                   همین عدد سمت سرور هم برای کانال‌های خواندنی اعمال می‌شود.
                   <br />
@@ -3803,9 +3803,9 @@ export default function Settings() {
                   <button className="btn btn-primary" onClick={() => void saveCustodySchedulingWorkflow()} disabled={!isManager || custodySchedulingBusy}>
                     {custodySchedulingBusy ? 'در حال حفظ امن مسئولیت…' : 'ثبت گردش‌کار حضانت'}
                   </button>
-                  <span className="kbd">این دکمه هر دو تنظیم قدیمی/جدید را با هم ذخیره می‌کند؛ اگر صندوق باز باشد، مسئولیت همان شخص در یک تراکنش freeze و سپس با epoch تازه حفظ می‌شود.</span>
+                  <span className="kbd">این دکمه هر دو تنظیم قدیمی/جدید را با هم ذخیره می‌کند؛ اگر صندوق باز باشد، مسئولیت همان شخص در یک مرحله نگه داشته و سپس با دورهٔ تازه حفظ می‌شود.</span>
                 </div>
-                <p className="kbd leading-6">برنامهٔ legacy حضانت از اینجا نوشته، تبدیل یا حذف نمی‌شود و تا تصمیم انتقال مدیر دست‌نخورده می‌ماند.</p>
+                <p className="kbd leading-6">برنامهٔ قدیمی حضانت از اینجا نوشته، تبدیل یا حذف نمی‌شود و تا تصمیم انتقال مدیر دست‌نخورده می‌ماند.</p>
               </div>
 
               {/* ---------- سوییچ حالت ---------- */}
@@ -3999,7 +3999,7 @@ export default function Settings() {
               {shift.custodyMode === 'MULTI_SHIFT' ? (
               <div className="space-y-2">
                 <div className="font-bold">برنامهٔ چندشیفت: کارکنان و مجوز تحویل میان‌روز هر شیفت</div>
-                <p className="kbd leading-6">این بخش منبع canonical برنامه‌های جدید است. کارمند برنامه‌ریزی‌شده فقط «واجد انتخاب» می‌شود؛ تا PIN خودش را وارد و صندوق را باز نکند، هیچ مسئولیت مالی ندارد.</p>
+                <p className="kbd leading-6">این بخش منبع اصلی برنامه‌های جدید است. کارمند برنامه‌ریزی‌شده فقط «واجد انتخاب» می‌شود؛ تا PIN خودش را وارد و صندوق را باز نکند، هیچ مسئولیت مالی ندارد.</p>
                 {shift.templates.map((template, index) => (
                   <details key={`schedule-${template.id}`} className="rounded border bg-slate-50 p-3" open={shift.templates.length === 1}>
                     <summary className="cursor-pointer font-bold">{template.name || `شیفت ${faDigits(index + 1)}`} · {faDigits(index + 1)}</summary>
@@ -4053,8 +4053,8 @@ export default function Settings() {
                 کار)، یک <b>نشست تازه</b> ثبت می‌شود و نشست قبلی با کارمند خودش بسته می‌ماند — هیچ‌کدام رونویسی یا حذف
                 نمی‌شوند. اگر «شیفت شب» در یک روز دو بار باز شود، در گزارش‌ها «شیفت شب — نشست ۱» و «شیفت شب — نشست ۲»
                 دیده می‌شوند و سرجمع «شیفت شب» مجموع هر دو است. نام شیفتِ هر نشست را سیستم بر اساس ساعت <b>پیشنهاد</b>
-                می‌دهد و اگر کاربر نام دیگری انتخاب کند، نوشتن دلیل اجباری است و در گزارش «نشست‌های با نام
-                override‌شده» (گزارشات فروش) دیده می‌شود.
+                می‌دهد و اگر کاربر نام دیگری انتخاب کند، نوشتن دلیل اجباری است و در گزارش «نشست‌هایی که نامشان
+                دستی عوض شد» (گزارشات فروش) دیده می‌شود.
               </div>
 
               <div className="kbd leading-6">
@@ -4584,7 +4584,7 @@ export default function Settings() {
                     <label><div className="mb-1">پایان همکاری</div><input className="inp w-full" value={staffDraft.employmentEndJalali} onChange={(e) => setStaffDraft({ ...staffDraft, employmentEndJalali: e.target.value })} /></label>
                     <label><div className="mb-1">وضعیت استخدام</div><select className="inp w-full" value={staffDraft.employmentStatus} onChange={(e) => setStaffDraft({ ...staffDraft, employmentStatus: e.target.value as StaffDraft['employmentStatus'] })}><option value="ACTIVE">فعال</option><option value="LEAVE">مرخصی / غیبت</option><option value="SUSPENDED">تعلیق</option><option value="TERMINATED">پایان همکاری</option></select></label>
                   </div>
-                  {(staffDraft.id && (!staffDraft.isActive || staffDraft.employmentStatus === 'TERMINATED')) ? <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm space-y-2"><b>آرشیو / پایان همکاری</b><p className="leading-6">اگر این شخص همین حالا مسئول صندوق باشد، ذخیره ابتدا فروش را کوتاه‌مدت freeze می‌کند، نشست او را با مبلغ مورد انتظار محفوظ می‌بندد و یک پروندهٔ شمارش بازیابی می‌سازد؛ سپس آرشیو انجام می‌شود. PIN قبلی او نیز باطل می‌شود.</p><label className="block"><span className="mb-1 block">دلیل آرشیو مسئول فعال صندوق (در صورت مسئول‌بودن، حداقل ۱۰ حرف)</span><textarea className="inp w-full" value={staffDraft.custodyArchiveReason} onChange={(e) => setStaffDraft({ ...staffDraft, custodyArchiveReason: e.target.value })} /></label></div> : null}
+                  {(staffDraft.id && (!staffDraft.isActive || staffDraft.employmentStatus === 'TERMINATED')) ? <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm space-y-2"><b>آرشیو / پایان همکاری</b><p className="leading-6">اگر این شخص همین حالا مسئول صندوق باشد، ذخیره ابتدا فروش را کوتاه‌مدت متوقف می‌کند، نشست او را با مبلغ مورد انتظار محفوظ می‌بندد و یک پروندهٔ شمارش بازیابی می‌سازد؛ سپس آرشیو انجام می‌شود. PIN قبلی او نیز باطل می‌شود.</p><label className="block"><span className="mb-1 block">دلیل آرشیو مسئول فعال صندوق (در صورت مسئول‌بودن، حداقل ۱۰ حرف)</span><textarea className="inp w-full" value={staffDraft.custodyArchiveReason} onChange={(e) => setStaffDraft({ ...staffDraft, custodyArchiveReason: e.target.value })} /></label></div> : null}
                   <div className="grid md:grid-cols-2 gap-3 border-t border-rose-200 pt-3">
                     <label><div className="mb-1">نام بانک</div><input className="inp w-full" value={staffDraft.bankName} onChange={(e) => setStaffDraft({ ...staffDraft, bankName: e.target.value })} /></label>
                     <label><div className="mb-1">نام صاحب حساب</div><input className="inp w-full" value={staffDraft.bankAccountHolder} onChange={(e) => setStaffDraft({ ...staffDraft, bankAccountHolder: e.target.value })} /></label>
@@ -4608,7 +4608,7 @@ export default function Settings() {
                   <span className="kbd">پس از ذخیره، اطلاعات عمومی و پروندهٔ محرمانه با هم ثبت می‌شوند.</span>
                 </div>
                 <div className="kbd leading-6">
-                  ثبت ساختاری کارمند و این پرونده فقط با <b>نشست اصلی مدیر</b> انجام می‌شود؛ رمز دوم Settings کافی نیست. کارمند هیچ‌وقت <b>حذف</b> نمی‌شود، فقط «غیرفعال» می‌شود؛ وگرنه سابقه‌ی فروش و برگشتِ گذشته‌اش بی‌صاحب می‌ماند.
+                  ثبت ساختاری کارمند و این پرونده فقط با <b>نشست اصلی مدیر</b> انجام می‌شود؛ رمز دوم «تنظیمات» کافی نیست. کارمند هیچ‌وقت <b>حذف</b> نمی‌شود، فقط «غیرفعال» می‌شود؛ وگرنه سابقه‌ی فروش و برگشتِ گذشته‌اش بی‌صاحب می‌ماند.
                 </div>
               </div>
 
@@ -4682,7 +4682,7 @@ export default function Settings() {
               <div className="rounded border p-4 space-y-3 bg-white">
                 <div className="font-bold">رمزهای موقت و بازبینی دادهٔ قدیمی</div>
                 <p className="text-sm text-slate-600">
-                  پس از فعال‌سازی، رمز موقت شخصی صادر یا بازنشانی می‌شود و برنامه‌های Legacy فقط قابل بازبینی‌اند؛ هیچ رمز خام قبلی نمایش داده نمی‌شود. برای ساخت یا ویرایش برنامهٔ جدید به تب «شیفت‌ها» بروید.
+                  پس از فعال‌سازی، رمز موقت شخصی صادر یا بازنشانی می‌شود و برنامه‌های قدیمی فقط قابل بازبینی‌اند؛ هیچ رمز خام قبلی نمایش داده نمی‌شود. برای ساخت یا ویرایش برنامهٔ جدید به تب «شیفت‌ها» بروید.
                 </p>
                 <CustodyAdminChip />
               </div>
