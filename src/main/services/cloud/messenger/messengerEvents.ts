@@ -174,9 +174,11 @@ const NEWS_METHODS: ReadonlySet<GateMethodKey> = new Set<GateMethodKey>(['SENSIT
 const CHARGE_MIGRATION_PREFIX = 'مهاجرت تنظیمات «'
 const CHARGE_TITLES: readonly string[] = CHARGE_KINDS.flatMap((kind) => CHARGE_SCOPES.map((scope) => chargeTitle(kind, scope)))
 function autoChargeMigrationTitle(row: Pick<AuditRowLite, 'userId' | 'entity' | 'note'>): string | null {
-  if (row.userId || row.entity !== 'Setting' || !row.note || !row.note.startsWith(CHARGE_MIGRATION_PREFIX)) return null
-  const end = row.note.indexOf('»', CHARGE_MIGRATION_PREFIX.length)
-  const title = end > 0 ? row.note.slice(CHARGE_MIGRATION_PREFIX.length, end) : ''
+  if (row.userId || row.entity !== 'Setting') return null
+  const note = row.note ?? ''
+  if (!note.startsWith(CHARGE_MIGRATION_PREFIX)) return null
+  const end = note.indexOf('»', CHARGE_MIGRATION_PREFIX.length)
+  const title = end > 0 ? note.slice(CHARGE_MIGRATION_PREFIX.length, end) : ''
   return CHARGE_TITLES.includes(title) ? title : 'عوارض یا حق سرویس'
 }
 
