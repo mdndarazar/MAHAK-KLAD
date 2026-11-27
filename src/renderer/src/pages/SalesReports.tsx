@@ -1019,7 +1019,7 @@ export default function SalesReports() {
       notes.push(
         `هشدار خروجی: این چاپ/فایل فقط صفحه‌ی جاری است؛ نمایش ${faDigits(rowsShown)} از ${faDigits(page.totalCount)} ${noun}.`
       )
-      notes.push('جمع مبلغ ردیف‌های فایل فقط همین صفحه است؛ جمع کل بازه را فقط از جمع مستقل endpoint بخوانید.')
+      notes.push('جمع مبلغ ردیف‌های فایل فقط همین صفحه است؛ جمع کل بازه را از جمع‌های خود صفحهٔ گزارش بخوانید.')
     } else if (page && page.skip > 0) {
       // ممیزی A121-01 — صفحه‌ی آخر هم باید روی کاغذ/فایل بگوید کل گزارش نیست.
       notes.push(...outputLastPageNotes(page, rowsShown, noun))
@@ -2198,13 +2198,13 @@ export default function SalesReports() {
             onClick={() => setTab('overrideSessions')}
             title="نشست‌هایی که نام شیفتشان دستی و خلاف پیشنهاد ساعت ثبت شده است (با دلیل و کارمند)"
           >
-            نشست‌های override‌شده
+            نشست‌هایی که نامشان دستی عوض شد
           </button>
           {/* ---------------- جلسه ۲۴ — ماژول مدیریت اعتبار خرید ---------------- */}
           <button
             className={`btn ${tab === 'creditManagement' ? 'btn-primary' : ''}`}
             onClick={() => setTab('creditManagement')}
-            title="داشبورد و فهرست ماژول «مدیریت اعتبار خرید» (جدا از تب legacy اعتبار تعویض)"
+            title="داشبورد و فهرست ماژول «مدیریت اعتبار خرید» (جدا از تب «اعتبار خرید»)"
           >
             مدیریت اعتبار خرید 🔒
           </button>

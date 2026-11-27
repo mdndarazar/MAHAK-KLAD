@@ -402,7 +402,7 @@ export default function BridgeDiagnosticsModal({
                 <span className="text-xs kbd text-slate-500">{faDigits(noteDraft.length)}/۳۰۰</span>
               </div>
             </div>
-            <div className="text-xs kbd text-slate-500">یادداشت‌ها حذف و ویرایش نمی‌شوند و در سابقه (AuditLog) می‌نشینند.</div>
+            <div className="text-xs kbd text-slate-500">یادداشت‌ها حذف و ویرایش نمی‌شوند و در سابقهٔ برنامه می‌مانند.</div>
           </div>
         </div>
       )}

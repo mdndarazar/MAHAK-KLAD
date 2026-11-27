@@ -556,7 +556,7 @@ export default function InvoicePaymentsModal({
               </div>
               {view.overpayTotal > 0 && (
                 <div>
-                  <div className="kbd">مبلغ اضافه‌ی دریافتی (بخش ۸)</div>
+                  <div className="kbd">مبلغ اضافه‌ی دریافتی</div>
                   <div className="font-bold text-amber-800">{money(view.overpayTotal)}</div>
                   {(view.overpayCreditIssued ?? 0) > 0 && (
                     <div className="kbd">اعتبار صادرشده از آن: {money(view.overpayCreditIssued)}</div>

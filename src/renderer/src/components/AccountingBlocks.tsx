@@ -236,7 +236,7 @@ export default function AccountingBlocks({
           <Row label="حق سرویس" value={s.invoice.serviceCharges} sign={1} />
           <Row label="هزینه پیک" value={s.invoice.deliveryFees} sign={1} />
           <Row
-            label="برگشت ساده (فقط kind=RETURN)"
+            label="برگشت ساده (بدون تعویض)"
             value={s.invoice.simpleReturns}
             sign={-1}
             hint="ارزش کالای برگشتیِ داخل تعویض در این عدد نیست و هیچ‌وقت دوبار کم نمی‌شود."
@@ -375,7 +375,7 @@ export default function AccountingBlocks({
           />
           <Row label="اعتبار فعال در پایان بازه (مانده‌ی بدهی ما)" value={s.storeCredits.active} sign={0} tone="warn" bold onClick={jump('storeCredits')} />
           <Row label="ماندهٔ منقضی‌شده در بازهٔ انتخابی" value={s.storeCredits.expiredInRange ?? s.storeCredits.expired} sign={0} tone="muted" onClick={jump('storeCredits')} />
-          <Row label="ماندهٔ منقضی تا پایان بازه (snapshot وضعیت)" value={s.storeCredits.expired} sign={0} tone="muted" onClick={jump('storeCredits')} />
+          <Row label="ماندهٔ منقضی تا پایان بازه (بر اساس وضعیت فعلی)" value={s.storeCredits.expired} sign={0} tone="muted" onClick={jump('storeCredits')} />
           <Row label="اعتبار لغوشده" value={s.storeCredits.canceled} sign={0} tone="muted" onClick={jump('storeCredits')} />
         </Block>
 

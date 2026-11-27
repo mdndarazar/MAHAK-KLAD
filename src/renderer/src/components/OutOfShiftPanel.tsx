@@ -196,7 +196,7 @@ export default function OutOfShiftPanel({ fromJalali, toJalali }: { fromJalali: 
                     </td>
                     <td className="whitespace-nowrap">
                       {r.sessionLabel ?? r.shiftName ?? '—'}
-                      {r.nameOverridden && <div className="kbd">نام این نشست دستی override شده بود</div>}
+                      {r.nameOverridden && <div className="kbd">نام این نشست دستی عوض شده بود</div>}
                     </td>
                     <td dir="ltr" className="tabular-nums">
                       {r.sessionWindow ? faDigits(r.sessionWindow) : '—'}

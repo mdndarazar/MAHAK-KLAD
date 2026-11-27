@@ -396,7 +396,7 @@ export default function FinancialInspector({
           {pane.type === 'overview' && (
             <div className="space-y-5">
               <div className="rounded border border-sky-200 bg-sky-50 p-3 text-xs leading-6 text-sky-950">
-                این پنجره هیچ عددی را بازحساب نمی‌کند. اعداد رسمی از گزارش اجراشده گرفته شده‌اند و با snapshot فیلتر همان گزارش باز می‌شوند.
+                این پنجره هیچ عددی را بازحساب نمی‌کند. اعداد رسمی از گزارش اجراشده گرفته شده‌اند و با همان فیلترهای گزارش باز می‌شوند.
                 «شمارش فیزیکی کشو» یا «رسید پایان‌روز پوز» جایگزین این گزارش نیست.
               </div>
 
@@ -430,7 +430,7 @@ export default function FinancialInspector({
                   ) : bridgeAlarm === 'COMPOSITION_DRIFT' ? (
                     <p className="mt-1">پل حسابداری تراز است؛ فقط ترکیب اعداد نمایشی با عدد مرجع تفاوت دارد. این وضعیت به‌تنهایی مغایرت حسابداری نیست.</p>
                   ) : (
-                    <p className="mt-1">پل حسابداری برای snapshot فعلی تراز است.</p>
+                    <p className="mt-1">پل حسابداری برای همین گزارش تراز است.</p>
                   )}
                 </div>
               </section>
@@ -598,7 +598,7 @@ export default function FinancialInspector({
         </main>
 
         <footer className="px-4 sm:px-5 py-3 border-t bg-slate-50 flex justify-between gap-2 flex-wrap">
-          <span className="text-[11px] text-slate-500">snapshot فیلتر: {scopeSnapshot.fromJalali || scopeSnapshot.from || 'بازهٔ گزارش'} تا {scopeSnapshot.toJalali || scopeSnapshot.to || '—'}</span>
+          <span className="text-[11px] text-slate-500">فیلترهای همین گزارش: {scopeSnapshot.fromJalali || scopeSnapshot.from || 'بازهٔ گزارش'} تا {scopeSnapshot.toJalali || scopeSnapshot.to || '—'}</span>
           <button type="button" onClick={onClose} className={`${BUTTON} bg-slate-800 hover:bg-slate-900 text-white px-4 py-1.5 text-sm`}>بستن ریزبین</button>
         </footer>
       </section>

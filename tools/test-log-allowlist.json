@@ -125,7 +125,9 @@
     "src/main/ipc/index.ts": null,
     "tests/audit/audit-a121-01-page-output-endpoint.mjs": null,
     "tests/audit/audit-a94-01-extra-report-output.mjs": null,
-    "src/main/services/cloud/mobileReadOnlyHub.ts": null
+    "src/main/services/cloud/mobileReadOnlyHub.ts": null,
+    "src/renderer/src/components/CardTransferPanel.tsx": null,
+    "src/renderer/src/components/cash/FinancialInspector.tsx": null
    }
   },
   "2": {
@@ -354,6 +356,7 @@
   }
  },
  "_notes": {
-  "mobileReadOnlyHub.ts (batch 1)": "4-10: today for the phone date boxes comes from the server (architecture §5 / T-16); the hub file was missing from the batch-1 list (TL-D2)."
+  "mobileReadOnlyHub.ts (batch 1)": "4-10: today for the phone date boxes comes from the server (architecture §5 / T-16); the hub file was missing from the batch-1 list (TL-D2).",
+  "CardTransferPanel.tsx, cash/FinancialInspector.tsx (batch 1)": "4-67: the owner test says no English word in any sales-reports tab; these two panels of the same page still showed \"AuditLog\" and \"snapshot\" (text only, TL-D3)."
  }
 }

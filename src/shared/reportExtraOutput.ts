@@ -171,7 +171,7 @@ export function outputLastPageNotes(page: OutputPageLike | null | undefined, _sh
   if (!page || typeof page !== 'object' || page.truncated === true || pageSkipOf(page) <= 0) return []
   return [
     'هشدار خروجی: این چاپ/فایل فقط صفحه‌ی آخر است، نه کل گزارش؛ ردیف‌های صفحه‌های قبل در آن نیست.',
-    'جمع مبلغ ردیف‌های این فایل فقط همین صفحه است؛ جمع کل بازه را فقط از جمع مستقل endpoint بخوانید.'
+    'جمع مبلغ ردیف‌های این فایل فقط همین صفحه است؛ جمع کل بازه را از جمع‌های خود صفحهٔ گزارش بخوانید.'
   ]
 }
 
