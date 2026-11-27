@@ -1,5 +1,15 @@
 import { faDigits, money } from '@shared/jalali'
-import { creditOutstandingOf, outstandingCreditRows, ledgerCashTitle, CHEQUE_COLUMNS, chequeIsLate, type ReportColumn } from '@shared/reportExtraOutput'
+import {
+  creditOutstandingOf,
+  outstandingCreditRows,
+  ledgerCashTitle,
+  CHEQUE_COLUMNS,
+  chequeIsLate,
+  LEDGER_COLUMNS,
+  STORE_CREDIT_COLUMNS,
+  FRAUD_COLUMNS,
+  type ReportColumn
+} from '@shared/reportExtraOutput'
 
 /**
  * ===========================================================================
@@ -236,11 +246,11 @@ export default function ReportExtraTables({
           کالا از انبار خارج می‌شود ولی <b>وجه نقدی دریافت نمی‌شود</b> — فقط یک فروش تعهدی بدون دریافت نقد، بابت اعتباری که
           پیش‌تر از سند تعویض/برگشت مبدأ صادر شده بود.
         </div>
-        <Table title="اعتبار صادرشده (با ارجاع به سند تعویض/برگشت مبدأ)" rows={issued} sum={sum(issued)} onOpenInvoice={onOpenInvoice} />
-        <Table title="اعتبار مصرف‌شده — کالا خارج شد، وجه نقد دریافت نشد" rows={used} sum={sum(used)} onOpenInvoice={onOpenInvoice} />
-        <Table title="اعتبار فعال در پایان بازه (مانده‌ی بدهی ما)" rows={active} sum={active.reduce((a, r) => a + creditOutstandingOf(r), 0)} tone="warn" onOpenInvoice={onOpenInvoice} />
-        <Table title="اعتبار منقضی‌شده" rows={expired} sum={sum(expired)} />
-        <Table title="اعتبار لغوشده" rows={canceled} sum={sum(canceled)} />
+        <Table title="اعتبار صادرشده (با ارجاع به سند تعویض/برگشت مبدأ)" rows={issued} columns={STORE_CREDIT_COLUMNS} sum={sum(issued)} onOpenInvoice={onOpenInvoice} />
+        <Table title="اعتبار مصرف‌شده — کالا خارج شد، وجه نقد دریافت نشد" rows={used} columns={STORE_CREDIT_COLUMNS} sum={sum(used)} onOpenInvoice={onOpenInvoice} />
+        <Table title="اعتبار فعال در پایان بازه (مانده‌ی بدهی ما)" rows={active} columns={STORE_CREDIT_COLUMNS} sum={active.reduce((a, r) => a + creditOutstandingOf(r), 0)} tone="warn" onOpenInvoice={onOpenInvoice} />
+        <Table title="اعتبار منقضی‌شده" rows={expired} columns={STORE_CREDIT_COLUMNS} sum={sum(expired)} />
+        <Table title="اعتبار لغوشده" rows={canceled} columns={STORE_CREDIT_COLUMNS} sum={sum(canceled)} />
         <Notes items={storeCredits?.notes ?? storeCredits?.warnings} />
       </div>
     )
@@ -257,7 +267,7 @@ export default function ReportExtraTables({
           ستون «اثر نقدی» می‌گوید این رویداد پول واقعی جابه‌جا کرده یا نه، و ستون کنارش می‌گوید چرا.
         </div>
         {/* ممیزی A106-02 — با برش، عنوان صریحاً «جمع ردیف‌های نمایش‌داده‌شده» است نه جمع کل بازه */}
-        <Table title={ledgerCashTitle(ledger)} rows={rows} onOpenInvoice={onOpenInvoice} />
+        <Table title={ledgerCashTitle(ledger)} rows={rows} columns={LEDGER_COLUMNS} onOpenInvoice={onOpenInvoice} />
         <Notes items={ledger?.notes} />
         <Notes items={ledger?.warnings} tone="bad" />
       </div>
@@ -286,6 +296,7 @@ export default function ReportExtraTables({
                 : ''
             }`}
             rows={Array.isArray(g.rows) ? g.rows : Array.isArray(g.items) ? g.items : Array.isArray(g.sources) ? g.sources : []}
+            columns={FRAUD_COLUMNS}
             sum={typeof g.total === 'number' ? g.total : typeof g.amount === 'number' ? g.amount : undefined}
             tone={g.severity === 'HIGH' ? 'bad' : 'warn'}
             onOpenInvoice={onOpenInvoice}

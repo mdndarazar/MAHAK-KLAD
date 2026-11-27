@@ -226,3 +226,48 @@ export const CHEQUE_COLUMNS: ReportColumn[] = [
   { key: 'clearedAtJalali', label: 'تاریخ پاس‌شدن', text: (r) => cellText(r?.clearedAtJalali) },
   { key: 'dueInDays', label: 'روز تأخیر یا روز مانده', text: chequeDaysText }
 ]
+
+// ---------------------------------------------------------------------------
+// دفتر آزمون ۴-۶۲ — ستون‌های ثابت سه تب «دفتر رویداد»، «اعتبار خرید» و «بازبینی ضدتقلب» روی صفحه،
+// همان ستون‌ها و همان نگاشت چاپ A4 و اکسل (`SalesReports.tsx`)؛ فقط نمایش.
+// ---------------------------------------------------------------------------
+
+/** «دفتر رویداد»: تاریخ، ساعت، رویداد، شماره فیش، مبلغ، اثر نقدی، اثر انبار، توضیح. */
+export const LEDGER_COLUMNS: ReportColumn[] = [
+  { key: 'dateJalali', label: 'تاریخ', text: (r) => cellText(r?.dateJalali) },
+  { key: 'time', label: 'ساعت', text: (r) => cellText(r?.time) },
+  { key: 'eventLabel', label: 'رویداد', text: (r) => cellText(r?.eventLabel ?? r?.eventType) },
+  { key: 'receiptNo', label: 'شماره فیش', text: (r) => cellText(r?.receiptNo) },
+  { key: 'amount', label: 'مبلغ', text: (r) => money(Number(r?.amount ?? 0)) },
+  { key: 'cashEffect', label: 'اثر نقدی', text: (r) => money(Number(r?.cashEffect ?? 0)) },
+  { key: 'stockEffect', label: 'اثر انبار', text: (r) => cellText(r?.stockEffect ?? 0) },
+  { key: 'cashNote', label: 'توضیح', text: (r) => cellText(r?.cashNote ?? r?.note) }
+]
+
+/** «اعتبار خرید»: همان ده ستون چاپ و اکسل (ماندهٔ قابل مصرف از `creditOutstandingOf`). */
+export const STORE_CREDIT_COLUMNS: ReportColumn[] = [
+  { key: 'publicReference', label: 'شناسهٔ امن اعتبار', text: (r) => r?.publicReference ?? `اعتبار #${cellText(r?.id)}` },
+  { key: 'sourceReceiptNo', label: 'شماره فیش مبدأ', text: (r) => cellText(r?.sourceReceiptNo ?? r?.receiptNo) },
+  { key: 'issuedAtJalali', label: 'تاریخ صدور', text: (r) => cellText(r?.issuedAtJalali ?? r?.dateJalali) },
+  { key: 'expiresAtJalali', label: 'تاریخ انقضا', text: (r) => cellText(r?.expiresAtJalali) },
+  { key: 'statusLabel', label: 'وضعیت', text: (r) => cellText(r?.statusLabel ?? r?.status) },
+  { key: 'amount', label: 'مبلغ', text: (r) => money(Number(r?.amount ?? r?.total ?? 0)) },
+  { key: 'usedAmount', label: 'مصرف‌شده', text: (r) => money(Number(r?.usedAmount ?? r?.redeemedAmount ?? 0)) },
+  { key: 'outstanding', label: 'مانده‌ی قابل مصرف', text: (r) => money(creditOutstandingOf(r)) },
+  { key: 'usedAtJalali', label: 'تاریخ مصرف', text: (r) => cellText(r?.usedAtJalali) },
+  { key: 'sourceLabel', label: 'منبع', text: (r) => cellText(r?.sourceLabel ?? r?.source) }
+]
+
+/** «بازبینی ضدتقلب» (ردیف‌های هر گروه): همان نگاشت `fraudOutputRows` برای سند منبع. */
+export const FRAUD_COLUMNS: ReportColumn[] = [
+  { key: 'dateJalali', label: 'تاریخ', text: (r) => cellText(r?.dateJalali ?? r?.atJalali) },
+  { key: 'time', label: 'ساعت', text: (r) => cellText(r?.time) },
+  { key: 'receiptNo', label: 'شماره فیش', text: (r) => cellText(r?.receiptNo) },
+  { key: 'userName', label: 'کاربر', text: (r) => cellText(r?.userName ?? r?.cashierName) },
+  { key: 'amount', label: 'مبلغ', text: (r) => money(num(r?.amount ?? r?.total ?? r?.value ?? 0)) },
+  {
+    key: 'note',
+    label: 'توضیح',
+    text: (r) => cellText([r?.label, r?.note ?? r?.hint].filter((t) => t != null && String(t).trim() !== '').join(' · '))
+  }
+]
