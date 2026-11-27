@@ -67,7 +67,7 @@ function custodyJalaliRange(input: { from?: unknown; to?: unknown }) {
   const from = fromJalali ? jalaliStartOfDay(fromJalali) : defaultFrom
   const to = toJalali ? jalaliEndOfDay(toJalali) : new Date()
   if (to.getTime() < from.getTime())
-    throw new BusinessError('تا تاریخ گزارش مغایرت نمی‌تواند پیش از از تاریخ باشد.', 'CUSTODY_REPORT_RANGE_INVALID')
+    throw new BusinessError('تاریخ پایان گزارش مغایرت نمی‌تواند پیش از تاریخ شروع باشد.', 'CUSTODY_REPORT_RANGE_INVALID')
   return { from, to, fromJalali: fromJalali ?? toJalaliDate(from), toJalali: toJalali ?? toJalaliDate(to) }
 }
 

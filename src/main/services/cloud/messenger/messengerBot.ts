@@ -285,7 +285,7 @@ export function createBotController(ctx: BotContext) {
     const offset = offsets.get(provider) ?? 0
     const result = await api.getUpdates(offset, timeoutSec, ALLOWED_UPDATES)
     if (result.kind === 'conflict') {
-      conflictText = 'ربات جای دیگری در حال استفاده است (webhook یا برنامهٔ دیگر)؛ پاسخ ربات به دکمه‌ها خاموش شد.'
+      conflictText = 'ربات جای دیگری در حال استفاده است (اتصال یا برنامهٔ دیگر)؛ پاسخ ربات به دکمه‌ها خاموش شد.'
       await ctx.exclusive(() => ctx.conflict(provider))
       return 'conflict'
     }

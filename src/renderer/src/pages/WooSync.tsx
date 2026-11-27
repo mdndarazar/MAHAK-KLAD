@@ -286,7 +286,7 @@ export default function WooSync() {
     if (!confirm('همه رنگ/سایزهای متصل همین محصول موقتاً قطع شوند؟ موجودی هیچ طرفی تغییر نمی‌کند.')) return
     setBusy(true)
     try {
-      const rows = await call<WooLinkRow[]>(CH.wooLinksPauseProduct, { linkId: id, note: 'قطع گروهی از پنل Woo' })
+      const rows = await call<WooLinkRow[]>(CH.wooLinksPauseProduct, { linkId: id, note: 'قطع گروهی از پنل سایت' })
       await refreshPanel(rows)
       flash('اتصال‌های گروه محصول موقتاً قطع شدند.')
     } catch (e) {
@@ -360,13 +360,13 @@ export default function WooSync() {
       <div className="card p-4 space-y-3">
         <h2 className="font-bold">۲) اتصال کالاها/Variationها</h2>
         <div className="flex gap-2 items-end">
-          <label className="space-y-1 flex-1"><span className="text-sm">جست‌وجو در سایت و کالاهای فروشگاه</span><input className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="نام، SKU، کد یا بارکد" /></label>
+          <label className="space-y-1 flex-1"><span className="text-sm">جست‌وجو در سایت و کالاهای فروشگاه</span><input className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="نام، کد کالا در سایت، کد یا بارکد" /></label>
           <button className="btn" disabled={busy} onClick={loadCatalog}>خواندن کاتالوگ</button>
         </div>
         {catalogNotice && <div className="rounded border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2 text-sm">{catalogNotice}</div>}
         <div className="grid md:grid-cols-2 gap-3">
           <label className="space-y-1"><span className="text-sm">کالای فروشگاه</span><select className="input" value={selectedVariantId} onChange={(e) => setSelectedVariantId(e.target.value ? Number(e.target.value) : '')}><option value="">انتخاب کنید…</option>{variants.map((v) => <option key={v.id} value={v.id}>{titleOf(v)} · موجودی {faDigits(v.stock)}</option>)}</select></label>
-          <label className="space-y-1"><span className="text-sm">محصول/Variation سایت</span><select className="input" value={selectedHolderKey} onChange={(e) => setSelectedHolderKey(e.target.value)}><option value="">انتخاب کنید…</option>{catalog.map((c) => <option key={c.holderKey} value={c.holderKey}>{c.name} · SKU {c.sku || '—'} · موجودی {c.stockQuantity == null ? '—' : faDigits(c.stockQuantity)} {c.manageStock ? '' : c.manageStockMode === 'parent' ? '· موجودی مشترک والد (قابل اتصال نیست)' : c.manageStockMode === 'fractional_unsupported' ? '· موجودی اعشاری پشتیبانی نمی‌شود' : '· manage_stock خاموش'}</option>)}</select></label>
+          <label className="space-y-1"><span className="text-sm">محصول/Variation سایت</span><select className="input" value={selectedHolderKey} onChange={(e) => setSelectedHolderKey(e.target.value)}><option value="">انتخاب کنید…</option>{catalog.map((c) => <option key={c.holderKey} value={c.holderKey}>{c.name} · کد کالا {c.sku || '—'} · موجودی {c.stockQuantity == null ? '—' : faDigits(c.stockQuantity)} {c.manageStock ? '' : c.manageStockMode === 'parent' ? '· موجودی مشترک والد (قابل اتصال نیست)' : c.manageStockMode === 'fractional_unsupported' ? '· موجودی اعشاری پشتیبانی نمی‌شود' : '· مدیریت موجودی در سایت خاموش است'}</option>)}</select></label>
         </div>
         <div className="flex flex-wrap gap-3 items-center">
           <label className="text-sm">مبنای اتصال اولیه:</label>
@@ -412,7 +412,7 @@ export default function WooSync() {
               {links.map((l) => (
                 <tr key={l.id}>
                   <td>{l.productName}<div className="text-xs text-slate-500">کد {l.code} · بارکد {l.barcode}</div></td>
-                  <td>{l.remoteName || l.holderKey}<div className="text-xs text-slate-500">{l.sku || 'SKU ندارد'} · {l.holderKey}</div></td>
+                  <td>{l.remoteName || l.holderKey}<div className="text-xs text-slate-500">{l.sku || 'کد کالا ندارد'} · {l.holderKey}</div></td>
                   <td><span className="kbd">{wooStatusLabel(l.status)}</span>{l.pausedEvents ? <div className="text-xs text-amber-700">{faDigits(l.pausedEvents)} رویداد حل‌نشده سایت</div> : null}</td>
                   <td>{faDigits(l.mahakStock)}</td>
                   <td>{faDigits(l.lastWooQty)}</td>
@@ -449,7 +449,7 @@ export default function WooSync() {
             <div className="kbd">ویرایش‌های سایت که اعمال نمی‌شوند: {faDigits(resumePreview.nonOrderEvents)} / تغییر {faDigits(resumePreview.nonOrderDelta)}</div>
             <div className="kbd">آخرین seq سایت: {faDigits(resumePreview.lastSeq ?? 0)}</div>
           </div>
-          <p className="text-xs text-amber-900">گزینه «فروشگاه + سفارش‌های سایت» فقط رویدادهایی را اعمال می‌کند که افزونه با source=order ثبت کرده باشد؛ ویرایش دستی ادمین سایت در همین Reconcile کنار گذاشته می‌شود و هیچ‌وقت خودکار روی MAHAK نمی‌نشیند.</p>
+          <p className="text-xs text-amber-900">گزینه «فروشگاه + سفارش‌های سایت» فقط رویدادهایی را اعمال می‌کند که افزونه با source=order ثبت کرده باشد؛ ویرایش دستی ادمین سایت در همین هم‌ترازی کنار گذاشته می‌شود و هیچ‌وقت خودکار روی MAHAK نمی‌نشیند.</p>
           <div className="flex flex-wrap gap-2">
             <button className="btn btn-primary" disabled={busy || resumePreview.orderEvents > 0} onClick={() => applyResumeDecision(WooResumeDecision.MAHAK_WINS)}>فروشگاه مرجع؛ سایت به MAHAK برسد</button>
             <button className="btn" disabled={busy} onClick={() => applyResumeDecision(WooResumeDecision.WOO_WINS)}>سایت مرجع؛ MAHAK به سایت برسد</button>

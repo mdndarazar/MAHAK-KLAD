@@ -245,7 +245,7 @@ export const variantPurgeService = {
             ? `هنوز ${faDigits(VARIANT_PURGE_RETENTION_DAYS)} روز کامل در سطل آشغال نمانده است (از ${faDigits(toJalaliDate(new Date(deletedAt + VARIANT_PURGE_RETENTION_MS)))} قابل حذف همیشگی است).`
             : `تاریخ حذف (نرم) ندارد؛ مهلت ${faDigits(VARIANT_PURGE_RETENTION_DAYS)} روز سطل آشغال از امروز قابل سنجش نیست.`
           : movements > 0
-            ? `${faDigits(movements)} حرکت انبار دارد؛ دفتر گردش انبار append-only است و حذف همیشگی انجام نمی‌شود.`
+            ? `${faDigits(movements)} حرکت انبار دارد؛ دفتر گردش انبار پاک نمی‌شود، پس حذف همیشگی انجام نمی‌شود.`
             : null
       lines.push({
         variantId: v.id,
@@ -324,7 +324,7 @@ export const variantPurgeService = {
     })
     if (tooRecent.length)
       throw new BusinessError(
-        `حذف همیشگی انجام نشد: ${tooRecent.length} کالا هنوز ${faDigits(VARIANT_PURGE_RETENTION_DAYS)} روز کامل در سطل آشغال نمانده است. ` +
+        `حذف همیشگی انجام نشد: ${faDigits(tooRecent.length)} کالا هنوز ${faDigits(VARIANT_PURGE_RETENTION_DAYS)} روز کامل در سطل آشغال نمانده است. ` +
           'تا پایان این مهلت، سابقه‌ی کالا باید قابل بازگردانی بماند.'
       )
     /**
@@ -370,7 +370,7 @@ export const variantPurgeService = {
         if (movementCount > 0)
           throw new BusinessError(
             `حذف همیشگی انجام نشد: ${faDigits(movementCount)} حرکت در دفتر گردش انبار این کالاها وجود دارد. ` +
-              'دفتر گردش append-only است و برای پنهان‌نشدن مدرک مالی/انبار پاک نمی‌شود.'
+              'دفتر گردش انبار پاک نمی‌شود تا مدرک مالی و انبار پنهان نشود.'
           )
 
         // ۱) ساختار: برداشتن کلید خارجی کالا از جدول‌های سابقه (یک بار برای همیشه)

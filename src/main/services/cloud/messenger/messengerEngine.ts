@@ -44,7 +44,7 @@ export const MESSENGER_MESSAGES: Readonly<Record<string, string>> = Object.freez
   NOT_FOUND: 'این گیرنده پیدا نشد.',
   LIMIT: 'حداکثر ۲۰ گیرنده می‌شود ثبت کرد.',
   INVALID: 'ورودی نامعتبر است.',
-  CONFLICT: 'این ربات جای دیگری (webhook یا برنامهٔ دیگر) خوانده می‌شود. اگر برایش webhook گذاشته‌اید، آن را بردارید و دوباره تلاش کنید.',
+  CONFLICT: 'این ربات جای دیگری (اتصال یا برنامهٔ دیگر) خوانده می‌شود. اگر برایش webhook گذاشته‌اید، آن را بردارید و دوباره تلاش کنید.',
   NO_REMOTE: 'دکمه‌های ربات در این نسخه در دسترس نیست.'
 })
 function fail(code: string, detail?: string): never {

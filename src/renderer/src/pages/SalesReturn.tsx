@@ -176,7 +176,7 @@ const EXCHANGE_REFUND_CHOICES: { value: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD
   { value: 'CASH', title: 'بازپرداخت نقدی', hint: 'پول از کشوی صندوق بیرون می‌رود (یک بازپرداخت واقعی ثبت می‌شود).' },
   { value: 'CARD', title: 'بازپرداخت کارتی', hint: 'به کارت مشتری برگشت؛ از کشو پولی بیرون نمی‌رود.' },
   { value: 'STORE_CREDIT', title: 'صدور اعتبار خرید', hint: 'بارکد یک‌بارمصرف صادر می‌شود؛ اثر نقدی صفر.' },
-  { value: 'CARD_TO_CARD', title: 'کارت‌به‌کارت توسط مدیر', hint: 'پرداخت فوری انجام نمی‌شود؛ درخواست پرداخت برای تایید مدیر ثبت می‌شود.' }
+  { value: 'CARD_TO_CARD', title: 'کارت‌به‌کارت توسط مدیر', hint: 'پرداخت فوری انجام نمی‌شود؛ درخواست پرداخت برای تأیید مدیر ثبت می‌شود.' }
 ]
 
 /** نشست ۲ · C1 — ارزش برگشت هر قلم، دقیقاً همان فرمول main (سهم واقعی پرداختی مشتری) */
@@ -2484,7 +2484,7 @@ export default function SalesReturn() {
                   onChange={(e) => setManagerFullRefund(e.target.checked)}
                 />
                 <span className="flex-1">
-                  <b className="text-rose-800">بازپرداخت مبلغ کامل، بدون کسر تخفیف، با تایید مدیر</b>
+                  <b className="text-rose-800">بازپرداخت مبلغ کامل، بدون کسر تخفیف، با تأیید مدیر</b>
                   <span className="kbd block">فقط مدیر با رمز و دلیل می‌تواند تخفیف را نادیده بگیرد؛ این رویداد در دفتر رویداد ثبت می‌شود.</span>
                   {managerFullRefund && (
                     <span className="flex flex-wrap gap-2 mt-2">

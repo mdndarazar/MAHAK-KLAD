@@ -1,3 +1,4 @@
+import { money } from './jalali'
 /**
  * ===========================================================================
  * بند ۳ و بند ۴ — «تخفیف» و «افزایش/کاهش گروهی قیمت» — منبع واحد و رسمی.
@@ -193,7 +194,8 @@ export function nextPrice(current: number, rule: PriceAdjustRule): number {
 export function describeRule(rule: PriceAdjustRule): string {
   const kind = PRICE_ADJUST_KIND_LABELS[rule.kind] ?? rule.kind
   const value = Math.max(0, Math.round(Number(rule.value) || 0))
-  return rule.mode === 'PERCENT' ? `${value}٪ ${kind}` : `${value} ریال ${kind}`
+  // دفتر آزمون ۴-۱۲۱ — رقم فارسی و جداکنندهٔ هزارگان در عنوان تاریخچه («۲۰٪ تخفیف…»، «۵۰۰٬۰۰۰ ریال…»)
+  return rule.mode === 'PERCENT' ? `${money(value)}٪ ${kind}` : `${money(value)} ریال ${kind}`
 }
 
 /**

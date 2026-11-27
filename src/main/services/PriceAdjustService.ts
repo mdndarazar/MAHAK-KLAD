@@ -298,8 +298,8 @@ function assertAdjustedPrice(newPrice: number, oldPrice: number, name: string): 
 function assertDeltaTotal(deltaTotal: number): void {
   if (Math.abs(deltaTotal) > PRICE_ADJUST_MAX)
     throw new BusinessError(
-      `جمع اختلاف قیمت این دسته (${money(Math.abs(deltaTotal))} ریال) از سقف مجاز ${money(PRICE_ADJUST_MAX)} ریال ` +
-        'بیشتر است و تا مهاجرت ستون‌ها به BigInt قابل ثبت در سابقه نیست؛ هیچ قیمتی تغییر نکرد. ' +
+      `جمع اختلاف قیمت این دسته (${money(Math.abs(deltaTotal))} ریال) از سقف ثبت در سابقه (${money(PRICE_ADJUST_MAX)} ریال) ` +
+        'بیشتر است؛ هیچ قیمتی تغییر نکرد. ' +
         'دامنه را به چند دسته‌ی کوچک‌تر تقسیم کنید.'
     )
 }

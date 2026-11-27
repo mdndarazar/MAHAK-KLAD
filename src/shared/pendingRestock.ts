@@ -223,7 +223,7 @@ export function pendingRestockShiftWarning(
 /** متن `stockNote` درخواست، در دو حالتِ «معلق» و «آزاد شد». */
 export function pendingStockNote(qty: number, digits: (v: string | number) => string = String): string {
   return (
-    `${digits(qty)} عدد کالای برگشتی **به انبار اضافه نشد** و در انتظار پرداخت مدیر است ` +
+    `${digits(qty)} عدد کالای برگشتی به انبار اضافه نشد و در انتظار پرداخت مدیر است ` +
     '(فیزیکی در فروشگاه، بیرون از موجودی قابل‌فروش)'
   )
 }

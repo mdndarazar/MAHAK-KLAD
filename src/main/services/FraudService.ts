@@ -340,7 +340,7 @@ export const fraudService = {
       severity: 'MEDIUM',
       detail:
         'برگشت بدون مشتریِ ثبت‌شده قابل پیگیری نیست؛ اگر بازپرداخت نقدی هم داشته باشد، ' +
-        'هیچ‌کس نمی‌تواند بعداً تایید کند پول به چه کسی داده شد.',
+        'هیچ‌کس نمی‌تواند بعداً تأیید کند پول به چه کسی داده شد.',
       amount: anonymous.reduce((s, r) => s + n(r.total), 0),
       count: anonymous.length,
       sources: anonymous.map((r) => ({
@@ -619,9 +619,9 @@ export const fraudService = {
     }))
     push({
       key: 'closedPeriodOverride',
-      title: 'تغییر با تایید مدیر روی دوره‌ی بسته یا قیمت دستی',
+      title: 'تغییر با تأیید مدیر روی دوره‌ی بسته یا قیمت دستی',
       severity: 'INFO',
-      detail: 'این‌ها با تایید مدیر انجام شده‌اند و مشکل نیستند؛ فهرستشان برای مرور دوره‌ای اینجاست.',
+      detail: 'این‌ها با تأیید مدیر انجام شده‌اند و مشکل نیستند؛ فهرستشان برای مرور دوره‌ای اینجاست.',
       amount: 0,
       count: overrides.length,
       sources: overrides.map((a) => ({

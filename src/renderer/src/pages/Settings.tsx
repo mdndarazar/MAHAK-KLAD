@@ -3077,7 +3077,7 @@ export default function Settings() {
                   بکاپ، پاک‌سازی و ابطال) «قفل کار» جدای خودشان را دارند و با خاموش شدن قفل ماژول خاموش نمی‌شوند.
                 </div>
                 <div className="md:w-1/3">
-                  <Field label="رمز مدیر (برای تایید تغییر قفل‌ها)">
+                  <Field label="رمز مدیر (برای تأیید تغییر قفل‌ها)">
                     <PasswordField typedOnly value={panelManagerPw} onChange={(e) => setPanelManagerPw(e.target.value)} />
                   </Field>
                 </div>
@@ -3162,7 +3162,7 @@ export default function Settings() {
                   نشده باشد. تا وقتی برای پنلی رمز دوم تعریف نشده، رفتار همان قبل است: فقط رمز مدیر بازش می‌کند.
                 </div>
                 <div className="md:w-1/3">
-                  <Field label="رمز مدیر (برای تایید همین بخش)">
+                  <Field label="رمز مدیر (برای تأیید همین بخش)">
                     <PasswordField typedOnly value={panelManagerPw} onChange={(e) => setPanelManagerPw(e.target.value)} />
                   </Field>
                 </div>
@@ -3719,11 +3719,11 @@ export default function Settings() {
                 <div className="kbd leading-6">
                   سیاست بالا فقط درباره‌ی <b>تخفیف لحظه‌ی فروش</b> است و به قیمت ثبت‌شده‌ی کالاها دست نمی‌زند. اگر
                   می‌خواهید قیمت فروش گروهی از کالاها را واقعاً کم یا زیاد کنید (حراج پایان فصل، گران‌کردن یک دسته)، از
-                  ماژول «تخفیف و افزایش/کاهش قیمت» استفاده کنید: پیش‌نمایش دارد، قیمت قبلی هر کالا را ذخیره می‌کند و
+                  ماژول «تغییر قیمت گروهی (تخفیف، افزایش و کاهش قیمت)» استفاده کنید: پیش‌نمایش دارد، قیمت قبلی هر کالا را ذخیره می‌کند و
                   با یک کلیک قابل بازگردانی است.
                 </div>
                 <button className="btn btn-primary" onClick={() => nav('/price-adjust')}>
-                  رفتن به ماژول تخفیف و افزایش/کاهش قیمت
+                  رفتن به ماژول تغییر قیمت گروهی
                 </button>
               </section>
             </>
