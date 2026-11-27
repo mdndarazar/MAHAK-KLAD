@@ -344,11 +344,20 @@ async function withOptionalSessionActor<T extends Record<string, any> | null | u
 /** Inventory/cost mutations remain optional-session in legacy mode, but once
  * custody is opted in they receive the same transaction-local fence as sales.
  * Renderer-supplied fence/actor fields are always discarded. */
-async function withCustodyFenceOrOptionalActor<T extends Record<string, any> | null | undefined>(payload: T): Promise<any> {
+async function withCustodyFenceOrOptionalActor<T extends Record<string, any> | null | undefined>(payload: T, action?: string): Promise<any> {
   const safe: any = { ...(payload ?? {}) }
   delete safe.custodyFence
   delete safe.epoch
-  const fence = await custodyService.actorForFinancialOperation()
+  /**
+   * دفتر آزمون ۴-۱۳۷ — خرید و اصلاح موجودی با صندوقِ تحویل‌نشده همان قاعده و همان کد
+   * (`CUSTODY_AUTH_REQUIRED`) را دارند؛ فقط پیام به‌جای «فروش» نام همان کار را می‌برد.
+   * `CustodyService.ts` و پیام فروش دست نمی‌خورند.
+   */
+  const fence = await custodyService.actorForFinancialOperation().catch((e: unknown) => {
+    if (action && e instanceof BusinessError && e.code === 'CUSTODY_AUTH_REQUIRED' && /^برای (ثبت|ادامهٔ) فروش،/.test(e.message))
+      throw new BusinessError(e.message.replace(/^برای (ثبت|ادامهٔ) فروش،/, `برای ${action}،`), e.code)
+    throw e
+  })
   if (fence) return { ...safe, userId: fence.expectedActorUserId, custodyFence: fence }
   return withOptionalSessionActor(safe)
 }
@@ -493,7 +502,7 @@ export function registerIpcHandlers(): void {
   handle(IPC.variantSearch, (p) => productService.list({ search: p.search, take: 30 }))
   handle(IPC.categoryTree, () => productService.categoryTree())
   handle(IPC.categoryUpsert, (p) => productService.categoryUpsert(p))
-  handle(IPC.stockAdjust, async (p) => productService.adjustStock(await withCustodyFenceOrOptionalActor(p ?? {})))
+  handle(IPC.stockAdjust, async (p) => productService.adjustStock(await withCustodyFenceOrOptionalActor(p ?? {}, 'اصلاح موجودی')))
   handle(IPC.stockMovements, (p) => productService.movements(p))
 
   // ---- همگام‌سازی موجودی سایت WooCommerce (فقط stock_quantity) ----
@@ -1079,8 +1088,8 @@ export function registerIpcHandlers(): void {
 
   // ---- خرید ----
   // نشست ۱۵۵ (S151-c1، بند ۴-۳۹ «ثبت خرید»): actor از نشست؛ گیت رمز پنل خرید در خود سرویس
-  handle(IPC.purchaseCreate, async (p) => purchaseService.create(await withCustodyFenceOrOptionalActor(p ?? {})))
-  handle(IPC.purchaseUpdate, async (p) => purchaseService.update(await withCustodyFenceOrOptionalActor(p ?? {})))
+  handle(IPC.purchaseCreate, async (p) => purchaseService.create(await withCustodyFenceOrOptionalActor(p ?? {}, 'ثبت خرید')))
+  handle(IPC.purchaseUpdate, async (p) => purchaseService.update(await withCustodyFenceOrOptionalActor(p ?? {}, 'ویرایش خرید')))
   handle(IPC.purchaseList, async (p) => {
     await assertPanelUnlocked(PANEL_KEYS.purchase, 'دیدن فاکتورهای خرید')
     return purchaseService.list(p ?? {})
