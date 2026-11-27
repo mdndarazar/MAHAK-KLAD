@@ -14,6 +14,7 @@ import { CASH_MOVEMENT_LABELS, CHEQUE_STATUS_LABELS, EXCHANGE_SETTLEMENT_LABELS,
 import { CREDIT_SOURCE_LABELS } from '@shared/credit'
 import { faDigits } from '@shared/jalali'
 import { ACCESS_EVENT_KINDS, GATE_METHOD_LABELS, GATE_METHOD_NOTE_PREFIX, type GateMethodKey } from '@shared/gateCatalog'
+import { CHARGE_KINDS, CHARGE_SCOPES, chargeTitle } from '@shared/charges'
 import { fmtAt, fmtDuration, num, officialDay, rial, rialOrMissing } from './messengerFormat'
 import type { MessengerEvent } from './messengerTypes'
 
@@ -164,6 +165,20 @@ export function parseMethodLine(note: string | null): { method: GateMethodKey; n
   return null
 }
 const NEWS_METHODS: ReadonlySet<GateMethodKey> = new Set<GateMethodKey>(['SENSITIVE_CODE', 'OTHER_CODE', 'REMOTE_GRANT'])
+
+/**
+ * دفتر آزمون ۴-۱۴۲ — تبدیل خودکار یک‌بارهٔ تنظیمات «عوارض و مالیات» و «حق سرویس» (`migrateChargeKey` در
+ * `SettingsService.ts`): سند بی کاربر، `entity` برابر `Setting` و یادداشتی که با همین آغاز ثابت شروع می‌شود.
+ * مثل خط «روش تأیید» فقط همین آغاز خوانده می‌شود؛ نام تنظیم فقط اگر دقیقاً یکی از چهار عنوان ثابت باشد.
+ */
+const CHARGE_MIGRATION_PREFIX = 'مهاجرت تنظیمات «'
+const CHARGE_TITLES: readonly string[] = CHARGE_KINDS.flatMap((kind) => CHARGE_SCOPES.map((scope) => chargeTitle(kind, scope)))
+function autoChargeMigrationTitle(row: Pick<AuditRowLite, 'userId' | 'entity' | 'note'>): string | null {
+  if (row.userId || row.entity !== 'Setting' || !row.note || !row.note.startsWith(CHARGE_MIGRATION_PREFIX)) return null
+  const end = row.note.indexOf('»', CHARGE_MIGRATION_PREFIX.length)
+  const title = end > 0 ? row.note.slice(CHARGE_MIGRATION_PREFIX.length, end) : ''
+  return CHARGE_TITLES.includes(title) ? title : 'عوارض یا حق سرویس'
+}
 
 const ENTITY_LABELS: Readonly<Record<string, string>> = Object.freeze({
   Payment: 'پرداختی', SaleReturn: 'برگشت', ReturnCorrection: 'اصلاح برگشت', SaleInvoice: 'فاکتور', Product: 'کالا',
@@ -493,9 +508,14 @@ function mapRow(row: AuditRowLite, ctx: EventContext, h: ReturnType<typeof makeH
       return [h.event(row, '🔒 رمز پس از تلاش‌های اشتباه قفل شد', [row.userId ? `کاربر: ${h.who(row.userId)}` : ''], { important: true })]
     case 'PANEL_LOCKS_UPDATE':
       return [h.event(row, '🔐 قفل‌های برنامه عوض شد', [`کاربر: ${h.who(row.userId)}`], { important: true })]
-    case 'SETTINGS_UPDATE':
+    case 'SETTINGS_UPDATE': {
       if (row.entity === 'MessengerSettings') return [] // خبر همین تغییر پیش از اعمال رفته است
+      // دفتر آزمون ۴-۱۴۲ — کار خود برنامه، نه کاربر: پیام ساده و غیرهشداری (فقط برای گیرندهٔ «همه»)
+      const autoTitle = autoChargeMigrationTitle(row)
+      if (autoTitle !== null)
+        return [h.event(row, `⚙️ تبدیل خودکار تنظیمات «${autoTitle}»`, ['یک بار، کار خود برنامه پس از نصب یا به‌روزرسانی؛ کسی تنظیمی را عوض نکرده.'])]
       return [h.event(row, '⚙️ تنظیمات برنامه عوض شد', [`کاربر: ${h.who(row.userId)}`], { important: true })]
+    }
     case 'CREDIT_VOID':
     case 'CREDIT_DELETE':
       return [h.event(row, `⛔ ${row.action === 'CREDIT_VOID' ? 'ابطال' : 'ابطال و بایگانی'} اعتبار${row.entityId ? ` #${num(row.entityId)}` : ''}`, [`کاربر: ${h.who(row.userId)}`], { important: true })]
