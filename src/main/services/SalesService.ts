@@ -10296,6 +10296,10 @@ export const salesService = {
         settled,
         settledAtJalali: inv.settledAtJalali ?? null,
         pendingChequeTotal: pendingChequeTotalOf(inv.payments as any[]),
+        // دفتر آزمون ۴-۶۳ — فقط نمایش: جمع چک برگشتی همین فاکتور؛ بدهی و remaining دست نمی‌خورند
+        bouncedChequeTotal: (inv.payments as any[])
+          .filter((p) => (p.kind ?? '') === PaymentEntryKind.CHEQUE && p.chequeStatus === ChequeStatus.BOUNCED)
+          .reduce((s, p) => s + toNumberRial(p.amount), 0),
         paymentCount: inv.payments.length,
         lastPaymentJalali: last?.paidAtJalali ?? null,
         lastPaymentTime: last?.paidAtTime ?? null,
@@ -10427,6 +10431,7 @@ export const salesService = {
         partialCount: rows.filter((r) => r.settlementState === 'PARTIAL').length,
         settledCount: rows.filter((r) => r.settled).length,
         pendingChequeTotal: rows.reduce((s, r) => s + r.pendingChequeTotal, 0),
+        bouncedChequeTotal: rows.reduce((s, r) => s + (r.bouncedChequeTotal ?? 0), 0),
         overpayTotal: rows.reduce((s, r) => s + r.overpayTotal, 0),
         priorSettlementTotal: priorSettlements.reduce((s, r) => s + r.amount, 0),
         priorSettlementCount: priorSettlements.length

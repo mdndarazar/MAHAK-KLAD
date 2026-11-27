@@ -2765,6 +2765,8 @@ export interface CreditInvoiceRow {
   settledAtJalali: string | null
   /** جمع چک‌های در جریان روی این فاکتور */
   pendingChequeTotal: number
+  /** دفتر آزمون ۴-۶۳ — جمع چک‌های برگشتی همین فاکتور (فقط نمایش) */
+  bouncedChequeTotal?: number
   /** تعداد پرداختی‌های ثبت‌شده */
   paymentCount: number
   /** آخرین پرداختی */
@@ -2820,6 +2822,8 @@ export interface CreditReportResult {
     partialCount: number
     settledCount: number
     pendingChequeTotal: number
+    /** دفتر آزمون ۴-۶۳ — جمع چک‌های برگشتی (فقط نمایش) */
+    bouncedChequeTotal?: number
     overpayTotal: number
     /** جمع پرداختی‌های این بازه بابت نسیه‌ی بازه‌های قبل */
     priorSettlementTotal: number

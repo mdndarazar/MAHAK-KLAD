@@ -1,6 +1,6 @@
 import { prisma } from '../db/client'
 import { audit } from './AuditService'
-import { salesService } from './SalesService'
+import { salesService, debtorSnapshotName } from './SalesService'
 import { AuditAction, ReturnKind, RefundMethod, StoreCreditStatus, PaymentEntryKind, ChequeStatus, SaleStatus } from '@shared/enums'
 import { jalaliStartOfDay, jalaliEndOfDay, jalaliToday, money, faDigits, isValidJalaliDate, toLatinDigits, toJalaliDate } from '@shared/jalali'
 import { BusinessError } from '../errors'
@@ -541,24 +541,59 @@ export const fraudService = {
       }))
     })
 
+    const bouncedWhere = {
+      kind: PaymentEntryKind.CHEQUE,
+      voidedAt: null,
+      chequeStatus: ChequeStatus.BOUNCED,
+      paidAt: { gte: from, lte: to }
+    }
     const bounced = await prisma.payment.aggregate({
-      where: {
-        kind: PaymentEntryKind.CHEQUE,
-        voidedAt: null,
-        chequeStatus: ChequeStatus.BOUNCED,
-        paidAt: { gte: from, lte: to }
-      },
+      where: bouncedWhere,
       _sum: { amount: true },
       _count: { _all: true }
     })
+    /**
+     * دفتر آزمون ۴-۶۳ — هر چک برگشتی یک ردیف: شمارهٔ فاکتور، نام بدهکار (یا خریدار)، شمارهٔ چک، بانک،
+     * مبلغ و تاریخ ثبت؛ کلیک ⇐ همان فاکتور. جمع و شمارش همان aggregate بالا (همان شرط).
+     */
+    const bouncedRows = await readAll((page) => prisma.payment.findMany({
+      where: bouncedWhere,
+      select: {
+        id: true,
+        amount: true,
+        chequeNo: true,
+        bankName: true,
+        paidAt: true,
+        paidAtJalali: true,
+        invoiceId: true,
+        invoice: { select: { receiptNo: true, debtorFirstName: true, debtorLastName: true, customer: { select: { name: true } } } }
+      },
+      orderBy: { id: 'asc' },
+      ...page
+    }))
     push({
       key: 'bouncedCheques',
       title: 'چک برگشتی',
       severity: 'HIGH',
-      detail: 'چک برگشتی اثر نقدی صفر دارد ولی فاکتورش ممکن است «تسویه‌شده» مانده باشد.',
+      detail: 'چک برگشت خورده؛ بدهی مشتری سر جایش است. پیگیری کنید.',
       amount: n(bounced._sum.amount),
       count: n(bounced._count?._all),
-      sources: []
+      sources: bouncedRows.map((p) => {
+        const debtor = debtorSnapshotName(p.invoice ?? {})
+        return {
+          kind: 'CHEQUE',
+          id: p.id,
+          label: [
+            `شماره چک ${p.chequeNo || '—'}`,
+            p.bankName ? `بانک ${p.bankName}` : '',
+            debtor ? `بدهکار: ${debtor}` : `خریدار: ${p.invoice?.customer?.name ?? 'مشتری عمومی'}`
+          ].filter(Boolean).join(' · '),
+          amount: n(p.amount),
+          dateJalali: p.paidAtJalali || toJalaliDate(new Date(p.paidAt)),
+          receiptNo: p.invoice?.receiptNo ?? null,
+          invoiceId: p.invoiceId ?? null
+        }
+      })
     })
 
     // ---------------- ۸) تغییر بعد از قفل دوره ----------------

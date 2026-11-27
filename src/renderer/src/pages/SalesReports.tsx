@@ -387,6 +387,7 @@ const CREDIT_HEADERS = [
   'باقی‌ماندهٔ بدهی',
   'وضعیت تسویه',
   'چک در جریان',
+  'چک برگشتی',
   'تعداد پرداختی',
   'آخرین پرداختی',
   'سن بدهی (روز)',
@@ -497,6 +498,7 @@ const creditTotalsFromRows = (
   partialCount: rows.filter((row) => row.settlementState === 'PARTIAL').length,
   settledCount: rows.filter((row) => row.settled).length,
   pendingChequeTotal: rows.reduce((sum, row) => sum + Number(row.pendingChequeTotal ?? 0), 0),
+  bouncedChequeTotal: rows.reduce((sum, row) => sum + Number(row.bouncedChequeTotal ?? 0), 0),
   overpayTotal: rows.reduce((sum, row) => sum + Number(row.overpayTotal ?? 0), 0),
   priorSettlementTotal: priorSettlements.reduce((sum, row) => sum + Number(row.amount ?? 0), 0),
   priorSettlementCount: priorSettlements.length
@@ -1380,6 +1382,7 @@ export default function SalesReports() {
             money(output.creditTotals.remainingTotal),
             '',
             money(output.creditTotals.pendingChequeTotal),
+            money(output.creditTotals.bouncedChequeTotal ?? 0),
             '',
             '',
             '',
@@ -1659,6 +1662,7 @@ export default function SalesReports() {
             output.creditTotals.remainingTotal,
             '',
             output.creditTotals.pendingChequeTotal,
+            output.creditTotals.bouncedChequeTotal ?? 0,
             '',
             '',
             '',
@@ -3904,6 +3908,7 @@ function creditRowValues(r: CreditInvoiceRow): (string | number)[] {
     r.remaining,
     r.settlementLabel,
     r.pendingChequeTotal,
+    r.bouncedChequeTotal ?? 0,
     r.paymentCount,
     r.lastPaymentJalali
       ? `${r.lastPaymentJalali} ${r.lastPaymentTime ?? ''}${r.lastPaymentBackdated ? ' · ثبت با تاریخ قبل' : ''}`.trim()
@@ -3996,6 +4001,9 @@ function CreditTables({
               <td className={r.pendingChequeTotal > 0 ? 'text-amber-700 font-bold' : ''}>
                 {r.pendingChequeTotal > 0 ? money(r.pendingChequeTotal) : '—'}
               </td>
+              <td className={(r.bouncedChequeTotal ?? 0) > 0 ? 'text-rose-700 font-bold' : ''}>
+                {(r.bouncedChequeTotal ?? 0) > 0 ? money(r.bouncedChequeTotal ?? 0) : '—'}
+              </td>
               <td className="text-center">{faDigits(r.paymentCount)}</td>
               <td>
                 {r.lastPaymentJalali ? (
@@ -4055,6 +4063,7 @@ function CreditTables({
               <td className="text-amber-800">{money(t.remainingTotal)}</td>
               <td></td>
               <td>{money(t.pendingChequeTotal)}</td>
+              <td>{money(t.bouncedChequeTotal ?? 0)}</td>
               <td colSpan={3}></td>
               <td>{money(t.overpayTotal)}</td>
               <td colSpan={4}></td>
