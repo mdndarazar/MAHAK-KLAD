@@ -9,7 +9,7 @@ import { bumpReceiptSeq } from './receiptNo'
 import { BusinessError } from '../errors'
 import { withDesktopBackupCoordination } from './cloud/desktopBackupCoordination'
 import { AuditAction } from '@shared/enums'
-import { toJalaliDate } from '@shared/jalali'
+import { toJalaliDate, money } from '@shared/jalali'
 import type { BackupSummary, MergeReport } from '@shared/types'
 
 /**
@@ -343,12 +343,12 @@ async function assertMergeCreditSafe(src: PrismaClient): Promise<void> {
   const scPays = await count('SELECT COUNT(*) AS c FROM "Payment" WHERE "storeCreditId" IS NOT NULL')
   if (credits <= 0 && scPays <= 0) return
   const bits: string[] = []
-  if (credits > 0) bits.push(`${credits} اعتبار خرید (جدول اعتبار در ادغام منتقل نمی‌شود)`)
-  if (scPays > 0) bits.push(`${scPays} پرداخت گره خورده به اعتبار`)
+  if (credits > 0) bits.push(`${money(credits)} اعتبار خرید (جدول اعتبار در ادغام منتقل نمی‌شود)`)
+  if (scPays > 0) bits.push(`${money(scPays)} پرداخت گره خورده به اعتبار`)
   throw new BusinessError(
-    'ادغام این بکاپ انجام نشد چون سند اعتبار خرید دارد و ورود ناقص‌شان عدد مالی را خراب می‌کند:\\n' +
-      bits.map((b) => `• ${b}`).join('\\n') +
-      '\\nتا تکمیل ادغام اعتبار، از «جایگزینی کامل» استفاده کنید. داده‌ی فعلی دست‌نخورده ماند.'
+    'ادغام این بکاپ انجام نشد چون سند اعتبار خرید دارد و ورود ناقص‌شان عدد مالی را خراب می‌کند:\n' +
+      bits.map((b) => `• ${b}`).join('\n') +
+      '\nتا تکمیل ادغام اعتبار، از «جایگزینی کامل» استفاده کنید. داده‌ی فعلی دست‌نخورده ماند.'
   )
 }
 

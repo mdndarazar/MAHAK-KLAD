@@ -1,5 +1,5 @@
 import { prisma } from '../db/client'
-import { toJalaliDate, toClock, jalaliStartOfDay, jalaliEndOfDay, jalaliToday, faDigits } from '@shared/jalali'
+import { toJalaliDate, toClock, jalaliStartOfDay, jalaliEndOfDay, jalaliToday, faDigits, money } from '@shared/jalali'
 import { reportDayInput } from './reportDate'
 import {
   AuditAction,
@@ -391,7 +391,7 @@ export const cardTransferService = {
       const requested = toNumberRial(row.amount)
       if (paid > requested)
         throw new Error(
-          `مبلغ پرداخت‌شده (${faDigits(paid)} ریال) بیشتر از مبلغ درخواست (${faDigits(requested)} ریال) است و ثبت نمی‌شود. ` +
+          `مبلغ پرداخت‌شده (${money(paid)} ریال) بیشتر از مبلغ درخواست (${money(requested)} ریال) است و ثبت نمی‌شود. ` +
             'اگر اصلاح لازم است از «ثبت رویداد اصلاحی» استفاده کنید تا سابقه از بین نرود.'
         )
 
@@ -671,9 +671,9 @@ export const cardTransferService = {
         priorAdjustments.reduce((sum, a) => sum + Math.round(Number(a.paidAmount ?? a.amount ?? 0)), 0)
       if (netPaid + amount < 0)
         throw new Error(
-          `خالص پرداخت‌شده‌ی این درخواست کارت‌به‌کارت تا الان ${faDigits(netPaid)} ریال است؛ ` +
-            `اصلاح ${faDigits(Math.abs(amount))}- ریالی آن را به ${faDigits(Math.abs(netPaid + amount))}- ریال (منفی) می‌رساند. ` +
-            `بیشترین مبلغ قابل پس‌گرفتن ${faDigits(netPaid)} ریال است؛ هیچ ردیفی ثبت نشد.`
+          `خالص پرداخت‌شده‌ی این درخواست کارت‌به‌کارت تا الان ${money(netPaid)} ریال است؛ ` +
+            `اصلاح ${money(Math.abs(amount))}- ریالی آن را به ${money(Math.abs(netPaid + amount))}- ریال (منفی) می‌رساند. ` +
+            `بیشترین مبلغ قابل پس‌گرفتن ${money(netPaid)} ریال است؛ هیچ ردیفی ثبت نشد.`
         )
       /**
        * نشست ۲۱۳ · MED-1 — اصلاح مثبت از سقف مبلغ درخواست بالاتر نرود.
@@ -682,15 +682,15 @@ export const cardTransferService = {
       const requested = Math.round(Number(base.amount ?? 0))
       if (amount > 0 && netPaid + amount > requested)
         throw new Error(
-          `خالص پرداخت‌شده‌ی این درخواست تا الان ${faDigits(netPaid)} ریال است؛ ` +
-            `اصلاح +${faDigits(amount)} ریالی آن را به ${faDigits(netPaid + amount)} ریال می‌رساند که از مبلغ درخواست (${faDigits(requested)} ریال) بیشتر است. ` +
-            `بیشترین مبلغ قابل افزودن ${faDigits(Math.max(0, requested - netPaid))} ریال است؛ هیچ ردیفی ثبت نشد.`
+          `خالص پرداخت‌شده‌ی این درخواست تا الان ${money(netPaid)} ریال است؛ ` +
+            `اصلاح +${money(amount)} ریالی آن را به ${money(netPaid + amount)} ریال می‌رساند که از مبلغ درخواست (${money(requested)} ریال) بیشتر است. ` +
+            `بیشترین مبلغ قابل افزودن ${money(Math.max(0, requested - netPaid))} ریال است؛ هیچ ردیفی ثبت نشد.`
         )
       if (amount > 0) {
         const ref = await tx.saleReturn.findUnique({ where: { id: base.returnId }, select: { id: true, voidedAt: true } })
         if (!ref || ref.voidedAt != null)
           throw new Error(
-            `سند برگشت مرجع این درخواست ${ref ? 'باطل شده است' : 'پیدا نشد'}، پس پرداخت بیشتر (${faDigits(amount)} ریال) به مشتری تعلق ندارد و ثبت نشد. ` +
+            `سند برگشت مرجع این درخواست ${ref ? 'باطل شده است' : 'پیدا نشد'}، پس پرداخت بیشتر (${money(amount)} ریال) به مشتری تعلق ندارد و ثبت نشد. ` +
               'اگر مشتری پول را پس داده، اصلاح منفی ثبت کنید.'
           )
       }

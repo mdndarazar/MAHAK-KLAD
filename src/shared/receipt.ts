@@ -1753,7 +1753,7 @@ const faNum = (n: number | string): string =>
  */
 export function sessionLabelOf(name: string, seq: number): string {
   const n = Math.max(1, Math.round(Number(seq) || 1))
-  return `${name || 'شیفت'} — نشست ${faNum(n)}`
+  return `${faNum(name || 'شیفت')} — نشست ${faNum(n)}`
 }
 
 /**
