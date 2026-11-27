@@ -1,0 +1,578 @@
+{
+ "meta": {
+  "tool": "docs/audit/volume-scenarios.mjs",
+  "programCommit": "a70dc0d4df5e747cc04a1de58b7a575bf858ecc4",
+  "summary": {
+   "days": 30,
+   "perDay": 150,
+   "variants": 600,
+   "extraSkus": 2000,
+   "costEvery": 7,
+   "start": "1405/07/01",
+   "invoices": 4503,
+   "findings": 1,
+   "findingTypes": {
+    "WORDING": 1
+   },
+   "ipcErrors": 0
+  }
+ },
+ "stories": [
+  {
+   "id": "V0",
+   "title": "راه‌اندازی: حضانت صندوق، 600 کالای فروشی با خرید آغازین و 2,000 کالای دیگر برای جست‌وجو",
+   "findings": [
+    "WORDING | ثبت خرید با صندوقِ تحویل‌نشده پیام «برای ثبت فروش، ابتدا مسئول حاضر صندوق باید با رمز شخصی و شما…» می‌دهد (سخن از «فروش» است، نه خرید) | ۴-۱۳۷"
+   ],
+   "obs": [
+    {
+     "k": "purchase with no drawer taken over",
+     "v": "CUSTODY_AUTH_REQUIRED برای ثبت فروش، ابتدا مسئول حاضر صندوق باید با رمز شخصی و شمارش فیزیکی صندوق را تحویل بگیرد."
+    }
+   ],
+   "timings": [
+    {
+     "k": "catalog insert (SQL)",
+     "v": {
+      "variants": 2600,
+      "ms": 276.6
+     }
+    }
+   ]
+  },
+  {
+   "id": "V1",
+   "title": "30 روز کار پیوسته از 1405/07/01 (روزی 150 فاکتور)، بی بستن برنامه",
+   "findings": [],
+   "obs": [
+    {
+     "k": "step results during the days (label → count)",
+     "v": {
+      "POS sale card|OK": 1311,
+      "POS sale cash|OK": 2752,
+      "POS sale نسیه|OK": 223,
+      "automatic consolidation of earlier days (#-# simulation)|OK": 29,
+      "cheque for a نسیه sale (due +# days)|OK": 3,
+      "enable custody (single shift)|OK": 1,
+      "full return of an earlier sale today (cash refund)|OK": 43,
+      "monthly restock purchase (# lines × #)|OK": 1,
+      "opening purchase (# lines × #)|OK": 3,
+      "owner issues a temporary PIN for the seller|OK": 1,
+      "owner sets personal custody PIN|OK": 1,
+      "periodic management profit report (runs the cost ledger)|OK": 4,
+      "purchase before anyone has taken over the drawer|REFUSED": 1,
+      "seller opens the drawer|OK": 30,
+      "seller sets personal PIN|OK": 1,
+      "wholesale invoice (cash)|OK": 214,
+      "«بستن نهایی»|OK": 30
+     }
+    }
+   ],
+   "timings": [
+    {
+     "k": "opening purchases",
+     "v": {
+      "purchases": 3,
+      "ms": 1069.9
+     }
+    },
+    {
+     "k": "generation",
+     "v": {
+      "days": 30,
+      "invoices": 4500,
+      "minutes": 1.8
+     }
+    },
+    {
+     "k": "30-day windows",
+     "v": [
+      {
+       "from": "1405/07/01",
+       "to": "1405/07/30",
+       "sales": 4500,
+       "msPerSale": 11.3,
+       "consolidationMsPerDay": 10.5,
+       "closeMsPerDay": 126.9,
+       "costMsPerRun": 13029.9,
+       "heapMB": 23,
+       "rssMB": 300,
+       "invoices": 4500
+      }
+     ]
+    },
+    {
+     "k": "first and last window (ms per sale, heap MB)",
+     "v": {
+      "first": [
+       11.3,
+       23
+      ],
+      "last": [
+       11.3,
+       23
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "V2",
+   "title": "پس از 30 روز: زمان کارهای روزانه و گزارش‌ها، و خواندن سراسری جدول‌های بزرگ",
+   "findings": [],
+   "obs": [
+    {
+     "k": "operations: kind, ok and full scans of big tables",
+     "v": [
+      [
+       "automatic consolidation of yesterday (4-111 simulation)",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "seller opens the drawer",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "POS sale (cash, 2 lines)",
+       "daily",
+       "OK",
+       [
+        "SaleInvoice (index scan)"
+       ]
+      ],
+      [
+       "barcode scan (variant by barcode)",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "product search by name (30 results)",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "product list (first page)",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "sales report: today (summary)",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "sales report: today (rows)",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "sales report: yesterday (summary)",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "sales report: this month (summary)",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "sales report: last 365 days (summary)",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "sales report: whole history (summary)",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "نسیه list (debtors)",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "cheque list (due this year)",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "receipt-number gaps report",
+       "report",
+       "OK",
+       [
+        "SaleInvoice (index scan)",
+        "SaleInvoice"
+       ]
+      ],
+      [
+       "management report: today",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "management report: last 30 days",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "management report: last 365 days",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "management trend: 12 months by month",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "management profit: last 30 days",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "management stock (slow movers)",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "consolidation page: this month",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "custody status",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "database statistics (settings → maintenance)",
+       "report",
+       "OK",
+       [
+        "SaleInvoice (index scan)",
+        "SaleInvoiceItem (index scan)",
+        "Payment (index scan)",
+        "SaleReturn (index scan)",
+        "SaleReturnItem (index scan)",
+        "StockMovement (index scan)",
+        "AuditLog (index scan)",
+        "Product (index scan)",
+        "ProductVariant (index scan)"
+       ]
+      ],
+      [
+       "archive preview: older than 730 days",
+       "report",
+       "OK",
+       [
+        "StockMovement",
+        "SaleReturn",
+        "Payment"
+       ]
+      ],
+      [
+       "backup now",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "«بستن نهایی» (today)",
+       "daily",
+       "OK",
+       []
+      ]
+     ]
+    }
+   ],
+   "timings": [
+    {
+     "k": "backup",
+     "v": {
+      "ms": 111,
+      "sizeMB": 13
+     }
+    },
+    {
+     "k": "operations (median ms)",
+     "v": [
+      [
+       "automatic consolidation of yesterday (4-111 simulation)",
+       11.7
+      ],
+      [
+       "seller opens the drawer",
+       52
+      ],
+      [
+       "POS sale (cash, 2 lines)",
+       9.5
+      ],
+      [
+       "barcode scan (variant by barcode)",
+       0.1
+      ],
+      [
+       "product search by name (30 results)",
+       1.4
+      ],
+      [
+       "product list (first page)",
+       3.1
+      ],
+      [
+       "sales report: today (summary)",
+       8
+      ],
+      [
+       "sales report: today (rows)",
+       8
+      ],
+      [
+       "sales report: yesterday (summary)",
+       97.7
+      ],
+      [
+       "sales report: this month (summary)",
+       12.4
+      ],
+      [
+       "sales report: last 365 days (summary)",
+       751.9
+      ],
+      [
+       "sales report: whole history (summary)",
+       668.7
+      ],
+      [
+       "نسیه list (debtors)",
+       2.8
+      ],
+      [
+       "cheque list (due this year)",
+       0.5
+      ],
+      [
+       "receipt-number gaps report",
+       85.1
+      ],
+      [
+       "management report: today",
+       7.8
+      ],
+      [
+       "management report: last 30 days",
+       522.7
+      ],
+      [
+       "management report: last 365 days",
+       516.9
+      ],
+      [
+       "management trend: 12 months by month",
+       1239.6
+      ],
+      [
+       "management profit: last 30 days",
+       2770.4
+      ],
+      [
+       "management stock (slow movers)",
+       355.1
+      ],
+      [
+       "consolidation page: this month",
+       2.1
+      ],
+      [
+       "custody status",
+       2.9
+      ],
+      [
+       "database statistics (settings → maintenance)",
+       2.5
+      ],
+      [
+       "archive preview: older than 730 days",
+       2.2
+      ],
+      [
+       "backup now",
+       111
+      ],
+      [
+       "«بستن نهایی» (today)",
+       64.3
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "V3",
+   "title": "درستی در حجم بالا: جمع ماه‌ها = ۳۶۵ روز، شماره‌ها پیوسته، کالا = دفتر کالا، روزهای گذشته تجمیع‌شده",
+   "findings": [],
+   "obs": [
+    {
+     "k": "last 365 days vs the sum of its months",
+     "v": {
+      "months": 12,
+      "year": [
+       4500,
+       34887700000
+      ],
+      "sumOfMonths": [
+       4500,
+       34887700000
+      ]
+     }
+    },
+    {
+     "k": "receipt numbers",
+     "v": {
+      "count": 4503,
+      "first": 1,
+      "last": 4503
+     }
+    },
+    {
+     "k": "variants whose stock ≠ the stock ledger",
+     "v": 0
+    },
+    {
+     "k": "unconsolidated invoices of past days",
+     "v": 0
+    },
+    {
+     "k": "consolidations",
+     "v": 30
+    }
+   ],
+   "timings": []
+  },
+  {
+   "id": "V4",
+   "title": "سقف‌ها و برآورد با همین آهنگ فروش",
+   "findings": [],
+   "obs": [
+    {
+     "k": "rows per table",
+     "v": {
+      "SaleInvoice": 4503,
+      "SaleInvoiceItem": 11228,
+      "Payment": 4283,
+      "StockMovement": 11965,
+      "AuditLog": 4741,
+      "SaleReturn": 43,
+      "CashMovement": 43,
+      "Consolidation": 30,
+      "Shift": 31,
+      "CashSession": 0,
+      "ProductVariant": 2600
+     }
+    },
+    {
+     "k": "years until the 32-bit id limit at this rate (per table)",
+     "v": {
+      "SaleInvoice": 39197,
+      "SaleInvoiceItem": 15720,
+      "Payment": 41210,
+      "StockMovement": 14751,
+      "AuditLog": 37229,
+      "CashMovement": 4104779
+     }
+    },
+    {
+     "k": "money: biggest invoice and the last 365 days total vs the exact-number limit (9,007,199,254,740,991 rial)",
+     "v": {
+      "maxInvoice": 26600000,
+      "yearTotal": 34899100000,
+      "timesUnderLimitForAYear": 258092
+     }
+    }
+   ],
+   "timings": [
+    {
+     "k": "database size",
+     "v": {
+      "fileMB": 13,
+      "pagesMB": 13,
+      "invoices": 4503,
+      "bytesPerInvoice": 2920
+     }
+    },
+    {
+     "k": "projection at this rate (no archive cleanup)",
+     "v": {
+      "perYearInvoices": 54750,
+      "gbPerYear": 0.1,
+      "gb10y": 1.5,
+      "gb100y": 14.9,
+      "backups30xAt10yGB": 44.7
+     }
+    }
+   ]
+  },
+  {
+   "id": "V5",
+   "title": "بکاپ هم‌زمان با نوشتن سند: کپی فایل پایگاه وسط ثبت، سالم درمی‌آید؟ (۵ بار، با همان «بکاپ الان»)",
+   "findings": [],
+   "obs": [],
+   "timings": [
+    {
+     "k": "backups taken while documents were being written",
+     "v": [
+      [
+       "OK",
+       true,
+       "ok"
+      ],
+      [
+       "OK",
+       true,
+       "ok"
+      ],
+      [
+       "OK",
+       true,
+       "ok"
+      ],
+      [
+       "OK",
+       true,
+       "ok"
+      ],
+      [
+       "OK",
+       true,
+       "ok"
+      ]
+     ]
+    }
+   ]
+  }
+ ]
+}
