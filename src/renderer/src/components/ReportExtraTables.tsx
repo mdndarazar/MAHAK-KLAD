@@ -1,5 +1,5 @@
 import { faDigits, money } from '@shared/jalali'
-import { creditOutstandingOf, outstandingCreditRows, ledgerCashTitle } from '@shared/reportExtraOutput'
+import { creditOutstandingOf, outstandingCreditRows, ledgerCashTitle, CHEQUE_COLUMNS, chequeIsLate, type ReportColumn } from '@shared/reportExtraOutput'
 
 /**
  * ===========================================================================
@@ -69,14 +69,15 @@ function cell(k: string, v: unknown): string {
   return faDigits(String(v))
 }
 
-/** یک جدول عمومی: ستون‌ها از کلیدهای خودِ ردیف‌ها ساخته می‌شوند. */
+/** یک جدول عمومی: ستون‌ها از کلیدهای خودِ ردیف‌ها ساخته می‌شوند، یا از `columns` ثابت. */
 function Table({
   title,
   rows,
   sum,
   emptyText,
   tone,
-  onOpenInvoice
+  onOpenInvoice,
+  columns
 }: {
   title: string
   rows: any[]
@@ -84,9 +85,11 @@ function Table({
   emptyText?: string
   tone?: 'bad' | 'warn' | 'good'
   onOpenInvoice?: (id: number) => void
+  columns?: ReportColumn[]
 }) {
   const list = Array.isArray(rows) ? rows : []
   const keys = list.length ? Object.keys(list[0]).filter((k) => !/Json$|^raw/.test(k)).slice(0, 12) : []
+  const cols: ReportColumn[] = columns ?? keys.map((k) => ({ key: k, label: label(k), text: (r: any) => cell(k, r[k]) }))
   const border = tone === 'bad' ? 'border-red-400' : tone === 'warn' ? 'border-amber-400' : 'border-slate-200'
   return (
     <div className={`mt-3 rounded border ${border} bg-white`}>
@@ -104,9 +107,9 @@ function Table({
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-slate-50">
               <tr>
-                {keys.map((k) => (
-                  <th key={k} className="border-b px-2 py-1 text-right font-medium">
-                    {label(k)}
+                {cols.map((c) => (
+                  <th key={c.key} className="border-b px-2 py-1 text-right font-medium">
+                    {c.label}
                   </th>
                 ))}
               </tr>
@@ -118,9 +121,9 @@ function Table({
                   className={`hover:bg-slate-50 ${r.invoiceId && onOpenInvoice ? 'cursor-pointer' : ''}`}
                   onClick={() => r.invoiceId && onOpenInvoice?.(Number(r.invoiceId))}
                 >
-                  {keys.map((k) => (
-                    <td key={k} className="border-b px-2 py-1 tabular-nums">
-                      {cell(k, r[k])}
+                  {cols.map((c) => (
+                    <td key={c.key} className="border-b px-2 py-1 tabular-nums">
+                      {c.text(r)}
                     </td>
                   ))}
                 </tr>
@@ -181,8 +184,8 @@ export default function ReportExtraTables({
     const cleared = rows.filter((r) => st(r) === 'CLEARED')
     const bounced = rows.filter((r) => st(r) === 'BOUNCED')
     const pending = rows.filter((r) => st(r) === 'PENDING' || st(r) === '')
-    const late = pending.filter((r) => Number(r.daysLate ?? 0) > 0)
-    const future = pending.filter((r) => !(Number(r.daysLate ?? 0) > 0))
+    const late = pending.filter(chequeIsLate)
+    const future = pending.filter((r) => !chequeIsLate(r))
     const sum = (l: any[]) => l.reduce((a, r) => a + Number(r.amount ?? r.total ?? 0), 0)
     return (
       <div>
@@ -201,11 +204,11 @@ export default function ReportExtraTables({
             (چک در جریان زیرمجموعه‌ی «نسیه‌ی باقی‌مانده» است و در پل تطبیق فقط یک‌بار شمرده می‌شود.)
           </span>
         </div>
-        <Table title="چک‌های ثبت‌شده در بازه — اثر نقدی صفر" rows={registered} sum={sum(registered)} onOpenInvoice={onOpenInvoice} />
-        <Table title="چک پاس‌شده در بازه — اثر نقدی مثبت (بر اساس تاریخ پاس‌شدن)" rows={cleared} sum={sum(cleared)} tone="good" onOpenInvoice={onOpenInvoice} />
-        <Table title="چک در جریان — سررسید گذشته ⚠" rows={late} sum={sum(late)} tone="bad" onOpenInvoice={onOpenInvoice} />
-        <Table title="چک در جریان — سررسید نرسیده" rows={future} sum={sum(future)} tone="warn" onOpenInvoice={onOpenInvoice} />
-        <Table title="چک برگشت‌خورده ⚠ — اثر نقدی صفر" rows={bounced} sum={sum(bounced)} tone="bad" onOpenInvoice={onOpenInvoice} />
+        <Table title="چک‌های ثبت‌شده در بازه — اثر نقدی صفر" rows={registered} columns={CHEQUE_COLUMNS} sum={sum(registered)} onOpenInvoice={onOpenInvoice} />
+        <Table title="چک پاس‌شده در بازه — اثر نقدی مثبت (بر اساس تاریخ پاس‌شدن)" rows={cleared} columns={CHEQUE_COLUMNS} sum={sum(cleared)} tone="good" onOpenInvoice={onOpenInvoice} />
+        <Table title="چک در جریان — سررسید گذشته ⚠" rows={late} columns={CHEQUE_COLUMNS} sum={sum(late)} tone="bad" onOpenInvoice={onOpenInvoice} />
+        <Table title="چک در جریان — سررسید نرسیده" rows={future} columns={CHEQUE_COLUMNS} sum={sum(future)} tone="warn" onOpenInvoice={onOpenInvoice} />
+        <Table title="چک برگشت‌خورده ⚠ — اثر نقدی صفر" rows={bounced} columns={CHEQUE_COLUMNS} sum={sum(bounced)} tone="bad" onOpenInvoice={onOpenInvoice} />
         <Notes items={cheques?.notes ?? cheques?.warnings} />
       </div>
     )

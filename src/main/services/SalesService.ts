@@ -12498,6 +12498,7 @@ export const salesService = {
       dateJalali: inv.issuedAtJalali || toJalaliDate(issuedAt),
       time: toClock(issuedAt),
       customerName: inv.customer?.name ?? 'مشتری عمومی',
+      debtorName: debtorSnapshotName(inv),
       orderTypeLabel: ORDER_TYPE_LABELS[inv.orderType] ?? inv.orderType,
       grandTotal,
       paidTotal,
@@ -13820,6 +13821,8 @@ export const salesService = {
             issuedAtJalali: true,
             grandTotal: true,
             paidTotal: true,
+            debtorFirstName: true,
+            debtorLastName: true,
             customer: { select: { name: true } }
           }
         }
@@ -13844,6 +13847,7 @@ export const salesService = {
         receiptNo: inv?.receiptNo ?? 0,
         invoiceDateJalali: inv?.issuedAtJalali ?? '—',
         customerName: inv?.customer?.name ?? 'مشتری عمومی',
+        debtorName: debtorSnapshotName(inv ?? {}),
         invoiceTotal: grandTotal,
         invoiceRemaining: debt.remaining,
         ...(reviewNotes.has(p.id) ? { chequeNeedsReview: true, chequeReviewNote: reviewNotes.get(p.id) } : {})

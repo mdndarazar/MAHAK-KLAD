@@ -355,6 +355,8 @@ export interface InvoicePaymentsView {
   dateJalali: string
   time: string
   customerName: string
+  /** دفتر آزمون ۴-۶۰ — نام بدهکار ثبت‌شده روی فاکتور (فقط نمایش)؛ `null` اگر ثبت نشده باشد */
+  debtorName?: string | null
   orderTypeLabel: string
   grandTotal: number
   /** جمع پرداختی‌های دریافت‌شده (نقدی + چک پاس‌شده) */
@@ -448,6 +450,8 @@ export interface ChequeListRow extends InvoicePaymentRow {
   receiptNo: number
   invoiceDateJalali: string
   customerName: string
+  /** دفتر آزمون ۴-۶۰ — نام بدهکار فاکتور مادر (فقط نمایش) */
+  debtorName?: string | null
   invoiceTotal: number
   invoiceRemaining: number
 }

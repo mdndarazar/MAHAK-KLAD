@@ -538,7 +538,7 @@ export default function InvoicePaymentsModal({
             >
               <div>
                 <div className="kbd">خریدار</div>
-                <div className="font-bold">{view.customerName}</div>
+                <div className="font-bold">{view.debtorName || view.customerName}</div>
               </div>
               <div>
                 <div className="kbd">تاریخ فاکتور</div>

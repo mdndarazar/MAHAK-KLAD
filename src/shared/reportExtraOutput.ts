@@ -180,3 +180,49 @@ export function shownInvoiceUnits(rows: Array<{ invoiceId?: unknown }> | null | 
   if (!Array.isArray(rows)) return 0
   return new Set(rows.map((r) => r?.invoiceId).filter((id) => id != null)).size
 }
+
+// ---------------------------------------------------------------------------
+// دفتر آزمون ۴-۶۰ — ستون‌های ثابت تب «چک‌ها» (صفحه)؛ فقط نمایش، هیچ عددی حساب نمی‌شود.
+// ---------------------------------------------------------------------------
+
+/** ستون ثابت یک جدول گزارش: برچسب فارسی و متن خانه. */
+export type ReportColumn = { key: string; label: string; text: (r: any) => string }
+
+/** متن یک خانه: خالی ⇒ «—»، رقم‌ها فارسی. */
+export function cellText(v: unknown): string {
+  if (v === null || v === undefined || v === '') return '—'
+  if (typeof v === 'boolean') return v ? 'بله' : 'خیر'
+  return faDigits(String(v))
+}
+
+/** روز تأخیر یا روز مانده‌ی چک در جریان، از `dueInDays` سرور (منفی = سررسید گذشته). */
+export function chequeDaysText(r: any): string {
+  const st = String(r?.chequeStatus ?? '').toUpperCase()
+  const d = typeof r?.dueInDays === 'number' ? r.dueInDays : null
+  if ((st !== 'PENDING' && st !== '') || d === null) return '—'
+  if (d < 0) return `${faDigits(-d)} روز تأخیر`
+  return d === 0 ? 'سررسید امروز' : `${faDigits(d)} روز مانده`
+}
+
+/** چک در جریانِ سررسیدگذشته؟ (`daysLate` هرگز از سرور نمی‌آمد؛ از `dueInDays` خوانده می‌شود.) */
+export function chequeIsLate(r: any): boolean {
+  return Number(r?.daysLate ?? 0) > 0 || (typeof r?.dueInDays === 'number' && r.dueInDays < 0)
+}
+
+/** ستون‌های تب «چک‌ها» به همین ترتیب؛ نام بدهکار اگر روی فاکتور ثبت شده، وگرنه خریدار. */
+export const CHEQUE_COLUMNS: ReportColumn[] = [
+  { key: 'receiptNo', label: 'شماره فاکتور', text: (r) => cellText(r?.receiptNo) },
+  { key: 'debtorName', label: 'نام بدهکار (یا خریدار)', text: (r) => cellText(r?.debtorName || r?.customerName) },
+  { key: 'amount', label: 'مبلغ', text: (r) => money(Number(r?.amount ?? r?.total ?? 0)) },
+  { key: 'chequeNo', label: 'شماره چک', text: (r) => cellText(r?.chequeNo) },
+  { key: 'bankName', label: 'بانک', text: (r) => cellText(r?.bankName) },
+  { key: 'dueDateJalali', label: 'سررسید', text: (r) => cellText(r?.dueDateJalali) },
+  {
+    key: 'chequeStatusLabel',
+    label: 'وضعیت چک',
+    text: (r) => cellText(r?.chequeStatusLabel ?? r?.chequeStatus) + (r?.chequeNeedsReview ? ' · ⚠️ نیاز به بازبینی' : '')
+  },
+  { key: 'dateJalali', label: 'تاریخ ثبت', text: (r) => cellText(r?.dateJalali) },
+  { key: 'clearedAtJalali', label: 'تاریخ پاس‌شدن', text: (r) => cellText(r?.clearedAtJalali) },
+  { key: 'dueInDays', label: 'روز تأخیر یا روز مانده', text: chequeDaysText }
+]
