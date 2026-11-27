@@ -43,7 +43,7 @@ import CreditSettlementModal from '../components/CreditSettlementModal'
 import ReturnCorrectionLedger from '../components/ReturnCorrectionLedger'
 import { useSettings } from '../hooks/useSettings'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { MANAGER_ACCOUNT_ROW_LABEL, MANAGER_ACCOUNT_ROW_NOTE } from '@shared/enums'
+import { MANAGER_ACCOUNT_ROW_LABEL, MANAGER_ACCOUNT_ROW_NOTE, salePaymentStatusLabel } from '@shared/enums'
 import {
   cardOnlyOf,
   managerAccountOf,
@@ -531,7 +531,7 @@ const summaryRowValues = (r: SaleReportRow, source = '') => [
   r.time,
   r.shiftName,
   r.customerName,
-  r.statusLabel,
+  salePaymentStatusLabel(r),
   r.orderTypeLabel,
   r.goodsTotal,
   r.taxTotal,
@@ -3502,7 +3502,7 @@ function SummaryRow({
       <td>{faDigits(r.time)}</td>
       <td>{r.shiftName}</td>
       <td>{r.customerName}</td>
-      <td className={r.consolidated ? 'text-emerald-700' : ''}>{r.statusLabel}</td>
+      <td className={r.consolidated ? 'text-emerald-700' : ''}>{salePaymentStatusLabel(r)}</td>
       <td>{r.orderTypeLabel}</td>
       <td>{money(r.goodsTotal)}</td>
       <td>{money(r.taxTotal)}</td>
