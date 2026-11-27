@@ -15,6 +15,7 @@ import { icon192, icon512 } from './mobilePwaIcons'
 import { isInvoiceDate, parseInvoicePage } from './invoiceFactsValidation'
 import { normalizeMobileOrigins } from './mobileOrigins'
 import { PHONE_REPORT_MAX_DAYS, isPhoneSection, jalaliSpanDays, parsePhoneReport, parsePhoneReportRequest, phoneReportPanel, type PhoneReportRequest } from './phoneReportCatalog'
+import { jalaliToday } from '../../../shared/jalali'
 
 type Session = { id: string; role: string; username: string }
 type Identity = {
@@ -323,6 +324,9 @@ export function createMobileReadOnlyHandler(options: Options) {
           send(200,{user:{username:text(user.username,256),role:text(user.role,32)}});return
         }
         if (path === '/api/capabilities') {
+          // ۴-۱۰ — تاریخ امروز برای پیش‌فرض خانه‌های تاریخ گوشی، با تابع تاریخ خود برنامه (نه تقویم مرورگر)؛
+          // در سرآیند، تا بدنهٔ پاسخ (که آزمون‌ها دقیق می‌سنجند) همان بماند.
+          res.setHeader('x-mahak-today',jalaliToday())
           send(200,{invoices:typeof options.reader.invoiceFactsPage === 'function' && !!options.identity.authorize(token,'invoices','VIEW'),
             ...(user.role==='OWNER' && typeof options.identity.panic==='function' && typeof options.drainRevocations==='function' ? {panic:true} : {}),
             ...(user.role==='OWNER' && typeof options.identity.panicClose==='function' && typeof options.drainRevocations==='function' ? {panicClose:true} : {}),

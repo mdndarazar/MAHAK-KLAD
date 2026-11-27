@@ -124,7 +124,8 @@
     "src/renderer/src/pages/CreditManagement.tsx": null,
     "src/main/ipc/index.ts": null,
     "tests/audit/audit-a121-01-page-output-endpoint.mjs": null,
-    "tests/audit/audit-a94-01-extra-report-output.mjs": null
+    "tests/audit/audit-a94-01-extra-report-output.mjs": null,
+    "src/main/services/cloud/mobileReadOnlyHub.ts": null
    }
   },
   "2": {
@@ -351,5 +352,8 @@
     "tests/plan-1405/golden-financial-baseline.txt": null
    }
   }
+ },
+ "_notes": {
+  "mobileReadOnlyHub.ts (batch 1)": "4-10: today for the phone date boxes comes from the server (architecture §5 / T-16); the hub file was missing from the batch-1 list (TL-D2)."
  }
 }
