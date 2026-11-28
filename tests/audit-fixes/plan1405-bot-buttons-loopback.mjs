@@ -209,7 +209,7 @@ test('P2 closes bot approvals until recovery; a one-time action gets a SENSITIVE
   const req = registry.requestCode('credit.void', W)
   await tick()
   const bl = buttons('bale', R2.chatId)
-  assert.match(lastOf('sendMessage', 'bale', R2.chatId).params.text, /ابطال اعتبار \(یک بار\)/)
+  assert.match(lastOf('sendMessage', 'bale', R2.chatId).params.text, /ابطال و تغییر اعتبار \(یک بار\)/)
   available = false
   advance(6000)
   await press('bale', R2.chatId, bl[0])

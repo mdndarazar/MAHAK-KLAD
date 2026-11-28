@@ -57,7 +57,7 @@ const ACTIONS: readonly Row[] = [
   // دفتر آزمون (دستهٔ ۳، یک‌جا؛ مصرف در دستهٔ ۸): ۴-۷۳
   ['credit.third-print-seller', 'act-credit-third-print', 'MANAGER_PASSWORD', null, 'panel', G.credit, 'چاپ بار سوم گواهی اعتبار به دست فروشنده'],
   ['credit.issue-manual', 'act-credit-issue-manual', 'STRICT', 'credit-management', 'panel', G.credit, 'صدور دستی اعتبار'],
-  ['credit.void', 'credit-void', 'STRICT', 'credit-void', 'panel', G.credit, 'ابطال اعتبار'],
+  ['credit.void', 'credit-void', 'STRICT', 'credit-void', 'panel', G.credit, 'ابطال و تغییر اعتبار'],
   ['credit.delete', 'credit-void', 'STRICT', 'credit-void', 'panel', G.credit, 'حذف اعتبار'],
   ['credit.bulk-issue', 'credit-bulk-issue', 'STRICT', 'credit-bulk-issue', 'panel', G.credit, 'تولید گروهی اعتبار'],
   ['credit.settings-save', 'credit-settings', 'STRICT', 'credit-settings', 'panel', G.credit, 'ذخیرهٔ تنظیمات اعتبار'],

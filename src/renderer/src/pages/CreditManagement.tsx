@@ -1129,7 +1129,7 @@ export default function CreditManagement() {
           title="صدور اعتبار مدیریتی"
         >
           <label className="flex items-center gap-2 mb-2 text-sm">
-            رمز مدیر (صدور اعتبار بدون فاکتور همیشه رمز مدیر می‌خواهد):
+            رمز مدیر یا رمز دوم/سوم «صدور دستی اعتبار» (اگر دارید):
             <input
               type="password"
               className="inp w-40"
@@ -1159,7 +1159,7 @@ export default function CreditManagement() {
         >
           <Gate panel={PANEL_KEYS.creditBulkIssue} title="تولید گروهی اعتبار" inline>
             <label className="flex items-center gap-2 mb-2 text-sm">
-              رمز مدیر (صدور اعتبار بدون فاکتور همیشه رمز مدیر می‌خواهد):
+              رمز مدیر یا رمز دوم/سوم «تولید گروهی اعتبار» (اگر دارید):
               <input
                 type="password"
                 className="inp w-40"

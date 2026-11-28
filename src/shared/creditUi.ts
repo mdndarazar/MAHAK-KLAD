@@ -806,7 +806,7 @@ export function buildBulkPayload(draft: BulkDraft, settings: CreditSettings): Bu
 }
 
 // ---------------------------------------------------------------------------
-// ۵) عملیات مدیریتی (§۸ و §۱۰) — رمز مدیر + دلیل، هر دو اجباری
+// ۵) عملیات مدیریتی (§۸ و §۱۰) — دلیل اجباری؛ رمز اختیاری (دفتر آزمون ۴-۴۶: دروازهٔ سرور تصمیم می‌گیرد)
 // ---------------------------------------------------------------------------
 
 export const CreditOp = {
@@ -923,7 +923,8 @@ export function emptyOpDraft(op: CreditOp, id: number): OpDraft {
 /**
  * فرم عملیات مدیریتی ⇒ Payload کانالش.
  *
- * ⚠️ **رمز مدیر و دلیل، هر دو اجباری‌اند** — نه به‌خاطر سلیقه‌ی UI، بلکه چون
+ * دفتر آزمون ۴-۴۶: رمز دیگر در صفحه اجباری نیست؛ کادر خالی و قفل روشن ⇐ دروازهٔ سرور پنجرهٔ «باز کردن قفل» (رمز،
+ * کد یک‌بارمصرف یا مجوز راه دور) را می‌آورد و قفل خاموش ⇐ بی رمز. ⚠️ **دلیل اجباری است** — نه به‌خاطر سلیقه‌ی UI، بلکه چون
  * سرویس main بدون این دو درخواست را رد می‌کند (`assertManagerPassword` +
  * `requireReason`). پس فرم بدون آن‌ها حتی درخواست هم نمی‌فرستد: کاربر پیام
  * فارسی را همان‌جا می‌بیند، نه بعد از یک رفت‌و‌برگشت.
@@ -936,8 +937,6 @@ export function buildOpPayload(draft: OpDraft, credit: any): BuildResult<Record<
   const title = CREDIT_OP_TITLES[draft.op] ?? 'این عملیات'
 
   if (!draft.id) return fail('اول یک اعتبار را از فهرست انتخاب کنید.')
-  if (!managerPassword)
-    return fail(`برای «${title}» رمز مدیر لازم است؛ سرویس بدون رمز این درخواست را رد می‌کند.`)
   if (reason.length < 3) return fail(`برای «${title}» نوشتن دلیل اجباری است (حداقل ۳ کاراکتر) و در تاریخچه ثبت می‌شود.`)
 
   const base: Record<string, unknown> = { id: draft.id, reason, managerPassword }

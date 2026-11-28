@@ -796,12 +796,12 @@ export async function assertPanelPasswordStrict(
   if (gated) return gated
   if (!pass)
     throw new BusinessError(
-      `«${action}» همیشه رمز می‌خواهد، حتی اگر قفل این ماژول خاموش باشد. ` +
-        'رمز مدیر (یا رمز دوم/سوم همین پنل) را وارد کنید.'
+      `«${action}» قفل جدا دارد. ` +
+        'با رمز مدیر یا رمز دوم/سوم همین کار، کد یک‌بارمصرف یا مجوز از راه دور باز می‌شود.'
     )
   const res = await authService.verifyPanel({ panel, password: pass, force: true })
   if (res.scope === 'OPEN')
-    throw new BusinessError(`«${action}» همیشه رمز می‌خواهد. رمز واردشده پذیرفته نشد.`)
+    throw new BusinessError(`«${action}» قفل جدا دارد. رمز واردشده پذیرفته نشد.`)
   return res.scope
 }
 

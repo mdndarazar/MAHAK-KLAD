@@ -241,7 +241,7 @@ export function OpForm({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <label className="block">
-          <span>رمز مدیر</span>
+          <span>رمز مدیر یا رمز دوم/سوم «ابطال و تغییر اعتبار» (اگر دارید)</span>
           <PasswordField className="inp" value={value.managerPassword} onChange={(e: any) => set({ managerPassword: e.target.value })} />
         </label>
         <TextField label="دلیل (اجباری، در تاریخچه ثبت می‌شود)" value={value.reason} onChange={(v) => set({ reason: v })} />
@@ -499,14 +499,14 @@ export function SettingsForm({
       ))}
       {password !== undefined && (
         <label className="flex flex-col gap-1">
-          <span className="kbd">رمز مدیر یا رمز دوم «تنظیمات اعتبار خرید» (سمت سرور هم بررسی می‌شود)</span>
+          <span className="kbd">رمز مدیر یا رمز دوم/سوم «تنظیمات اعتبار خرید» (اگر دارید)</span>
           <PasswordField value={password} onChange={(e) => setPassword?.(e.target.value)} />
         </label>
       )}
       <button
         className="btn btn-primary"
         onClick={onSave}
-        disabled={busy || (password !== undefined && !password.trim())}
+        disabled={busy}
       >
         {busy ? 'در حال ذخیره…' : 'ذخیره تنظیمات'}
       </button>
