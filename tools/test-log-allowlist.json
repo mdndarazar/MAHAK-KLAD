@@ -139,6 +139,7 @@
     "src/main/services/cloud/messenger/messengerEngine.ts": null,
     "src/main/services/cloud/messenger/messengerIpc.ts": null,
     "src/main/services/cloud/messenger/messengerAdapters.ts": null,
+    "src/main/services/cloud/messenger/messengerVault.ts": null,
     "src/main/services/cloud/messenger/messengerDb.ts": null,
     "src/main/services/cloud/messenger/messengerEvents.ts": null,
     "src/main/services/cloud/messenger/messengerSummary.ts": null,
@@ -366,6 +367,7 @@
   "jalali.ts (batch 1)": "4-134: the architecture names @shared/jalali for the small date-and-time display function; addition only (TL-D4).",
   "golden-financial-baseline.txt, bridge-baseline-s318.json (batch 1)": "Owner permission 2026-11-28 (TL-D5): line 123 of the golden baseline (4-108, date digits only) and the two text hashes of the bridge baseline regenerated with the documented _regen-bridge-golden-s318.mjs (4-67; equation hash and bridge numbers unchanged).",
   "plan1405-messenger-units.mjs line 46 (batch 2)": "Owner permission 2026-11-28 (TL-D5): line 46 accepts the second fixed-start reader of the audit note added by 4-142; the file was already listed for 4-35.",
-  "messengerIpc.ts, messengerAdapters.ts (batch 2)": "Owner permission 2026-11-28 (TL-D7): 4-33 sets the new per-recipient «can view reports» tick through the existing recipient-settings channel (a new messenger channel would change the channel count at line 172 of plan1405-messenger-units.mjs), and registers the «/» list with one new setMyCommands method (the bot interface had no general call)."
+  "messengerIpc.ts, messengerAdapters.ts (batch 2)": "Owner permission 2026-11-28 (TL-D7): 4-33 sets the new per-recipient «can view reports» tick through the existing recipient-settings channel (a new messenger channel would change the channel count at line 172 of plan1405-messenger-units.mjs), and registers the «/» list with one new setMyCommands method (the bot interface had no general call).",
+  "messengerVault.ts (batch 2)": "Owner permission 2026-11-28 (TL-D8): 4-26 keeps its once-only marker for the 15- and 30-minute shift-end reminders in messenger-cursor.json, as arch section 2-1 says; the cursor type and its field-by-field parser live in this file (listed for batch 8), which would otherwise drop the new list on every start."
  }
 }

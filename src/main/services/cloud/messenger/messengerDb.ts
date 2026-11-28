@@ -6,10 +6,10 @@
  */
 import { createHash } from 'node:crypto'
 import { prisma as defaultPrisma } from '../../../db/client'
-import { SETTING_KEYS, parseAccountingPolicy, parseOfficialTimeConfig } from '@shared/receipt'
+import { SETTING_KEYS, minutesOfTime, parseAccountingPolicy, parseCustodyConfig, parseOfficialTimeConfig, parseShiftConfig } from '@shared/receipt'
 import { faDigits, jalaliEndOfDay, jalaliStartOfDay } from '@shared/jalali'
 import { custodyBoundaryId, custodyTargetUserId, minutesAfterShiftEnd, type AuditRowLite, type CustodyCountLite, type CustodyEventLite, type DocLineLite, type IdsNeeded, type LookupData } from './messengerEvents'
-import { emptyLookups } from './messengerEvents'
+import { emptyLookups, type ShiftPlanLite, type ShiftReminderSegment } from './messengerEvents'
 
 type Client = typeof defaultPrisma
 const CHUNK = 400
@@ -471,6 +471,60 @@ export function createMessengerDb(client: Client = defaultPrisma) {
     }
   }
 
+  /**
+   * دفتر آزمون ۴-۲۶: بخش باز صندوق برای یادآوری پایان شیفت؛ فقط خواندن، بی هیچ مبلغ، کد یا تلفن.
+   * پایان برنامه و حالت از عکس ثابت همان بخش (`scheduleSnapshotJson`، مثل `CustodyService.ts:706`)؛ عکس نسخهٔ ۱ بی حالت
+   * چندشیفت است، و بخش قدیمیِ بی عکس حالت امروز را می‌گیرد (همان قاعدهٔ `effectiveCustodyMode`، `CustodyService.ts:293`).
+   * برای «شیفت آخر»: قالب‌های فعال و دارای کارمند تنظیمات شیفت، یا برای بخش برنامهٔ قدیمی، برنامه‌های فعال قدیمی.
+   */
+  async function shiftReminderSegment(): Promise<ShiftReminderSegment | null> {
+    const state = await db.custodyState.findUnique({ where: { key: 'MAIN' }, select: { state: true, activeShiftId: true } })
+    if (!state || (state.state !== 'ACTIVE' && state.state !== 'HANDOVER_PENDING') || !Number.isSafeInteger(state.activeShiftId)) return null
+    const shiftId: number = state.activeShiftId
+    const meta = await db.custodyShiftMeta.findUnique({
+      where: { shiftId }, select: { custodianUserId: true, templateId: true, planId: true, scheduledEndAt: true, scheduleSnapshotJson: true, dayCutoverSnapshot: true, endedAt: true }
+    })
+    if (!meta || meta.endedAt) return null
+    let snapshot: { mode: 'SINGLE_SHIFT' | 'MULTI_SHIFT'; scheduledEndAt: number | null; templateId: string | null } | null = null
+    if (meta.scheduleSnapshotJson) {
+      try {
+        const raw = JSON.parse(String(meta.scheduleSnapshotJson))
+        if (raw && typeof raw === 'object') {
+          const end = raw.scheduledEndAt == null ? null : new Date(String(raw.scheduledEndAt)).getTime()
+          snapshot = { mode: raw.mode === 'SINGLE_SHIFT' ? 'SINGLE_SHIFT' : 'MULTI_SHIFT', scheduledEndAt: end !== null && Number.isFinite(end) ? end : null, templateId: raw.templateId == null ? null : String(raw.templateId) }
+        }
+      } catch { snapshot = null }
+    }
+    const scheduledEndAt = snapshot?.scheduledEndAt ?? (meta.scheduledEndAt ? ms(meta.scheduledEndAt) : null)
+    if (scheduledEndAt === null || !Number.isFinite(scheduledEndAt)) return null
+    const shift = await db.shift.findUnique({ where: { id: shiftId }, select: { name: true, userId: true, closedAt: true } })
+    if (!shift || shift.closedAt) return null
+    const settings = await db.setting.findMany({ where: { key: { in: [SETTING_KEYS.shiftConfig, SETTING_KEYS.custodyConfig] } }, select: { key: true, value: true } })
+    const valueOf = (key: string): unknown => settings.find((row: any) => row.key === key)?.value ?? null
+    const scheduling = parseShiftConfig(valueOf(SETTING_KEYS.shiftConfig))
+    const staffed = scheduling.templates.filter((t) => t.isActive && t.staffIds.length > 0)
+    const mode = snapshot ? snapshot.mode
+      : scheduling.custodyModeConfigured ? scheduling.custodyMode
+        : scheduling.custodyMode === 'MULTI_SHIFT' && staffed.length > 0 ? 'MULTI_SHIFT'
+          : parseCustodyConfig(valueOf(SETTING_KEYS.custodyConfig)).mode
+    let plans: ShiftPlanLite[] = []
+    if (snapshot?.templateId ?? meta.templateId) {
+      plans = staffed.map((t) => {
+        const start = minutesOfTime(t.startTime)
+        return { startMinute: start, durationMinutes: ((minutesOfTime(t.endTime) - start + 1440) % 1440) || 1440, daysMask: t.daysMask }
+      })
+    } else if (meta.planId) {
+      const legacy = await db.shiftPlan.findMany({ where: { isActive: true }, select: { startMinute: true, durationMinutes: true, daysMask: true } })
+      plans = legacy.map((p: any) => ({ startMinute: Number(p.startMinute), durationMinutes: Number(p.durationMinutes), daysMask: Number(p.daysMask) }))
+    }
+    const custodianId = meta.custodianUserId ?? shift.userId ?? null
+    const names = custodianId ? await userNames([custodianId]) : new Map<number, string>()
+    return {
+      shiftId, shiftName: String(shift.name ?? '').slice(0, 60), custodianName: custodianId ? names.get(custodianId) ?? '' : '',
+      scheduledEndAt, dayCutoverMinutes: Number(meta.dayCutoverSnapshot ?? 300), mode, handoverPending: state.state === 'HANDOVER_PENDING', plans
+    }
+  }
+
   async function userNames(ids: number[]): Promise<Map<number, string>> {
     const out = new Map<number, string>()
     for (const part of chunks([...new Set(ids.filter(Boolean))])) {
@@ -484,7 +538,7 @@ export function createMessengerDb(client: Client = defaultPrisma) {
     maxAuditId, auditAnchor, auditPage, maxCustodyEventId, custodyEventPage, maxCustodyCountId, custodyCountPage,
     fetchLookups, officialOffsetHours, cashDifferenceThreshold,
     auditRowsInRange, cashSessionsClosed, openShiftsAt, chequesDue, custodyFollowUp, userNames,
-    botSaleLines, botDebtorNames, botReturnDocs, botCardTransfers, botCustodyNow
+    botSaleLines, botDebtorNames, botReturnDocs, botCardTransfers, botCustodyNow, shiftReminderSegment
   }
 }
 export type MessengerDb = ReturnType<typeof createMessengerDb>

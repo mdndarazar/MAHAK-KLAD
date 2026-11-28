@@ -5,7 +5,8 @@
  *    خراب یا ناخوانا ⇒ پیام‌رسان خاموش می‌ماند و پرونده هرگز بی‌صدا بازنویسی یا از نو ساخته نمی‌شود
  *    (همان الگوی fail-closed در `remoteTransportVault.ts`). کنار گذاشتنش فقط با رمز مدیر است.
  *  - `messenger-outbox/<گیرنده>.json`: صف هر گیرنده و آمار او.
- *  - `messenger-cursor.json`: نشانگر AuditLog و اثر انگشت پایگاه داده، و روز آخرین خلاصه.
+ *  - `messenger-cursor.json`: نشانگر AuditLog و اثر انگشت پایگاه داده، روز آخرین خلاصه، و یادآوری‌های پایان شیفتِ
+ *    فرستاده‌شده (دفتر آزمون ۴-۲۶).
  *  - `messenger-heartbeat.json`: ساعت، هر دقیقه، و این‌که برنامه عادی بسته شد یا نه.
  *
  * چون همه بیرون از پایگاه داده‌اند، بازگردانی یک بکاپ قدیمی گیرندهٔ حذف‌شده را برنمی‌گرداند و اعلان‌ها را
@@ -113,6 +114,8 @@ export interface CursorFile {
   /** بازگردانی، ادغام یا صفر کردنی که آغاز شد و پایانش هنوز ثبت نشده (معماری §۴-۱) */
   pendingBackupAt: number | null
   pendingKind: 'backup' | 'reset' | null
+  /** دفتر آزمون ۴-۲۶ (TL-D8): یادآوری‌های پایان شیفت که فرستاده شدند (`h:<شیفت>` تحویل، `n:<شیفت>` شیفت آخر)؛ ۴۰ تای آخر */
+  reminderKeys: string[]
   /** پس از بازگردانی کامل از راه برنامه: شروع بعدی نشانگر را بی پیام دوباره، از «اکنون» می‌گیرد */
   resetOnStart: boolean
 }
@@ -230,7 +233,9 @@ export function createMessengerStore(dir: string, storage: SafeStorageLike | nul
       summaryDay: typeof raw.summaryDay === 'string' ? raw.summaryDay : null,
       pendingBackupAt: isInt(raw.pendingBackupAt) ? raw.pendingBackupAt : null,
       pendingKind: raw.pendingKind === 'backup' || raw.pendingKind === 'reset' ? raw.pendingKind : null,
-      resetOnStart: raw.resetOnStart === true
+      resetOnStart: raw.resetOnStart === true,
+      // پروندهٔ قدیمی بی این فهرست ⇒ خالی
+      reminderKeys: Array.isArray(raw.reminderKeys) ? raw.reminderKeys.filter((k): k is string => typeof k === 'string' && /^[hn]:\d{1,15}$/.test(k)).slice(-40) : []
     }
   }
   function writeCursor(cursor: CursorFile): void {

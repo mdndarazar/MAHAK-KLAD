@@ -16,7 +16,7 @@ import { faDigits } from '@shared/jalali'
 import { ACCESS_EVENT_KINDS, GATE_METHOD_LABELS, GATE_METHOD_NOTE_PREFIX, type GateMethodKey } from '@shared/gateCatalog'
 import { CHARGE_KINDS, CHARGE_SCOPES, chargeTitle } from '@shared/charges'
 import { invoiceDiscountPercent } from '@shared/accounting'
-import { fmtAt, fmtDuration, num, officialDay, rial, rialOrMissing } from './messengerFormat'
+import { fmtAt, fmtClock, fmtDuration, num, officialDay, rial, rialOrMissing } from './messengerFormat'
 import type { MessengerEvent } from './messengerTypes'
 
 /** فهرست ثابت فیلدهای مجاز برای هر نوع ردیف AuditLog. هر نوعی که اینجا نیست، پیامی نمی‌سازد. */
@@ -158,6 +158,87 @@ export function shiftEndGap(at: number, scheduledEndAt: number | null | undefine
   if (late >= 1) return `${num(late)} دقیقه دیرتر از پایان شیفت`
   if (scheduledEndAt - at <= ON_TIME_WINDOW_MS) return 'به‌موقع'
   return `${num(Math.floor((scheduledEndAt - at) / 60_000))} دقیقه زودتر از پایان شیفت`
+}
+
+/**
+ * ==================== دفتر آزمون ۴-۲۶ — یادآوری پایان شیفت به مدیر ====================
+ * فقط در چندشیفت، فقط آگاهی (هیچ چیزی قفل نمی‌شود و به پول دست نمی‌زند)، هر کدام برای هر بخش صندوق یک بار:
+ *  - «⏰ تحویل شیفت انجام نشده»: ۱۵ دقیقه پس از پایان شیفتی که بعدش شیفت دیگری هست، اگر صندوق هنوز دست همان بخش است؛
+ *  - «🌙 صندوق شیفت آخر هنوز باز است»: ۳۰ دقیقه پس از پایان شیفت آخر روز، اگر صندوق هنوز باز است.
+ * هر دو عدد ثابت‌اند (۴-۸۵). اگر آن لحظه برنامه خاموش بود، با روشن شدن فقط وقتی می‌رود که هنوز صادق باشد، چون همیشه از
+ * وضعیت همان لحظهٔ صندوق ساخته می‌شود. نشانهٔ یک‌بار در `messenger-cursor.json` است (موتور). مبلغ، کد یا تلفن ندارد.
+ */
+export const SHIFT_HANDOVER_REMINDER_MIN = 15
+export const LAST_SHIFT_REMINDER_MIN = 30
+/** یک شیفت تعریف‌شده (قالب تنظیمات شیفت، یا برنامهٔ قدیمی): شروع از نیمه‌شب محلی، طول، و روزهای هفته (بیت `1 << getDay()`) */
+export interface ShiftPlanLite { startMinute: number; durationMinutes: number; daysMask: number }
+/** بخش باز صندوق (`CustodyState` اصلی و `CustodyShiftMeta` آن)؛ فقط همین‌ها خوانده می‌شود. */
+export interface ShiftReminderSegment {
+  shiftId: number
+  shiftName: string
+  custodianName: string
+  /** پایان برنامهٔ ذخیره‌شدهٔ همین بخش (ms) */
+  scheduledEndAt: number
+  /** ساعت شروع روز کاری که هنگام باز شدن بخش ثبت شد (`dayCutoverSnapshot`، دقیقه از نیمه‌شب) */
+  dayCutoverMinutes: number
+  /** حالت ثبت‌شده در عکس برنامهٔ همان بخش */
+  mode: 'SINGLE_SHIFT' | 'MULTI_SHIFT'
+  handoverPending: boolean
+  /** شیفت‌های فعال و دارای کارمندِ همان نوع برنامه */
+  plans: ShiftPlanLite[]
+}
+
+/**
+ * «شیفت آخر روز»: در همان روز کاری (از ساعت شروع روز تا همان ساعت فردا، به وقت محلی، همان‌طور که `CustodyService`
+ * پایان برنامه را می‌سازد) هیچ شیفت فعال دیگری دیرتر از پایان این بخش تمام نمی‌شود.
+ */
+export function isLastShiftOfDay(seg: Pick<ShiftReminderSegment, 'scheduledEndAt' | 'dayCutoverMinutes' | 'plans'>): boolean {
+  const end = seg.scheduledEndAt
+  const cutover = Math.max(0, Math.min(1439, Math.round(Number(seg.dayCutoverMinutes)) || 0))
+  const dayStart = new Date(end - 1)
+  dayStart.setHours(Math.floor(cutover / 60), cutover % 60, 0, 0)
+  if (dayStart.getTime() > end - 1) dayStart.setDate(dayStart.getDate() - 1)
+  const dayEnd = new Date(dayStart)
+  dayEnd.setDate(dayEnd.getDate() + 1)
+  for (const plan of seg.plans) {
+    const startMinute = Math.round(Number(plan.startMinute))
+    const duration = Math.round(Number(plan.durationMinutes))
+    if (!Number.isFinite(startMinute) || !(duration > 0)) continue
+    for (const offset of [0, 1]) {
+      const start = new Date(dayStart)
+      start.setDate(start.getDate() + offset)
+      start.setHours(Math.floor(startMinute / 60), startMinute % 60, 0, 0)
+      if (start.getTime() < dayStart.getTime() || start.getTime() >= dayEnd.getTime()) continue
+      if ((Number(plan.daysMask) & (1 << start.getDay())) === 0) continue
+      if (start.getTime() + duration * 60_000 > end + 60_000) return false
+    }
+  }
+  return true
+}
+
+/** یادآوری‌ای که الان باید برود، یا null. `key` همان نشانهٔ یک‌بار است. */
+export function shiftEndReminder(seg: ShiftReminderSegment | null, now: number, sent: ReadonlySet<string>, offsetHours: number): { key: string; event: MessengerEvent } | null {
+  if (!seg || seg.mode !== 'MULTI_SHIFT' || !Number.isSafeInteger(seg.shiftId) || !Number.isFinite(seg.scheduledEndAt)) return null
+  const last = isLastShiftOfDay(seg)
+  const key = `${last ? 'n' : 'h'}:${seg.shiftId}`
+  const minutes = minutesAfterShiftEnd(now, seg.scheduledEndAt)
+  if (sent.has(key) || minutes < (last ? LAST_SHIFT_REMINDER_MIN : SHIFT_HANDOVER_REMINDER_MIN)) return null
+  const shiftName = seg.shiftName ? `«${seg.shiftName}»` : 'شیفت'
+  const plannedEnd = `پایان برنامه: ساعت ${fmtClock(seg.scheduledEndAt, offsetHours)}`
+  const title = last ? '🌙 صندوق شیفت آخر هنوز باز است' : `⏰ تحویل شیفت انجام نشده · ${shiftName}`
+  const lines = [
+    last ? `${num(minutes)} دقیقه از پایان ${shiftName} گذشته (${plannedEnd})` : `${num(minutes)} دقیقه از پایان شیفت گذشته (${plannedEnd})`,
+    `مسئول صندوق: ${seg.custodianName || 'نامشخص'}`,
+    seg.handoverPending ? 'تحویل شروع شده ولی هنوز پذیرفته نشده است.' : ''
+  ]
+  return {
+    key,
+    event: {
+      code: `R-${seg.shiftId}-${last ? LAST_SHIFT_REMINDER_MIN : SHIFT_HANDOVER_REMINDER_MIN}`, at: now,
+      title: `${title} · ${fmtAt(now, offsetHours)}`, lines: lines.filter(Boolean),
+      important: false, handover: true, system: false, day: officialDay(now, offsetHours)
+    }
+  }
 }
 
 export interface IdsNeeded {

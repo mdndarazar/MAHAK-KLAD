@@ -13,7 +13,7 @@ import { jalaliAddDays } from '@shared/jalali'
 import { readDatabaseHeader } from '../databaseFingerprint'
 import { createBotApi, type ApiResult, type BotApi, type FetchLike } from './messengerAdapters'
 import { auditAnchorHash, type MessengerDb } from './messengerDb'
-import { auditPageToEvents, collectAuditIds, custodyCountToEvents, custodyEventToEvents, type AuditRowLite } from './messengerEvents'
+import { auditPageToEvents, collectAuditIds, custodyCountToEvents, custodyEventToEvents, shiftEndReminder, type AuditRowLite } from './messengerEvents'
 import { fmtAt, fmtClock, num, officialDay, packItems, renderItem, scrubText, splitText } from './messengerFormat'
 import type { SummaryDeps } from './messengerSummary'
 import { createTodaySummary, type TodaySummary } from '../todaySummary'
@@ -260,7 +260,8 @@ export function createMessengerEngine(deps: EngineDeps) {
       version: 1, auditId, auditHash: anchor ? auditAnchorHash(anchor) : '', counter: readCounter(),
       custodyEventId: await deps.db.maxCustodyEventId(), custodyCountId: await deps.db.maxCustodyCountId(),
       closeShiftIds: [], summaryDay: prev?.summaryDay ?? jalaliAddDays(officialDay(now(), offset), -1),
-      pendingBackupAt: null, pendingKind: null, resetOnStart: false
+      // پایگاهِ تازه یا عوض‌شده: شناسهٔ شیفت‌ها ممکن است دوباره به کار رود، پس فهرست از نو
+      pendingBackupAt: null, pendingKind: null, resetOnStart: false, reminderKeys: []
     }
   }
   /** بازگردانی یا جایگزینی پایگاه داده: ردیف نشانگر نیست یا عوض شده، یا شمارندهٔ سرآیند کم شده است. */
@@ -460,6 +461,19 @@ export function createMessengerEngine(deps: EngineDeps) {
     await apply()
   }
 
+  /**
+   * دفتر آزمون ۴-۲۶: یادآوری‌های ۱۵ و ۳۰ دقیقه پس از پایان شیفت، از همان زمان‌سنج دقیقه‌ای (کنار `messenger-heartbeat.json`)،
+   * بی نوشتن در پایگاه داده. نشانهٔ یک‌بار پس از گذاشتن در صف در `messenger-cursor.json` نوشته می‌شود (TL-D8).
+   */
+  async function shiftReminders(t: number): Promise<void> {
+    if (!settings || !cursor || cursor.pendingBackupAt) return
+    const reminder = shiftEndReminder(await deps.db.shiftReminderSegment(), t, new Set(cursor.reminderKeys ?? []), await offsetHours())
+    if (!reminder) return
+    enqueueMany([reminder.event])
+    cursor.reminderKeys = [...(cursor.reminderKeys ?? []).filter((k) => k !== reminder.key), reminder.key].slice(-40)
+    store.writeCursor(cursor)
+  }
+
   // ------------------------------------------------------------------ حلقه
   async function tick(): Promise<void> {
     if (!running) return
@@ -467,7 +481,11 @@ export function createMessengerEngine(deps: EngineDeps) {
       const t = now()
       if (t - lastReadAt >= READ_GAP_MS) { lastReadAt = t; await readEvents(); lastError = null }
       await maybeSummary()
-      if (t - lastHeartbeatAt >= HEARTBEAT_MS) { lastHeartbeatAt = t; store.writeHeartbeat({ version: 1, at: t, clean: false }) }
+      if (t - lastHeartbeatAt >= HEARTBEAT_MS) {
+        lastHeartbeatAt = t
+        try { await shiftReminders(t) } catch (error) { log('shift reminder failed', error) }
+        store.writeHeartbeat({ version: 1, at: t, clean: false })
+      }
       await deliverAll()
       await bot.tick()
     } catch (error) {
