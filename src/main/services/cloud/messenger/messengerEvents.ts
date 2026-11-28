@@ -80,7 +80,8 @@ export interface CustodyCountLite { id: number; kind: string; shiftId: number | 
 
 export interface LookupData {
   users: Map<number, string>
-  shifts: Map<number, { name: string; number: number }>
+  /** دفتر آزمون ۴-۱۹: `userId` همان مسئول صندوقِ نشست (کاربر نشست) است. */
+  shifts: Map<number, { name: string; number: number; userId?: number | null }>
   invoices: Map<number, { receiptNo: number; customerId: number | null }>
   customers: Map<number, string>
   payments: Map<number, { invoiceId: number; amount: number }>
@@ -597,6 +598,13 @@ function custodyPayload(ev: Pick<CustodyEventLite, 'payloadJson'>): Record<strin
 export function custodyBoundaryId(ev: Pick<CustodyEventLite, 'type' | 'payloadJson'>): number | null {
   return ev.type === 'FINAL_AGGREGATE_CLOSE' ? intId(custodyPayload(ev).aggregateBoundaryId) : null
 }
+/** دفتر آزمون ۴-۱۹ — مسئول صندوقِ بایگانی‌شده (فقط شناسه؛ «دلیل» متن آزاد است و خوانده نمی‌شود). */
+export function custodyTargetUserId(ev: Pick<CustodyEventLite, 'type' | 'payloadJson'>): number | null {
+  return ev.type === 'CUSTODIAN_ARCHIVED_UNRESOLVED' ? intId(custodyPayload(ev).targetUserId) : null
+}
+/** دفتر آزمون ۴-۱۹ — بستنی که بیش از این پس از زمان ثبت‌شده‌اش انجام شد، با روشن شدن برنامه انجام شده است
+ *  (وقتی برنامه باز است، وضعیت صندوق هر ۳۰ تا ۶۰ ثانیه خوانده و بستن همان لحظه انجام می‌شود). */
+const LATE_ROLLOVER_MS = 10 * 60_000
 const NOT_MEASURED = 'سنجیده نشد؛ این نشست بی شمارش جمع کشو و کارت‌خوان شروع شده بود، پس مرجعی برای سنجش نبود'
 /**
  * عددهای بستن نهایی تجمیعی، عیناً از مرز ثبت‌شده (طرح §۲۱ بند ۴: سند تکمیل‌شده پیام کامل دارد).
@@ -635,6 +643,7 @@ export function custodyEventToEvents(ev: CustodyEventLite, ctx: EventContext): M
   }]
   const handover = ev.handoverId ? ctx.data.handovers.get(ev.handoverId) : undefined
   const shift = ev.shiftId ? ctx.data.shifts.get(ev.shiftId)?.name : undefined
+  const custodianOf = (): number | null => (ev.shiftId ? ctx.data.shifts.get(ev.shiftId)?.userId ?? null : null)
   switch (ev.type) {
     case 'OPEN': return make('🔓 افتتاح صندوق (حضانت)', [`مسئول صندوق: ${who(ev.actorUserId)}`, shift ? `شیفت: ${shift}` : ''])
     case 'HANDOVER_START': return make('⏳ تحویل صندوق شروع شد', [`تحویل‌دهنده: ${who(handover?.fromUserId ?? ev.actorUserId)}`, 'منتظر شمارش تحویل‌گیرنده'])
@@ -658,8 +667,18 @@ export function custodyEventToEvents(ev: CustodyEventLite, ctx: EventContext): M
     case 'MASTER_OVERRIDE_FREEZE': return make('🛡️ Master Override شروع شد', [`کاربر: ${who(ev.actorUserId)}`])
     case 'MASTER_OVERRIDE_COMPLETED': return make('🛡️ Master Override انجام شد', [`مدیر: ${who(ev.managerUserId ?? ev.actorUserId)}`, ...coverLines(payload)], { important: true })
     case 'MASTER_OVERRIDE_ABORTED': return make('🛡️ Master Override نیمه‌کاره ماند', [`کاربر: ${who(ev.actorUserId)}`], { important: true })
-    case 'ROLLOVER_UNRESOLVED': return make('⚠️ صندوق بسته نشد و به روز بعد رفت', [shift ? `شیفت: ${shift}` : '', `کاربر: ${who(ev.actorUserId)}`], { important: true })
-    case 'CUSTODIAN_ARCHIVED_UNRESOLVED': return make('⚠️ مسئول صندوق بایگانی شد و صندوقش بسته نشده است', [shift ? `شیفت: ${shift}` : ''], { important: true })
+    case 'ROLLOVER_UNRESOLVED': {
+      // دفتر آزمون ۴-۱۹ — مسئول همان کسی است که صندوق دستش بود (کاربر نشست)؛ زمان بستن همان که برنامه ثبت کرد.
+      const effectiveAt = typeof payload.effectiveAt === 'string' ? Date.parse(payload.effectiveAt) : NaN
+      return make('⚠️ صندوق بسته نشد و به روز بعد رفت', [
+        shift ? `شیفت: ${shift}` : '',
+        `مسئول صندوق: ${who(custodianOf())}`,
+        Number.isFinite(effectiveAt) ? `زمان بستن خودکار: ${fmtAt(effectiveAt, ctx.offsetHours)}` : '',
+        Number.isFinite(effectiveAt) && at - effectiveAt > LATE_ROLLOVER_MS ? 'برنامه در آن ساعت خاموش بود؛ بستن با روشن شدن انجام شد' : ''
+      ], { important: true })
+    }
+    case 'CUSTODIAN_ARCHIVED_UNRESOLVED':
+      return make('⚠️ مسئول صندوق بایگانی شد و صندوقش بسته نشده است', [shift ? `شیفت: ${shift}` : '', `مسئول صندوق: ${who(custodyTargetUserId(ev) ?? custodianOf())}`], { important: true })
     case 'FINAL_AGGREGATE_CLOSE': {
       const boundaryId = intId(payload.aggregateBoundaryId)
       const { lines, diff } = aggregateCloseLines(boundaryId ? ctx.data.boundaries?.get(boundaryId) : undefined, payload)

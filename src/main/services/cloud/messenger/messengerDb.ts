@@ -7,7 +7,7 @@
 import { createHash } from 'node:crypto'
 import { prisma as defaultPrisma } from '../../../db/client'
 import { SETTING_KEYS, parseAccountingPolicy, parseOfficialTimeConfig } from '@shared/receipt'
-import { custodyBoundaryId, type AuditRowLite, type CustodyCountLite, type CustodyEventLite, type IdsNeeded, type LookupData } from './messengerEvents'
+import { custodyBoundaryId, custodyTargetUserId, type AuditRowLite, type CustodyCountLite, type CustodyEventLite, type IdsNeeded, type LookupData } from './messengerEvents'
 import { emptyLookups } from './messengerEvents'
 
 type Client = typeof defaultPrisma
@@ -75,6 +75,8 @@ export function createMessengerDb(client: Client = defaultPrisma) {
       if (ev.handoverId) handovers.add(ev.handoverId)
       const boundaryId = custodyBoundaryId(ev)
       if (boundaryId) boundaries.add(boundaryId)
+      const target = custodyTargetUserId(ev) // دفتر آزمون ۴-۱۹
+      if (target) users.add(target)
     }
     for (const c of custody?.counts ?? []) if (c.countedByUserId) users.add(c.countedByUserId)
 
@@ -149,8 +151,12 @@ export function createMessengerDb(client: Client = defaultPrisma) {
       for (const c of rows) data.customers.set(c.id, String(c.name ?? '').slice(0, 80))
     }
     for (const part of chunks([...shifts])) {
-      const rows = await db.shift.findMany({ where: { id: { in: part } }, select: { id: true, name: true, number: true } })
-      for (const s of rows) data.shifts.set(s.id, { name: String(s.name ?? '').slice(0, 60), number: s.number })
+      // دفتر آزمون ۴-۱۹: کاربر نشست همان مسئول صندوق است (نامش در پیام «صندوق بسته نشد»)
+      const rows = await db.shift.findMany({ where: { id: { in: part } }, select: { id: true, name: true, number: true, userId: true } })
+      for (const s of rows) {
+        data.shifts.set(s.id, { name: String(s.name ?? '').slice(0, 60), number: s.number, userId: s.userId ?? null })
+        if (s.userId) users.add(s.userId)
+      }
     }
     for (const part of chunks([...users])) {
       const rows = await db.user.findMany({ where: { id: { in: part } }, select: { id: true, displayName: true, username: true } })
