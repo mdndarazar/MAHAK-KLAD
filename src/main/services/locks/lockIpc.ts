@@ -6,10 +6,12 @@
  *     می‌خواهد، با ردیف `ACCESS_EVENT` و خبر پیام‌رسان (§۳-۱۳)؛ دفتر آزمون ۴-۳۱: «حداکثر دفعات هر مجوز» و فهرست
  *     «قابل تکرار» از همین دو کانال، و مجوزهای چندبارهٔ باز در پاسخ `get`؛
  *   - مرحلهٔ ۶ (§۳-۱۵): `locks:redeemCode` (مصرف کد یک‌بارمصرف، بی رمز) و ساخت، باطل کردن و برداشتن قفل کدها
- *     (کلیدسازی، رمز تایپی مدیر)؛ دفتر آزمون ۴-۴۵: یک دستهٔ ۵ کدی (فیلد `section` ورودی دیگر خوانده نمی‌شود)؛ §۳-۱۶: فهرست، ساخت و لغو مجوز زمان‌بندی‌شده (کلیدسازی، رمز تایپی مدیر).
+ *     (کلیدسازی، رمز تایپی مدیر)؛ دفتر آزمون ۴-۴۵: یک دستهٔ ۵ کدی (فیلد `section` ورودی دیگر خوانده نمی‌شود)؛ ۴-۱۲: کدهای
+ *     تازه فقط در حافظه به فرستادن درجای پیام‌رسان می‌روند (`setOneTimeCodesSender`)؛ §۳-۱۶: فهرست، ساخت و لغو مجوز زمان‌بندی‌شده (کلیدسازی، رمز تایپی مدیر).
  * رمز تایپی یعنی `assertManagerPassword` بیرون از قاب دروازه: نه نشست مدیر، نه نشانگر، نه کد و نه مجوز.
  */
 import { BusinessError } from '../../errors'
+import type { OneTimeCodesSent } from '../cloud/messenger/messengerTypes'
 import { GATE_IRREVERSIBLE_ACTIONS, gateEntry } from '../../../shared/gateCatalog'
 import { assertManagerPassword, secretEqualsAnyPassword } from '../AuthService'
 import { revokeAll } from '../RemoteGrantRegistry'
@@ -111,8 +113,16 @@ export function codesStatus() {
   return { ...oneTimeCodesStatus(), sensitiveCodeMinutes: durations.sensitiveCodeMinutes, otherCodeMinutes: durations.otherCodeMinutes }
 }
 
+type CodesSent = OneTimeCodesSent
+type CodesSender = (codes: ReadonlyArray<{ n: number; code: string }>) => Promise<CodesSent>
+let codesSender: CodesSender | null = null
+/** پیام‌رسان هنگام ثبت کانال‌هایش این را می‌گذارد؛ null ⇐ هیچ فرستادنی (مثل آزمون‌ها). */
+export function setOneTimeCodesSender(fn: CodesSender | null): void {
+  codesSender = typeof fn === 'function' ? fn : null
+}
+
 /** «ساخت ۵ کد تازه» (همهٔ کدهای قبلی باطل)؛ پیش‌فرض تصادفی، یا «خودم می‌نویسم». کدهای خام فقط همین یک بار برمی‌گردند. */
-export async function createCodes(input: Record<string, unknown>): Promise<{ codes: Array<{ n: number; code: string }> }> {
+export async function createCodes(input: Record<string, unknown>): Promise<{ codes: Array<{ n: number; code: string }>; sent: CodesSent }> {
   const mode = input.mode === 'own' ? 'own' : 'random'
   let codes: string[]
   try { codes = prepareOneTimeCodes(mode, input.codes) } catch (error) { return asBusiness(error) }
@@ -125,7 +135,10 @@ export async function createCodes(input: Record<string, unknown>): Promise<{ cod
   let made: Array<{ n: number; code: string }>
   try { made = commitOneTimeCodes(codes) } catch (error) { return asBusiness(error) }
   noteAccessEvent('CODES_CREATED', { count: made.length })
-  return { codes: made }
+  // ۴-۱۲: یک بار و درجا به گیرنده‌های تیک‌دار؛ شکست فرستادن ساخت کد را برنمی‌گرداند و کد جایی نوشته نمی‌شود
+  let sent: CodesSent = { delivered: 0, failed: [] }
+  if (codesSender) { try { sent = await codesSender(made) } catch {} }
+  return { codes: made, sent }
 }
 
 /** «باطل کردن کدها»: همه. */

@@ -56,7 +56,12 @@ export interface MessengerRecipient {
   canApprove: boolean
   /** دفتر آزمون ۴-۳۳: اجازهٔ دیدن گزارش‌ها با ربات، جدا از اجازهٔ تأیید؛ پیش‌فرض خاموش (کلید ناموجود = خاموش) */
   canViewReports: boolean
+  /** دفتر آزمون ۴-۱۲: «دریافت کدهای یک‌بارمصرف»: پنج کد تازه، درجا و بی صف؛ پیش‌فرض خاموش (کلید ناموجود = خاموش) */
+  receiveCodes: boolean
 }
+
+/** دفتر آزمون ۴-۱۲: نتیجهٔ فرستادن درجای کدهای تازه (برای صفحهٔ کدها؛ بی خود کدها) */
+export interface OneTimeCodesSent { delivered: number; failed: Array<{ provider: string; name: string; uncertain: boolean }> }
 
 export interface MessengerBot {
   /** کلید ربات؛ فقط در گاوصندوق رمزشده. هرگز در لاگ، پیام، IPC یا صفحه نمی‌آید. */
@@ -194,7 +199,8 @@ function validRecipient(v: unknown): v is MessengerRecipient {
     RECIPIENT_MODES.includes(r.mode as RecipientMode) &&
     typeof r.active === 'boolean' && (r.inactiveReason === null || typeof r.inactiveReason === 'string') &&
     Number.isSafeInteger(r.addedAt) && typeof r.canApprove === 'boolean' &&
-    (r.canViewReports === undefined || typeof r.canViewReports === 'boolean')
+    (r.canViewReports === undefined || typeof r.canViewReports === 'boolean') &&
+    (r.receiveCodes === undefined || typeof r.receiveCodes === 'boolean')
 }
 function validBot(v: unknown, provider: MessengerProvider): v is MessengerBot {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return false
@@ -222,7 +228,7 @@ export function parseMessengerSettings(raw: unknown): MessengerSettings | null {
   for (const r of s.recipients) {
     if (!validRecipient(r) || ids.has(r.id)) return null
     ids.add(r.id)
-    out.recipients.push({ id: r.id, provider: r.provider, chatId: r.chatId, name: r.name, mode: r.mode, active: r.active, inactiveReason: r.inactiveReason, addedAt: r.addedAt, canApprove: r.canApprove, canViewReports: r.canViewReports === true })
+    out.recipients.push({ id: r.id, provider: r.provider, chatId: r.chatId, name: r.name, mode: r.mode, active: r.active, inactiveReason: r.inactiveReason, addedAt: r.addedAt, canApprove: r.canApprove, canViewReports: r.canViewReports === true, receiveCodes: r.receiveCodes === true })
   }
   return out
 }

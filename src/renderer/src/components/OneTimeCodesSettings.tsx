@@ -19,7 +19,7 @@ import { KindHelpList } from './RemoteGrantControls'
  */
 type CodesState = { total: number; remaining: number; createdAt: number; groups: number } | null
 type Status = { broken: boolean; lockedMs: number; codes: CodesState; sensitiveCodeMinutes: number; otherCodeMinutes: number }
-type Created = { codes: Array<{ n: number; code: string }> }
+type Created = { codes: Array<{ n: number; code: string }>; sent?: { delivered: number; failed: Array<{ provider: string; name: string; uncertain: boolean }> } }
 
 function printCodes(created: Created): void {
   const rows = created.codes.map((c) => `<tr><td>${c.n}</td><td dir="ltr" style="unicode-bidi:isolate;font-size:20px;letter-spacing:3px">${c.code}</td><td>☐</td></tr>`).join('')
@@ -171,6 +171,18 @@ export default function OneTimeCodesSettings() {
       {created && (
         <div className="rounded border-2 border-amber-400 bg-amber-50 p-3 space-y-2">
           <div className="font-bold">کدهای یک‌بارمصرف — فقط همین یک بار دیده می‌شوند</div>
+          {/* دفتر آزمون ۴-۱۲: نتیجهٔ فرستادن درجا به گیرنده‌های تیک‌دار؛ ناموفق دوباره فرستاده نمی‌شود */}
+          {created.sent && created.sent.delivered > 0 && (
+            <div className="text-emerald-800">کدها همین حالا به {faDigits(created.sent.delivered)} گیرندهٔ تیک‌دار در تلگرام و بله فرستاده شد.</div>
+          )}
+          {created.sent?.failed.map((f, i) => (
+            <div key={i} className="text-rose-700 font-bold">
+              {f.uncertain ? `معلوم نشد به ${f.provider} رسید یا نه (${f.name})` : `به ${f.provider} نرسید (${f.name})`}؛ دوباره فرستاده نمی‌شود. کدها را از همین صفحه یادداشت کنید.
+            </div>
+          ))}
+          {created.sent && created.sent.delivered === 0 && created.sent.failed.length === 0 && (
+            <div className="kbd">برای این‌که کدهای تازه به تلگرام و بله هم بیاید، در «پیام‌رسان ← گیرنده‌ها» تیک «دریافت کدهای یک‌بارمصرف» را بزنید.</div>
+          )}
           <ol className="space-y-1">
             {created.codes.map((c) => (
               <li key={c.n}>شمارهٔ {faDigits(c.n)}: <b dir="ltr" style={{ unicodeBidi: 'isolate' }} className="text-lg tracking-widest">{c.code}</b></li>

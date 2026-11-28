@@ -24,7 +24,7 @@ import {
   BACKOFF_MAX_MS, BACKOFF_MIN_MS, HEARTBEAT_MS, OUTBOX_MAX, PAIRING_TTL_MS, PROVIDER_INFO, QUEUE_TTL_MS, READ_GAP_MS, READ_PAGE,
   READ_PAGES_PER_PASS, RECIPIENT_MODE_LABELS, RECIPIENT_MODE_TRUST, defaultMessengerSettings, emptyStats, eventForMode, newPairCode,
   newRecipientId, normalizeProxy, validBotToken, type MessengerEvent, type MessengerProvider, type MessengerRecipient,
-  type MessengerSettings, type OutboxItem, type RecipientMode
+  type MessengerSettings, type OneTimeCodesSent, type OutboxItem, type RecipientMode
 } from './messengerTypes'
 import { createMessengerStore, secureStorageAvailable, type CursorFile, type OutboxFile, type SafeStorageLike, type VaultRead } from './messengerVault'
 
@@ -618,7 +618,7 @@ export function createMessengerEngine(deps: EngineDeps) {
           modeLabel: RECIPIENT_MODE_LABELS[r.mode], trust: RECIPIENT_MODE_TRUST[r.mode], active: r.active, inactiveReason: r.inactiveReason,
           queued: box.items.length, expiredTotal: box.stats.expiredTotal, failedTotal: box.stats.failedTotal,
           lastSuccessAt: box.stats.lastSuccessAt, lastError: box.stats.lastError, canApprove: r.canApprove,
-          canViewReports: r.canViewReports === true
+          canViewReports: r.canViewReports === true, receiveCodes: r.receiveCodes === true
         }
       }),
       pairing: pairing ? {
@@ -775,6 +775,44 @@ export function createMessengerEngine(deps: EngineDeps) {
         persist(next)
       })
     }),
+    /** دفتر آزمون ۴-۱۲: تیک «دریافت کدهای یک‌بارمصرف» برای یک گیرنده (پیش‌فرض خاموش؛ همان رمز مدیر و همان خبر ۴-۳۳). */
+    setRecipientCodes: (id: string, receiveCodes: boolean) => exclusive(async () => {
+      const next = editable()
+      const r = next.recipients.find((x) => x.id === id)
+      if (!r) fail('NOT_FOUND')
+      if ((r!.receiveCodes === true) === receiveCodes) return
+      await announceThenApply(receiveCodes ? '🔑 دریافت کدهای یک‌بارمصرف برای یک گیرنده روشن شد' : '🔑 دریافت کدهای یک‌بارمصرف برای یک گیرنده خاموش شد', [`گیرنده: ${r!.name} (${PROVIDER_INFO[r!.provider].label})`], () => {
+        r!.receiveCodes = receiveCodes
+        persist(next)
+      })
+    }),
+    /** دفتر آزمون ۴-۱۲: پنج کد تازه، یک بار و درجا (مثل «🧪 پیام آزمایشی») به گیرنده‌های فعالِ تیک‌دار، وقتی پیام‌رسان روشن است.
+     *  نه صف، نه پرونده (حتی آمار صف)، نه سابقه و نه رویداد؛ هر گیرنده حداکثر ۱۰ ثانیه؛ هرگز خطا نمی‌دهد. */
+    sendOneTimeCodes: async (codes: ReadonlyArray<{ n: number; code: string }>): Promise<OneTimeCodesSent> => {
+      const out: OneTimeCodesSent = { delivered: 0, failed: [] }
+      try {
+        const targets = settings?.enabled ? settings.recipients.filter((r) => r.active && r.receiveCodes === true) : []
+        if (!targets.length || !codes.length) return out
+        const ev = systemEvent('🔑 کدهای یک‌بارمصرف تازه', [
+          ...codes.map((c) => `${num(c.n)}) ${c.code}`),
+          'هر کد روی همهٔ ماژول‌ها و قفل‌های کار یک بار کار می‌کند، جز «کلیدسازی».',
+          'این پیام را به کسی نشان ندهید و برای کسی نفرستید.'
+        ], {}, await offsetHours())
+        const text = scrubText(renderItem({ ...ev, maybeDup: false, sale: false, day: null }, now()), secrets())
+        await Promise.all(targets.map(async (r) => {
+          const api = botApi(r.provider)
+          let timer: ReturnType<typeof setTimeout> | undefined
+          const result = api ? await Promise.race([
+            api.sendMessage(r.chatId, text).catch(() => null),
+            new Promise<'late'>((resolve) => { timer = setTimeout(() => resolve('late'), 10_000) })
+          ]) : null
+          if (timer) clearTimeout(timer)
+          if (result && result !== 'late' && result.kind === 'ok') out.delivered++
+          else out.failed.push({ provider: PROVIDER_INFO[r.provider].label, name: r.name, uncertain: result === 'late' || result?.kind === 'uncertain' })
+        }))
+      } catch { log('one-time codes send failed') } // بی جزئیات خطا: متن پیام کد دارد
+      return out
+    },
     /** فقط آزمون: یک بار خواندن دکمه‌ها (long polling با مهلت کوتاه). */
     botPollOnce: (provider: MessengerProvider, timeoutSec?: number) => bot.pollOnce(provider, timeoutSec),
     pairStart: (provider: MessengerProvider) => exclusive(async () => {
@@ -807,7 +845,7 @@ export function createMessengerEngine(deps: EngineDeps) {
       if (next.recipients.length >= 20) fail('LIMIT')
       const recipient: MessengerRecipient = {
         id: newRecipientId(), provider: p!.provider, chatId: p!.candidate!.chatId, name: p!.candidate!.name, mode,
-        active: true, inactiveReason: null, addedAt: now(), canApprove: false, canViewReports: false
+        active: true, inactiveReason: null, addedAt: now(), canApprove: false, canViewReports: false, receiveCodes: false
       }
       await announceThenApply('➕ گیرندهٔ تازه افزوده شد', [`گیرنده: ${recipient.name} (${PROVIDER_INFO[recipient.provider].label})`, `گزینه: ${RECIPIENT_MODE_LABELS[mode]}`], () => {
         next.recipients.push(recipient)

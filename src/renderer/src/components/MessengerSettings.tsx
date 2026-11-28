@@ -19,6 +19,8 @@ interface RecipientView {
   canApprove: boolean
   /** دفتر آزمون ۴-۳۳: «می‌تواند گزارش‌ها را ببیند» (پیش‌فرض خاموش؛ جدا از اجازهٔ تأیید) */
   canViewReports?: boolean
+  /** دفتر آزمون ۴-۱۲: «دریافت کدهای یک‌بارمصرف» (پیش‌فرض خاموش) */
+  receiveCodes?: boolean
 }
 interface MessengerStatus {
   secureStorage: boolean
@@ -196,6 +198,11 @@ export default function MessengerSettings() {
                 می‌تواند گزارش‌ها را با ربات ببیند (فروش، برگشت، تعویض، نسیه، کارت به کارت مدیر، صندوق و «وضعیت الان»؛ با «/» یا «منو»، وقتی «پاسخ ربات به دکمه‌ها» روشن است)
               </label>
             )}
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={r.receiveCodes === true} disabled={busy || needPassword}
+                onChange={(e) => void run(CH.messengerRecipientUpdate, { id: r.id, receiveCodes: e.target.checked }, e.target.checked ? 'این گیرنده از این پس کدهای یک‌بارمصرف تازه را می‌گیرد.' : 'دریافت کدهای یک‌بارمصرف برای این گیرنده خاموش شد.')} />
+              <span>دریافت کدهای یک‌بارمصرف <span className="text-rose-700">(هر بار «ساخت ۵ کد تازه»، خود کدها همان لحظه به این گفت‌وگو می‌آید؛ فقط برای گفت‌وگوی خودتان روشن کنید)</span></span>
+            </label>
             <div className="kbd">در صف: {faDigits(r.queued)} · منقضی‌شده: {faDigits(r.expiredTotal)} · ناموفق: {faDigits(r.failedTotal)} · آخرین ارسال موفق: {when(r.lastSuccessAt)}</div>
             {r.lastError && <div className="kbd">آخرین خطا: {r.lastError}</div>}
             <div className="flex gap-2">

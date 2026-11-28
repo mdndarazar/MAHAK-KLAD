@@ -13,6 +13,7 @@ import { IPC } from '@shared/ipc'
 import { isLocalAppFrame } from '../../../ipc/remoteAuth'
 import { MessengerError } from './messengerEngine'
 import { installMessengerHooks, messengerEngine, startMessengerAtLaunch } from './messengerRuntime'
+import { setOneTimeCodesSender } from '../../locks/lockIpc'
 import { RECIPIENT_MODES, type MessengerProvider, type RecipientMode } from './messengerTypes'
 
 type Failure = { ok: false; error: string; code: string }
@@ -79,6 +80,8 @@ function handle(channel: string, action: string | null, run: (input: Record<stri
 export function registerMessengerHandlers(): void {
   if (registered) return
   registered = true
+  // دفتر آزمون ۴-۱۲: «ساخت ۵ کد تازه» کدها را فقط در حافظه به فرستادن درجای پیام‌رسان می‌دهد
+  setOneTimeCodesSender((codes) => messengerEngine().sendOneTimeCodes(codes))
   const ACTION = 'تنظیمات پیام‌رسان (تلگرام و بله)'
   handle(IPC.messengerStatus, null, async () => undefined)
   handle(IPC.messengerSaveBot, ACTION, async (input) => {
@@ -119,6 +122,12 @@ export function registerMessengerHandlers(): void {
     if (typeof input.canViewReports === 'boolean' && input.mode === undefined) {
       if (typeof input.id !== 'string') throw new MessengerError('INVALID', 'ورودی نامعتبر است.')
       await messengerEngine().setRecipientReports(input.id, input.canViewReports)
+      return
+    }
+    // دفتر آزمون ۴-۱۲: تیک «دریافت کدهای یک‌بارمصرف» از همین کانال (همان رمز مدیر)
+    if (typeof input.receiveCodes === 'boolean' && input.mode === undefined) {
+      if (typeof input.id !== 'string') throw new MessengerError('INVALID', 'ورودی نامعتبر است.')
+      await messengerEngine().setRecipientCodes(input.id, input.receiveCodes)
       return
     }
     const m = mode(input.mode)
