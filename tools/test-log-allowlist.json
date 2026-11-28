@@ -128,7 +128,9 @@
     "src/main/services/cloud/mobileReadOnlyHub.ts": null,
     "src/renderer/src/components/CardTransferPanel.tsx": null,
     "src/renderer/src/components/cash/FinancialInspector.tsx": null,
-    "src/shared/jalali.ts": null
+    "src/shared/jalali.ts": null,
+    "tests/plan-1405/golden-financial-baseline.txt": 2,
+    "tests/audit-fixes/golden/bridge-baseline-s318.json": 8
    }
   },
   "2": {
@@ -359,6 +361,8 @@
  "_notes": {
   "mobileReadOnlyHub.ts (batch 1)": "4-10: today for the phone date boxes comes from the server (architecture §5 / T-16); the hub file was missing from the batch-1 list (TL-D2).",
   "CardTransferPanel.tsx, cash/FinancialInspector.tsx (batch 1)": "4-67: the owner test says no English word in any sales-reports tab; these two panels of the same page still showed \"AuditLog\" and \"snapshot\" (text only, TL-D3).",
-  "jalali.ts (batch 1)": "4-134: the architecture names @shared/jalali for the small date-and-time display function; addition only (TL-D4)."
+  "jalali.ts (batch 1)": "4-134: the architecture names @shared/jalali for the small date-and-time display function; addition only (TL-D4).",
+  "golden-financial-baseline.txt, bridge-baseline-s318.json (batch 1)": "Owner permission 2026-11-28 (TL-D5): line 123 of the golden baseline (4-108, date digits only) and the two text hashes of the bridge baseline regenerated with the documented _regen-bridge-golden-s318.mjs (4-67; equation hash and bridge numbers unchanged).",
+  "plan1405-messenger-units.mjs line 46 (batch 2)": "Owner permission 2026-11-28 (TL-D5): line 46 accepts the second fixed-start reader of the audit note added by 4-142; the file was already listed for 4-35."
  }
 }

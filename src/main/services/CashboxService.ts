@@ -720,7 +720,7 @@ export const cashboxService = {
     if (priorClose && !input.allowRepeatClose)
       throw new BusinessError(
         `این ${shift ? 'نشست' : 'بازه'} قبلاً در ${
-          priorClose.closedAt ? toJalaliDate(priorClose.closedAt) : toJalaliDate(priorClose.createdAt)
+          faDigits(priorClose.closedAt ? toJalaliDate(priorClose.closedAt) : toJalaliDate(priorClose.createdAt))
         } بسته/تجمیع شده است. اگر مطمئن هستید، بستن دوباره را تأیید کنید؛ اثر خالص نقد و انبار دوباره اعمال نمی‌شود.`
       )
     const filter: SaleReportFilter = shift

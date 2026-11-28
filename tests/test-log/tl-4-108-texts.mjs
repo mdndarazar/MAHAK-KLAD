@@ -31,10 +31,9 @@ const errOf = async (fn) => {
   }
 }
 
-// پیام «بستن دوباره» را آزمون طلایی (سطر ۱۲۳ پروندهٔ پایه) کلمه‌به‌کلمه می‌سنجد و بخش ۸-۳ معماری تغییر آن را
-// نام نبرده است؛ تا اجازهٔ مالک برای همان یک سطر، این بخش ۴-۱۰۸ اجرا نمی‌شود (batch-1.md).
-const CASH_CLOSE_PENDING = 'waiting for the owner: golden baseline line 123 records this message'
-await test('repeat cash close: the earlier close date is in Persian digits', { skip: CASH_CLOSE_PENDING }, async () => {
+// پیام «بستن دوباره» را آزمون طلایی (سطر ۱۲۳ پروندهٔ پایه) کلمه‌به‌کلمه می‌سنجد؛ مالک (۲۰۲۶-۱۱-۲۸) اجازه داد
+// فقط رقم‌های تاریخ همین پیام فارسی شود و همان یک سطر پایه عوض شود (TL-D5).
+await test('repeat cash close: the earlier close date is in Persian digits', async () => {
   const user = seed.user('کارمند ۴-۱۰۸')
   const product = seed.product('کالای ۴-۱۰۸', seed.category('پوشاک'))
   const variantId = seed.variant(product, 'سایز')
