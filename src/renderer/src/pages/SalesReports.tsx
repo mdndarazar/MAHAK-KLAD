@@ -16,6 +16,8 @@ const CREDIT_PAYMENTS_LOCK_HINT = 'این پنجره قفل بخش «نسیه» 
 const CREDIT_CHEQUES_LOCK_HINT = 'این تب قفل بخش «نسیه» را دارد. رمز مدیر یا رمز دوم بخش «نسیه» را اینجا وارد کنید تا باز شود.'
 /** دفتر آزمون ۴-۶۵: «بازبینی ضدتقلب» همان قفل «عملکرد کارمندان» را دارد */
 const FRAUD_LOCK_HINT = 'این بخش همان قفل «عملکرد کارمندان» را دارد. رمز مدیر یا رمز دوم بخش «عملکرد کارمندان» را اینجا وارد کنید.'
+/** دفتر آزمون ۴-۶۶: تب «اعتبار خرید» همان قفل «مدیریت اعتبار خرید» را دارد (همان قفل سرور برای این فهرست) */
+const STORE_CREDITS_LOCK_HINT = 'این بخش همان قفل «مدیریت اعتبار خرید» را دارد. رمز مدیر یا رمز دوم بخش «مدیریت اعتبار خرید» را اینجا وارد کنید.'
 import AccountingBlocks, { type DrillTarget } from '../components/AccountingBlocks'
 import BridgeDiagnosticsModal from '../components/BridgeDiagnosticsModal'
 import ReportExtraTables from '../components/ReportExtraTables'
@@ -214,6 +216,7 @@ function reportDataKey(
     chequeDateMode: string
     creditOpen: boolean
     staffOpen: boolean
+    creditMgmtOpen: boolean
   }
 ): string {
   const service = toServiceFilter(f)
@@ -773,11 +776,13 @@ export default function SalesReports() {
   const creditOpen = usePanelOpen(PANEL_KEYS.salesCredit)
   /** دفتر آزمون ۴-۶۵: «بازبینی ضدتقلب» تا باز شدن قفل «عملکرد کارمندان» خوانده نمی‌شود */
   const staffOpen = usePanelOpen(PANEL_KEYS.staffPerformance)
+  /** دفتر آزمون ۴-۶۶: تب «اعتبار خرید» تا باز شدن قفل «مدیریت اعتبار خرید» خوانده نمی‌شود (به جای پیام قرمز سرور، کادر رمز) */
+  const creditMgmtOpen = usePanelOpen(PANEL_KEYS.creditManagement)
   const currentReportKey = useMemo(
-    () => reportDataKey(tab, filters, { includeExchanges, includeSettled, chequeDateMode, creditOpen, staffOpen }),
-    [tab, filters, includeExchanges, includeSettled, chequeDateMode, creditOpen, staffOpen]
+    () => reportDataKey(tab, filters, { includeExchanges, includeSettled, chequeDateMode, creditOpen, staffOpen, creditMgmtOpen }),
+    [tab, filters, includeExchanges, includeSettled, chequeDateMode, creditOpen, staffOpen, creditMgmtOpen]
   )
-  const outputDirty = loadedReportKey !== currentReportKey || ((tab === 'credit' || tab === 'cheques') && !creditOpen) || (tab === 'fraud' && !staffOpen)
+  const outputDirty = loadedReportKey !== currentReportKey || ((tab === 'credit' || tab === 'cheques') && !creditOpen) || (tab === 'fraud' && !staffOpen) || (tab === 'storeCredits' && !creditMgmtOpen)
 
   const flash = (m: string) => {
     setMsg(m)
@@ -798,7 +803,8 @@ export default function SalesReports() {
         includeSettled,
         chequeDateMode,
         creditOpen,
-        staffOpen
+        staffOpen,
+        creditMgmtOpen
       })
       /**
        * بند ۵ — «هیچ گزارشی بی‌صدا ناقص نمی‌شود». فقط `count()` می‌زند و هیچ
@@ -821,7 +827,7 @@ export default function SalesReports() {
       // ---------------- جلسه ۱۵: چهار تب تازه ----------------
       // دفتر آزمون ۴-۶۴: تا قفل «نسیه» باز نشده، فهرست چک‌ها خوانده نمی‌شود
       if (tab === 'cheques') setCheques(creditOpen ? await call<any>(CH.saleChequeList, { ...f, dateMode: chequeDateMode }) : null)
-      else if (tab === 'storeCredits') setStoreCredits(await call<any>(CH.storeCreditList, f))
+      else if (tab === 'storeCredits') setStoreCredits(creditMgmtOpen ? await call<any>(CH.storeCreditList, f) : null)
       else if (tab === 'ledger') setLedger(await call<any>(CH.saleReportLedger, f))
       else if (tab === 'fraud') setFraud(staffOpen ? await call<any>(CH.saleFraudReview, f) : null)
       else if (tab === 'summary') setReport(await call<SaleReportResult>(CH.saleReportRows, f))
@@ -868,7 +874,7 @@ export default function SalesReports() {
     } finally {
       setBusy(false)
     }
-  }, [filters, tab, creditOpen, staffOpen, includeSettled, includeExchanges, chequeDateMode])
+  }, [filters, tab, creditOpen, staffOpen, creditMgmtOpen, includeSettled, includeExchanges, chequeDateMode])
 
   /**
    * بند ۶ و ۷ — «فیلتر پویا»: عوض شدن تب، قفل نسیه، چک‌باکس تسویه‌شده‌ها و
@@ -886,6 +892,11 @@ export default function SalesReports() {
     if (tab === 'fraud') void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staffOpen])
+  /** دفتر آزمون ۴-۶۶: همین برای قفل «مدیریت اعتبار خرید» و تب «اعتبار خرید» */
+  useEffect(() => {
+    if (tab === 'storeCredits') void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [creditMgmtOpen])
 
   // روش‌های پرداخت، برای پنجره‌ی «ثبت پرداختی نسیه»
   useEffect(() => {
@@ -2172,7 +2183,7 @@ export default function SalesReports() {
             چک‌ها
           </button>
           <button className={`btn ${tab === 'storeCredits' ? 'btn-primary' : ''}`} onClick={() => setTab('storeCredits')}>
-            اعتبار خرید
+            اعتبار خرید 🔒
           </button>
           <button className={`btn ${tab === 'ledger' ? 'btn-primary' : ''}`} onClick={() => setTab('ledger')}>
             دفتر رویداد
@@ -2984,7 +2995,22 @@ export default function SalesReports() {
           />
         </ManagerGate>
       )}
-      {(tab === 'storeCredits' || tab === 'ledger') && (
+      {tab === 'storeCredits' && (
+        /* دفتر آزمون ۴-۶۶: تب «اعتبار خرید» داخل قفل «مدیریت اعتبار خرید»؛ محتوا همان است */
+        <ManagerGate panel={PANEL_KEYS.creditManagement} title="اعتبار خرید" reason={STORE_CREDITS_LOCK_HINT} inline>
+          <ReportExtraTables
+            tab={tab}
+            cheques={cheques}
+            chequeDateMode={chequeDateMode}
+            onChequeDateMode={setChequeDateMode}
+            storeCredits={storeCredits}
+            ledger={ledger}
+            fraud={fraud}
+            onOpenInvoice={(id) => setPaymentsFor(id)}
+          />
+        </ManagerGate>
+      )}
+      {tab === 'ledger' && (
         <ReportExtraTables
           tab={tab}
           cheques={cheques}

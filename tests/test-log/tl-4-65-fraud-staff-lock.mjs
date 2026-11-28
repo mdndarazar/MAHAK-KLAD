@@ -81,7 +81,7 @@ test('sales reports page: the tab button, the password box with the owner\'s gui
   assert.ok(s.includes("const FRAUD_LOCK_HINT = 'این بخش همان قفل «عملکرد کارمندان» را دارد. رمز مدیر یا رمز دوم بخش «عملکرد کارمندان» را اینجا وارد کنید.'"))
   assert.match(s, /onClick=\{\(\) => setTab\('fraud'\)\}>\s*بازبینی ضدتقلب 🔒\s*<\/button>/)
   assert.match(s, /\{tab === 'fraud' && \([\s\S]{0,160}<ManagerGate panel=\{PANEL_KEYS\.staffPerformance\} title="بازبینی ضدتقلب" reason=\{FRAUD_LOCK_HINT\} inline>\s*<ReportExtraTables/)
-  assert.match(s, /\{\(tab === 'storeCredits' \|\| tab === 'ledger'\) && \(/, 'the fraud tab left the shared block')
+  assert.doesNotMatch(s, /\|\| tab === 'fraud'\) && \(/, 'the fraud tab left the shared block')
   assert.match(s, /const staffOpen = usePanelOpen\(PANEL_KEYS\.staffPerformance\)/)
   assert.match(s, /else if \(tab === 'fraud'\) setFraud\(staffOpen \? await call<any>\(CH\.saleFraudReview, f\) : null\)/)
   assert.ok(s.includes("|| (tab === 'fraud' && !staffOpen)"), 'print and Excel stay disabled until the lock opens')
