@@ -247,7 +247,7 @@ test('«مجوز راه دور باز شد» says the kind and the time; an old 
 test('the host writes the kind label and the minutes into «REMOTE_GRANT_OPENED» (part and action), from the same border', () => {
   const host = read('src/main/services/CloudSyncService.ts')
   assert.match(host, /noteAccessEvent\('REMOTE_GRANT_OPENED',\{titleFa:panelTitle\(panel\),windowNo:owner,decision:LOCK_KIND_TITLES\[lockKindOf\(panel\)\],\.\.\.\(typeof ttlMs==='number' \? \{minutes:Math\.round\(ttlMs\/60_000\)\} : \{\}\)\}\)/)
-  assert.match(host, /noteAccessEvent\('REMOTE_GRANT_OPENED',\{titleFa:gateEntry\(actionId\)\?\.titleFa,windowNo:owner,decision:LOCK_KIND_TITLES\.action,minutes:Math\.round\(ttlMs\/60_000\)\}\)/)
+  assert.match(host, /noteAccessEvent\('REMOTE_GRANT_OPENED',\{titleFa:gateEntry\(actionId\)\?\.titleFa,windowNo:owner,decision:LOCK_KIND_TITLES\.action,minutes:Math\.round\(ttl\/60_000\),\.\.\.\(uses>1 \? \{count:uses\} : \{\}\)\}\)/, '4-31: a repeatable action also writes its count')
   assert.match(host, /grantDurationMs:\(panel\)=>GATE_ACTION_IDS\.includes\(panel\) \? lockDurationMs\('remoteSensitiveGrantMinutes'\) : partDurationMs\(remoteDurationKey\(codeSectionOfPanel\(panel\)\)\)/, 'the same duration the bridge shows')
   for (const label of Object.values(LOCK_KIND_TITLES)) assert.ok(label.length <= 40, 'fits the 40-character decision label')
 })

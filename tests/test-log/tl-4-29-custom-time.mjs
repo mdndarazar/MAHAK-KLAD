@@ -152,7 +152,7 @@ test('buttons: a module has «✅ تأیید · همان تنظیمات رایا
     const normal = request(r, 'کالاها'), money = request(r, 'بستن صندوق (پولی)'), action = request(r, ACTION_TITLE)
     assert.deepEqual(normal.rows.map((row) => row.map((b) => b.text)), [['✅ تأیید · همان تنظیمات رایانه (۳۵ دقیقه)', '❌ رد'], ['⏱ وارد کردن زمان']])
     assert.deepEqual(money.rows.map((row) => row.map((b) => b.text)), [['✅ تأیید · همان تنظیمات رایانه (۲۰ دقیقه)', '❌ رد'], ['⏱ وارد کردن زمان']])
-    assert.deepEqual(action.rows.map((row) => row.map((b) => b.text)), [['✅ تأیید', '❌ رد']], 'an action: the same two buttons as today, no time button')
+    assert.deepEqual(action.rows.map((row) => row.map((b) => b.text)), [['✅ تأیید (یک بار)', '❌ رد']], 'an action: the same two buttons (4-31 names them «یک بار»), no time button')
     assert.match(normal.sent.text, /⏱ زمان رایانه برای این نوع: ۳۵ دقیقه/, 'the same number as the 4-30 line')
     for (const data of [normal, money, action].flatMap((x) => x.rows.flat().map((b) => b.callback_data))) {
       assert.match(data, /^[art]:[A-Za-z0-9_-]{22}$/)

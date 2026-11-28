@@ -151,6 +151,15 @@ export function gateEntry(id: unknown): GateCatalogEntry | null {
 }
 
 /**
+ * دفتر آزمون ۴-۳۱ (معماری بخش ۵؛ اجازهٔ مالک، TL-D12) — کارهای برگشت‌ناپذیر: هرگز «قابل تکرار» نمی‌شوند و هر مجوزشان
+ * همیشه یک بار است. هر کار برگشت‌ناپذیر دیگری که در معماری روشن شود، این‌جا می‌آید.
+ */
+export const GATE_IRREVERSIBLE_ACTIONS: readonly string[] = Object.freeze([
+  'system.factory-reset', 'backup.restore', 'backup.merge', 'backup.forget', 'reports.sales-purge',
+  'maintenance.archive-purge', 'management.cost-ledger-rebuild', 'woo.disconnect', 'credit.delete'
+])
+
+/**
  * فهرست‌های چندبخشی (معماری §۳-۱۰، زیر جدول دستهٔ ۱): یک ذخیره که چند چیز را با هم عوض می‌کند همهٔ
  * شناسه‌هایش را می‌خواهد (اصل «ج»: راه دوم قفل راه اول را دور نمی‌زند). دستهٔ ۱ در فهرست یعنی «فقط رفتار
  * امروز» (رمز تایپی یا نشست خود مدیر). نام این تابع‌ها و متغیرهای خروجی‌شان با `GateIds` تمام می‌شود تا
@@ -275,6 +284,9 @@ export const ACCESS_EVENT_KINDS = Object.freeze({
   SCHEDULED_GRANT_CLOSED: 'SCHEDULED_GRANT_CLOSED',
   DURATIONS_CHANGED: 'DURATIONS_CHANGED',
   BOT_DECISION: 'BOT_DECISION',
+  /** دفتر آزمون ۴-۳۱: هر بار استفاده از مجوز چندبارهٔ کار («بار ۲ از ۳»)؛ تغییر «حداکثر دفعات» یا فهرست «قابل تکرار» */
+  REPEAT_GRANT_USED: 'REPEAT_GRANT_USED',
+  REPEAT_SETTINGS_CHANGED: 'REPEAT_SETTINGS_CHANGED',
   /** مرحلهٔ ۶: برداشتن قفل کدها به دست مدیر؛ پروندهٔ خراب کدها (همه باطل)؛ کدهای بازیابی توقف اضطراری */
   CODES_UNLOCKED: 'CODES_UNLOCKED',
   CODES_FILE_BROKEN: 'CODES_FILE_BROKEN',

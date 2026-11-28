@@ -15,7 +15,7 @@ import { GATE_ACTION_IDS, gateEntry } from '../../shared/gateCatalog'
 import { LOCK_KIND_TITLES, codeSectionOfPanel, lockKindOf, panelTitle } from '../../shared/panels'
 import { noteAccessEvent } from './locks/accessEvents'
 import { addGateTicket, clearGateTickets } from './locks/tickets'
-import { lockDurationMs, partDurationMs, remoteDurationKey } from './locks/durations'
+import { lockDurationMs, partDurationMs, remoteDurationKey, repeatUsesOf } from './locks/durations'
 import { closeAllUnlocksFromRemote, setRemoteApprovalsStopped, setRemoteRecoveryHooks } from './locks/unlockHooks'
 import { openRenewingPanel } from './locks/unlocks'
 import { phoneReportsStarted, phoneReportsStopped, readPhoneReport } from './cloud/phoneReportSource'
@@ -30,6 +30,7 @@ import { startExperimentalHubSupervisor } from './cloud/experimentalHubSuperviso
 import { createExperimentalHubScheduler } from './cloud/experimentalHubScheduler'
 import { readRemoteConfig, restoreMarkerHash, type RemoteOwner } from './cloud/remoteSetup'
 import { initRemoteGrantRegistry } from './RemoteGrantRegistry'
+import { takeBotUses } from './cloud/botRemoteBridge'
 import * as sessions from './panelSession'
 
 // Plan 1405 §3-12: every part key (a timed PANEL grant) and every catalog action
@@ -155,7 +156,9 @@ async function startConfigured(owner:RemoteOwner|null):Promise<void> {
     const revocationKey=derivedKey(keys.commandKey,snapshot.storeId,snapshot.epoch,'revocation')
     const approvalKey=derivedKey(keys.commandKey,snapshot.storeId,snapshot.epoch,'approval')
     initRemoteGrantRegistry({notePanelUnlocked:(panel,_scope,owner,allowed,ttlMs)=>{const done=openRenewingPanel(panel,owner,allowed,ttlMs);noteAccessEvent('REMOTE_GRANT_OPENED',{titleFa:panelTitle(panel),windowNo:owner,decision:LOCK_KIND_TITLES[lockKindOf(panel)],...(typeof ttlMs==='number' ? {minutes:Math.round(ttlMs/60_000)} : {})});return done},clearPanelScope:sessions.clearPanelScope,clearPanelSessions:sessions.clearPanelSessions,
-      addOneShotTicket:(actionId,owner,ttlMs,memberId)=>{const made=addGateTicket(owner,actionId,ttlMs,'REMOTE_GRANT',{memberId});if(made)noteAccessEvent('REMOTE_GRANT_OPENED',{titleFa:gateEntry(actionId)?.titleFa,windowNo:owner,decision:LOCK_KIND_TITLES.action,minutes:Math.round(ttlMs/60_000)});return made},
+      // دفتر آزمون ۴-۳۱: کار «قابل تکرار» ⇒ بلیت چندباره با تعداد رایانه (یا تعداد دلخواه ربات برای همان مجوز)، تا مدت «پولی و حساس»
+      addOneShotTicket:(actionId,owner,ttlMs,memberId)=>{const max=repeatUsesOf(actionId),uses=max===null ? 1 : takeBotUses(owner,actionId,memberId) ?? max,ttl=uses>1 ? partDurationMs('remoteSensitiveGrantMinutes') : ttlMs
+        const made=addGateTicket(owner,actionId,ttl,'REMOTE_GRANT',{memberId,...(uses>1 ? {uses} : {})});if(made)noteAccessEvent('REMOTE_GRANT_OPENED',{titleFa:gateEntry(actionId)?.titleFa,windowNo:owner,decision:LOCK_KIND_TITLES.action,minutes:Math.round(ttl/60_000),...(uses>1 ? {count:uses} : {})});return made},
       clearOneShotTickets:(memberId)=>clearGateTickets(memberId===undefined ? {} : {memberId}),grantDurationMs:(panel)=>GATE_ACTION_IDS.includes(panel) ? lockDurationMs('remoteSensitiveGrantMinutes') : partDurationMs(remoteDurationKey(codeSectionOfPanel(panel)))})
     const barrier=createExperimentalRestoreBarrier()
     hubStartAttempted=true

@@ -67,7 +67,7 @@ export async function redeemOneTimeCode(target: unknown, code: unknown): Promise
   const minutes = t.kind === 'part' ? sectionMinutes : Math.min(sectionMinutes, ONE_SHOT_MAX_MINUTES)
   // ---------------- از این‌جا تا پایان، همگام (بی await): سنجش، مصرف و ساختن نشست یا بلیت ----------------
   if (t.kind === 'part' && partAlreadyOpen(call.owner, t.lockKey)) throw new BusinessError('این بخش همین حالا باز است؛ کد مصرف نشد.')
-  if (t.kind === 'action' && peekGateTicket(call.owner, t.id)) throw new BusinessError('این کار همین حالا یک بار مجاز است؛ کد مصرف نشد. روی دکمهٔ همان کار بزنید.')
+  if (t.kind === 'action' && peekGateTicket(call.owner, t.id)) throw new BusinessError('این کار همین حالا مجاز است؛ کد مصرف نشد. روی دکمهٔ همان کار بزنید.')
   const result = consumeOneTimeCode(t.section, code)
   if (!result.ok) {
     if (result.reason === 'BROKEN') {

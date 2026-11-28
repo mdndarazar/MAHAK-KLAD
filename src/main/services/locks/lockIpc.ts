@@ -3,24 +3,29 @@
  *   - `gate:unlock`: راه «رمز» پنجرهٔ «باز کردن قفل این کار» ⇒ یک بلیت یک‌بار برای همین پنجره (§۳-۷)؛
  *   - `gate:closeAll`: «بستن همهٔ مجوزها و قفل‌های باز» روی رایانه؛ رمز نمی‌خواهد، چون فقط می‌بندد (§۳-۱۷)؛
  *   - `lockDurations:get` / `lockDurations:set`: پروندهٔ مدت‌ها؛ تغییر «کلیدسازی» است و رمز تایپی مدیر
- *     می‌خواهد، با ردیف `ACCESS_EVENT` و خبر پیام‌رسان (§۳-۱۳)؛
+ *     می‌خواهد، با ردیف `ACCESS_EVENT` و خبر پیام‌رسان (§۳-۱۳)؛ دفتر آزمون ۴-۳۱: «حداکثر دفعات هر مجوز» و فهرست
+ *     «قابل تکرار» از همین دو کانال، و مجوزهای چندبارهٔ باز در پاسخ `get`؛
  *   - مرحلهٔ ۶ (§۳-۱۵): `locks:redeemCode` (مصرف کد یک‌بارمصرف، بی رمز) و ساخت، باطل کردن و برداشتن قفل کدها
  *     (کلیدسازی، رمز تایپی مدیر)؛ §۳-۱۶: فهرست، ساخت و لغو مجوز زمان‌بندی‌شده (کلیدسازی، رمز تایپی مدیر).
  * رمز تایپی یعنی `assertManagerPassword` بیرون از قاب دروازه: نه نشست مدیر، نه نشانگر، نه کد و نه مجوز.
  */
 import { BusinessError } from '../../errors'
+import { GATE_IRREVERSIBLE_ACTIONS, gateEntry } from '../../../shared/gateCatalog'
 import { assertManagerPassword, secretEqualsAnyPassword } from '../AuthService'
 import { revokeAll } from '../RemoteGrantRegistry'
 import { noteAccessEvent } from './accessEvents'
 import { redeemOneTimeCode } from './codeRedeem'
-import { LOCK_DURATION_KEYS, LOCK_DURATION_TITLES, readLockDurations, validDurationMinutes, writeLockDurations, type LockDurations } from './durations'
+import {
+  LOCK_DURATION_KEYS, LOCK_DURATION_TITLES, REPEATABLE_ACTION_IDS, readLockDurations, readRepeatSettings, validDurationMinutes, writeLockSettings,
+  type LockDurations, type RepeatSettings
+} from './durations'
 import { unlockActionWithPassword } from './gate'
 import {
   CODE_SECTION_TITLES, CODE_SECTIONS, clearOneTimeCodeLock, commitOneTimeCodes, oneTimeCodesStatus,
   prepareOneTimeCodes, revokeOneTimeCodes, type CodeSection
 } from './oneTimeCodes'
 import { cancelScheduledGrant, closeScheduledGrants, createScheduledGrant, listScheduledGrants } from './scheduledGrants'
-import { clearGateTickets } from './tickets'
+import { clearGateTickets, listRepeatTickets, setGateTicketUseListener } from './tickets'
 import { setCloseAllUnlocksHook, type CloseAllOptions } from './unlockHooks'
 import { closeGuardedParts } from './unlocks'
 
@@ -41,7 +46,40 @@ export function closeAllUnlocks(options: CloseAllOptions = {}): { ok: true } {
   return { ok: true }
 }
 
-/** تغییر مدت‌ها: هر عدد باید صحیح ۱ تا ۱۰۰۰ باشد (دفتر آزمون ۴-۲۸)؛ عدد نادرست رد می‌شود و عدد قبلی می‌ماند. */
+type LockSettingsView = LockDurations & { repeatUsesMax: number; repeatableActions: string[] }
+const viewOf = (d: LockDurations, r: RepeatSettings): LockSettingsView => ({ ...d, repeatUsesMax: r.usesMax, repeatableActions: [...r.actions] })
+
+/** دفتر آزمون ۴-۳۱: تنظیم تکرار تازه از ورودی؛ عدد نادرست، کار ناشناس یا برگشت‌ناپذیر رد می‌شود و چیزی عوض نمی‌شود. */
+function repeatInput(input: Record<string, unknown>, before: RepeatSettings): RepeatSettings {
+  const next: RepeatSettings = { usesMax: before.usesMax, actions: [...before.actions] }
+  if (!(input.repeatUsesMax === undefined || input.repeatUsesMax === null || input.repeatUsesMax === '')) {
+    const value = Number(input.repeatUsesMax)
+    if (!validDurationMinutes(value)) throw new BusinessError('«حداکثر دفعات هر مجوز» باید عددی صحیح بین ۱ تا ۱۰۰۰ باشد.')
+    next.usesMax = value
+  }
+  if (input.repeatableActions !== undefined) {
+    const list: unknown = input.repeatableActions
+    if (!Array.isArray(list) || list.some((id) => typeof id !== 'string')) throw new BusinessError('فهرست کارهای قابل تکرار نامعتبر است.')
+    const never = list.find((id) => GATE_IRREVERSIBLE_ACTIONS.includes(id))
+    if (never) throw new BusinessError(`«${gateEntry(never)?.titleFa ?? never}» برگشت‌ناپذیر است و هرگز قابل تکرار نمی‌شود.`)
+    if (list.some((id) => !REPEATABLE_ACTION_IDS.includes(id))) throw new BusinessError('فهرست کارهای قابل تکرار نامعتبر است.')
+    next.actions = REPEATABLE_ACTION_IDS.filter((id) => list.includes(id))
+  }
+  return next
+}
+
+/** پاسخ `lockDurations:get`: مدت‌ها، تنظیم تکرار و (۴-۳۱) مجوزهای چندبارهٔ باز با دفعات باقی؛ بی شناسهٔ عضو. */
+export function lockSettingsView() {
+  return {
+    ...viewOf(readLockDurations(), readRepeatSettings()),
+    openRepeats: listRepeatTickets().map((t) => ({ id: t.id, titleFa: gateEntry(t.id)?.titleFa ?? t.id, windowNo: t.owner, left: t.left, uses: t.uses, minutesLeft: Math.max(1, Math.ceil(t.remainingMs / 60_000)) }))
+  }
+}
+
+/**
+ * تغییر مدت‌ها: هر عدد باید صحیح ۱ تا ۱۰۰۰ باشد (دفتر آزمون ۴-۲۸)؛ عدد نادرست رد می‌شود و عدد قبلی می‌ماند. ۴-۳۱:
+ * «حداکثر دفعات هر مجوز» (۱ تا ۱۰۰۰) و فهرست «قابل تکرار» با همان رمز تایپی مدیر و در همان یک نوشتن؛ پاسخ همان چهار مدت.
+ */
 export async function setLockDurations(input: Record<string, unknown>, userId: number | null = null): Promise<LockDurations> {
   const before = readLockDurations()
   const next: LockDurations = { ...before }
@@ -52,11 +90,14 @@ export async function setLockDurations(input: Record<string, unknown>, userId: n
     next[key] = value
   }
   const changed = LOCK_DURATION_KEYS.filter((key) => next[key] !== before[key])
-  if (!changed.length) return before
+  const repeatBefore = readRepeatSettings(), repeat = repeatInput(input, repeatBefore)
+  const repeatChanged = repeat.usesMax !== repeatBefore.usesMax || repeat.actions.join('|') !== repeatBefore.actions.join('|')
+  if (!changed.length && !repeatChanged) return before
   const password = typeof input.managerPassword === 'string' ? input.managerPassword : ''
   await assertManagerPassword(password, 'تغییر مدت کدها و مجوز راه دور')
-  writeLockDurations(next)
+  writeLockSettings(next, repeat)
   for (const key of changed) noteAccessEvent('DURATIONS_CHANGED', { titleFa: LOCK_DURATION_TITLES[key], minutes: next[key] }, userId)
+  if (repeatChanged) noteAccessEvent('REPEAT_SETTINGS_CHANGED', { number: repeat.usesMax, count: repeat.actions.length }, userId)
   return next
 }
 
@@ -131,7 +172,7 @@ export function registerLockHandlers(handle: Handle, channels: {
 }): void {
   handle(channels.unlock, (p) => unlockActionWithPassword(p?.id, p?.password))
   handle(channels.closeAll, () => closeAllUnlocks({ cancelFuture: false }))
-  handle(channels.durationsGet, () => readLockDurations())
+  handle(channels.durationsGet, () => lockSettingsView())
   handle(channels.durationsSet, (p) => setLockDurations(obj(p)))
   handle(channels.redeemCode, (p) => redeemOneTimeCode(p?.target, typeof p?.code === 'string' ? p.code : ''))
   handle(channels.codesStatus, () => codesStatus())
@@ -143,4 +184,6 @@ export function registerLockHandlers(handle: Handle, channels: {
   handle(channels.scheduledCancel, (p) => cancelScheduled(obj(p)))
   // P1 و P2 گوشی (مسیر لغو موجود در CloudSyncService) همین «بستن همه» را از راه قلاب leaf صدا می‌زنند.
   setCloseAllUnlocksHook((options) => closeAllUnlocks(options))
+  // دفتر آزمون ۴-۳۱: هر بار استفاده از مجوز چندبارهٔ کار یک ردیف دسترسی و خبر پیام‌رسان («بار ۲ از ۳»)
+  setGateTicketUseListener((u) => noteAccessEvent('REPEAT_GRANT_USED', { titleFa: gateEntry(u.id)?.titleFa ?? u.id, windowNo: u.owner, number: u.use, count: u.uses }))
 }

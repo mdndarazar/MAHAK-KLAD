@@ -793,11 +793,16 @@ function accessEvent(row: AuditRowLite, f: Record<string, unknown>, h: ReturnTyp
     case K.RECOVERY_CODES_REVOKED: return [h.event(row, '🆘 کدهای بازیابی توقف اضطراری باطل شد', [], { important: true })]
     case K.RECOVERY_CODE_USED: return [h.event(row, `🆘 توقف اضطراری کامل با کد بازیابی${n(f.number) !== null ? ` شمارهٔ ${num(f.number)}` : ''} پشت رایانه برداشته شد`, ['اگر شما نبودید، همین حالا کدهای بازیابی را باطل کنید.'], { important: true })]
     case K.REMOTE_GRANT_OPENED: {
-      // دفتر آزمون ۴-۳۰: نوع (برچسب ثابت `decision`) و زمان؛ ردیف قدیمی بی نوع همان دو خط قبلی را دارد.
+      // دفتر آزمون ۴-۳۰: نوع (برچسب ثابت `decision`) و زمان؛ ردیف قدیمی بی نوع همان دو خط قبلی را دارد. ۴-۳۱: کار قابل تکرار با دفعات.
       const kind = (Object.keys(LOCK_KIND_TITLES) as LockKind[]).find((k) => LOCK_KIND_TITLES[k] === label) ?? null
-      const span = kind === 'action' ? 'یک بار' : kind && n(f.minutes) !== null ? `${num(f.minutes)} دقیقه` : ''
-      return [h.event(row, '📱 مجوز راه دور باز شد', [where, kind ? `${LOCK_KIND_SIGNS[kind]} نوع: ${label}` : '', span ? `⏱ زمان: ${span}` : '', by], { important: true })]
+      const times = kind === 'action' && (n(f.count) ?? 0) > 1 ? n(f.count) : null
+      const span = times !== null ? '' : kind === 'action' ? 'یک بار' : kind && n(f.minutes) !== null ? `${num(f.minutes)} دقیقه` : ''
+      return [h.event(row, '📱 مجوز راه دور باز شد', [where, kind ? `${LOCK_KIND_SIGNS[kind]} نوع: ${times !== null ? 'کار یک‌بارهٔ قابل تکرار' : label}` : '', span ? `⏱ زمان: ${span}` : '',
+        times !== null ? `🔢 دفعات: ${num(times)} بار${n(f.minutes) !== null ? ` (تا ${num(f.minutes)} دقیقه)` : ''}` : '', by], { important: true })]
     }
+    // دفتر آزمون ۴-۳۱: هر بار استفاده از مجوز چندبارهٔ کار، و تغییر تنظیم تکرار
+    case K.REPEAT_GRANT_USED: return [h.event(row, `🔁 ${lock || 'کار قابل تکرار'} · بار ${num(f.number)} از ${num(f.count)}`, [[lock ? `قفل: ${lock}` : '', n(f.windowNo) !== null ? `پنجرهٔ ${num(f.windowNo)}` : ''].filter(Boolean).join(' · ')], { important: true })]
+    case K.REPEAT_SETTINGS_CHANGED: return [h.event(row, '⚙️ کارهای قابل تکرار عوض شد', [n(f.number) !== null ? `حداکثر دفعات هر مجوز: ${num(f.number)} بار` : '', n(f.count) !== null ? `کارهای قابل تکرار: ${num(f.count)} کار` : '', by], { important: true })]
     case K.REMOTE_GRANT_CLOSED: return [h.event(row, '📱 مجوز راه دور بسته شد', [where, label ? `به دست: ${label}` : '', by])]
     case K.SCHEDULED_GRANT_CREATED: return [h.event(row, '🗓️ مجوز زمان‌بندی‌شده ساخته شد', [where, label ? `بازه: ${label}` : '', by], { important: true })]
     case K.SCHEDULED_GRANT_CANCELED:
