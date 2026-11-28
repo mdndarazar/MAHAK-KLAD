@@ -255,26 +255,25 @@ test('1000 minutes without a break: a normal and a money part at 1000 are closed
   assert.equal(sessions.isPanelUnlocked(normalPart, 206), false)
 })
 
-test('codes at 1000 minutes: a money part with the sensitive code and a normal part with the other code stay open with use and are reopened before the cap; an action stays one time, its window at most 60 minutes', async () => {
-  const S = await lockIpc.createCodes({ section: 'sensitive', managerPassword: PW })
-  const O = await lockIpc.createCodes({ section: 'other', managerPassword: PW })
+test('codes at 1000 minutes: codes of the one set open a money part and a normal part, each for its own duration, stay open with use and are reopened before the cap; an action stays one time, its window at most 60 minutes', async () => {
+  const C = await lockIpc.createCodes({ managerPassword: PW })
   await setDurations({ sensitiveCodeMinutes: 1000, otherCodeMinutes: 90 })
-  const money = await inCall(301, () => redeemOneTimeCode(moneyPart, S.codes[0].code))
-  const normal = await inCall(301, () => redeemOneTimeCode(normalPart, O.codes[0].code))
+  const money = await inCall(301, () => redeemOneTimeCode(moneyPart, C.codes[0].code))
+  const normal = await inCall(301, () => redeemOneTimeCode(normalPart, C.codes[1].code))
   assert.deepEqual([money.kind, money.minutes, normal.kind, normal.minutes], ['part', 1000, 'part', 90])
   const renewed = walk(995, [[moneyPart, 301, 999], [normalPart, 301, 90]])
   assert.equal(renewed, 18 + 1, 'the 1000-minute code session reopened 18 times, the 90-minute one once')
   advance(5 * MIN + 1000)
   assert.equal(sessions.isPanelUnlocked(moneyPart, 301), false, 'closed at 1000 minutes')
   await setDurations({ otherCodeMinutes: 1000 })
-  const normal1000 = await inCall(302, () => redeemOneTimeCode(normalPart, O.codes[1].code))
+  const normal1000 = await inCall(302, () => redeemOneTimeCode(normalPart, C.codes[2].code))
   assert.equal(normal1000.minutes, 1000)
   assert.equal(walk(995, [[normalPart, 302, 999]]), 18)
   advance(5 * MIN + 1000)
   assert.equal(sessions.isPanelUnlocked(normalPart, 302), false)
   // قفل کار با کد: یک بار، پنجرهٔ حداکثر ۶۰ دقیقه و همین عدد در پیام «تا … دقیقه»
   const action = 'credit.void'
-  const once = await inCall(303, () => redeemOneTimeCode(action, S.codes[1].code))
+  const once = await inCall(303, () => redeemOneTimeCode(action, C.codes[3].code))
   assert.deepEqual([once.kind, once.minutes], ['action', 60])
   assert.ok(tickets.peekGateTicket(303, action).expiresAt - performance.now() <= 60 * MIN)
   // راه رمز پنجرهٔ قفل کار (gate.ts) هم با مدت «حساس» ۱۰۰۰ همان حداکثر ۶۰ دقیقه را می‌گوید
@@ -296,7 +295,8 @@ test('screens and wiring: two remote-duration boxes with one typed password fiel
   assert.match(controls, /valueOf\(key\) <= 1000/)
   assert.doesNotMatch(controls, /۱ تا ۶۰/)
   const codesUi = read('src/renderer/src/components/OneTimeCodesSettings.tsx')
-  assert.match(codesUi, /مدت باز ماندن با کد این قسمت \(۱ تا ۱۰۰۰ دقیقه\)/)
+  assert.match(codesUi, /مدت باز ماندن ماژول‌های پولی با کد \(۱ تا ۱۰۰۰ دقیقه\)/)
+  assert.match(codesUi, /مدت باز ماندن سایر ماژول‌ها با کد \(۱ تا ۱۰۰۰ دقیقه\)/)
   assert.match(codesUi, /n <= 1000\)\) throw new Error\('هر مدت باید عددی صحیح بین ۱ تا ۱۰۰۰ دقیقه باشد\.'\)/)
   assert.equal(PHONE_REPORTS.status.pageSize, 4)
   assert.match(PHONE_REPORTS.status.caption, /^چهار مدت/)

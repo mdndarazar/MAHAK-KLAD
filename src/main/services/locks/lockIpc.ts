@@ -6,7 +6,7 @@
  *     می‌خواهد، با ردیف `ACCESS_EVENT` و خبر پیام‌رسان (§۳-۱۳)؛ دفتر آزمون ۴-۳۱: «حداکثر دفعات هر مجوز» و فهرست
  *     «قابل تکرار» از همین دو کانال، و مجوزهای چندبارهٔ باز در پاسخ `get`؛
  *   - مرحلهٔ ۶ (§۳-۱۵): `locks:redeemCode` (مصرف کد یک‌بارمصرف، بی رمز) و ساخت، باطل کردن و برداشتن قفل کدها
- *     (کلیدسازی، رمز تایپی مدیر)؛ §۳-۱۶: فهرست، ساخت و لغو مجوز زمان‌بندی‌شده (کلیدسازی، رمز تایپی مدیر).
+ *     (کلیدسازی، رمز تایپی مدیر)؛ دفتر آزمون ۴-۴۵: یک دستهٔ ۵ کدی (فیلد `section` ورودی دیگر خوانده نمی‌شود)؛ §۳-۱۶: فهرست، ساخت و لغو مجوز زمان‌بندی‌شده (کلیدسازی، رمز تایپی مدیر).
  * رمز تایپی یعنی `assertManagerPassword` بیرون از قاب دروازه: نه نشست مدیر، نه نشانگر، نه کد و نه مجوز.
  */
 import { BusinessError } from '../../errors'
@@ -20,10 +20,7 @@ import {
   type LockDurations, type RepeatSettings
 } from './durations'
 import { unlockActionWithPassword } from './gate'
-import {
-  CODE_SECTION_TITLES, CODE_SECTIONS, clearOneTimeCodeLock, commitOneTimeCodes, oneTimeCodesStatus,
-  prepareOneTimeCodes, revokeOneTimeCodes, type CodeSection
-} from './oneTimeCodes'
+import { clearOneTimeCodeLock, commitOneTimeCodes, oneTimeCodesStatus, prepareOneTimeCodes, revokeOneTimeCodes } from './oneTimeCodes'
 import { cancelScheduledGrant, closeScheduledGrants, createScheduledGrant, listScheduledGrants } from './scheduledGrants'
 import { clearGateTickets, listRepeatTickets, setGateTicketUseListener } from './tickets'
 import { setCloseAllUnlocksHook, type CloseAllOptions } from './unlockHooks'
@@ -103,44 +100,39 @@ export async function setLockDurations(input: Record<string, unknown>, userId: n
 
 // ------------------------------------------------------------------ کدهای یک‌بارمصرف (§۳-۱۵)
 const typed = (input: Record<string, unknown>) => (typeof input.managerPassword === 'string' ? input.managerPassword : '')
-function sectionOf(value: unknown): CodeSection {
-  if (!CODE_SECTIONS.includes(value as CodeSection)) throw new BusinessError('قسمت کد نامعتبر است.')
-  return value as CodeSection
-}
 const asBusiness = (error: unknown): never => {
   if ((error as { isBusinessError?: unknown })?.isBusinessError === true) throw error
   throw new BusinessError(error instanceof Error && error.message ? error.message : 'انجام نشد؛ دوباره تلاش کنید.')
 }
 
-/** وضعیت دو قسمت (شمار باقی‌مانده، قفل) و دو مدت کد؛ کد خام هرگز. */
+/** وضعیت دستهٔ کدها (شمار باقی‌مانده، قفل) و دو مدت کد؛ کد خام هرگز. */
 export function codesStatus() {
   const durations = readLockDurations()
   return { ...oneTimeCodesStatus(), sensitiveCodeMinutes: durations.sensitiveCodeMinutes, otherCodeMinutes: durations.otherCodeMinutes }
 }
 
-/** «ساخت ۵ کد تازه» یک قسمت؛ پیش‌فرض تصادفی، یا «خودم می‌نویسم». کدهای خام فقط همین یک بار برمی‌گردند. */
-export async function createCodes(input: Record<string, unknown>): Promise<{ section: CodeSection; codes: Array<{ n: number; code: string }> }> {
-  const section = sectionOf(input.section)
+/** «ساخت ۵ کد تازه» (همهٔ کدهای قبلی باطل)؛ پیش‌فرض تصادفی، یا «خودم می‌نویسم». کدهای خام فقط همین یک بار برمی‌گردند. */
+export async function createCodes(input: Record<string, unknown>): Promise<{ codes: Array<{ n: number; code: string }> }> {
   const mode = input.mode === 'own' ? 'own' : 'random'
   let codes: string[]
   try { codes = prepareOneTimeCodes(mode, input.codes) } catch (error) { return asBusiness(error) }
-  await assertManagerPassword(typed(input), `ساخت ${CODE_SECTION_TITLES[section]}`)
+  await assertManagerPassword(typed(input), 'ساخت کدهای یک‌بارمصرف')
   if (mode === 'own') {
     for (const [i, code] of codes.entries()) {
       if (await secretEqualsAnyPassword(code)) throw new BusinessError(`کد شمارهٔ ${'۱۲۳۴۵'[i]} با یکی از رمزهای برنامه برابر است؛ کد دیگری بنویسید.`)
     }
   }
   let made: Array<{ n: number; code: string }>
-  try { made = commitOneTimeCodes(section, codes, { random: mode === 'random' }) } catch (error) { return asBusiness(error) }
-  noteAccessEvent('CODES_CREATED', { titleFa: CODE_SECTION_TITLES[section], count: made.length })
-  return { section, codes: made }
+  try { made = commitOneTimeCodes(codes) } catch (error) { return asBusiness(error) }
+  noteAccessEvent('CODES_CREATED', { count: made.length })
+  return { codes: made }
 }
 
+/** «باطل کردن کدها»: همه. */
 export async function revokeCodes(input: Record<string, unknown>) {
-  const section = sectionOf(input.section)
-  await assertManagerPassword(typed(input), `باطل کردن ${CODE_SECTION_TITLES[section]}`)
-  try { revokeOneTimeCodes(section) } catch (error) { return asBusiness(error) }
-  noteAccessEvent('CODES_REVOKED', { titleFa: CODE_SECTION_TITLES[section] })
+  await assertManagerPassword(typed(input), 'باطل کردن کدهای یک‌بارمصرف')
+  try { revokeOneTimeCodes() } catch (error) { return asBusiness(error) }
+  noteAccessEvent('CODES_REVOKED', {})
   return codesStatus()
 }
 

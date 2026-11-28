@@ -56,11 +56,11 @@ const redeem = async (target, code) => {
 }
 const normal = PANEL_KEYS.products
 
-const S = await lockIpc.createCodes({ section: 'sensitive', managerPassword: PW })
-const O = await lockIpc.createCodes({ section: 'other', managerPassword: PW })
+// دفتر آزمون ۴-۴۵: یک دستهٔ ۵ کدی
+const O = await lockIpc.createCodes({ managerPassword: PW })
 
 test('created codes are 8 digits in a row with no hyphen; entry works with or without a hyphen, Persian or Latin digits', async () => {
-  for (const c of [...S.codes, ...O.codes]) assert.match(c.code, /^[0-9]{8}$/, `code ${c.n}`)
+  for (const c of O.codes) assert.match(c.code, /^[0-9]{8}$/, `code ${c.n}`)
   assert.equal(codes.formatOneTimeCode('48210937'), '48210937')
   const a = O.codes[0].code, b = O.codes[1].code
   let r = await redeem(normal, `${a.slice(0, 4)}-${a.slice(4)}`)
@@ -68,7 +68,7 @@ test('created codes are 8 digits in a row with no hyphen; entry works with or wi
   assert.equal(r.value.number, 1)
   r = await redeem(normal, fa(b))
   assert.ok(r.ok && r.value.number === 2, r.message)
-  assert.equal(lockIpc.codesStatus().sections.other.remaining, 3)
+  assert.equal(lockIpc.codesStatus().codes.remaining, 3)
 })
 
 test('a lettered (recovery) code or any entry that is not 8 digits: the clear message, never counted, never locks', async () => {
@@ -80,7 +80,7 @@ test('a lettered (recovery) code or any entry that is not 8 digits: the clear me
   }
   assert.equal(wrongs(), before, 'no CODE_WRONG row')
   assert.equal(lockIpc.codesStatus().lockedMs, 0, 'seven entries, no lock')
-  assert.equal(lockIpc.codesStatus().sections.other.remaining, 3, 'nothing used')
+  assert.equal(lockIpc.codesStatus().codes.remaining, 3, 'nothing used')
   const r = await redeem(normal, '1357-9246')
   assert.equal(r.ok, false)
   assert.match(r.message, /کد درست نیست یا برای این ماژول نیست\. \(۴ تلاش دیگر تا قفل شدن\)/, 'the counter was still at zero')

@@ -1,9 +1,9 @@
 /**
- * طرح ۱۴۰۵ · مرحلهٔ ۶ — کدهای یک‌بارمصرف دوقسمتی و مدت‌ها (معماری §۳-۱۵، §۳-۱۳؛ §۸-۲ بندهای ۷، ۸ و ۹).
+ * طرح ۱۴۰۵ · مرحلهٔ ۶ — کدهای یک‌بارمصرف (یک دسته از دفتر آزمون ۴-۴۵) و مدت‌ها (معماری §۳-۱۵، §۳-۱۳؛ §۸-۲ بندهای ۷، ۸ و ۹).
  *
  * با همان تابع‌های واقعی AuthService، panelSession، دروازه و پروندهٔ کدها، روی پایگاه دادهٔ موقت و پوشهٔ موقت:
- *   هر کد یک بار؛ کدِ قسمت دیگر شمرده و مصرف‌نشده؛ ۵ اشتباه و قفل ۱۵ دقیقه؛ شمارندهٔ جدا از رمز مدیر؛ ساخت یک قسمت
- *   قسمت دیگر را باطل نمی‌کند؛ قاعده‌های کد دست‌نویس (۸ رقم، ساده، تکراری، برابر رمزها)؛ زنده نشدن پس از شروع دوباره
+ *   هر کد یک بار و روی هر قسمت؛ کدهای دو دستهٔ قبلی تا ساخت تازه؛ ۵ اشتباه و قفل ۱۵ دقیقه؛ شمارندهٔ جدا از رمز مدیر؛
+ *   ساخت تازه همهٔ کدهای قبلی را باطل می‌کند؛ قاعده‌های کد دست‌نویس (۸ رقم، ساده، تکراری، برابر رمزها)؛ زنده نشدن پس از شروع دوباره
  *   و بیرون بودن از پایگاه داده؛ ⚠️ کد حساس؛ پروندهٔ خراب یعنی همه باطل؛ دو مصرف هم‌زمان یک کد؛ برداشتن قفل با رمز
  *   تایپی مدیر؛ کد روی قسمتِ از قبل باز و روی قفل خاموش مصرف نمی‌شود؛ مدت‌های ۶ و ۱۲ دقیقه و بی‌کاری یک‌پنجم؛
  *   تغییر مدت روی کد مصرف‌نشده اثر دارد و روی قفل باز نه؛ «بستن همه» نشست کد را می‌بندد و کدها را باطل نمی‌کند؛
@@ -98,40 +98,37 @@ try {
 
   console.log('\n— ۲) ساخت هر دو قسمت؛ فقط یک بار نمایش؛ فقط hash در پروندهٔ بیرون از پایگاه داده')
   const S = await create('sensitive', { mode: 'own', codes: ['48210937', '59302148', '60413259', '71524360', '82635471'] })
+  // دفتر آزمون ۴-۴۵: ساخت تازه همهٔ کدهای قبلی را باطل می‌کند؛ «دو دستهٔ امروز» (پیش از ۴-۴۵) با پروندهٔ دوجایی ساخته می‌شود
+  const groupOf = () => JSON.parse(readFileSync(join(DIR, 'one-time-codes.json'), 'utf8')).sections.sensitive
+  const sGroup = groupOf()
   const O = await create('other')
+  writeFileSync(join(DIR, 'one-time-codes.json'), JSON.stringify({ version: 1, sections: { sensitive: sGroup, other: groupOf() }, fails: 0, lockedUntil: 0 }))
+  codes.resetOneTimeCodesCacheForTests()
   ok('۵ کد شماره‌دار با قالب ۸ رقم پیوسته', S.codes.length === 5 && S.codes.every((c, i) => c.n === i + 1 && /^\d{8}$/.test(c.code)) && O.codes.length === 5)
   const file = readFileSync(join(DIR, 'one-time-codes.json'), 'utf8')
   ok('پرونده کد خام ندارد، فقط hash', !plain(S.codes).concat(plain(O.codes)).some((c) => file.includes(c.replace('-', ''))) && /"hash"/.test(file))
   ok('هیچ ردیف Setting یا AuditLog کد خام ندارد', !plain(S.codes).some((c) => JSON.stringify(sql.prepare('SELECT * FROM "Setting"').all()).includes(c.replace('-', '')) || JSON.stringify(sql.prepare('SELECT * FROM "AuditLog"').all()).includes(c.replace('-', ''))))
   ok('دو ردیف CODES_CREATED', eventsOf('CODES_CREATED').length === 2)
   const st0 = lockIpc.codesStatus()
-  ok('وضعیت: «۵ از ۵» هر قسمت و مدت‌های پیش‌فرض ۱۰', st0.sections.sensitive.remaining === 5 && st0.sections.other.remaining === 5 && st0.sensitiveCodeMinutes === 10 && st0.otherCodeMinutes === 10)
-  const dup = await outcome(() => create('other', { mode: 'own', codes: ['48210937', '93746152', '60413258', '71524369', '82635470'] }))
-  ok('دست‌نویس برابر کد فعال قسمت دیگر رد', !dup.ok && /قسمت دیگر/.test(dup.err?.message ?? ''), dup.err?.message)
+  ok('وضعیت: «۱۰ از ۱۰» در دو دستهٔ قبلی و مدت‌های پیش‌فرض ۱۰', st0.codes.remaining === 10 && st0.codes.total === 10 && st0.codes.groups === 2 && st0.sensitiveCodeMinutes === 10 && st0.otherCodeMinutes === 10)
 
-  console.log('\n— ۳) مصرف: قسمت عادی با «سایر»، پولی و تازه و کار با «حساس»؛ کدِ قسمت دیگر شمرده و مصرف‌نشده')
+  console.log('\n— ۳) مصرف (دفتر آزمون ۴-۴۵): هر کدِ هر دو دستهٔ قبلی روی قسمت عادی، پولی و تازه؛ کلیدسازی رد')
   const products = PANEL_KEYS.products, cashClose = PANEL_KEYS.cashClose
   let r = await redeem(products, S.codes[0].code)
-  ok('کد حساس روی قسمت عادی رد با «برای این ماژول نیست»', !r.ok && /برای این ماژول نیست/.test(r.err?.message ?? ''))
-  ok('… و مصرف نشد', lockIpc.codesStatus().sections.sensitive.remaining === 5)
-  r = await redeem(products, O.codes[0].code)
-  ok('کد «سایر» قسمت عادی را باز کرد (مدت ۱۰)', r.ok && r.value.kind === 'part' && r.value.minutes === 10 && r.value.number === 1)
+  ok('کد دستهٔ قبلی «حساس» قسمت عادی را هم باز کرد (مدت ۱۰)', r.ok && r.value.kind === 'part' && r.value.minutes === 10 && r.value.number === 1)
+  ok('… و مصرف شد (۹ از ۱۰)', lockIpc.codesStatus().codes.remaining === 9)
   ok('نشست نگهبان‌دار همان پنجره، نه پنجرهٔ دیگر', sessions.isPanelUnlocked(products, W1) && !sessions.isPanelUnlocked(products, W2) && sessions.isGuardedPanelOpen(products, W1))
-  r = await redeem(products, O.codes[0].code, W2)
+  r = await redeem(products, S.codes[0].code, W2)
   ok('هر کد فقط یک بار (پنجرهٔ دیگر هم نه)', !r.ok)
-  r = await redeem(cashClose, O.codes[1].code)
-  ok('کد «سایر» روی قسمت پولی رد', !r.ok && lockIpc.codesStatus().sections.other.remaining === 4)
-  r = await redeem(cashClose, S.codes[0].code)
-  ok('کد حساس قسمت پولی را باز کرد', r.ok && r.value.section === 'sensitive')
+  r = await redeem(cashClose, O.codes[0].code)
+  ok('کد دستهٔ قبلی «سایر» قسمت پولی را هم باز کرد', r.ok && r.value.kind === 'part' && r.value.section === 'sensitive' && r.value.number === 1)
   r = await redeem('staff', S.codes[1].code)
-  ok('کد حساس قسمت تازهٔ «کارمندان» را باز کرد', r.ok && r.value.kind === 'part')
-  r = await redeem('credit.void', O.codes[2].code)
-  ok('کد «سایر» روی قفل کار رد', !r.ok)
+  ok('کد قسمت تازهٔ «کارمندان» را باز کرد', r.ok && r.value.kind === 'part')
   r = await redeem('keys.panel-locks', S.codes[2].code)
-  ok('کلیدسازی با کد رد (پیش‌فرض رد) و کد مصرف نشد', !r.ok && lockIpc.codesStatus().sections.sensitive.remaining === 3)
+  ok('کلیدسازی با کد رد (پیش‌فرض رد) و کد مصرف نشد', !r.ok && lockIpc.codesStatus().codes.remaining === 7)
   const usedEvents = eventsOf('CODE_USED')
-  ok('CODE_USED با شمارهٔ کد، پنجره و قسمت (بی کد خام)', usedEvents.length === 3 && usedEvents.every((e) => e.number >= 1 && e.windowNo === W1 && (e.decision === 'حساس' || e.decision === 'سایر ماژول‌ها')) && !JSON.stringify(events).includes(S.codes[0].code.replace('-', '')))
-  ok('CODE_WRONG برای هر اشتباه', eventsOf('CODE_WRONG').length >= 3)
+  ok('CODE_USED با شمارهٔ کد و پنجره، بی «حساس» یا «سایر» و بی کد خام', usedEvents.length === 3 && usedEvents.every((e) => e.number >= 1 && e.windowNo === W1 && e.decision === undefined) && !JSON.stringify(events).includes(S.codes[0].code.replace('-', '')))
+  ok('CODE_WRONG برای هر اشتباه', eventsOf('CODE_WRONG').length === 1)
 
   console.log('\n— ۴) قفل کار: بلیت یک‌بار با کد حساس، فقط همان پنجره، با خط «روش تأیید»')
   lockIpc.closeAllUnlocks()
@@ -140,7 +137,7 @@ try {
   r = await redeem('credit.void', S.codes[2].code)
   ok('کد حساس ⇒ بلیت یک‌بار (کار)', r.ok && r.value.kind === 'action' && tickets.peekGateTicket(W1, 'credit.void') && !tickets.peekGateTicket(W2, 'credit.void'))
   r = await redeem('credit.void', S.codes[3].code)
-  ok('با بلیت زنده، کد دوم مصرف نمی‌شود', !r.ok && lockIpc.codesStatus().sections.sensitive.remaining === 2)
+  ok('با بلیت زنده، کد دوم مصرف نمی‌شود', !r.ok && lockIpc.codesStatus().codes.remaining === 6)
   let note = null
   const g1 = await outcome(() => inCall(W1, async () => {
     await gateAction('credit.void', () => auth.assertPanelPasswordStrict(voidEntry.parentPanel, '', voidEntry.titleFa))
@@ -149,23 +146,23 @@ try {
     return row
   }))
   ok('دروازه با بلیت کد گذشت', g1.ok, g1.err?.message)
-  ok('خط «روش تأیید: کد یک‌بارمصرف حساس شمارهٔ ۳»', note === 'روش تأیید: کد یک‌بارمصرف حساس شمارهٔ 3', String(note))
+  ok('خط «روش تأیید: کد یک‌بارمصرف شمارهٔ ۳» (بی «حساس»)', note === 'روش تأیید: کد یک‌بارمصرف شمارهٔ 3', String(note))
   const g2 = await outcome(() => inCall(W1, () => gateAction('credit.void', () => auth.assertPanelPasswordStrict(voidEntry.parentPanel, '', voidEntry.titleFa))))
   ok('فراخوانی بعدی بی بلیت رد (یک بار)', !g2.ok && g2.err?.code === 'GATE_REQUIRED:credit.void')
 
   console.log('\n— ۵) قسمتِ از قبل باز، قفل خاموش، و «روش تأیید» درون قسمت بازشده با کد')
   sessions.notePanelUnlocked('settings', 'MANAGER', W1)
   r = await redeem(PANEL_KEYS.stocktake, O.codes[1].code)
-  ok('با نشست مدیر: «همین حالا باز است» و کد مصرف نشد', !r.ok && /همین حالا باز است/.test(r.err?.message ?? '') && lockIpc.codesStatus().sections.other.remaining === 4)
+  ok('با نشست مدیر: «همین حالا باز است» و کد مصرف نشد', !r.ok && /همین حالا باز است/.test(r.err?.message ?? '') && lockIpc.codesStatus().codes.remaining === 6)
   sessions.clearPanelSessions()
   seed.setting(SETTING_KEYS.panelLocks, { [PANEL_KEYS.stocktake]: false })
   r = await redeem(PANEL_KEYS.stocktake, O.codes[1].code)
-  ok('قفل خاموش: «کد لازم نیست» و مصرف نشد', !r.ok && /خاموش/.test(r.err?.message ?? '') && lockIpc.codesStatus().sections.other.remaining === 4)
+  ok('قفل خاموش: «کد لازم نیست» و مصرف نشد', !r.ok && /خاموش/.test(r.err?.message ?? '') && lockIpc.codesStatus().codes.remaining === 6)
   seed.setting(SETTING_KEYS.panelLocks, {})
   r = await redeem(PANEL_KEYS.stocktake, O.codes[1].code)
   ok('کد «سایر» شمارهٔ ۲ انبارگردانی را باز کرد', r.ok && r.value.number === 2)
   r = await redeem(PANEL_KEYS.stocktake, O.codes[2].code)
-  ok('روی همان قسمتِ بازشده با کد، کد دیگر مصرف نمی‌شود', !r.ok && lockIpc.codesStatus().sections.other.remaining === 3)
+  ok('روی همان قسمتِ بازشده با کد، کد دیگر مصرف نمی‌شود', !r.ok && lockIpc.codesStatus().codes.remaining === 5)
   let partNote = null
   await inCall(W1, async () => {
     await auth.assertPanelPassword(PANEL_KEYS.stocktake, '', 'زمان‌بندی انبارگردانی')
@@ -206,11 +203,11 @@ try {
   await lockIpc.setLockDurations({ managerPassword: PW, sensitiveCodeMinutes: 10, otherCodeMinutes: 10 })
 
   console.log('\n— ۷) ۵ اشتباه ⇒ ۱۵ دقیقه قفل؛ شمارندهٔ جدا از رمز مدیر؛ برداشتن قفل با رمز تایپی مدیر')
-  const sensitiveBefore = lockIpc.codesStatus().sections.sensitive
+  const before = lockIpc.codesStatus().codes
   const O2 = await create('other')
-  const sensitiveAfter = lockIpc.codesStatus().sections.sensitive
-  ok('ساخت «سایر» کدهای «حساس» را باطل نکرد', sensitiveAfter.total === 5 && sensitiveAfter.remaining === sensitiveBefore.remaining && sensitiveAfter.createdAt === sensitiveBefore.createdAt)
-  ok('ساخت تازهٔ «سایر» همهٔ کدهای قبلی همان قسمت را باطل کرد', lockIpc.codesStatus().sections.other.remaining === 5 && !(await redeem(PANEL_KEYS.purchase, O.codes[4].code)).ok)
+  const after = lockIpc.codesStatus().codes
+  ok('ساخت تازه یک دستهٔ ۵ کدی است و جای دو دستهٔ قبلی را گرفت', before.groups === 2 && after.groups === 1 && after.total === 5 && after.remaining === 5)
+  ok('ساخت تازه همهٔ کدهای قبلی را باطل کرد', lockIpc.codesStatus().codes.remaining === 5 && !(await redeem(PANEL_KEYS.purchase, O.codes[4].code)).ok)
   ok('مصرف موفق شمارندهٔ اشتباه را صفر می‌کند', (await redeem(PANEL_KEYS.stocktake, O2.codes[4].code)).ok)
   lockIpc.closeAllUnlocks()
   const beforeLock = managerLockoutRows()
@@ -218,9 +215,9 @@ try {
   r = await redeem(products, '1357-9246')
   ok('پنجمین اشتباه قفل کرد (پیام ۱۵ دقیقه)', !r.ok && /۱۵ دقیقه قفل/.test(r.err?.message ?? ''), r.err?.message)
   ok('ردیف AUTH_LOCKOUT ثبت شد', events.some((e) => e.action === 'AUTH_LOCKOUT' && e.kind === 'ONE_TIME_CODES'))
-  const lockedRemaining = lockIpc.codesStatus().sections.other.remaining
+  const lockedRemaining = lockIpc.codesStatus().codes.remaining
   r = await redeem(products, O2.codes[0].code)
-  ok('در قفل، کد درست هم پذیرفته نمی‌شود و مصرف نمی‌شود', !r.ok && /قفل است/.test(r.err?.message ?? '') && lockIpc.codesStatus().sections.other.remaining === lockedRemaining)
+  ok('در قفل، کد درست هم پذیرفته نمی‌شود و مصرف نمی‌شود', !r.ok && /قفل است/.test(r.err?.message ?? '') && lockIpc.codesStatus().codes.remaining === lockedRemaining)
   ok('شمارندهٔ رمز مدیر دست نخورد', managerLockoutRows() === beforeLock)
   ok('رمز مدیر همچنان کار می‌کند', (await outcome(() => auth.assertManagerPassword(PW, 'آزمون'))).ok)
   codes.resetOneTimeCodesCacheForTests()
@@ -244,16 +241,16 @@ try {
   codes.resetOneTimeCodesCacheForTests()
   r = await redeem(PANEL_KEYS.secondaryStock, O2.codes[2].code, W2)
   ok('پس از شروع دوباره، کد مصرف‌شده زنده نمی‌شود', !r.ok)
-  const remainingBefore = lockIpc.codesStatus().sections.other.remaining
+  const remainingBefore = lockIpc.codesStatus().codes.remaining
   lockIpc.closeAllUnlocks({ cancelFuture: true })
   ok('«بستن همه» نشست‌های کد را بست', !sessions.isPanelUnlocked(PANEL_KEYS.purchase, W1) && !sessions.isPanelUnlocked(PANEL_KEYS.purchase, W2) && unlocks.guardedParts().length === 0)
-  ok('… و هیچ کدی را باطل نکرد', lockIpc.codesStatus().sections.other.remaining === remainingBefore)
+  ok('… و هیچ کدی را باطل نکرد', lockIpc.codesStatus().codes.remaining === remainingBefore)
 
-  console.log('\n— ۹) باطل کردن یک قسمت (کلیدسازی)؛ پروندهٔ خراب یعنی همه باطل، با ⚠️ یک بار')
+  console.log('\n— ۹) باطل کردن کدها (کلیدسازی)؛ پروندهٔ خراب یعنی همه باطل، با ⚠️ یک بار')
   const rv = await outcome(() => lockIpc.revokeCodes({ section: 'other', managerPassword: '' }))
   ok('باطل کردن بی رمز تایپی رد', !rv.ok)
   await lockIpc.revokeCodes({ section: 'other', managerPassword: PW })
-  ok('«سایر» باطل شد، «حساس» ماند', lockIpc.codesStatus().sections.other === null && lockIpc.codesStatus().sections.sensitive.total === 5)
+  ok('همهٔ کدها باطل شد', lockIpc.codesStatus().codes === null)
   r = await redeem(products, O2.codes[3].code)
   ok('کد باطل‌شده کار نمی‌کند', !r.ok)
   const S2 = await create('sensitive')

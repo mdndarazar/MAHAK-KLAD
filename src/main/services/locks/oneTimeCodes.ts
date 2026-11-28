@@ -1,11 +1,15 @@
 /**
- * طرح ۱۴۰۵ §۳-۱۵ (مورد ۱۴-الف و ۲۵-۱۰) — کدهای یک‌بارمصرف دوقسمتی: «حساس» و «سایر ماژول‌ها»، هر کدام ۵ کد.
+ * طرح ۱۴۰۵ §۳-۱۵ (مورد ۱۴-الف و ۲۵-۱۰) — کدهای یک‌بارمصرف. دفتر آزمون ۴-۴۵: یک دستهٔ ۵ کدی؛ هر کد روی همهٔ
+ * ماژول‌ها و قفل‌های کار یک بار کار می‌کند، جز «کلیدسازی» (رد پیش از مصرف در `codeRedeem.ts`).
  *
  * - پرونده: `userData/one-time-codes.json`، بیرون از پایگاه داده، با نوشتن اتمی. بازگردانی بکاپ کد مصرف‌شده را
  *   زنده نمی‌کند و صفر کردن دستش نمی‌زند.
- * - هر قسمت یک نمک تصادفی ۱۶ بایتی (با هر ساخت تازه عوض می‌شود) و ۵ ردیف `{n, hash, usedAt}`؛ hash با scrypt،
- *   مثل رمزها. ساخت کدهای یک قسمت فقط کدهای همان قسمت را باطل می‌کند.
- * - شمارندهٔ اشتباه مشترک دو قسمت هم در همین پرونده است تا با بستن برنامه صفر نشود: ۵ اشتباه ⇒ ۱۵ دقیقه قفل؛
+ * - ساختار پرونده همان دو جای قدیم است (`sections.sensitive` و `sections.other`)، تا کدهای مصرف‌نشدهٔ دو دستهٔ قبلی
+ *   تا ساخت کد تازه بمانند و روی همهٔ ماژول‌ها کار کنند. ساخت تازه دستهٔ تازه را در جای `sensitive` می‌نویسد و
+ *   جای `other` را خالی می‌کند (همهٔ کدهای قبلی باطل)؛ «باطل کردن کدها» هر دو جا را خالی می‌کند.
+ * - هر جا یک نمک تصادفی ۱۶ بایتی (با هر ساخت تازه عوض می‌شود) و ۵ ردیف `{n, hash, usedAt}`؛ hash با scrypt،
+ *   مثل رمزها.
+ * - شمارندهٔ اشتباه هم در همین پرونده است تا با بستن برنامه صفر نشود: ۵ اشتباه ⇒ ۱۵ دقیقه قفل؛
  *   جدا از رمز مدیر، رمزهای پنل، PIN و کدهای بازیابی. «برداشتن قفل کدها» کار مدیر است (رمز تایپی).
  * - پروندهٔ خراب یعنی همهٔ کدها باطل (هرگز «همه باز»)؛ خبر ⚠️ فقط یک بار در هر اجرا.
  * - مصرف همگام است: خواندن، سنجش، علامت «مصرف‌شده» و نوشتن بی هیچ `await`؛ پس دو پنجرهٔ هم‌زمان یک کد را دو بار
@@ -22,14 +26,11 @@ import { app } from 'electron'
 import { toLatinDigits } from '@shared/jalali'
 import type { OneTimeCodeSection } from '@shared/panels'
 
+/** بخش مدت (از نوع ماژول مقصد، ۴-۲۸) و نام دو جای پرونده؛ کد دیگر بخش ندارد (۴-۴۵) */
 export type CodeSection = OneTimeCodeSection
 export const CODE_SECTIONS: readonly CodeSection[] = Object.freeze(['sensitive', 'other'])
-export const CODE_SECTION_TITLES: Readonly<Record<CodeSection, string>> = Object.freeze({
-  sensitive: 'کدهای یک‌بارمصرف ماژول‌های پولی «حساس»',
-  other: 'کدهای یک‌بارمصرف سایر ماژول‌ها'
-})
-/** برچسب ثابت قسمت در ردیف `ACCESS_EVENT` و پیام‌رسان */
-export const CODE_SECTION_LABELS: Readonly<Record<CodeSection, string>> = Object.freeze({ sensitive: 'حساس', other: 'سایر ماژول‌ها' })
+/** جای دستهٔ تازه در پرونده */
+const BATCH_SLOT: CodeSection = 'sensitive'
 export const CODES_PER_SECTION = 5
 export const CODE_MAX_FAILS = 5
 export const CODE_LOCK_MS = 15 * 60_000
@@ -161,13 +162,19 @@ function lockLeft(state: CodesState): number {
 export interface CodesStatus {
   broken: boolean
   lockedMs: number
-  sections: Record<CodeSection, { total: number; remaining: number; createdAt: number } | null>
+  /** یک دسته؛ `groups` = ۲ یعنی کدهای دو دستهٔ قبلی هنوز با هم‌اند (تا ساخت کد تازه) */
+  codes: { total: number; remaining: number; createdAt: number; groups: number } | null
 }
 export function oneTimeCodesStatus(dir?: string): CodesStatus {
   const l = load(dir)
-  if (!l.state) return { broken: true, lockedMs: 0, sections: { sensitive: null, other: null } }
-  const section = (s: CodeSectionState | null) => s ? { total: s.rows.length, remaining: s.rows.filter((r) => r.usedAt === null).length, createdAt: s.createdAt } : null
-  return { broken: false, lockedMs: lockLeft(l.state), sections: { sensitive: section(l.state.sections.sensitive), other: section(l.state.sections.other) } }
+  if (!l.state) return { broken: true, lockedMs: 0, codes: null }
+  const groups = CODE_SECTIONS.map((k) => l.state!.sections[k]).filter((s): s is CodeSectionState => s !== null)
+  const codes = groups.length ? {
+    total: groups.reduce((a, s) => a + s.rows.length, 0),
+    remaining: groups.reduce((a, s) => a + s.rows.filter((r) => r.usedAt === null).length, 0),
+    createdAt: Math.max(...groups.map((s) => s.createdAt)), groups: groups.length
+  } : null
+  return { broken: false, lockedMs: lockLeft(l.state), codes }
 }
 
 /** «همه یک رقم» یا «پشت‌سرهم» (مثل ۱۲۳۴۵۶۷۸ یا ۸۷۶۵۴۳۲۱). */
@@ -179,7 +186,7 @@ export function weakOneTimeCode(code: string): boolean {
 }
 
 /**
- * پنج کد تازهٔ یک قسمت (پیش از ثبت): تصادفی، یا «خودم می‌نویسم» با قاعده‌های ۲۵-۱۰. قاعدهٔ «برابر رمز مدیر یا
+ * پنج کد تازه (پیش از ثبت): تصادفی، یا «خودم می‌نویسم» با قاعده‌های ۲۵-۱۰. قاعدهٔ «برابر رمز مدیر یا
  * رمز دوم و سوم نباشد» را لایهٔ IPC با AuthService می‌سنجد (ناهم‌زمان). خطا ⇒ پیام فارسی.
  */
 export function prepareOneTimeCodes(mode: unknown, own: unknown): string[] {
@@ -205,31 +212,18 @@ export function prepareOneTimeCodes(mode: unknown, own: unknown): string[] {
   return codes
 }
 
-/** کدهای فعال قسمت دیگر را که با یکی از این کدها برابرند پیدا می‌کند (برای رد تکراری). */
-function clashesWithOther(state: CodesState, section: CodeSection, codes: string[]): boolean {
-  const other = state.sections[section === 'sensitive' ? 'other' : 'sensitive']
-  if (!other) return false
-  const live = other.rows.filter((r) => r.usedAt === null)
-  return codes.some((code) => { const h = derive(code, other.salt); return live.some((r) => sameHash(h, r.hash)) })
-}
-
 /**
- * ثبت پنج کد تازهٔ یک قسمت (کدهای قبلی همان قسمت باطل می‌شوند). پروندهٔ خراب جایگزین می‌شود.
- * `random` برای کد تصادفی: اگر با کد فعال قسمت دیگر برابر شد، دوباره ساخته می‌شود.
- * خروجی: کدهای خام شماره‌دار، فقط برای همین یک بار نمایش.
+ * ثبت پنج کد تازه؛ همهٔ کدهای قبلی (هر دو جای پرونده) باطل می‌شوند. پروندهٔ خراب جایگزین می‌شود.
+ * شمارندهٔ اشتباه و قفل دست نمی‌خورند. خروجی: کدهای خام شماره‌دار، فقط برای همین یک بار نمایش.
  */
-export function commitOneTimeCodes(section: CodeSection, codes: string[], opts: { dir?: string; random?: boolean } = {}): Array<{ n: number; code: string }> {
-  if (!CODE_SECTIONS.includes(section)) throw new Error('قسمت کد نامعتبر است.')
+export function commitOneTimeCodes(codes: string[], opts: { dir?: string } = {}): Array<{ n: number; code: string }> {
   const l = load(opts.dir)
   const base: CodesState = l.state ? JSON.parse(JSON.stringify(l.state)) as CodesState : emptyState()
-  let list = [...codes]
-  for (let round = 0; clashesWithOther(base, section, list); round++) {
-    if (!opts.random || round > 20) throw new Error('یکی از کدها با کدهای فعال قسمت دیگر برابر است؛ کد دیگری بنویسید.')
-    list = prepareOneTimeCodes('random', null)
-  }
-  if (list.length !== CODES_PER_SECTION || list.some((c) => !normalizeOneTimeCode(c))) throw new Error('کدها نامعتبرند.')
+  const list = [...codes]
+  if (list.length !== CODES_PER_SECTION || list.some((c) => !normalizeOneTimeCode(c)) || new Set(list).size !== list.length) throw new Error('کدها نامعتبرند.')
   const salt = randomBytes(16).toString('hex')
-  base.sections[section] = {
+  base.sections = { sensitive: null, other: null }
+  base.sections[BATCH_SLOT] = {
     salt, createdAt: wallClock(),
     rows: list.map((code, i) => ({ n: i + 1, hash: derive(code, salt).toString('hex'), usedAt: null }))
   }
@@ -238,12 +232,11 @@ export function commitOneTimeCodes(section: CodeSection, codes: string[], opts: 
   return list.map((code, i) => ({ n: i + 1, code: formatOneTimeCode(code) }))
 }
 
-/** «باطل کردن کدهای این قسمت». */
-export function revokeOneTimeCodes(section: CodeSection, dir?: string): void {
-  if (!CODE_SECTIONS.includes(section)) throw new Error('قسمت کد نامعتبر است.')
+/** «باطل کردن کدها»: همه، از هر دو جای پرونده. */
+export function revokeOneTimeCodes(dir?: string): void {
   const l = load(dir)
   const base: CodesState = l.state ? JSON.parse(JSON.stringify(l.state)) as CodesState : emptyState()
-  base.sections[section] = null
+  base.sections = { sensitive: null, other: null }
   writeAtomic(l.path, base)
   cache = { path: l.path, state: base, broken: false, brokenNoticed: false }
 }
@@ -261,7 +254,8 @@ export function clearOneTimeCodeLock(dir?: string): boolean {
 }
 
 export type ConsumeResult =
-  | { ok: true; n: number }
+  /** `slot`: جای پرونده، فقط برای برگرداندن همان ردیف (`restoreOneTimeCode`) */
+  | { ok: true; n: number; slot: CodeSection }
   | { ok: false; reason: 'LOCKED'; lockedMs: number }
   | { ok: false; reason: 'WRONG'; justLocked: boolean; failsLeft: number }
   | { ok: false; reason: 'BROKEN'; firstNotice: boolean }
@@ -269,10 +263,10 @@ export type ConsumeResult =
   | { ok: false; reason: 'FORMAT' }
 
 /**
- * مصرف همگام یک کد برای یک قسمت. کدِ قسمت دیگر اینجا «اشتباه» است (مصرف نمی‌شود و شمرده می‌شود).
+ * مصرف همگام یک کد (۴-۴۵: هر کدِ زنده از هر جای پرونده، برای هر هدفی که `codeRedeem.ts` پذیرفته است).
  * شکست نوشتن: کد در حافظه مصرف‌شده می‌ماند (همان اجرا دوباره نمی‌پذیرد).
  */
-export function consumeOneTimeCode(section: CodeSection, raw: unknown, dir?: string): ConsumeResult {
+export function consumeOneTimeCode(raw: unknown, dir?: string): ConsumeResult {
   const code = normalizeOneTimeCode(raw)
   if (!code) return { ok: false, reason: 'FORMAT' }
   const l = load(dir)
@@ -284,11 +278,13 @@ export function consumeOneTimeCode(section: CodeSection, raw: unknown, dir?: str
   const state = l.state
   const left = lockLeft(state)
   if (left > 0) return { ok: false, reason: 'LOCKED', lockedMs: left }
-  const target = CODE_SECTIONS.includes(section) ? state.sections[section] : null
-  let hit: CodeRow | null = null
-  if (target) {
-    const h = derive(code, target.salt)
-    hit = target.rows.find((r) => r.usedAt === null && sameHash(h, r.hash)) ?? null
+  let hit: CodeRow | null = null, slot: CodeSection = BATCH_SLOT
+  for (const key of CODE_SECTIONS) {
+    const group = state.sections[key]
+    if (!group || !group.rows.some((r) => r.usedAt === null)) continue
+    const h = derive(code, group.salt)
+    hit = group.rows.find((r) => r.usedAt === null && sameHash(h, r.hash)) ?? null
+    if (hit) { slot = key; break }
   }
   if (!hit) {
     state.fails += 1
@@ -300,15 +296,15 @@ export function consumeOneTimeCode(section: CodeSection, raw: unknown, dir?: str
   hit.usedAt = wallClock()
   state.fails = 0
   try { writeAtomic(l.path, state) } catch {}
-  return { ok: true, n: hit.n }
+  return { ok: true, n: hit.n, slot }
 }
 
 /**
  * برگرداندن کدی که همین حالا مصرف شد ولی نشست یا بلیتش ساخته نشد (همگام، بی فاصله با مصرف). فقط همان ردیف.
  */
-export function restoreOneTimeCode(section: CodeSection, n: number, dir?: string): void {
+export function restoreOneTimeCode(slot: CodeSection, n: number, dir?: string): void {
   const l = load(dir)
-  const row = l.state?.sections[section]?.rows.find((r) => r.n === n)
+  const row = l.state?.sections[slot]?.rows.find((r) => r.n === n)
   if (!l.state || !row) return
   row.usedAt = null
   try { writeAtomic(l.path, l.state) } catch {}

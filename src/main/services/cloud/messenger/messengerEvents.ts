@@ -778,16 +778,15 @@ function accessEvent(row: AuditRowLite, f: Record<string, unknown>, h: ReturnTyp
   const where = [lock ? `قفل: ${lock}` : '', n(f.number) !== null ? `شمارهٔ ${num(f.number)}` : '', n(f.windowNo) !== null ? `پنجرهٔ ${num(f.windowNo)}` : ''].filter(Boolean).join(' · ')
   const by = `کاربر: ${h.who(row.userId)}`
   const K = ACCESS_EVENT_KINDS
-  // `decision` فقط برچسب ثابت است (قسمت کد، بازه، دلیل)؛ هیچ کد یا متن آزاد.
+  // `decision` فقط برچسب ثابت است (بازه، دلیل، نوع)؛ هیچ کد یا متن آزاد.
   const label = typeof f.decision === 'string' ? f.decision.slice(0, 40) : ''
-  const sensitive = label === 'حساس'
   // دفتر آزمون ۴-۴۷ (مجوز زمان‌بندی‌شده): کارمند مجوز، و در «باز شد» ساعت بستن پنجرهٔ امروز (`minutes` = ساعت پایان رسمی به دقیقهٔ روز)
   const custodian = kind.startsWith('SCHEDULED_GRANT_') && typeof f.recipientName === 'string' && f.recipientName ? `مسئول صندوق: ${f.recipientName.slice(0, 60)}` : ''
   const endMin = kind === K.SCHEDULED_GRANT_OPENED ? n(f.minutes) : null
   const until = endMin !== null && Number.isInteger(endMin) && endMin >= 0 && endMin < 1440 ? `زمان بستن: ساعت ${faDigits(`${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`)}` : ''
   switch (kind) {
-    // مرحلهٔ ۶: مصرف کد «حساس» ⚠️ است (در «فقط موارد مهم» هم)؛ کد «سایر ماژول‌ها» مثل خبرهای عادی.
-    case K.CODE_USED: return [h.event(row, `🔑 کد یک‌بارمصرف ${sensitive ? 'حساس ' : ''}مصرف شد`, [where, label && !sensitive ? `قسمت: ${label}` : '', n(f.minutes) !== null ? `تا ${num(f.minutes)} دقیقه` : ''], { important: sensitive || !label })]
+    // دفتر آزمون ۴-۴۵: یک دستهٔ کد که ماژول‌های پولی را هم باز می‌کند ⇒ هر مصرف ⚠️ (در «فقط موارد مهم» هم)، بی «حساس» یا «قسمت»
+    case K.CODE_USED: return [h.event(row, '🔑 کد یک‌بارمصرف مصرف شد', [where, n(f.minutes) !== null ? `تا ${num(f.minutes)} دقیقه` : ''], { important: true })]
     case K.CODE_WRONG: return [h.event(row, '🔑 کد یک‌بارمصرف اشتباه وارد شد', [where], { important: true })]
     case K.CODES_CREATED: return [h.event(row, '🔑 کدهای یک‌بارمصرف تازه ساخته شد', [n(f.count) !== null ? `تعداد: ${num(f.count)}` : '', lock ? `بخش: ${lock}` : '', by], { important: true })]
     case K.CODES_REVOKED: return [h.event(row, '🔑 کدهای یک‌بارمصرف باطل شد', [lock ? `بخش: ${lock}` : '', by])]

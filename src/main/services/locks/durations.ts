@@ -36,8 +36,9 @@ export const ONE_SHOT_MAX_MINUTES = 60
 export const LOCK_DURATION_KEYS: readonly LockDurationKey[] = Object.freeze(['sensitiveCodeMinutes', 'otherCodeMinutes', 'remoteGrantMinutes', 'remoteSensitiveGrantMinutes'])
 const LEGACY_KEYS = ['sensitiveCodeMinutes', 'otherCodeMinutes', 'remoteGrantMinutes'] as const
 export const LOCK_DURATION_TITLES: Readonly<Record<LockDurationKey, string>> = Object.freeze({
-  sensitiveCodeMinutes: 'مدت کد یک‌بارمصرف حساس',
-  otherCodeMinutes: 'مدت کد یک‌بارمصرف سایر ماژول‌ها',
+  // دفتر آزمون ۴-۴۵: یک دستهٔ کد؛ مدت از نوع چیزی که باز می‌شود
+  sensitiveCodeMinutes: 'مدت باز ماندن ماژول‌های پولی با کد',
+  otherCodeMinutes: 'مدت باز ماندن سایر ماژول‌ها با کد',
   remoteGrantMinutes: 'مدت مجوز راه دور — ماژول‌های معمولی',
   remoteSensitiveGrantMinutes: 'مدت مجوز راه دور — ماژول‌های پولی و حساس'
 })
