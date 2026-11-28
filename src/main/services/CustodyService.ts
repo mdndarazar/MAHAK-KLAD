@@ -1126,7 +1126,7 @@ export const custodyService = {
       ? (assertManagerSession('ثبت بازبینی بازیابی Shift قدیمی'), { userId: null as number | null, actorKind: 'GLOBAL_MANAGER', authMethod: 'MANAGER_SESSION' })
       : (() => null)()
     const manager = actor ? null : await this.verifyPin(input.managerUserId, input.managerPassword, { requireManager: true })
-    const actorUserId = actor?.userId ?? manager!.userId
+    const actorUserId = actor ? actor.userId : manager!.userId // دفتر آزمون ۴-۸: نشست مدیر شناسهٔ تهی دارد؛ `??` به manager تهی می‌رسید
     const actorKind = actor?.actorKind ?? 'MANAGER'
     const authMethod = actor?.authMethod ?? 'MANAGER_CUSTODY_PIN'
     const stores: any = prisma as any
