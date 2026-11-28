@@ -249,7 +249,7 @@ const exchange = async (label, inv, oldV, newV, expect = 'ok', plan) => {
   return r
 }
 const debtPay = async (label, inv, amount, expect = 'ok', plan, extra = {}) => {
-  const r = await call(label, expect, IPC.salePaymentAdd, { invoiceId: n(inv.data?.id), kind: 'CASH', amount, methodId: cashM, destination: 'CASH', ...extra }, plan, () => ({ amount }))
+  unlock(PANEL_KEYS.salesCredit); const r = await call(label, expect, IPC.salePaymentAdd, { invoiceId: n(inv.data?.id), kind: 'CASH', amount, methodId: cashM, destination: 'CASH', ...extra }, plan, () => ({ amount }))
   if (r.ok) drawer += amount
   return r
 }

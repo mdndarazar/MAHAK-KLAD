@@ -327,7 +327,7 @@ await deliver('exchange', false, '۴-۹')
 
 begin('B8', 'چک ۳۰۰٬۰۰۰ روی فاکتور نسیه (سررسید ۱۴۰۵/۱۰/۰۶)')
 go(DAY, '13:00')
-await call('cheque 300,000 for the نسیه sale', 'either', IPC.salePaymentAdd, { invoiceId: n(s4.data?.id), kind: 'CHEQUE', amount: 300_000, chequeNo: 'BOT-Q-1', bankName: 'ملت', dueDateJalali: '1405/10/06' }, 'چک')
+unlock(PANEL_KEYS.salesCredit); await call('cheque 300,000 for the نسیه sale', 'either', IPC.salePaymentAdd, { invoiceId: n(s4.data?.id), kind: 'CHEQUE', amount: 300_000, chequeNo: 'BOT-Q-1', bankName: 'ملت', dueDateJalali: '1405/10/06' }, 'چک')
 await deliver('cheque', false, 'چک')
 
 // =================================================================== B9
@@ -413,10 +413,10 @@ await deliver('a sale right after the engine read', true, '۴-۹')
 // =================================================================== B15
 begin('B15', 'پرداخت بخشی از نسیهٔ B4 با کارت و با نقد (پیام «💰 پرداخت»؛ ۴-۱۴۴)')
 go('1405/09/07', '11:30')
-await call('نسیه payment 60,000 by card', 'ok', IPC.salePaymentAdd, { invoiceId: n(s4.data?.id), kind: 'CASH', amount: 60_000, destination: 'CARD', methodId: cardM }, '۴-۱۴۴')
+unlock(PANEL_KEYS.salesCredit); await call('نسیه payment 60,000 by card', 'ok', IPC.salePaymentAdd, { invoiceId: n(s4.data?.id), kind: 'CASH', amount: 60_000, destination: 'CARD', methodId: cardM }, '۴-۱۴۴')
 await deliver('نسیه payment by card', true, '۴-۱۴۴')
 go('1405/09/07', '11:40')
-await call('نسیه payment 40,000 in cash', 'ok', IPC.salePaymentAdd, { invoiceId: n(s4.data?.id), kind: 'CASH', amount: 40_000, destination: 'CASH', methodId: cashM }, '۴-۱۴۴')
+unlock(PANEL_KEYS.salesCredit); await call('نسیه payment 40,000 in cash', 'ok', IPC.salePaymentAdd, { invoiceId: n(s4.data?.id), kind: 'CASH', amount: 40_000, destination: 'CASH', methodId: cashM }, '۴-۱۴۴')
 await deliver('نسیه payment in cash', true, '۴-۱۴۴')
 
 // =================================================================== خلاصه، نتیجهٔ فشرده و مقایسه

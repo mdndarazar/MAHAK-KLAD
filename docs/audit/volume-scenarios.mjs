@@ -341,7 +341,7 @@ for (let d = 0; d < DAYS; d++) {
   }
   if (d % 10 === 5) {
     const q = daySales.find((s) => s.kind === 'NESIEH')
-    if (q) await call('cheque for a نسیه sale (due +30 days)', 'ok', IPC.salePaymentAdd, { invoiceId: q.id, kind: 'CHEQUE', amount: q.total, chequeNo: `VOL-${d}`, bankName: 'ملت', dueDateJalali: jalaliAddDays(day, 30) })
+    unlock(PANEL_KEYS.salesCredit); if (q) await call('cheque for a نسیه sale (due +30 days)', 'ok', IPC.salePaymentAdd, { invoiceId: q.id, kind: 'CHEQUE', amount: q.total, chequeNo: `VOL-${d}`, bankName: 'ملت', dueDateJalali: jalaliAddDays(day, 30) })
   }
   if (day.endsWith('/01')) {
     go(day, '21:10'); unlock(PANEL_KEYS.purchase)

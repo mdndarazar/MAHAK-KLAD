@@ -10,6 +10,10 @@ import { exportTable } from '../lib/exportCsv'
 import { pageOfOutput, readAllReportPages, type ReadAllPagedResult } from '../lib/reportOutput'
 import ReportFilterBar, { channelsLabel, makeFilters, toServiceFilter, type ReportFilters } from '../components/ReportFilterBar'
 import ManagerGate from '../components/ManagerGate'
+
+/** دفتر آزمون ۴-۶۴: راهنمای قفل «نسیه» برای پنجرهٔ پرداختی‌ها و تب «چک‌ها» */
+const CREDIT_PAYMENTS_LOCK_HINT = 'این پنجره قفل بخش «نسیه» را دارد. رمز مدیر یا رمز دوم بخش «نسیه» را اینجا وارد کنید تا باز شود.'
+const CREDIT_CHEQUES_LOCK_HINT = 'این تب قفل بخش «نسیه» را دارد. رمز مدیر یا رمز دوم بخش «نسیه» را اینجا وارد کنید تا باز شود.'
 import AccountingBlocks, { type DrillTarget } from '../components/AccountingBlocks'
 import BridgeDiagnosticsModal from '../components/BridgeDiagnosticsModal'
 import ReportExtraTables from '../components/ReportExtraTables'
@@ -768,7 +772,7 @@ export default function SalesReports() {
     () => reportDataKey(tab, filters, { includeExchanges, includeSettled, chequeDateMode, creditOpen }),
     [tab, filters, includeExchanges, includeSettled, chequeDateMode, creditOpen]
   )
-  const outputDirty = loadedReportKey !== currentReportKey || (tab === 'credit' && !creditOpen)
+  const outputDirty = loadedReportKey !== currentReportKey || ((tab === 'credit' || tab === 'cheques') && !creditOpen)
 
   const flash = (m: string) => {
     setMsg(m)
@@ -809,7 +813,8 @@ export default function SalesReports() {
       if (tab === 'creditManagement') return
       if (tab === 'receiptGaps') return
       // ---------------- جلسه ۱۵: چهار تب تازه ----------------
-      if (tab === 'cheques') setCheques(await call<any>(CH.saleChequeList, { ...f, dateMode: chequeDateMode }))
+      // دفتر آزمون ۴-۶۴: تا قفل «نسیه» باز نشده، فهرست چک‌ها خوانده نمی‌شود
+      if (tab === 'cheques') setCheques(creditOpen ? await call<any>(CH.saleChequeList, { ...f, dateMode: chequeDateMode }) : null)
       else if (tab === 'storeCredits') setStoreCredits(await call<any>(CH.storeCreditList, f))
       else if (tab === 'ledger') setLedger(await call<any>(CH.saleReportLedger, f))
       else if (tab === 'fraud') setFraud(await call<any>(CH.saleFraudReview, f))
@@ -2938,7 +2943,22 @@ export default function SalesReports() {
         </div>
       )}
 
-      {(tab === 'cheques' || tab === 'storeCredits' || tab === 'ledger' || tab === 'fraud') && (
+      {tab === 'cheques' && (
+        /* دفتر آزمون ۴-۶۴: تب «چک‌ها» داخل قفل «نسیه» */
+        <ManagerGate panel={PANEL_KEYS.salesCredit} title="چک‌ها" reason={CREDIT_CHEQUES_LOCK_HINT} inline>
+          <ReportExtraTables
+            tab={tab}
+            cheques={cheques}
+            chequeDateMode={chequeDateMode}
+            onChequeDateMode={setChequeDateMode}
+            storeCredits={storeCredits}
+            ledger={ledger}
+            fraud={fraud}
+            onOpenInvoice={(id) => setPaymentsFor(id)}
+          />
+        </ManagerGate>
+      )}
+      {(tab === 'storeCredits' || tab === 'ledger' || tab === 'fraud') && (
         <ReportExtraTables
           tab={tab}
           cheques={cheques}
@@ -3000,8 +3020,21 @@ export default function SalesReports() {
         pageUnexplained={report?.accounting?.bridge ? report.accounting.bridge.unexplained : null}
       />
       <CreditSettlementModal open={creditSettlementFor != null} invoiceId={creditSettlementFor} onClose={() => setCreditSettlementFor(null)} />
+      {/* دفتر آزمون ۴-۶۴: پنجرهٔ پرداختی‌ها از هر تبی قفل «نسیه» را دارد؛ با قفل خاموش یا باز، همان پنجره */}
+      {paymentsFor != null && !creditOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" role="dialog" aria-modal="true">
+          <div className="bg-white rounded shadow p-4 w-[min(94vw,560px)] space-y-2">
+            <ManagerGate panel={PANEL_KEYS.salesCredit} title="پرداختی‌ها / اقساط" reason={CREDIT_PAYMENTS_LOCK_HINT} inline>
+              <span />
+            </ManagerGate>
+            <div className="flex justify-end">
+              <button className="btn" onClick={() => setPaymentsFor(null)}>بستن</button>
+            </div>
+          </div>
+        </div>
+      )}
       <InvoicePaymentsModal
-        open={paymentsFor != null}
+        open={paymentsFor != null && creditOpen}
         invoiceId={paymentsFor}
         methods={methods}
         debtReceiptPrint={settings.sale.debtPaymentReceiptPrint === true}

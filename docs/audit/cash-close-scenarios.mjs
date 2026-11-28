@@ -575,7 +575,7 @@ await run('D', 'نسیه، چک در جریان و پاس‌شده، وصول ن
   const sb = await sale(ctx, { items: [[y]], pays: [], debtor: true, label: 'sale B 1,000,000 نسیه' })
   let chequeId = null
   if (sb.ok) {
-    const q = await call(ctx, 'cheque 1,000,000 for sale B (payments window)', 'ok', IPC.salePaymentAdd, { invoiceId: sb.invoiceId, kind: 'CHEQUE', amount: 1_000_000, chequeNo: 'AUD-Q-1', bankName: 'ملت', dueDateJalali: dueJalali })
+    unlock(PANEL_KEYS.salesCredit); const q = await call(ctx, 'cheque 1,000,000 for sale B (payments window)', 'ok', IPC.salePaymentAdd, { invoiceId: sb.invoiceId, kind: 'CHEQUE', amount: 1_000_000, chequeNo: 'AUD-Q-1', bankName: 'ملت', dueDateJalali: dueJalali })
     chequeId = n(q.data?.payment?.id)
   }
   const c1 = await close(ctx, s1, { counted: 500_000, label: 'F10 close session 1 counted 500,000' })
@@ -583,7 +583,7 @@ await run('D', 'نسیه، چک در جریان و پاس‌شده، وصول ن
   const o2 = await openSession(ctx, owner, { label: 'open session 2' })
   const s2 = n(o2.data?.id)
   if (sa.ok) {
-    await call(ctx, 'collect 600,000 cash on sale A (prior نسیه)', 'ok', IPC.salePaymentAdd, { invoiceId: sa.invoiceId, kind: 'CASH', amount: 600_000, methodId: cashM, destination: 'CASH' })
+    unlock(PANEL_KEYS.salesCredit); await call(ctx, 'collect 600,000 cash on sale A (prior نسیه)', 'ok', IPC.salePaymentAdd, { invoiceId: sa.invoiceId, kind: 'CASH', amount: 600_000, methodId: cashM, destination: 'CASH' })
     await call(ctx, 'collect 400,000 card on sale A (prior نسیه)', 'ok', IPC.salePaymentAdd, { invoiceId: sa.invoiceId, kind: 'CASH', amount: 400_000, methodId: cardM, destination: 'CARD' })
   }
   if (chequeId) await call(ctx, 'cheque 1,000,000 CLEARED → manager account', 'ok', IPC.saleChequeStatus, { id: chequeId, status: 'CLEARED', destination: 'MANAGER', managerPassword: PW })

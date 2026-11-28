@@ -684,7 +684,25 @@ export function registerIpcHandlers(): void {
     return salesService.purge(payload)
   })
   // ---- فروش نسیه: پرداختی چندمرحله‌ای و چک ----
-  handle(IPC.salePayments, (p) => salesService.payments(p ?? {}))
+  /**
+   * دفتر آزمون ۴-۶۴: پنجرهٔ «پرداختی‌ها / اقساط» در «گزارشات فروش» قفل «نسیه» را دارد و همین پنجره در فاکتور عمده با قفل
+   * همان صفحه باز است (همان الگوی دوراهی `assertExchangePrintRead`)؛ قفل خاموش ⇐ بی رمز. کلید قفل تازه‌ای ساخته نمی‌شود.
+   */
+  const assertPaymentsAccess = async (what: string) => {
+    try {
+      await assertSalesCreditRead(what)
+    } catch (creditGateError) {
+      try {
+        await assertPanelUnlocked(PANEL_KEYS.wholesaleInvoiceModule, what)
+      } catch {
+        throw creditGateError
+      }
+    }
+  }
+  handle(IPC.salePayments, async (p) => {
+    await assertPaymentsAccess('دیدن پرداختی‌ها و اقساط یک فاکتور')
+    return salesService.payments(p ?? {})
+  })
   /**
    * زنجیرهٔ مالی اعتبار فقط از داخل گزارش فروش خوانده می‌شود. DTO سرویس خودش
    * code و PII دارنده را ندارد، اما gate main مانع invoke مستقیم از UI قفل‌شده
@@ -696,7 +714,10 @@ export function registerIpcHandlers(): void {
   })
   // نشست ۶۷ — actor همه‌ی mutationهای Payment فقط از نشست باز می‌آید؛
   // userId ارسالی renderer در این مسیرها عمداً نادیده گرفته می‌شود.
-  handle(IPC.salePaymentAdd, async (p) => salesService.addPayment(await withSessionActor(p)))
+  handle(IPC.salePaymentAdd, async (p) => {
+    await assertPaymentsAccess('ثبت پرداختی یا چک')
+    return salesService.addPayment(await withSessionActor(p))
+  })
   handle(IPC.saleOverpayCredit, async (p) => salesService.overpayCreditIssue(await withSessionActor(p)))
   handle(IPC.salePaymentUpdate, async (p) => salesService.updatePayment(await withSessionActor(p)))
   handle(IPC.salePaymentDelete, async (p) => salesService.deletePayment(await withSessionActor(p ?? {})))
@@ -704,6 +725,8 @@ export function registerIpcHandlers(): void {
   handle(IPC.saleChequeReplace, async (p) => salesService.replaceCheque(await withSessionActor(p ?? {})))
   handle(IPC.saleChequeList, async (p) => {
     await assertSalesReportsRead('دیدن فهرست چک‌های فروش در گزارشات')
+    // دفتر آزمون ۴-۶۴: تب «چک‌ها» قفل «نسیه» را هم دارد
+    await assertSalesCreditRead('دیدن فهرست چک‌های فروش در گزارشات')
     return salesService.chequeList(p ?? {})
   })
   // ---- تعویض کالا و بارکد اعتبار خرید بعدی (بخش ۶) ----
