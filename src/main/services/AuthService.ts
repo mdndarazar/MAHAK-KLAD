@@ -14,7 +14,7 @@ import {
   type ShiftConfig
 } from '@shared/receipt'
 import { openSecret, sealSecret, vaultReady } from './PanelVault'
-import { emptyPanelPasswordScope, gatePasses } from './locks/gate'
+import { emptyPanelPasswordScope, gateAction, gatePasses } from './locks/gate'
 import { noteAccessEvent } from './locks/accessEvents'
 import { toLatinDigits, faDigits, toJalaliDate, toClock } from '@shared/jalali'
 import {
@@ -973,7 +973,8 @@ export const authService = {
    * ۵ اشتباهِ کد یک‌بارمصرف جدا هستند و دست نمی‌خورند.
    */
   async clearPasswordLockouts(input: { managerPassword?: string; userId?: number | null } = {}): Promise<{ ok: true; cleared: number }> {
-    await assertManagerPassword(normalize(input.managerPassword), 'باز کردن فوری قفل رمز اشتباه')
+    // مثل «تنظیمات امنیتی»: کلیدسازی (رمز تایپی مدیر)، درون دروازه تا شمارش فهرست فراخوانی‌ها درست بماند
+    await gateAction('keys.security-config', () => assertManagerPassword(normalize(input.managerPassword), 'باز کردن فوری قفل رمز اشتباه'))
     const now = Date.now()
     const rows = await prisma.authLockout.findMany()
     const stuck = rows.filter((r: { gate: string; failCount: number | null; lockedUntil: Date | string | null }) =>
