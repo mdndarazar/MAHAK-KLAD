@@ -39,8 +39,9 @@ await test('lock hints in Settings ← passwords: no **, no internal numbers, no
     const lat = (t.match(/[A-Za-z][A-Za-z:_.-]{2,}/g) || []).map((w) => w.replace(/[.:]+$/, '')).filter((w) => !allowed.includes(w))
     if (/\*/.test(t) || /(بند|جلسه|نشست|مورد)\s*[۰-۹0-9]/.test(t) || lat.length) bad.push(p.key)
   }
-  // «Master Override صندوق» عنوان کاتالوگ قفل‌هاست (gateCatalog.ts) و با ورودی‌های کاتالوگ در دستهٔ ۳ عوض می‌شود.
-  assert.deepEqual(bad, [PANEL_KEYS.actMasterOverride])
+  // «Master Override صندوق» (عنوان کاتالوگ در gateCatalog.ts) در دستهٔ ۳ «تحویل اضطراری صندوق به مدیر» شد؛ دیگر هیچ عنوانی نمی‌ماند.
+  assert.deepEqual(bad, [])
+  assert.equal(LOCKED_PANELS.find((p) => p.key === PANEL_KEYS.actMasterOverride).title, 'تحویل اضطراری صندوق به مدیر')
   const card = LOCKED_PANELS.find((p) => p.key === PANEL_KEYS.cardTransfers)
   assert.match(card.hint, /⚠️ بازگرداندن کالای برگشتی به موجودی قابل‌فروش هم با همین قفل انجام می‌شود؛/)
   assert.match(card.hint, /این قفل هم در صفحه و هم در خود برنامه سنجیده می‌شود\.$/)

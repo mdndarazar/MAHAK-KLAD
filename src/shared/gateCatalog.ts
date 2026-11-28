@@ -83,7 +83,8 @@ const ACTIONS: readonly Row[] = [
   ['period.closed-entry', 'act-closed-period-entry', 'MANAGER_PASSWORD', null, 'policy', G.settings, 'کار در دورهٔ بسته‌شده'],
   ['shift.close-stale-session', 'act-close-stale-session', 'STRICT', 'cash-close', 'panel', G.cashClose, 'بستن نشست جامانده و باز کردن نشست تازه'],
   ['shift.force-staff-change', 'act-force-staff-change', 'STRICT', 'cash-close', 'panel', G.cashClose, 'تعویض اجباری کارمند نشست'],
-  ['custody.master-override', 'act-master-override', 'MANAGER_PASSWORD', null, 'panel', G.cashClose, 'Master Override صندوق'],
+  // دفتر آزمون (دستهٔ ۳؛ ۴-۵۵ و ۴-۱۲۱): عنوان فارسی، همان نام دکمه و پیام‌های حضانت صندوق
+  ['custody.master-override', 'act-master-override', 'MANAGER_PASSWORD', null, 'panel', G.cashClose, 'تحویل اضطراری صندوق به مدیر'],
   // دفتر آزمون (دستهٔ ۳، یک‌جا؛ مصرف در دستهٔ ۶): ۴-۲۵
   ['custody.open-outside-shift', 'act-custody-open-outside-shift', 'MANAGER_PASSWORD', null, 'panel', G.cashClose, 'باز کردن صندوق بیرون از شیفت'],
   ['settings.accounting-policy', 'act-accounting-policy', 'MANAGER_PASSWORD', null, 'panel', G.settings, 'سیاست حسابداری'],
