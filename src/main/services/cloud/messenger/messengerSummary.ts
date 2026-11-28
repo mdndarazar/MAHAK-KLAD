@@ -73,6 +73,8 @@ export async function buildDailySummary(day: string, deps: SummaryDeps, ctx: { o
   const cheques = await deps.db.chequesDue(tomorrow.from, tomorrow.to)
   const counted = await deps.db.auditRowsInRange(['VOID', 'SALE_PRICE_OVERRIDE', 'EXCHANGE_PRICE_OVERRIDE', 'CREDIT_REPRINT', 'ACCESS_EVENT'], from, to)
   const lastBackupAt = await deps.lastBackupAt().catch(() => null)
+  // دفتر آزمون ۴-۲۷: پیگیری مدیر (تحویل دیر و صندوق بسته‌نشده)؛ مغایرت نیست و عدد پولی ندارد.
+  const followUp = await deps.db.custodyFollowUp?.(from, to).catch(() => null) ?? null
 
   const perUser = new Map<string, { voids: number; manual: number; reprints: number; abnormal: number }>()
   const slot = (userId: number | null) => {
@@ -106,7 +108,9 @@ export async function buildDailySummary(day: string, deps: SummaryDeps, ctx: { o
   const rows = staff.rows ?? []
   const covered = new Set(rows.map((r) => String(r.userId ?? 'none')))
   const orphanIds = [...perUser.keys()].filter((k) => !covered.has(k) && k !== 'none').map(Number)
-  const names = await deps.db.userNames([...closes.map((c) => c.closedBy ?? 0), ...openShifts.map((s) => s.userId ?? 0), ...orphanIds])
+  const names = await deps.db.userNames([...closes.map((c) => c.closedBy ?? 0), ...openShifts.map((s) => s.userId ?? 0), ...orphanIds,
+    ...(followUp ? [...followUp.late, ...followUp.unclosed].map((x) => x.userId ?? 0) : [])])
+  const nameOf = (id: number | null): string => (id ? names.get(id) ?? `کاربر ${num(id)}` : 'نامشخص')
   const returns = rows.reduce((s, r) => s + (Number(r.returnCount) || 0), 0)
   const exchanges = rows.reduce((s, r) => s + (Number(r.exchangeCount) || 0), 0)
   const endAt = to.getTime()
@@ -117,6 +121,10 @@ export async function buildDailySummary(day: string, deps: SummaryDeps, ctx: { o
     `برگشت: ${num(returns)} · تعویض: ${num(exchanges)}`,
     `بستن‌های صندوق: ${num(closes.length)}`,
     ...closes.map((c) => `  • ${names.get(c.closedBy ?? 0) ?? 'نامشخص'}: ${c.counted === null ? 'پول نقد شمرده نشد' : STATE_FA(c.difference)}`),
+    ...(followUp?.active ? [
+      followUp.late.length ? `تحویل‌های دیر: ${followUp.late.map((x) => `${nameOf(x.userId)} (${num(x.minutes)} دقیقه)`).join('، ')}` : 'تحویل‌های دیر: ندارد',
+      followUp.unclosed.length ? `صندوق‌های بسته‌نشده: ${followUp.unclosed.map((x) => nameOf(x.userId)).join('، ')}` : 'صندوق‌های بسته‌نشده: ندارد'
+    ] : []),
     `چاپ دوبارهٔ بارکد: ${num(reprints)}`,
     openShifts.length ? `شیفت‌های باز در ساعت ۲۴: ${openShifts.map((s) => `${s.name}${s.userId ? ` (${names.get(s.userId) ?? 'نامشخص'})` : ''}`).join('، ')}` : 'شیفت باز در ساعت ۲۴: ندارد',
     lastBackupAt ? `آخرین بکاپ موفق: ${fmtAt(lastBackupAt, ctx.offsetHours)}` : 'آخرین بکاپ موفق: پیدا نشد',

@@ -7,7 +7,7 @@
 import { createHash } from 'node:crypto'
 import { prisma as defaultPrisma } from '../../../db/client'
 import { SETTING_KEYS, parseAccountingPolicy, parseOfficialTimeConfig } from '@shared/receipt'
-import { custodyBoundaryId, custodyTargetUserId, type AuditRowLite, type CustodyCountLite, type CustodyEventLite, type IdsNeeded, type LookupData } from './messengerEvents'
+import { custodyBoundaryId, custodyTargetUserId, minutesAfterShiftEnd, type AuditRowLite, type CustodyCountLite, type CustodyEventLite, type IdsNeeded, type LookupData } from './messengerEvents'
 import { emptyLookups } from './messengerEvents'
 
 type Client = typeof defaultPrisma
@@ -120,14 +120,21 @@ export function createMessengerDb(client: Client = defaultPrisma) {
     for (const part of chunks([...handovers])) {
       const rows = await db.custodyHandover.findMany({
         where: { id: { in: part } },
-        select: { id: true, fromUserId: true, acceptedByUserId: true, finalCustodianUserId: true, expectedAtStart: true, countedAtStart: true, differenceCash: true }
+        select: { id: true, fromShiftId: true, fromUserId: true, acceptedByUserId: true, finalCustodianUserId: true, expectedAtStart: true, countedAtStart: true, differenceCash: true }
       })
       for (const h of rows) {
         const receiver = h.acceptedByUserId ?? h.finalCustodianUserId ?? null
-        data.handovers.set(h.id, { fromUserId: h.fromUserId ?? null, receiverUserId: receiver, expectedAtStart: h.expectedAtStart, countedAtStart: h.countedAtStart, differenceCash: h.differenceCash })
+        data.handovers.set(h.id, { fromUserId: h.fromUserId ?? null, receiverUserId: receiver, expectedAtStart: h.expectedAtStart, countedAtStart: h.countedAtStart, differenceCash: h.differenceCash, fromShiftId: h.fromShiftId ?? null })
         if (h.fromUserId) users.add(h.fromUserId)
         if (receiver) users.add(receiver)
       }
+    }
+    // دفتر آزمون ۴-۲۷: پایان برنامهٔ ذخیره‌شدهٔ بخش‌های حضانت (خط «زمان تحویل» و «زمان بستن»)؛ ستون تازه‌ای نیست.
+    const segmentShifts = new Set(shifts)
+    for (const h of data.handovers.values()) if (h.fromShiftId) segmentShifts.add(h.fromShiftId)
+    for (const part of chunks([...segmentShifts])) {
+      const rows = await db.custodyShiftMeta.findMany({ where: { shiftId: { in: part } }, select: { shiftId: true, scheduledEndAt: true } })
+      for (const m of rows) data.segments.set(m.shiftId, { scheduledEndAt: m.scheduledEndAt ? ms(m.scheduledEndAt) : null })
     }
     // بستن نهایی تجمیعی: شمرده، مرجع و مغایرت فقط در مرز ثبت‌شده‌اند (نه در `CASH_CLOSE`).
     for (const part of chunks([...boundaries])) {
@@ -196,6 +203,36 @@ export function createMessengerDb(client: Client = defaultPrisma) {
     const rows = await db.payment.findMany({ where: { chequeStatus: 'PENDING', voidedAt: null, dueDate: { gte: from, lt: to } }, select: { amount: true } })
     return { count: rows.length, total: rows.reduce((s: number, r: any) => s + toNum(r.amount), 0) }
   }
+  /**
+   * دفتر آزمون ۴-۲۷ — پیگیری مدیر در خلاصهٔ ساعت ۲۴ (فقط خواندن): تحویل‌های دیرِ همان روز (تحویل‌دهنده و دقیقه،
+   * نسبت به پایان برنامهٔ ذخیره‌شدهٔ بخش او) و صندوق‌هایی که بسته نشدند و برنامه خودکار بست یا مسئولشان بایگانی شد.
+   * `active` = آن روز اصلاً رویداد حضانتی بود (فروشگاه بی حضانت این دو خط را ندارد).
+   */
+  async function custodyFollowUp(from: Date, to: Date): Promise<{ active: boolean; late: Array<{ userId: number | null; minutes: number }>; unclosed: Array<{ userId: number | null }> }> {
+    const active = (await db.custodyEvent.count({ where: { at: { gte: from, lt: to } } })) > 0
+    if (!active) return { active, late: [], unclosed: [] }
+    const events = await db.custodyEvent.findMany({
+      where: { at: { gte: from, lt: to }, type: { in: ['HANDOVER_ACCEPT', 'HANDOVER_ACCEPT_WITH_DIFFERENCE', 'ROLLOVER_UNRESOLVED', 'CUSTODIAN_ARCHIVED_UNRESOLVED'] } },
+      orderBy: { id: 'asc' }, select: { id: true, type: true, shiftId: true, handoverId: true, payloadJson: true, at: true }
+    })
+    const late: Array<{ userId: number | null; minutes: number }> = []
+    const unclosed: Array<{ userId: number | null }> = []
+    for (const ev of events) {
+      if (ev.type === 'ROLLOVER_UNRESOLVED') {
+        const shift = ev.shiftId ? await db.shift.findUnique({ where: { id: ev.shiftId }, select: { userId: true } }) : null
+        unclosed.push({ userId: shift?.userId ?? null })
+      } else if (ev.type === 'CUSTODIAN_ARCHIVED_UNRESOLVED') {
+        unclosed.push({ userId: custodyTargetUserId(ev) })
+      } else if (ev.handoverId) {
+        const h = await db.custodyHandover.findUnique({ where: { id: ev.handoverId }, select: { fromShiftId: true, fromUserId: true } })
+        const meta = h?.fromShiftId ? await db.custodyShiftMeta.findUnique({ where: { shiftId: h.fromShiftId }, select: { scheduledEndAt: true } }) : null
+        const minutes = minutesAfterShiftEnd(ms(ev.at), meta?.scheduledEndAt ? ms(meta.scheduledEndAt) : null)
+        if (minutes >= 1) late.push({ userId: h?.fromUserId ?? null, minutes })
+      }
+    }
+    return { active, late, unclosed }
+  }
+
   async function userNames(ids: number[]): Promise<Map<number, string>> {
     const out = new Map<number, string>()
     for (const part of chunks([...new Set(ids.filter(Boolean))])) {
@@ -208,7 +245,7 @@ export function createMessengerDb(client: Client = defaultPrisma) {
   return {
     maxAuditId, auditAnchor, auditPage, maxCustodyEventId, custodyEventPage, maxCustodyCountId, custodyCountPage,
     fetchLookups, officialOffsetHours, cashDifferenceThreshold,
-    auditRowsInRange, cashSessionsClosed, openShiftsAt, chequesDue, userNames
+    auditRowsInRange, cashSessionsClosed, openShiftsAt, chequesDue, custodyFollowUp, userNames
   }
 }
 export type MessengerDb = ReturnType<typeof createMessengerDb>

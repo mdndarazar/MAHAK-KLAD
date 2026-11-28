@@ -91,9 +91,11 @@ export interface LookupData {
   reprinted: Set<number>
   /** مرحلهٔ ۴ (مورد ۱۲): ردیف کاغذِ `markPrinted` که چاپ دوبارهٔ فروشنده است ⇒ کد دلیل («INCOMPLETE»/«OTHER») */
   sellerPapers: Map<number, string>
-  handovers: Map<number, { fromUserId: number | null; receiverUserId: number | null; expectedAtStart: unknown; countedAtStart: unknown; differenceCash: unknown }>
+  handovers: Map<number, { fromUserId: number | null; receiverUserId: number | null; expectedAtStart: unknown; countedAtStart: unknown; differenceCash: unknown; fromShiftId?: number | null }>
   /** مرز تجمیعی حضانت (کشو + کارت‌خوان) که رویداد بستن نهایی به آن اشاره می‌کند؛ عددها همان ثبت‌شده‌اند. */
   boundaries: Map<number, AggregateBoundaryLite>
+  /** دفتر آزمون ۴-۲۷: پایان برنامهٔ ذخیره‌شدهٔ هر بخش حضانت (`CustodyShiftMeta.scheduledEndAt`، ms)؛ کلید = شناسهٔ نشست. */
+  segments: Map<number, { scheduledEndAt: number | null }>
 }
 /** فقط ستون‌های عددی و نوع مرز؛ هیچ متن آزاد. */
 export interface AggregateBoundaryLite {
@@ -106,8 +108,28 @@ export interface AggregateBoundaryLite {
 }
 export const emptyLookups = (): LookupData => ({
   users: new Map(), shifts: new Map(), invoices: new Map(), customers: new Map(), payments: new Map(),
-  credits: new Map(), redemptions: new Map(), reprinted: new Set(), sellerPapers: new Map(), handovers: new Map(), boundaries: new Map()
+  credits: new Map(), redemptions: new Map(), reprinted: new Set(), sellerPapers: new Map(), handovers: new Map(), boundaries: new Map(),
+  segments: new Map()
 })
+
+/**
+ * دفتر آزمون ۴-۲۷ — فاصلهٔ تحویل یا بستن با پایان برنامهٔ شیفت (فقط برای پیگیری مدیر؛ مغایرت نیست و به پول
+ * دست نمی‌زند): در ۱۵ دقیقهٔ آخر تا پایان «به‌موقع»، پس از پایان «… دقیقه دیرتر»، پیش از آن «… دقیقه زودتر».
+ * بخشی که برنامه ندارد (`scheduledEndAt` تهی) خطی ندارد.
+ */
+const ON_TIME_WINDOW_MS = 15 * 60_000
+/** دقیقه‌های کاملِ پس از پایان شیفت (۰ یعنی دیر نیست). */
+export function minutesAfterShiftEnd(at: number, scheduledEndAt: number | null | undefined): number {
+  if (!scheduledEndAt || !Number.isFinite(scheduledEndAt) || !Number.isFinite(at)) return 0
+  return Math.max(0, Math.floor((at - scheduledEndAt) / 60_000))
+}
+export function shiftEndGap(at: number, scheduledEndAt: number | null | undefined): string {
+  if (!scheduledEndAt || !Number.isFinite(scheduledEndAt) || !Number.isFinite(at)) return ''
+  const late = minutesAfterShiftEnd(at, scheduledEndAt)
+  if (late >= 1) return `${num(late)} دقیقه دیرتر از پایان شیفت`
+  if (scheduledEndAt - at <= ON_TIME_WINDOW_MS) return 'به‌موقع'
+  return `${num(Math.floor((scheduledEndAt - at) / 60_000))} دقیقه زودتر از پایان شیفت`
+}
 
 export interface IdsNeeded {
   users: Set<number>; shifts: Set<number>; invoices: Set<number>; customers: Set<number>; payments: Set<number>
@@ -444,13 +466,16 @@ function mapRow(row: AuditRowLite, ctx: EventContext, h: ReturnType<typeof makeH
       const diff = n(f.cashDifference)
       const counted = n(f.countedCash)
       const shift = h.shiftLabel(shiftId)
+      const closeGap = shiftId ? shiftEndGap(toMs(row.at), ctx.data.segments?.get(shiftId)?.scheduledEndAt) : ''
       const close = h.event(row, `🔁 تحویل شیفت · بستن صندوق${shift ? ` ${shift}` : ' بازه‌ای'}`, [
         `کاربر: ${h.who(row.userId)}`,
         `نقد مورد انتظار: ${rialOrMissing(f.expectedCash)} · شمرده: ${counted === null ? 'شمرده نشد' : rial(counted)}`,
         `مغایرت: ${counted === null ? 'ثبت نشده' : differenceText(diff, f.state)}`,
         `فروش: ${num(f.count)} فاکتور · جمع ${rialOrMissing(f.grandTotal)}`,
         `نقد ${rialOrMissing(f.cashTotal)} · کارتخوان ${rialOrMissing(f.cardTotal)} · حساب مدیر ${rialOrMissing(f.managerAccountTotal)} · نسیه ${rialOrMissing(f.creditTotal)}`,
-        `موجودی اول ${rialOrMissing(f.openingFloat)} · برداشت ${rialOrMissing(f.withdrawals)} · واریز ${rialOrMissing(f.deposits)}`
+        `موجودی اول ${rialOrMissing(f.openingFloat)} · برداشت ${rialOrMissing(f.withdrawals)} · واریز ${rialOrMissing(f.deposits)}`,
+        // دفتر آزمون ۴-۲۷: فقط بخش حضانتِ برنامه‌دار پایان ثبت‌شده دارد
+        closeGap ? `زمان بستن: ${closeGap}` : ''
       ], { handover: true, important: counted !== null && diff !== null && diff !== 0 })
       const out = [close]
       // طرح §۲۵-۴ بند «د»: فقط عدد ثبت‌شده با همان آستانهٔ سیاست حسابداری سنجیده می‌شود.
@@ -644,6 +669,8 @@ export function custodyEventToEvents(ev: CustodyEventLite, ctx: EventContext): M
   const handover = ev.handoverId ? ctx.data.handovers.get(ev.handoverId) : undefined
   const shift = ev.shiftId ? ctx.data.shifts.get(ev.shiftId)?.name : undefined
   const custodianOf = (): number | null => (ev.shiftId ? ctx.data.shifts.get(ev.shiftId)?.userId ?? null : null)
+  /** دفتر آزمون ۴-۲۷: پایان برنامهٔ ذخیره‌شدهٔ یک بخش */
+  const segmentEnd = (shiftId: number | null | undefined): number | null => (shiftId ? ctx.data.segments?.get(shiftId)?.scheduledEndAt ?? null : null)
   switch (ev.type) {
     case 'OPEN': return make('🔓 افتتاح صندوق (حضانت)', [`مسئول صندوق: ${who(ev.actorUserId)}`, shift ? `شیفت: ${shift}` : ''])
     case 'HANDOVER_START': return make('⏳ تحویل صندوق شروع شد', [`تحویل‌دهنده: ${who(handover?.fromUserId ?? ev.actorUserId)}`, 'منتظر شمارش تحویل‌گیرنده'])
@@ -652,9 +679,11 @@ export function custodyEventToEvents(ev: CustodyEventLite, ctx: EventContext): M
     case 'HANDOVER_ACCEPT':
     case 'HANDOVER_ACCEPT_WITH_DIFFERENCE': {
       const diff = n(handover?.differenceCash)
+      const gap = shiftEndGap(at, segmentEnd(handover?.fromShiftId)) // دفتر آزمون ۴-۲۷: نسبت به پایان شیفت تحویل‌دهنده
       return make('🔁 تحویل صندوق · تکمیل‌شده', [
         `تحویل‌دهنده: ${who(handover?.fromUserId)} · شمرده: ${rialOrMissing(handover?.countedAtStart)} · مرجع: ${rialOrMissing(handover?.expectedAtStart)} · مغایرت: ${differenceText(diff)}`,
-        `تحویل‌گیرنده: ${who(handover?.receiverUserId ?? ev.actorUserId)}`
+        `تحویل‌گیرنده: ${who(handover?.receiverUserId ?? ev.actorUserId)}`,
+        gap ? `زمان تحویل: ${gap}` : ''
       ], { important: diff !== null && diff !== 0 })
     }
     case 'HANDOVER_CANCEL':
@@ -682,7 +711,8 @@ export function custodyEventToEvents(ev: CustodyEventLite, ctx: EventContext): M
     case 'FINAL_AGGREGATE_CLOSE': {
       const boundaryId = intId(payload.aggregateBoundaryId)
       const { lines, diff } = aggregateCloseLines(boundaryId ? ctx.data.boundaries?.get(boundaryId) : undefined, payload)
-      const out = make('🔁 بستن نهایی صندوق تجمیعی (حضانت)', [`کاربر: ${who(ev.actorUserId)}`, ...lines], { important: diff !== null && diff !== 0 })
+      const gap = shiftEndGap(at, segmentEnd(ev.shiftId)) // دفتر آزمون ۴-۲۷
+      const out = make('🔁 بستن نهایی صندوق تجمیعی (حضانت)', [`کاربر: ${who(ev.actorUserId)}`, ...lines, gap ? `زمان بستن: ${gap}` : ''], { important: diff !== null && diff !== 0 })
       // طرح §۲۵-۴ بند «د»: همان آستانهٔ «سقف مجاز مغایرت صندوق» که برای بستن صندوق عادی هست.
       if (diff !== null && ctx.threshold > 0 && Math.abs(diff) > ctx.threshold) {
         out.push({
