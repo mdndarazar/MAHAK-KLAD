@@ -16,7 +16,7 @@ import { BusinessError } from '../../errors'
 import { readPanelLocks } from '../AuthService'
 import { noteAccessEvent, noteCodeLockout } from './accessEvents'
 import { currentGateCall } from './callContext'
-import { readLockDurations } from './durations'
+import { ONE_SHOT_MAX_MINUTES, readLockDurations } from './durations'
 import { CODE_LOCK_MS, CODE_SECTION_LABELS, consumeOneTimeCode, restoreOneTimeCode, type CodeSection } from './oneTimeCodes'
 import { addGateTicket, peekGateTicket } from './tickets'
 import { openGuardedPart, partAlreadyOpen } from './unlocks'
@@ -62,7 +62,9 @@ export async function redeemOneTimeCode(target: unknown, code: unknown): Promise
   if (t.lockKind === 'panel' && !isPanelLockEnabled(await readPanelLocks(), t.lockKey))
     throw new BusinessError('قفل این بخش خاموش است؛ کد لازم نیست و مصرف نشد.')
   const durations = readLockDurations()
-  const minutes = t.section === 'sensitive' ? durations.sensitiveCodeMinutes : durations.otherCodeMinutes
+  const sectionMinutes = t.section === 'sensitive' ? durations.sensitiveCodeMinutes : durations.otherCodeMinutes
+  // دفتر آزمون ۴-۲۸: قسمت تا ۱۰۰۰ دقیقه باز می‌ماند؛ «قفل کار» همان یک بار است و پنجرهٔ بلیتش حداکثر ۶۰ دقیقه
+  const minutes = t.kind === 'part' ? sectionMinutes : Math.min(sectionMinutes, ONE_SHOT_MAX_MINUTES)
   // ---------------- از این‌جا تا پایان، همگام (بی await): سنجش، مصرف و ساختن نشست یا بلیت ----------------
   if (t.kind === 'part' && partAlreadyOpen(call.owner, t.lockKey)) throw new BusinessError('این بخش همین حالا باز است؛ کد مصرف نشد.')
   if (t.kind === 'action' && peekGateTicket(call.owner, t.id)) throw new BusinessError('این کار همین حالا یک بار مجاز است؛ کد مصرف نشد. روی دکمهٔ همان کار بزنید.')

@@ -26,8 +26,8 @@ type GrantInput = {
 const grants = new Map<string, Grant>()
 const pendingRequests = new Map<string, Pending>()
 const failCounts = new Map<string, { count: number; lockedUntil: number }>()
-// طرح ۱۴۰۵ §۳-۱۲ بند ۴: انتظار درخواست ۱۰ دقیقه؛ بی‌کاری «یک‌پنجم مدت، کمینه ۳ و بیشینه ۱۰ دقیقه»؛ سقف هر دو رده ۶۰ دقیقه.
-const PENDING_MS = 10 * 60_000, CLAIM_MS = 3 * 60_000, IDLE_MS = 3 * 60_000, MAX_TTL_MS = 60 * 60_000
+// طرح ۱۴۰۵ §۳-۱۲ بند ۴: انتظار درخواست ۱۰ دقیقه؛ بی‌کاری «یک‌پنجم مدت، کمینه ۳ و بیشینه ۱۰ دقیقه»؛ سقف هر دو رده ۱۰۰۰ دقیقه (دفتر آزمون ۴-۲۸).
+const PENDING_MS = 10 * 60_000, CLAIM_MS = 3 * 60_000, IDLE_MS = 3 * 60_000, MAX_TTL_MS = 1000 * 60_000
 const idleFor = (ttl: number) => Math.min(10 * 60_000, Math.max(IDLE_MS, Math.round(ttl / 5)))
 /** فقط شناسه‌های کار کاتالوگ مجوز یک‌بار می‌گیرند؛ نتیجه‌اش بلیت است، نه نشست پنل (§۳-۱۲ بند ۵). */
 const ONE_SHOT_IDS: ReadonlySet<string> = new Set(GATE_ACTION_IDS)
@@ -57,19 +57,19 @@ const validOwner = (owner: number | null): owner is number => Number.isSafeInteg
 const tokenHash = (token: string) => createHash('sha256').update(token, 'utf8').digest()
 
 let injected: {
-  notePanelUnlocked: (panel: string, scope: 'PANEL', owner: number, allowed: (touch: boolean) => boolean) => void | (() => void)
+  notePanelUnlocked: (panel: string, scope: 'PANEL', owner: number, allowed: (touch: boolean) => boolean, ttlMs?: number) => void | (() => void)
   clearPanelScope: (panel: string, owner: number) => void
   clearPanelSessions: (owner: number) => void
   /** طرح ۱۴۰۵: بلیت یک‌بار «پنجره + شناسهٔ کار»؛ خروجی true یعنی ساخته شد. میزبان زنده همیشه می‌دهد. */
   addOneShotTicket?: (actionId: string, owner: number, ttlMs: number, memberId: string) => boolean
   clearOneShotTickets?: (memberId?: string) => void
-  /** مدت مجوز راه دور از پروندهٔ مدت‌ها (میلی‌ثانیه، ۱ تا ۶۰ دقیقه) */
-  grantDurationMs?: () => number
+  /** مدت مجوز راه دور همان قسمت از پروندهٔ مدت‌ها (میلی‌ثانیه، ۱ تا ۱۰۰۰ دقیقه؛ ۴-۲۸) */
+  grantDurationMs?: (panel: string) => number
 } | null = null
 /** مدت واقعی هنگام فعال‌سازی: کمترینِ «سقف سیاست» و «مدت مجوز راه دور» (§۳-۱۲ بند ۳). */
-function effectiveTtl(policyTtl: number): number {
+function effectiveTtl(policyTtl: number, panel: string): number {
   let configured: unknown = null
-  try { configured = injected?.grantDurationMs?.() } catch { configured = null }
+  try { configured = injected?.grantDurationMs?.(panel) } catch { configured = null }
   return Number.isSafeInteger(configured) && (configured as number) >= 60_000 && (configured as number) <= MAX_TTL_MS
     ? Math.min(policyTtl, configured as number) : policyTtl
 }
@@ -234,7 +234,7 @@ export function consumeOneShot(ownerWindowId: number | null, panel: string, toke
   const matches = typeof token === 'string' && VALID_TOKEN.test(token) && !!g && timingSafeEqual(tokenHash(token), g.tokenHash)
   if (!matches || !g) { noteFailure(k); return false }
   const t = now()
-  const ttl = g.claimed ? g.ttlMs : effectiveTtl(g.ttlMs)
+  const ttl = g.claimed ? g.ttlMs : effectiveTtl(g.ttlMs, panel)
   // طرح ۱۴۰۵ §۳-۱۲ بند ۵: بلیت یک‌بار پیش از پاک کردن مجوز؛ شکست ساخت ⇒ مجوز مصرف نمی‌شود و «ناموفق».
   if (g.mode === 'ONE_SHOT' && injected?.addOneShotTicket) {
     let made = false
@@ -253,7 +253,7 @@ export function consumeOneShot(ownerWindowId: number | null, panel: string, toke
           if (touch) g.lastUsedAt = now()
           return true
         }
-        const cleanup=injected?.notePanelUnlocked(panel, 'PANEL', ownerWindowId, allowed)
+        const cleanup=injected?.notePanelUnlocked(panel, 'PANEL', ownerWindowId, allowed, ttl)
         if (typeof cleanup === 'function') g.cleanup=cleanup
       } catch { clearGrant(k, g); return false }
     }

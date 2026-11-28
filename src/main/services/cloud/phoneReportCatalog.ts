@@ -59,8 +59,8 @@ export const PHONE_REPORTS = Object.freeze({
     totals: [['count', 'تعداد در بازه', 'int']]
   },
   status: {
-    title: 'وضعیت سیستم', phase: 1, input: 'none', pageSize: 3, paged: false,
-    caption: 'سه مدت تنظیم‌شده روی رایانه (تنظیمات ← رمز مدیر و خروج).',
+    title: 'وضعیت سیستم', phase: 1, input: 'none', pageSize: 4, paged: false,
+    caption: 'چهار مدت تنظیم‌شده روی رایانه: دو مدت کد یک‌بارمصرف (تنظیمات ← رمز مدیر و خروج) و دو مدت مجوز راه دور (کنترل از راه دور با گوشی).',
     row: [['title', 'مدت', 'text'], ['minutes', 'دقیقه', 'int']],
     totals: []
   },

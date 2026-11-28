@@ -85,7 +85,7 @@ const caps = {
 }
 ok(`هیچ سقفی کمتر از ${policies} سیاست نیست (${JSON.stringify(caps)})`, Object.values(caps).every((c) => c >= policies && c === 128))
 const host = read('src/main/services/CloudSyncService.ts')
-ok('خط سیاست‌ها همان شکل و دو جفت، سقف ۶۰ دقیقه', /const POLICIES = Object\.fromEntries\(PANELS\.map\(/.test(host) && /SENSITIVE_MONEY' as const,mode:'ONE_SHOT' as const,ttlMs:3_600_000/.test(host) && /NORMAL' as const,mode:'PANEL' as const,ttlMs:3_600_000/.test(host))
+ok('خط سیاست‌ها همان شکل و دو جفت، سقف ۱۰۰۰ دقیقه', /const POLICIES = Object\.fromEntries\(PANELS\.map\(/.test(host) && /SENSITIVE_MONEY' as const,mode:'ONE_SHOT' as const,ttlMs:60_000_000/.test(host) && /NORMAL' as const,mode:'PANEL' as const,ttlMs:60_000_000/.test(host))
 
 console.log('\n— ۵) دو عضو تازهٔ AuditAction')
 ok('ACCESS_EVENT و FACTORY_RESET', AuditAction.ACCESS_EVENT === 'ACCESS_EVENT' && AuditAction.FACTORY_RESET === 'FACTORY_RESET')

@@ -1,7 +1,7 @@
 /**
  * طرح ۱۴۰۵ — مجوز از راه دور برای همهٔ قفل‌ها (معماری §۳-۱۲، §۳-۱۴؛ §۸-۲ بندهای ۹ و ۱۱).
  *
- * واحد (ساعت یکنواخت ساختگی): سقف ۶۰ دقیقه برای هر دو رده؛ انتظار درخواست ۱۰ دقیقه؛ بی‌کاری «یک‌پنجم مدت، ۳ تا
+ * واحد (ساعت یکنواخت ساختگی): سقف ۱۰۰۰ دقیقه برای هر دو رده؛ انتظار درخواست ۱۰ دقیقه؛ بی‌کاری «یک‌پنجم مدت، ۳ تا
  * ۱۰ دقیقه»؛ مدت واقعی = کمترینِ سقف سیاست و پروندهٔ مدت‌ها؛ مجوز یک‌بار فقط برای شناسهٔ کار و نتیجه‌اش یک بلیت
  * (پیش از پاک کردن مجوز؛ شکست ساخت بلیت ⇒ مجوز مصرف نمی‌شود)؛ نشست نگهبان‌دار از بی‌کاری عمومی پنل پیروی
  * نمی‌کند و سقف سخت ۶۰ دقیقه دارد.
@@ -60,12 +60,12 @@ test('unit: caps, pending, idle, real duration, one-shot ticket, guarded-session
   lease.installClaimGuard(async (claim) => claim())
   lease.open()
   try {
-    // سقف ۶۰ دقیقه برای هر دو رده (شش اعتبارسنج؛ این‌جا دفتر محلی)
+    // سقف ۱۰۰۰ دقیقه برای هر دو رده (شش اعتبارسنج؛ این‌جا دفتر محلی)
     for (const tier of ['NORMAL', 'SENSITIVE_MONEY']) {
       const panel = tier === 'NORMAL' ? 'products' : 'credit.void'
       const p = reg.requestCode(panel, 11)
-      assert.equal(grant(p, panel, 11, tier, 60 * MIN + 1), null, `${tier} > 60 min refused`)
-      assert.ok(grant(p, panel, 11, tier, 60 * MIN), `${tier} = 60 min accepted`)
+      assert.equal(grant(p, panel, 11, tier, 1000 * MIN + 1), null, `${tier} > 1000 min refused`)
+      assert.ok(grant(p, panel, 11, tier, 1000 * MIN), `${tier} = 1000 min accepted`)
       reg.cancelForWindow(11)
     }
     // انتظار درخواست ۱۰ دقیقه

@@ -3,11 +3,12 @@
  *
  * هر دو با همان `noteRemotePanelUnlocked` موجود ساخته می‌شوند، پس بی‌کاری عمومی پنل روی آن‌ها اثری ندارد و
  * سقف سخت ۶۰ دقیقه را خود `panelSession` دارد (§۳-۱۴). نگهبان هر کدام مدت و بی‌کاری خودش را حساب می‌کند:
- *   - کد: مدت همان قسمت کد (۱ تا ۶۰ دقیقه)، بی‌کاری یک‌پنجم مدت (کمینه ۳ و بیشینه ۱۰ دقیقه)؛
+ *   - کد: مدت همان قسمت کد (۱ تا ۱۰۰۰ دقیقه؛ دفتر آزمون ۴-۲۸)، بی‌کاری یک‌پنجم مدت (کمینه ۳ و بیشینه ۱۰ دقیقه)؛
  *   - زمان‌بندی‌شده: تا ساعت پایان، بی بی‌کاری.
  * اگر همان قسمت برای همان پنجره از قبل باز است (نشست مدیر یا نشست همان کلید)، چیزی ساخته نمی‌شود و خروجی
  * false است: کد مصرف نمی‌شود و مجوز زمان‌بندی‌شده در دور بعدی ۳۰ ثانیه‌ای نصب می‌شود.
  * «بستن همه»، P1 و P2 همه را با `closeGuardedParts` می‌بندند. ساعت: یکنواخت (`performance.now()`).
+ * نشستِ بلندتر از سقف ۶۰ دقیقه پیش از سقف تازه می‌شود (`openRenewingPanel`؛ همان راه مجوز راه دور در `CloudSyncService`).
  */
 import { performance } from 'node:perf_hooks'
 import type { GateMethodKey } from '@shared/gateCatalog'
@@ -27,7 +28,7 @@ interface Guarded {
   cleanup: () => void
 }
 
-const MIN_IDLE_MS = 3 * 60_000, MAX_IDLE_MS = 10 * 60_000, MAX_MS = 60 * 60_000
+const MIN_IDLE_MS = 3 * 60_000, MAX_IDLE_MS = 10 * 60_000, MAX_MS = 1000 * 60_000
 const guards = new Map<string, Guarded>()
 const keyOf = (owner: number, key: string) => `${owner}::${key}`
 const panelKey = (panel: string) => normalizePanelKey(panel) ?? panel
@@ -41,6 +42,66 @@ export function setUnlockClockForTests(fn: (() => number) | null): void {
 /** بی‌کاری «یک‌پنجم مدت، کمینه ۳ و بیشینه ۱۰ دقیقه» (همان قاعدهٔ مجوز راه دور). */
 export function idleForMs(ttlMs: number): number {
   return Math.min(MAX_IDLE_MS, Math.max(MIN_IDLE_MS, Math.round(ttlMs / 5)))
+}
+
+/**
+ * دفتر آزمون ۴-۲۸ (و ۴-۱۳): سقف سخت ۶۰ دقیقهٔ نشست نگهبان‌دار (`GUARDED_MAX_MS` در `panelSession.ts`) دست نمی‌خورد. نشستی
+ * که مجوزش بلندتر است، ۵ دقیقه پیش از سقف همان لحظه بسته و با همان نگهبان دوباره باز می‌شود؛ فقط اگر نشست هنوز همان
+ * است (جای دیگری بسته نشده)، سقف نرسیده، نگهبان بی تمدید بی‌کاری «معتبر» می‌گوید و ساعت جهش نکرده (فاصلهٔ ساعت
+ * دیواری و یکنواخت از بازشدن بیش از ۲ دقیقه فرق نکرده). نشستِ بسته‌شده هرگز دوباره ساخته نمی‌شود. اگر نشست مدیر
+ * همان پنجره باز است، تازه‌سازی ۳۰ ثانیه بعد دوباره امتحان می‌شود (نشست مدیر همه را می‌پوشاند).
+ */
+const SESSION_CAP_MS = 60 * 60_000, RENEW_LEAD_MS = 5 * 60_000, CLOCK_JUMP_MS = 2 * 60_000, MANAGER_RETRY_MS = 30_000
+type Renewal = { owner: number; key: string; allowed: (touch: boolean) => boolean; mono: number; wall: number; cleanup: () => void; timer: ReturnType<typeof setTimeout> | null }
+const renewals = new Set<Renewal>()
+
+function stopRenewal(r: Renewal): void {
+  renewals.delete(r)
+  if (r.timer) clearTimeout(r.timer)
+  r.timer = null
+}
+function armRenewal(r: Renewal, delayMs: number): void {
+  if (r.timer) clearTimeout(r.timer)
+  const timer = setTimeout(() => { renewSession(r) }, Math.max(1_000, delayMs))
+  timer.unref?.()
+  r.timer = timer
+}
+function renewSession(r: Renewal): boolean {
+  if (!renewals.has(r)) return false
+  r.timer = null
+  const mono = performance.now(), wall = Date.now()
+  let ok = sessionGuardOf(r.key, r.owner) === r.allowed && mono - r.mono < SESSION_CAP_MS && Math.abs((wall - r.wall) - (mono - r.mono)) <= CLOCK_JUMP_MS
+  if (ok) { try { ok = r.allowed(false) === true } catch { ok = false } }
+  if (!ok || !renewals.has(r)) { stopRenewal(r); return false }
+  if (panelSessionStatus(r.owner).manager) { armRenewal(r, MANAGER_RETRY_MS); return false }
+  r.cleanup()
+  try { r.cleanup = noteRemotePanelUnlocked(r.key, r.owner, r.allowed) } catch { r.cleanup = () => {} }
+  if (sessionGuardOf(r.key, r.owner) !== r.allowed) { stopRenewal(r); return false }
+  r.mono = mono
+  r.wall = wall
+  armRenewal(r, SESSION_CAP_MS - RENEW_LEAD_MS)
+  return true
+}
+
+/**
+ * نشست نگهبان‌دار «پنجره + قسمت» با همان `noteRemotePanelUnlocked`. اگر مدت (`ttlMs`) از سقف ۶۰ دقیقهٔ نشست بلندتر است،
+ * نشست پیش از سقف تازه می‌شود (بالا). خروجی: بستن همین نشست و توقف تازه‌سازی (مالکیت‌دار؛ نشست جایگزین را نمی‌بندد).
+ */
+export function openRenewingPanel(panel: string, owner: number, allowed: (touch: boolean) => boolean, ttlMs?: number): () => void {
+  const key = panelKey(panel)
+  const cleanup = noteRemotePanelUnlocked(key, owner, allowed)
+  if (!(typeof ttlMs === 'number' && ttlMs > SESSION_CAP_MS) || sessionGuardOf(key, owner) !== allowed) return cleanup
+  const r: Renewal = { owner, key, allowed, mono: performance.now(), wall: Date.now(), cleanup, timer: null }
+  renewals.add(r)
+  armRenewal(r, SESSION_CAP_MS - RENEW_LEAD_MS)
+  return () => { stopRenewal(r); r.cleanup() }
+}
+
+/** فقط آزمون: تازه‌سازی‌هایی که وقتشان رسیده (همان کار زمان‌سنج، بی صبر واقعی). خروجی: شمار نشست‌های تازه‌شده. */
+export function runDueRenewalsForTests(): number {
+  let renewed = 0
+  for (const r of [...renewals]) if (performance.now() - r.mono >= SESSION_CAP_MS - RENEW_LEAD_MS && renewSession(r)) renewed++
+  return renewed
 }
 
 /** آیا همین قسمت برای این پنجره از قبل باز است (نشست مدیر یا نشست همان کلید)؟ بی تمدید بی‌کاری. */
@@ -62,7 +123,7 @@ function purgeStale(): void {
 
 /**
  * نشست نگهبان‌دار برای «پنجره + قسمت». خروجی false یعنی ساخته نشد (قسمت از قبل باز بود یا ورودی نادرست).
- * `ttlMs` تا ۶۰ دقیقه؛ `idle` فقط برای کد (زمان‌بندی‌شده بی‌کاری ندارد).
+ * `ttlMs` تا ۱۰۰۰ دقیقه؛ `idle` فقط برای کد (زمان‌بندی‌شده بی‌کاری ندارد).
  */
 export function openGuardedPart(owner: number, panel: string, opts: {
   source: GuardSource
@@ -93,7 +154,7 @@ export function openGuardedPart(owner: number, panel: string, opts: {
   }
   guards.set(keyOf(owner, key), entry)
   try {
-    entry.cleanup = noteRemotePanelUnlocked(key, owner, allowed)
+    entry.cleanup = openRenewingPanel(key, owner, allowed, ttl)
   } catch {
     forget(entry)
     return false

@@ -20,7 +20,7 @@ await test('request has a cryptographically random credential separate from visi
 await test('approval is bound to live pending request, panel and window; does not open a panel',()=>{
   reset();const p=requestCode('sales-return',10)
   assert.equal(approve(p,{requestId:'invented'}),null);assert.equal(approve(p,{ownerWindowId:11}),null)
-  assert.equal(approve(p,{panel:'settings'}),null);assert.equal(approve(p,{ttlMs:3600001}),null)
+  assert.equal(approve(p,{panel:'settings'}),null);assert.equal(approve(p,{ttlMs:60000001}),null)
   assert.ok(approve(p));assert.equal(getPending(10,'sales-return'),null);assert.equal(approve(p),null)
   assert.deepEqual(opened,[]);assert.equal(isGrantActiveForWindow('sales-return',10),false)
 })
@@ -46,7 +46,7 @@ await test('five failed credentials lock even a correct credential, and revoke c
 })
 await test('sensitive grant is one-shot with local five minute cap, never opens a reusable session',()=>{
   reset();const p=requestCode('sales-return',10)
-  assert.equal(approve(p,{tier:'SENSITIVE_MONEY',ttlMs:3600001}),null)
+  assert.equal(approve(p,{tier:'SENSITIVE_MONEY',ttlMs:60000001}),null)
   assert.ok(approve(p,{tier:'SENSITIVE_MONEY',ttlMs:300000}))
   assert.equal(consumeOneShot(10,'sales-return',token(p)),true)
   assert.equal(consumeOneShot(10,'sales-return',token(p)),false)

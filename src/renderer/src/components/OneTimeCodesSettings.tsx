@@ -9,6 +9,7 @@ import { codeSectionOfPanel, LOCKED_PANELS, type OneTimeCodeSection } from '@sha
  *
  *   - دو قسمت، هر کدام ۵ کد ۸ رقمی: «حساس» (ماژول‌های پولی، قسمت‌های تازه و همهٔ قفل‌های کار) و «سایر ماژول‌ها».
  *     فهرست داخل پرانتز از همان منبع حقیقت (`panels.ts`) ساخته می‌شود که رفتار را تعیین می‌کند.
+ *   - دو مدت کد، هر کدام ۱ تا ۱۰۰۰ دقیقه (دفتر آزمون ۴-۲۸)؛ «قفل کار» با کد همان یک بار است.
  *   - ساخت (تصادفی یا «خودم می‌نویسم»)، باطل کردن، برداشتن قفل کدها و دو مدت کد همه «کلیدسازی»اند: رمز تایپی
  *     مدیر (کادر خام، هرگز نشانگر نشست)، حتی وقتی نشست مدیر باز است.
  *   - کدها فقط همین یک بار، هنگام ساخت، نشان داده و چاپ می‌شوند؛ main فقط hash نمک‌دار نگه می‌دارد.
@@ -94,7 +95,7 @@ export default function OneTimeCodesSettings() {
   })
   const saveMinutes = () => run(async () => {
     const s = Number(toLatinDigits(minutes.sensitive).trim()), o = Number(toLatinDigits(minutes.other).trim())
-    if (![s, o].every((n) => Number.isInteger(n) && n >= 1 && n <= 60)) throw new Error('هر مدت باید عددی صحیح بین ۱ تا ۶۰ دقیقه باشد.')
+    if (![s, o].every((n) => Number.isInteger(n) && n >= 1 && n <= 1000)) throw new Error('هر مدت باید عددی صحیح بین ۱ تا ۱۰۰۰ دقیقه باشد.')
     await call(CH.lockDurationsSet, { managerPassword: password, sensitiveCodeMinutes: s, otherCodeMinutes: o })
     return `مدت کد «حساس» ${faDigits(s)} و کد «سایر ماژول‌ها» ${faDigits(o)} دقیقه شد. قفلی که همین حالا باز است با عدد قبلی بسته می‌شود.`
   })
@@ -140,7 +141,7 @@ export default function OneTimeCodesSettings() {
           </div>
         )}
         <label className="block">
-          <span className="block mb-1">مدت باز ماندن با کد این قسمت (۱ تا ۶۰ دقیقه)</span>
+          <span className="block mb-1">مدت باز ماندن با کد این قسمت (۱ تا ۱۰۰۰ دقیقه)</span>
           <input className="inp w-24 text-center" dir="ltr" inputMode="numeric" value={minutes[key]} disabled={busy}
             onChange={(e) => setMinutes((m) => ({ ...m, [key]: e.target.value }))} />
         </label>

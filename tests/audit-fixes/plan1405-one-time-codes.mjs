@@ -269,12 +269,12 @@ try {
   r = await redeem(cashClose, fresh.codes[0].code)
   ok('ساخت تازه پروندهٔ خراب را جایگزین کرد و کد کار کرد', r.ok && lockIpc.codesStatus().broken === false && existsSync(join(DIR, 'one-time-codes.json')))
 
-  console.log('\n— ۱۰) پروندهٔ مدت‌ها (§۳-۱۳): ۱، ۶، ۱۲ و ۶۰ درست؛ ۰، ۶۱ و غیرصحیح رد؛ نبود یا خرابی ⇒ ۱۰؛ رمز تایپی مدیر')
+  console.log('\n— ۱۰) پروندهٔ مدت‌ها (§۳-۱۳): ۱، ۶، ۱۲ و ۶۰ درست؛ ۰، ۱۰۰۱ و غیرصحیح رد؛ نبود یا خرابی ⇒ ۱۰؛ رمز تایپی مدیر')
   for (const n of [1, 6, 12, 60]) {
     const d = await lockIpc.setLockDurations({ managerPassword: PW, sensitiveCodeMinutes: n, otherCodeMinutes: n, remoteGrantMinutes: n })
     ok(`مدت ${n} پذیرفته شد`, d.sensitiveCodeMinutes === n && d.otherCodeMinutes === n && d.remoteGrantMinutes === n && readLockDurations().remoteGrantMinutes === n)
   }
-  for (const bad of [0, 61, 1.5, '۱۲الف', -3]) {
+  for (const bad of [0, 1001, 1.5, '۱۲الف', -3]) {
     const r = await outcome(() => lockIpc.setLockDurations({ managerPassword: PW, otherCodeMinutes: bad }))
     ok(`مدت «${bad}» رد و عدد قبلی ماند`, !r.ok && readLockDurations().otherCodeMinutes === 60)
   }
@@ -282,9 +282,9 @@ try {
   ok('تغییر مدت بی رمز تایپی مدیر رد', !noPw.ok && readLockDurations().otherCodeMinutes === 60)
   ok('ردیف DURATIONS_CHANGED برای هر تغییر', eventsOf('DURATIONS_CHANGED').length >= 3)
   writeFileSync(join(DIR, 'lock-durations.json'), '{"sensitiveCodeMinutes":5}')
-  ok('پروندهٔ ناقص ⇒ هر سه ۱۰', JSON.stringify(readLockDurations()) === JSON.stringify({ sensitiveCodeMinutes: 10, otherCodeMinutes: 10, remoteGrantMinutes: 10 }))
+  ok('پروندهٔ ناقص ⇒ هر چهار ۱۰', JSON.stringify(readLockDurations()) === JSON.stringify({ sensitiveCodeMinutes: 10, otherCodeMinutes: 10, remoteGrantMinutes: 10, remoteSensitiveGrantMinutes: 10 }))
   writeFileSync(join(DIR, 'lock-durations.json'), 'not json')
-  ok('پروندهٔ خراب ⇒ هر سه ۱۰', readLockDurations().otherCodeMinutes === 10 && parseLockDurations({ sensitiveCodeMinutes: 61, otherCodeMinutes: 1, remoteGrantMinutes: 1 }).sensitiveCodeMinutes === 10)
+  ok('پروندهٔ خراب ⇒ هر چهار ۱۰', readLockDurations().otherCodeMinutes === 10 && parseLockDurations({ sensitiveCodeMinutes: 1001, otherCodeMinutes: 1, remoteGrantMinutes: 1 }).sensitiveCodeMinutes === 10)
   writeLockDurations({ sensitiveCodeMinutes: 10, otherCodeMinutes: 10, remoteGrantMinutes: 10 })
 } finally {
   unlocks.setUnlockClockForTests(null)

@@ -12,11 +12,12 @@ import { prisma } from '../db/client'
 import { registerRemoteAuthHandlers } from '../ipc/remoteAuth'
 import { REMOTE_PANELS } from '../../shared/enums'
 import { GATE_ACTION_IDS, gateEntry } from '../../shared/gateCatalog'
-import { panelTitle } from '../../shared/panels'
+import { codeSectionOfPanel, panelTitle } from '../../shared/panels'
 import { noteAccessEvent } from './locks/accessEvents'
 import { addGateTicket, clearGateTickets } from './locks/tickets'
-import { lockDurationMs } from './locks/durations'
+import { lockDurationMs, partDurationMs, remoteDurationKey } from './locks/durations'
 import { closeAllUnlocksFromRemote, setRemoteApprovalsStopped, setRemoteRecoveryHooks } from './locks/unlockHooks'
+import { openRenewingPanel } from './locks/unlocks'
 import { phoneReportsStarted, phoneReportsStopped, readPhoneReport } from './cloud/phoneReportSource'
 import { remoteImplementationReady } from '../../shared/remoteAuthChannels'
 import { remoteSettingEnabled } from './cloud/remoteSettings'
@@ -33,10 +34,11 @@ import * as sessions from './panelSession'
 
 // Plan 1405 §3-12: every part key (a timed PANEL grant) and every catalog action
 // id (a SENSITIVE_MONEY one-shot that becomes a gate ticket), one shared list with
-// the request IPC and the lock screen. 60 min is only the policy cap: the real
-// duration is read from lock-durations.json when a grant is activated.
+// the request IPC and the lock screen. 1000 min (test-log 4-28) is only the policy
+// cap: the real duration is read from lock-durations.json when a grant is activated,
+// by part (normal, or money and sensitive); a one-shot ticket keeps a 60-min window.
 const PANELS = REMOTE_PANELS
-const POLICIES = Object.fromEntries(PANELS.map(panel => [panel,GATE_ACTION_IDS.includes(panel) ? {tier:'SENSITIVE_MONEY' as const,mode:'ONE_SHOT' as const,ttlMs:3_600_000} : {tier:'NORMAL' as const,mode:'PANEL' as const,ttlMs:3_600_000}]))
+const POLICIES = Object.fromEntries(PANELS.map(panel => [panel,GATE_ACTION_IDS.includes(panel) ? {tier:'SENSITIVE_MONEY' as const,mode:'ONE_SHOT' as const,ttlMs:60_000_000} : {tier:'NORMAL' as const,mode:'PANEL' as const,ttlMs:60_000_000}]))
 type Store = ReturnType<typeof openCloudStateStore>
 type Hub = Awaited<ReturnType<typeof startExperimentalHubSupervisor>>
 type Scheduler = ReturnType<typeof createExperimentalHubScheduler>
@@ -152,9 +154,9 @@ async function startConfigured(owner:RemoteOwner|null):Promise<void> {
     const keys=createRemoteTransportVault(root,snapshot.storeId,electron.safeStorage).load()
     const revocationKey=derivedKey(keys.commandKey,snapshot.storeId,snapshot.epoch,'revocation')
     const approvalKey=derivedKey(keys.commandKey,snapshot.storeId,snapshot.epoch,'approval')
-    initRemoteGrantRegistry({notePanelUnlocked:(panel,_scope,owner,allowed)=>{const done=sessions.noteRemotePanelUnlocked(panel,owner,allowed);noteAccessEvent('REMOTE_GRANT_OPENED',{titleFa:panelTitle(panel),windowNo:owner});return done},clearPanelScope:sessions.clearPanelScope,clearPanelSessions:sessions.clearPanelSessions,
+    initRemoteGrantRegistry({notePanelUnlocked:(panel,_scope,owner,allowed,ttlMs)=>{const done=openRenewingPanel(panel,owner,allowed,ttlMs);noteAccessEvent('REMOTE_GRANT_OPENED',{titleFa:panelTitle(panel),windowNo:owner});return done},clearPanelScope:sessions.clearPanelScope,clearPanelSessions:sessions.clearPanelSessions,
       addOneShotTicket:(actionId,owner,ttlMs,memberId)=>{const made=addGateTicket(owner,actionId,ttlMs,'REMOTE_GRANT',{memberId});if(made)noteAccessEvent('REMOTE_GRANT_OPENED',{titleFa:gateEntry(actionId)?.titleFa,windowNo:owner,minutes:Math.round(ttlMs/60_000)});return made},
-      clearOneShotTickets:(memberId)=>clearGateTickets(memberId===undefined ? {} : {memberId}),grantDurationMs:()=>lockDurationMs('remoteGrantMinutes')})
+      clearOneShotTickets:(memberId)=>clearGateTickets(memberId===undefined ? {} : {memberId}),grantDurationMs:(panel)=>GATE_ACTION_IDS.includes(panel) ? lockDurationMs('remoteSensitiveGrantMinutes') : partDurationMs(remoteDurationKey(codeSectionOfPanel(panel)))})
     const barrier=createExperimentalRestoreBarrier()
     hubStartAttempted=true
     // The supervisor keeps its options for the hub's lifetime, but the owner's

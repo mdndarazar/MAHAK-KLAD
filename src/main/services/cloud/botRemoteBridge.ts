@@ -2,7 +2,8 @@
  * طرح ۱۴۰۵ §۴-۱-ب و §۳-۱۲ بند ۸ — پل دکمه‌های ربات به همان مسیر مجوز راه دور، روی همین رایانه.
  *
  *   - تأیید ⇒ همان `createGrant` با سیاست همان قفل (کلید قسمت: `NORMAL/PANEL`؛ شناسهٔ کار: `SENSITIVE_MONEY/ONE_SHOT`)
- *     و سقف ۶۰ دقیقه؛ مدت واقعی هنگام فعال‌سازی از پروندهٔ مدت‌ها خوانده می‌شود (مثل تأیید گوشی).
+ *     و سقف ۱۰۰۰ دقیقه (دفتر آزمون ۴-۲۸)؛ مدت واقعی هنگام فعال‌سازی از پروندهٔ مدت‌ها و با کلید همان قسمت خوانده می‌شود
+ *     (معمولی، یا پولی و حساس؛ مثل تأیید گوشی).
  *   - رد ⇒ همان لغو درخواستِ همان پنجره، با یادداشت «رد شد» (پنجرهٔ فروشنده «مدیر رد کرد» می‌بیند).
  *   - شرط تأیید: کنترل از راه دور روشن و راه‌اندازی‌شده، و توقف اضطراری کامل (P2) یا مکث فعال نیست؛ همین لحظه
  *     از خود هاب پرسیده می‌شود. «بستن همه» همیشه کار می‌کند، چون فقط می‌بندد.
@@ -15,7 +16,7 @@ import { createGrant, listActiveGrants, listPendingRequests, rejectRequest, revo
 import type { BotRemote, BotRemoteRequest } from './messenger/messengerBot'
 
 const MEMBER = /^bot-[a-f0-9]{12}$/
-const POLICY_TTL_MS = 3_600_000
+const POLICY_TTL_MS = 60_000_000
 const remotePanel = (panel: string) => (REMOTE_PANELS as readonly string[]).includes(panel)
 const samePending = (req: BotRemoteRequest) => listPendingRequests().some((p) => p.requestId === req.requestId && p.ownerWindowId === req.ownerWindowId && p.panel === req.panel)
 

@@ -347,11 +347,11 @@ try {
     noSecrets(r, 'returns')
   })
 
-  await test('phase 1: «وضعیت سیستم» shows the three durations of lock-durations.json', async () => {
+  await test('phase 1: «وضعیت سیستم» shows the four durations of lock-durations.json', async () => {
     const r = await report(owner, { section: 'status', page: 0 })
     const d = readLockDurations()
-    assert.deepEqual(r.json.rows.map((x) => x.minutes), [d.sensitiveCodeMinutes, d.otherCodeMinutes, d.remoteGrantMinutes])
-    assert.deepEqual(r.json.rows.map((x) => x.minutes), [7, 12, 25])
+    assert.deepEqual(r.json.rows.map((x) => x.minutes), [d.sensitiveCodeMinutes, d.otherCodeMinutes, d.remoteGrantMinutes, d.remoteSensitiveGrantMinutes])
+    assert.deepEqual(r.json.rows.map((x) => x.minutes), [7, 12, 25, 25])
     assert.deepEqual(Object.keys((await send('/api/health', { cookie: owner })).json).sort(), ['dataAgeMs', 'linkAgeMs', 'revocationPending'], '/api/health keeps its three keys')
   })
 

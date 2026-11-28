@@ -144,7 +144,7 @@ export async function startExperimentalHubSupervisor(options: Options) {
           !options.approval.replayStore || typeof options.approval.replayStore.consume!=='function') || !options.approval.policies ||
         Object.keys(options.approval.policies).length<1 || Object.keys(options.approval.policies).length>128 ||
         Object.entries(options.approval.policies).some(([panel,p])=>! /^[A-Za-z0-9_.:-]{1,128}$/.test(panel) || panel==='custody' ||
-          !p || !((p.tier==='NORMAL' && p.mode==='PANEL') || (p.tier==='SENSITIVE_MONEY' && p.mode==='ONE_SHOT')) || !Number.isSafeInteger(p.ttlMs) || p.ttlMs<=0 || p.ttlMs>3_600_000))) ||
+          !p || !((p.tier==='NORMAL' && p.mode==='PANEL') || (p.tier==='SENSITIVE_MONEY' && p.mode==='ONE_SHOT')) || !Number.isSafeInteger(p.ttlMs) || p.ttlMs<=0 || p.ttlMs>60_000_000))) ||
       !options.state || typeof options.state.load !== 'function' ||
       typeof options.state.save !== 'function' || typeof options.readRestoreMarker !== 'function' ||
       (options.databaseFile !== undefined && (typeof options.databaseFile !== 'string' || !isAbsolute(options.databaseFile) || !options.revocation)) ||

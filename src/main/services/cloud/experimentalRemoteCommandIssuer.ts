@@ -30,7 +30,7 @@ export function createExperimentalRemoteCommandIssuer(options:Options) {
   for (const [panel,p] of Object.entries(options.policies ?? {})) {
     if (!PANEL.test(panel) || panel === 'custody' || !p || (p.tier !== 'NORMAL' && p.tier !== 'SENSITIVE_MONEY') ||
         (p.mode !== 'PANEL' && p.mode !== 'ONE_SHOT') || (p.tier === 'SENSITIVE_MONEY' && p.mode !== 'ONE_SHOT') ||
-        !Number.isSafeInteger(p.ttlMs) || p.ttlMs <= 0 || p.ttlMs > 3_600_000) throw new Error('Invalid issuer policy')
+        !Number.isSafeInteger(p.ttlMs) || p.ttlMs <= 0 || p.ttlMs > 60_000_000) throw new Error('Invalid issuer policy')
     policies.set(panel,Object.freeze({tier:p.tier,mode:p.mode,ttlMs:p.ttlMs}))
   }
   const key=Buffer.from(options.key),storeId=options.storeId,identity=options.identity,clock=options.now ?? Date.now

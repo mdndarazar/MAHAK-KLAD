@@ -41,14 +41,14 @@ export function closeAllUnlocks(options: CloseAllOptions = {}): { ok: true } {
   return { ok: true }
 }
 
-/** تغییر مدت‌ها: هر عدد باید صحیح ۱ تا ۶۰ باشد؛ عدد نادرست رد می‌شود و عدد قبلی می‌ماند. */
+/** تغییر مدت‌ها: هر عدد باید صحیح ۱ تا ۱۰۰۰ باشد (دفتر آزمون ۴-۲۸)؛ عدد نادرست رد می‌شود و عدد قبلی می‌ماند. */
 export async function setLockDurations(input: Record<string, unknown>, userId: number | null = null): Promise<LockDurations> {
   const before = readLockDurations()
   const next: LockDurations = { ...before }
   for (const key of LOCK_DURATION_KEYS) {
     if (input[key] === undefined || input[key] === null || input[key] === '') continue
     const value = Number(input[key])
-    if (!validDurationMinutes(value)) throw new BusinessError(`«${LOCK_DURATION_TITLES[key]}» باید عددی صحیح بین ۱ تا ۶۰ دقیقه باشد.`)
+    if (!validDurationMinutes(value)) throw new BusinessError(`«${LOCK_DURATION_TITLES[key]}» باید عددی صحیح بین ۱ تا ۱۰۰۰ دقیقه باشد.`)
     next[key] = value
   }
   const changed = LOCK_DURATION_KEYS.filter((key) => next[key] !== before[key])

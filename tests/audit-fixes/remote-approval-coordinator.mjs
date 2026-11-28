@@ -71,7 +71,7 @@ await test('policy is copied; no unknown panels, excessive TTL or reusable sensi
   reset();const s=setup();s.policies['sales-return'].tier='SENSITIVE_MONEY';s.policies['sales-return'].ttlMs=1
   const p=requestCode('sales-return',10);assert.deepEqual(s.coordinator.approve(sign({requestId:p.requestId})),{ok:true,requestId:p.requestId})
   assert.throws(()=>setup({policies:{x:{tier:'SENSITIVE_MONEY',mode:'PANEL',ttlMs:1000}}}))
-  assert.throws(()=>setup({policies:{x:{tier:'NORMAL',mode:'PANEL',ttlMs:3600001}}}))
+  assert.throws(()=>setup({policies:{x:{tier:'NORMAL',mode:'PANEL',ttlMs:60000001}}}))
   assert.throws(()=>setup({policies:{'bad/panel':{tier:'NORMAL',mode:'PANEL',ttlMs:1000}}}))
   const unknown=requestCode('other',10);assert.deepEqual(s.coordinator.approve(sign({panel:'other',requestId:unknown.requestId})),{ok:false})
 })

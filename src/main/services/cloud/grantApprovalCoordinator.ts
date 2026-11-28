@@ -36,7 +36,7 @@ export function createGrantApprovalCoordinator(options: Options) {
         (policy.mode !== 'PANEL' && policy.mode !== 'ONE_SHOT') ||
         (policy.tier === 'SENSITIVE_MONEY' && policy.mode !== 'ONE_SHOT') ||
         !Number.isSafeInteger(policy.ttlMs) || policy.ttlMs <= 0 ||
-        policy.ttlMs > 3_600_000) throw new Error('Invalid local approval policy')
+        policy.ttlMs > 60_000_000) throw new Error('Invalid local approval policy')
     policies.set(panel, Object.freeze({ tier: policy.tier, mode: policy.mode, ttlMs: policy.ttlMs }))
   }
   const verify = createSignedGrantVerifier({ key: options.key, storeId: options.storeId, allowedPanels: policies.keys(), now: options.now, replayStore: options.replayStore })
