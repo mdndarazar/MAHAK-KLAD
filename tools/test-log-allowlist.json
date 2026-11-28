@@ -210,13 +210,14 @@
     "tests/audit/audit-s172-stale-observations-verify.mjs": null,
     "tests/audit-fixes/plan1405-remote-grants.mjs": 20,
     "tests/audit-fixes/remote-panels-desktop.mjs": 2,
-    "src/main/services/RemoteGrantRegistry.ts": 20,
+    "src/main/services/RemoteGrantRegistry.ts": 26,
     "src/main/services/cloud/experimentalHubChild.ts": 2,
     "src/main/services/cloud/experimentalHubSupervisor.ts": 2,
     "src/main/services/cloud/experimentalRemoteCommandIssuer.ts": 2,
     "tests/audit-fixes/remote-approval-coordinator.mjs": 2,
     "tests/audit-fixes/remote-grant-registry-security.mjs": 4,
-    "tests/audit-fixes/plan1405-phone-reports.mjs": 6
+    "tests/audit-fixes/plan1405-phone-reports.mjs": 6,
+    "src/main/services/cloud/messenger/messengerRuntime.ts": 2
    }
   },
   "4": {
@@ -379,6 +380,7 @@
   "messengerIpc.ts, messengerAdapters.ts (batch 2)": "Owner permission 2026-11-28 (TL-D7): 4-33 sets the new per-recipient «can view reports» tick through the existing recipient-settings channel (a new messenger channel would change the channel count at line 172 of plan1405-messenger-units.mjs), and registers the «/» list with one new setMyCommands method (the bot interface had no general call).",
   "messengerVault.ts (batch 2)": "Owner permission 2026-11-28 (TL-D8): 4-26 keeps its once-only marker for the 15- and 30-minute shift-end reminders in messenger-cursor.json, as arch section 2-1 says; the cursor type and its field-by-field parser live in this file (listed for batch 8), which would otherwise drop the new list on every start.",
   "plan1405-remote-grants.mjs, remote-panels-desktop.mjs (batch 3)": "Owner permission 2026-11-28 (TL-D9): the five test-log catalog entries of batch-3 step 1 (4-25, 4-48, 4-73, 4-79, 4-80) raise REMOTE_PANELS from 92 to 97 policies; only the counts change: remote-grants lines 8, 139, 144, 165 and 170 (92 => 97) and line 188 (36 => 31 extra policies, so the hub still takes exactly 128 and refuses 129), remote-panels-desktop line 17 (92 => 97). The same permission covers plan1405-gate-catalog.mjs lines 6, 41, 48, 71 and 73 and plan1405-gate-decision.mjs lines 4, 65 and 69, both already listed for batch 3.",
-  "RemoteGrantRegistry.ts, experimentalHubChild.ts, experimentalHubSupervisor.ts, experimentalRemoteCommandIssuer.ts, remote-approval-coordinator.mjs, remote-grant-registry-security.mjs, plan1405-phone-reports.mjs (batch 3)": "Owner permission 2026-11-28 (TL-D10): 4-28 raises the remote-grant cap from 60 to 1000 minutes in all six places (registry, coordinator, hub child, hub supervisor, command issuer, bot bridge policy) and shows the four durations on the phone status page; only the boundary numbers change in remote-approval-coordinator line 74, remote-grant-registry-security lines 23 and 49 (3600001 => 60000001), phone-reports lines 350, 353 and 354, and remote-grants lines 4, 63, 67 and 68 (budget 12 => 20). The phone status section in phoneReportCatalog.ts (already in the batch 2 and 6 lists) gets pageSize 3 => 4 and a four-duration caption, so the hub accepts the fourth row."
+  "RemoteGrantRegistry.ts, experimentalHubChild.ts, experimentalHubSupervisor.ts, experimentalRemoteCommandIssuer.ts, remote-approval-coordinator.mjs, remote-grant-registry-security.mjs, plan1405-phone-reports.mjs (batch 3)": "Owner permission 2026-11-28 (TL-D10): 4-28 raises the remote-grant cap from 60 to 1000 minutes in all six places (registry, coordinator, hub child, hub supervisor, command issuer, bot bridge policy) and shows the four durations on the phone status page; only the boundary numbers change in remote-approval-coordinator line 74, remote-grant-registry-security lines 23 and 49 (3600001 => 60000001), phone-reports lines 350, 353 and 354, and remote-grants lines 4, 63, 67 and 68 (budget 12 => 20). The phone status section in phoneReportCatalog.ts (already in the batch 2 and 6 lists) gets pageSize 3 => 4 and a four-duration caption, so the hub accepts the fourth row.",
+  "RemoteGrantRegistry.ts budget 26, messengerRuntime.ts (batch 3)": "Owner permission 2026-11-28 (TL-D11): 4-29 approves one grant from Telegram or Bale with the manager's own time. The registry took min(policy, computer duration), so a time above the computer setting was cut; an optional exact flag on that one panel grant (4 lines; only the bot's custom time sets it; the phone and the \"same as the computer\" button are unchanged) keeps the chosen 1-1000 minutes, past 60 minutes with the 4-28 renewal. messengerRuntime.ts passes the minutes field into the BOT_DECISION access row (1 line)."
  }
 }

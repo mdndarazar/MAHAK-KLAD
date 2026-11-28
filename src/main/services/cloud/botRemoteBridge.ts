@@ -6,6 +6,9 @@
  *     (معمولی، یا پولی و حساس؛ مثل تأیید گوشی).
  *   - رد ⇒ همان لغو درخواستِ همان پنجره، با یادداشت «رد شد» (پنجرهٔ فروشنده «مدیر رد کرد» می‌بیند).
  *   - دفتر آزمون ۴-۳۰: «زمان رایانه برای این نوع» در پیام درخواست = همان مدتی که فعال‌سازی می‌خواند (همان کلید قسمت).
+ *   - دفتر آزمون ۴-۲۹ (TL-D11): تأیید با زمان دلخواه فقط برای قسمت، عدد صحیح ۱ تا ۱۰۰۰ دقیقه، فقط برای همین یک مجوز
+ *     (نشانهٔ `exact` رجیستری؛ پروندهٔ مدت‌ها عوض نمی‌شود)؛ بیش از ۶۰ دقیقه با همان تمدید نشست ۴-۲۸. عدد نادرست یا برای
+ *     قفل کار ⇐ BAD و درخواست در انتظار می‌ماند.
  *   - شرط تأیید: کنترل از راه دور روشن و راه‌اندازی‌شده، و توقف اضطراری کامل (P2) یا مکث فعال نیست؛ همین لحظه
  *     از خود هاب پرسیده می‌شود. «بستن همه» همیشه کار می‌کند، چون فقط می‌بندد.
  *   - عضو `bot-<شناسهٔ گیرنده>` عضو واقعی هاب نیست؛ با P1، P2، خاموش کردن کلید ربات یا برداشتن اجازه بسته می‌شود.
@@ -31,16 +34,18 @@ export function createBotRemoteBridge(deps: {
 }): BotRemote {
   return {
     pending: () => listPendingRequests().filter((p) => remotePanel(p.panel)),
-    async approve(req, memberId) {
+    async approve(req, memberId, minutes) {
       if (!MEMBER.test(memberId) || !remotePanel(req.panel)) return 'GONE'
+      const oneShot = GATE_ACTION_IDS.includes(req.panel), custom = minutes !== undefined
+      if (custom && (oneShot || !Number.isSafeInteger(minutes) || (minutes as number) < 1 || (minutes as number) > 1000)) return 'BAD'
       let ok = false
       try { ok = await deps.available() } catch { ok = false }
       if (!ok) return 'OFF'
       if (!samePending(req)) return 'GONE'
-      const oneShot = GATE_ACTION_IDS.includes(req.panel)
       const grant = createGrant({
         panel: req.panel, ownerWindowId: req.ownerWindowId, requestId: req.requestId, memberId,
-        tier: oneShot ? 'SENSITIVE_MONEY' : 'NORMAL', mode: oneShot ? 'ONE_SHOT' : 'PANEL', ttlMs: POLICY_TTL_MS
+        tier: oneShot ? 'SENSITIVE_MONEY' : 'NORMAL', mode: oneShot ? 'ONE_SHOT' : 'PANEL',
+        ...(custom ? { ttlMs: (minutes as number) * 60_000, exact: true } : { ttlMs: POLICY_TTL_MS })
       })
       return grant ? 'OK' : 'GONE'
     },

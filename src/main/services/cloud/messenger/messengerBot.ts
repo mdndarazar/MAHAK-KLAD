@@ -10,6 +10,10 @@
  *   ۳) تأیید: گفت‌وگو جفت‌شده و دارای اجازه، نشانه تازه، درخواست هنوز در انتظار، و کنترل از راه دور روشن و بی
  *      توقف اضطراری (P2). سپس همان `createGrant` با سیاست همان قفل؛ عضو `bot-<شناسهٔ گیرنده>`. اولین تصمیم برنده
  *      است و پیام بقیهٔ گیرنده‌ها با `editMessageText` نتیجه را نشان می‌دهد.
+ *   ۳-ب) دفتر آزمون ۴-۲۹: برای ماژول، دکمهٔ نخست «✅ تأیید · همان تنظیمات رایانه (… دقیقه)» است و ردیف دوم «⏱ وارد کردن
+ *      زمان» (نشانهٔ تصادفی یک‌بارمصرف دیگر). ربات «زمان را به دقیقه بفرستید (۱ تا ۱۰۰۰)» می‌پرسد، با چهار دکمهٔ آماده؛ عدد
+ *      (رقم فارسی هم) تا ۲ دقیقه همان مجوز را با همان زمان تأیید می‌کند و تنظیم رایانه عوض نمی‌شود. همهٔ ایمنی‌های تأیید سر
+ *      جایش است؛ عدد نادرست یا دیررس چیزی تأیید نمی‌کند و درخواست در انتظار می‌ماند. قفل کار همان دو دکمه را دارد.
  *   ۴) رد: همان لغو درخواست؛ پنجرهٔ فروشنده «مدیر رد کرد» می‌بیند.
  *   ۵) «منو»: «بستن همهٔ مجوزها» (با دکمهٔ دوم «مطمئنم»)، «مجوزهای باز» و «خلاصهٔ امروز».
  *   ۶) هرگز با ربات: P2، بازیابی، تغییر مسئول صندوق، PIN، تنظیمات و هر «کلیدسازی».
@@ -39,14 +43,17 @@ export interface BotRemoteRequest { requestId: string; code: string; panel: stri
 /** پل به همان مسیر مجوز راه دور روی رایانه (`botRemoteBridge.ts`)؛ در آزمون ساختگی یا با رجیستری واقعی. */
 export interface BotRemote {
   pending(): BotRemoteRequest[]
-  /** OFF یعنی کنترل از راه دور خاموش است یا P2 فعال است؛ GONE یعنی درخواست دیگر در انتظار نیست */
-  approve(req: BotRemoteRequest, memberId: string): Promise<'OK' | 'GONE' | 'OFF'>
+  /**
+   * OFF یعنی کنترل از راه دور خاموش است یا P2 فعال است؛ GONE یعنی درخواست دیگر در انتظار نیست. دفتر آزمون ۴-۲۹: `minutes`
+   * زمان دلخواه همان یک مجوز ماژول (عدد صحیح ۱ تا ۱۰۰۰)؛ نادرست یا برای قفل کار ⇐ BAD و درخواست در انتظار می‌ماند.
+   */
+  approve(req: BotRemoteRequest, memberId: string, minutes?: number): Promise<'OK' | 'GONE' | 'OFF' | 'BAD'>
   reject(req: BotRemoteRequest): boolean
   closeAll(): void
   openGrants(): Array<{ panel: string; ownerWindowId: number; claimed: boolean; remainingMs: number }>
   revokeMember(memberId: string): void
-  /** ردیف `ACCESS_EVENT` نوع `BOT_DECISION` (فقط برچسب ثابت تصمیم، نام گیرنده، نام قفل و پنجره) */
-  note(fields: { decision: string; recipientName: string; titleFa?: string; windowNo?: number }): void
+  /** ردیف `ACCESS_EVENT` نوع `BOT_DECISION` (فقط برچسب ثابت تصمیم، نام گیرنده، نام قفل و پنجره؛ ۴-۲۹: زمان دلخواه به دقیقه) */
+  note(fields: { decision: string; recipientName: string; titleFa?: string; windowNo?: number; minutes?: number }): void
   /** دفتر آزمون ۴-۳۰: مدت رایانه برای نوع همین ماژول (دقیقه، ۴-۲۸)؛ قفل کار یا نامعلوم ⇒ null */
   minutesFor?(panel: string): number | null
 }
@@ -126,6 +133,13 @@ const ROWS_PER_PAGE = 10
 const REPORT_TEXT_LIMIT = 3900
 const DATE_TTL_MS = 5 * 60_000
 const DATE_TRIES = 3
+// دفتر آزمون ۴-۲۹: مهلت فرستادن زمان دلخواه، شمار تلاش، دکمه‌های آماده، و نگه داشتن حالت تمام‌شده برای پاسخ «دیر رسید»
+const MINUTES_TTL_MS = 2 * 60_000
+const MINUTES_TRIES = 3
+const MINUTES_PRESETS: readonly number[] = Object.freeze([15, 30, 60, 120])
+const MINUTES_LATE_MS = 10 * 60_000
+const MINUTES_BAD = 'زمان باید عددی صحیح از ۱ تا ۱۰۰۰ دقیقه باشد؛ چیزی تأیید نشد.'
+const NOT_PENDING = 'این درخواست دیگر در انتظار نیست؛ چیزی تأیید نشد.'
 const CACHE_TTL_MS = 2 * 60_000
 const CREDIT_SCAN = 5000
 const PHONE_SCAN_PAGES = 20
@@ -137,6 +151,12 @@ const DATE_HELP = 'تاریخ را بنویسید، مثل ۱۴۰۵/۰۹/۰۳؛ 
 
 const latinDigits = (s: string): string =>
   s.replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0)).replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+/** دفتر آزمون ۴-۲۹: عدد دقیقه از متن گفت‌وگو (رقم فارسی، عربی یا لاتین؛ «دقیقه» در پایان اختیاری)؛ فقط عدد صحیح ۱ تا ۱۰۰۰. */
+export function parseMinutes(text: string): number | null {
+  const m = /^(\d{1,4})\s*(?:دقیقه)?$/.exec(latinDigits(String(text)).trim())
+  const n = m ? Number(m[1]) : NaN
+  return Number.isSafeInteger(n) && n >= 1 && n <= 1000 ? n : null
+}
 const DATE_IN_TEXT = /(\d{4})\s*[/.-]\s*(\d{1,2})\s*[/.-]\s*(\d{1,2})/g
 /** درستی روز و سقف ۳۱ روز با همان قاعدهٔ گوشی (`parsePhoneReportRequest`). */
 function rangeCheck(from: string, to: string): 'ok' | 'invalid' | 'long' {
@@ -193,7 +213,9 @@ interface BuiltReport { lines: string[]; pages: number | null; hasMore: boolean 
 
 interface Sent { recipientId: string; provider: MessengerProvider; chatId: number; messageId: number }
 interface RequestState { req: BotRemoteRequest; text: string; sentTo: Set<string>; messages: Sent[]; decided: boolean; at: number }
-type TokenInfo = { kind: 'a' | 'r'; requestId: string; recipientId: string } | { kind: 'c'; recipientId: string; expiresAt: number }
+type TokenInfo = { kind: 'a' | 'r' | 't'; requestId: string; recipientId: string }
+  | { kind: 'd'; requestId: string; recipientId: string; minutes: number; expiresAt: number }
+  | { kind: 'c'; recipientId: string; expiresAt: number }
 
 /** دفتر آزمون ۴-۳۰: خط «نوع» با نشانهٔ رنگی همان نوع (`lockKindOf`، همان مرز کدها و مدت‌ها). */
 export function botKindLine(panel: string): string {
@@ -218,6 +240,8 @@ export function createBotController(ctx: BotContext) {
   let conflictText: string | null = null
   // دفتر آزمون ۴-۳۳: حالت کوتاه‌مدت «منتظر تاریخ»، نسخهٔ دودقیقه‌ای فهرست‌های اسکن‌شده و ثبت فهرست «/» برای هر کلید ربات
   const awaiting = new Map<string, { key: ReportKey; recipientId: string; expiresAt: number; tries: number }>()
+  // دفتر آزمون ۴-۲۹: حالت کوتاه‌مدت «منتظر عدد» برای همان گفت‌وگو و همان درخواست
+  const awaitingMinutes = new Map<string, { requestId: string; recipientId: string; expiresAt: number; tries: number }>()
   const cache = new Map<string, { at: number; value: unknown }>()
   const commandsSent = new WeakMap<object, { at: number; ok: boolean }>()
 
@@ -255,7 +279,12 @@ export function createBotController(ctx: BotContext) {
       'کد را با کدی که فروشنده می‌بیند مقایسه کنید.'
     ])
   }
-  const keyboardFor = (a: string, r: string): InlineKeyboard => ({ inline_keyboard: [[{ text: '✅ تأیید', callback_data: `a:${a}` }, { text: '❌ رد', callback_data: `r:${r}` }]] })
+  /** ردیف اول همیشه دو دکمه (تأیید و رد)؛ دفتر آزمون ۴-۲۹: برای ماژول زمان رایانه روی دکمهٔ تأیید و «⏱ وارد کردن زمان» در ردیف دوم. */
+  const keyboardFor = (panel: string, a: string, r: string, t: string | null): InlineKeyboard => {
+    const minutes = t ? computerMinutes(panel) : null
+    const ok = t ? `✅ تأیید · همان تنظیمات رایانه${minutes !== null ? ` (${num(minutes)} دقیقه)` : ''}` : '✅ تأیید'
+    return { inline_keyboard: [[{ text: ok, callback_data: `a:${a}` }, { text: '❌ رد', callback_data: `r:${r}` }], ...(t ? [[{ text: '⏱ وارد کردن زمان', callback_data: `t:${t}` }]] : [])] }
+  }
 
   async function editAll(state: RequestState, footer: string): Promise<void> {
     for (const sent of state.messages) {
@@ -263,6 +292,10 @@ export function createBotController(ctx: BotContext) {
       if (!api) continue
       try { await api.editMessageText(sent.chatId, sent.messageId, `${state.text}\n\n${footer}`) } catch (error) { ctx.log('bot edit failed', error) }
     }
+  }
+  /** همان درخواست (شناسه، پنجره و قسمت) هنوز روی رایانه در انتظار است؟ */
+  const isPending = (remote: BotRemote, state: RequestState): boolean => {
+    try { return remote.pending().some((p) => p.requestId === state.req.requestId && p.ownerWindowId === state.req.ownerWindowId && p.panel === state.req.panel) } catch { return false }
   }
   function dropTokens(requestId: string): void {
     for (const [t, info] of tokens) if (info.kind !== 'c' && info.requestId === requestId) tokens.delete(t)
@@ -294,13 +327,14 @@ export function createBotController(ctx: BotContext) {
         if (state.sentTo.has(r.id)) continue
         const api = ctx.api(r.provider)
         if (!api) continue
-        const a = newToken(), rj = newToken()
-        const result = await api.sendMessage(r.chatId, state.text, keyboardFor(a, rj))
+        const a = newToken(), rj = newToken(), tm = lockKindOf(req.panel) === 'action' ? null : newToken()
+        const result = await api.sendMessage(r.chatId, state.text, keyboardFor(req.panel, a, rj, tm))
         if (result.kind !== 'ok' || !Number.isSafeInteger(result.result?.message_id)) continue
         state.sentTo.add(r.id)
         state.messages.push({ recipientId: r.id, provider: r.provider, chatId: r.chatId, messageId: result.result.message_id })
         tokens.set(a, { kind: 'a', requestId: req.requestId, recipientId: r.id })
         tokens.set(rj, { kind: 'r', requestId: req.requestId, recipientId: r.id })
+        if (tm) tokens.set(tm, { kind: 't', requestId: req.requestId, recipientId: r.id })
       }
     }
   }
@@ -551,6 +585,7 @@ export function createBotController(ctx: BotContext) {
     if (kind === 'q') {
       await answer(provider, cq)
       if (a === 'd') {
+        awaitingMinutes.delete(chatKey(provider, r.chatId))
         awaiting.set(chatKey(provider, r.chatId), { key, recipientId: r.id, expiresAt: ctx.now() + DATE_TTL_MS, tries: 0 })
         await ctx.api(provider)?.sendMessage(r.chatId, `${REPORT_TITLES[key]}\n${DATE_HELP}`)
         return
@@ -565,6 +600,78 @@ export function createBotController(ctx: BotContext) {
     if (from > to || rangeCheck(from, to) !== 'ok' || !Number.isSafeInteger(page) || page < 1 || page > MAX_PAGE) { await expired(provider, cq); return }
     await answer(provider, cq)
     await runReport(provider, r, key, from, to, page)
+  }
+  /** دفتر آزمون ۴-۲۹: «⏱ وارد کردن زمان» ⇐ حالت «منتظر عدد» همین گفت‌وگو برای همین درخواست (۲ دقیقه)، با چهار دکمهٔ آماده. */
+  async function askMinutes(provider: MessengerProvider, r: MessengerRecipient, state: RequestState): Promise<void> {
+    const key = chatKey(provider, r.chatId), expiresAt = ctx.now() + MINUTES_TTL_MS
+    awaiting.delete(key)
+    awaitingMinutes.set(key, { requestId: state.req.requestId, recipientId: r.id, expiresAt, tries: 0 })
+    const presets = MINUTES_PRESETS.map((minutes) => {
+      const t = newToken()
+      tokens.set(t, { kind: 'd', requestId: state.req.requestId, recipientId: r.id, minutes, expiresAt })
+      return { text: `${num(minutes)} دقیقه`, callback_data: `d:${t}` }
+    })
+    const computer = computerMinutes(state.req.panel)
+    await ctx.api(provider)?.sendMessage(r.chatId, [
+      `⏱ ${botLockTitle(state.req.panel)} · پنجرهٔ ${num(state.req.ownerWindowId)}`,
+      `زمان را به دقیقه بفرستید (۱ تا ۱۰۰۰).${computer !== null ? ` زمان رایانه: ${num(computer)} دقیقه` : ''}`,
+      'فقط برای همین مجوز است و تنظیم رایانه عوض نمی‌شود. مهلت: ۲ دقیقه.'
+    ].join('\n'), { inline_keyboard: [presets] })
+  }
+  /** دفتر آزمون ۴-۲۹: پاسخ «⏱ وارد کردن زمان»؛ false یعنی این گفت‌وگو منتظر عدد نبود. */
+  async function onMinutesText(provider: MessengerProvider, r: MessengerRecipient, text: string): Promise<boolean> {
+    const key = chatKey(provider, r.chatId), wait = awaitingMinutes.get(key)
+    if (!wait) return false
+    const say = async (line: string): Promise<void> => { await ctx.api(provider)?.sendMessage(r.chatId, line) }
+    if (wait.recipientId !== r.id || !r.canApprove) { awaitingMinutes.delete(key); return true }
+    if (ctx.now() > wait.expiresAt) {
+      awaitingMinutes.delete(key)
+      await say('مهلت ۲ دقیقه‌ای فرستادن زمان گذشت و چیزی تأیید نشد. اگر درخواست هنوز در انتظار است، دوباره «⏱ وارد کردن زمان» را بزنید.')
+      return true
+    }
+    const minutes = parseMinutes(text)
+    if (minutes === null) {
+      wait.tries += 1
+      const last = wait.tries >= MINUTES_TRIES
+      if (last) awaitingMinutes.delete(key)
+      await say(`${MINUTES_BAD} ${last ? 'برای زمان دلخواه دوباره «⏱ وارد کردن زمان» را بزنید.' : 'دوباره بفرستید.'}`)
+      return true
+    }
+    awaitingMinutes.delete(key)
+    const state = requests.get(wait.requestId), remote = ctx.remote
+    if (!state || state.decided || !remote) { await say(NOT_PENDING); return true }
+    if (!isPending(remote, state)) {
+      state.decided = true; dropTokens(state.req.requestId)
+      await say(NOT_PENDING)
+      await editAll(state, '⌛ این درخواست دیگر در انتظار نیست.')
+      return true
+    }
+    await approve(r, state, minutes, say, () => say(NOT_PENDING), '✅ تأیید شد.')
+    return true
+  }
+  /**
+   * تأیید با دکمهٔ «✅» (زمان رایانه) یا، دفتر آزمون ۴-۲۹، با زمان دلخواه فقط برای همان مجوز (عدد یا دکمهٔ آماده). همان
+   * ایمنی‌ها در پل (کنترل از راه دور روشن و بی P2، درخواست هنوز در انتظار)؛ اولین تصمیم برنده است. ردیف تصمیم برای زمان
+   * دلخواه دقیقه را هم دارد؛ برای زمان رایانه مثل پیش (زمانش در خبر «مجوز باز شد» است).
+   */
+  async function approve(r: MessengerRecipient, state: RequestState, minutes: number | null, say: (text: string) => Promise<unknown>, lose: () => Promise<unknown>, done: string): Promise<void> {
+    const remote = ctx.remote
+    if (!remote) { await lose(); return }
+    const outcome = minutes === null ? await remote.approve(state.req, botMemberId(r.id)) : await remote.approve(state.req, botMemberId(r.id), minutes)
+    if (outcome === 'OFF') { await say('کنترل از راه دور خاموش است یا توقف اضطراری فعال است؛ تأیید ممکن نیست.'); return }
+    if (outcome === 'BAD') { await say(MINUTES_BAD); return }
+    if (state.decided) { await lose(); return }
+    state.decided = true; dropTokens(state.req.requestId)
+    if (outcome !== 'OK') { await lose(); await editAll(state, '⌛ این درخواست دیگر در انتظار نیست.'); return }
+    const title = botLockTitle(state.req.panel)
+    remote.note({ decision: 'تأیید', recipientName: r.name, titleFa: title, windowNo: state.req.ownerWindowId, ...(minutes !== null ? { minutes } : {}) })
+    await say(done)
+    // دفتر آزمون ۴-۳۰ و ۴-۲۹: نتیجه برای بقیهٔ گیرنده‌ها و خبر همه، با نوع و زمان (زمان رایانه یا زمان دلخواه)
+    const span = minutes !== null ? `${num(minutes)} دقیقه` : grantSpan(state.req.panel, computerMinutes(state.req.panel))
+    const how = minutes !== null ? ' (زمان دلخواه)' : lockKindOf(state.req.panel) === 'action' ? '' : ' (همان تنظیمات رایانه)'
+    await editAll(state, `✅ تأیید شد (${r.name})${span ? ` · ${span}${minutes !== null ? how : ''}` : ''} · ${fmtAt(ctx.now(), await ctx.offsetHours())}`)
+    await ctx.notifyAll('🤖 درخواست مجوز با ربات تأیید شد', [`قفل: ${title}`, botKindLine(state.req.panel),
+      ...(span ? [`⏱ زمان: ${span}${how}`] : []), `پنجرهٔ ${num(state.req.ownerWindowId)}`, `گیرنده: ${r.name}`], true)
   }
   /** پاسخ «وارد کردن تاریخ» (حالت کوتاه‌مدت همان گفت‌وگو). */
   async function onDateText(provider: MessengerProvider, r: MessengerRecipient, text: string): Promise<void> {
@@ -600,7 +707,7 @@ export function createBotController(ctx: BotContext) {
     if (!r) { await answer(provider, cq, NO_APPROVE); return }
     const data = typeof cq.data === 'string' ? cq.data : ''
     const report = REPORT_DATA.test(data)
-    if (rateLimited(provider, chatId as number)) { await answer(provider, cq, report ? 'کمی صبر کنید؛ هر ۵ ثانیه یک فرمان.' : undefined); return }
+    if (rateLimited(provider, chatId as number)) { await answer(provider, cq, report || data.startsWith('d:') ? 'کمی صبر کنید؛ هر ۵ ثانیه یک فرمان.' : undefined); return }
     if (data === 'm:sum') { await answer(provider, cq); await sendSummary(provider, r); return }
     // دفتر آزمون ۴-۳۳: گزارش‌ها فقط با تیک «می‌تواند گزارش‌ها را ببیند»؛ بقیهٔ دکمه‌ها فقط با اجازهٔ تأیید
     if (report) {
@@ -611,7 +718,7 @@ export function createBotController(ctx: BotContext) {
     if (!r.canApprove) { await answer(provider, cq, NO_APPROVE); return }
     if (data === 'm:list') { await answer(provider, cq); await openList(provider, r); return }
     if (data === 'm:close') { await answer(provider, cq); await askCloseAll(provider, r); return }
-    const m = /^([arc]):(.+)$/.exec(data)
+    const m = /^([arctd]):(.+)$/.exec(data)
     if (!m || !TOKEN.test(m[2])) { await expired(provider, cq); return }
     const info = tokens.get(m[2])
     if (!info || info.kind !== m[1] || info.recipientId !== r.id) { await expired(provider, cq); return }
@@ -629,30 +736,23 @@ export function createBotController(ctx: BotContext) {
     if (!state || state.decided) { tokens.delete(m[2]); await expired(provider, cq); return }
     const remote = ctx.remote
     if (!remote) { await expired(provider, cq); return }
-    const stillPending = (() => { try { return remote.pending().some((p) => p.requestId === state.req.requestId && p.ownerWindowId === state.req.ownerWindowId && p.panel === state.req.panel) } catch { return false } })()
-    if (!stillPending) {
+    if (!isPending(remote, state)) {
       state.decided = true; dropTokens(state.req.requestId)
       await expired(provider, cq)
       await editAll(state, '⌛ این درخواست دیگر در انتظار نیست.')
       return
     }
-    const title = botLockTitle(state.req.panel)
-    if (info.kind === 'a') {
-      const outcome = await remote.approve(state.req, botMemberId(r.id))
-      if (outcome === 'OFF') { await answer(provider, cq, 'کنترل از راه دور خاموش است یا توقف اضطراری فعال است؛ تأیید ممکن نیست.'); return }
-      if (state.decided) { await expired(provider, cq); return }
-      state.decided = true; dropTokens(state.req.requestId)
-      if (outcome !== 'OK') { await expired(provider, cq); await editAll(state, '⌛ این درخواست دیگر در انتظار نیست.'); return }
-      remote.note({ decision: 'تأیید', recipientName: r.name, titleFa: title, windowNo: state.req.ownerWindowId })
-      await answer(provider, cq, 'تأیید شد')
-      // دفتر آزمون ۴-۳۰: نتیجه برای بقیهٔ گیرنده‌ها و خبر همه، با نوع و زمان (همان تنظیمات رایانه)
-      const span = grantSpan(state.req.panel, computerMinutes(state.req.panel))
-      await editAll(state, `✅ تأیید شد (${r.name})${span ? ` · ${span}` : ''} · ${fmtAt(ctx.now(), await ctx.offsetHours())}`)
-      await ctx.notifyAll('🤖 درخواست مجوز با ربات تأیید شد', [`قفل: ${title}`, botKindLine(state.req.panel),
-        ...(span ? [`⏱ زمان: ${span}${lockKindOf(state.req.panel) === 'action' ? '' : ' (همان تنظیمات رایانه)'}`] : []),
-        `پنجرهٔ ${num(state.req.ownerWindowId)}`, `گیرنده: ${r.name}`], true)
+    // دفتر آزمون ۴-۲۹: «⏱ وارد کردن زمان» و دکمه‌های آمادهٔ زمان (همان گیرنده، تا ۲ دقیقه)
+    if (info.kind === 't') { await answer(provider, cq); await askMinutes(provider, r, state); return }
+    if (info.kind === 'd') {
+      if (ctx.now() > info.expiresAt) { tokens.delete(m[2]); await expired(provider, cq); return }
+      awaitingMinutes.delete(chatKey(provider, r.chatId))
+    }
+    if (info.kind === 'a' || info.kind === 'd') {
+      await approve(r, state, info.kind === 'd' ? info.minutes : null, (text) => answer(provider, cq, text), () => expired(provider, cq), 'تأیید شد')
       return
     }
+    const title = botLockTitle(state.req.panel)
     if (!remote.reject(state.req)) { state.decided = true; dropTokens(state.req.requestId); await expired(provider, cq); return }
     state.decided = true; dropTokens(state.req.requestId)
     remote.note({ decision: 'رد', recipientName: r.name, titleFa: title, windowNo: state.req.ownerWindowId })
@@ -670,7 +770,7 @@ export function createBotController(ctx: BotContext) {
     // دفتر آزمون ۴-۳۳: فرمان‌های فهرست «/» (با یا بی «@نام ربات»)؛ متن دیگر فقط پاسخ «وارد کردن تاریخ» است
     const command = /^\/([a-z]{1,32})(?:@[A-Za-z0-9_]{1,64})?$/.exec(text)?.[1] ?? null
     const known = MENU_WORDS.has(text) || (command !== null && (command in COMMAND_REPORTS || OTHER_COMMANDS.has(command)))
-    if (!known) { await onDateText(provider, r, text); return }
+    if (!known) { if (!(await onMinutesText(provider, r, text))) await onDateText(provider, r, text); return }
     if (rateLimited(provider, message.chat.id)) return
     if (MENU_WORDS.has(text) || command === 'menu' || command === 'start') { await menu(provider, r); return }
     const say = (line: string) => ctx.api(provider)?.sendMessage(r.chatId, line)
@@ -736,7 +836,8 @@ export function createBotController(ctx: BotContext) {
     /** هر دور حلقهٔ موتور (درون `exclusive`): پیام درخواست‌ها و راه‌اندازی خواندن پیوسته. */
     async tick(): Promise<void> {
       if (!ctx.active()) return
-      for (const [t, info] of tokens) if (info.kind === 'c' && ctx.now() > info.expiresAt) tokens.delete(t)
+      for (const [t, info] of tokens) if ((info.kind === 'c' || info.kind === 'd') && ctx.now() > info.expiresAt) tokens.delete(t)
+      for (const [k, wait] of awaitingMinutes) if (ctx.now() > wait.expiresAt + MINUTES_LATE_MS) awaitingMinutes.delete(k)
       await announce()
       for (const provider of ['telegram', 'bale'] as const) if (canPoll(provider)) { registerCommands(provider); loop(provider) }
     },
@@ -746,6 +847,7 @@ export function createBotController(ctx: BotContext) {
       for (const id of recipientIds) { try { ctx.remote?.revokeMember(botMemberId(id)) } catch (error) { ctx.log('bot revoke failed', error) } }
       for (const [t, info] of tokens) if (recipientIds.includes(info.recipientId)) tokens.delete(t)
       for (const [k, wait] of awaiting) if (recipientIds.includes(wait.recipientId)) awaiting.delete(k)
+      for (const [k, wait] of awaitingMinutes) if (recipientIds.includes(wait.recipientId)) awaitingMinutes.delete(k)
       for (const state of requests.values()) {
         if (state.decided) continue
         const mine = state.messages.filter((s) => recipientIds.includes(s.recipientId))

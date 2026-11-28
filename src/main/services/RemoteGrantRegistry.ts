@@ -17,11 +17,11 @@ type Grant = {
   id: string; panel: string; ownerWindowId: number; tier: GrantTier; mode: GrantMode
   approvedAt: number; claimBy: number; expiresAt: number; lastUsedAt: number
   memberId: string; requestId: string; usesLeft: number
-  tokenHash: Buffer; ttlMs: number; idleMs: number; claimed: boolean; revoking?: boolean; cleanup?: () => void
+  tokenHash: Buffer; ttlMs: number; idleMs: number; claimed: boolean; exact?: boolean; revoking?: boolean; cleanup?: () => void
 }
 type GrantInput = {
   panel: string; ownerWindowId: number; tier: GrantTier; mode: GrantMode
-  memberId: string; requestId: string; ttlMs: number
+  memberId: string; requestId: string; ttlMs: number; exact?: boolean
 }
 const grants = new Map<string, Grant>()
 const pendingRequests = new Map<string, Pending>()
@@ -234,7 +234,7 @@ export function consumeOneShot(ownerWindowId: number | null, panel: string, toke
   const matches = typeof token === 'string' && VALID_TOKEN.test(token) && !!g && timingSafeEqual(tokenHash(token), g.tokenHash)
   if (!matches || !g) { noteFailure(k); return false }
   const t = now()
-  const ttl = g.claimed ? g.ttlMs : effectiveTtl(g.ttlMs, panel)
+  const ttl = g.claimed || g.exact ? g.ttlMs : effectiveTtl(g.ttlMs, panel) // دفتر آزمون ۴-۲۹: زمان دلخواه ربات همان‌طور (TL-D11)
   // طرح ۱۴۰۵ §۳-۱۲ بند ۵: بلیت یک‌بار پیش از پاک کردن مجوز؛ شکست ساخت ⇒ مجوز مصرف نمی‌شود و «ناموفق».
   if (g.mode === 'ONE_SHOT' && injected?.addOneShotTicket) {
     let made = false
@@ -289,7 +289,7 @@ export function createGrant(opts: GrantInput): Omit<Grant, 'tokenHash'> | null {
     id: randomBytes(16).toString('hex'), panel: opts.panel, ownerWindowId: opts.ownerWindowId,
     tier: opts.tier, mode, approvedAt: t, claimBy: t + CLAIM_MS, expiresAt: 0, lastUsedAt: 0,
     memberId: opts.memberId, requestId: opts.requestId, usesLeft: mode === 'ONE_SHOT' ? 1 : 0,
-    tokenHash: pending.tokenHash, ttlMs: opts.ttlMs, idleMs: IDLE_MS, claimed: false
+    tokenHash: pending.tokenHash, ttlMs: opts.ttlMs, idleMs: IDLE_MS, claimed: false, exact: opts.exact === true && mode === 'PANEL'
   }
   grants.set(k, g); scheduleExpiry(k, g)
   const { tokenHash: _secret, ...publicGrant } = g

@@ -62,7 +62,7 @@ export function messengerEngine(): MessengerEngine {
     remote: createBotRemoteBridge({
       available: () => remoteApprovalsLive(),
       closeAll: () => closeAllUnlocksFromRemote({ source: 'ربات پیام‌رسان' }),
-      note: (f) => noteAccessEvent('BOT_DECISION', { decision: f.decision, recipientName: f.recipientName, titleFa: f.titleFa, windowNo: f.windowNo })
+      note: (f) => noteAccessEvent('BOT_DECISION', { decision: f.decision, recipientName: f.recipientName, titleFa: f.titleFa, windowNo: f.windowNo, minutes: f.minutes })
     }),
     powerSave: electron.powerSaveBlocker ? {
       start: () => electron.powerSaveBlocker.start('prevent-app-suspension'),
