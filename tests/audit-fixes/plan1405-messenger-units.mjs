@@ -43,7 +43,7 @@ test('the messenger never reads phone, credit code, barcode or return-code colum
   assert.equal((dbSrc.match(/note: true/g) ?? []).length, 1, 'note is selected only by the AuditLog page reader')
   const ev = read('src/main/services/cloud/messenger/messengerEvents.ts')
   const uses = ev.match(/\.note\b/g) ?? []
-  assert.deepEqual(uses, ['.note'], 'only parseMethodLine(row.note) reads the note column')
+  assert.deepEqual(uses, ['.note', '.note'], 'only parseMethodLine(row.note) and the fixed-start 4-142 reader read the note column')
   assert.match(ev, /parseMethodLine\(row\.note\)/)
   for (const f of ['src/main/services/cloud/messenger/messengerEngine.ts', 'src/main/services/cloud/messenger/messengerFormat.ts', 'src/main/services/cloud/messenger/messengerSummary.ts']) {
     assert.equal(/\.note\b/.test(read(f)), false, `${f} reads note`)
