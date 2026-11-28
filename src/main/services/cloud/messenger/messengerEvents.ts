@@ -781,6 +781,10 @@ function accessEvent(row: AuditRowLite, f: Record<string, unknown>, h: ReturnTyp
   // `decision` فقط برچسب ثابت است (قسمت کد، بازه، دلیل)؛ هیچ کد یا متن آزاد.
   const label = typeof f.decision === 'string' ? f.decision.slice(0, 40) : ''
   const sensitive = label === 'حساس'
+  // دفتر آزمون ۴-۴۷ (مجوز زمان‌بندی‌شده): کارمند مجوز، و در «باز شد» ساعت بستن پنجرهٔ امروز (`minutes` = ساعت پایان رسمی به دقیقهٔ روز)
+  const custodian = kind.startsWith('SCHEDULED_GRANT_') && typeof f.recipientName === 'string' && f.recipientName ? `مسئول صندوق: ${f.recipientName.slice(0, 60)}` : ''
+  const endMin = kind === K.SCHEDULED_GRANT_OPENED ? n(f.minutes) : null
+  const until = endMin !== null && Number.isInteger(endMin) && endMin >= 0 && endMin < 1440 ? `زمان بستن: ساعت ${faDigits(`${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`)}` : ''
   switch (kind) {
     // مرحلهٔ ۶: مصرف کد «حساس» ⚠️ است (در «فقط موارد مهم» هم)؛ کد «سایر ماژول‌ها» مثل خبرهای عادی.
     case K.CODE_USED: return [h.event(row, `🔑 کد یک‌بارمصرف ${sensitive ? 'حساس ' : ''}مصرف شد`, [where, label && !sensitive ? `قسمت: ${label}` : '', n(f.minutes) !== null ? `تا ${num(f.minutes)} دقیقه` : ''], { important: sensitive || !label })]
@@ -804,12 +808,12 @@ function accessEvent(row: AuditRowLite, f: Record<string, unknown>, h: ReturnTyp
     case K.REPEAT_GRANT_USED: return [h.event(row, `🔁 ${lock || 'کار قابل تکرار'} · بار ${num(f.number)} از ${num(f.count)}`, [[lock ? `قفل: ${lock}` : '', n(f.windowNo) !== null ? `پنجرهٔ ${num(f.windowNo)}` : ''].filter(Boolean).join(' · ')], { important: true })]
     case K.REPEAT_SETTINGS_CHANGED: return [h.event(row, '⚙️ کارهای قابل تکرار عوض شد', [n(f.number) !== null ? `حداکثر دفعات هر مجوز: ${num(f.number)} بار` : '', n(f.count) !== null ? `کارهای قابل تکرار: ${num(f.count)} کار` : '', by], { important: true })]
     case K.REMOTE_GRANT_CLOSED: return [h.event(row, '📱 مجوز راه دور بسته شد', [where, label ? `به دست: ${label}` : '', by])]
-    case K.SCHEDULED_GRANT_CREATED: return [h.event(row, '🗓️ مجوز زمان‌بندی‌شده ساخته شد', [where, label ? `بازه: ${label}` : '', by], { important: true })]
+    case K.SCHEDULED_GRANT_CREATED: return [h.event(row, '🗓️ مجوز زمان‌بندی‌شده ساخته شد', [where, label ? `بازه: ${label}` : '', (n(f.count) ?? 0) > 1 ? `روز: هر روز همین ساعت، ${num(f.count)} روز` : '', custodian, by], { important: true })]
     case K.SCHEDULED_GRANT_CANCELED:
       if (label === 'ساعت سیستم عوض شد') return [h.event(row, '⚠️ ساعت سیستم عوض شد؛ مجوزهای زمان‌بندی‌شده لغو شد', [where], { important: true })]
-      return [h.event(row, '🗓️ مجوز زمان‌بندی‌شده لغو شد', [where, label ? `دلیل: ${label}` : '', by])]
-    case K.SCHEDULED_GRANT_OPENED: return [h.event(row, '🗓️ مجوز زمان‌بندی‌شده باز شد', [where, label])]
-    case K.SCHEDULED_GRANT_CLOSED: return [h.event(row, '🗓️ مجوز زمان‌بندی‌شده بسته شد', [where, label])]
+      return [h.event(row, '🗓️ مجوز زمان‌بندی‌شده لغو شد', [where, label ? `دلیل: ${label}` : '', custodian, by])]
+    case K.SCHEDULED_GRANT_OPENED: return [h.event(row, '🗓️ مجوز زمان‌بندی‌شده باز شد', [where, label, custodian, until])]
+    case K.SCHEDULED_GRANT_CLOSED: return [h.event(row, '🗓️ مجوز زمان‌بندی‌شده بسته شد', [where, label, custodian])]
     case K.DURATIONS_CHANGED: return [h.event(row, '⚙️ مدت مجوزها و کدها عوض شد', [lock ? `${lock}: ${n(f.minutes) !== null ? `${num(f.minutes)} دقیقه` : ''}` : (n(f.minutes) !== null ? `${num(f.minutes)} دقیقه` : ''), by], { important: true })]
     // تأیید، رد و «بستن همه» با دکمهٔ ربات را خود موتور پیام‌رسان همان لحظه به همهٔ گیرنده‌ها خبر می‌دهد.
     case K.BOT_DECISION: return []

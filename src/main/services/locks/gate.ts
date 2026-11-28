@@ -24,7 +24,7 @@ import { isGuardedPanelOpen, isManagerSessionUnlocked, isPanelUnlocked } from '.
 import { currentGateCall, currentGateFrame, noteGateMethod, runInGateFrame, type GateCall, type GateFrame, type GateMethodRecord, type GateScope } from './callContext'
 import { lockDurationMs } from './durations'
 import { addGateTicket, peekGateTicket, takeGateTicket } from './tickets'
-import { guardedEntryFor } from './unlocks'
+import { guardedEntryFor, scheduledActionOpen } from './unlocks'
 
 export type GateIds = string | readonly string[]
 
@@ -57,12 +57,12 @@ function pass(call: GateCall, entries: GateCatalogEntry[], scope: GateScope, met
   return scope
 }
 
-/** مصرف بلیت همهٔ شناسه‌ها، فقط اگر همه هست (هم‌زمان؛ در JS تک‌رشته‌ای بی رقابت). */
+/** مصرف بلیت همهٔ شناسه‌ها، فقط اگر همه هست (هم‌زمان؛ در JS تک‌رشته‌ای بی رقابت). ۴-۴۷: کارِ باز در مجوز زمان‌بندی‌شده بی مصرف بلیت. */
 function takeTickets(call: GateCall, entries: GateCatalogEntry[]): GateMethodRecord | null | false {
-  if (!entries.every((e) => peekGateTicket(call.owner, e.id))) return false
+  if (!entries.every((e) => peekGateTicket(call.owner, e.id) || scheduledActionOpen(e.id))) return false
   let method: GateMethodRecord | null = null
   for (const e of entries) {
-    const ticket = takeGateTicket(call.owner, e.id)
+    const ticket = scheduledActionOpen(e.id) ? { method: 'SCHEDULED_GRANT' as const, number: undefined } : takeGateTicket(call.owner, e.id)
     if (!method && ticket?.method) method = { key: ticket.method, ...(ticket.number ? { number: ticket.number } : {}) }
   }
   return method
@@ -150,7 +150,7 @@ export async function gateSession<T>(id: GateIds, fn: () => T): Promise<T | unde
     }
     if (isManagerSessionUnlocked()) return fn()
     const parts = pending.filter((e) => e.category === 2), actions = pending.filter((e) => e.category !== 2)
-    if (parts.every((e) => isPanelUnlocked(e.lockKey)) && actions.every((e) => peekGateTicket(call.owner, e.id))) {
+    if (parts.every((e) => isPanelUnlocked(e.lockKey)) && actions.every((e) => peekGateTicket(call.owner, e.id) || scheduledActionOpen(e.id))) {
       const fromTicket = takeTickets(call, actions)
       const method = fromTicket || (parts.length ? guardedMethod(call.owner, parts[0].lockKey) ?? { key: 'PANEL_PASSWORD' as const } : null)
       pass(call, entries, 'PANEL', method)

@@ -163,9 +163,30 @@ export function openGuardedPart(owner: number, panel: string, opts: {
   return true
 }
 
+/**
+ * دفتر آزمون ۴-۴۷: قفل کارِ تیک‌خوردهٔ مجوز زمان‌بندی‌شده. در ساعت مجوز برای همهٔ پنجره‌ها هر چند بار باز است و دروازه
+ * (`gate.ts`) بی مصرف بلیت می‌گذارد. زمان‌بند هر دور آن را تا پایان پنجرهٔ همان روز نو می‌کند؛ `closeGuardedParts` بی
+ * پنجرهٔ مشخص (همه، منبع زمان‌بندی‌شده، یا یک مجوز) آن را هم می‌بندد. ساعت: همان ساعت یکنواخت.
+ */
+const scheduledActions = new Map<string, { id: string; grantId: string; end: number }>()
+export function openScheduledAction(id: string, grantId: string, ttlMs: number): void {
+  if (typeof id !== 'string' || !id || typeof grantId !== 'string' || !grantId || !Number.isSafeInteger(ttlMs) || ttlMs <= 0) return
+  scheduledActions.set(`${grantId}::${id}`, { id, grantId, end: clock() + Math.min(ttlMs, MAX_MS) })
+}
+export function scheduledActionOpen(id: string): boolean {
+  const t = clock()
+  for (const [k, entry] of scheduledActions) {
+    if (entry.end <= t) { scheduledActions.delete(k); continue }
+    if (entry.id === id) return true
+  }
+  return false
+}
+
 /** بستن نشست‌های نگهبان‌دار (همه، یا فقط یک منبع، یک پنجره یا یک مجوز زمان‌بندی‌شده). خروجی: شمار بسته‌شده‌ها. */
 export function closeGuardedParts(filter: { source?: GuardSource; owner?: number; grantId?: string } = {}): number {
   let closed = 0
+  if (filter.owner === undefined && filter.source !== 'CODE')
+    for (const [k, entry] of scheduledActions) if (filter.grantId === undefined || entry.grantId === filter.grantId) scheduledActions.delete(k)
   for (const entry of [...guards.values()]) {
     if (filter.source !== undefined && entry.source !== filter.source) continue
     if (filter.owner !== undefined && entry.owner !== filter.owner) continue
