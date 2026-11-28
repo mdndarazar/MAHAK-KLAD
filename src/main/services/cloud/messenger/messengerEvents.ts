@@ -16,7 +16,7 @@ import { faDigits } from '@shared/jalali'
 import { ACCESS_EVENT_KINDS, GATE_METHOD_LABELS, GATE_METHOD_NOTE_PREFIX, type GateMethodKey } from '@shared/gateCatalog'
 import { CHARGE_KINDS, CHARGE_SCOPES, chargeTitle } from '@shared/charges'
 import { invoiceDiscountPercent } from '@shared/accounting'
-import { fmtAt, fmtClock, fmtDuration, num, officialDay, rial, rialOrMissing } from './messengerFormat'
+import { fmtAt, fmtClock, fmtDuration, itemLine, num, officialDay, rial, rialOrMissing, sectionTitle } from './messengerFormat'
 import type { MessengerEvent } from './messengerTypes'
 
 /** فهرست ثابت فیلدهای مجاز برای هر نوع ردیف AuditLog. هر نوعی که اینجا نیست، پیامی نمی‌سازد. */
@@ -405,12 +405,14 @@ function lineDiscountPercent(l: DocLineLite): number {
   return gross > 0 ? Math.round((l.discount / gross) * 1000) / 10 : 0
 }
 /**
- * دفتر آزمون ۴-۹ — «• ۲ عدد شلوار بگ سایز ۳۱ - ذغالی · هر عدد ۳۶٬۰۰۰٬۰۰۰ ریال · جمع ۷۲٬۰۰۰٬۰۰۰ ریال»؛ تخفیف ردیف اگر بود،
- * با درصدش (۴-۳۶).
+ * دفتر آزمون ۴-۹ — هر قلم با تعداد، قیمت هر عدد و جمع ردیف؛ تخفیف ردیف اگر بود، با درصدش (۴-۳۶). قالب از ۴-۳۵
+ * (`itemLine`): «• شلوار بگ سایز ۳۱ - ذغالی — ۲ × ۳۶٬۰۰۰٬۰۰۰ = ۷۲٬۰۰۰٬۰۰۰ ریال».
  */
 export function docLineText(l: DocLineLite): string {
-  return `• ${num(l.qty)} عدد ${faDigits(l.name || 'کالای بی‌نام')} · هر عدد ${rial(l.unitPrice)}${l.discount ? ` · تخفیف ${rial(l.discount)} (${pct(lineDiscountPercent(l))})` : ''} · جمع ${rial(l.lineTotal)}`
+  return itemLine(l.name, l.qty, l.unitPrice, { extra: l.discount ? `تخفیف ${rial(l.discount)} (${pct(lineDiscountPercent(l))})` : undefined, total: l.lineTotal })
 }
+/** دفتر آزمون ۴-۳۵ — فهرست قلم‌های یک سند زیر زیرسرتیتر «🛍 قلم‌ها:» */
+const itemsSection = (lines: readonly DocLineLite[]): string[] => (lines.length ? [sectionTitle('قلم‌ها'), ...lines.map(docLineText)] : [])
 /**
  * دفتر آزمون ۴-۳۶ — درصد تخفیف فاکتور با همان تابع گزارش «تخفیف‌های غیرعادی» (`invoiceDiscountPercent`)، و غیرعادی بودنش
  * با همان قاعده (بیشتر از آستانه؛ آستانهٔ صفر = خاموش).
@@ -429,7 +431,7 @@ function saleDocLines(doc: SaleDocLite, threshold: number): string[] {
   const remaining = doc.grandTotal - doc.payments.reduce((s, p) => s + p.amount, 0)
   const discount = saleDiscount(doc, threshold)
   return [
-    ...doc.lines.map(docLineText),
+    ...itemsSection(doc.lines),
     doc.goodsTotal ? `جمع کالاها: ${rial(doc.goodsTotal)}` : '',
     // دفتر آزمون ۴-۳۶: جمع تخفیف با درصدش از جمع کالاها، و خط «تخفیف غیرعادی» همان لحظه
     doc.discountTotal ? `تخفیف: ${rial(doc.discountTotal)} (${pct(discount.percent)} از جمع کالاها)` : '',
@@ -528,7 +530,7 @@ function returnGroupEvent(g: { refund?: AuditRowLite; ret?: AuditRowLite; exchan
   const doc = main.entityId ? ctx.data.returnDocs.get(main.entityId) : undefined // دفتر آزمون ۴-۹: همهٔ قلم‌های برگشتی
   return [h.event(main, `↩️ برگشت از فروش${receipt !== null ? ` · فاکتور ${num(receipt)}` : ''}`, [
     `جمع برگشت: ${g.ret ? rialOrMissing(f.total) : rialOrMissing(refund?.returnTotal)}${f.fullyReturned === true ? ' (کل فاکتور)' : ''}`,
-    ...(doc ? doc.lines.map(docLineText) : []),
+    ...(doc ? itemsSection(doc.lines) : []),
     refundLine,
     `فروشنده: ${h.who(main.userId)}`
   ], { important: true })]
@@ -547,7 +549,7 @@ function mapRow(row: AuditRowLite, ctx: EventContext, h: ReturnType<typeof makeH
       // دفتر آزمون ۴-۳۶: تخفیف غیرعادی ⇐ پیام مهم (نشان ⚠️؛ به گیرندهٔ «فقط موارد مهم» هم می‌رسد)
       const abnormal = doc ? saleDiscount(doc, ctx.data.abnormalDiscountPercent).abnormal : false
       return [h.event(row, `🧾 فروش${row.action === 'WHOLESALE_SALE_CREATE' ? ' عمده' : ''} · فاکتور ${num(f.receiptNo)}`, [
-        `جمع: ${rialOrMissing(grand)}${n(f.lines) !== null ? ` · ${num(f.lines)} قلم` : ''}`,
+        `جمع فاکتور: ${rialOrMissing(grand)}${n(f.lines) !== null ? ` · ${num(f.lines)} قلم` : ''}`, // ۴-۳۵: «جمع:» ⇐ «جمع فاکتور:»
         ...(doc ? saleDocLines(doc, ctx.data.abnormalDiscountPercent) : [
           n(f.discountTotal) ? `تخفیف: ${rial(f.discountTotal)}` : '',
           // `paidTotal` هنگام ثبت فقط پرداخت‌های همان لحظه است؛ اعتبار خرید جدا (پیام «اعتبار مصرف شد») می‌آید.

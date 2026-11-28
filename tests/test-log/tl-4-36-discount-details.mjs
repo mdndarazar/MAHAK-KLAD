@@ -44,7 +44,7 @@ const withDoc = (d, threshold) => { const data = emptyLookups(); data.saleDocs.s
 
 await test('line discount with its percent; invoice discount with its percent of the goods total', () => {
   const ev = eventOf(saleRow(1), withDoc(doc(), 0))
-  assert.ok(ev.lines.includes(`• ۲ عدد پیراهن سایز L - آبی · هر عدد ${R(1_800_000)} · تخفیف ${R(1_000_000)} (۲۷.۸٪) · جمع ${R(2_600_000)}`))
+  assert.ok(ev.lines.includes(`• پیراهن سایز L - آبی — ۲ × ${money(1_800_000)} · تخفیف ${R(1_000_000)} (۲۷.۸٪) = ${R(2_600_000)}`), ev.lines.join(' | ')) // قالب قلم از ۴-۳۵
   assert.ok(ev.lines.includes(`تخفیف: ${R(1_100_000)} (۳۰.۶٪ از جمع کالاها)`))
   assert.equal(ev.important, false, 'threshold 0 = off')
   assert.equal(ev.lines.some((l) => l.startsWith('تخفیف غیرعادی')), false)
@@ -72,7 +72,7 @@ await test('payments by method with the remainder; no read document ⇒ the olde
   assert.ok(ev.lines.includes(`پرداخت: نقدی ${R(1_300_000)} · حساب مدیر ${R(500_000)} · اعتبار خرید ${R(700_000)} · چک (سررسید ۱۴۰۵/۱۰/۰۱) ${R(1_000_000)}`))
   assert.ok(ev.lines.includes(`مانده (نسیه): ${R(1_500_000)}`))
   const old = eventOf(saleRow(1, { grandTotal: 5_000, paidTotal: 2_000, discountTotal: 300 }), emptyLookups())
-  assert.deepEqual(old.lines.slice(0, 3), [`جمع: ${R(5_000)} · ۱ قلم`, `تخفیف: ${R(300)}`, `پرداخت هنگام ثبت: ${R(2_000)} از ${R(5_000)} (بقیه با اعتبار خرید یا نسیه)`])
+  assert.deepEqual(old.lines.slice(0, 3), [`جمع فاکتور: ${R(5_000)} · ۱ قلم`, `تخفیف: ${R(300)}`, `پرداخت هنگام ثبت: ${R(2_000)} از ${R(5_000)} (بقیه با اعتبار خرید یا نسیه)`])
 })
 
 await test('the wholesale manual tax or service charge has its own message', () => {
@@ -120,7 +120,7 @@ await test('real sale: line and invoice discount, the abnormal mark from the pol
   const ev = (await messagesOf([big.id])).get(big.id)
   const inv = seed.one('SELECT grandTotal, goodsTotal, discountTotal FROM "SaleInvoice" WHERE id = ?', big.id)
   assert.equal(Number(inv.discountTotal), 1_000_000)
-  assert.ok(ev.lines.includes(`• ۲ عدد پیراهن سایز L - آبی · هر عدد ${R(1_800_000)} · تخفیف ${R(900_000)} (۲۵.۰٪) · جمع ${R(2_700_000)}`))
+  assert.ok(ev.lines.includes(`• پیراهن سایز L - آبی — ۲ × ${money(1_800_000)} · تخفیف ${R(900_000)} (۲۵.۰٪) = ${R(2_700_000)}`), ev.lines.join(' | '))
   assert.ok(ev.lines.includes(`تخفیف: ${R(1_000_000)} (۲۷.۸٪ از جمع کالاها)`))
   assert.ok(ev.lines.includes('تخفیف غیرعادی (بیش از ۲۵٪)'))
   assert.equal(ev.important, true)

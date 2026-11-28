@@ -29,6 +29,7 @@ const { createMessengerDb } = await import('../../src/main/services/cloud/messen
 const { createMessengerStore } = await import('../../src/main/services/cloud/messenger/messengerVault.ts')
 const { isLastShiftOfDay, shiftEndReminder, SHIFT_HANDOVER_REMINDER_MIN, LAST_SHIFT_REMINDER_MIN } = await import('../../src/main/services/cloud/messenger/messengerEvents.ts')
 const { faDigits, toJalaliDate } = await import('@shared/jalali')
+const { SEPARATOR } = await import('../../src/main/services/cloud/messenger/messengerFormat.ts')
 
 const read = (rel) => readFileSync(new URL(`../../${rel}`, import.meta.url), 'utf8')
 const db = harnessClient()
@@ -169,7 +170,7 @@ async function minute(t) {
 }
 const textsTo = (chatId, mark = 0) => mock.log.slice(mark).filter((e) => e.method === 'sendMessage' && e.params.chat_id === chatId).map((e) => String(e.params.text))
 /** پیام‌های صف یک گیرنده با هم در یک پیام می‌روند (`SEPARATOR` در `messengerFormat.ts`)؛ هر تکه جدا شمرده می‌شود */
-const parts = (chatId, mark = 0) => textsTo(chatId, mark).flatMap((t) => t.split('\n\n— — —\n\n'))
+const parts = (chatId, mark = 0) => textsTo(chatId, mark).flatMap((t) => t.split(SEPARATOR))
 const reminders = (chatId, mark = 0) => parts(chatId, mark).filter((t) => t.startsWith('⏰') || t.startsWith('🌙'))
 const cursorKeys = () => JSON.parse(readFileSync(join(dir, 'messenger-cursor.json'), 'utf8')).reminderKeys
 const [morning, noon, evening] = TEMPLATES

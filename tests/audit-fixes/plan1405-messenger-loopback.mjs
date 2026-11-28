@@ -248,7 +248,7 @@ async function scenario(provider) {
   assert.match(B, /🔓 افتتاح صندوق \(حضانت\)/, 'handover: custody OPEN'); assert.doesNotMatch(C, /🔓 افتتاح صندوق/)
   // عددها همان عددهای ثبت‌شده‌اند
   const inv = seed.one('SELECT receiptNo, grandTotal FROM "SaleInvoice" WHERE id = ?', s1.id)
-  assert.ok(A.includes(`فاکتور ${faDigits(String(inv.receiptNo))}`) && A.includes(`جمع: ${money(Number(inv.grandTotal))} ریال`), 'sale total = recorded grandTotal')
+  assert.ok(A.includes(`فاکتور ${faDigits(String(inv.receiptNo))}`) && A.includes(`جمع فاکتور: ${money(Number(inv.grandTotal))} ریال`), 'sale total = recorded grandTotal')
   assert.ok(A.includes(`نقد مورد انتظار: ${money(closeAfter.expectedCash)} ریال · شمرده: ${money(closeAfter.countedCash)} ریال`), 'close numbers = recorded')
   assert.ok(A.includes(`مغایرت: ${money(Math.abs(closeAfter.cashDifference))} ریال کسری`), 'difference = recorded')
   assert.equal(A.split('🔁 تحویل شیفت · بستن صندوق').length - 1, 1, 'one message per cashSessionId')
@@ -259,9 +259,9 @@ async function scenario(provider) {
   // خبر «کار با مجوز یا کد»
   assert.match(A, /⚠️ ✍️ قیمت دستی · فاکتور [\s\S]*روش تأیید: مجوز راه دور · پنجرهٔ ۳/)
   const news = A.split('— — —').concat(A.split('=====')).find((m) => m.includes('🔑 کار با کد یک‌بارمصرف حساس انجام شد · اصلاح موجودی · ')) ?? ''
-  assert.match(news, /⚠️ 🔑 کار با کد یک‌بارمصرف حساس انجام شد · اصلاح موجودی · [^\n]+\nسند: کالا [۰-۹]+\nروش تأیید: کد یک‌بارمصرف حساس شمارهٔ ۲ · پنجرهٔ ۱\nکاربر: علی فروشنده/, 'generic news for a row type without its own message')
+  assert.match(news, /⚠️ 🔑 کار با کد یک‌بارمصرف حساس انجام شد · اصلاح موجودی · [^\n]+\n━━━━━━━━━━━━\n📄 سند: کالا [۰-۹]+\n🔒 روش تأیید: کد یک‌بارمصرف حساس شمارهٔ ۲ · پنجرهٔ ۱\n👤 کاربر: علی فروشنده/, 'generic news for a row type without its own message')
   assert.equal(news.includes('مبلغ'), false, 'no amount: this row type has no allowed money field')
-  assert.match(A, /⚠️ 💵 برداشت وسط شیفت · [^\n]+\nمبلغ: ۲۵۰٬۰۰۰ ریال\nکاربر: علی فروشنده\nروش تأیید: کد یک‌بارمصرف شمارهٔ ۴ · پنجرهٔ ۲/, 'amount from the row itself, with the method')
+  assert.match(A, /⚠️ 💵 برداشت وسط شیفت · [^\n]+\n━━━━━━━━━━━━\n💰 مبلغ: ۲۵۰٬۰۰۰ ریال\n👤 کاربر: علی فروشنده\n🔒 روش تأیید: کد یک‌بارمصرف شمارهٔ ۴ · پنجرهٔ ۲/, 'amount from the row itself, with the method')
   // فیلدهای ممنوع و `note` هرگز عیناً
   const all = texts(prefix).join('\n')
   for (const value of forbiddenValues()) assert.equal(all.includes(value), false, `forbidden value never sent: ${value.slice(0, 3)}…`)

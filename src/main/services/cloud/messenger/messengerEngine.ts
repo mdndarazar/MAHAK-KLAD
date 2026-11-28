@@ -14,7 +14,7 @@ import { readDatabaseHeader } from '../databaseFingerprint'
 import { createBotApi, type ApiResult, type BotApi, type FetchLike } from './messengerAdapters'
 import { auditAnchorHash, type MessengerDb } from './messengerDb'
 import { auditPageToEvents, collectAuditIds, custodyCountToEvents, custodyEventToEvents, shiftEndReminder, type AuditRowLite } from './messengerEvents'
-import { fmtAt, fmtClock, num, officialDay, packItems, renderItem, scrubText, splitText } from './messengerFormat'
+import { fmtAt, fmtClock, groupedSection, num, officialDay, packItems, renderItem, scrubText, splitLines } from './messengerFormat'
 import type { SummaryDeps } from './messengerSummary'
 import { createTodaySummary, type TodaySummary } from '../todaySummary'
 import { parsePhoneReport } from '../phoneReportCatalog'
@@ -145,7 +145,7 @@ export function createMessengerEngine(deps: EngineDeps) {
       // نسخهٔ از پیش ساختهٔ همین روز اگر تازه است؛ وگرنه یک محاسبهٔ تک‌اجرا. ساعت = زمان ساخت همان نسخه.
       const snap = await today.latest()
       const s = snap.summary
-      return { title: `📊 خلاصهٔ امروز تا ساعت ${fmtClock(snap.at, snap.offsetHours)}`, lines: [...s.lines, ...(s.sellerSections.length ? ['— به تفکیک فروشنده —', ...s.sellerSections.flat()] : [])] }
+      return { title: `📊 خلاصهٔ امروز تا ساعت ${fmtClock(snap.at, snap.offsetHours)}`, lines: [...s.lines, ...groupedSection('به تفکیک فروشنده', s.sellerSections)] }
     },
     offsetHours: () => offsetHours(),
     now,
@@ -216,8 +216,9 @@ export function createMessengerEngine(deps: EngineDeps) {
     const base: OutboxItem = { code: ev.code, at: ev.at, title: ev.title, lines: [...ev.lines, ...extraLines], important: ev.important, maybeDup: false, sale: !!ev.sale, day: ev.day ?? null }
     const limit = PROVIDER_INFO[provider].maxLength - 120
     if (renderItem(base, ev.at).length <= limit) return [base]
-    const parts = splitText(base.lines.join('\n'), limit - base.title.length - 60)
-    return parts.map((text, i) => ({ ...base, code: i ? `${ev.code}-${i + 1}` : ev.code, title: `${base.title} (بخش ${num(i + 1)} از ${num(parts.length)})`, lines: text.split('\n') }))
+    // دفتر آزمون ۴-۳۵: بخش‌ها با اندازهٔ متن قالب‌خورده؛ شمارهٔ قلم‌ها در بخش بعد ادامه می‌یابد (`splitLines`)
+    const parts = splitLines(base, limit)
+    return parts.map((lines, i) => ({ ...base, code: i ? `${ev.code}-${i + 1}` : ev.code, title: `${base.title} (بخش ${num(i + 1)} از ${num(parts.length)})`, lines }))
   }
   function appendItems(box: OutboxFile, items: OutboxItem[]): void {
     for (const item of items) if (!box.items.some((i) => i.code === item.code)) box.items.push(item)
@@ -345,10 +346,9 @@ export function createMessengerEngine(deps: EngineDeps) {
         ...(r.mode === 'all' ? [`فاکتورهای این روز در برنامه: ${num(summary.invoiceCount)} · پیام‌های فروش فرستاده‌شده به این گفت‌وگو: ${num(sent)}`] : []),
         `صف این گفت‌وگو: ${num(box.items.length)} پیام در انتظار · ${num(box.stats.expiredTotal)} پیام تا امروز منقضی شده`,
         ...(late ? ['🕒 ارسال با تأخیر: برنامه ساعت ۲۴ باز نبود.'] : []),
-        ...(summary.sellerSections.length ? ['— به تفکیک فروشنده —'] : []),
-        ...summary.sellerSections.flatMap((section) => [...section, ''])
+        // دفتر آزمون ۴-۳۵: بخش «👥 به تفکیک فروشنده:» با قالب یکدست (`groupedSection`)
+        ...groupedSection('به تفکیک فروشنده', summary.sellerSections)
       ]
-      while (lines.length && lines[lines.length - 1] === '') lines.pop()
       const ev: MessengerEvent = { code: `D-${day.replace(/\//g, '')}`, at, title: summary.title, lines, important: false, handover: false, system: true }
       appendItems(box, itemsOf(ev, r.provider))
       store.writeOutbox(r.id, box)

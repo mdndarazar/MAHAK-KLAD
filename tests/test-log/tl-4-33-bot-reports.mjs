@@ -68,6 +68,9 @@ const sale = (lines, payments, extra = {}) => salesService.create({ userId: sell
 const itemOf = (invoiceId, variantId) => seed.one('SELECT id FROM "SaleInvoiceItem" WHERE invoiceId = ? AND variantId = ? ORDER BY id LIMIT 1', invoiceId, variantId).id
 const receipt = (id) => seed.one('SELECT receiptNo FROM "SaleInvoice" WHERE id = ?', id).receiptNo
 const rialText = (n) => `${money(Number(n))} ریال`
+/** دفتر آزمون ۴-۳۵: خط زیر سرتیتر؛ قلم‌ها و ردیف‌ها فهرست شماره‌دار «  ۱) …» */
+const DIV = '━━━━━━━━━━━━'
+const numbered = (text, body) => new RegExp(`^ {2}[۰-۹]+\\) ${body.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'm').test(text)
 
 const sCash = await sale([L(vCoat, 4_000_000), L(vPants, 1_500_000, 2)], [{ methodId: cash, amount: 7_000_000, destination: 'CASH' }])
 const sCredit = await sale([L(vShirt, 700_000, 2)], [{ methodId: cash, amount: 400_000, destination: 'CASH' }], { debtor })
@@ -299,13 +302,13 @@ test('sales: summary from the sales report, every line with name, size, colour, 
   await press('telegram', V.chatId, 'q:s:t')
   const text = textSince(mark, 'telegram', V.chatId)
   const sum = await salesService.summary({ fromJalali: today, toJalali: today })
-  assert.ok(text.startsWith(`🧾 فروش · ${faDigits(today)}\nزمان گزارش: `))
+  assert.ok(text.startsWith(`🧾 فروش · ${faDigits(today)}\n${DIV}\n🕘 زمان گزارش: `), text.slice(0, 120))
   assert.ok(text.includes(`شمار فاکتور: ${faDigits(sum.count)} · جمع فروش: ${rialText(sum.grandTotal)}`), 'the same numbers as the sales report')
   assert.ok(text.includes(`نقد: ${rialText(sum.cashTotal)} · کارتخوان: ${rialText(sum.cardTotal)} · حساب مدیر: ${rialText(sum.managerAccountTotal)}`))
   assert.ok(text.includes(`سایر (چک و…): ${rialText(sum.otherTotal)} · نسیه: ${rialText(sum.creditTotal)}`))
   assert.ok(text.includes(`🧾 فاکتور ${faDigits(receipt(sCash.id))} · ${faDigits(today)} ساعت `))
-  assert.ok(text.includes(`• ۲ عدد شلوار بگ سایز ۳۱ - ذغالی · هر عدد ${rialText(1_500_000)} · جمع ${rialText(3_000_000)}`), text)
-  assert.ok(text.includes(`• ۱ عدد کت سایز ۵۰ - مشکی · هر عدد ${rialText(4_000_000)}`))
+  assert.ok(numbered(text, `شلوار بگ سایز ۳۱ - ذغالی — ۲ × ${money(1_500_000)} = ${rialText(3_000_000)}`), text)
+  assert.ok(numbered(text, `کت سایز ۵۰ - مشکی — ۱ × ${money(4_000_000)}`))
   assert.ok(text.includes('فروشنده: فروشندهٔ ۴-۳۳'))
   assert.equal(text.includes('مشتری: '), false, 'no customer name without its tick')
   assert.equal(text.includes(`فاکتور ${faDigits(receipt(sOld.id))} ·`), false, 'yesterday\'s invoice is not today')
@@ -370,7 +373,7 @@ test('long list: page by page with «صفحهٔ بعد», every invoice once; a 
   await press('telegram', V.chatId, next)
   const second = sendsSince(mark, 'telegram', V.chatId)
   const secondText = second.map((e) => e.params.text).join('\n')
-  assert.ok(secondText.startsWith(`🧾 فروش · ${faDigits(today)}\nصفحهٔ ۲ از ${faDigits(Math.ceil(sum.count / 8))}`), secondText.slice(0, 120))
+  assert.ok(secondText.startsWith(`🧾 فروش · ${faDigits(today)}\n${DIV}\nصفحهٔ ۲ از ${faDigits(Math.ceil(sum.count / 8))}`), secondText.slice(0, 120))
   assert.equal(buttonsOf(second.at(-1)).length, 0, 'no button on the last page')
   const seen = [...`${first.text}\n${secondText}`.matchAll(/🧾 فاکتور ([۰-۹]+)/g)].map((m) => m[1])
   const inTimeOrder = [...sum.rows].sort((a, b) => `${a.dateJalali} ${a.time}`.localeCompare(`${b.dateJalali} ${b.time}`) || a.receiptNo - b.receiptNo)
@@ -394,7 +397,7 @@ test('returns and exchanges: the phone «returns» reader, refund method, both l
   assert.ok(r.text.includes(`شمار در این بازه: ${faDigits(phone.rows.filter((x) => x.kind === 'برگشت').length)}`))
   assert.ok(r.text.includes(`↩️ برگشت · سند ${faDigits(ret.id)} · فاکتور ${faDigits(receipt(sReturn.id))} · `))
   assert.ok(r.text.includes(`مبلغ برگشت: ${rialText(ret.total)} · بازپرداخت: ${ret.refundMethodLabel}`), r.text)
-  assert.ok(r.text.includes(`• ۱ عدد شلوار بگ سایز ۳۱ - ذغالی · هر عدد ${rialText(1_500_000)}`))
+  assert.ok(numbered(r.text, `شلوار بگ سایز ۳۱ - ذغالی — ۱ × ${money(1_500_000)}`), r.text)
   assert.ok(r.text.includes('فروشندهٔ فاکتور: فروشندهٔ ۴-۳۳ · ثبت‌کننده: '))
   assert.equal(r.text.includes('🔁 تعویض ·'), false)
   const x = await report('telegram', V.chatId, 'x')
@@ -403,8 +406,8 @@ test('returns and exchanges: the phone «returns» reader, refund method, both l
   assert.ok(x.text.includes(`جمع کالای برگشتی: ${rialText(ex.total)} · مبلغ فاکتور جایگزین: ${rialText(exInvoice.grandTotal)}`), x.text)
   assert.ok(x.text.includes(`مابه‌التفاوت: ${rialText(ex.exchangeDiff)}`))
   assert.ok(x.text.includes(`اعتبار خرید: ${rialText(ex.storeCreditTotal)}`))
-  assert.ok(x.text.includes(`کالای برگشتی:\n• ۱ عدد کت سایز ۵۰ - مشکی · هر عدد ${rialText(4_000_000)}`))
-  assert.ok(x.text.includes(`کالای جایگزین (فاکتور ${faDigits(exInvoice.receiptNo)}):\n• ۱ عدد پیراهن سایز L - آبی · هر عدد ${rialText(700_000)}`))
+  assert.ok(x.text.includes(`↩️ کالای برگشتی:\n  ۱) کت سایز ۵۰ - مشکی — ۱ × ${money(4_000_000)}`), x.text)
+  assert.ok(x.text.includes(`🛍 کالای جایگزین (فاکتور ${faDigits(exInvoice.receiptNo)}):\n  ۱) پیراهن سایز L - آبی — ۱ × ${money(700_000)}`))
   assert.equal(x.text.includes('↩️ برگشت ·'), false)
 })
 
@@ -417,7 +420,7 @@ test('نسیه: invoices of the range that still owe, with the sales report\'s o
   assert.ok(c.text.includes(`فاکتورهای این بازه که هنوز مانده دارند: ${faDigits(owing.length)} · جمع مانده: ${rialText(owing.reduce((s, row) => s + row.remaining, 0))}`), c.text)
   assert.ok(c.text.includes(`📒 فاکتور ${faDigits(receipt(sCredit.id))} · ${faDigits(today)} ساعت `))
   assert.ok(c.text.includes(` · ${rialText(credit.grandTotal)} · مانده: ${rialText(credit.remaining)}`))
-  assert.ok(c.text.includes(`• ۲ عدد پیراهن سایز L - آبی · هر عدد ${rialText(700_000)}`))
+  assert.ok(numbered(c.text, `پیراهن سایز L - آبی — ۲ × ${money(700_000)}`), c.text)
   assert.equal(c.text.includes(`📒 فاکتور ${faDigits(receipt(sCash.id))} ·`), false, 'a paid invoice is not نسیه')
   assert.equal(c.text.includes('مشتری: '), false)
   await engine.setOptions({ includeCustomerName: true })
@@ -440,7 +443,7 @@ test('card-to-card: pending and paid of the range, which return or exchange, ite
   assert.ok(k.text.includes(`💳 درخواست ${faDigits(ctcPaid.id)} · پرداخت شد · `))
   assert.ok(k.text.includes(`برای تعویض سند ۹۰۰۲ · فاکتور ${faDigits(receipt(sEx.id))} · فاکتور تعویض ۷۷`))
   assert.ok(k.text.includes(`پرداخت: ${rialText(200_000)} · ${faDigits(today)} ساعت ۱۱:۰۵ · مدیر فروشگاه`))
-  assert.ok(k.text.includes(`• ۱ عدد شلوار بگ سایز ۳۱ - ذغالی · هر عدد ${rialText(1_500_000)}`))
+  assert.ok(numbered(k.text, `شلوار بگ سایز ۳۱ - ذغالی — ۱ × ${money(1_500_000)}`), k.text)
   const src = read('src/main/services/cloud/messenger/messengerDb.ts')
   const reader = src.slice(src.indexOf('async function botCardTransfers'), src.indexOf('async function botCustodyNow'))
   for (const col of ['note', 'trackingNo', 'cancelReason', 'adjustReason', 'stockNote', 'paidMethod']) assert.equal(new RegExp(`[{ ,]${col}: true`).test(reader), false, `the card-to-card reader never selects ${col}`)
@@ -453,7 +456,7 @@ test('cashbox: the phone «cashbox closes» reader with its own labels; the clos
   assert.ok(b.text.startsWith(`🧮 صندوق و مغایرت‌ها · ${faDigits(today)}`))
   assert.ok(b.text.includes(`شمار در این بازه: ${faDigits(phone.totals.count)}`))
   const row = phone.rows[0]
-  assert.ok(b.text.includes(`• روز: ${faDigits(row.dayJalali)} · شیفت: ${row.shiftName} · فاکتور: ${faDigits(row.invoiceCount)} · نقد: ${rialText(row.cashTotal)}`), b.text)
+  assert.ok(numbered(b.text, `روز: ${faDigits(row.dayJalali)} · شیفت: ${row.shiftName} · فاکتور: ${faDigits(row.invoiceCount)} · نقد: ${rialText(row.cashTotal)}`), b.text)
   assert.ok(b.text.includes(`اختلاف نقد: ${rialText(row.diff)}`))
   assert.equal(b.text.includes('کسری'), false, 'the free note of the close is not a report field')
 })

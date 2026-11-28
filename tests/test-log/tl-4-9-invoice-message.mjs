@@ -150,7 +150,10 @@ const sent = (provider) => mock.log.slice(mark).filter((e) => e.prefix === PREFI
 const segments = (provider) => sent(provider).flatMap((e) => e.text.split(SEPARATOR))
 const segmentsOf = (provider, head) => segments(provider).filter((s) => s.replace(/^⚠️ /, '').startsWith(head))
 const R = (n) => `${money(n)} ریال`
-const lineOf = (name, qty, price, total, discount = '') => `• ${faDigits(qty)} عدد ${faDigits(name)} · هر عدد ${R(price)}${discount} · جمع ${R(total)}`
+/** دفتر آزمون ۴-۳۵: خط زیر سرتیتر و قلم شماره‌دار «  ۱) نام — ۲ × ۱۰۰٬۰۰۰ = ۲۰۰٬۰۰۰ ریال» */
+const DIV = '━━━━━━━━━━━━'
+const itemOf = (n, name, qty, price, total, discount = '') => `  ${faDigits(n)}) ${faDigits(name)} — ${faDigits(qty)} × ${money(price)}${discount} = ${R(total)}`
+const isItem = (l) => /^ {2}[۰-۹]+\) /.test(l)
 const variantName = (i) => `کالای آزمون ${i} سایز ${30 + (i % 10)} - ${COLORS[i % COLORS.length]}`
 
 for (const provider of ['telegram', 'bale']) {
@@ -165,17 +168,20 @@ for (const provider of ['telegram', 'bale']) {
     assert.equal(segs.length, 1, 'one message, not split')
     const lines = segs[0].split('\n')
     assert.doesNotMatch(lines[0], /بخش/)
-    assert.equal(lines[1], `جمع: ${R(Number(inv.grandTotal))} · ۱۰ قلم`, 'the invoice total right under the title')
-    assert.equal(lines[2], lineOf(variantName(1), 2, 100_000, 200_000))
-    assert.equal(lines[3], lineOf(variantName(2), 1, 200_000, 180_000, ` · تخفیف ${R(20_000)} (۱۰.۰٪)`))
-    for (let i = 3; i <= 10; i++) assert.ok(lines.includes(lineOf(variantName(i), 1, 100_000 * i, 100_000 * i)), `line ${i}`)
-    assert.ok(lines.includes(`جمع کالاها: ${R(5_600_000)}`))
-    assert.ok(lines.some((l) => l.startsWith(`تخفیف: ${R(50_000)} (`)))
-    assert.ok(lines.includes(`مبلغ فاکتور: ${R(5_550_000)}`))
-    assert.ok(lines.includes(`پرداخت: نقدی ${R(2_000_000)} · سپه ${R(1_500_000)} · حساب مدیر ${R(500_000)}`))
-    assert.ok(lines.includes(`مانده (نسیه): ${R(1_550_000)}`))
-    assert.ok(lines.includes('فروشنده: فروشندهٔ ۴-۹ · شیفت صبح'))
-    assert.equal(lines.filter((l) => l.startsWith('عوارض') || l.startsWith('هزینهٔ')).length, 0, 'zero charges are not shown')
+    assert.equal(lines[1], DIV, 'a rule under the title (4-35)')
+    assert.equal(lines[2], `💰 جمع فاکتور: ${R(Number(inv.grandTotal))} · ۱۰ قلم`, 'the invoice total right under the title')
+    assert.equal(lines[3], '🛍 قلم‌ها:')
+    assert.equal(lines[4], itemOf(1, variantName(1), 2, 100_000, 200_000))
+    assert.equal(lines[5], itemOf(2, variantName(2), 1, 200_000, 180_000, ` · تخفیف ${R(20_000)} (۱۰.۰٪)`))
+    for (let i = 3; i <= 10; i++) assert.ok(lines.includes(itemOf(i, variantName(i), 1, 100_000 * i, 100_000 * i)), `line ${i}`)
+    assert.ok(lines.includes(`💰 جمع کالاها: ${R(5_600_000)}`))
+    assert.ok(lines.some((l) => l.startsWith(`🏷️ تخفیف: ${R(50_000)} (`)))
+    assert.ok(lines.includes(`💰 مبلغ فاکتور: ${R(5_550_000)}`))
+    assert.ok(lines.includes(`💳 پرداخت: نقدی ${R(2_000_000)} · سپه ${R(1_500_000)} · حساب مدیر ${R(500_000)}`))
+    assert.ok(lines.includes(`📒 مانده (نسیه): ${R(1_550_000)}`))
+    assert.ok(lines.includes('👤 فروشنده: فروشندهٔ ۴-۹ · شیفت صبح'))
+    assert.equal(lines.filter((l) => /(عوارض|هزینهٔ)/.test(l)).length, 0, 'zero charges are not shown')
+    assert.ok(lines.some((l) => /^▫️ کد رویداد: A-\d+$/.test(l)), 'the event code in the footer')
   })
 
   await test(`${provider}: a 100-line sale is split into parts with all 100 lines and the total in part one`, () => {
@@ -183,11 +189,12 @@ for (const provider of ['telegram', 'bale']) {
     const parts = segmentsOf(provider, `🧾 فروش · فاکتور ${faDigits(inv.receiptNo)} · `)
     assert.ok(parts.length >= 2, `parts: ${parts.length}`)
     parts.forEach((p, i) => assert.match(p.split('\n')[0], new RegExp(`\\(بخش ${faDigits(i + 1)} از ${faDigits(parts.length)}\\)$`)))
-    assert.equal(parts[0].split('\n')[1], `جمع: ${R(Number(inv.grandTotal))} · ۱۰۰ قلم`, 'the total is in part one, right under the title')
-    const itemLines = parts.flatMap((p) => p.split('\n')).filter((l) => l.startsWith('• '))
+    assert.deepEqual(parts[0].split('\n').slice(1, 3), [DIV, `💰 جمع فاکتور: ${R(Number(inv.grandTotal))} · ۱۰۰ قلم`], 'the total is in part one, right under the title')
+    const itemLines = parts.flatMap((p) => p.split('\n')).filter(isItem)
     assert.equal(itemLines.length, 100, 'no line is dropped or repeated')
-    for (let i = 1; i <= 100; i++) assert.ok(itemLines.includes(lineOf(variantName(i), 1, 100_000 * i, 100_000 * i)), `line ${i}`)
-    assert.ok(parts.at(-1).split('\n').includes(`مانده (نسیه): ${R(Number(inv.grandTotal))}`))
+    // ۴-۳۵: شمارهٔ قلم‌ها در بخش بعد ادامه می‌یابد
+    for (let i = 1; i <= 100; i++) assert.ok(itemLines.includes(itemOf(i, variantName(i), 1, 100_000 * i, 100_000 * i)), `line ${i}`)
+    assert.ok(parts.at(-1).split('\n').includes(`📒 مانده (نسیه): ${R(Number(inv.grandTotal))}`))
   })
 
   await test(`${provider}: a return lists the returned lines under its total`, () => {
@@ -195,30 +202,31 @@ for (const provider of ['telegram', 'bale']) {
     assert.equal(segs.length, 1)
     const lines = segs[0].split('\n')
     const ret = seed.one('SELECT total FROM "SaleReturn" WHERE invoiceId = ? ORDER BY id DESC LIMIT 1', ten.id)
-    assert.equal(lines[1], `جمع برگشت: ${R(Number(ret.total))}`)
-    const items = lines.filter((l) => l.startsWith('• '))
+    assert.deepEqual(lines.slice(1, 4), [DIV, `💰 جمع برگشت: ${R(Number(ret.total))}`, '🛍 قلم‌ها:'])
+    const items = lines.filter(isItem)
     assert.equal(items.length, 2)
-    assert.ok(items[0].startsWith(`• ۱ عدد ${faDigits(variantName(3))} · هر عدد ${R(300_000)} · جمع `))
-    assert.ok(items[1].startsWith(`• ۱ عدد ${faDigits(variantName(4))} · هر عدد ${R(400_000)} · جمع `))
+    assert.ok(items[0].startsWith(`  ۱) ${faDigits(variantName(3))} — ۱ × ${money(300_000)} = `))
+    assert.ok(items[1].startsWith(`  ۲) ${faDigits(variantName(4))} — ۱ × ${money(400_000)} = `))
   })
 
   await test(`${provider}: an exchange lists both sides; a chained exchange adds the chain line`, () => {
     const first = segmentsOf(provider, `🔄 تعویض کالا · فاکتور ${faDigits(invoice(pantsSale.id).receiptNo)} ← سند ${faDigits(firstExchange.receiptNo)} · `)
     assert.equal(first.length, 1)
     const a = first[0].split('\n')
-    assert.equal(a[1], `جمع کالای برگشتی: ${R(36_000_000)} · جمع کالای جایگزین: ${R(40_000_000)}`)
-    assert.match(a[2], /^مابه‌التفاوت: /)
-    assert.equal(a.some((l) => l.startsWith('زنجیره:')), false, 'a first exchange has no chain line')
-    assert.deepEqual(a.slice(a.indexOf('کالای برگشتی:'), a.indexOf('کالای برگشتی:') + 4), [
-      'کالای برگشتی:', lineOf('شلوار بگ سایز 31 - ذغالی', 1, 36_000_000, 36_000_000), 'کالای جایگزین:', lineOf('کت سایز 50', 1, 40_000_000, 40_000_000)
+    assert.equal(a[1], DIV)
+    assert.equal(a[2], `💰 جمع کالای برگشتی: ${R(36_000_000)} · جمع کالای جایگزین: ${R(40_000_000)}`)
+    assert.match(a[3], /^⚖️ مابه‌التفاوت: /)
+    assert.equal(a.some((l) => l.includes('زنجیره:')), false, 'a first exchange has no chain line')
+    assert.deepEqual(a.slice(a.indexOf('↩️ کالای برگشتی:'), a.indexOf('↩️ کالای برگشتی:') + 4), [
+      '↩️ کالای برگشتی:', itemOf(1, 'شلوار بگ سایز 31 - ذغالی', 1, 36_000_000, 36_000_000), '🛍 کالای جایگزین:', itemOf(1, 'کت سایز 50', 1, 40_000_000, 40_000_000)
     ])
     const chained = segmentsOf(provider, `🔄 تعویض کالا · فاکتور ${faDigits(firstExchange.receiptNo)} ← سند ${faDigits(secondExchange.receiptNo)} · `)
     assert.equal(chained.length, 1)
     const b = chained[0].split('\n')
-    assert.equal(b[1], `جمع کالای برگشتی: ${R(40_000_000)} · جمع کالای جایگزین: ${R(5_400_000)}`)
-    assert.ok(b.includes(`زنجیره: فاکتور ${faDigits(invoice(pantsSale.id).receiptNo)} ← سند ${faDigits(firstExchange.receiptNo)} ← سند ${faDigits(secondExchange.receiptNo)}`))
-    assert.ok(b.includes(lineOf('کت سایز 50', 1, 40_000_000, 40_000_000)))
-    assert.ok(b.includes(lineOf('پیراهن سایز L - آبی', 3, 1_800_000, 5_400_000)))
+    assert.equal(b[2], `💰 جمع کالای برگشتی: ${R(40_000_000)} · جمع کالای جایگزین: ${R(5_400_000)}`)
+    assert.ok(b.includes(`🔗 زنجیره: فاکتور ${faDigits(invoice(pantsSale.id).receiptNo)} ← سند ${faDigits(firstExchange.receiptNo)} ← سند ${faDigits(secondExchange.receiptNo)}`))
+    assert.ok(b.includes(itemOf(1, 'کت سایز 50', 1, 40_000_000, 40_000_000)))
+    assert.ok(b.includes(itemOf(1, 'پیراهن سایز L - آبی', 3, 1_800_000, 5_400_000)))
   })
 
   await test(`${provider}: no return code, credit code or barcode, product barcode or phone`, () => {

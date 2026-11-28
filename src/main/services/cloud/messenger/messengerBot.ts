@@ -30,7 +30,7 @@ import { PHONE_REPORTS, parsePhoneReportRequest, type PhoneField, type PhoneRepo
 import type { BotApi, BotCallbackQuery, BotMessage, BotUpdate, InlineKeyboard } from './messengerAdapters'
 import type { BotCardTransferPage, BotCustodyNow, BotReturnDoc } from './messengerDb'
 import { chainLine, docLineText, type DocLineLite } from './messengerEvents'
-import { fmtAt, fmtClock, num, rial, scrubText, splitText } from './messengerFormat'
+import { fmtAt, fmtClock, formatMessage, itemLine, num, rial, scrubText, splitText } from './messengerFormat'
 import type { SalesSummaryLike } from './messengerSummary'
 import type { MessengerProvider, MessengerRecipient, MessengerSettings } from './messengerTypes'
 
@@ -221,17 +221,16 @@ export function createBotController(ctx: BotContext) {
   const memberOf = (provider: MessengerProvider, chatId: unknown): MessengerRecipient | null =>
     members(provider).find((r) => r.chatId === chatId) ?? null
 
+  /** دفتر آزمون ۴-۳۵: همان قالب یکدست پیام‌ها؛ تاریخ و ساعت در سرتیتر */
   async function requestText(req: BotRemoteRequest): Promise<string> {
     const offset = await ctx.offsetHours()
-    return [
-      '🔐 درخواست مجوز از رایانهٔ فروشگاه',
+    return formatMessage(`🔐 درخواست مجوز از رایانهٔ فروشگاه · ${fmtAt(ctx.now(), offset)}`, [
       `قفل: ${botLockTitle(req.panel)}`,
       `کد مقایسه: ${req.code}`,
-      `ساعت: ${fmtClock(ctx.now(), offset)}`,
       `پنجرهٔ ${num(req.ownerWindowId)}`,
       ...(Number.isSafeInteger(req.recent) && (req.recent as number) > 3 ? [`⚠️ ${num(req.recent as number)} درخواست برای همین قفل در ۱۰ دقیقهٔ اخیر`] : []),
       'کد را با کدی که فروشنده می‌بیند مقایسه کنید.'
-    ].join('\n')
+    ])
   }
   const keyboardFor = (a: string, r: string): InlineKeyboard => ({ inline_keyboard: [[{ text: '✅ تأیید', callback_data: `a:${a}` }, { text: '❌ رد', callback_data: `r:${r}` }]] })
 
@@ -323,10 +322,11 @@ export function createBotController(ctx: BotContext) {
       : ['الان هیچ مجوز راه دوری باز نیست.']
   }
   async function openList(provider: MessengerProvider, r: MessengerRecipient): Promise<void> {
-    await ctx.api(provider)?.sendMessage(r.chatId, ['📋 مجوزهای باز', ...grantLines()].join('\n'))
+    await ctx.api(provider)?.sendMessage(r.chatId, formatMessage(`📋 مجوزهای باز · ${fmtAt(ctx.now(), await ctx.offsetHours())}`, grantLines()))
   }
   async function sendSummary(provider: MessengerProvider, r: MessengerRecipient): Promise<void> {
-    try { const s = await ctx.summary(); await ctx.api(provider)?.sendMessage(r.chatId, [s.title, ...s.lines].join('\n').slice(0, 3900)) } catch (error) { ctx.log('bot summary failed', error) }
+    // دفتر آزمون ۴-۳۵: قالب یکدست؛ متن بلند چند پیام می‌شود و چیزی بریده نمی‌شود
+    try { const s = await ctx.summary(); await sendLong(provider, r.chatId, formatMessage(s.title, s.lines)) } catch (error) { ctx.log('bot summary failed', error) }
   }
   async function askCloseAll(provider: MessengerProvider, r: MessengerRecipient): Promise<void> {
     const t = newToken()
@@ -464,7 +464,7 @@ export function createBotController(ctx: BotContext) {
           `برای ${row.operationKind === 'EXCHANGE' ? 'تعویض' : 'برگشت'} سند ${num(row.returnId)}${row.sourceReceiptNo != null ? ` · فاکتور ${num(row.sourceReceiptNo)}` : ''}${row.exchangeReceiptNo != null ? ` · فاکتور تعویض ${num(row.exchangeReceiptNo)}` : ''}`,
           `مبلغ: ${rial(row.amount)}${row.userName ? ` · فروشنده: ${row.userName}` : ''}`)
         if (row.paid) lines.push(`پرداخت: ${rial(row.paidAmount ?? row.amount)} · ${faDigits(row.paidAtJalali)} ساعت ${faDigits(row.paidAtTime)}${row.paidByUserName ? ` · ${row.paidByUserName}` : ''}`)
-        lines.push(...row.items.map((i) => `• ${num(i.qty)} عدد ${faDigits(i.name || 'کالای بی‌نام')}${i.unitPrice ? ` · هر عدد ${rial(i.unitPrice)}` : ''}`))
+        lines.push(...row.items.map((i) => itemLine(i.name, i.qty, i.unitPrice)))
       }
       if (!res.total) lines.push('در این بازه کارت به کارتی نیست.')
       return { lines, pages: Math.max(1, Math.ceil(res.total / ROWS_PER_PAGE)), hasMore: (page + 1) * ROWS_PER_PAGE < res.total }
@@ -491,11 +491,12 @@ export function createBotController(ctx: BotContext) {
       return
     }
     const pageLine = built.hasMore || page > 0 ? [`صفحهٔ ${num(page + 1)}${built.pages ? ` از ${num(built.pages)}` : ''}`] : []
-    const head = [`${REPORT_TITLES[key]} · ${rangeText(from, to)}`, ...(page === 0 ? [`زمان گزارش: ${fmtAt(ctx.now(), await ctx.offsetHours())}`] : pageLine)]
+    const sub = page === 0 ? [`زمان گزارش: ${fmtAt(ctx.now(), await ctx.offsetHours())}`] : pageLine
     const next = built.hasMore && page < MAX_PAGE
       ? { inline_keyboard: [[{ text: 'صفحهٔ بعد ◀️', callback_data: `g:${key}:${day8(from)}:${day8(to)}:${page + 1}` }]] }
       : undefined
-    await sendLong(provider, r.chatId, [...head, ...built.lines, ...(page === 0 ? pageLine : [])].join('\n'), next)
+    // دفتر آزمون ۴-۳۵: سرتیتر، خط زیرش، برچسب‌های نشانه‌دار و قلم‌های شماره‌دار (`formatMessage`)
+    await sendLong(provider, r.chatId, formatMessage(`${REPORT_TITLES[key]} · ${rangeText(from, to)}`, [...sub, ...built.lines, ...(page === 0 ? pageLine : [])]), next)
   }
   async function nowReport(provider: MessengerProvider, r: MessengerRecipient): Promise<void> {
     if (!ctx.reports) { await ctx.api(provider)?.sendMessage(r.chatId, 'گزارش‌ها روی این رایانه در دسترس نیست.'); return }
@@ -517,7 +518,7 @@ export function createBotController(ctx: BotContext) {
       ctx.log('bot status failed', error)
       lines = [`${NOW_TITLE}: الان خوانده نشد؛ کمی بعد دوباره بزنید.`]
     }
-    await sendLong(provider, r.chatId, lines.join('\n'))
+    await sendLong(provider, r.chatId, formatMessage(lines[0], lines.slice(1)))
   }
   /** دکمه‌های گزارش (`p:`، `q:`، `g:`، `m:now`)؛ اجازه پیش‌تر سنجیده شده است. */
   async function onReportButton(provider: MessengerProvider, cq: BotCallbackQuery, r: MessengerRecipient, data: string): Promise<void> {
