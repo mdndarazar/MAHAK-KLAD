@@ -8,6 +8,7 @@ import StocktakeReminderBanner from '../components/StocktakeReminderBadge'
 import { itemsLabel, PendingStockBadge, type CardTransferRow } from '../components/CardTransferPanel'
 import { usePendingRestock, pendingToneBox } from '../hooks/usePendingRestock'
 import PasswordField from '../components/PasswordField'
+import { SAVED_TEXT, UnsavedBadge, useLeaveGuard } from '../components/UnsavedChanges'
 import { PANEL_KEYS } from '@shared/panels'
 import { usePanelLock } from '../hooks/usePanelLocks'
 import { faDigits, isValidJalaliDate, jalaliToday, jalaliMonthStart, money, toLatinDigits } from '@shared/jalali'
@@ -345,18 +346,23 @@ export default function Stocktake() {
       setSchedule(saved)
       setReminderDirty(false)
       flash(
-        saved.enabled
-          ? `تنظیمات یادآوری ذخیره شد · ${faDigits(saved.dates.length)} تاریخ مشخص` +
+        `${SAVED_TEXT} · ` +
+          (saved.enabled
+            ? `تنظیمات یادآوری: ${faDigits(saved.dates.length)} تاریخ مشخص` +
               (saved.everyDays ? ` · تکرار هر ${faDigits(saved.everyDays)} روز` : '')
-          : 'یادآوری انبارگردانی خاموش شد.'
+            : 'یادآوری انبارگردانی خاموش شد.')
       )
+      return true
     } catch (e: any) {
       setErr(e.message)
+      return false
     } finally {
       setSchedulePw('')
       setBusy(false)
     }
   }
+  // دفتر آزمون ۴-۳۸: بیرون رفتن از صفحه یا تب با تغییر ذخیره‌نشدهٔ یادآوری می‌پرسد
+  const leave = useLeaveGuard(reminderDirty, saveSchedule, loadSchedule)
 
   const addDate = () => {
     if (!isValidJalaliDate(newDate)) return setErr('تاریخ معتبر نیست (قالب صحیح: ۱۴۰۵/۰۶/۲۵)')
@@ -431,19 +437,20 @@ export default function Stocktake() {
 
   return (
     <div className="page">
+      {leave.dialog}
       <div className="bg-white rounded shadow p-2 flex items-center gap-2 flex-wrap">
         <h1 className="text-lg font-bold">انبارگردانی</h1>
         <div className="flex gap-1 flex-wrap">
-          <button className={`btn ${tab === 'count' ? 'btn-primary' : ''}`} onClick={() => setTab('count')}>
+          <button className={`btn ${tab === 'count' ? 'btn-primary' : ''}`} onClick={() => leave.guard(() => setTab('count'))}>
             ثبت شمارش فیزیکی
           </button>
-          <button className={`btn ${tab === 'sessions' ? 'btn-primary' : ''}`} onClick={() => setTab('sessions')}>
+          <button className={`btn ${tab === 'sessions' ? 'btn-primary' : ''}`} onClick={() => leave.guard(() => setTab('sessions'))}>
             جلسه‌های شمارش
           </button>
-          <button className={`btn ${tab === 'discrepancy' ? 'btn-primary' : ''}`} onClick={() => setTab('discrepancy')}>
+          <button className={`btn ${tab === 'discrepancy' ? 'btn-primary' : ''}`} onClick={() => leave.guard(() => setTab('discrepancy'))}>
             مغایرت نیازمند بررسی
           </button>
-          <button className={`btn ${tab === 'reminder' ? 'btn-primary' : ''}`} onClick={() => setTab('reminder')}>
+          <button className={`btn ${tab === 'reminder' ? 'btn-primary' : ''}`} onClick={() => leave.guard(() => setTab('reminder'))}>
             یادآوری انبارگردانی
           </button>
         </div>
@@ -461,7 +468,7 @@ export default function Stocktake() {
       </div>
 
       {/* بند ۵ — یادآوری، بالای خودِ ماژول انبار هم دیده می‌شود */}
-      <StocktakeReminderBanner showGoToForm={tab !== 'count'} onGoToForm={() => setTab('count')} />
+      <StocktakeReminderBanner showGoToForm={tab !== 'count'} onGoToForm={() => leave.guard(() => setTab('count'))} />
 
       {(msg || err) && (
         <div
@@ -980,7 +987,7 @@ export default function Stocktake() {
             <button className="btn" onClick={() => void loadSchedule()} disabled={busy}>
               بازگردانی از دیتابیس
             </button>
-            {reminderDirty && <span className="kbd text-amber-700 font-bold">تغییرات ذخیره نشده</span>}
+            <UnsavedBadge show={reminderDirty} />
           </div>
 
           <div className="kbd leading-6">
