@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { call, CH } from '../lib/api'
-import { jalaliToday, money, jalaliDateTimeText } from '@shared/jalali'
+import { faDigits, jalaliToday, money, jalaliDateTimeText } from '@shared/jalali'
 import JalaliDateInput from './JalaliDateInput'
 import { useManagerSession } from '../hooks/useManagerSession'
 
@@ -19,6 +19,8 @@ type Report = {
   summary: { handovers: number; unresolvedOpen: number; dispositionPending: number; totalCountDifference: number; legacyRecoveries?: number; legacyRecoveryReviews?: number; legacyRecoveriesAwaitingOpening?: number }
   counts: Array<{ id: number; at: string; shiftId: number; kind: string; countedCash: number; expectedCash: number | null; differenceCash: number | null; countedByName?: string | null }>
   legacyRecoveries?: LegacyRecoveryReport[]
+  /** دفتر آزمون ۴-۷: بازیابی‌هایی که هنوز یادداشت مدیر را ندارند، بی بازهٔ تاریخ (کادر زرد فقط از همین) */
+  legacyRecoveriesUnreviewed?: LegacyRecoveryReport[]
   legacyRecoveryReviews?: Array<{ id: number; recoveryId: number; itemId: number | null; decision: string; actorName: string | null; reason: string; createdAt: string }>
 }
 
@@ -71,6 +73,7 @@ function CustodyAdminModal({ onClose }: { onClose: () => void }) {
   const [discrepancySkip, setDiscrepancySkip] = useState(0)
   const [reviewRecoveryId, setReviewRecoveryId] = useState<number | ''>('')
   const [reviewReason, setReviewReason] = useState('')
+  const [showRecoveryHistory, setShowRecoveryHistory] = useState(false)
   const [tab, setTab] = useState<Tab>('credentials')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -166,17 +169,40 @@ function CustodyAdminModal({ onClose }: { onClose: () => void }) {
               ])
               setReport(next)
               setDiscrepancies(nextDiscrepancies)
-              setReviewRecoveryId(next.legacyRecoveries?.[0]?.id ?? '')
+              setReviewRecoveryId(next.legacyRecoveriesUnreviewed?.[0]?.id ?? '')
             })}>تهیه گزارش مدیر</button>
           </div>
           {summary ? <>
             <div className="grid md:grid-cols-4 gap-3 my-4 text-sm"><Info label="تحویل‌ها" value={summary.handovers} /><Info label="شب‌های باز" value={summary.unresolvedOpen} /><Info label="تعیین تکلیف تأییدنشده" value={summary.dispositionPending} /><Info label="جمع اختلاف شمارش" value={money(summary.totalCountDifference)} /><Info label="بازیابی شیفت قدیمی" value={summary.legacyRecoveries ?? 0} /><Info label="بازبینی‌های بازیابی" value={summary.legacyRecoveryReviews ?? 0} /></div>
             {discrepancies ? <DiscrepancyCasesPanel report={discrepancies} busy={busy} onRefresh={() => void run(loadDiscrepancies)} onPage={(skip) => { setDiscrepancySkip(skip); void run(() => loadDiscrepancies(skip)) }} /> : null}
-            {(report?.legacyRecoveries?.length ?? 0) > 0 ? <div className="mt-6 space-y-3"><div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950"><b>بازیابی‌های شیفت قدیمی</b><p className="mt-1">شاهدِ بازیابی مالک فروش‌ها، کسری‌ها یا اضافه‌های تاریخی نیست. شمارش بازیابی سند فیزیکی است و فقط شمارش افتتاح جداگانه، مسئولیت دورهٔ تازه را شروع می‌کند.</p></div><div className="overflow-auto"><table className="w-full text-sm"><thead><tr><th>زمان</th><th>شاهد</th><th>شیفت‌های قدیمی</th><th>شمارش شاهد</th><th>افتتاح مستقل</th><th>مرز/اختلاف</th></tr></thead><tbody>{report?.legacyRecoveries?.map((row) => <tr key={row.id}><td>{jalaliDateTimeText(row.createdAt)}</td><td>{row.witnessName ?? '—'}</td><td>{row.items.map((item) => `#${item.shiftId}${item.legacyUserName ? ` (${item.legacyUserName})` : ''}`).join('، ')}</td><td>{money(row.countedCash)}</td><td>{row.opening ? `شیفت #${row.opening.openingShiftId} · ${money(row.opening.openingCountedCash)} · ${row.opening.openerName ?? '—'}` : 'هنوز افتتاح مستقل ثبت نشده'}</td><td>{row.opening ? `${money(row.opening.gapCash)}${row.opening.reason ? ` · ${row.opening.reason}` : ''}` : '—'}</td></tr>)}</tbody></table></div><div className="rounded border bg-slate-50 p-3"><h4 className="font-bold text-sm">ثبت یادداشت بازبینی (افزایشی)</h4><p className="mt-1 text-xs text-slate-600">این یادداشت هیچ مبلغ، مسئولیت، فروش یا شیفت قدیمی را تغییر نمی‌دهد.</p><div className="mt-2 grid gap-2 md:grid-cols-[minmax(0,1fr)_2fr_auto]"><select className="input" value={reviewRecoveryId} onChange={(event) => setReviewRecoveryId(event.target.value ? Number(event.target.value) : '')}>{report?.legacyRecoveries?.map((row) => <option key={row.id} value={row.id}>بازیابی #{row.id}</option>)}</select><input className="input" value={reviewReason} onChange={(event) => setReviewReason(event.target.value)} placeholder="یادداشت بازبینی (حداقل ۳ حرف)" /><button className="btn-primary" disabled={busy || !reviewRecoveryId} onClick={() => void run(async () => { if (reviewReason.trim().length < 3) throw new Error('یادداشت بازبینی باید حداقل ۳ حرف باشد.')
-                await call(CH.custodyLegacyRecoveryReview, { recoveryId: reviewRecoveryId, reason: reviewReason.trim(), idempotencyKey: `legacy-review-${crypto.randomUUID()}`, decision: 'NOTE' })
-                const next = await call<Report>(CH.custodyReport, {})
-                setReport(next); setReviewReason('')
-              })}>ثبت یادداشت</button></div></div>{(report?.legacyRecoveryReviews?.length ?? 0) > 0 ? <div className="overflow-auto"><h4 className="font-bold text-sm mt-3">آخرین بازبینی‌های ثبت‌شده</h4><table className="w-full text-sm"><thead><tr><th>زمان</th><th>بازیابی</th><th>بازبین</th><th>یادداشت</th></tr></thead><tbody>{report?.legacyRecoveryReviews?.slice(0, 20).map((row) => <tr key={row.id}><td>{jalaliDateTimeText(row.createdAt)}</td><td>#{row.recoveryId}</td><td>{row.actorName ?? 'نشست مدیر'}</td><td>{row.reason}</td></tr>)}</tbody></table></div> : null}</div> : null}
+            {/* دفتر آزمون ۴-۷: کادر زرد، جدول و فرم فقط برای بازیابی‌ای که هنوز یادداشت مدیر را ندارد (بی بازهٔ تاریخ)؛ پس از ثبت یادداشت، در «سوابق بازیابی‌ها» */}
+            {(report?.legacyRecoveriesUnreviewed?.length ?? 0) > 0 ? <div className="mt-6 space-y-3">
+              <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950"><b>بازیابی‌های شیفت قدیمی</b><p className="mt-1">شاهدِ بازیابی مالک فروش‌ها، کسری‌ها یا اضافه‌های تاریخی نیست. شمارش بازیابی سند فیزیکی است و فقط شمارش افتتاح جداگانه، مسئولیت دورهٔ تازه را شروع می‌کند.</p></div>
+              <LegacyRecoveryTable rows={report?.legacyRecoveriesUnreviewed ?? []} />
+              <div className="rounded border bg-slate-50 p-3"><h4 className="font-bold text-sm">ثبت یادداشت بازبینی (افزایشی)</h4><p className="mt-1 text-xs text-slate-600">این یادداشت هیچ مبلغ، مسئولیت، فروش یا شیفت قدیمی را تغییر نمی‌دهد.</p>
+                <div className="mt-2 grid gap-2 md:grid-cols-[minmax(0,1fr)_2fr_auto]">
+                  <select className="input" value={reviewRecoveryId} onChange={(event) => setReviewRecoveryId(event.target.value ? Number(event.target.value) : '')}>{report?.legacyRecoveriesUnreviewed?.map((row) => <option key={row.id} value={row.id}>بازیابی #{row.id}</option>)}</select>
+                  <input className="input" value={reviewReason} onChange={(event) => setReviewReason(event.target.value)} placeholder="یادداشت بازبینی (حداقل ۳ حرف)" />
+                  <button className="btn-primary" disabled={busy || !reviewRecoveryId} onClick={() => void run(async () => {
+                    if (reviewReason.trim().length < 3) throw new Error('یادداشت بازبینی باید حداقل ۳ حرف باشد.')
+                    await call(CH.custodyLegacyRecoveryReview, { recoveryId: reviewRecoveryId, reason: reviewReason.trim(), idempotencyKey: `legacy-review-${crypto.randomUUID()}`, decision: 'NOTE' })
+                    const next = await call<Report>(CH.custodyReport, {})
+                    setReport(next); setReviewReason('')
+                    setReviewRecoveryId(next.legacyRecoveriesUnreviewed?.[0]?.id ?? '')
+                  })}>ثبت یادداشت</button>
+                </div>
+              </div>
+            </div> : null}
+            {/* دفتر آزمون ۴-۷: سوابق بازیابی‌های این بازه با یادداشت‌هایشان (متن، نویسنده و زمان)، بسته و فقط خواندنی */}
+            {(report?.legacyRecoveries?.length ?? 0) > 0 ? <div className="mt-4">
+              <button type="button" className="btn" onClick={() => setShowRecoveryHistory((open) => !open)}>{showRecoveryHistory ? '▾' : '▸'} سوابق بازیابی‌ها ({faDigits(report?.legacyRecoveries?.length ?? 0)})</button>
+              {showRecoveryHistory ? <div className="mt-2 space-y-2">
+                <LegacyRecoveryTable rows={report?.legacyRecoveries ?? []} />
+                {(report?.legacyRecoveryReviews?.length ?? 0) > 0
+                  ? <div className="overflow-auto"><h4 className="font-bold text-sm mt-3">یادداشت‌های بازبینی</h4><table className="w-full text-sm"><thead><tr><th>زمان</th><th>بازیابی</th><th>بازبین</th><th>یادداشت</th></tr></thead><tbody>{report?.legacyRecoveryReviews?.map((row) => <tr key={row.id}><td>{jalaliDateTimeText(row.createdAt)}</td><td>#{row.recoveryId}</td><td>{row.actorName ?? 'نشست مدیر'}</td><td>{row.reason}</td></tr>)}</tbody></table></div>
+                  : <p className="text-sm text-slate-600">هنوز یادداشتی ثبت نشده است.</p>}
+              </div> : null}
+            </div> : null}
             <h3 className="font-bold mt-6">آخرین شمارش‌ها</h3>
             <div className="overflow-auto"><table className="w-full text-sm"><thead><tr><th>زمان</th><th>شیفت</th><th>نوع</th><th>شمارش</th><th>انتظار</th><th>اختلاف</th><th>ثبت‌کننده</th></tr></thead><tbody>
               {report?.counts.slice(0, 20).map((row) => <tr key={row.id}><td>{jalaliDateTimeText(row.at)}</td><td>{row.shiftId}</td><td>{row.kind}</td><td>{money(row.countedCash)}</td><td>{row.expectedCash == null ? '—' : money(row.expectedCash)}</td><td>{row.differenceCash == null ? '—' : money(row.differenceCash)}</td><td>{row.countedByName ?? '—'}</td></tr>)}
@@ -220,6 +246,13 @@ function DiscrepancyCasesPanel({ report, busy, onRefresh, onPage }: { report: Di
     {!report.cases.length ? <p className="text-sm text-slate-600">در این بازه پرونده‌ای ثبت نشده است.</p> : <div className="space-y-3">{report.cases.map((row) => <details key={row.id} className="rounded border bg-white p-3"><summary className="cursor-pointer flex flex-wrap justify-between gap-2"><span><b>پرونده #{row.id}</b> · {row.status === 'OPEN' ? 'باز' : 'بسته'} · {row.boundaryKind}</span><span className={row.differenceAmount < 0 ? 'text-red-700 font-bold' : 'text-emerald-700 font-bold'}>{money(row.differenceAmount)} ریال</span></summary><div className="mt-3 space-y-3 text-sm"><div className="grid md:grid-cols-4 gap-2"><Info label="روز عملیاتی" value={row.operationalDay} /><Info label="نظری مدیر" value={money(row.theoreticalExpectedTotal)} /><Info label="انتظار عملیاتی" value={money(row.operationalExpectedTotal)} /><Info label="شمارش کور" value={money(row.observedOperationalTotal)} /></div><p className="text-xs text-slate-600">شیفت قبلی: {row.fromShiftId ?? '—'} · شیفت بعدی: {row.toShiftId ?? '—'} · زمان ثبت: {jalaliDateTimeText(row.detectedAt)} · اختلاف کل نظری در همان مرز: {money(row.totalTheoreticalDifference)} ریال</p>{row.currentReviewResult ? <p className="rounded bg-emerald-50 p-2 text-emerald-900">نتیجهٔ فعلی مدیر: {row.currentReviewResult}</p> : null}<div className="rounded border bg-slate-50 p-3"><div className="font-bold">بازبینی مدیر</div><div className="grid md:grid-cols-2 gap-2 mt-2"><input className="input" value={results[row.id] ?? ''} onChange={(event) => setResults((prior) => ({ ...prior, [row.id]: event.target.value }))} placeholder="نتیجهٔ بازبینی؛ برای بستن اجباری" /><textarea className="input" value={notes[row.id] ?? ''} onChange={(event) => setNotes((prior) => ({ ...prior, [row.id]: event.target.value }))} placeholder="یادداشت مدیر؛ حداقل ۱۰ حرف" /></div><div className="flex gap-2 mt-2">{row.status === 'OPEN' ? <button className="btn-primary" disabled={busy || workingCase === row.id} onClick={() => void review(row, 'CLOSE')}>✓ بررسی شد / بستن پرونده</button> : <button className="btn-secondary" disabled={busy || workingCase === row.id} onClick={() => void review(row, 'REOPEN')}>بازگشایی پرونده</button>}</div></div>{row.reviews.length ? <div><div className="font-bold mb-1">سابقهٔ افزایشی بازبینی</div><ul className="space-y-1">{row.reviews.map((review) => <li key={review.id} className="rounded bg-slate-50 p-2">{jalaliDateTimeText(review.at)} · {review.action} · {review.managerName ?? (review.actorKind === 'MANAGER_SESSION' ? 'نشست مدیر' : 'مدیر')} {review.result ? `· ${review.result}` : ''}<br />{review.note}</li>)}</ul></div> : null}</div></details>)}</div>}
     <div className="flex justify-between items-center mt-3 text-sm"><span>نمایش از {report.page.skip + 1}</span><div className="flex gap-2"><button className="btn-secondary" disabled={busy || report.page.skip === 0} onClick={() => onPage(Math.max(0, report.page.skip - report.page.take))}>صفحه قبل</button><button className="btn-secondary" disabled={busy || !report.page.hasMore} onClick={() => onPage(report.page.skip + report.page.take)}>صفحه بعد</button></div></div>
   </section>
+}
+
+/** دفتر آزمون ۴-۷: جدول بازیابی‌ها، مشترک میان کادر زرد و «سوابق بازیابی‌ها» (همان ستون‌های قبلی) */
+function LegacyRecoveryTable({ rows }: { rows: LegacyRecoveryReport[] }) {
+  return <div className="overflow-auto"><table className="w-full text-sm"><thead><tr><th>زمان</th><th>شاهد</th><th>شیفت‌های قدیمی</th><th>شمارش شاهد</th><th>افتتاح مستقل</th><th>مرز/اختلاف</th></tr></thead><tbody>
+    {rows.map((row) => <tr key={row.id}><td>{jalaliDateTimeText(row.createdAt)}</td><td>{row.witnessName ?? '—'}</td><td>{row.items.map((item) => `#${item.shiftId}${item.legacyUserName ? ` (${item.legacyUserName})` : ''}`).join('، ')}</td><td>{money(row.countedCash)}</td><td>{row.opening ? `شیفت #${row.opening.openingShiftId} · ${money(row.opening.openingCountedCash)} · ${row.opening.openerName ?? '—'}` : 'هنوز افتتاح مستقل ثبت نشده'}</td><td>{row.opening ? `${money(row.opening.gapCash)}${row.opening.reason ? ` · ${row.opening.reason}` : ''}` : '—'}</td></tr>)}
+  </tbody></table></div>
 }
 
 function Info({ label, value }: { label: string; value: unknown }) {

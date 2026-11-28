@@ -929,6 +929,9 @@ export const custodyService = {
     const saleOperators = operatorRows.slice(0, take)
     const legacyRecoveries = legacyRecoveryRows.slice(0, take)
     const legacyReviews = legacyReviewRows.slice(0, take)
+    // دفتر آزمون ۴-۷: بازیابی‌های بی‌یادداشت، بی بازهٔ تاریخ، تا با گذشتن بازهٔ گزارش خودبه‌خود از دید نروند (فقط خواندن)
+    const reviewedRecoveryIds = new Set((await stores.legacyShiftRecoveryReview.findMany({ select: { recoveryId: true } })).map((row: any) => row.recoveryId))
+    const unreviewedRecoveries = (await stores.legacyShiftRecovery.findMany({ orderBy: { createdAt: 'desc' }, take: 500 })).filter((row: any) => !reviewedRecoveryIds.has(row.id)).slice(0, take)
     const evidenceInvoiceIds = saleOperators.map((row: any) => row.invoiceId)
     const evidenceInvoices = evidenceInvoiceIds.length
       ? await prisma.saleInvoice.findMany({ where: { id: { in: evidenceInvoiceIds } }, select: { id: true, receiptNo: true, issuedAt: true } })
@@ -940,7 +943,7 @@ export const custodyService = {
     /** Legacy evidence lives in its own append-only tables rather than being
      * retrofitted onto old financial rows. The report joins only by immutable
      * IDs, which keeps historical movement/liability attribution untouched. */
-    const recoveryIds = legacyRecoveries.map((row: any) => row.id)
+    const recoveryIds = [...new Set([...legacyRecoveries, ...unreviewedRecoveries].map((row: any) => row.id))]
     const [legacyItems, legacyLinks] = recoveryIds.length
       ? await Promise.all([
           stores.legacyShiftRecoveryItem.findMany({ where: { recoveryId: { in: recoveryIds } }, orderBy: [{ recoveryId: 'asc' }, { id: 'asc' }] }),
@@ -967,7 +970,7 @@ export const custodyService = {
        * legacy data carried an id, do not use it to reconstruct an individual. */
       if (row.operatorKind !== 'MANAGER_SESSION' && row.operatorUserId) ids.add(row.operatorUserId)
     }
-    for (const row of legacyRecoveries) if (row.witnessUserId) ids.add(row.witnessUserId)
+    for (const row of [...legacyRecoveries, ...unreviewedRecoveries]) if (row.witnessUserId) ids.add(row.witnessUserId)
     for (const item of legacyItems as any[]) if (item.legacyUserId) ids.add(item.legacyUserId)
     for (const link of legacyLinks as any[]) if (link.openerUserId) ids.add(link.openerUserId)
     for (const review of legacyReviews) if (review.actorUserId) ids.add(review.actorUserId)
@@ -1058,7 +1061,8 @@ export const custodyService = {
       /** Recovery count remains a witness record—not a new responsible party.
        * Expected snapshots are only manager-report evidence and no record here
        * ever changes old invoice/movement attribution. */
-      legacyRecoveries: legacyRecoveries.map((row: any) => {
+      /** دفتر آزمون ۴-۷: همین شکل برای `legacyRecoveriesUnreviewed` (کادر زرد صفحه)؛ `legacyRecoveries` همان بازهٔ گزارش می‌ماند */
+      ...((rows: any[]) => ({ legacyRecoveries: rows.slice(0, legacyRecoveries.length), legacyRecoveriesUnreviewed: rows.slice(legacyRecoveries.length) }))([...legacyRecoveries, ...unreviewedRecoveries].map((row: any) => {
         const link = linkByRecovery.get(row.id)
         const items = itemsByRecovery.get(row.id) ?? []
         return {
@@ -1093,7 +1097,7 @@ export const custodyService = {
             openerName: userName.get(link.openerUserId) ?? null
           } : null
         }
-      }),
+      })),
       legacyRecoveryReviews: legacyReviews.map((row: any) => ({
         id: row.id,
         recoveryId: row.recoveryId,
