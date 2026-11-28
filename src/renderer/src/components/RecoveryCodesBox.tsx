@@ -59,6 +59,8 @@ export default function RecoveryCodesBox() {
   return (
     <div className="bg-white rounded shadow p-4 space-y-3" dir="rtl">
       <h2 className="font-bold">کدهای بازیابی «توقف اضطراری کامل»</h2>
+      {/* دفتر آزمون ۴-۴۳: فرق روشن با کد یک‌بارمصرف (۸ رقمی، در «تنظیمات ← رمز مدیر و خروج») */}
+      <div className="font-bold text-amber-800">این‌ها کد یک‌بارمصرف نیستند؛ فقط برای «بازیابی توقف اضطراری راه دور» به کار می‌روند.</div>
       <div className="kbd leading-6">
         اگر «توقف اضطراری کامل» زده شد و شما پشت رایانه نیستید، یک کد را تلفنی به فروشنده بگویید تا پشت همین رایانه، روی صفحهٔ قفل
         یکی از پنل‌ها «بازیابی توقف اضطراری راه دور» ← «کد بازیابی» را بزند؛ رمز مدیر و PIN شما لو نمی‌رود. هر کد یک بار کار می‌کند؛
@@ -83,6 +85,7 @@ export default function RecoveryCodesBox() {
       {codes && (
         <div className="rounded border-2 border-amber-400 bg-amber-50 p-3 space-y-2">
           <div className="font-bold">کدهای بازیابی — فقط همین یک بار دیده می‌شوند</div>
+          <div className="text-amber-800">این‌ها کد یک‌بارمصرف نیستند؛ فقط برای «بازیابی توقف اضطراری راه دور» به کار می‌روند.</div>
           <ol className="space-y-1">{codes.map((c, i) => <li key={c}>شمارهٔ {faDigits(i + 1)}: <b dir="ltr" style={{ unicodeBidi: 'isolate' }} className="text-lg tracking-widest font-mono">{c}</b></li>)}</ol>
           <div className="flex gap-2">
             <button className="btn btn-primary" onClick={() => printCodes(codes)}>چاپ برگه</button>

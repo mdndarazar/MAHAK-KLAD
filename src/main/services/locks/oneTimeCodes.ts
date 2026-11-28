@@ -10,7 +10,9 @@
  * - پروندهٔ خراب یعنی همهٔ کدها باطل (هرگز «همه باز»)؛ خبر ⚠️ فقط یک بار در هر اجرا.
  * - مصرف همگام است: خواندن، سنجش، علامت «مصرف‌شده» و نوشتن بی هیچ `await`؛ پس دو پنجرهٔ هم‌زمان یک کد را دو بار
  *   مصرف نمی‌کنند. اگر نوشتن شکست بخورد، کد در حافظه مصرف‌شده می‌ماند.
- * - رقم فارسی و لاتین یکسان؛ خط تیره و فاصله نادیده گرفته می‌شود. قالب نمایش `4821-0937`.
+ * - رقم فارسی و لاتین یکسان؛ خط تیره و فاصله نادیده گرفته می‌شود. قالب نمایش ۸ رقم پیوسته `48210937` (دفتر آزمون ۴-۴۳).
+ * - ورودی‌ای که ۸ رقم نیست (مثل کد بازیابیِ حرف‌دار) پیش از هر سنجش رد می‌شود و اشتباه شمرده نمی‌شود (۴-۴۳)؛ حدس
+ *   زدن کد فقط با ۸ رقم ممکن است و قاعدهٔ ۵ اشتباه برای آن همان است.
  * کد خام هرگز ذخیره، ثبت یا فرستاده نمی‌شود؛ فقط هنگام ساخت یک بار برمی‌گردد.
  */
 import { randomBytes, randomInt, scryptSync, timingSafeEqual } from 'node:crypto'
@@ -58,7 +60,8 @@ export function normalizeOneTimeCode(raw: unknown): string | null {
   const value = toLatinDigits(String(raw ?? '')).replace(/[\s\u200c\u200e\u200f\-\u2010-\u2015_]/g, '')
   return /^[0-9]{8}$/.test(value) ? value : null
 }
-export const formatOneTimeCode = (code: string): string => `${code.slice(0, 4)}-${code.slice(4)}`
+/** دفتر آزمون ۴-۴۳: ۸ رقم پشت سر هم، بی خط فاصله (ساخت، برگهٔ چاپ و پیام). */
+export const formatOneTimeCode = (code: string): string => code
 
 function derive(code: string, salt: string): Buffer {
   return scryptSync(code, Buffer.from(salt, 'hex'), 32)
@@ -262,12 +265,16 @@ export type ConsumeResult =
   | { ok: false; reason: 'LOCKED'; lockedMs: number }
   | { ok: false; reason: 'WRONG'; justLocked: boolean; failsLeft: number }
   | { ok: false; reason: 'BROKEN'; firstNotice: boolean }
+  /** دفتر آزمون ۴-۴۳: ۸ رقم نیست؛ نه سنجیده و نه شمرده می‌شود */
+  | { ok: false; reason: 'FORMAT' }
 
 /**
  * مصرف همگام یک کد برای یک قسمت. کدِ قسمت دیگر اینجا «اشتباه» است (مصرف نمی‌شود و شمرده می‌شود).
  * شکست نوشتن: کد در حافظه مصرف‌شده می‌ماند (همان اجرا دوباره نمی‌پذیرد).
  */
 export function consumeOneTimeCode(section: CodeSection, raw: unknown, dir?: string): ConsumeResult {
+  const code = normalizeOneTimeCode(raw)
+  if (!code) return { ok: false, reason: 'FORMAT' }
   const l = load(dir)
   if (!l.state) {
     const firstNotice = !l.brokenNoticed
@@ -277,10 +284,9 @@ export function consumeOneTimeCode(section: CodeSection, raw: unknown, dir?: str
   const state = l.state
   const left = lockLeft(state)
   if (left > 0) return { ok: false, reason: 'LOCKED', lockedMs: left }
-  const code = normalizeOneTimeCode(raw)
   const target = CODE_SECTIONS.includes(section) ? state.sections[section] : null
   let hit: CodeRow | null = null
-  if (code && target) {
+  if (target) {
     const h = derive(code, target.salt)
     hit = target.rows.find((r) => r.usedAt === null && sameHash(h, r.hash)) ?? null
   }

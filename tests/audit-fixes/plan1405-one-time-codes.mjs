@@ -99,7 +99,7 @@ try {
   console.log('\n— ۲) ساخت هر دو قسمت؛ فقط یک بار نمایش؛ فقط hash در پروندهٔ بیرون از پایگاه داده')
   const S = await create('sensitive', { mode: 'own', codes: ['48210937', '59302148', '60413259', '71524360', '82635471'] })
   const O = await create('other')
-  ok('۵ کد شماره‌دار با قالب ۴-۴', S.codes.length === 5 && S.codes.every((c, i) => c.n === i + 1 && /^\d{4}-\d{4}$/.test(c.code)) && O.codes.length === 5)
+  ok('۵ کد شماره‌دار با قالب ۸ رقم پیوسته', S.codes.length === 5 && S.codes.every((c, i) => c.n === i + 1 && /^\d{8}$/.test(c.code)) && O.codes.length === 5)
   const file = readFileSync(join(DIR, 'one-time-codes.json'), 'utf8')
   ok('پرونده کد خام ندارد، فقط hash', !plain(S.codes).concat(plain(O.codes)).some((c) => file.includes(c.replace('-', ''))) && /"hash"/.test(file))
   ok('هیچ ردیف Setting یا AuditLog کد خام ندارد', !plain(S.codes).some((c) => JSON.stringify(sql.prepare('SELECT * FROM "Setting"').all()).includes(c.replace('-', '')) || JSON.stringify(sql.prepare('SELECT * FROM "AuditLog"').all()).includes(c.replace('-', ''))))

@@ -6,6 +6,7 @@
  *   - قسمت ⇒ نشست نگهبان‌دار با مدت همان قسمت کد و بی‌کاری یک‌پنجم؛ کار ⇒ بلیت یک‌بار تا مدت کد «حساس».
  *   - کد روی قسمتِ از قبل باز (یا کارِ از قبل مجاز) و روی قفل خاموش مصرف نمی‌شود.
  *   - کدِ قسمت دیگر: «کد درست نیست یا برای این ماژول نیست»، یک تلاش اشتباه، مصرف نمی‌شود.
+ *   - ورودیِ غیر ۸ رقمی (مثل کد بازیابیِ حرف‌دار): پیام روشن و اشتباه شمرده نمی‌شود (دفتر آزمون ۴-۴۳).
  *   - مدت هنگام مصرف از پروندهٔ مدت‌ها خوانده می‌شود؛ قفلی که همین حالا باز است با عدد قبلی بسته می‌شود.
  * پس از هر `await`، بخش «سنجش، مصرف و ساختن نشست یا بلیت» همگام و بی فاصله است.
  */
@@ -50,6 +51,7 @@ export function codeTargetOf(target: unknown): CodeTarget | null {
 }
 
 const WRONG = 'کد درست نیست یا برای این ماژول نیست.'
+const FORMAT = 'کد یک‌بارمصرف ۸ رقم است. کدِ حرف‌دار کد بازیابی است و این‌جا کار نمی‌کند.'
 
 export interface RedeemResult { kind: 'part' | 'action'; id: string; minutes: number; number: number; section: CodeSection; titleFa: string }
 
@@ -70,6 +72,7 @@ export async function redeemOneTimeCode(target: unknown, code: unknown): Promise
   if (t.kind === 'action' && peekGateTicket(call.owner, t.id)) throw new BusinessError('این کار همین حالا مجاز است؛ کد مصرف نشد. روی دکمهٔ همان کار بزنید.')
   const result = consumeOneTimeCode(t.section, code)
   if (!result.ok) {
+    if (result.reason === 'FORMAT') throw new BusinessError(FORMAT)
     if (result.reason === 'BROKEN') {
       if (result.firstNotice) noteAccessEvent('CODES_FILE_BROKEN', {})
       throw new BusinessError(WRONG)
