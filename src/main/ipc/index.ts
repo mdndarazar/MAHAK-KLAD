@@ -824,6 +824,8 @@ export function registerIpcHandlers(): void {
   // (بدون نشست ⇒ null)، و actorId ارسالی رندرر هرگز پذیرفته نمی‌شود. userId payload فیلتر کارمند می‌ماند.
   handle(IPC.saleFraudReview, async (p) => {
     await assertSalesReportsRead('دیدن هشدارهای ضدتقلب فروش')
+    // دفتر آزمون ۴-۶۵: همان قفل «عملکرد کارمندان» (هشدارهای هر کارمند با نامش)؛ قفل خاموش ⇐ بی رمز
+    await assertPanelUnlocked(PANEL_KEYS.staffPerformance, 'دیدن هشدارهای ضدتقلب فروش')
     return fraudService.review({ ...(p ?? {}), actorId: await shiftService.currentStaffId() })
   })
   handle(IPC.saleReceiptGaps, async () => {

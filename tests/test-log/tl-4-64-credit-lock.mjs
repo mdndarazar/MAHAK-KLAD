@@ -103,5 +103,4 @@ test('sales reports page: the payments window and the cheques tab sit behind the
   assert.match(s, /\{tab === 'cheques' && \([\s\S]{0,120}<ManagerGate panel=\{PANEL_KEYS\.salesCredit\} title="چک‌ها" reason=\{CREDIT_CHEQUES_LOCK_HINT\} inline>\s*<ReportExtraTables/)
   assert.match(s, /if \(tab === 'cheques'\) setCheques\(creditOpen \? await call<any>\(CH\.saleChequeList,/)
   assert.ok(s.includes("((tab === 'credit' || tab === 'cheques') && !creditOpen)"))
-  assert.match(s, /\{\(tab === 'storeCredits' \|\| tab === 'ledger' \|\| tab === 'fraud'\) && \(/, 'the other extra tabs are unchanged here')
 })

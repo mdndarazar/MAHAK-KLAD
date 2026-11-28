@@ -48,6 +48,7 @@ const { jalaliToday, jalaliStartOfDay, jalaliAddDays: addDaysJalali } = await im
 registerIpcHandlers()
 /** گزارش ضدتقلب فقط از پنل گزارشات همان webContents خوانده می‌شود. */
 runWithPanelSessionOwner(owner, () => notePanelUnlocked('sales-reports', 'PANEL'))
+runWithPanelSessionOwner(owner, () => notePanelUnlocked('staff-performance', 'PANEL'))
 const ipc = (ch, payload) => handlers.get(ch)({ sender }, payload)
 
 let ok = 0

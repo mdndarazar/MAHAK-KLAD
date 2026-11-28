@@ -14,6 +14,8 @@ import ManagerGate from '../components/ManagerGate'
 /** دفتر آزمون ۴-۶۴: راهنمای قفل «نسیه» برای پنجرهٔ پرداختی‌ها و تب «چک‌ها» */
 const CREDIT_PAYMENTS_LOCK_HINT = 'این پنجره قفل بخش «نسیه» را دارد. رمز مدیر یا رمز دوم بخش «نسیه» را اینجا وارد کنید تا باز شود.'
 const CREDIT_CHEQUES_LOCK_HINT = 'این تب قفل بخش «نسیه» را دارد. رمز مدیر یا رمز دوم بخش «نسیه» را اینجا وارد کنید تا باز شود.'
+/** دفتر آزمون ۴-۶۵: «بازبینی ضدتقلب» همان قفل «عملکرد کارمندان» را دارد */
+const FRAUD_LOCK_HINT = 'این بخش همان قفل «عملکرد کارمندان» را دارد. رمز مدیر یا رمز دوم بخش «عملکرد کارمندان» را اینجا وارد کنید.'
 import AccountingBlocks, { type DrillTarget } from '../components/AccountingBlocks'
 import BridgeDiagnosticsModal from '../components/BridgeDiagnosticsModal'
 import ReportExtraTables from '../components/ReportExtraTables'
@@ -211,6 +213,7 @@ function reportDataKey(
     includeSettled: boolean
     chequeDateMode: string
     creditOpen: boolean
+    staffOpen: boolean
   }
 ): string {
   const service = toServiceFilter(f)
@@ -768,11 +771,13 @@ export default function SalesReports() {
    */
   /** قفل خاموش هم باید دادهٔ نسیه را بخواند؛ تا خواندن policy همچنان fail-closed است. */
   const creditOpen = usePanelOpen(PANEL_KEYS.salesCredit)
+  /** دفتر آزمون ۴-۶۵: «بازبینی ضدتقلب» تا باز شدن قفل «عملکرد کارمندان» خوانده نمی‌شود */
+  const staffOpen = usePanelOpen(PANEL_KEYS.staffPerformance)
   const currentReportKey = useMemo(
-    () => reportDataKey(tab, filters, { includeExchanges, includeSettled, chequeDateMode, creditOpen }),
-    [tab, filters, includeExchanges, includeSettled, chequeDateMode, creditOpen]
+    () => reportDataKey(tab, filters, { includeExchanges, includeSettled, chequeDateMode, creditOpen, staffOpen }),
+    [tab, filters, includeExchanges, includeSettled, chequeDateMode, creditOpen, staffOpen]
   )
-  const outputDirty = loadedReportKey !== currentReportKey || ((tab === 'credit' || tab === 'cheques') && !creditOpen)
+  const outputDirty = loadedReportKey !== currentReportKey || ((tab === 'credit' || tab === 'cheques') && !creditOpen) || (tab === 'fraud' && !staffOpen)
 
   const flash = (m: string) => {
     setMsg(m)
@@ -792,7 +797,8 @@ export default function SalesReports() {
         includeExchanges,
         includeSettled,
         chequeDateMode,
-        creditOpen
+        creditOpen,
+        staffOpen
       })
       /**
        * بند ۵ — «هیچ گزارشی بی‌صدا ناقص نمی‌شود». فقط `count()` می‌زند و هیچ
@@ -817,7 +823,7 @@ export default function SalesReports() {
       if (tab === 'cheques') setCheques(creditOpen ? await call<any>(CH.saleChequeList, { ...f, dateMode: chequeDateMode }) : null)
       else if (tab === 'storeCredits') setStoreCredits(await call<any>(CH.storeCreditList, f))
       else if (tab === 'ledger') setLedger(await call<any>(CH.saleReportLedger, f))
-      else if (tab === 'fraud') setFraud(await call<any>(CH.saleFraudReview, f))
+      else if (tab === 'fraud') setFraud(staffOpen ? await call<any>(CH.saleFraudReview, f) : null)
       else if (tab === 'summary') setReport(await call<SaleReportResult>(CH.saleReportRows, f))
       else if (tab === 'items') {
         /**
@@ -862,7 +868,7 @@ export default function SalesReports() {
     } finally {
       setBusy(false)
     }
-  }, [filters, tab, creditOpen, includeSettled, includeExchanges, chequeDateMode])
+  }, [filters, tab, creditOpen, staffOpen, includeSettled, includeExchanges, chequeDateMode])
 
   /**
    * بند ۶ و ۷ — «فیلتر پویا»: عوض شدن تب، قفل نسیه، چک‌باکس تسویه‌شده‌ها و
@@ -875,6 +881,11 @@ export default function SalesReports() {
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, creditOpen, includeSettled, includeExchanges, channelsKey, chequeDateMode])
+  /** دفتر آزمون ۴-۶۵: باز یا بسته شدن قفل «عملکرد کارمندان» تب «بازبینی ضدتقلب» را همان لحظه دوباره می‌گیرد */
+  useEffect(() => {
+    if (tab === 'fraud') void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staffOpen])
 
   // روش‌های پرداخت، برای پنجره‌ی «ثبت پرداختی نسیه»
   useEffect(() => {
@@ -2167,7 +2178,7 @@ export default function SalesReports() {
             دفتر رویداد
           </button>
           <button className={`btn ${tab === 'fraud' ? 'btn-primary' : ''}`} onClick={() => setTab('fraud')}>
-            بازبینی ضدتقلب
+            بازبینی ضدتقلب 🔒
           </button>
           <button
             className={`btn ${tab === 'receiptGaps' ? 'btn-primary' : ''}`}
@@ -2958,7 +2969,22 @@ export default function SalesReports() {
           />
         </ManagerGate>
       )}
-      {(tab === 'storeCredits' || tab === 'ledger' || tab === 'fraud') && (
+      {tab === 'fraud' && (
+        /* دفتر آزمون ۴-۶۵: «بازبینی ضدتقلب» داخل قفل «عملکرد کارمندان» */
+        <ManagerGate panel={PANEL_KEYS.staffPerformance} title="بازبینی ضدتقلب" reason={FRAUD_LOCK_HINT} inline>
+          <ReportExtraTables
+            tab={tab}
+            cheques={cheques}
+            chequeDateMode={chequeDateMode}
+            onChequeDateMode={setChequeDateMode}
+            storeCredits={storeCredits}
+            ledger={ledger}
+            fraud={fraud}
+            onOpenInvoice={(id) => setPaymentsFor(id)}
+          />
+        </ManagerGate>
+      )}
+      {(tab === 'storeCredits' || tab === 'ledger') && (
         <ReportExtraTables
           tab={tab}
           cheques={cheques}
