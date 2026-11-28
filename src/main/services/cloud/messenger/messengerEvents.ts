@@ -327,7 +327,7 @@ function lineDiscountPercent(l: DocLineLite): number {
  * دفتر آزمون ۴-۹ — «• ۲ عدد شلوار بگ سایز ۳۱ - ذغالی · هر عدد ۳۶٬۰۰۰٬۰۰۰ ریال · جمع ۷۲٬۰۰۰٬۰۰۰ ریال»؛ تخفیف ردیف اگر بود،
  * با درصدش (۴-۳۶).
  */
-function docLineText(l: DocLineLite): string {
+export function docLineText(l: DocLineLite): string {
   return `• ${num(l.qty)} عدد ${faDigits(l.name || 'کالای بی‌نام')} · هر عدد ${rial(l.unitPrice)}${l.discount ? ` · تخفیف ${rial(l.discount)} (${pct(lineDiscountPercent(l))})` : ''} · جمع ${rial(l.lineTotal)}`
 }
 /**
@@ -362,7 +362,7 @@ function saleDocLines(doc: SaleDocLite, threshold: number): string[] {
   ]
 }
 /** دفتر آزمون ۴-۹ — «زنجیره: فاکتور ۱ ← سند ۲ ← سند ۳»؛ فقط وقتی فاکتور مبدأ خودش سند تعویض است. */
-function chainLine(chain: readonly number[]): string {
+export function chainLine(chain: readonly number[]): string {
   return chain.length >= 3 ? `زنجیره: ${chain.map((receipt, i) => `${i ? 'سند' : 'فاکتور'} ${num(receipt)}`).join(' ← ')}` : ''
 }
 

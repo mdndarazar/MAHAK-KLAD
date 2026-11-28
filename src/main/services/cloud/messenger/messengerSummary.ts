@@ -14,12 +14,14 @@ import type { MessengerDb } from './messengerDb'
 export interface SalesSummaryLike {
   count: number; grandTotal: number; cashTotal: number; cardTotal: number; otherTotal: number
   managerAccountTotal: number; creditTotal: number; returnedTotal?: number
+  /** دفتر آزمون ۴-۳۳: ردیف‌های همان گزارش فروش (صفحه‌ای، با `take` و `skip`) برای فهرست‌های ربات */
+  rows?: unknown[]
 }
 export interface StaffRowLike { userId: number | null; userName: string; invoiceCount: number; returnCount: number; exchangeCount: number; discountTotal: number }
 
 export interface SummaryDeps {
   db: MessengerDb
-  salesSummary(filter: { fromJalali: string; toJalali: string }): Promise<SalesSummaryLike>
+  salesSummary(filter: { fromJalali: string; toJalali: string; take?: number; skip?: number }): Promise<SalesSummaryLike>
   staffPerformance(filter: { fromJalali: string; toJalali: string }): Promise<{ rows: StaffRowLike[] }>
   abnormalDiscounts(filter: { fromJalali: string; toJalali: string }): Promise<{ rows: Array<{ userId: number | null }>; disabled?: boolean }>
   /** زمان آخرین بکاپ خودکار موفق (ms)، یا null */

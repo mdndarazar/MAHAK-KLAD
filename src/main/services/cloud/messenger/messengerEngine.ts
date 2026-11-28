@@ -17,6 +17,8 @@ import { auditPageToEvents, collectAuditIds, custodyCountToEvents, custodyEventT
 import { fmtAt, fmtClock, num, officialDay, packItems, renderItem, scrubText, splitText } from './messengerFormat'
 import type { SummaryDeps } from './messengerSummary'
 import { createTodaySummary, type TodaySummary } from '../todaySummary'
+import { parsePhoneReport } from '../phoneReportCatalog'
+import { readPhoneReport } from '../phoneReportSource'
 import { createBotController, type BotRemote } from './messengerBot'
 import {
   BACKOFF_MAX_MS, BACKOFF_MIN_MS, HEARTBEAT_MS, OUTBOX_MAX, PAIRING_TTL_MS, PROVIDER_INFO, QUEUE_TTL_MS, READ_GAP_MS, READ_PAGE,
@@ -149,7 +151,18 @@ export function createMessengerEngine(deps: EngineDeps) {
     now,
     log,
     schedule: !!deps.schedule,
-    pollSeconds: deps.botPollSeconds ?? 25
+    pollSeconds: deps.botPollSeconds ?? 25,
+    // دفتر آزمون ۴-۳۳: گزارش‌های ربات از همان خواننده‌های گزارش گوشی و خلاصهٔ فروش، و خواننده‌های فقط‌خواندنی پیام‌رسان
+    reports: {
+      includeCustomerName: () => !!settings?.includeCustomerName,
+      sales: (filter) => deps.summary.salesSummary(filter),
+      phone: async (section, request, member) => parsePhoneReport(section, await readPhoneReport(section, request, member)),
+      saleLines: (ids) => deps.db.botSaleLines(ids),
+      debtorNames: (ids) => deps.db.botDebtorNames(ids),
+      returnDocs: (ids) => deps.db.botReturnDocs(ids),
+      cardTransfers: (from, to, skip, take) => deps.db.botCardTransfers(from, to, skip, take),
+      custodyNow: (at) => deps.db.botCustodyNow(at)
+    }
   })
 
   function load(): VaultRead {
@@ -586,7 +599,8 @@ export function createMessengerEngine(deps: EngineDeps) {
           id: r.id, provider: r.provider, providerLabel: PROVIDER_INFO[r.provider].label, name: r.name, mode: r.mode,
           modeLabel: RECIPIENT_MODE_LABELS[r.mode], trust: RECIPIENT_MODE_TRUST[r.mode], active: r.active, inactiveReason: r.inactiveReason,
           queued: box.items.length, expiredTotal: box.stats.expiredTotal, failedTotal: box.stats.failedTotal,
-          lastSuccessAt: box.stats.lastSuccessAt, lastError: box.stats.lastError, canApprove: r.canApprove
+          lastSuccessAt: box.stats.lastSuccessAt, lastError: box.stats.lastError, canApprove: r.canApprove,
+          canViewReports: r.canViewReports === true
         }
       }),
       pairing: pairing ? {
@@ -732,6 +746,17 @@ export function createMessengerEngine(deps: EngineDeps) {
       })
       if (!canApprove) await bot.revoke([id], '⌛ اجازهٔ تأیید این گیرنده برداشته شد.')
     }),
+    /** دفتر آزمون ۴-۳۳: تیک «می‌تواند گزارش‌ها را ببیند» برای یک گیرنده (پیش‌فرض خاموش؛ جدا از اجازهٔ تأیید). */
+    setRecipientReports: (id: string, canViewReports: boolean) => exclusive(async () => {
+      const next = editable()
+      const r = next.recipients.find((x) => x.id === id)
+      if (!r) fail('NOT_FOUND')
+      if ((r!.canViewReports === true) === canViewReports) return
+      await announceThenApply(canViewReports ? '🤖 اجازهٔ دیدن گزارش‌ها با ربات به یک گیرنده داده شد' : '🤖 اجازهٔ دیدن گزارش‌ها با ربات از یک گیرنده برداشته شد', [`گیرنده: ${r!.name} (${PROVIDER_INFO[r!.provider].label})`], () => {
+        r!.canViewReports = canViewReports
+        persist(next)
+      })
+    }),
     /** فقط آزمون: یک بار خواندن دکمه‌ها (long polling با مهلت کوتاه). */
     botPollOnce: (provider: MessengerProvider, timeoutSec?: number) => bot.pollOnce(provider, timeoutSec),
     pairStart: (provider: MessengerProvider) => exclusive(async () => {
@@ -764,7 +789,7 @@ export function createMessengerEngine(deps: EngineDeps) {
       if (next.recipients.length >= 20) fail('LIMIT')
       const recipient: MessengerRecipient = {
         id: newRecipientId(), provider: p!.provider, chatId: p!.candidate!.chatId, name: p!.candidate!.name, mode,
-        active: true, inactiveReason: null, addedAt: now(), canApprove: false
+        active: true, inactiveReason: null, addedAt: now(), canApprove: false, canViewReports: false
       }
       await announceThenApply('➕ گیرندهٔ تازه افزوده شد', [`گیرنده: ${recipient.name} (${PROVIDER_INFO[recipient.provider].label})`, `گزینه: ${RECIPIENT_MODE_LABELS[mode]}`], () => {
         next.recipients.push(recipient)

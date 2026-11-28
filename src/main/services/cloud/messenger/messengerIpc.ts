@@ -115,6 +115,12 @@ export function registerMessengerHandlers(): void {
   })
   handle(IPC.messengerPairCancel, null, async () => { messengerEngine().pairCancel() })
   handle(IPC.messengerRecipientUpdate, ACTION, async (input) => {
+    // دفتر آزمون ۴-۳۳: تیک «می‌تواند گزارش‌ها را ببیند» از همین کانال (تنظیم یک گیرنده؛ همان رمز مدیر)
+    if (typeof input.canViewReports === 'boolean' && input.mode === undefined) {
+      if (typeof input.id !== 'string') throw new MessengerError('INVALID', 'ورودی نامعتبر است.')
+      await messengerEngine().setRecipientReports(input.id, input.canViewReports)
+      return
+    }
     const m = mode(input.mode)
     if (!m || typeof input.id !== 'string') throw new MessengerError('INVALID', 'ورودی نامعتبر است.')
     await messengerEngine().updateRecipient(input.id, m)

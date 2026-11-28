@@ -113,7 +113,10 @@ export function createBotApi(provider: MessengerProvider, token: string, fetchIm
       call<boolean>('answerCallbackQuery', { callback_query_id: callbackId, ...(text ? { text: text.slice(0, 190) } : {}) }, 10000),
     /** مرحلهٔ ۶: نشان دادن نتیجه روی پیام درخواست (و برداشتن دکمه‌ها) */
     editMessageText: (chatId: number, messageId: number, text: string, keyboard?: InlineKeyboard) =>
-      call<unknown>('editMessageText', { chat_id: chatId, message_id: messageId, text, ...(keyboard ? { reply_markup: keyboard } : {}) }, 10000)
+      call<unknown>('editMessageText', { chat_id: chatId, message_id: messageId, text, ...(keyboard ? { reply_markup: keyboard } : {}) }, 10000),
+    /** دفتر آزمون ۴-۳۳: فهرست «/» ربات؛ پیام‌رسانی که پشتیبانی نکند خطا می‌دهد و همان واژهٔ «منو» می‌ماند */
+    setMyCommands: (commands: ReadonlyArray<{ command: string; description: string }>) =>
+      call<boolean>('setMyCommands', { commands: commands.map((c) => ({ command: c.command, description: c.description })) }, 10000)
   }
 }
 export type BotApi = ReturnType<typeof createBotApi>

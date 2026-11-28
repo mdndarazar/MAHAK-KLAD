@@ -17,6 +17,8 @@ interface RecipientView {
   lastSuccessAt: number | null; lastError: string | null
   /** مرحلهٔ ۶: «می‌تواند درخواست مجوز را تأیید کند» (پیش‌فرض خاموش) */
   canApprove: boolean
+  /** دفتر آزمون ۴-۳۳: «می‌تواند گزارش‌ها را ببیند» (پیش‌فرض خاموش؛ جدا از اجازهٔ تأیید) */
+  canViewReports?: boolean
 }
 interface MessengerStatus {
   secureStorage: boolean
@@ -185,6 +187,13 @@ export default function MessengerSettings() {
                 <input type="checkbox" checked={r.canApprove} disabled={busy || needPassword}
                   onChange={(e) => void run(CH.messengerRecipientApprove, { id: r.id, canApprove: e.target.checked }, e.target.checked ? 'این گیرنده می‌تواند درخواست مجوز را با دکمهٔ ربات تأیید کند.' : 'اجازهٔ تأیید برداشته شد و مجوزهایی که او با ربات داده بود بسته شد.')} />
                 می‌تواند درخواست مجوز را با دکمهٔ ربات تأیید یا رد کند (و «بستن همهٔ مجوزها» را بزند)
+              </label>
+            )}
+            {status.botAvailable && (
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={r.canViewReports === true} disabled={busy || needPassword}
+                  onChange={(e) => void run(CH.messengerRecipientUpdate, { id: r.id, canViewReports: e.target.checked }, e.target.checked ? 'این گیرنده می‌تواند گزارش‌ها را با ربات ببیند.' : 'اجازهٔ دیدن گزارش‌ها با ربات برداشته شد.')} />
+                می‌تواند گزارش‌ها را با ربات ببیند (فروش، برگشت، تعویض، نسیه، کارت به کارت مدیر، صندوق و «وضعیت الان»؛ با «/» یا «منو»، وقتی «پاسخ ربات به دکمه‌ها» روشن است)
               </label>
             )}
             <div className="kbd">در صف: {faDigits(r.queued)} · منقضی‌شده: {faDigits(r.expiredTotal)} · ناموفق: {faDigits(r.failedTotal)} · آخرین ارسال موفق: {when(r.lastSuccessAt)}</div>

@@ -7,7 +7,7 @@
 import { createHash } from 'node:crypto'
 import { prisma as defaultPrisma } from '../../../db/client'
 import { SETTING_KEYS, parseAccountingPolicy, parseOfficialTimeConfig } from '@shared/receipt'
-import { faDigits } from '@shared/jalali'
+import { faDigits, jalaliEndOfDay, jalaliStartOfDay } from '@shared/jalali'
 import { custodyBoundaryId, custodyTargetUserId, minutesAfterShiftEnd, type AuditRowLite, type CustodyCountLite, type CustodyEventLite, type DocLineLite, type IdsNeeded, type LookupData } from './messengerEvents'
 import { emptyLookups } from './messengerEvents'
 
@@ -20,6 +20,38 @@ const chunks = <T>(list: T[]): T[][] => {
 }
 const ms = (v: unknown): number => (v instanceof Date ? v.getTime() : typeof v === 'number' ? v : new Date(String(v)).getTime())
 const toNum = (v: unknown): number => (typeof v === 'bigint' ? Number(v) : Number(v) || 0)
+
+/** دفتر آزمون ۴-۳۳ — سند برگشت یا تعویض برای گزارش ربات (قلم‌ها از خود سند، بی کد و بارکد). */
+export interface BotReturnDoc {
+  lines: DocLineLite[]
+  /** فقط تعویض: قلم‌های فاکتور جایگزین، شماره و مبلغش */
+  replacement: DocLineLite[] | null
+  exchangeReceiptNo: number | null
+  exchangeGrandTotal: number | null
+  /** شماره‌ها از نخستین فاکتور تا همین سند (همان ۴-۹) */
+  chain: number[]
+}
+/** دفتر آزمون ۴-۳۳ — یک ردیف کارت‌به‌کارت مدیر (ستون‌های ثابت؛ بی یادداشت، بی دلیل آزاد و بی شمارهٔ پیگیری). */
+export interface BotCardTransferRow {
+  id: number; kind: string; status: string; operationKind: string; returnId: number
+  sourceReceiptNo: number | null; exchangeReceiptNo: number | null; adjustsRequestId: number | null
+  amount: number; userName: string; createdAtJalali: string; createdAtTime: string
+  paid: boolean; paidAmount: number | null; paidAtJalali: string; paidAtTime: string; paidByUserName: string
+  items: Array<{ name: string; qty: number; unitPrice: number }>
+}
+export interface BotCardTransferPage {
+  /** شمار ردیف‌های بازه (همان شرط فهرست برنامه: ثبت یا پرداخت در بازه) */
+  total: number
+  rows: BotCardTransferRow[]
+  /** درخواست‌های هنوز در انتظار که پیش از بازه ثبت شده‌اند */
+  pendingBefore: { count: number; total: number }
+}
+/** دفتر آزمون ۴-۳۳ — «وضعیت الان»: صندوق دست کیست و شیفت‌های باز. */
+export interface BotCustodyNow {
+  holder: { name: string; since: number; shiftName: string; scheduledEndAt: number | null } | null
+  handoverPending: boolean
+  openShifts: Array<{ name: string; userName: string; since: number }>
+}
 
 /** همان شکل هش ردیف در `databaseFingerprint.ts`: [id, at, action, entity] */
 export function auditAnchorHash(row: { id: number; at: Date | string | number; action: string; entity: string }): string {
@@ -341,6 +373,104 @@ export function createMessengerDb(client: Client = defaultPrisma) {
     return { active, late, unclosed }
   }
 
+  // ---- دفتر آزمون ۴-۳۳: خواننده‌های فقط‌خواندنی گزارش ربات (ستون‌های ثابت، همان قاعده‌های محرمانگی) ----
+  /** قلم‌های فاکتورهای فروش، به ترتیب ثبت (همان خوانندهٔ ۴-۹) */
+  async function botSaleLines(invoiceIds: number[]): Promise<Map<number, DocLineLite[]>> {
+    return docLines(db.saleInvoiceItem, 'invoiceId', [...new Set(invoiceIds.filter((id) => Number.isSafeInteger(id)))], true)
+  }
+  /** نام نسیه‌گیرنده‌ای که روز فروش روی خود فاکتور نوشته شد (همان `debtorSnapshotName`)؛ فقط نام، هرگز تلفن یا کد ملی */
+  async function botDebtorNames(invoiceIds: number[]): Promise<Map<number, string>> {
+    const out = new Map<number, string>()
+    for (const part of chunks([...new Set(invoiceIds.filter((id) => Number.isSafeInteger(id)))])) {
+      for (const i of await db.saleInvoice.findMany({ where: { id: { in: part } }, select: { id: true, debtorFirstName: true, debtorLastName: true } })) {
+        const name = [i.debtorFirstName, i.debtorLastName].map((x: unknown) => String(x ?? '').trim()).filter(Boolean).join(' ').slice(0, 80)
+        if (name) out.set(i.id, name)
+      }
+    }
+    return out
+  }
+  /** سندهای برگشت و تعویض: قلم‌های برگشتی، قلم‌ها و مبلغ فاکتور جایگزین، و زنجیرهٔ تعویض */
+  async function botReturnDocs(returnIds: number[]): Promise<Map<number, BotReturnDoc>> {
+    const out = new Map<number, BotReturnDoc>()
+    const ids = [...new Set(returnIds.filter((id) => Number.isSafeInteger(id)))]
+    for (const part of chunks(ids)) {
+      const returns = await db.saleReturn.findMany({ where: { id: { in: part } }, select: { id: true, kind: true, exchangeInvoiceId: true } })
+      const lines = await docLines(db.saleReturnItem, 'returnId', part, false)
+      const exchangeIds = returns.filter((r: any) => r.kind === 'EXCHANGE' && r.exchangeInvoiceId).map((r: any) => r.exchangeInvoiceId as number)
+      const replacement = await docLines(db.saleInvoiceItem, 'invoiceId', exchangeIds, true)
+      const invoices = exchangeIds.length ? await db.saleInvoice.findMany({ where: { id: { in: exchangeIds } }, select: { id: true, receiptNo: true, grandTotal: true } }) : []
+      const invoiceOf = new Map<number, any>(invoices.map((i: any) => [i.id, i]))
+      for (const r of returns) {
+        const exchange = r.kind === 'EXCHANGE' && !!r.exchangeInvoiceId
+        const inv = exchange ? invoiceOf.get(r.exchangeInvoiceId) : null
+        out.set(r.id, {
+          lines: lines.get(r.id) ?? [],
+          replacement: exchange ? replacement.get(r.exchangeInvoiceId) ?? [] : null,
+          exchangeReceiptNo: inv ? toNum(inv.receiptNo) : null,
+          exchangeGrandTotal: inv ? toNum(inv.grandTotal) : null,
+          chain: exchange ? await exchangeChain(r.exchangeInvoiceId) : []
+        })
+      }
+    }
+    return out
+  }
+  /**
+   * کارت‌به‌کارت مدیر در بازه، با همان شرط فهرست برنامه (`eventRangeWhere`: ثبت یا پرداخت در بازه)، قدیمی به تازه.
+   * قلم‌ها فقط نام، تعداد و قیمت؛ شمارهٔ کارت مشتری با ۴-۳۴ (دستهٔ ۵) می‌آید.
+   */
+  async function botCardTransfers(fromDay: string, toDay: string, skip: number, take: number): Promise<BotCardTransferPage> {
+    const range = { gte: jalaliStartOfDay(fromDay), lte: jalaliEndOfDay(toDay) }
+    const where = { OR: [{ createdAt: range }, { paidAt: range }] }
+    const total = await db.cardTransferRequest.count({ where })
+    const rows = await db.cardTransferRequest.findMany({
+      where, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], skip: Math.max(0, skip), take: Math.max(1, Math.min(50, take)),
+      select: {
+        id: true, kind: true, status: true, operationKind: true, returnId: true, sourceReceiptNo: true, exchangeReceiptNo: true, adjustsRequestId: true,
+        amount: true, itemsJson: true, userName: true, createdAtJalali: true, createdAtTime: true,
+        paidAmount: true, paidAt: true, paidAtJalali: true, paidAtTime: true, paidByUserName: true
+      }
+    })
+    const pending = await db.cardTransferRequest.findMany({ where: { status: 'PENDING', kind: 'REQUEST', createdAt: { lt: range.gte } }, take: 1000, select: { amount: true } })
+    const itemsOf = (json: unknown): BotCardTransferRow['items'] => {
+      try {
+        const list = JSON.parse(typeof json === 'string' && json ? json : '[]')
+        return Array.isArray(list) ? list.slice(0, 50).map((i: any) => ({ name: String(i?.name ?? '').slice(0, 80), qty: toNum(i?.qty), unitPrice: toNum(i?.unitPrice) })) : []
+      } catch { return [] }
+    }
+    const text = (v: unknown, max: number): string => String(v ?? '').slice(0, max)
+    return {
+      total: toNum(total),
+      rows: rows.map((r: any) => ({
+        id: r.id, kind: text(r.kind, 20), status: text(r.status, 20), operationKind: text(r.operationKind, 20), returnId: toNum(r.returnId),
+        sourceReceiptNo: r.sourceReceiptNo == null ? null : toNum(r.sourceReceiptNo), exchangeReceiptNo: r.exchangeReceiptNo == null ? null : toNum(r.exchangeReceiptNo),
+        adjustsRequestId: r.adjustsRequestId == null ? null : toNum(r.adjustsRequestId), amount: toNum(r.amount), userName: text(r.userName, 60),
+        createdAtJalali: text(r.createdAtJalali, 16), createdAtTime: text(r.createdAtTime, 8), paid: r.paidAt != null,
+        paidAmount: r.paidAmount == null ? null : toNum(r.paidAmount), paidAtJalali: text(r.paidAtJalali, 16), paidAtTime: text(r.paidAtTime, 8),
+        paidByUserName: text(r.paidByUserName, 60), items: itemsOf(r.itemsJson)
+      })),
+      pendingBefore: { count: pending.length, total: pending.reduce((sum: number, r: any) => sum + toNum(r.amount), 0) }
+    }
+  }
+  /** «وضعیت الان»: مسئول صندوق از وضعیت حضانت (شیفت فعال)، وگرنه شیفت‌های باز */
+  async function botCustodyNow(at: number): Promise<BotCustodyNow> {
+    const state = await db.custodyState.findUnique({ where: { key: 'MAIN' }, select: { state: true, activeShiftId: true } })
+    let holder: { userId: number | null; since: number; shiftName: string; scheduledEndAt: number | null } | null = null
+    if (state?.activeShiftId && state.state !== 'NO_SESSION') {
+      const shift = await db.shift.findUnique({ where: { id: state.activeShiftId }, select: { name: true, openedAt: true, closedAt: true, userId: true } })
+      const meta = await db.custodyShiftMeta.findUnique({ where: { shiftId: state.activeShiftId }, select: { custodianUserId: true, scheduledEndAt: true } })
+      if (shift && !shift.closedAt) {
+        holder = { userId: meta?.custodianUserId ?? shift.userId ?? null, since: ms(shift.openedAt), shiftName: String(shift.name ?? '').slice(0, 60), scheduledEndAt: meta?.scheduledEndAt ? ms(meta.scheduledEndAt) : null }
+      }
+    }
+    const open = holder ? [] : await db.shift.findMany({ where: { closedAt: null, openedAt: { lt: new Date(at) } }, orderBy: { id: 'asc' }, take: 20, select: { name: true, userId: true, openedAt: true } })
+    const names = await userNames([holder?.userId ?? 0, ...open.map((s: any) => s.userId ?? 0)])
+    return {
+      holder: holder ? { name: holder.userId ? names.get(holder.userId) ?? '' : '', since: holder.since, shiftName: holder.shiftName, scheduledEndAt: holder.scheduledEndAt } : null,
+      handoverPending: state?.state === 'HANDOVER_PENDING',
+      openShifts: open.map((s: any) => ({ name: String(s.name ?? '').slice(0, 60), userName: s.userId ? names.get(s.userId) ?? '' : '', since: ms(s.openedAt) }))
+    }
+  }
+
   async function userNames(ids: number[]): Promise<Map<number, string>> {
     const out = new Map<number, string>()
     for (const part of chunks([...new Set(ids.filter(Boolean))])) {
@@ -353,7 +483,8 @@ export function createMessengerDb(client: Client = defaultPrisma) {
   return {
     maxAuditId, auditAnchor, auditPage, maxCustodyEventId, custodyEventPage, maxCustodyCountId, custodyCountPage,
     fetchLookups, officialOffsetHours, cashDifferenceThreshold,
-    auditRowsInRange, cashSessionsClosed, openShiftsAt, chequesDue, custodyFollowUp, userNames
+    auditRowsInRange, cashSessionsClosed, openShiftsAt, chequesDue, custodyFollowUp, userNames,
+    botSaleLines, botDebtorNames, botReturnDocs, botCardTransfers, botCustodyNow
   }
 }
 export type MessengerDb = ReturnType<typeof createMessengerDb>

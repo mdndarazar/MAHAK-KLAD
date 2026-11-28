@@ -54,6 +54,8 @@ export interface MessengerRecipient {
   addedAt: number
   /** مرحلهٔ ۶ (دکمه‌های ربات): اجازهٔ تأیید درخواست مجوز؛ پیش‌فرض خاموش */
   canApprove: boolean
+  /** دفتر آزمون ۴-۳۳: اجازهٔ دیدن گزارش‌ها با ربات، جدا از اجازهٔ تأیید؛ پیش‌فرض خاموش (کلید ناموجود = خاموش) */
+  canViewReports: boolean
 }
 
 export interface MessengerBot {
@@ -191,7 +193,8 @@ function validRecipient(v: unknown): v is MessengerRecipient {
     typeof r.name === 'string' && r.name.length <= 200 &&
     RECIPIENT_MODES.includes(r.mode as RecipientMode) &&
     typeof r.active === 'boolean' && (r.inactiveReason === null || typeof r.inactiveReason === 'string') &&
-    Number.isSafeInteger(r.addedAt) && typeof r.canApprove === 'boolean'
+    Number.isSafeInteger(r.addedAt) && typeof r.canApprove === 'boolean' &&
+    (r.canViewReports === undefined || typeof r.canViewReports === 'boolean')
 }
 function validBot(v: unknown, provider: MessengerProvider): v is MessengerBot {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return false
@@ -219,7 +222,7 @@ export function parseMessengerSettings(raw: unknown): MessengerSettings | null {
   for (const r of s.recipients) {
     if (!validRecipient(r) || ids.has(r.id)) return null
     ids.add(r.id)
-    out.recipients.push({ id: r.id, provider: r.provider, chatId: r.chatId, name: r.name, mode: r.mode, active: r.active, inactiveReason: r.inactiveReason, addedAt: r.addedAt, canApprove: r.canApprove })
+    out.recipients.push({ id: r.id, provider: r.provider, chatId: r.chatId, name: r.name, mode: r.mode, active: r.active, inactiveReason: r.inactiveReason, addedAt: r.addedAt, canApprove: r.canApprove, canViewReports: r.canViewReports === true })
   }
   return out
 }
