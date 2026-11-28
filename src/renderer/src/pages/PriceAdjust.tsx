@@ -614,7 +614,7 @@ function PriceAdjustInner() {
 
           <label className="flex flex-col gap-1">
             <span className="kbd">رند کردن قیمت نهایی</span>
-            <select className="inp w-44 py-1" value={round} onChange={(e) => setRound(+e.target.value || 1)}>
+            <select className="inp w-72 py-1" value={round} onChange={(e) => setRound(+e.target.value || 1)}>
               {PRICE_ROUND_STEPS.map((s) => (
                 <option key={s} value={s}>
                   {PRICE_ROUND_LABELS[s] ?? faDigits(s)}

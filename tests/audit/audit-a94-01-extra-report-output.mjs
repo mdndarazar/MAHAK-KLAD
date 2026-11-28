@@ -59,7 +59,7 @@ const inv = seed.invoice({ grandTotal: 5_000_000 })
 seed.insert('Payment', { invoiceId: inv.id, amount: 5_000_000, kind: 'CHEQUE', chequeNo: 'CH-94', chequeStatus: 'BOUNCED', paidAt: now - 60_000, paidAtJalali: today })
 const review = await fraudService.review({ fromJalali: today, toJalali: today, allSources: true })
 const bouncedFlag = (review?.flags ?? []).find((f) => f.key === 'bouncedCheques')
-eq('هارنس: سرویس پرچم «چک برگشتی» ۵٬۰۰۰٬۰۰۰ را بدون سند منبع می‌دهد', bouncedFlag ? [bouncedFlag.amount, bouncedFlag.sources.length] : null, [5_000_000, 0])
+eq('هارنس: سرویس پرچم «چک برگشتی» ۵٬۰۰۰٬۰۰۰ را با ردیف همان چک می‌دهد (دفتر آزمون ۴-۶۳)', bouncedFlag ? [bouncedFlag.amount, bouncedFlag.sources.length] : null, [5_000_000, 1])
 const oldBounced = (review?.flags ?? []).filter((g) => g.key === 'bouncedCheques').flatMap((g) => (Array.isArray(g?.rows) ? g.rows : Array.isArray(g?.items) ? g.items : Array.isArray(g?.sources) ? g.sources : []))
 console.log(`  · منطق قدیم چاپ/Excel: ردیف‌های پرچم چک برگشتی = ${oldBounced.length}`)
 const outRows = helper ? helper.fraudOutputRows(review.flags, (g) => g.title) : []

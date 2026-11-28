@@ -22,6 +22,7 @@ import {
   noteCreditCodeFailure,
   noteCreditCodeSuccess
 } from './AuthService'
+import { gateAction, gateSession } from './locks/gate'
 import {
   AuditAction,
   PaymentKind,
@@ -1889,7 +1890,7 @@ async function managerChange(
    * می‌پذیرد. تعریف خودِ رمزها و تغییر قفل ماژول‌ها همچنان رمز مدیر می‌خواهد.
    */
   // نشست ۱۸۴ — پاک کردن بدهی فروشگاه؛ خاموش بودن قفل ماژول نباید دورش بزند.
-  await assertPanelPasswordStrict(PANEL_KEYS.creditVoid, input.managerPassword, input.actionTitle)
+  await gateAction('credit.void', () => assertPanelPasswordStrict(PANEL_KEYS.creditVoid, input.managerPassword, input.actionTitle))
   const reason = requireReason(input.reason, input.actionTitle)
 
   return prisma.$transaction(async (tx) => {
@@ -2287,7 +2288,7 @@ export async function deleteCredit(input: {
   userId?: number | null
 }): Promise<{ mode: 'DELETED' | 'ARCHIVED'; code: string }> {
   assertCreditId(input.id) // نشست ۱۶۰ · Y7 — پیش از رمز
-  await assertPanelPasswordStrict(PANEL_KEYS.creditVoid, input.managerPassword, 'حذف اعتبار خرید')
+  await gateAction('credit.delete', () => assertPanelPasswordStrict(PANEL_KEYS.creditVoid, input.managerPassword, 'حذف اعتبار خرید'))
   const reason = requireReason(input.reason, 'حذف اعتبار خرید')
 
   return prisma.$transaction(async (tx) => {
@@ -2456,7 +2457,7 @@ export async function bulkIssueCredits(input: BulkIssueInput): Promise<CreditBul
    * و پیش از ساخت Batch. بیرون از هر تراکنش صدا زده می‌شود (قفل رمز با کلاینت سراسری).
    */
   // نشست ۱۸۴ · بند ۴-۲۹ — تولید گروهی عملاً «پول چاپ کردن» است؛ هیچ‌وقت بی‌رمز نه.
-  await assertPanelPasswordStrict(PANEL_KEYS.creditBulkIssue, input.managerPassword, 'تولید گروهی اعتبار خرید')
+  await gateAction('credit.bulk-issue', () => assertPanelPasswordStrict(PANEL_KEYS.creditBulkIssue, input.managerPassword, 'تولید گروهی اعتبار خرید'))
   const prefix = prefixFor(settings, source, input.prefix)
   const space = await assertCodeSpace(prisma, {
     count,
@@ -3006,7 +3007,7 @@ export const storeCreditService = {
     sourceId?: unknown
     sourceSubKind?: unknown
   } = {}): Promise<ManagerStoreCreditCodeReveal> {
-    assertManagerSession('نمایش کد اعتبار خرید')
+    await gateSession('credit.code-reveal', () => assertManagerSession('نمایش کد اعتبار خرید'))
 
     const sourceId = assertCreditId(input.sourceId)
     const sourceSubKind = String(input.sourceSubKind ?? '')
@@ -3546,7 +3547,7 @@ export const storeCreditService = {
      * `assertPanelPassword` اگر قفل ماژول خاموش بود بدون هیچ رمزی رد می‌کرد،
      * یعنی فروشنده می‌توانست برای خودش اعتبار میلیونی صادر کند.
      */
-    await assertPanelPasswordStrict(PANEL_KEYS.creditManagement, input.managerPassword, 'صدور دستی اعتبار خرید')
+    await gateAction('credit.issue-manual', () => assertPanelPasswordStrict(PANEL_KEYS.creditManagement, input.managerPassword, 'صدور دستی اعتبار خرید'))
     const settings = await readCreditSettings(prisma)
     /**
      * AUDIT-S143-01 (AUDIT-D76) — فیلدهای «فقط سرور» از payload رندرر حذف می‌شوند: issuedAt (تاریخ صدور گذشته

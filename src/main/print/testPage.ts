@@ -128,7 +128,8 @@ export function buildTestPageHtml(profile: PrintProfileKind, spec: TestPageSpec)
   const sizeLabel = `${faDigits(round2(widthMm))}×${
     autoHeight ? 'ارتفاع اندازه‌گیری‌شده' : faDigits(round2(heightMm))
   } میلی‌متر`
-  const title = profile === 'LABEL' ? 'برگه‌ی آزمایشی لیبل — محک' : 'برگه‌ی آزمایشی فاکتور — محک'
+  // دفتر آزمون ۴-۱۲۲ — فقط عنوان دو برگه؛ بارکد «MAHAK-TEST» و برگهٔ تشخیص همان می‌مانند
+  const title = profile === 'LABEL' ? 'برگهٔ آزمایشی لیبل — ArkaPOS' : 'برگهٔ آزمایشی فاکتور — ArkaPOS'
 
   const cellHtml = (columnNo: number | null): string => `
   <section class="cell">

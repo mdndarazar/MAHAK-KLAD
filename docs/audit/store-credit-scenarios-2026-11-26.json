@@ -1,0 +1,6138 @@
+{
+ "meta": {
+  "tool": "docs/audit/store-credit-scenarios.mjs",
+  "programCommit": "1316a433c2a280ffe5dba6378f90edbda627d74d",
+  "summary": {
+   "scenarios": 47,
+   "steps": 184,
+   "refusals": 22,
+   "observations": 226,
+   "scenariosWithFindings": 0,
+   "findingTypes": {}
+  }
+ },
+ "scenarios": [
+  {
+   "id": "A-issue-variants",
+   "steps": [
+    [
+     "default type",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "no expiry",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "days 0",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "multi until amount",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "multi 0 uses",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "single, remainder burns",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "0 days",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "wrong manager password",
+     "REFUSED",
+     "refuse",
+     "رمز درست نیست؛ دوباره تلاش کنید."
+    ],
+    [
+     "amount 0",
+     "REFUSED",
+     "refuse",
+     "مبلغ اعتبار خرید باید عدد صحیح بزرگ‌تر از صفر (ریال) باشد؛ مقدار «0» پذیرفته نیست (اعشار، منفی، متن، NaN یا عدد خارج از سقف امن گرد یا اصلاح نمی‌شود) و هیچ اعتباری صادر نشد."
+    ],
+    [
+     "amount decimal",
+     "REFUSED",
+     "refuse",
+     "مبلغ اعتبار خرید باید عدد صحیح بزرگ‌تر از صفر (ریال) باشد؛ مقدار «0» پذیرفته نیست (اعشار، منفی، متن، NaN یا عدد خارج از سقف امن گرد یا اصلاح نمی‌شود) و هیچ اعتباری صادر نشد."
+    ],
+    [
+     "CATEGORY without ids",
+     "REFUSED",
+     "refuse",
+     "برای محدود کردن اعتبار به دسته‌بندی، حداقل یک دسته‌بندی انتخاب کنید."
+    ],
+    [
+     "VARIANTS without ids",
+     "REFUSED",
+     "refuse",
+     "برای محدود کردن اعتبار به کالا، حداقل یک کالا انتخاب کنید."
+    ],
+    [
+     "days 0",
+     "REFUSED",
+     "refuse",
+     "مدت اعتبار باید عدد صحیح بین # تا # روز باشد؛ مقدار «0» پذیرفته نیست (اعشار، منفی، متن، NaN یا عدد خارج از سقف امن گرد یا اصلاح نمی‌شود) و هیچ اعتباری صادر نشد."
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "credit",
+     "label": "default type",
+     "status": "ACTIVE",
+     "amount": 500000,
+     "used": 0,
+     "uses": 0,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "credit",
+     "label": "no expiry",
+     "status": "ACTIVE",
+     "amount": 500000,
+     "used": 0,
+     "uses": 0,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": null
+    },
+    {
+     "kind": "credit",
+     "label": "days 0",
+     "status": "ACTIVE",
+     "amount": 500000,
+     "used": 0,
+     "uses": 0,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": null
+    },
+    {
+     "kind": "credit",
+     "label": "multi until amount",
+     "status": "ACTIVE",
+     "amount": 500000,
+     "used": 0,
+     "uses": 0,
+     "maxUses": 1000,
+     "multi": true,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "credit",
+     "label": "multi 0 uses",
+     "status": "ACTIVE",
+     "amount": 500000,
+     "used": 0,
+     "uses": 0,
+     "maxUses": 3,
+     "multi": true,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "credit",
+     "label": "single, remainder burns",
+     "status": "ACTIVE",
+     "amount": 500000,
+     "used": 0,
+     "uses": 0,
+     "maxUses": 1,
+     "multi": false,
+     "carry": false,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "credit",
+     "label": "0 days",
+     "status": "ACTIVE",
+     "amount": 500000,
+     "used": 0,
+     "uses": 0,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 90
+    }
+   ],
+   "value": {
+    "paidIn": 0,
+    "manual": 3500000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 3500000,
+    "kept": 0,
+    "delta": 0
+   }
+  },
+  {
+   "id": "B-bulk-300-company",
+   "steps": [
+    [
+     "bulk form: 0 × 0k, 0 days, category مردانه, company آرکاجین",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "bulk 0 (over the 0 cap)",
+     "REFUSED",
+     "refuse",
+     "سقف تولید گروهی در تنظیمات # اعتبار است و درخواست شما بیشتر از آن بود، پس چیزی ساخته نشد."
+    ],
+    [
+     "bulk without manager password",
+     "REFUSED",
+     "refuse",
+     "«تولید گروهی اعتبار خرید» همیشه رمز می‌خواهد، حتی اگر قفل این ماژول خاموش باشد. رمز مدیر (یا رمز دوم/سوم همین پنل) را وارد کنید."
+    ],
+    [
+     "employee spends a card: shirt 0k + mug 0k",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 300000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:300000"
+      ],
+      "storeCredit": 500000
+     }
+    ],
+    [
+     "card in wholesale on a women's dress (not eligible) · page auto-check of the barcode",
+     "OK",
+     "either",
+     {}
+    ],
+    [
+     "card in wholesale on a women's dress (not eligible)",
+     "REFUSED",
+     "either",
+     "این فروش # ریال بدهی می‌سازد؛ نام، نام خانوادگی و شماره تلفن بدهکار الزامی است. هیچ فاکتور، بدهی یا حرکتی ثبت نشد."
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "bulkForm",
+     "ok": true,
+     "error": null,
+     "warnings": [],
+     "override": true,
+     "payloadKeys": [
+      "amountEach",
+      "codeLength",
+      "count",
+      "customerId",
+      "customerLocked",
+      "customerName",
+      "days",
+      "holderCompany",
+      "holderPhone",
+      "maxPerTransaction",
+      "maxUses",
+      "minPurchase",
+      "multiUse",
+      "note",
+      "prefix",
+      "restrictCategoryIds",
+      "restrictScope",
+      "restrictVariantIds",
+      "source",
+      "title"
+     ]
+    },
+    {
+     "kind": "bulkRows",
+     "created": 300,
+     "uniqueCodes": 300,
+     "codeLens": [
+      8
+     ],
+     "statuses": [
+      "ACTIVE"
+     ],
+     "company": [
+      "آرکاجین"
+     ],
+     "phone": [
+      "0-0"
+     ],
+     "nationalId": [
+      null
+     ],
+     "agent": [
+      null
+     ],
+     "address": [
+      null
+     ],
+     "holderNote": [
+      null
+     ],
+     "note": [
+      "هدیهٔ فروشگاه به کارکنان شرکت آرکاجین"
+     ],
+     "overrideReason": [
+      null
+     ],
+     "settingsOverride": [
+      1
+     ],
+     "scope": [
+      "CATEGORY"
+     ],
+     "cats": [
+      "مردانه"
+     ],
+     "maxUses": [
+      1
+     ],
+     "carry": [
+      1
+     ],
+     "expDays": [
+      60
+     ]
+    },
+    {
+     "kind": "batchRow",
+     "title": "کارت هدیهٔ کارکنان آرکاجین",
+     "source": "MANUAL",
+     "count": 300,
+     "amountEach": 500000,
+     "totalAmount": 150000000,
+     "days": 60,
+     "maxUses": 1,
+     "multiUse": 0,
+     "codeLength": 8,
+     "prefix": "CR",
+     "alphabet": "ALNUM",
+     "excludeSimilar": 1,
+     "lengthGrown": 0,
+     "restrictScope": "CATEGORY",
+     "restrictCategoryIdsJson": "[0]",
+     "restrictVariantIdsJson": null,
+     "minPurchase": 0,
+     "maxPerTransaction": 0,
+     "customerId": null,
+     "customerName": null,
+     "holderCompany": "آرکاجین",
+     "note": "هدیهٔ فروشگاه به کارکنان شرکت آرکاجین"
+    },
+    {
+     "kind": "batchesList",
+     "rows": [
+      {
+       "title": "کارت هدیهٔ کارکنان آرکاجین",
+       "count": 300,
+       "amountEach": 500000,
+       "totalAmount": 150000000,
+       "lengthGrown": false,
+       "source": "MANUAL",
+       "note": "هدیهٔ فروشگاه به کارکنان شرکت آرکاجین"
+      }
+     ]
+    },
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 300000,
+     "error": null,
+     "notes": [
+      "این اعتبار فقط روی 0 قلم از اقلام این فاکتور قابل استفاده است، پس حداکثر تا 0 ریال جذب می‌شود."
+     ],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 300000,
+     "cashDue": 100000,
+     "byRow": {
+      "0": 300000
+     },
+     "error": null,
+     "notes": [
+      "این اعتبار فقط روی 0 قلم از اقلام این فاکتور قابل استفاده است، پس حداکثر تا 0 ریال جذب می‌شود."
+     ]
+    },
+    {
+     "kind": "credit",
+     "label": "card after POS spend",
+     "status": "PARTIALLY_USED",
+     "amount": 500000,
+     "used": 300000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "CATEGORY",
+     "cats": [
+      "مردانه"
+     ],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 60
+    },
+    {
+     "kind": "saleReceiptCardLines",
+     "lines": [
+      "نحوه پرداخت : نقد : # ریال · بارکد اعتبار خرید بعدی : # ریال",
+      "اعتبار برگشت از فروش تا #"
+     ]
+    }
+   ],
+   "value": {
+    "paidIn": 100000,
+    "manual": 150000000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 149700000,
+    "kept": 400000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "C1-variant-one-mixed",
+   "steps": [
+    [
+     "issue 0 VARIANTS",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "POS sale پیراهن مردانه+ماگ · 0 barcode(s)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 200000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "VARIANTS",
+     "cats": [],
+     "vars": [
+      "پیراهن مردانه"
+     ],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    }
+   ],
+   "value": {
+    "paidIn": 200000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 0,
+    "kept": 400000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "C2-variant-one-over",
+   "steps": [
+    [
+     "issue 0 VARIANTS",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "POS sale پیراهن مردانه+ماگ · 0 barcode(s)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 300000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:300000"
+      ],
+      "storeCredit": 500000
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 300000,
+     "error": null,
+     "notes": [
+      "این اعتبار فقط روی 0 قلم از اقلام این فاکتور قابل استفاده است، پس حداکثر تا 0 ریال جذب می‌شود."
+     ],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 300000,
+     "cashDue": 100000,
+     "byRow": {
+      "0": 300000
+     },
+     "error": null,
+     "notes": [
+      "این اعتبار فقط روی 0 قلم از اقلام این فاکتور قابل استفاده است، پس حداکثر تا 0 ریال جذب می‌شود."
+     ]
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "PARTIALLY_USED",
+     "amount": 500000,
+     "used": 300000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "VARIANTS",
+     "cats": [],
+     "vars": [
+      "پیراهن مردانه"
+     ],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": []
+    }
+   ],
+   "value": {
+    "paidIn": 100000,
+    "manual": 500000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 200000,
+    "kept": 400000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "C3-variants-several",
+   "steps": [
+    [
+     "issue 0 VARIANTS",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "POS sale پیراهن مردانه+مانتو زنانه+ماگ · 0 barcode(s)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 800000,
+      "paidTotal": 800000,
+      "storeCreditApplied": 600000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:600000"
+      ],
+      "storeCredit": 600000
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 600000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه",
+      "مانتو زنانه"
+     ],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 800000,
+     "applied": 600000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 600000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 600000,
+     "used": 600000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "VARIANTS",
+     "cats": [],
+     "vars": [
+      "پیراهن مردانه",
+      "مانتو زنانه"
+     ],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    }
+   ],
+   "value": {
+    "paidIn": 200000,
+    "manual": 600000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 0,
+    "kept": 800000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "C4-category-one",
+   "steps": [
+    [
+     "issue 0 CATEGORY",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "POS sale شلوار مردانه+ماگ · 0 barcode(s)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 600000,
+      "paidTotal": 600000,
+      "storeCreditApplied": 400000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:400000"
+      ],
+      "storeCredit": 400000
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 400000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "شلوار مردانه"
+     ],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 600000,
+     "applied": 400000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 400000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 400000,
+     "used": 400000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "CATEGORY",
+     "cats": [
+      "مردانه"
+     ],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    }
+   ],
+   "value": {
+    "paidIn": 200000,
+    "manual": 400000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 0,
+    "kept": 600000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "C5-category-parent",
+   "steps": [
+    [
+     "issue 0 CATEGORY",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "POS as the page does it",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 500000,
+      "paidTotal": 500000,
+      "storeCreditApplied": 0,
+      "idempotentReplay": false,
+      "creditOutcomes": []
+     }
+    ],
+    [
+     "registration itself: dress + mug with the 0k card",
+     "OK",
+     "either",
+     {
+      "grandTotal": 500000,
+      "paidTotal": 500000,
+      "storeCreditApplied": 300000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:300000"
+      ],
+      "storeCredit": 300000
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": false,
+     "applied": 0,
+     "error": "هیچ‌کدام از اقلام این فاکتور با محدودیت این اعتبار (کالا/دسته‌بندی) نمی‌خواند، پس این اعتبار روی این فاکتور قابل استفاده نیست.",
+     "notes": [],
+     "eligible": [],
+     "excluded": [
+      "مانتو زنانه",
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 500000,
+     "applied": 0,
+     "cashDue": 500000,
+     "byRow": {},
+     "error": "هیچ‌کدام از اقلام این فاکتور با محدودیت این اعتبار (کالا/دسته‌بندی) نمی‌خواند، پس این اعتبار روی این فاکتور قابل استفاده نیست.",
+     "notes": [
+      "هیچ‌کدام از اقلام این فاکتور با محدودیت این اعتبار (کالا/دسته‌بندی) نمی‌خواند، پس این اعتبار روی این فاکتور قابل استفاده نیست."
+     ]
+    },
+    {
+     "kind": "credit",
+     "label": "after page-like sale",
+     "status": "ACTIVE",
+     "amount": 300000,
+     "used": 0,
+     "uses": 0,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "CATEGORY",
+     "cats": [
+      "پوشاک"
+     ],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "credit",
+     "label": "after direct sale",
+     "status": "USED",
+     "amount": 300000,
+     "used": 300000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "CATEGORY",
+     "cats": [
+      "پوشاک"
+     ],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    }
+   ],
+   "value": {
+    "paidIn": 700000,
+    "manual": 300000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 0,
+    "kept": 1000000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "C6-categories-several",
+   "steps": [
+    [
+     "issue 0 CATEGORY",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "POS sale شلوار مردانه+ماگ+مانتو زنانه · 0 barcode(s)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 1000000,
+      "paidTotal": 1000000,
+      "storeCreditApplied": 600000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:600000"
+      ],
+      "storeCredit": 1000000
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 600000,
+     "error": null,
+     "notes": [
+      "این اعتبار فقط روی 0 قلم از اقلام این فاکتور قابل استفاده است، پس حداکثر تا 0 ریال جذب می‌شود."
+     ],
+     "eligible": [
+      "شلوار مردانه",
+      "ماگ"
+     ],
+     "excluded": [
+      "مانتو زنانه"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 1000000,
+     "applied": 600000,
+     "cashDue": 400000,
+     "byRow": {
+      "0": 600000
+     },
+     "error": null,
+     "notes": [
+      "این اعتبار فقط روی 0 قلم از اقلام این فاکتور قابل استفاده است، پس حداکثر تا 0 ریال جذب می‌شود."
+     ]
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "PARTIALLY_USED",
+     "amount": 1000000,
+     "used": 600000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "CATEGORY",
+     "cats": [
+      "مردانه",
+      "لوازم خانگی"
+     ],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    }
+   ],
+   "value": {
+    "paidIn": 400000,
+    "manual": 1000000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 400000,
+    "kept": 1000000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "C7-all",
+   "steps": [
+    [
+     "issue 0 ALL",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "POS sale شلوار مردانه+ماگ · 0 barcode(s)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 600000,
+      "paidTotal": 600000,
+      "storeCreditApplied": 600000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:600000"
+      ],
+      "storeCredit": 1000000
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 600000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "شلوار مردانه",
+      "ماگ"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 600000,
+     "applied": 600000,
+     "cashDue": 0,
+     "byRow": {
+      "0": 600000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "PARTIALLY_USED",
+     "amount": 1000000,
+     "used": 600000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": []
+    }
+   ],
+   "value": {
+    "paidIn": 0,
+    "manual": 1000000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 400000,
+    "kept": 600000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "C8-no-eligible",
+   "steps": [
+    [
+     "issue 0 VARIANTS",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "registration itself: mug with a shirt-only card",
+     "REFUSED",
+     "refuse",
+     "این فروش # ریال بدهی می‌سازد؛ نام، نام خانوادگی و شماره تلفن بدهکار الزامی است. هیچ فاکتور، بدهی یا حرکتی ثبت نشد."
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": false,
+     "applied": 0,
+     "error": "هیچ‌کدام از اقلام این فاکتور با محدودیت این اعتبار (کالا/دسته‌بندی) نمی‌خواند، پس این اعتبار روی این فاکتور قابل استفاده نیست.",
+     "notes": [],
+     "eligible": [],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 100000,
+     "applied": 0,
+     "cashDue": 100000,
+     "byRow": {},
+     "error": "هیچ‌کدام از اقلام این فاکتور با محدودیت این اعتبار (کالا/دسته‌بندی) نمی‌خواند، پس این اعتبار روی این فاکتور قابل استفاده نیست.",
+     "notes": [
+      "هیچ‌کدام از اقلام این فاکتور با محدودیت این اعتبار (کالا/دسته‌بندی) نمی‌خواند، پس این اعتبار روی این فاکتور قابل استفاده نیست."
+     ]
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "ACTIVE",
+     "amount": 200000,
+     "used": 0,
+     "uses": 0,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "VARIANTS",
+     "cats": [],
+     "vars": [
+      "پیراهن مردانه"
+     ],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    }
+   ],
+   "value": {
+    "paidIn": 0,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 200000,
+    "kept": 0,
+    "delta": 0
+   }
+  },
+  {
+   "id": "C9-min-purchase",
+   "steps": [
+    [
+     "issue 0 ALL",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "registration itself: 0k cart",
+     "REFUSED",
+     "refuse",
+     "این فروش # ریال بدهی می‌سازد؛ نام، نام خانوادگی و شماره تلفن بدهکار الزامی است. هیچ فاکتور، بدهی یا حرکتی ثبت نشد."
+    ],
+    [
+     "POS: exactly 0 cart",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 1000000,
+      "paidTotal": 1000000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": false,
+     "applied": 0,
+     "error": "این اعتبار حداقل مبلغ خرید دارد: جمع فاکتور باید از 0 ریال بیشتر باشد (جمع فعلی 0 ریال).",
+     "notes": [],
+     "eligible": [],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 800000,
+     "applied": 0,
+     "cashDue": 800000,
+     "byRow": {},
+     "error": "این اعتبار حداقل مبلغ خرید دارد: جمع فاکتور باید از 0 ریال بیشتر باشد (جمع فعلی 0 ریال).",
+     "notes": [
+      "این اعتبار حداقل مبلغ خرید دارد: جمع فاکتور باید از 0 ریال بیشتر باشد (جمع فعلی 0 ریال)."
+     ]
+    },
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "شلوار مردانه",
+      "پیراهن مردانه",
+      "ماگ",
+      "ماگ"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 1000000,
+     "applied": 200000,
+     "cashDue": 800000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 1000000,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    }
+   ],
+   "value": {
+    "paidIn": 800000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 0,
+    "kept": 1000000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "C10-max-per-tx",
+   "steps": [
+    [
+     "issue 0 ALL",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "purchase 0 shirt 0k",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 300000,
+      "paidTotal": 300000,
+      "storeCreditApplied": 150000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:150000"
+      ],
+      "storeCredit": 400000
+     }
+    ],
+    [
+     "purchase 0 shirt 0k",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 300000,
+      "paidTotal": 300000,
+      "storeCreditApplied": 150000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:150000"
+      ],
+      "storeCredit": 400000
+     }
+    ],
+    [
+     "purchase 0 shirt 0k",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 300000,
+      "paidTotal": 300000,
+      "storeCreditApplied": 100000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:100000"
+      ],
+      "storeCredit": 400000
+     }
+    ],
+    [
+     "purchase 0 shirt 0k",
+     "OK",
+     "either",
+     {
+      "grandTotal": 300000,
+      "paidTotal": 300000,
+      "storeCreditApplied": 0,
+      "idempotentReplay": false,
+      "creditOutcomes": []
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 150000,
+     "error": null,
+     "notes": [
+      "سقف مصرف این اعتبار در هر تراکنش 0 ریال است."
+     ],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 300000,
+     "applied": 150000,
+     "cashDue": 150000,
+     "byRow": {
+      "0": 150000
+     },
+     "error": null,
+     "notes": [
+      "سقف مصرف این اعتبار در هر تراکنش 0 ریال است."
+     ]
+    },
+    {
+     "kind": "credit",
+     "label": "after 0",
+     "status": "PARTIALLY_USED",
+     "amount": 400000,
+     "used": 150000,
+     "uses": 1,
+     "maxUses": 1000,
+     "multi": true,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 150000,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 150000,
+     "error": null,
+     "notes": [
+      "سقف مصرف این اعتبار در هر تراکنش 0 ریال است."
+     ],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 300000,
+     "applied": 150000,
+     "cashDue": 150000,
+     "byRow": {
+      "0": 150000
+     },
+     "error": null,
+     "notes": [
+      "سقف مصرف این اعتبار در هر تراکنش 0 ریال است."
+     ]
+    },
+    {
+     "kind": "credit",
+     "label": "after 0",
+     "status": "PARTIALLY_USED",
+     "amount": 400000,
+     "used": 300000,
+     "uses": 2,
+     "maxUses": 1000,
+     "multi": true,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 150000,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 100000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 300000,
+     "applied": 100000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 100000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after 0",
+     "status": "USED",
+     "amount": 400000,
+     "used": 400000,
+     "uses": 3,
+     "maxUses": 1000,
+     "multi": true,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 150000,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "lookupRefused",
+     "row": 1,
+     "msg": "این اعتبار («کد») کامل مصرف شده است — آخرین مصرف روی فاکتور شماره # در تاریخ #\n# تلاش دیگر باقی مانده است؛ بعد از آن ورود رمز برای # دقیقه قفل می‌شود."
+    },
+    {
+     "kind": "previewRefused",
+     "row": 1,
+     "msg": "این اعتبار («کد») کامل مصرف شده است — آخرین مصرف روی فاکتور شماره # در تاریخ #\n# تلاش دیگر باقی مانده است؛ بعد از آن ورود رمز برای # دقیقه قفل می‌شود."
+    },
+    {
+     "kind": "plan",
+     "payable": 300000,
+     "applied": 0,
+     "cashDue": 300000,
+     "byRow": {},
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after 0",
+     "status": "USED",
+     "amount": 400000,
+     "used": 400000,
+     "uses": 3,
+     "maxUses": 1000,
+     "multi": true,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 150000,
+     "locked": false,
+     "expDays": 30
+    }
+   ],
+   "value": {
+    "paidIn": 800000,
+    "manual": 400000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 0,
+    "kept": 1200000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "C11-customer-lock",
+   "steps": [
+    [
+     "issue 0 ALL",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "registration itself: no customer",
+     "REFUSED",
+     "refuse",
+     "این فروش # ریال بدهی می‌سازد؛ نام، نام خانوادگی و شماره تلفن بدهکار الزامی است. هیچ فاکتور، بدهی یا حرکتی ثبت نشد."
+    ],
+    [
+     "registration itself: other customer",
+     "REFUSED",
+     "refuse",
+     "این فروش # ریال بدهی می‌سازد؛ نام، نام خانوادگی و شماره تلفن بدهکار الزامی است. هیچ فاکتور، بدهی یا حرکتی ثبت نشد."
+    ],
+    [
+     "POS: the right customer",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 300000,
+      "paidTotal": 300000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "customer lock without a customer",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "POS: lock without customer, anyone",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 300000,
+      "paidTotal": 300000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": false,
+     "applied": 0,
+     "error": "این اعتبار فقط برای مشتری/شرکتِ ثبت‌شده‌ی خودش قابل استفاده است.",
+     "notes": [],
+     "eligible": [],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 300000,
+     "applied": 0,
+     "cashDue": 300000,
+     "byRow": {},
+     "error": "این اعتبار فقط برای مشتری/شرکتِ ثبت‌شده‌ی خودش قابل استفاده است.",
+     "notes": [
+      "این اعتبار فقط برای مشتری/شرکتِ ثبت‌شده‌ی خودش قابل استفاده است."
+     ]
+    },
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 300000,
+     "applied": 200000,
+     "cashDue": 100000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [
+      "این اعتبار «محدود به مشتری خاص» علامت خورده ولی مشتری‌اش ثبت نشده است؛ محدودیت اعمال نشد."
+     ],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 300000,
+     "applied": 200000,
+     "cashDue": 100000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": [
+      "این اعتبار «محدود به مشتری خاص» علامت خورده ولی مشتری‌اش ثبت نشده است؛ محدودیت اعمال نشد."
+     ]
+    }
+   ],
+   "value": {
+    "paidIn": 200000,
+    "manual": 400000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 0,
+    "kept": 600000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "C12-expired-suspended-void",
+   "steps": [
+    [
+     "issue 0 ALL",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "expired",
+     "REFUSED",
+     "refuse",
+     "این فروش # ریال بدهی می‌سازد؛ نام، نام خانوادگی و شماره تلفن بدهکار الزامی است. هیچ فاکتور، بدهی یا حرکتی ثبت نشد."
+    ],
+    [
+     "expired in wholesale · page auto-check of the barcode",
+     "REFUSED",
+     "either",
+     "اعتبار این کد («کد») تمام شده است — مهلتش # به پایان رسیده بود."
+    ],
+    [
+     "expired in wholesale",
+     "OK",
+     "either",
+     {
+      "grandTotal": 300000,
+      "paidTotal": 300000,
+      "storeCreditApplied": 0,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "REJECTED:0"
+      ]
+     }
+    ],
+    [
+     "issue 0 ALL",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "suspend",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "suspended",
+     "REFUSED",
+     "refuse",
+     "این فروش # ریال بدهی می‌سازد؛ نام، نام خانوادگی و شماره تلفن بدهکار الزامی است. هیچ فاکتور، بدهی یا حرکتی ثبت نشد."
+    ],
+    [
+     "reactivate",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "after reactivate",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 300000,
+      "paidTotal": 300000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "issue 0 ALL",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "void",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "voided",
+     "REFUSED",
+     "refuse",
+     "این فروش # ریال بدهی می‌سازد؛ نام، نام خانوادگی و شماره تلفن بدهکار الزامی است. هیچ فاکتور، بدهی یا حرکتی ثبت نشد."
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "lookupRefused",
+     "row": 1,
+     "msg": "اعتبار این کد («کد») تمام شده است — مهلتش # به پایان رسیده بود.\nمبلغ باقی‌مانده‌ی این اعتبار # ریال بود؛ برای تصمیم‌گیری با مدیر هماهنگ کنید.\n# تلاش دیگر باقی مانده است؛ بعد از آن ورود رمز برای # دقیقه قفل می‌شود."
+    },
+    {
+     "kind": "previewRefused",
+     "row": 1,
+     "msg": "اعتبار این کد («کد») تمام شده است — مهلتش # به پایان رسیده بود.\nمبلغ باقی‌مانده‌ی این اعتبار # ریال بود؛ برای تصمیم‌گیری با مدیر هماهنگ کنید.\n# تلاش دیگر باقی مانده است؛ بعد از آن ورود رمز برای # دقیقه قفل می‌شود."
+    },
+    {
+     "kind": "plan",
+     "payable": 300000,
+     "applied": 0,
+     "cashDue": 300000,
+     "byRow": {},
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 300000,
+     "applied": 200000,
+     "cashDue": 100000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    }
+   ],
+   "value": {
+    "paidIn": 400000,
+    "manual": 400000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 0,
+    "kept": 600000,
+    "delta": 200000
+   }
+  },
+  {
+   "id": "C13-single-burn",
+   "steps": [
+    [
+     "issue 0 ALL",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "spend 0k of 0k",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 300000,
+      "paidTotal": 300000,
+      "storeCreditApplied": 300000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:300000"
+      ],
+      "storeCredit": 500000
+     }
+    ],
+    [
+     "try the rest 0k",
+     "OK",
+     "either",
+     {
+      "grandTotal": 100000,
+      "paidTotal": 100000,
+      "storeCreditApplied": 0,
+      "idempotentReplay": false,
+      "creditOutcomes": []
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 300000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 300000,
+     "applied": 300000,
+     "cashDue": 0,
+     "byRow": {
+      "0": 300000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 500000,
+     "used": 300000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": false,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": []
+    },
+    {
+     "kind": "lookupRefused",
+     "row": 1,
+     "msg": "این اعتبار («کد») کامل مصرف شده است — آخرین مصرف روی فاکتور شماره # در تاریخ #\n# تلاش دیگر باقی مانده است؛ بعد از آن ورود رمز برای # دقیقه قفل می‌شود."
+    },
+    {
+     "kind": "previewRefused",
+     "row": 1,
+     "msg": "این اعتبار («کد») کامل مصرف شده است — آخرین مصرف روی فاکتور شماره # در تاریخ #\n# تلاش دیگر باقی مانده است؛ بعد از آن ورود رمز برای # دقیقه قفل می‌شود."
+    },
+    {
+     "kind": "plan",
+     "payable": 100000,
+     "applied": 0,
+     "cashDue": 100000,
+     "byRow": {},
+     "error": null,
+     "notes": []
+    }
+   ],
+   "value": {
+    "paidIn": 100000,
+    "manual": 500000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 0,
+    "kept": 400000,
+    "delta": 200000
+   }
+  },
+  {
+   "id": "C14-single-carry",
+   "steps": [
+    [
+     "issue 0 ALL",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "spend 0k of 0k",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 300000,
+      "paidTotal": 300000,
+      "storeCreditApplied": 300000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:300000"
+      ],
+      "storeCredit": 500000
+     }
+    ],
+    [
+     "spend the rest on 0 mugs 0k",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 300000,
+      "paidTotal": 300000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 500000
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 300000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 300000,
+     "applied": 300000,
+     "cashDue": 0,
+     "byRow": {
+      "0": 300000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "PARTIALLY_USED",
+     "amount": 500000,
+     "used": 300000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": []
+    },
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "ماگ",
+      "ماگ",
+      "ماگ"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 300000,
+     "applied": 200000,
+     "cashDue": 100000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after 0",
+     "status": "USED",
+     "amount": 500000,
+     "used": 500000,
+     "uses": 2,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    }
+   ],
+   "value": {
+    "paidIn": 100000,
+    "manual": 500000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 0,
+    "kept": 600000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "C15-multi-3",
+   "steps": [
+    [
+     "issue 0 ALL",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "use 0 0k",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 50000,
+      "paidTotal": 50000,
+      "storeCreditApplied": 50000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:50000"
+      ],
+      "storeCredit": 300000
+     }
+    ],
+    [
+     "use 0 0k",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 50000,
+      "paidTotal": 50000,
+      "storeCreditApplied": 50000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:50000"
+      ],
+      "storeCredit": 300000
+     }
+    ],
+    [
+     "use 0 0k",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 50000,
+      "paidTotal": 50000,
+      "storeCreditApplied": 50000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:50000"
+      ],
+      "storeCredit": 300000
+     }
+    ],
+    [
+     "use 0 0k",
+     "OK",
+     "either",
+     {
+      "grandTotal": 50000,
+      "paidTotal": 50000,
+      "storeCreditApplied": 0,
+      "idempotentReplay": false,
+      "creditOutcomes": []
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 50000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "کالای # هزاری"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 50000,
+     "applied": 50000,
+     "cashDue": 0,
+     "byRow": {
+      "0": 50000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 50000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "کالای # هزاری"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 50000,
+     "applied": 50000,
+     "cashDue": 0,
+     "byRow": {
+      "0": 50000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 50000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "کالای # هزاری"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 50000,
+     "applied": 50000,
+     "cashDue": 0,
+     "byRow": {
+      "0": 50000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "lookupRefused",
+     "row": 1,
+     "msg": "دفعات مجاز استفاده از این اعتبار («کد») تمام شده است — # بار مصرف شده.\nمبلغ باقی‌مانده‌اش # ریال است ولی با این قواعد قابل استفاده نیست؛ برای افزایش سقف دفعات یا صدور اعتبار تازه با مدیر هماهنگ کنید.\n# تلاش دیگر باقی مانده است؛ بعد از آن ور"
+    },
+    {
+     "kind": "previewRefused",
+     "row": 1,
+     "msg": "دفعات مجاز استفاده از این اعتبار («کد») تمام شده است — # بار مصرف شده.\nمبلغ باقی‌مانده‌اش # ریال است ولی با این قواعد قابل استفاده نیست؛ برای افزایش سقف دفعات یا صدور اعتبار تازه با مدیر هماهنگ کنید.\n# تلاش دیگر باقی مانده است؛ بعد از آن ور"
+    },
+    {
+     "kind": "plan",
+     "payable": 50000,
+     "applied": 0,
+     "cashDue": 50000,
+     "byRow": {},
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 300000,
+     "used": 150000,
+     "uses": 3,
+     "maxUses": 3,
+     "multi": true,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    }
+   ],
+   "value": {
+    "paidIn": 50000,
+    "manual": 300000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 0,
+    "kept": 200000,
+    "delta": 150000
+   }
+  },
+  {
+   "id": "C16-two-scoped-same-item",
+   "steps": [
+    [
+     "issue 0 VARIANTS",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "issue 0 CATEGORY",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "POS page: shirt 0k + mug 0k with both",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 300000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000",
+       "APPLIED:100000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "issue 0 VARIANTS",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "issue 0 CATEGORY",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "registration itself: 0k + 0k on shirt 0k + mug",
+     "REFUSED",
+     "either",
+     "این فروش # ریال بدهی می‌سازد؛ نام، نام خانوادگی و شماره تلفن بدهکار الزامی است. هیچ فاکتور، بدهی یا حرکتی ثبت نشد."
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "preview",
+     "row": 2,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 300000,
+     "cashDue": 100000,
+     "byRow": {
+      "0": 200000,
+      "1": 100000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "card 0",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "VARIANTS",
+     "cats": [],
+     "vars": [
+      "پیراهن مردانه"
+     ],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "credit",
+     "label": "card 0",
+     "status": "PARTIALLY_USED",
+     "amount": 200000,
+     "used": 100000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "CATEGORY",
+     "cats": [
+      "مردانه"
+     ],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "credit",
+     "label": "card 0",
+     "status": "ACTIVE",
+     "amount": 200000,
+     "used": 0,
+     "uses": 0,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "VARIANTS",
+     "cats": [],
+     "vars": [
+      "پیراهن مردانه"
+     ],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "credit",
+     "label": "card 0",
+     "status": "ACTIVE",
+     "amount": 200000,
+     "used": 0,
+     "uses": 0,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "CATEGORY",
+     "cats": [
+      "مردانه"
+     ],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    }
+   ],
+   "value": {
+    "paidIn": 100000,
+    "manual": 800000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 500000,
+    "kept": 400000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "D1-ws-variant-ok",
+   "steps": [
+    [
+     "issue 0 VARIANTS",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "wholesale 0 item(s) CASH + 0 barcode · page auto-check of the barcode",
+     "OK",
+     "either",
+     {}
+    ],
+    [
+     "wholesale 0 item(s) CASH + 0 barcode",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "VARIANTS",
+     "cats": [],
+     "vars": [
+      "پیراهن مردانه"
+     ],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    }
+   ],
+   "value": {
+    "paidIn": 200000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 0,
+    "kept": 400000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "D2-ws-variant-over",
+   "steps": [
+    [
+     "issue 0 VARIANTS",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "page as today: credit = min(amount, payable) · page auto-check of the barcode",
+     "OK",
+     "either",
+     {}
+    ],
+    [
+     "page as today: credit = min(amount, payable)",
+     "REFUSED",
+     "either",
+     "این فروش # ریال بدهی می‌سازد؛ نام، نام خانوادگی و شماره تلفن بدهکار الزامی است. هیچ فاکتور، بدهی یا حرکتی ثبت نشد."
+    ],
+    [
+     "paid = payable − eligible (0k) · page auto-check of the barcode",
+     "OK",
+     "either",
+     {}
+    ],
+    [
+     "paid = payable − eligible (0k)",
+     "OK",
+     "either",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 300000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:300000"
+      ],
+      "storeCredit": 500000
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "PARTIALLY_USED",
+     "amount": 500000,
+     "used": 300000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "VARIANTS",
+     "cats": [],
+     "vars": [
+      "پیراهن مردانه"
+     ],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": []
+    }
+   ],
+   "value": {
+    "paidIn": 100000,
+    "manual": 500000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 200000,
+    "kept": 400000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "D3-ws-parent-category",
+   "steps": [
+    [
+     "issue 0 CATEGORY",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "wholesale 0 item(s) CASH + 0 barcode · page auto-check of the barcode",
+     "OK",
+     "either",
+     {}
+    ],
+    [
+     "wholesale 0 item(s) CASH + 0 barcode",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 300000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:300000"
+      ],
+      "storeCredit": 300000
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 300000,
+     "used": 300000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "CATEGORY",
+     "cats": [
+      "پوشاک"
+     ],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    }
+   ],
+   "value": {
+    "paidIn": 100000,
+    "manual": 300000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 0,
+    "kept": 400000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "D4-ws-no-eligible",
+   "steps": [
+    [
+     "issue 0 VARIANTS",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "wholesale 0 item(s) CASH + 0 barcode · page auto-check of the barcode",
+     "OK",
+     "either",
+     {}
+    ],
+    [
+     "wholesale 0 item(s) CASH + 0 barcode",
+     "REFUSED",
+     "either",
+     "این فروش # ریال بدهی می‌سازد؛ نام، نام خانوادگی و شماره تلفن بدهکار الزامی است. هیچ فاکتور، بدهی یا حرکتی ثبت نشد."
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "ACTIVE",
+     "amount": 100000,
+     "used": 0,
+     "uses": 0,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "VARIANTS",
+     "cats": [],
+     "vars": [
+      "پیراهن مردانه"
+     ],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    }
+   ],
+   "value": {
+    "paidIn": 0,
+    "manual": 100000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 100000,
+    "kept": 0,
+    "delta": 0
+   }
+  },
+  {
+   "id": "D5-ws-min-purchase",
+   "steps": [
+    [
+     "issue 0 ALL",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "wholesale 0 item(s) CASH + 0 barcode · page auto-check of the barcode",
+     "OK",
+     "either",
+     {}
+    ],
+    [
+     "wholesale 0 item(s) CASH + 0 barcode",
+     "REFUSED",
+     "either",
+     "این فروش # ریال بدهی می‌سازد؛ نام، نام خانوادگی و شماره تلفن بدهکار الزامی است. هیچ فاکتور، بدهی یا حرکتی ثبت نشد."
+    ],
+    [
+     "wholesale 0 item(s) CASH + 0 barcode · page auto-check of the barcode",
+     "OK",
+     "either",
+     {}
+    ],
+    [
+     "wholesale 0 item(s) CASH + 0 barcode",
+     "OK",
+     "either",
+     {
+      "grandTotal": 1000000,
+      "paidTotal": 1000000,
+      "storeCreditApplied": 100000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:100000"
+      ],
+      "storeCredit": 100000
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 100000,
+     "used": 100000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 1000000,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    }
+   ],
+   "value": {
+    "paidIn": 900000,
+    "manual": 100000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 0,
+    "kept": 1000000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "D6-ws-customer-lock",
+   "steps": [
+    [
+     "issue 0 ALL",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "wholesale 0 item(s) CASH + 0 barcode · page auto-check of the barcode",
+     "OK",
+     "either",
+     {}
+    ],
+    [
+     "wholesale 0 item(s) CASH + 0 barcode",
+     "REFUSED",
+     "either",
+     "این فروش # ریال بدهی می‌سازد؛ نام، نام خانوادگی و شماره تلفن بدهکار الزامی است. هیچ فاکتور، بدهی یا حرکتی ثبت نشد."
+    ],
+    [
+     "wholesale 0 item(s) CASH + 0 barcode · page auto-check of the barcode",
+     "OK",
+     "either",
+     {}
+    ],
+    [
+     "wholesale 0 item(s) CASH + 0 barcode",
+     "OK",
+     "either",
+     {
+      "grandTotal": 300000,
+      "paidTotal": 300000,
+      "storeCreditApplied": 100000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:100000"
+      ],
+      "storeCredit": 100000
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 100000,
+     "used": 100000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": true,
+     "expDays": 30
+    }
+   ],
+   "value": {
+    "paidIn": 200000,
+    "manual": 100000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 0,
+    "kept": 300000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "E1-V-full-return-cash",
+   "steps": [
+    [
+     "issue 0 VARIANTS",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "base: shirt 0k + mug 0k, card 0k (V)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "return full CASH",
+     "OK",
+     "ok",
+     {
+      "total": 400000,
+      "refundMethod": "CASH",
+      "refundAmount": 200000,
+      "returnCreditAmount": 200000,
+      "sourceCreditRestoredAmount": 200000,
+      "successors": [
+       200000
+      ]
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 200000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "VARIANTS",
+     "cats": [],
+     "vars": [
+      "پیراهن مردانه"
+     ],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": [
+      {
+       "status": "ACTIVE",
+       "amount": 200000,
+       "used": 0,
+       "uses": 0,
+       "maxUses": 1,
+       "multi": false,
+       "carry": true,
+       "scope": "VARIANTS",
+       "cats": [],
+       "vars": [
+        "پیراهن مردانه"
+       ],
+       "minPurchase": 0,
+       "maxPerTx": 0,
+       "locked": false,
+       "expDays": 30,
+       "source": "MANUAL",
+       "fromReturn": true
+      }
+     ]
+    }
+   ],
+   "value": {
+    "paidIn": 200000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 200000,
+    "c2c": 0,
+    "live": 200000,
+    "kept": 0,
+    "delta": 0
+   }
+  },
+  {
+   "id": "E2-V-return-mug",
+   "steps": [
+    [
+     "issue 0 VARIANTS",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "base: shirt 0k + mug 0k, card 0k (V)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "return partial CASH",
+     "OK",
+     "ok",
+     {
+      "total": 100000,
+      "refundMethod": "CASH",
+      "refundAmount": 100000,
+      "returnCreditAmount": 0,
+      "sourceCreditRestoredAmount": 0
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 200000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "VARIANTS",
+     "cats": [],
+     "vars": [
+      "پیراهن مردانه"
+     ],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": []
+    }
+   ],
+   "value": {
+    "paidIn": 200000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 100000,
+    "c2c": 0,
+    "live": 0,
+    "kept": 300000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "E3-V-return-shirt",
+   "steps": [
+    [
+     "issue 0 VARIANTS",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "base: shirt 0k + mug 0k, card 0k (V)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "return partial CASH",
+     "OK",
+     "ok",
+     {
+      "total": 300000,
+      "refundMethod": "CASH",
+      "refundAmount": 100000,
+      "returnCreditAmount": 200000,
+      "sourceCreditRestoredAmount": 200000,
+      "successors": [
+       200000
+      ]
+     }
+    ],
+    [
+     "second spend on a mug only",
+     "OK",
+     "either",
+     {
+      "grandTotal": 100000,
+      "paidTotal": 100000,
+      "storeCreditApplied": 0,
+      "idempotentReplay": false,
+      "creditOutcomes": []
+     }
+    ],
+    [
+     "second spend on the same shirt",
+     "OK",
+     "either",
+     {
+      "grandTotal": 300000,
+      "paidTotal": 300000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 200000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "VARIANTS",
+     "cats": [],
+     "vars": [
+      "پیراهن مردانه"
+     ],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": [
+      {
+       "status": "ACTIVE",
+       "amount": 200000,
+       "used": 0,
+       "uses": 0,
+       "maxUses": 1,
+       "multi": false,
+       "carry": true,
+       "scope": "VARIANTS",
+       "cats": [],
+       "vars": [
+        "پیراهن مردانه"
+       ],
+       "minPurchase": 0,
+       "maxPerTx": 0,
+       "locked": false,
+       "expDays": 30,
+       "source": "MANUAL",
+       "fromReturn": true
+      }
+     ]
+    },
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": false,
+     "applied": 0,
+     "error": "هیچ‌کدام از اقلام این فاکتور با محدودیت این اعتبار (کالا/دسته‌بندی) نمی‌خواند، پس این اعتبار روی این فاکتور قابل استفاده نیست.",
+     "notes": [],
+     "eligible": [],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 100000,
+     "applied": 0,
+     "cashDue": 100000,
+     "byRow": {},
+     "error": "هیچ‌کدام از اقلام این فاکتور با محدودیت این اعتبار (کالا/دسته‌بندی) نمی‌خواند، پس این اعتبار روی این فاکتور قابل استفاده نیست.",
+     "notes": [
+      "هیچ‌کدام از اقلام این فاکتور با محدودیت این اعتبار (کالا/دسته‌بندی) نمی‌خواند، پس این اعتبار روی این فاکتور قابل استفاده نیست."
+     ]
+    },
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 300000,
+     "applied": 200000,
+     "cashDue": 100000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    }
+   ],
+   "value": {
+    "paidIn": 400000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 100000,
+    "c2c": 0,
+    "live": 0,
+    "kept": 500000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "E4-V-exchange-shirt-to-dress",
+   "steps": [
+    [
+     "issue 0 VARIANTS",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "base: shirt 0k + mug 0k, card 0k (V)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "exchange (diff 0 CASH)",
+     "OK",
+     "ok",
+     {
+      "paidTotal": 400000,
+      "sourceCreditRestoredAmount": 200000,
+      "diff": 300000,
+      "cashReceived": 300000,
+      "cardReceived": 0,
+      "barcodeCreditApplied": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "realMoneyRefundAmount": 0,
+      "newStoreCreditAmount": 0,
+      "payoutAmount": 0,
+      "settlement": "CASH",
+      "storeCredit": 200000,
+      "successors": [
+       200000
+      ]
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 200000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "exchangePreview",
+     "effectiveDiff": 300000,
+     "nominalDiff": 100000,
+     "realMoneySurplus": 0,
+     "sourceCreditRestoration": 200000
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "VARIANTS",
+     "cats": [],
+     "vars": [
+      "پیراهن مردانه"
+     ],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": [
+      {
+       "status": "ACTIVE",
+       "amount": 200000,
+       "used": 0,
+       "uses": 0,
+       "maxUses": 1,
+       "multi": false,
+       "carry": true,
+       "scope": "VARIANTS",
+       "cats": [],
+       "vars": [
+        "پیراهن مردانه"
+       ],
+       "minPurchase": 0,
+       "maxPerTx": 0,
+       "locked": false,
+       "expDays": 30,
+       "source": "MANUAL",
+       "fromReturn": true
+      }
+     ]
+    }
+   ],
+   "value": {
+    "paidIn": 500000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 200000,
+    "kept": 500000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "E5-V-exchange-shirt-to-pants",
+   "steps": [
+    [
+     "issue 0 VARIANTS",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "base: shirt 0k + mug 0k, card 0k (V)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "exchange (diff 0 CASH)",
+     "OK",
+     "ok",
+     {
+      "paidTotal": 500000,
+      "sourceCreditRestoredAmount": 200000,
+      "diff": 400000,
+      "cashReceived": 400000,
+      "cardReceived": 0,
+      "barcodeCreditApplied": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "realMoneyRefundAmount": 0,
+      "newStoreCreditAmount": 0,
+      "payoutAmount": 0,
+      "settlement": "CASH",
+      "storeCredit": 200000,
+      "successors": [
+       200000
+      ]
+     }
+    ],
+    [
+     "full return of the exchange invoice (pants)",
+     "OK",
+     "ok",
+     {
+      "total": 500000,
+      "refundMethod": "CASH",
+      "refundAmount": 500000,
+      "returnCreditAmount": 0,
+      "sourceCreditRestoredAmount": 0
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 200000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "exchangePreview",
+     "effectiveDiff": 400000,
+     "nominalDiff": 200000,
+     "realMoneySurplus": 0,
+     "sourceCreditRestoration": 200000
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "VARIANTS",
+     "cats": [],
+     "vars": [
+      "پیراهن مردانه"
+     ],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": [
+      {
+       "status": "ACTIVE",
+       "amount": 200000,
+       "used": 0,
+       "uses": 0,
+       "maxUses": 1,
+       "multi": false,
+       "carry": true,
+       "scope": "VARIANTS",
+       "cats": [],
+       "vars": [
+        "پیراهن مردانه"
+       ],
+       "minPurchase": 0,
+       "maxPerTx": 0,
+       "locked": false,
+       "expDays": 30,
+       "source": "MANUAL",
+       "fromReturn": true
+      }
+     ]
+    },
+    {
+     "kind": "credit",
+     "label": "after return of the exchange invoice",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "VARIANTS",
+     "cats": [],
+     "vars": [
+      "پیراهن مردانه"
+     ],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after return of the exchange invoice",
+     "list": []
+    }
+   ],
+   "value": {
+    "paidIn": 600000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 500000,
+    "c2c": 0,
+    "live": 200000,
+    "kept": 100000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "E6-V-exchange-shirt-to-cheaper",
+   "steps": [
+    [
+     "issue 0 VARIANTS",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "base: shirt 0k + mug 0k, card 0k (V)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "exchange (diff 0 ZERO)",
+     "OK",
+     "ok",
+     {
+      "paidTotal": 100000,
+      "sourceCreditRestoredAmount": 200000,
+      "diff": 0,
+      "cashReceived": 0,
+      "cardReceived": 0,
+      "barcodeCreditApplied": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "realMoneyRefundAmount": 0,
+      "newStoreCreditAmount": 0,
+      "payoutAmount": 0,
+      "settlement": "CREDIT",
+      "storeCredit": 200000,
+      "successors": [
+       200000
+      ]
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 200000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "exchangePreview",
+     "effectiveDiff": 0,
+     "nominalDiff": -200000,
+     "realMoneySurplus": 0,
+     "sourceCreditRestoration": 200000
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "VARIANTS",
+     "cats": [],
+     "vars": [
+      "پیراهن مردانه"
+     ],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": [
+      {
+       "status": "ACTIVE",
+       "amount": 200000,
+       "used": 0,
+       "uses": 0,
+       "maxUses": 1,
+       "multi": false,
+       "carry": true,
+       "scope": "VARIANTS",
+       "cats": [],
+       "vars": [
+        "پیراهن مردانه"
+       ],
+       "minPurchase": 0,
+       "maxPerTx": 0,
+       "locked": false,
+       "expDays": 30,
+       "source": "MANUAL",
+       "fromReturn": true
+      }
+     ]
+    }
+   ],
+   "value": {
+    "paidIn": 200000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 200000,
+    "kept": 200000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "E1-C-full-return-cash",
+   "steps": [
+    [
+     "issue 0 CATEGORY",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "base: shirt 0k + mug 0k, card 0k (C)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "return full CASH",
+     "OK",
+     "ok",
+     {
+      "total": 400000,
+      "refundMethod": "CASH",
+      "refundAmount": 200000,
+      "returnCreditAmount": 200000,
+      "sourceCreditRestoredAmount": 200000,
+      "successors": [
+       200000
+      ]
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 200000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "CATEGORY",
+     "cats": [
+      "مردانه"
+     ],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": [
+      {
+       "status": "ACTIVE",
+       "amount": 200000,
+       "used": 0,
+       "uses": 0,
+       "maxUses": 1,
+       "multi": false,
+       "carry": true,
+       "scope": "CATEGORY",
+       "cats": [
+        "مردانه"
+       ],
+       "vars": [],
+       "minPurchase": 0,
+       "maxPerTx": 0,
+       "locked": false,
+       "expDays": 30,
+       "source": "MANUAL",
+       "fromReturn": true
+      }
+     ]
+    }
+   ],
+   "value": {
+    "paidIn": 200000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 200000,
+    "c2c": 0,
+    "live": 200000,
+    "kept": 0,
+    "delta": 0
+   }
+  },
+  {
+   "id": "E2-C-return-mug",
+   "steps": [
+    [
+     "issue 0 CATEGORY",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "base: shirt 0k + mug 0k, card 0k (C)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "return partial CASH",
+     "OK",
+     "ok",
+     {
+      "total": 100000,
+      "refundMethod": "CASH",
+      "refundAmount": 100000,
+      "returnCreditAmount": 0,
+      "sourceCreditRestoredAmount": 0
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 200000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "CATEGORY",
+     "cats": [
+      "مردانه"
+     ],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": []
+    }
+   ],
+   "value": {
+    "paidIn": 200000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 100000,
+    "c2c": 0,
+    "live": 0,
+    "kept": 300000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "E3-C-return-shirt",
+   "steps": [
+    [
+     "issue 0 CATEGORY",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "base: shirt 0k + mug 0k, card 0k (C)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "return partial CASH",
+     "OK",
+     "ok",
+     {
+      "total": 300000,
+      "refundMethod": "CASH",
+      "refundAmount": 100000,
+      "returnCreditAmount": 200000,
+      "sourceCreditRestoredAmount": 200000,
+      "successors": [
+       200000
+      ]
+     }
+    ],
+    [
+     "second spend on a mug only",
+     "OK",
+     "either",
+     {
+      "grandTotal": 100000,
+      "paidTotal": 100000,
+      "storeCreditApplied": 0,
+      "idempotentReplay": false,
+      "creditOutcomes": []
+     }
+    ],
+    [
+     "second spend on the same shirt",
+     "OK",
+     "either",
+     {
+      "grandTotal": 300000,
+      "paidTotal": 300000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 200000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "CATEGORY",
+     "cats": [
+      "مردانه"
+     ],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": [
+      {
+       "status": "ACTIVE",
+       "amount": 200000,
+       "used": 0,
+       "uses": 0,
+       "maxUses": 1,
+       "multi": false,
+       "carry": true,
+       "scope": "CATEGORY",
+       "cats": [
+        "مردانه"
+       ],
+       "vars": [],
+       "minPurchase": 0,
+       "maxPerTx": 0,
+       "locked": false,
+       "expDays": 30,
+       "source": "MANUAL",
+       "fromReturn": true
+      }
+     ]
+    },
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": false,
+     "applied": 0,
+     "error": "هیچ‌کدام از اقلام این فاکتور با محدودیت این اعتبار (کالا/دسته‌بندی) نمی‌خواند، پس این اعتبار روی این فاکتور قابل استفاده نیست.",
+     "notes": [],
+     "eligible": [],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 100000,
+     "applied": 0,
+     "cashDue": 100000,
+     "byRow": {},
+     "error": "هیچ‌کدام از اقلام این فاکتور با محدودیت این اعتبار (کالا/دسته‌بندی) نمی‌خواند، پس این اعتبار روی این فاکتور قابل استفاده نیست.",
+     "notes": [
+      "هیچ‌کدام از اقلام این فاکتور با محدودیت این اعتبار (کالا/دسته‌بندی) نمی‌خواند، پس این اعتبار روی این فاکتور قابل استفاده نیست."
+     ]
+    },
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 300000,
+     "applied": 200000,
+     "cashDue": 100000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    }
+   ],
+   "value": {
+    "paidIn": 400000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 100000,
+    "c2c": 0,
+    "live": 0,
+    "kept": 500000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "E4-C-exchange-shirt-to-dress",
+   "steps": [
+    [
+     "issue 0 CATEGORY",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "base: shirt 0k + mug 0k, card 0k (C)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "exchange (diff 0 CASH)",
+     "OK",
+     "ok",
+     {
+      "paidTotal": 400000,
+      "sourceCreditRestoredAmount": 200000,
+      "diff": 300000,
+      "cashReceived": 300000,
+      "cardReceived": 0,
+      "barcodeCreditApplied": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "realMoneyRefundAmount": 0,
+      "newStoreCreditAmount": 0,
+      "payoutAmount": 0,
+      "settlement": "CASH",
+      "storeCredit": 200000,
+      "successors": [
+       200000
+      ]
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 200000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "exchangePreview",
+     "effectiveDiff": 300000,
+     "nominalDiff": 100000,
+     "realMoneySurplus": 0,
+     "sourceCreditRestoration": 200000
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "CATEGORY",
+     "cats": [
+      "مردانه"
+     ],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": [
+      {
+       "status": "ACTIVE",
+       "amount": 200000,
+       "used": 0,
+       "uses": 0,
+       "maxUses": 1,
+       "multi": false,
+       "carry": true,
+       "scope": "CATEGORY",
+       "cats": [
+        "مردانه"
+       ],
+       "vars": [],
+       "minPurchase": 0,
+       "maxPerTx": 0,
+       "locked": false,
+       "expDays": 30,
+       "source": "MANUAL",
+       "fromReturn": true
+      }
+     ]
+    }
+   ],
+   "value": {
+    "paidIn": 500000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 200000,
+    "kept": 500000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "E5-C-exchange-shirt-to-pants",
+   "steps": [
+    [
+     "issue 0 CATEGORY",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "base: shirt 0k + mug 0k, card 0k (C)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "exchange (diff 0 CASH)",
+     "OK",
+     "ok",
+     {
+      "paidTotal": 500000,
+      "sourceCreditRestoredAmount": 0,
+      "diff": 200000,
+      "cashReceived": 200000,
+      "cardReceived": 0,
+      "barcodeCreditApplied": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "realMoneyRefundAmount": 0,
+      "newStoreCreditAmount": 0,
+      "payoutAmount": 0,
+      "settlement": "CASH"
+     }
+    ],
+    [
+     "full return of the exchange invoice (pants)",
+     "OK",
+     "ok",
+     {
+      "total": 500000,
+      "refundMethod": "CASH",
+      "refundAmount": 300000,
+      "returnCreditAmount": 200000,
+      "sourceCreditRestoredAmount": 200000,
+      "successors": [
+       200000
+      ]
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 200000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "exchangePreview",
+     "effectiveDiff": 200000,
+     "nominalDiff": 200000,
+     "realMoneySurplus": 0,
+     "sourceCreditRestoration": 0
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "CATEGORY",
+     "cats": [
+      "مردانه"
+     ],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": []
+    },
+    {
+     "kind": "credit",
+     "label": "after return of the exchange invoice",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "CATEGORY",
+     "cats": [
+      "مردانه"
+     ],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after return of the exchange invoice",
+     "list": [
+      {
+       "status": "ACTIVE",
+       "amount": 200000,
+       "used": 0,
+       "uses": 0,
+       "maxUses": 1,
+       "multi": false,
+       "carry": true,
+       "scope": "CATEGORY",
+       "cats": [
+        "مردانه"
+       ],
+       "vars": [],
+       "minPurchase": 0,
+       "maxPerTx": 0,
+       "locked": false,
+       "expDays": 30,
+       "source": "MANUAL",
+       "fromReturn": true
+      }
+     ]
+    }
+   ],
+   "value": {
+    "paidIn": 400000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 300000,
+    "c2c": 0,
+    "live": 200000,
+    "kept": 100000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "E6-C-exchange-shirt-to-cheaper",
+   "steps": [
+    [
+     "issue 0 CATEGORY",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "base: shirt 0k + mug 0k, card 0k (C)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "exchange (diff 0 ZERO)",
+     "OK",
+     "ok",
+     {
+      "paidTotal": 100000,
+      "sourceCreditRestoredAmount": 200000,
+      "diff": 0,
+      "cashReceived": 0,
+      "cardReceived": 0,
+      "barcodeCreditApplied": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "realMoneyRefundAmount": 0,
+      "newStoreCreditAmount": 0,
+      "payoutAmount": 0,
+      "settlement": "CREDIT",
+      "storeCredit": 200000,
+      "successors": [
+       200000
+      ]
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": [
+      "ماگ"
+     ]
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 200000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "exchangePreview",
+     "effectiveDiff": 0,
+     "nominalDiff": -200000,
+     "realMoneySurplus": 0,
+     "sourceCreditRestoration": 200000
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "CATEGORY",
+     "cats": [
+      "مردانه"
+     ],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": [
+      {
+       "status": "ACTIVE",
+       "amount": 200000,
+       "used": 0,
+       "uses": 0,
+       "maxUses": 1,
+       "multi": false,
+       "carry": true,
+       "scope": "CATEGORY",
+       "cats": [
+        "مردانه"
+       ],
+       "vars": [],
+       "minPurchase": 0,
+       "maxPerTx": 0,
+       "locked": false,
+       "expDays": 30,
+       "source": "MANUAL",
+       "fromReturn": true
+      }
+     ]
+    }
+   ],
+   "value": {
+    "paidIn": 200000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 200000,
+    "kept": 200000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "E1-ALL-full-return-cash",
+   "steps": [
+    [
+     "issue 0 ALL",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "base: shirt 0k + mug 0k, card 0k (ALL)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "return full CASH",
+     "OK",
+     "ok",
+     {
+      "total": 400000,
+      "refundMethod": "CASH",
+      "refundAmount": 200000,
+      "returnCreditAmount": 200000,
+      "sourceCreditRestoredAmount": 200000,
+      "successors": [
+       200000
+      ]
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه",
+      "ماگ"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 200000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": [
+      {
+       "status": "ACTIVE",
+       "amount": 200000,
+       "used": 0,
+       "uses": 0,
+       "maxUses": 1,
+       "multi": false,
+       "carry": true,
+       "scope": "ALL",
+       "cats": [],
+       "vars": [],
+       "minPurchase": 0,
+       "maxPerTx": 0,
+       "locked": false,
+       "expDays": 30,
+       "source": "MANUAL",
+       "fromReturn": true
+      }
+     ]
+    }
+   ],
+   "value": {
+    "paidIn": 200000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 200000,
+    "c2c": 0,
+    "live": 200000,
+    "kept": 0,
+    "delta": 0
+   }
+  },
+  {
+   "id": "E2-ALL-return-mug",
+   "steps": [
+    [
+     "issue 0 ALL",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "base: shirt 0k + mug 0k, card 0k (ALL)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "return partial CASH",
+     "OK",
+     "ok",
+     {
+      "total": 100000,
+      "refundMethod": "NONE",
+      "refundAmount": 0,
+      "returnCreditAmount": 100000,
+      "sourceCreditRestoredAmount": 100000,
+      "successors": [
+       100000
+      ]
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه",
+      "ماگ"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 200000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": [
+      {
+       "status": "ACTIVE",
+       "amount": 100000,
+       "used": 0,
+       "uses": 0,
+       "maxUses": 1,
+       "multi": false,
+       "carry": true,
+       "scope": "ALL",
+       "cats": [],
+       "vars": [],
+       "minPurchase": 0,
+       "maxPerTx": 0,
+       "locked": false,
+       "expDays": 30,
+       "source": "MANUAL",
+       "fromReturn": true
+      }
+     ]
+    }
+   ],
+   "value": {
+    "paidIn": 200000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 100000,
+    "kept": 300000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "E3-ALL-return-shirt",
+   "steps": [
+    [
+     "issue 0 ALL",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "base: shirt 0k + mug 0k, card 0k (ALL)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "return partial CASH",
+     "OK",
+     "ok",
+     {
+      "total": 300000,
+      "refundMethod": "CASH",
+      "refundAmount": 100000,
+      "returnCreditAmount": 200000,
+      "sourceCreditRestoredAmount": 200000,
+      "successors": [
+       200000
+      ]
+     }
+    ],
+    [
+     "second spend on a mug only",
+     "OK",
+     "either",
+     {
+      "grandTotal": 100000,
+      "paidTotal": 100000,
+      "storeCreditApplied": 100000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:100000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "second spend on the same shirt",
+     "OK",
+     "either",
+     {
+      "grandTotal": 300000,
+      "paidTotal": 300000,
+      "storeCreditApplied": 100000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:100000"
+      ],
+      "storeCredit": 200000
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه",
+      "ماگ"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 200000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": [
+      {
+       "status": "ACTIVE",
+       "amount": 200000,
+       "used": 0,
+       "uses": 0,
+       "maxUses": 1,
+       "multi": false,
+       "carry": true,
+       "scope": "ALL",
+       "cats": [],
+       "vars": [],
+       "minPurchase": 0,
+       "maxPerTx": 0,
+       "locked": false,
+       "expDays": 30,
+       "source": "MANUAL",
+       "fromReturn": true
+      }
+     ]
+    },
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 100000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "ماگ"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 100000,
+     "applied": 100000,
+     "cashDue": 0,
+     "byRow": {
+      "0": 100000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 100000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 300000,
+     "applied": 100000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 100000
+     },
+     "error": null,
+     "notes": []
+    }
+   ],
+   "value": {
+    "paidIn": 400000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 100000,
+    "c2c": 0,
+    "live": 0,
+    "kept": 500000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "E4-ALL-exchange-shirt-to-dress",
+   "steps": [
+    [
+     "issue 0 ALL",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "base: shirt 0k + mug 0k, card 0k (ALL)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "exchange (diff 0 CASH)",
+     "OK",
+     "ok",
+     {
+      "paidTotal": 400000,
+      "sourceCreditRestoredAmount": 0,
+      "diff": 100000,
+      "cashReceived": 100000,
+      "cardReceived": 0,
+      "barcodeCreditApplied": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "realMoneyRefundAmount": 0,
+      "newStoreCreditAmount": 0,
+      "payoutAmount": 0,
+      "settlement": "CASH"
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه",
+      "ماگ"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 200000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "exchangePreview",
+     "effectiveDiff": 100000,
+     "nominalDiff": 100000,
+     "realMoneySurplus": 0,
+     "sourceCreditRestoration": 0
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": []
+    }
+   ],
+   "value": {
+    "paidIn": 300000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 0,
+    "kept": 500000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "E5-ALL-exchange-shirt-to-pants",
+   "steps": [
+    [
+     "issue 0 ALL",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "base: shirt 0k + mug 0k, card 0k (ALL)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "exchange (diff 0 CASH)",
+     "OK",
+     "ok",
+     {
+      "paidTotal": 500000,
+      "sourceCreditRestoredAmount": 0,
+      "diff": 200000,
+      "cashReceived": 200000,
+      "cardReceived": 0,
+      "barcodeCreditApplied": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "realMoneyRefundAmount": 0,
+      "newStoreCreditAmount": 0,
+      "payoutAmount": 0,
+      "settlement": "CASH"
+     }
+    ],
+    [
+     "full return of the exchange invoice (pants)",
+     "OK",
+     "ok",
+     {
+      "total": 500000,
+      "refundMethod": "CASH",
+      "refundAmount": 300000,
+      "returnCreditAmount": 200000,
+      "sourceCreditRestoredAmount": 200000,
+      "successors": [
+       200000
+      ]
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه",
+      "ماگ"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 200000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "exchangePreview",
+     "effectiveDiff": 200000,
+     "nominalDiff": 200000,
+     "realMoneySurplus": 0,
+     "sourceCreditRestoration": 0
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": []
+    },
+    {
+     "kind": "credit",
+     "label": "after return of the exchange invoice",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after return of the exchange invoice",
+     "list": [
+      {
+       "status": "ACTIVE",
+       "amount": 200000,
+       "used": 0,
+       "uses": 0,
+       "maxUses": 1,
+       "multi": false,
+       "carry": true,
+       "scope": "ALL",
+       "cats": [],
+       "vars": [],
+       "minPurchase": 0,
+       "maxPerTx": 0,
+       "locked": false,
+       "expDays": 30,
+       "source": "MANUAL",
+       "fromReturn": true
+      }
+     ]
+    }
+   ],
+   "value": {
+    "paidIn": 400000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 300000,
+    "c2c": 0,
+    "live": 200000,
+    "kept": 100000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "E6-ALL-exchange-shirt-to-cheaper",
+   "steps": [
+    [
+     "issue 0 ALL",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "base: shirt 0k + mug 0k, card 0k (ALL)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "exchange (diff -0 CASH)",
+     "OK",
+     "ok",
+     {
+      "paidTotal": 100000,
+      "sourceCreditRestoredAmount": 200000,
+      "diff": -100000,
+      "cashReceived": 0,
+      "cardReceived": 0,
+      "barcodeCreditApplied": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "realMoneyRefundAmount": 0,
+      "newStoreCreditAmount": 0,
+      "payoutAmount": 0,
+      "refundMode": "CASH",
+      "settlement": "CREDIT",
+      "storeCredit": 200000,
+      "successors": [
+       200000
+      ]
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "preview",
+     "row": 1,
+     "ok": true,
+     "applied": 200000,
+     "error": null,
+     "notes": [],
+     "eligible": [
+      "پیراهن مردانه",
+      "ماگ"
+     ],
+     "excluded": []
+    },
+    {
+     "kind": "plan",
+     "payable": 400000,
+     "applied": 200000,
+     "cashDue": 200000,
+     "byRow": {
+      "0": 200000
+     },
+     "error": null,
+     "notes": []
+    },
+    {
+     "kind": "exchangePreview",
+     "effectiveDiff": -100000,
+     "nominalDiff": -200000,
+     "realMoneySurplus": 0,
+     "sourceCreditRestoration": 200000
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "ALL",
+     "cats": [],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": [
+      {
+       "status": "ACTIVE",
+       "amount": 200000,
+       "used": 0,
+       "uses": 0,
+       "maxUses": 1,
+       "multi": false,
+       "carry": true,
+       "scope": "ALL",
+       "cats": [],
+       "vars": [],
+       "minPurchase": 0,
+       "maxPerTx": 0,
+       "locked": false,
+       "expDays": 30,
+       "source": "MANUAL",
+       "fromReturn": true
+      }
+     ]
+    }
+   ],
+   "value": {
+    "paidIn": 200000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 200000,
+    "kept": 200000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "F1-V-ws-full-return",
+   "steps": [
+    [
+     "issue 0 VARIANTS",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "wholesale base: shirt + mug, card 0k · page auto-check of the barcode",
+     "OK",
+     "either",
+     {}
+    ],
+    [
+     "wholesale base: shirt + mug, card 0k",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "return full CASH",
+     "OK",
+     "ok",
+     {
+      "total": 400000,
+      "refundMethod": "CASH",
+      "refundAmount": 200000,
+      "returnCreditAmount": 200000,
+      "sourceCreditRestoredAmount": 200000,
+      "successors": [
+       200000
+      ]
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "VARIANTS",
+     "cats": [],
+     "vars": [
+      "پیراهن مردانه"
+     ],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": [
+      {
+       "status": "ACTIVE",
+       "amount": 200000,
+       "used": 0,
+       "uses": 0,
+       "maxUses": 1,
+       "multi": false,
+       "carry": true,
+       "scope": "VARIANTS",
+       "cats": [],
+       "vars": [
+        "پیراهن مردانه"
+       ],
+       "minPurchase": 0,
+       "maxPerTx": 0,
+       "locked": false,
+       "expDays": 30,
+       "source": "MANUAL",
+       "fromReturn": true
+      }
+     ]
+    }
+   ],
+   "value": {
+    "paidIn": 200000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 200000,
+    "c2c": 0,
+    "live": 200000,
+    "kept": 0,
+    "delta": 0
+   }
+  },
+  {
+   "id": "F2-V-ws-exchange-to-dress",
+   "steps": [
+    [
+     "issue 0 VARIANTS",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "wholesale base: shirt + mug, card 0k · page auto-check of the barcode",
+     "OK",
+     "either",
+     {}
+    ],
+    [
+     "wholesale base: shirt + mug, card 0k",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "exchange (diff 0 CASH)",
+     "OK",
+     "ok",
+     {
+      "paidTotal": 400000,
+      "sourceCreditRestoredAmount": 200000,
+      "diff": 300000,
+      "cashReceived": 300000,
+      "cardReceived": 0,
+      "barcodeCreditApplied": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "realMoneyRefundAmount": 0,
+      "newStoreCreditAmount": 0,
+      "payoutAmount": 0,
+      "settlement": "CASH",
+      "storeCredit": 200000,
+      "successors": [
+       200000
+      ]
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "exchangePreview",
+     "effectiveDiff": 300000,
+     "nominalDiff": 100000,
+     "realMoneySurplus": 0,
+     "sourceCreditRestoration": 200000
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "VARIANTS",
+     "cats": [],
+     "vars": [
+      "پیراهن مردانه"
+     ],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": [
+      {
+       "status": "ACTIVE",
+       "amount": 200000,
+       "used": 0,
+       "uses": 0,
+       "maxUses": 1,
+       "multi": false,
+       "carry": true,
+       "scope": "VARIANTS",
+       "cats": [],
+       "vars": [
+        "پیراهن مردانه"
+       ],
+       "minPurchase": 0,
+       "maxPerTx": 0,
+       "locked": false,
+       "expDays": 30,
+       "source": "MANUAL",
+       "fromReturn": true
+      }
+     ]
+    }
+   ],
+   "value": {
+    "paidIn": 500000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 200000,
+    "kept": 500000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "F1-C-ws-full-return",
+   "steps": [
+    [
+     "issue 0 CATEGORY",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "wholesale base: shirt + mug, card 0k · page auto-check of the barcode",
+     "OK",
+     "either",
+     {}
+    ],
+    [
+     "wholesale base: shirt + mug, card 0k",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "return full CASH",
+     "OK",
+     "ok",
+     {
+      "total": 400000,
+      "refundMethod": "CASH",
+      "refundAmount": 200000,
+      "returnCreditAmount": 200000,
+      "sourceCreditRestoredAmount": 200000,
+      "successors": [
+       200000
+      ]
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "CATEGORY",
+     "cats": [
+      "مردانه"
+     ],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": [
+      {
+       "status": "ACTIVE",
+       "amount": 200000,
+       "used": 0,
+       "uses": 0,
+       "maxUses": 1,
+       "multi": false,
+       "carry": true,
+       "scope": "CATEGORY",
+       "cats": [
+        "مردانه"
+       ],
+       "vars": [],
+       "minPurchase": 0,
+       "maxPerTx": 0,
+       "locked": false,
+       "expDays": 30,
+       "source": "MANUAL",
+       "fromReturn": true
+      }
+     ]
+    }
+   ],
+   "value": {
+    "paidIn": 200000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 200000,
+    "c2c": 0,
+    "live": 200000,
+    "kept": 0,
+    "delta": 0
+   }
+  },
+  {
+   "id": "F2-C-ws-exchange-to-dress",
+   "steps": [
+    [
+     "issue 0 CATEGORY",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "wholesale base: shirt + mug, card 0k · page auto-check of the barcode",
+     "OK",
+     "either",
+     {}
+    ],
+    [
+     "wholesale base: shirt + mug, card 0k",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "storeCreditApplied": 200000,
+      "idempotentReplay": false,
+      "creditOutcomes": [
+       "APPLIED:200000"
+      ],
+      "storeCredit": 200000
+     }
+    ],
+    [
+     "exchange (diff 0 CASH)",
+     "OK",
+     "ok",
+     {
+      "paidTotal": 400000,
+      "sourceCreditRestoredAmount": 200000,
+      "diff": 300000,
+      "cashReceived": 300000,
+      "cardReceived": 0,
+      "barcodeCreditApplied": 0,
+      "cashRefunded": 0,
+      "cardRefunded": 0,
+      "realMoneyRefundAmount": 0,
+      "newStoreCreditAmount": 0,
+      "payoutAmount": 0,
+      "settlement": "CASH",
+      "storeCredit": 200000,
+      "successors": [
+       200000
+      ]
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "exchangePreview",
+     "effectiveDiff": 300000,
+     "nominalDiff": 100000,
+     "realMoneySurplus": 0,
+     "sourceCreditRestoration": 200000
+    },
+    {
+     "kind": "credit",
+     "label": "after",
+     "status": "USED",
+     "amount": 200000,
+     "used": 200000,
+     "uses": 1,
+     "maxUses": 1,
+     "multi": false,
+     "carry": true,
+     "scope": "CATEGORY",
+     "cats": [
+      "مردانه"
+     ],
+     "vars": [],
+     "minPurchase": 0,
+     "maxPerTx": 0,
+     "locked": false,
+     "expDays": 30
+    },
+    {
+     "kind": "newCredits",
+     "label": "after",
+     "list": [
+      {
+       "status": "ACTIVE",
+       "amount": 200000,
+       "used": 0,
+       "uses": 0,
+       "maxUses": 1,
+       "multi": false,
+       "carry": true,
+       "scope": "CATEGORY",
+       "cats": [
+        "مردانه"
+       ],
+       "vars": [],
+       "minPurchase": 0,
+       "maxPerTx": 0,
+       "locked": false,
+       "expDays": 30,
+       "source": "MANUAL",
+       "fromReturn": true
+      }
+     ]
+    }
+   ],
+   "value": {
+    "paidIn": 500000,
+    "manual": 200000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 200000,
+    "kept": 500000,
+    "delta": 0
+   }
+  },
+  {
+   "id": "G-reports-print",
+   "steps": [
+    [
+     "issue 0 VARIANTS",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "issue 0 CATEGORY",
+     "OK",
+     "ok",
+     {}
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "kind": "detailLedger",
+     "rows": [
+      {
+       "seq": 1,
+       "amount": 300000,
+       "remainderAfter": 200000,
+       "reversed": false
+      }
+     ]
+    },
+    {
+     "kind": "paperUsedCard",
+     "css": {
+      "pageWidthMm": 105,
+      "pageHeightMm": 148,
+      "body": {
+       "px": 11
+      },
+      "h1": {
+       "px": 14
+      },
+      "amount": {
+       "px": 17
+      },
+      "code": {
+       "px": 15
+      },
+      "rules": {
+       "px": 9
+      }
+     },
+     "lines": [
+      "فروشگاه",
+      "سند اعتبار خرید · صادرشده توسط مدیریت",
+      "# ریال",
+      "«کد»",
+      "اعتبار از لحظه‌ی صدور قابل استفاده است؛ چاپ و تحویل فقط سابقه‌ی تحویل به مشتری را ثبت می‌کنند.",
+      "تاریخ صدور # #",
+      "تاریخ انقضا #",
+      "وضعیت مصرف بخشی (باقی‌مانده دارد)",
+      "دفعات مجاز یک‌بارمصرف · استفاده‌شده #",
+      "باقی‌مانده # ریال",
+      "محدودیت استفاده محدود به دسته‌بندی‌های انتخاب‌شده (0 دسته)",
+      "شرکت/سازمان آرکاجین",
+      "تماس #-#",
+      "توضیح هدیهٔ فروشگاه به کارکنان شرکت آرکاجین",
+      "این سند به‌جای پول نقد است و فقط در همین فروشگاه و تا تاریخ انقضا قابل استفاده است. مبلغ واقعی اعتبار همیشه از سیستم فروشگاه خوانده می‌شود.",
+      "غیرقابل نقد شدن · فقط برای خرید کالا",
+      "کیفیت هنر ماست"
+     ]
+    },
+    {
+     "kind": "paperFreshCard",
+     "css": {
+      "pageWidthMm": 105,
+      "pageHeightMm": 148,
+      "body": {
+       "px": 11
+      },
+      "h1": {
+       "px": 14
+      },
+      "amount": {
+       "px": 17
+      },
+      "code": {
+       "px": 15
+      },
+      "rules": {
+       "px": 9
+      }
+     },
+     "lines": [
+      "فروشگاه",
+      "سند اعتبار خرید · صادرشده توسط مدیریت",
+      "# ریال",
+      "«کد»",
+      "اعتبار از لحظه‌ی صدور قابل استفاده است؛ چاپ و تحویل فقط سابقه‌ی تحویل به مشتری را ثبت می‌کنند.",
+      "تاریخ صدور # #",
+      "تاریخ انقضا #",
+      "وضعیت مصرف‌نشده (معتبر)",
+      "دفعات مجاز یک‌بارمصرف · استفاده‌شده #",
+      "باقی‌مانده # ریال",
+      "محدودیت استفاده محدود به دسته‌بندی‌های انتخاب‌شده (0 دسته)",
+      "شرکت/سازمان آرکاجین",
+      "تماس #-#",
+      "توضیح هدیهٔ فروشگاه به کارکنان شرکت آرکاجین",
+      "این سند به‌جای پول نقد است و فقط در همین فروشگاه و تا تاریخ انقضا قابل استفاده است. مبلغ واقعی اعتبار همیشه از سیستم فروشگاه خوانده می‌شود.",
+      "غیرقابل نقد شدن · فقط برای خرید کالا",
+      "کیفیت هنر ماست"
+     ]
+    },
+    {
+     "kind": "batchPrint",
+     "docs": 300,
+     "total": 300,
+     "perPage": 1,
+     "pages": 300,
+     "css": {
+      "pageWidthMm": 105,
+      "pageHeightMm": 148,
+      "body": {
+       "px": 11
+      },
+      "h1": {
+       "px": 14
+      },
+      "amount": {
+       "px": 17
+      },
+      "code": {
+       "px": 15
+      },
+      "rules": {
+       "px": 9
+      }
+     }
+    },
+    {
+     "kind": "dashboard",
+     "issuedCount": 376,
+     "issuedTotal": 170800000,
+     "usedTotal": 11750000,
+     "remainingTotal": 159050000,
+     "activeCount": 332,
+     "activeValue": 158300000,
+     "unusedCount": 326,
+     "fullyUsedCount": 42,
+     "expiredCount": 1,
+     "canceledCount": 1,
+     "suspendedCount": 0,
+     "liability": 158300000
+    },
+    {
+     "kind": "paperVariantScope",
+     "lines": [
+      "محدودیت استفاده محدود به کالاهای انتخاب‌شده (0 کالا)"
+     ]
+    },
+    {
+     "kind": "paperCategoryScope",
+     "lines": [
+      "محدودیت استفاده محدود به دسته‌بندی‌های انتخاب‌شده (0 دسته)"
+     ]
+    },
+    {
+     "kind": "lookupScopeFields",
+     "restrictScope": "VARIANTS",
+     "restrictScopeLabel": "محدود به کالاهای انتخاب‌شده",
+     "usesLabel": "یک‌بارمصرف"
+    }
+   ],
+   "value": {
+    "paidIn": 0,
+    "manual": 500000,
+    "writeOff": 0,
+    "physOut": 0,
+    "c2c": 0,
+    "live": 500000,
+    "kept": 0,
+    "delta": 0
+   }
+  }
+ ]
+}

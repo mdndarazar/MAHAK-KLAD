@@ -355,6 +355,8 @@ export interface InvoicePaymentsView {
   dateJalali: string
   time: string
   customerName: string
+  /** دفتر آزمون ۴-۶۰ — نام بدهکار ثبت‌شده روی فاکتور (فقط نمایش)؛ `null` اگر ثبت نشده باشد */
+  debtorName?: string | null
   orderTypeLabel: string
   grandTotal: number
   /** جمع پرداختی‌های دریافت‌شده (نقدی + چک پاس‌شده) */
@@ -448,6 +450,8 @@ export interface ChequeListRow extends InvoicePaymentRow {
   receiptNo: number
   invoiceDateJalali: string
   customerName: string
+  /** دفتر آزمون ۴-۶۰ — نام بدهکار فاکتور مادر (فقط نمایش) */
+  debtorName?: string | null
   invoiceTotal: number
   invoiceRemaining: number
 }
@@ -2761,6 +2765,8 @@ export interface CreditInvoiceRow {
   settledAtJalali: string | null
   /** جمع چک‌های در جریان روی این فاکتور */
   pendingChequeTotal: number
+  /** دفتر آزمون ۴-۶۳ — جمع چک‌های برگشتی همین فاکتور (فقط نمایش) */
+  bouncedChequeTotal?: number
   /** تعداد پرداختی‌های ثبت‌شده */
   paymentCount: number
   /** آخرین پرداختی */
@@ -2816,6 +2822,8 @@ export interface CreditReportResult {
     partialCount: number
     settledCount: number
     pendingChequeTotal: number
+    /** دفتر آزمون ۴-۶۳ — جمع چک‌های برگشتی (فقط نمایش) */
+    bouncedChequeTotal?: number
     overpayTotal: number
     /** جمع پرداختی‌های این بازه بابت نسیه‌ی بازه‌های قبل */
     priorSettlementTotal: number

@@ -91,21 +91,22 @@ salesService.exchangeGet = async ({ id }) => ({
 
 const creditCountBefore = seed.count('StoreCredit')
 try {
-  // A) One print from the exchange screen includes the already-issued barcode.
+  // A) The exchange document no longer carries the credit code/barcode (plan 1405 item 12).
   const exchangeOutcome = await printService.printExchange({ returnId: exchangeReturnId, deviceName: 'Axiom', silent: true })
   assert.equal(exchangeOutcome.returnId, exchangeReturnId)
   assert.equal(mock.state.printCalls.length, 1, 'one exchange document was sent to mocked printer')
   const exchangeHtml = mock.state.windows.at(-1)?._html ?? ''
-  assert.ok(exchangeHtml.includes(`<b>${original.code}</b>`), 'exchange receipt prints the existing credential text')
-  assert.ok(exchangeHtml.includes(`alt="${original.code}"`), 'exchange receipt barcode represents the same existing code')
+  assert.ok(!exchangeHtml.includes(original.code), 'exchange receipt carries no credential text or barcode (plan 1405 item 12)')
+  assert.ok(exchangeHtml.includes('را از فروشنده بگیرید'), 'exchange receipt tells the customer to take the separate certificate')
   assert.equal(seed.count('StoreCredit'), creditCountBefore, 'printing the exchange receipt issues no extra credit')
   let afterExchangePrint = seed.one('SELECT code,status,printCount,usedAmount,usedCount FROM "StoreCredit" WHERE id=?', issued.id)
-  assert.equal(Number(afterExchangePrint.printCount), 1, 'successful exchange receipt counts its barcode copy')
+  assert.equal(Number(afterExchangePrint.printCount), 0, 'exchange receipt print is not a credential copy (plan 1405 item 12)')
   assert.equal(afterExchangePrint.status, 'ACTIVE')
   assert.equal(Number(afterExchangePrint.usedAmount), 0)
   assert.equal(Number(afterExchangePrint.usedCount), 0)
 
-  // B) Manager recovery prints that same StoreCredit id, not an issue endpoint.
+  // B) First certificate print, then manager recovery prints that same StoreCredit id, not an issue endpoint.
+  await printService.printCredit({ id: issued.id, deviceName: 'Axiom', silent: true, markPrinted: true })
   const managerPrint = await printService.printCredit({
     id: issued.id,
     deviceName: 'Axiom',
@@ -125,8 +126,8 @@ try {
   assert.equal(Number(afterPrint.usedAmount), 0)
   assert.equal(Number(afterPrint.usedCount), 0)
 
-  // A definite cancellation changes no print audit. An unknown printer outcome
-  // is counted conservatively so any later copy is never mislabeled as original.
+  // Neither a definite cancellation nor an unknown outcome of the exchange document
+  // touches the credit print audit: it carries no credential (plan 1405 item 12).
   mock.state.printOutcome = 'canceled'
   await assert.rejects(
     () => printService.printExchange({ returnId: exchangeReturnId, deviceName: 'Axiom', silent: true }),
@@ -139,8 +140,8 @@ try {
     () => printService.printExchange({ returnId: exchangeReturnId, deviceName: 'Axiom', silent: true }),
     (error) => error?.printOutcomeUnknown === true
   )
-  assert.equal(Number(seed.one('SELECT printCount FROM "StoreCredit" WHERE id=?', issued.id).printCount), 3,
-    'uncertain printer result is conservatively tracked')
+  assert.equal(Number(seed.one('SELECT printCount FROM "StoreCredit" WHERE id=?', issued.id).printCount), 2,
+    'uncertain exchange-document outcome is not a credential copy')
   mock.state.printOutcome = 'success'
 
   // C) The barcode works through the ordinary POS path once and is rejected on
@@ -170,7 +171,7 @@ try {
   await assert.rejects(() => sale('recovery-print-use-twice'), /مصرف|استفاده|تمام|بسته|اعتبار/)
   assert.equal(seed.count('SaleInvoice'), invoiceCountBefore + 1, 'rejected second redemption creates no second sale')
   assert.equal(seed.count('StoreCredit'), creditCountBefore, 'two print routes plus one redemption remain one credit record')
-  console.log('✓ exchange print is counted; manager recovery prints the same stored barcode as a marked reprint; POS redeems it once only')
+  console.log('✓ exchange print carries no credential; manager recovery prints the same stored barcode as a marked reprint; POS redeems it once only')
 } finally {
   salesService.exchangeGet = originalExchangeGet
 }

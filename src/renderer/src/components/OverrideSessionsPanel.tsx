@@ -72,7 +72,7 @@ export default function OverrideSessionsPanel({ fromJalali, toJalali }: { fromJa
   return (
     <div className="space-y-2">
       <div className="bg-white rounded shadow p-2 flex flex-wrap items-center gap-3">
-        <h2 className="font-bold">نشست‌های با نام override‌شده</h2>
+        <h2 className="font-bold">نشست‌هایی که نامشان دستی عوض شد</h2>
         <button className="btn btn-primary" onClick={() => void load()} disabled={busy}>
           {busy ? 'در حال خواندن…' : 'بازخوانی'}
         </button>
@@ -81,8 +81,8 @@ export default function OverrideSessionsPanel({ fromJalali, toJalali }: { fromJa
           disabled={busy || !rows.length}
           onClick={() =>
             void exportTable({
-              fileName: `نشست‌های override‌شده ${fromJalali} تا ${toJalali}`,
-              title: `نشست‌های با نام override‌شده · ${fromJalali} تا ${toJalali}`,
+              fileName: `نشست‌هایی که نامشان دستی عوض شد ${fromJalali} تا ${toJalali}`,
+              title: `نشست‌هایی که نامشان دستی عوض شد · ${fromJalali} تا ${toJalali}`,
               headers: HEADERS,
               rows: rows.map((r) => [
                 r.dayJalali,
@@ -125,7 +125,7 @@ export default function OverrideSessionsPanel({ fromJalali, toJalali }: { fromJa
         <div className="bg-white rounded shadow p-3 kbd leading-7 whitespace-pre-line">
           {data.note}
           {!data.byTime &&
-            '\nتوجه: «تعیین شیفت بر اساس ساعت» خاموش است، پس نامی برای override شدن وجود ندارد و این فهرست خالی می‌ماند.'}
+            '\nتوجه: «تعیین شیفت بر اساس ساعت» خاموش است، پس نامی برای عوض شدن دستی وجود ندارد و این فهرست خالی می‌ماند.'}
         </div>
       )}
 
@@ -166,7 +166,7 @@ export default function OverrideSessionsPanel({ fromJalali, toJalali }: { fromJa
             {!rows.length && (
               <tr>
                 <td colSpan={HEADERS.length} className="text-center py-6 text-emerald-800">
-                  در این بازه هیچ نشستی با نام override‌شده ثبت نشده است.
+                  در این بازه هیچ نشستی که نامش دستی عوض شده باشد ثبت نشده است.
                 </td>
               </tr>
             )}

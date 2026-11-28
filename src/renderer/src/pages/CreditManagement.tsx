@@ -14,13 +14,14 @@ import { exportTable } from '../lib/exportCsv'
 import { PANEL_KEYS } from '@shared/panels'
 import { usePanelLock } from '../hooks/usePanelLocks'
 import { useManagerSession } from '../hooks/useManagerSession'
-import { faDigits, money, toLatinDigits } from '@shared/jalali'
+import { faDigits, money, toLatinDigits, jalaliDateTimeText } from '@shared/jalali'
 import {
   CREDIT_BATCH_HEADERS,
   CREDIT_BREAKDOWN_HEADERS,
   CREDIT_LIST_SCREEN_HEADERS,
   CREDIT_REMINDER_HEADERS,
   CREDIT_REMINDER_LOG_HEADERS,
+  CREDIT_SELLER_REPRINT_HEADERS,
   CREDIT_OP_CHANNEL,
   CREDIT_OP_TITLES,
   CREDIT_VIEW_TABS,
@@ -51,6 +52,8 @@ import {
   reminderCandidateRow,
   reminderFilter,
   reminderLogRow,
+  sellerReprintCellFormat,
+  sellerReprintRow,
   type BulkDraft,
   type CreditExportKind,
   type CreditPrintOutcome,
@@ -147,6 +150,8 @@ export default function CreditManagement() {
   const [listSkipState, setListSkipState] = useState<{ signature: string; skip: number }>({ signature: '', skip: 0 })
   const [listPage, setListPage] = useState<SaleReportPage | null>(null)
   const [settings, setSettings] = useState<CreditSettings>(emptySettings)
+  /** طرح ۱۴۰۵ · مورد ۱۲ — تب «چاپ دوباره» (چاپ‌های دوباره‌ی فروشنده) و شمارنده‌ی «تازه» */
+  const [reprints, setReprints] = useState<{ rows: any[]; newCount: number; seenAt: string | null }>({ rows: [], newCount: 0, seenAt: null })
   const [search, setSearch] = useState('')
   const [invoiceLookupCode, setInvoiceLookupCode] = useState('')
   const [invoiceLookup, setInvoiceLookup] = useState<any | null>(null)
@@ -240,6 +245,7 @@ export default function CreditManagement() {
         setBatchWarnings((data as any)?.warnings ?? [])
       }
       else if (view === 'settings') setSettings((data as CreditSettings) ?? emptySettings)
+      else if (view === 'reprints') setReprints({ rows: (data as any)?.rows ?? [], newCount: Number((data as any)?.newCount ?? 0), seenAt: (data as any)?.seenAt ?? null })
       setErr(null)
     } catch (e: any) {
       if (seq === loadReq.current) setErr(e.message)
@@ -251,6 +257,21 @@ export default function CreditManagement() {
   useEffect(() => {
     void load()
   }, [load])
+  /** شمارنده‌ی «تازه» روی دکمه‌ی تب، بی آن‌که مدیر تب را باز کند (خطا بی‌صدا؛ خود تب پیام می‌دهد). */
+  useEffect(() => {
+    call<any>(CH.creditSellerReprints, { take: 200 })
+      .then((data) => setReprints({ rows: data?.rows ?? [], newCount: Number(data?.newCount ?? 0), seenAt: data?.seenAt ?? null }))
+      .catch(() => undefined)
+  }, [])
+  const markReprintsSeen = async () => {
+    try {
+      await call(CH.creditSellerReprintsSeen)
+      if (view === 'reprints') await load()
+      else setReprints((current) => ({ ...current, newCount: 0 }))
+    } catch (e: any) {
+      setErr(e.message)
+    }
+  }
   /**
    * جلسه ۳۴ — انتخاب با هر تغییرِ فیلتر پاک می‌شود، ولی *فهرست* آن فیلترها
    * دیگر یک آرایه‌ی دستی در همین خط نیست: `CREDIT_SELECTION_RESET_KEYS` در بخش
@@ -543,6 +564,9 @@ export default function CreditManagement() {
           {CREDIT_VIEW_TABS.map((t) => (
             <button key={t.view} className={`btn ${view === t.view ? 'btn-primary' : ''}`} onClick={() => setView(t.view)}>
               {t.label}
+              {t.view === 'reprints' && reprints.newCount > 0 && (
+                <span className="mr-1 rounded-full bg-rose-600 px-2 text-white">{faDigits(reprints.newCount)} تازه</span>
+              )}
             </button>
           ))}
           <button className="btn btn-primary mr-auto" onClick={() => setIssueOpen(true)}>
@@ -1047,6 +1071,42 @@ export default function CreditManagement() {
           </div>
         )}
 
+        {view === 'reprints' && (
+          <div className="tbl-card overflow-auto">
+            <div className="p-2 flex gap-2 items-center flex-wrap border-b">
+              <b>چاپ دوباره‌ی گواهی به دست فروشنده</b>
+              <span className="kbd">هر اعتبار فقط یک بار و در همان شیفتِ صدور؛ «مشکوک» یعنی اعتبار پس از چاپ دوباره مصرف شده است.</span>
+              {reprints.seenAt && <span className="kbd">آخرین بازبینی: {jalaliDateTimeText(reprints.seenAt)}</span>}
+              <button className="btn btn-primary mr-auto" disabled={busy} onClick={() => void markReprintsSeen()}>
+                دیدم {reprints.newCount > 0 ? `(${faDigits(reprints.newCount)} تازه)` : ''}
+              </button>
+            </div>
+            <table className="tbl">
+              <thead>
+                <tr>
+                  {CREDIT_SELLER_REPRINT_HEADERS.map((h) => (
+                    <th key={h}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {reprints.rows.length === 0 && (
+                  <tr>
+                    <Cell>هنوز چاپ دوباره‌ای به دست فروشنده ثبت نشده است.</Cell>
+                  </tr>
+                )}
+                {reprints.rows.map((r) => (
+                  <tr key={r.auditId} className={r.suspicious ? 'bg-rose-50' : r.isNew && !r.released ? 'bg-amber-50 font-bold' : r.released ? 'text-slate-400' : ''}>
+                    {sellerReprintRow(r).map((cell, i) => (
+                      <Cell key={i}>{creditCellText(cell, sellerReprintCellFormat(i), CELL_FMT)}</Cell>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {view === 'settings' && (
           <Gate panel={PANEL_KEYS.creditSettings} title="تنظیمات اعتبار خرید">
             <SettingsForm
@@ -1069,7 +1129,7 @@ export default function CreditManagement() {
           title="صدور اعتبار مدیریتی"
         >
           <label className="flex items-center gap-2 mb-2 text-sm">
-            رمز مدیر (صدور اعتبار بدون فاکتور همیشه رمز مدیر می‌خواهد):
+            رمز مدیر یا رمز دوم/سوم «صدور دستی اعتبار» (اگر دارید):
             <input
               type="password"
               className="inp w-40"
@@ -1099,7 +1159,7 @@ export default function CreditManagement() {
         >
           <Gate panel={PANEL_KEYS.creditBulkIssue} title="تولید گروهی اعتبار" inline>
             <label className="flex items-center gap-2 mb-2 text-sm">
-              رمز مدیر (صدور اعتبار بدون فاکتور همیشه رمز مدیر می‌خواهد):
+              رمز مدیر یا رمز دوم/سوم «تولید گروهی اعتبار» (اگر دارید):
               <input
                 type="password"
                 className="inp w-40"

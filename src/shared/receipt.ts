@@ -132,7 +132,11 @@ export const SETTING_KEYS = {
    */
   creditSettings: 'credit.settings',
   /** ماژول اختیاری حضانت صندوق/نشست کارکنان؛ پیش‌فرض خاموش تا رفتار قدیمی دست‌نخورده بماند. */
-  custodyConfig: 'custody.config'
+  custodyConfig: 'custody.config',
+  /** طرح ۱۴۰۵ · مورد ۱۲ — چاپگر گواهی اعتبار در مسیر فروشنده (`{ printerName }`؛ خالی = پیش‌فرض ویندوز اگر مجازی نباشد) */
+  creditCertificatePrinter: 'credit.certificatePrinter',
+  /** طرح ۱۴۰۵ · مورد ۱۲ — زمان آخرین «دیدم» مدیر در تب «چاپ دوباره» (`{ at }`) */
+  creditSellerReprintSeenAt: 'credit.sellerReprintSeenAt'
 } as const
 
 export type CustodyMode = 'SINGLE_SHIFT' | 'MULTI_SHIFT'
@@ -501,8 +505,8 @@ export interface SaleDefaults {
   /**
    * اعتبار کد فاکتور برای «مشتری راه دور» (مورد ۷).
    * مستقل از حالت عادی است و فقط وقتی استفاده می‌شود که کارمند در پنل فروش
-   * چک‌باکس «مشتری راه دور» را زده باشد. پیش‌فرض ۱۴ روز (دو برابر حالت عادی):
-   * ارسال و برگشت مرسوله معمولاً بیشتر از یک هفته طول می‌کشد.
+   * چک‌باکس «مشتری راه دور» را زده باشد. پیش‌فرض ۷ روز (حالت عادی ۱ روز):
+   * ارسال و برگشت مرسوله بیشتر از یک روز طول می‌کشد.
    */
   returnCodeDaysRemote: number
   /** طول کد رندوم فاکتور */
@@ -1749,7 +1753,7 @@ const faNum = (n: number | string): string =>
  */
 export function sessionLabelOf(name: string, seq: number): string {
   const n = Math.max(1, Math.round(Number(seq) || 1))
-  return `${name || 'شیفت'} — نشست ${faNum(n)}`
+  return `${faNum(name || 'شیفت')} — نشست ${faNum(n)}`
 }
 
 /**

@@ -129,7 +129,7 @@ console.log('\n— ۳) رسید برگشت بدون کد/بارکد اعتبار
     /\{ returnId: ret\.id \}/.test(returnDataFor),
     /storeCredits = credits\.map/.test(returnDataFor),
     !/storeCreditBarcodeDataUrl/.test(returnDataFor),
-    !/barcodePng/.test(returnDataFor),
+    !/barcodePng|documentCodeBarcode\((?!sourceReturnCode, tpl\))/.test(returnDataFor), // طرح ۱۴۰۵ · مورد ۱۲: فقط بارکد کد فاکتور اصلی
     /CreditSource\.OVERPAY/.test(returnDataFor)
   ], [true, true, true, true, true, true])
 
@@ -138,7 +138,7 @@ console.log('\n— ۳) رسید برگشت بدون کد/بارکد اعتبار
   const returnTpl = templates.slice(tplStart, tplEnd)
   check('قالب رسید برگشت هیچ مسیر چاپ کد/بارکد ندارد', [
     !/storeCreditCode/.test(returnTpl),
-    !/BarcodeDataUrl/.test(returnTpl),
+    !/(?<!sourceReturn)BarcodeDataUrl/.test(returnTpl), // طرح ۱۴۰۵ · مورد ۱۲: فقط بارکد کد فاکتور اصلی، نه اعتبار
     /اعتبارهای صادرشده از این برگشت \(بدون کد\/بارکد\)/.test(returnTpl),
     /کد\/بارکد اعتبار روی این رسید چاپ نمی‌شود؛ سند اعتبار جداگانه صادر و چاپ می‌گردد/.test(returnTpl),
     /\(باطل‌شده\)/.test(returnTpl)

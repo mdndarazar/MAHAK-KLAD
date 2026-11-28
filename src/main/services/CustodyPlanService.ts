@@ -2,6 +2,7 @@ import { prisma } from '../db/client'
 import { BusinessError } from '../errors'
 import { custodyService } from './CustodyService'
 import { assertManagerSession } from './panelSession'
+import { gateSession } from './locks/gate'
 
 function whole(value: unknown, label: string, min: number, max: number) {
   const n = Math.round(Number(value))
@@ -27,7 +28,7 @@ export const custodyPlanService = {
    * responsibility for them.
    */
   async reviewLegacy() {
-    assertManagerSession('بازبینی برنامه‌های قدیمی شیفت/حضانت')
+    await gateSession('custody-work-plans', () => assertManagerSession('بازبینی برنامه‌های قدیمی شیفت/حضانت'))
     const plans = await this.list()
     return {
       state: plans.length ? 'REVIEW_REQUIRED' as const : 'EMPTY' as const,
@@ -41,7 +42,7 @@ export const custodyPlanService = {
   },
 
   async save(input: { id?: unknown; title?: unknown; startMinute?: unknown; durationMinutes?: unknown; daysMask?: unknown; isActive?: unknown; sortOrder?: unknown; reminderRepeatMin?: unknown; staffIds?: unknown; managerUserId?: unknown; managerPassword?: unknown; managerSession?: boolean }) {
-    if (input.managerSession === true) assertManagerSession('ثبت یا ویرایش برنامه کاری حضانت')
+    if (input.managerSession === true) await gateSession('custody-work-plans', () => assertManagerSession('ثبت یا ویرایش برنامه کاری حضانت'))
     else await custodyService.verifyPin(input.managerUserId, input.managerPassword, { requireManager: true })
     const id = input.id == null ? null : whole(input.id, 'شناسه برنامه', 1, Number.MAX_SAFE_INTEGER)
     const title = String(input.title ?? '').trim()
@@ -72,7 +73,7 @@ export const custodyPlanService = {
   },
 
   async remove(input: { id?: unknown; managerUserId?: unknown; managerPassword?: unknown; managerSession?: boolean }) {
-    if (input.managerSession === true) assertManagerSession('حذف برنامه کاری حضانت')
+    if (input.managerSession === true) await gateSession('custody-work-plans', () => assertManagerSession('حذف برنامه کاری حضانت'))
     else await custodyService.verifyPin(input.managerUserId, input.managerPassword, { requireManager: true })
     const id = whole(input.id, 'شناسه برنامه', 1, Number.MAX_SAFE_INTEGER)
     await prisma.$transaction(async (tx: any) => {

@@ -538,7 +538,7 @@ export default function InvoicePaymentsModal({
             >
               <div>
                 <div className="kbd">خریدار</div>
-                <div className="font-bold">{view.customerName}</div>
+                <div className="font-bold">{view.debtorName || view.customerName}</div>
               </div>
               <div>
                 <div className="kbd">تاریخ فاکتور</div>
@@ -556,7 +556,7 @@ export default function InvoicePaymentsModal({
               </div>
               {view.overpayTotal > 0 && (
                 <div>
-                  <div className="kbd">مبلغ اضافه‌ی دریافتی (بخش ۸)</div>
+                  <div className="kbd">مبلغ اضافه‌ی دریافتی</div>
                   <div className="font-bold text-amber-800">{money(view.overpayTotal)}</div>
                   {(view.overpayCreditIssued ?? 0) > 0 && (
                     <div className="kbd">اعتبار صادرشده از آن: {money(view.overpayCreditIssued)}</div>
@@ -964,7 +964,7 @@ export default function InvoicePaymentsModal({
               <div className="flex flex-wrap gap-2 items-end">
                 <label>
                   <div className="kbd">رمز مدیر</div>
-                  <input type="password" className="inp w-40" dir="ltr" value={lockPw} onChange={(e) => setLockPw(e.target.value)} />
+                  <PasswordField className="inp w-40" dir="ltr" value={lockPw} onChange={(e) => setLockPw(e.target.value)} />
                 </label>
                 <label className="flex-1 min-w-[240px]">
                   <div className="kbd">دلیل اصلاح در دوره‌ی بسته (اجباری)</div>

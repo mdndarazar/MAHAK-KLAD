@@ -48,7 +48,7 @@ ok('و import به نسخه‌ی سخت‌گیر عوض شده', /import \{ asse
   const { assertPanelPasswordStrict } = await import('../../src/main/services/AuthService.ts')
   let msg = null
   try { await assertPanelPasswordStrict('cash-close', '', 'تعویض اجباری') } catch (e) { msg = e.message }
-  ok(`بدون رمز رد می‌شود حتی اگر قفل خاموش باشد (${String(msg).slice(0, 38)}…)`, msg && /همیشه رمز می‌خواهد/.test(msg))
+  ok(`بدون رمز رد می‌شود حتی اگر قفل خاموش باشد (${String(msg).slice(0, 38)}…)`, msg && /قفل جدا دارد/.test(msg))
 }
 
 // ---------------------------------------------------------------------------

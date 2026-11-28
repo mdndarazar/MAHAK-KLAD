@@ -1356,7 +1356,7 @@ function ProviderTab({
           </label>
           <label className="block md:col-span-2">
             <span className="kbd">کلید API (خالی = دست‌نزدن به کلید فعلی)</span>
-            <PasswordField value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} />
+            <PasswordField typedOnly value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} />
           </label>
           <label className="block md:col-span-2">
             <span className="kbd">رمز مدیر (برای تغییر کلید API لازم است)</span>

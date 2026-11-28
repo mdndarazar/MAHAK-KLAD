@@ -61,8 +61,8 @@ ok('روی کلید پنل تنظیمات است', /assertPanelPasswordStrict\(\
    * اگر روزی از این فهرست بیرون بیاید، گیت بی‌صدا بی‌اثر می‌شود.
    */
   const panels = await import('../../src/shared/panels.ts')
-  ok('پنل تنظیمات در ALWAYS_LOCKED_PANELS است (گیت با خاموش کردن قفل دور نمی‌خورد)',
-    panels.ALWAYS_LOCKED_PANELS.includes(panels.PANEL_KEYS.settings))
+  ok('طرح ۱۴۰۵: تنظیمات خاموش‌شدنی است، ولی بازگردانی و ادغام هر کدام قفل کار جدای خود را دارند',
+    !panels.ALWAYS_LOCKED_PANELS.includes(panels.PANEL_KEYS.settings) && ['act-backup-restore', 'act-backup-merge'].every((k) => panels.LOCKED_PANELS.some((p) => p.key === k && p.kind === 'action')))
 }
 
 // ---------------------------------------------------------------------------
@@ -108,11 +108,11 @@ console.log('\n— ۳) رفتار واقعی: بدون رمز رد می‌شود
   }
 
   const noPass = await callApply({ id: 'ناموجود.db', mode: 'replace' })
-  ok(`بدون رمز، «جایگزینی کامل» رد می‌شود (${noPass})`, /همیشه رمز می‌خواهد/.test(noPass))
+  ok(`بدون رمز، «جایگزینی کامل» رد می‌شود (${noPass})`, /قفل جدا دارد/.test(noPass))
   ok('و پیام درباره‌ی همان عملیات است، نه چیز دیگر', /جایگزینی کامل/.test(noPass))
 
   const noPassMerge = await callApply({ id: 'ناموجود.db', mode: 'merge' })
-  ok(`بدون رمز، «ادغام» هم رد می‌شود (${noPassMerge})`, /همیشه رمز می‌خواهد/.test(noPassMerge))
+  ok(`بدون رمز، «ادغام» هم رد می‌شود (${noPassMerge})`, /قفل جدا دارد/.test(noPassMerge))
   ok('پیام ادغام مخصوص خودش است', /ادغام/.test(noPassMerge))
 
   const wrongPass = await callApply({ id: 'ناموجود.db', mode: 'replace', managerPassword: 'غلط' })

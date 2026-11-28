@@ -1,0 +1,765 @@
+{
+ "meta": {
+  "tool": "docs/audit/day-boundary-scenarios.mjs",
+  "programCommit": "b3795776384073208aa9bfe7776ebbcd722a3742",
+  "summary": {
+   "stories": 7,
+   "steps": 66,
+   "refusals": 17,
+   "observations": 11,
+   "findings": 13,
+   "findingTypes": {
+    "UNEXPECTED_REFUSAL": 10,
+    "MISLEADING_MANAGER_PROMPT": 1,
+    "NO_LOCK_WINDOW": 2
+   },
+   "findingPlans": {
+    "4-111 ب": 2,
+    "4-41 الف": 6,
+    "4-112": 1,
+    "4-113": 4
+   },
+   "consolidations": 5
+  }
+ },
+ "stories": [
+  {
+   "id": "S0",
+   "title": "راه‌اندازی: رمز شخصی مالک و فروشنده، روشن کردن حضانت صندوق",
+   "steps": [
+    [
+     "D0 07:50 owner sets personal custody PIN",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "D0 07:50 enable custody (single shift)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "D0 07:50 owner issues a temporary PIN for the seller",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "D0 07:50 seller sets personal PIN",
+     "OK",
+     "ok",
+     null,
+     ""
+    ]
+   ],
+   "findings": [],
+   "obs": []
+  },
+  {
+   "id": "S1",
+   "title": "شب «بستن نهایی»، رایانه خاموش، صبح تجمیع خودکار و شیفت اول",
+   "steps": [
+    [
+     "D0 08:00 morning: seller opens the drawer (PIN + count 2,000,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "D0 10:00 POS sale A cash 700,000",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 700000
+     },
+     ""
+    ],
+    [
+     "D0 12:00 POS sale B card 300,000",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 300000
+     },
+     ""
+    ],
+    [
+     "D0 15:00 POS sale C نسیه 500,000",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 500000
+     },
+     ""
+    ],
+    [
+     "D0 18:00 wholesale W 1,000,000 dated D0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 1000000
+     },
+     ""
+    ],
+    [
+     "D0 22:00 «بستن نهایی» (count 4,000,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "D1 08:30 program opens (PC was off): automatic consolidation, drawer closed, nobody logged in",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "D1 08:31 first shift opens the drawer after consolidation (PIN + count 4,000,000)",
+     "OK",
+     "ok",
+     null,
+     "بند ۱۴"
+    ],
+    [
+     "D1 08:35 POS sale E cash 300,000",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 300000
+     },
+     "بند ۱۴"
+    ],
+    [
+     "D1 08:40 return of yesterday sale A (consolidated)",
+     "OK",
+     "ok",
+     {
+      "refund": 700000
+     },
+     "بند ۱۴"
+    ],
+    [
+     "D1 08:45 exchange of yesterday sale B → E (same price) (diff 0)",
+     "OK",
+     "ok",
+     {
+      "diff": 0
+     },
+     "بند ۱۴"
+    ],
+    [
+     "D1 08:50 نسیه payment 200,000 on yesterday sale C",
+     "OK",
+     "ok",
+     {
+      "amount": 200000
+     },
+     "بند ۱۴"
+    ],
+    [
+     "D1 09:00 wholesale dated today",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 1000000
+     },
+     "بند ۱۴"
+    ],
+    [
+     "D1 09:05 wholesale page left open since last night (date still D0)",
+     "REFUSED",
+     "ok",
+     "ثبت فاکتور فروش در تاریخ # ممکن نیست، چون این دوره بسته شده است:",
+     "4-111 ب"
+    ]
+   ],
+   "findings": [
+    "UNEXPECTED_REFUSAL | D1 09:05 wholesale page left open since last night (date still D0) | 4-111 ب"
+   ],
+   "obs": [
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "D1 08:30",
+      "days": [
+       "D0"
+      ],
+      "invoices": 4,
+      "movements": 4,
+      "delta": {
+       "payments": 0,
+       "cashMovements": 0,
+       "stock": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "S2",
+   "title": "شب کسی «بستن نهایی» نزد: بستن خودکار حضانت، تجمیع خودکار، شمارش شاهد صبح، شیفت اول",
+   "steps": [
+    [
+     "D1 11:00 POS sale A cash 700,000 (nobody closes tonight)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 700000
+     },
+     ""
+    ],
+    [
+     "D2 08:30 program opens: custody status (automatic close of the forgotten drawer)",
+     "OK",
+     "ok",
+     {
+      "state": "NO_SESSION",
+      "unresolved": 1
+     },
+     "4-17، ۴-۱۸"
+    ],
+    [
+     "D2 08:30 automatic consolidation after the automatic close",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "D2 08:32 morning witness count of the old drawer (seller PIN, exact count, no note)",
+     "REFUSED",
+     "either",
+     "مغایرت صندوق # ریال است (اضافه) و از آستانه‌ی # ریال گذشته.",
+     "4-104"
+    ],
+    [
+     "D2 08:32 morning witness count again with a note",
+     "OK",
+     "ok",
+     null,
+     "4-104"
+    ],
+    [
+     "D2 08:35 first shift opens the drawer after consolidation (PIN + count 5,500,000)",
+     "OK",
+     "ok",
+     null,
+     "بند ۱۴"
+    ],
+    [
+     "D2 08:40 POS sale B card 300,000",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 300000
+     },
+     "بند ۱۴"
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "D2 08:30",
+      "days": [
+       "D1"
+      ],
+      "invoices": 4,
+      "movements": 4,
+      "delta": {
+       "payments": 0,
+       "cashMovements": 0,
+       "stock": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "S3",
+   "title": "تجمیع خودکار ساعت ۲۴ و باز کردن صندوق پس از ۲۴",
+   "steps": [
+    [
+     "D2 20:00 POS sale A cash 700,000",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 700000
+     },
+     ""
+    ],
+    [
+     "D2 23:50 POS sale B card 300,000 at 23:50",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 300000
+     },
+     ""
+    ],
+    [
+     "D2 23:58 «بستن نهایی» before 24:00 (count 6,800,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "D3 00:00 automatic consolidation of D2 at the agreed 24:00 moment",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "D3 00:01 seller opens the drawer after 24:00 (PIN + count 6,800,000)",
+     "OK",
+     "ok",
+     null,
+     "بند ۱۴"
+    ],
+    [
+     "D3 00:05 POS sale A cash 700,000 after 24:00",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 700000
+     },
+     "بند ۱۴"
+    ],
+    [
+     "D3 00:10 exchange of the 23:50 sale B → E (diff 0)",
+     "OK",
+     "ok",
+     {
+      "diff": 0
+     },
+     "بند ۱۴"
+    ],
+    [
+     "D3 00:20 wholesale page opened at 23:00 (date still D2)",
+     "REFUSED",
+     "ok",
+     "ثبت فاکتور فروش در تاریخ # ممکن نیست، چون این دوره بسته شده است:",
+     "4-111 ب"
+    ],
+    [
+     "D3 04:30 «بستن نهایی» of the night drawer (count 7,500,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ]
+   ],
+   "findings": [
+    "UNEXPECTED_REFUSAL | D3 00:20 wholesale page opened at 23:00 (date still D2) | 4-111 ب"
+   ],
+   "obs": [
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "D3 00:00",
+      "days": [
+       "D2"
+      ],
+      "invoices": 3,
+      "movements": 3,
+      "delta": {
+       "payments": 0,
+       "cashMovements": 0,
+       "stock": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "S4",
+   "title": "مدیر ساعت ۲۳:۰۰ F11 می‌زند (امروز خودش تیک می‌خورد)؛ ساعت آخر روز؛ سپس پس از ۲۴",
+   "steps": [
+    [
+     "D3 08:00 morning: seller opens the drawer (PIN + count 7,500,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "D3 12:00 POS sale A cash 700,000",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 700000
+     },
+     ""
+    ],
+    [
+     "D3 23:00 manager presses F11 on the page (default selection)",
+     "OK",
+     "ok",
+     {
+      "selected": [
+       "D3"
+      ],
+      "daysDone": 1,
+      "invoices": 3
+     },
+     "4-41"
+    ],
+    [
+     "D3 23:30 POS sale B card 300,000 after F11 of today",
+     "REFUSED",
+     "ok",
+     "ثبت فاکتور فروش در تاریخ # ممکن نیست، چون این دوره بسته شده است:",
+     "4-41 الف"
+    ],
+    [
+     "D3 23:40 return of the 12:00 sale A after F11 of today",
+     "REFUSED",
+     "ok",
+     "ثبت برگشت از فروش در تاریخ # ممکن نیست، چون این دوره بسته شده است:",
+     "4-41 الف"
+    ],
+    [
+     "D3 23:58 «بستن نهایی» (count 8,200,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "D4 00:05 seller opens the drawer after 24:00 (PIN + count 8,200,000)",
+     "OK",
+     "ok",
+     null,
+     "بند ۱۴"
+    ],
+    [
+     "D4 00:10 POS sale A cash 700,000 after 24:00",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 700000
+     },
+     "بند ۱۴"
+    ]
+   ],
+   "findings": [
+    "UNEXPECTED_REFUSAL | D3 23:30 POS sale B card 300,000 after F11 of today | 4-41 الف",
+    "UNEXPECTED_REFUSAL | D3 23:40 return of the 12:00 sale A after F11 of today | 4-41 الف"
+   ],
+   "obs": [
+    {
+     "k": "periodLockAfterF11",
+     "v": {
+      "at": "D3 23:00",
+      "selected": [
+       "D3"
+      ],
+      "todayLocked": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "S5",
+   "title": "F11 ساعت ۰۰:۳۰ (پس از ۲۴؛ روز تازه تیک می‌خورد)؛ سپس شیفت اول صبح",
+   "steps": [
+    [
+     "D4 00:30 F11 pressed after 24:00 (default selection)",
+     "OK",
+     "ok",
+     {
+      "selected": [
+       "D4"
+      ],
+      "daysDone": 1,
+      "invoices": 1
+     },
+     "4-41"
+    ],
+    [
+     "D4 00:40 POS sale B card 300,000 after F11 of the new day",
+     "REFUSED",
+     "ok",
+     "ثبت فاکتور فروش در تاریخ # ممکن نیست، چون این دوره بسته شده است:",
+     "4-41 الف"
+    ],
+    [
+     "D4 04:30 «بستن نهایی» of the night drawer (count 8,900,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "D4 08:30 automatic consolidation (days before today only)",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "D4 08:31 first shift opens the drawer after F11 at 00:30 (PIN + count 8,900,000)",
+     "OK",
+     "ok",
+     null,
+     "بند ۱۴"
+    ],
+    [
+     "D4 08:35 POS sale A cash 700,000 in the morning",
+     "REFUSED",
+     "ok",
+     "ثبت فاکتور فروش در تاریخ # ممکن نیست، چون این دوره بسته شده است:",
+     "4-41 الف"
+    ],
+    [
+     "D4 08:40 wholesale dated today in the morning",
+     "REFUSED",
+     "ok",
+     "ثبت فاکتور فروش در تاریخ # ممکن نیست، چون این دوره بسته شده است:",
+     "4-41 الف"
+    ],
+    [
+     "D4 15:00 POS sale E cash 300,000 in the afternoon",
+     "REFUSED",
+     "ok",
+     "ثبت فاکتور فروش در تاریخ # ممکن نیست، چون این دوره بسته شده است:",
+     "4-41 الف"
+    ],
+    [
+     "D4 23:58 «بستن نهایی» (count 8,900,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ]
+   ],
+   "findings": [
+    "UNEXPECTED_REFUSAL | D4 00:40 POS sale B card 300,000 after F11 of the new day | 4-41 الف",
+    "UNEXPECTED_REFUSAL | D4 08:35 POS sale A cash 700,000 in the morning | 4-41 الف",
+    "UNEXPECTED_REFUSAL | D4 08:40 wholesale dated today in the morning | 4-41 الف",
+    "UNEXPECTED_REFUSAL | D4 15:00 POS sale E cash 300,000 in the afternoon | 4-41 الف"
+   ],
+   "obs": [
+    {
+     "k": "periodLockAfterF11",
+     "v": {
+      "at": "D4 00:30",
+      "selected": [
+       "D4"
+      ],
+      "todayLocked": true
+     }
+    },
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "D4 08:30",
+      "days": [],
+      "invoices": 0,
+      "movements": 0,
+      "delta": {
+       "payments": 0,
+       "cashMovements": 0,
+       "stock": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "S6",
+   "title": "ویرایش‌هایی که مدیر را صدا می‌زنند: تجمیع‌شده (۴-۱۱۲)، روز بسته و پرداخت روز بسته (۴-۱۱۳)، قیمت مرجع",
+   "steps": [
+    [
+     "D5 08:30 automatic consolidation",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "D5 08:31 first shift opens the drawer (PIN + count 8,900,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "D5 09:00 edit the consolidated D0 wholesale W (page: no password)",
+     "REFUSED",
+     "refuse",
+     "ویرایش فاکتور # در تاریخ # ممکن نیست، چون این دوره بسته شده است:",
+     "4-112"
+    ],
+    [
+     "D5 09:00 the same edit after the manager comes: password + reason",
+     "REFUSED",
+     "refuse",
+     "فاکتور شماره # در «تجمیع و انتقال» قطعی شده و جمع‌های آن بازه بسته شده است، پس قابل ویرایش نیست. برای اصلاح، یک فاکتور جدید در بازه‌ی جاری ثبت کنید.",
+     "4-112"
+    ],
+    [
+     "D5 09:00 wholesale dated D3 (closed day) with manager password + reason",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 1000000
+     },
+     "4-111 ب"
+    ],
+    [
+     "D5 09:00 edit that closed-day invoice (page: no password, no reason)",
+     "REFUSED",
+     "window:period.closed-entry",
+     "ویرایش فاکتور # در تاریخ # ممکن نیست، چون این دوره بسته شده است:",
+     "4-113"
+    ],
+    [
+     "D5 09:00 the same edit after a one-shot remote permission (bot or phone) + reason",
+     "REFUSED",
+     "ok",
+     "ویرایش فاکتور # در تاریخ # ممکن نیست، چون این دوره بسته شده است:",
+     "4-113"
+    ],
+    [
+     "D5 09:00 the same edit with the typed manager password + reason",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 1000000
+     },
+     "4-113"
+    ],
+    [
+     "D5 10:00 wholesale today 2 × 1,000,000, cash 1,000,000, rest نسیه",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 2000000
+     },
+     ""
+    ],
+    [
+     "D5 10:00 edit: price 900,000 below the reference (no password)",
+     "REFUSED",
+     "window:sales.price-below-reference",
+     "[GATE_REQUIRED:sales.price-below-reference] «قیمت کمتر از قیمت مرجع (کد DAY-W: واردشده # ریال، مرجع # ریال)» تایید مدیر لازم دارد. رمز مدیر را وارد کنید.",
+     "قیمت مرجع"
+    ],
+    [
+     "D5 10:00 the same edit after a one-shot remote permission",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 1800000
+     },
+     "قیمت مرجع"
+    ],
+    [
+     "D5 10:00 edit again: price 850,000 (the permission was used)",
+     "REFUSED",
+     "window:sales.price-below-reference",
+     "[GATE_REQUIRED:sales.price-below-reference] «قیمت کمتر از قیمت مرجع (کد DAY-W: واردشده # ریال، مرجع # ریال)» تایید مدیر لازم دارد. رمز مدیر را وارد کنید.",
+     "قیمت مرجع"
+    ],
+    [
+     "D5 11:00 payment 100,000 dated D0 (closed day) on the D0 نسیه sale (no password)",
+     "REFUSED",
+     "window:period.closed-entry",
+     "ثبت پرداختی با تاریخ دوره‌ی بسته در تاریخ # ممکن نیست، چون این دوره بسته شده است:",
+     "4-113"
+    ],
+    [
+     "D5 11:00 the same payment after a one-shot remote permission + reason",
+     "REFUSED",
+     "ok",
+     "ثبت پرداختی با تاریخ دوره‌ی بسته در تاریخ # ممکن نیست، چون این دوره بسته شده است:",
+     "4-113"
+    ],
+    [
+     "D5 11:00 the same payment with the typed manager password + reason",
+     "OK",
+     "ok",
+     {
+      "amount": 100000
+     },
+     "4-113"
+    ]
+   ],
+   "findings": [
+    "MISLEADING_MANAGER_PROMPT | D5 09:00 edit the consolidated D0 wholesale W (page: no password) | 4-112",
+    "NO_LOCK_WINDOW | D5 09:00 edit that closed-day invoice (page: no password, no reason) | 4-113",
+    "NO_LOCK_WINDOW | D5 11:00 payment 100,000 dated D0 (closed day) on the D0 نسیه sale (no password) | 4-113",
+    "UNEXPECTED_REFUSAL | D5 09:00 the same edit after a one-shot remote permission (bot or phone) + reason | 4-113",
+    "UNEXPECTED_REFUSAL | D5 11:00 the same payment after a one-shot remote permission + reason | 4-113"
+   ],
+   "obs": [
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "D5 08:30",
+      "days": [],
+      "invoices": 0,
+      "movements": 0,
+      "delta": {
+       "payments": 0,
+       "cashMovements": 0,
+       "stock": 0
+      }
+     }
+    },
+    {
+     "k": "remoteOneShot",
+     "v": {
+      "at": "D5 09:00",
+      "id": "period.closed-entry",
+      "made": true
+     }
+    },
+    {
+     "k": "remoteOneShot",
+     "v": {
+      "at": "D5 10:00",
+      "id": "sales.price-below-reference",
+      "made": true
+     }
+    },
+    {
+     "k": "remoteOneShot",
+     "v": {
+      "at": "D5 11:00",
+      "id": "period.closed-entry",
+      "made": true
+     }
+    },
+    {
+     "k": "closedPeriodOverrides",
+     "v": [
+      [
+       "SaleInvoice",
+       "ثبت فاکتور فروش در دوره‌ی بسته‌ی # با تایید مدیر · دلیل: فاکتور کاغذی"
+      ],
+      [
+       "SaleInvoice",
+       "ویرایش فاکتور # در دوره‌ی بسته‌ی # با تایید مدیر · دلیل: اصلاح با رمز مدیر"
+      ],
+      [
+       "Payment",
+       "ثبت پرداختی با تاریخ دوره‌ی بسته در دوره‌ی بسته‌ی # با تایید مدیر · دلیل: پرداخت دیروز"
+      ]
+     ]
+    }
+   ]
+  }
+ ]
+}

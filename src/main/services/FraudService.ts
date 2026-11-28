@@ -1,6 +1,6 @@
 import { prisma } from '../db/client'
 import { audit } from './AuditService'
-import { salesService } from './SalesService'
+import { salesService, debtorSnapshotName } from './SalesService'
 import { AuditAction, ReturnKind, RefundMethod, StoreCreditStatus, PaymentEntryKind, ChequeStatus, SaleStatus } from '@shared/enums'
 import { jalaliStartOfDay, jalaliEndOfDay, jalaliToday, money, faDigits, isValidJalaliDate, toLatinDigits, toJalaliDate } from '@shared/jalali'
 import { BusinessError } from '../errors'
@@ -238,7 +238,7 @@ export const fraudService = {
     if (!sessions.length)
       notes.push(
         'هیچ رکورد بستن صندوقِ نسخه‌ی جدید در این بازه نیست. رکوردهای قدیمی «انتظاری/شمرده‌شده» ندارند و ' +
-          'کسری‌شان قابل بازمحاسبه نیست — این بخش فقط از صندوق‌های بسته‌شده با نسخه‌ی جلسه ۱۴ حساب می‌شود.'
+          'کسری‌شان قابل بازمحاسبه نیست — این بخش فقط از صندوق‌های بسته‌شده با نسخه‌های تازهٔ برنامه حساب می‌شود.'
       )
 
     // ---------------- ۲) نرخ برگشت غیرعادی به تفکیک فروشنده ----------------
@@ -340,7 +340,7 @@ export const fraudService = {
       severity: 'MEDIUM',
       detail:
         'برگشت بدون مشتریِ ثبت‌شده قابل پیگیری نیست؛ اگر بازپرداخت نقدی هم داشته باشد، ' +
-        'هیچ‌کس نمی‌تواند بعداً تایید کند پول به چه کسی داده شد.',
+        'هیچ‌کس نمی‌تواند بعداً تأیید کند پول به چه کسی داده شد.',
       amount: anonymous.reduce((s, r) => s + n(r.total), 0),
       count: anonymous.length,
       sources: anonymous.map((r) => ({
@@ -541,24 +541,59 @@ export const fraudService = {
       }))
     })
 
+    const bouncedWhere = {
+      kind: PaymentEntryKind.CHEQUE,
+      voidedAt: null,
+      chequeStatus: ChequeStatus.BOUNCED,
+      paidAt: { gte: from, lte: to }
+    }
     const bounced = await prisma.payment.aggregate({
-      where: {
-        kind: PaymentEntryKind.CHEQUE,
-        voidedAt: null,
-        chequeStatus: ChequeStatus.BOUNCED,
-        paidAt: { gte: from, lte: to }
-      },
+      where: bouncedWhere,
       _sum: { amount: true },
       _count: { _all: true }
     })
+    /**
+     * دفتر آزمون ۴-۶۳ — هر چک برگشتی یک ردیف: شمارهٔ فاکتور، نام بدهکار (یا خریدار)، شمارهٔ چک، بانک،
+     * مبلغ و تاریخ ثبت؛ کلیک ⇐ همان فاکتور. جمع و شمارش همان aggregate بالا (همان شرط).
+     */
+    const bouncedRows = await readAll((page) => prisma.payment.findMany({
+      where: bouncedWhere,
+      select: {
+        id: true,
+        amount: true,
+        chequeNo: true,
+        bankName: true,
+        paidAt: true,
+        paidAtJalali: true,
+        invoiceId: true,
+        invoice: { select: { receiptNo: true, debtorFirstName: true, debtorLastName: true, customer: { select: { name: true } } } }
+      },
+      orderBy: { id: 'asc' },
+      ...page
+    }))
     push({
       key: 'bouncedCheques',
       title: 'چک برگشتی',
       severity: 'HIGH',
-      detail: 'چک برگشتی اثر نقدی صفر دارد ولی فاکتورش ممکن است «تسویه‌شده» مانده باشد.',
+      detail: 'چک برگشت خورده؛ بدهی مشتری سر جایش است. پیگیری کنید.',
       amount: n(bounced._sum.amount),
       count: n(bounced._count?._all),
-      sources: []
+      sources: bouncedRows.map((p) => {
+        const debtor = debtorSnapshotName(p.invoice ?? {})
+        return {
+          kind: 'CHEQUE',
+          id: p.id,
+          label: [
+            `شماره چک ${p.chequeNo || '—'}`,
+            p.bankName ? `بانک ${p.bankName}` : '',
+            debtor ? `بدهکار: ${debtor}` : `خریدار: ${p.invoice?.customer?.name ?? 'مشتری عمومی'}`
+          ].filter(Boolean).join(' · '),
+          amount: n(p.amount),
+          dateJalali: p.paidAtJalali || toJalaliDate(new Date(p.paidAt)),
+          receiptNo: p.invoice?.receiptNo ?? null,
+          invoiceId: p.invoiceId ?? null
+        }
+      })
     })
 
     // ---------------- ۸) تغییر بعد از قفل دوره ----------------
@@ -584,9 +619,9 @@ export const fraudService = {
     }))
     push({
       key: 'closedPeriodOverride',
-      title: 'تغییر با تایید مدیر روی دوره‌ی بسته یا قیمت دستی',
+      title: 'تغییر با تأیید مدیر روی دوره‌ی بسته یا قیمت دستی',
       severity: 'INFO',
-      detail: 'این‌ها با تایید مدیر انجام شده‌اند و مشکل نیستند؛ فهرستشان برای مرور دوره‌ای اینجاست.',
+      detail: 'این‌ها با تأیید مدیر انجام شده‌اند و مشکل نیستند؛ فهرستشان برای مرور دوره‌ای اینجاست.',
       amount: 0,
       count: overrides.length,
       sources: overrides.map((a) => ({
@@ -613,7 +648,7 @@ export const fraudService = {
       severity: 'HIGH',
       detail:
         'از این فاکتور پول نقد بیرون رفته که هرگز وارد نشده بود. مسیر ثبتِ فعلی این را مسدود می‌کند، ' +
-        'پس وجودِ چنین ردیفی یعنی داده‌ی قبل از جلسه ۱۴ یا ویرایش دستی دیتابیس.',
+        'پس وجودِ چنین ردیفی یعنی داده‌ی نسخه‌های قدیمی یا ویرایش دستی دیتابیس.',
       amount: suspiciousCash.reduce((s, r) => s + n(r.refundAmount), 0),
       count: suspiciousCash.length,
       sources: suspiciousCash.map((r) => ({
@@ -674,8 +709,7 @@ export const fraudService = {
     })
 
     notes.push(
-      'سود ناخالص (gross profit) عمداً در هیچ‌کدام از این هشدارها نیست، چون `purchasePrice` snapshot قطعی ' +
-        'در لحظه‌ی فروش ندارد و هر عدد سودی که بسازیم قابل دفاع نخواهد بود.'
+      'سود ناخالص عمداً در این هشدارها نیست، چون قیمت خرید لحظهٔ فروش قطعی ثبت نمی‌شود و عدد سود قابل اتکا نیست.'
     )
 
     await audit(prisma, {

@@ -1,3 +1,4 @@
+import PasswordField from '../components/PasswordField'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { call, CH } from '../lib/api'
@@ -9,6 +10,14 @@ import { exportTable } from '../lib/exportCsv'
 import { pageOfOutput, readAllReportPages, type ReadAllPagedResult } from '../lib/reportOutput'
 import ReportFilterBar, { channelsLabel, makeFilters, toServiceFilter, type ReportFilters } from '../components/ReportFilterBar'
 import ManagerGate from '../components/ManagerGate'
+
+/** دفتر آزمون ۴-۶۴: راهنمای قفل «نسیه» برای پنجرهٔ پرداختی‌ها و تب «چک‌ها» */
+const CREDIT_PAYMENTS_LOCK_HINT = 'این پنجره قفل بخش «نسیه» را دارد. رمز مدیر یا رمز دوم بخش «نسیه» را اینجا وارد کنید تا باز شود.'
+const CREDIT_CHEQUES_LOCK_HINT = 'این تب قفل بخش «نسیه» را دارد. رمز مدیر یا رمز دوم بخش «نسیه» را اینجا وارد کنید تا باز شود.'
+/** دفتر آزمون ۴-۶۵: «بازبینی ضدتقلب» همان قفل «عملکرد کارمندان» را دارد */
+const FRAUD_LOCK_HINT = 'این بخش همان قفل «عملکرد کارمندان» را دارد. رمز مدیر یا رمز دوم بخش «عملکرد کارمندان» را اینجا وارد کنید.'
+/** دفتر آزمون ۴-۶۶: تب «اعتبار خرید» همان قفل «مدیریت اعتبار خرید» را دارد (همان قفل سرور برای این فهرست) */
+const STORE_CREDITS_LOCK_HINT = 'این بخش همان قفل «مدیریت اعتبار خرید» را دارد. رمز مدیر یا رمز دوم بخش «مدیریت اعتبار خرید» را اینجا وارد کنید.'
 import AccountingBlocks, { type DrillTarget } from '../components/AccountingBlocks'
 import BridgeDiagnosticsModal from '../components/BridgeDiagnosticsModal'
 import ReportExtraTables from '../components/ReportExtraTables'
@@ -42,7 +51,7 @@ import CreditSettlementModal from '../components/CreditSettlementModal'
 import ReturnCorrectionLedger from '../components/ReturnCorrectionLedger'
 import { useSettings } from '../hooks/useSettings'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { MANAGER_ACCOUNT_ROW_LABEL, MANAGER_ACCOUNT_ROW_NOTE } from '@shared/enums'
+import { MANAGER_ACCOUNT_ROW_LABEL, MANAGER_ACCOUNT_ROW_NOTE, salePaymentStatusLabel } from '@shared/enums'
 import {
   cardOnlyOf,
   managerAccountOf,
@@ -52,7 +61,10 @@ import {
 } from '../lib/destinationCells'
 import { usePanelLock, usePanelOpen } from '../hooks/usePanelLocks'
 import { useManagerSession } from '../hooks/useManagerSession'
-import { PANEL_KEYS } from '@shared/panels'
+import { PANEL_KEYS, lockName } from '@shared/panels'
+import OneTimeCodeBox from '../components/OneTimeCodeBox'
+import { RemoteRequestBox } from '../components/RemoteRequestBox'
+import { remoteImplementationReady } from '@shared/remoteAuthChannels'
 import {
   ColGroup,
   ResizableHeaderCells,
@@ -71,7 +83,8 @@ import {
   fraudOutputRows,
   outputLastPageNotes,
   outputPageRangeNote,
-  shownInvoiceUnits
+  shownInvoiceUnits,
+  isRowsPagingWarning
 } from '@shared/reportExtraOutput'
 /**
  * جلسه ۲۴ — لایه‌ی نمایشِ خالص ماژول اعتبار. سرستون‌ها، شکل ردیف اکسل و کارت‌های
@@ -205,6 +218,8 @@ function reportDataKey(
     includeSettled: boolean
     chequeDateMode: string
     creditOpen: boolean
+    staffOpen: boolean
+    creditMgmtOpen: boolean
   }
 ): string {
   const service = toServiceFilter(f)
@@ -386,6 +401,7 @@ const CREDIT_HEADERS = [
   'باقی‌ماندهٔ بدهی',
   'وضعیت تسویه',
   'چک در جریان',
+  'چک برگشتی',
   'تعداد پرداختی',
   'آخرین پرداختی',
   'سن بدهی (روز)',
@@ -496,6 +512,7 @@ const creditTotalsFromRows = (
   partialCount: rows.filter((row) => row.settlementState === 'PARTIAL').length,
   settledCount: rows.filter((row) => row.settled).length,
   pendingChequeTotal: rows.reduce((sum, row) => sum + Number(row.pendingChequeTotal ?? 0), 0),
+  bouncedChequeTotal: rows.reduce((sum, row) => sum + Number(row.bouncedChequeTotal ?? 0), 0),
   overpayTotal: rows.reduce((sum, row) => sum + Number(row.overpayTotal ?? 0), 0),
   priorSettlementTotal: priorSettlements.reduce((sum, row) => sum + Number(row.amount ?? 0), 0),
   priorSettlementCount: priorSettlements.length
@@ -530,7 +547,7 @@ const summaryRowValues = (r: SaleReportRow, source = '') => [
   r.time,
   r.shiftName,
   r.customerName,
-  r.statusLabel,
+  salePaymentStatusLabel(r),
   r.orderTypeLabel,
   r.goodsTotal,
   r.taxTotal,
@@ -760,11 +777,15 @@ export default function SalesReports() {
    */
   /** قفل خاموش هم باید دادهٔ نسیه را بخواند؛ تا خواندن policy همچنان fail-closed است. */
   const creditOpen = usePanelOpen(PANEL_KEYS.salesCredit)
+  /** دفتر آزمون ۴-۶۵: «بازبینی ضدتقلب» تا باز شدن قفل «عملکرد کارمندان» خوانده نمی‌شود */
+  const staffOpen = usePanelOpen(PANEL_KEYS.staffPerformance)
+  /** دفتر آزمون ۴-۶۶: تب «اعتبار خرید» تا باز شدن قفل «مدیریت اعتبار خرید» خوانده نمی‌شود (به جای پیام قرمز سرور، کادر رمز) */
+  const creditMgmtOpen = usePanelOpen(PANEL_KEYS.creditManagement)
   const currentReportKey = useMemo(
-    () => reportDataKey(tab, filters, { includeExchanges, includeSettled, chequeDateMode, creditOpen }),
-    [tab, filters, includeExchanges, includeSettled, chequeDateMode, creditOpen]
+    () => reportDataKey(tab, filters, { includeExchanges, includeSettled, chequeDateMode, creditOpen, staffOpen, creditMgmtOpen }),
+    [tab, filters, includeExchanges, includeSettled, chequeDateMode, creditOpen, staffOpen, creditMgmtOpen]
   )
-  const outputDirty = loadedReportKey !== currentReportKey || (tab === 'credit' && !creditOpen)
+  const outputDirty = loadedReportKey !== currentReportKey || ((tab === 'credit' || tab === 'cheques') && !creditOpen) || (tab === 'fraud' && !staffOpen) || (tab === 'storeCredits' && !creditMgmtOpen)
 
   const flash = (m: string) => {
     setMsg(m)
@@ -784,7 +805,9 @@ export default function SalesReports() {
         includeExchanges,
         includeSettled,
         chequeDateMode,
-        creditOpen
+        creditOpen,
+        staffOpen,
+        creditMgmtOpen
       })
       /**
        * بند ۵ — «هیچ گزارشی بی‌صدا ناقص نمی‌شود». فقط `count()` می‌زند و هیچ
@@ -805,10 +828,11 @@ export default function SalesReports() {
       if (tab === 'creditManagement') return
       if (tab === 'receiptGaps') return
       // ---------------- جلسه ۱۵: چهار تب تازه ----------------
-      if (tab === 'cheques') setCheques(await call<any>(CH.saleChequeList, { ...f, dateMode: chequeDateMode }))
-      else if (tab === 'storeCredits') setStoreCredits(await call<any>(CH.storeCreditList, f))
+      // دفتر آزمون ۴-۶۴: تا قفل «نسیه» باز نشده، فهرست چک‌ها خوانده نمی‌شود
+      if (tab === 'cheques') setCheques(creditOpen ? await call<any>(CH.saleChequeList, { ...f, dateMode: chequeDateMode }) : null)
+      else if (tab === 'storeCredits') setStoreCredits(creditMgmtOpen ? await call<any>(CH.storeCreditList, f) : null)
       else if (tab === 'ledger') setLedger(await call<any>(CH.saleReportLedger, f))
-      else if (tab === 'fraud') setFraud(await call<any>(CH.saleFraudReview, f))
+      else if (tab === 'fraud') setFraud(staffOpen ? await call<any>(CH.saleFraudReview, f) : null)
       else if (tab === 'summary') setReport(await call<SaleReportResult>(CH.saleReportRows, f))
       else if (tab === 'items') {
         /**
@@ -853,7 +877,7 @@ export default function SalesReports() {
     } finally {
       setBusy(false)
     }
-  }, [filters, tab, creditOpen, includeSettled, includeExchanges, chequeDateMode])
+  }, [filters, tab, creditOpen, staffOpen, creditMgmtOpen, includeSettled, includeExchanges, chequeDateMode])
 
   /**
    * بند ۶ و ۷ — «فیلتر پویا»: عوض شدن تب، قفل نسیه، چک‌باکس تسویه‌شده‌ها و
@@ -866,6 +890,16 @@ export default function SalesReports() {
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, creditOpen, includeSettled, includeExchanges, channelsKey, chequeDateMode])
+  /** دفتر آزمون ۴-۶۵: باز یا بسته شدن قفل «عملکرد کارمندان» تب «بازبینی ضدتقلب» را همان لحظه دوباره می‌گیرد */
+  useEffect(() => {
+    if (tab === 'fraud') void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staffOpen])
+  /** دفتر آزمون ۴-۶۶: همین برای قفل «مدیریت اعتبار خرید» و تب «اعتبار خرید» */
+  useEffect(() => {
+    if (tab === 'storeCredits') void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [creditMgmtOpen])
 
   // روش‌های پرداخت، برای پنجره‌ی «ثبت پرداختی نسیه»
   useEffect(() => {
@@ -1016,7 +1050,7 @@ export default function SalesReports() {
       notes.push(
         `هشدار خروجی: این چاپ/فایل فقط صفحه‌ی جاری است؛ نمایش ${faDigits(rowsShown)} از ${faDigits(page.totalCount)} ${noun}.`
       )
-      notes.push('جمع مبلغ ردیف‌های فایل فقط همین صفحه است؛ جمع کل بازه را فقط از جمع مستقل endpoint بخوانید.')
+      notes.push('جمع مبلغ ردیف‌های فایل فقط همین صفحه است؛ جمع کل بازه را از جمع‌های خود صفحهٔ گزارش بخوانید.')
     } else if (page && page.skip > 0) {
       // ممیزی A121-01 — صفحه‌ی آخر هم باید روی کاغذ/فایل بگوید کل گزارش نیست.
       notes.push(...outputLastPageNotes(page, rowsShown, noun))
@@ -1379,6 +1413,7 @@ export default function SalesReports() {
             money(output.creditTotals.remainingTotal),
             '',
             money(output.creditTotals.pendingChequeTotal),
+            money(output.creditTotals.bouncedChequeTotal ?? 0),
             '',
             '',
             '',
@@ -1658,6 +1693,7 @@ export default function SalesReports() {
             output.creditTotals.remainingTotal,
             '',
             output.creditTotals.pendingChequeTotal,
+            output.creditTotals.bouncedChequeTotal ?? 0,
             '',
             '',
             '',
@@ -1975,7 +2011,9 @@ export default function SalesReports() {
     const password = exCorrectionUnlockPassword.trim()
     if (!request) return
     if (!password) {
-      setExCorrectionUnlockError('برای باز کردن قفل این عملیات، رمز مدیر یا رمز دوم/سوم همین بخش را وارد کنید.')
+      setExCorrectionUnlockError(
+        `برای باز کردن قفل این عملیات، رمز مدیر یا رمز دوم/سوم «${lockName(PANEL_KEYS.salesReturnCorrection)}» را وارد کنید (یا کد یک‌بارمصرف یا مجوز راه دور).`
+      )
       return
     }
     setExCorrectionUnlockBusy(true)
@@ -1992,6 +2030,19 @@ export default function SalesReports() {
       setExCorrectionUnlockBusy(false)
     }
   }
+  /**
+   * دفتر آزمون ۴-۸۱: اگر قفل «اصلاح و ابطال برگشت / تعویض» با «کد یک‌بارمصرف» یا «درخواست مجوز از مدیر» همین پنجره باز شد،
+   * همان عملیات انتخاب‌شده ادامه می‌یابد؛ راه رمز مثل پیش خودش ادامه می‌دهد.
+   */
+  useEffect(() => {
+    if (!correctionOpen || !exCorrectionUnlockRequest || exCorrectionUnlockBusy) return
+    const request = exCorrectionUnlockRequest
+    setExCorrectionUnlockRequest(null)
+    setExCorrectionUnlockPassword('')
+    setExCorrectionUnlockError(null)
+    launchExchangeCorrectionAction(request)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [correctionOpen])
 
   const doExchangeVoid = async () => {
     const target = exVoidTarget
@@ -2150,13 +2201,13 @@ export default function SalesReports() {
             چک‌ها
           </button>
           <button className={`btn ${tab === 'storeCredits' ? 'btn-primary' : ''}`} onClick={() => setTab('storeCredits')}>
-            اعتبار خرید
+            اعتبار خرید 🔒
           </button>
           <button className={`btn ${tab === 'ledger' ? 'btn-primary' : ''}`} onClick={() => setTab('ledger')}>
             دفتر رویداد
           </button>
           <button className={`btn ${tab === 'fraud' ? 'btn-primary' : ''}`} onClick={() => setTab('fraud')}>
-            بازبینی ضدتقلب
+            بازبینی ضدتقلب 🔒
           </button>
           <button
             className={`btn ${tab === 'receiptGaps' ? 'btn-primary' : ''}`}
@@ -2193,13 +2244,13 @@ export default function SalesReports() {
             onClick={() => setTab('overrideSessions')}
             title="نشست‌هایی که نام شیفتشان دستی و خلاف پیشنهاد ساعت ثبت شده است (با دلیل و کارمند)"
           >
-            نشست‌های override‌شده
+            نشست‌هایی که نامشان دستی عوض شد
           </button>
           {/* ---------------- جلسه ۲۴ — ماژول مدیریت اعتبار خرید ---------------- */}
           <button
             className={`btn ${tab === 'creditManagement' ? 'btn-primary' : ''}`}
             onClick={() => setTab('creditManagement')}
-            title="داشبورد و فهرست ماژول «مدیریت اعتبار خرید» (جدا از تب legacy اعتبار تعویض)"
+            title="داشبورد و فهرست ماژول «مدیریت اعتبار خرید» (جدا از تب «اعتبار خرید»)"
           >
             مدیریت اعتبار خرید 🔒
           </button>
@@ -2632,8 +2683,7 @@ export default function SalesReports() {
             </p>
             <label className="block">
               <span className="font-bold">رمز مجوز عملیات</span>
-              <input
-                type="password"
+              <PasswordField
                 dir="ltr"
                 className="inp w-full mt-1"
                 value={exCorrectionUnlockPassword}
@@ -2643,10 +2693,13 @@ export default function SalesReports() {
                 }}
                 autoComplete="off"
                 autoFocus
-                placeholder="رمز مدیر یا رمز دوم/سوم این عملیات"
+                placeholder={`رمز مدیر یا رمز دوم/سوم «${lockName(PANEL_KEYS.salesReturnCorrection)}»`}
               />
             </label>
             {exCorrectionUnlockError && <p className="text-red-600 whitespace-pre-line">{exCorrectionUnlockError}</p>}
+            {/* دفتر آزمون ۴-۸۱: راه بی رمز همین قفل، مثل کادر قفل ماژول‌ها */}
+            <OneTimeCodeBox target={PANEL_KEYS.salesReturnCorrection} />
+            {remoteImplementationReady() && <RemoteRequestBox panel={PANEL_KEYS.salesReturnCorrection} />}
             <p className="kbd leading-6">پس از باز شدن قفل، فقط فرمِ عملیاتی که انتخاب کرده‌اید باز می‌شود.</p>
           </div>
         }
@@ -2688,8 +2741,7 @@ export default function SalesReports() {
             </label>
             <label className="block">
               <span className="font-bold">رمز تأیید ابطال (اجباری مگر مدیر قفل را خاموش کرده باشد)</span>
-              <input
-                type="password"
+              <PasswordField
                 dir="ltr"
                 className="inp w-full"
                 value={exVoidAuthPassword}
@@ -2699,7 +2751,7 @@ export default function SalesReports() {
                 }}
                 placeholder="رمز مدیر یا رمز اختصاصی اصلاح/ابطال"
               />
-              <span className="kbd block mt-1">قفل عملیات روز جاری در نصب تازه روشن است و رمز مدیر یا رمز دوم همین عمل را می‌پذیرد. برای روزهای بعد یا دوره‌ی بسته، هویت شخصی مدیر در فیلدهای پایین لازم است.</span>
+              <span className="kbd block mt-1">قفل عملیات روز جاری در نصب تازه روشن است و رمز مدیر یا رمز دوم/سوم «{lockName(PANEL_KEYS.salesReturnCorrection)}» را می‌پذیرد. برای روزهای بعد یا دوره‌ی بسته، هویت شخصی مدیر در فیلدهای پایین لازم است.</span>
             </label>
             <div className="rounded border border-amber-300 bg-amber-50 p-2 space-y-2">
               <p className="text-sm font-bold text-amber-900">تأیید شخصی مدیر — فقط اصلاح دیرهنگام یا دوره‌ی بسته</p>
@@ -2779,7 +2831,7 @@ export default function SalesReports() {
             <label className="block"><span>پیگیری پرداخت کارت/بانک (اگر مبلغ دارد)</span><input className="inp w-full" value={exCorrectionPayoutReference} onChange={(e) => setExCorrectionPayoutReference(e.target.value)} /></label>
             <label className="block"><span className="font-bold">وضعیت اعتبار صادرشده از همین تعویض</span><select className="inp w-full" value={exCorrectionCreditOutcome} onChange={(e) => setExCorrectionCreditOutcome(e.target.value)}><option value="NONE">اعتباری صادر نشده است</option><option value="CANCELED_UNUSED">اعتبار مصرف‌نشده لغو شد</option><option value="REMAINS_ACTIVE">اعتبار هنوز باقی است</option><option value="CONSUMED">اعتبار کامل مصرف شده است</option></select></label>
             <label className="block"><span>یادداشت تسویه/مغایرت</span><input className="inp w-full" value={exCorrectionNote} onChange={(e) => setExCorrectionNote(e.target.value)} /></label>
-            <label className="block"><span>رمز اصلاح جبرانی (در نصب تازه اجباری)</span><input type="password" dir="ltr" className="inp w-full" value={exCorrectionAuthPassword} onChange={(e) => { setExCorrectionAuthPassword(e.target.value); setExCorrectionErr(null) }} placeholder="رمز مدیر یا رمز اختصاصی اصلاح/ابطال" /></label>
+            <label className="block"><span>رمز اصلاح جبرانی (در نصب تازه اجباری)</span><PasswordField dir="ltr" className="inp w-full" value={exCorrectionAuthPassword} onChange={(e) => { setExCorrectionAuthPassword(e.target.value); setExCorrectionErr(null) }} placeholder="رمز مدیر یا رمز اختصاصی اصلاح/ابطال" /></label>
             <div className="rounded border border-amber-300 bg-amber-50 p-2 space-y-2">
               <p className="font-bold">تأیید شخصی مدیر — فقط روز بعد یا دوره‌ی بسته</p>
               <select className="inp w-full" value={exCorrectionApproverUserId ?? ''} onChange={(e) => { setExCorrectionApproverUserId(e.target.value ? Number(e.target.value) : null); setExCorrectionErr(null) }}><option value="">انتخاب مدیر تأییدکننده…</option>{exVoidManagers.map((manager) => <option key={manager.id} value={manager.id}>{manager.name}{manager.hasCorrectionApprovalPassword ? '' : ' — رمز شخصی تعریف نشده'}</option>)}</select>
@@ -2827,9 +2879,10 @@ export default function SalesReports() {
       {/* ===================== جلسه ۱۵ · بخش ۵ — هفت بلوک صورت‌حساب ===================== */}
       {tab === 'summary' && (
         <Fragment>
-          {!!(report.warnings ?? []).length && (
+          {/* دفتر آزمون ۴-۱۱۹ — هشدار صفحه‌بندی سرور (رقم انگلیسی) کنار می‌رود؛ نسخهٔ فارسی همین صفحه پایین‌تر است */}
+          {!!(report.warnings ?? []).filter((w) => !isRowsPagingWarning(w)).length && (
             <div className="mt-3 rounded border border-red-500 bg-red-50 p-2 text-xs leading-6 text-red-700">
-              {(report.warnings ?? []).map((w, i) => (
+              {(report.warnings ?? []).filter((w) => !isRowsPagingWarning(w)).map((w, i) => (
                 <div key={i}>⚠ {w}</div>
               ))}
             </div>
@@ -2856,7 +2909,7 @@ export default function SalesReports() {
           )}
           <AccountingBlocks
             statements={report.accounting ?? null}
-            warnings={report.warnings ?? []}
+            warnings={(report.warnings ?? []).filter((w) => !isRowsPagingWarning(w))}
             range={
               report.accounting?.period?.fromJalali
                 ? `از ${faDigits(report.accounting.period.fromJalali)} تا ${faDigits(report.accounting.period.toJalali ?? '')}`
@@ -2933,7 +2986,52 @@ export default function SalesReports() {
         </div>
       )}
 
-      {(tab === 'cheques' || tab === 'storeCredits' || tab === 'ledger' || tab === 'fraud') && (
+      {tab === 'cheques' && (
+        /* دفتر آزمون ۴-۶۴: تب «چک‌ها» داخل قفل «نسیه» */
+        <ManagerGate panel={PANEL_KEYS.salesCredit} title="چک‌ها" reason={CREDIT_CHEQUES_LOCK_HINT} inline>
+          <ReportExtraTables
+            tab={tab}
+            cheques={cheques}
+            chequeDateMode={chequeDateMode}
+            onChequeDateMode={setChequeDateMode}
+            storeCredits={storeCredits}
+            ledger={ledger}
+            fraud={fraud}
+            onOpenInvoice={(id) => setPaymentsFor(id)}
+          />
+        </ManagerGate>
+      )}
+      {tab === 'fraud' && (
+        /* دفتر آزمون ۴-۶۵: «بازبینی ضدتقلب» داخل قفل «عملکرد کارمندان» */
+        <ManagerGate panel={PANEL_KEYS.staffPerformance} title="بازبینی ضدتقلب" reason={FRAUD_LOCK_HINT} inline>
+          <ReportExtraTables
+            tab={tab}
+            cheques={cheques}
+            chequeDateMode={chequeDateMode}
+            onChequeDateMode={setChequeDateMode}
+            storeCredits={storeCredits}
+            ledger={ledger}
+            fraud={fraud}
+            onOpenInvoice={(id) => setPaymentsFor(id)}
+          />
+        </ManagerGate>
+      )}
+      {tab === 'storeCredits' && (
+        /* دفتر آزمون ۴-۶۶: تب «اعتبار خرید» داخل قفل «مدیریت اعتبار خرید»؛ محتوا همان است */
+        <ManagerGate panel={PANEL_KEYS.creditManagement} title="اعتبار خرید" reason={STORE_CREDITS_LOCK_HINT} inline>
+          <ReportExtraTables
+            tab={tab}
+            cheques={cheques}
+            chequeDateMode={chequeDateMode}
+            onChequeDateMode={setChequeDateMode}
+            storeCredits={storeCredits}
+            ledger={ledger}
+            fraud={fraud}
+            onOpenInvoice={(id) => setPaymentsFor(id)}
+          />
+        </ManagerGate>
+      )}
+      {tab === 'ledger' && (
         <ReportExtraTables
           tab={tab}
           cheques={cheques}
@@ -2995,8 +3093,21 @@ export default function SalesReports() {
         pageUnexplained={report?.accounting?.bridge ? report.accounting.bridge.unexplained : null}
       />
       <CreditSettlementModal open={creditSettlementFor != null} invoiceId={creditSettlementFor} onClose={() => setCreditSettlementFor(null)} />
+      {/* دفتر آزمون ۴-۶۴: پنجرهٔ پرداختی‌ها از هر تبی قفل «نسیه» را دارد؛ با قفل خاموش یا باز، همان پنجره */}
+      {paymentsFor != null && !creditOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" role="dialog" aria-modal="true">
+          <div className="bg-white rounded shadow p-4 w-[min(94vw,560px)] space-y-2">
+            <ManagerGate panel={PANEL_KEYS.salesCredit} title="پرداختی‌ها / اقساط" reason={CREDIT_PAYMENTS_LOCK_HINT} inline>
+              <span />
+            </ManagerGate>
+            <div className="flex justify-end">
+              <button className="btn" onClick={() => setPaymentsFor(null)}>بستن</button>
+            </div>
+          </div>
+        </div>
+      )}
       <InvoicePaymentsModal
-        open={paymentsFor != null}
+        open={paymentsFor != null && creditOpen}
         invoiceId={paymentsFor}
         methods={methods}
         debtReceiptPrint={settings.sale.debtPaymentReceiptPrint === true}
@@ -3503,7 +3614,7 @@ function SummaryRow({
       <td>{faDigits(r.time)}</td>
       <td>{r.shiftName}</td>
       <td>{r.customerName}</td>
-      <td className={r.consolidated ? 'text-emerald-700' : ''}>{r.statusLabel}</td>
+      <td className={r.consolidated ? 'text-emerald-700' : ''}>{salePaymentStatusLabel(r)}</td>
       <td>{r.orderTypeLabel}</td>
       <td>{money(r.goodsTotal)}</td>
       <td>{money(r.taxTotal)}</td>
@@ -3905,6 +4016,7 @@ function creditRowValues(r: CreditInvoiceRow): (string | number)[] {
     r.remaining,
     r.settlementLabel,
     r.pendingChequeTotal,
+    r.bouncedChequeTotal ?? 0,
     r.paymentCount,
     r.lastPaymentJalali
       ? `${r.lastPaymentJalali} ${r.lastPaymentTime ?? ''}${r.lastPaymentBackdated ? ' · ثبت با تاریخ قبل' : ''}`.trim()
@@ -3997,6 +4109,9 @@ function CreditTables({
               <td className={r.pendingChequeTotal > 0 ? 'text-amber-700 font-bold' : ''}>
                 {r.pendingChequeTotal > 0 ? money(r.pendingChequeTotal) : '—'}
               </td>
+              <td className={(r.bouncedChequeTotal ?? 0) > 0 ? 'text-rose-700 font-bold' : ''}>
+                {(r.bouncedChequeTotal ?? 0) > 0 ? money(r.bouncedChequeTotal ?? 0) : '—'}
+              </td>
               <td className="text-center">{faDigits(r.paymentCount)}</td>
               <td>
                 {r.lastPaymentJalali ? (
@@ -4056,6 +4171,7 @@ function CreditTables({
               <td className="text-amber-800">{money(t.remainingTotal)}</td>
               <td></td>
               <td>{money(t.pendingChequeTotal)}</td>
+              <td>{money(t.bouncedChequeTotal ?? 0)}</td>
               <td colSpan={3}></td>
               <td>{money(t.overpayTotal)}</td>
               <td colSpan={4}></td>

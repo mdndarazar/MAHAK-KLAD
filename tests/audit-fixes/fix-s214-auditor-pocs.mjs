@@ -30,6 +30,9 @@ const { DEFAULT_MANAGER_PASSWORD: PW } = await import('@shared/receipt')
 
 registerIpcHandlers()
 const ipc = (ch, p) => handlers.get(ch)({ sender }, p)
+// دفتر آزمون ۴-۶۴: پنجرهٔ «پرداختی‌ها» قفل «نسیه» را دارد؛ مثل صفحه، اول همان قفل برای این پنجره باز می‌شود
+const { notePanelUnlocked } = await import('../../src/main/services/panelSession.ts')
+notePanelUnlocked((await import('@shared/panels')).PANEL_KEYS.salesCredit, 'PANEL', sender.id)
 
 const db = harnessClient()
 const seed = makeSeeder(db)

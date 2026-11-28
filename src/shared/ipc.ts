@@ -152,6 +152,14 @@ export const IPC = {
   creditDeliveryConfirm: 'credit:delivery:confirm',
   /** First print of a pending return/exchange credit; never activates it. */
   creditDeliveryPrint: 'credit:delivery:print',
+  /** طرح ۱۴۰۵ · مورد ۱۲ — چاپ دوباره‌ی گواهی به دست فروشنده: یک بار، همان شیفت، با دلیل؛ بی پنجره و با چاپگر گواهی */
+  creditSellerReprint: 'credit:seller-reprint',
+  /** تب «چاپ دوباره» در مدیریت اعتبار (فقط خواندن) و «دیدم» مدیر */
+  creditSellerReprints: 'credit:seller-reprints',
+  creditSellerReprintsSeen: 'credit:seller-reprints:seen',
+  /** چاپگر گواهی اعتبار (`credit.certificatePrinter`)؛ نام‌های مجازی پذیرفته نمی‌شوند */
+  creditCertificatePrinterGet: 'credit:certificate-printer:get',
+  creditCertificatePrinterSet: 'credit:certificate-printer:set',
   /** تولید گروهی (۱ تا هزاران) با Batch Insert و سنجش ظرفیت کد */
   creditBulkIssue: 'credit:bulk:issue',
   /** فهرست دسته‌های تولید گروهی (مبنای چاپ دسته‌ای) */
@@ -481,6 +489,8 @@ export const IPC = {
    */
   managerPanelLocks: 'manager:panel:locks',
   managerPanelLocksSet: 'manager:panel:locks:set',
+  /** دفتر آزمون ۴-۵۳: باز کردن فوری قفل رمز اشتباه (رمز تایپی مدیر) */
+  managerPasswordLocksClear: 'manager:password:locks:clear',
 
   // عوارض و مالیات / حق سرویس بر اساس دسته‌بندی کالا (اسکوپ‌دار: pos | wholesale)
   chargesGet: 'charges:get',
@@ -755,5 +765,47 @@ export const IPC = {
   /** دفتر انصراف‌ها («لغو ۱۱») */
   smsOptOutList: 'sms:optOut:list',
   smsOptOutAdd: 'sms:optOut:add',
-  smsOptOutRemove: 'sms:optOut:remove'
+  smsOptOutRemove: 'sms:optOut:remove',
+
+  // -------------------------------------------------------------------------
+  // طرح ۱۴۰۵ · موردهای ۱۳ و ۱۵ — پیام‌رسان تلگرام و بله (معماری §۴-۱). فقط از پنجرهٔ اصلی
+  // برنامه؛ هر تغییر با رمز تایپی مدیر (دستهٔ ۱). کلید ربات هرگز از main برنمی‌گردد.
+  // -------------------------------------------------------------------------
+  messengerStatus: 'messenger:status',
+  messengerSaveBot: 'messenger:bot:save',
+  messengerRemoveBot: 'messenger:bot:remove',
+  messengerSetEnabled: 'messenger:enabled',
+  messengerSetOptions: 'messenger:options',
+  messengerPairStart: 'messenger:pair:start',
+  messengerPairConfirm: 'messenger:pair:confirm',
+  messengerPairCancel: 'messenger:pair:cancel',
+  messengerRecipientUpdate: 'messenger:recipient:update',
+  messengerRecipientRemove: 'messenger:recipient:remove',
+  messengerTest: 'messenger:test',
+  messengerResetVault: 'messenger:vault:reset',
+  /** مرحلهٔ ۶ (§۴-۱-ب): «پاسخ ربات به دکمه‌ها» و اجازهٔ تأیید هر گیرنده؛ هر دو رمز تایپی مدیر */
+  messengerSetBotButtons: 'messenger:bot-buttons',
+  messengerRecipientApprove: 'messenger:recipient:approve',
+  // طرح ۱۴۰۵ — دروازهٔ مرکزی قفل‌ها (§۳-۷، §۳-۱۳، §۳-۱۷)
+  gateUnlock: 'gate:unlock',
+  gateCloseAll: 'gate:close-all',
+  lockDurationsGet: 'lock-durations:get',
+  lockDurationsSet: 'lock-durations:set',
+  // مرحلهٔ ۶ — کدهای یک‌بارمصرف (§۳-۱۵) و مجوز زمان‌بندی‌شده (§۳-۱۶)
+  locksRedeemCode: 'locks:redeem-code',
+  locksCodesStatus: 'locks:codes:status',
+  locksCodesCreate: 'locks:codes:create',
+  locksCodesRevoke: 'locks:codes:revoke',
+  locksCodesUnlock: 'locks:codes:unlock',
+  scheduledGrantsList: 'scheduled-grants:list',
+  scheduledGrantsCreate: 'scheduled-grants:create',
+  scheduledGrantsCancel: 'scheduled-grants:cancel',
+  // مرحلهٔ ۶ — کدهای بازیابی توقف اضطراری (§۴-۸)؛ فقط پنجرهٔ اصلی، ساخت و باطل کردن با رمز تایپی مدیر
+  recoveryCodesStatus: 'remote-recovery-codes:status',
+  recoveryCodesCreate: 'remote-recovery-codes:create',
+  recoveryCodesRevoke: 'remote-recovery-codes:revoke',
+  // مرحلهٔ ۸ — «صفر کردن برنامه» (§۴-۲): پیش‌نمایش (فقط خواندن)، اجرا (قفل کار `system.factory-reset`) و باز شدن دوباره
+  factoryResetPreview: 'system:factory-reset:preview',
+  factoryResetRun: 'system:factory-reset:run',
+  factoryResetRelaunch: 'system:factory-reset:relaunch'
 } as const

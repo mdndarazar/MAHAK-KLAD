@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '../db/client'
 import { audit } from './AuditService'
 import { assertManagerPassword } from './AuthService'
+import { gateAction } from './locks/gate'
 import { settingsService } from './SettingsService'
 import { BusinessError } from '../errors'
 import { AuditAction } from '@shared/enums'
@@ -160,7 +161,7 @@ export const periodLockService = {
     if ((!input.managerPassword && input.alreadyVerified !== true) || reason.length < 3)
       throw new BusinessError(lockedMessage(input.what, state))
     if (input.alreadyVerified === true) return true
-    await assertManagerPassword(input.managerPassword, `${input.what} در دوره‌ی بسته‌شده`)
+    await gateAction('period.closed-entry', () => assertManagerPassword(input.managerPassword, `${input.what} در دوره‌ی بسته‌شده`))
     return true
   },
 

@@ -1,0 +1,121 @@
+{
+  "src/main/ipc/index.ts": {
+    "assertManagerSession": {
+      "identity": 4
+    },
+    "assertPanelUnlocked": {
+      "known": 54
+    },
+    "authService.verify": {
+      "known": 1
+    },
+    "authService.verifyPanel": {
+      "known": 1
+    }
+  },
+  "src/main/services/AuthService.ts": {
+    "assertManagerPassword": {
+      "identity": 5
+    },
+    "authService.verifyPanel": {
+      "known": 2
+    }
+  },
+  "src/main/services/CardTransferService.ts": {
+    "assertPanelPassword": {
+      "known": 3
+    }
+  },
+  "src/main/services/CustodyService.ts": {
+    "assertManagerPassword": {
+      "identity": 1
+    },
+    "assertManagerSession": {
+      "identity": 3
+    }
+  },
+  "src/main/services/PartyService.ts": {
+    "assertPanelPassword": {
+      "known": 1
+    }
+  },
+  "src/main/services/PriceAdjustService.ts": {
+    "assertPanelPassword": {
+      "known": 1
+    }
+  },
+  "src/main/services/ProductService.ts": {
+    "assertPanelPassword": {
+      "known": 2
+    }
+  },
+  "src/main/services/PurchaseService.ts": {
+    "assertPanelPassword": {
+      "known": 2
+    }
+  },
+  "src/main/services/SalesService.ts": {
+    "assertPanelPassword": {
+      "known": 5
+    },
+    "verifyManagerCorrectionApproval": {
+      "identity": 2
+    }
+  },
+  "src/main/services/SecondaryStockService.ts": {
+    "assertPanelPassword": {
+      "known": 3
+    }
+  },
+  "src/main/services/SettingsService.ts": {
+    "assertPanelPassword": {
+      "known": 6
+    }
+  },
+  "src/main/services/StaffService.ts": {
+    "assertPanelPassword": {
+      "known": 1
+    }
+  },
+  "src/main/services/StocktakeReminderService.ts": {
+    "assertPanelPassword": {
+      "known": 2
+    }
+  },
+  "src/main/services/VariantPurgeService.ts": {
+    "assertPanelPassword": {
+      "known": 1
+    }
+  },
+  "src/main/services/bridgeDiagnosticsService.ts": {
+    "assertPanelUnlocked": {
+      "known": 4
+    },
+    "assertPanelUnlockedStrict": {
+      "known": 1
+    }
+  },
+  "src/main/services/financialInspectorService.ts": {
+    "assertPanelUnlocked": {
+      "known": 2
+    }
+  },
+  "src/main/services/locks/gate.ts": {
+    "assertManagerPassword": {
+      "identity": 1
+    },
+    "authService.verifyPanel": {
+      "known": 1
+    }
+  },
+  "src/main/services/locks/lockIpc.ts": {
+    "assertManagerPassword": {
+      "identity": 6
+    }
+  },
+  "src/main/services/panelSession.ts": {
+    "assertPanelPasswordStrict": {
+      "known": 1
+    }
+  }
+}

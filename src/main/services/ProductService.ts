@@ -169,6 +169,34 @@ export async function nextBarcode(client: Prisma.TransactionClient): Promise<str
 }
 
 /**
+ * دفتر آزمون ۴-۱۲۱ — بارکد یا کد کالای تکراری در فرم کالا: به‌جای پیام کلی «بارکد تکراری است؛ یک مقدار دیگر
+ * وارد کنید.» می‌گوید مال کدام کالاست. فقط پیام: همان‌جا رد می‌کند که قید یکتای پایگاه رد می‌کرد (کالای
+ * سطل آشغال هم شمرده می‌شود، چون قید پایگاه هم آن را می‌شمارد)؛ هیچ داده‌ای نوشته یا عوض نمی‌شود.
+ */
+async function assertVariantKeysFree(
+  client: Prisma.TransactionClient,
+  barcode: string,
+  code: string,
+  selfId: number | null
+): Promise<void> {
+  const ownerOf = (where: { barcode: string } | { code: string }) =>
+    client.productVariant.findFirst({
+      where: selfId ? { ...where, id: { not: selfId } } : where,
+      select: { code: true, size: true, color: true, deletedAt: true, product: { select: { name: true } } }
+    })
+  const nameOf = (o: { size: string | null; color: string | null; deletedAt: Date | null; product: { name: string } | null }) =>
+    [o.product?.name, o.size, o.color].filter((p) => String(p ?? '').trim()).join(' ') + (o.deletedAt ? ' — در سطل آشغال' : '')
+  if (barcode) {
+    const o = await ownerOf({ barcode })
+    if (o) throw new BusinessError(`این بارکد مال «${nameOf(o)}» (کد ${o.code}) است؛ یک بارکد دیگر وارد کنید.`)
+  }
+  if (code) {
+    const o = await ownerOf({ code })
+    if (o) throw new BusinessError(`این کد کالا مال «${nameOf(o)}» است؛ یک کد دیگر وارد کنید.`)
+  }
+}
+
+/**
  * ===========================================================================
  * جلسه ۵۴ — ساخت یک کالا/واریانت تازه **با کلاینت تراکنشِ صدازننده**.
  *
@@ -538,6 +566,8 @@ export const productService = {
           ledgerAccountCode: v.ledgerAccountCode ?? null
           // external_sku / woocommerceProductId عمداً ست نمی‌شوند (فاز دوم)
         }
+        // دفتر آزمون ۴-۱۲۱ — بارکد/کد تکراری: پیام می‌گوید مال کدام کالاست (رد شدن همان قید یکتای امروز)
+        await assertVariantKeysFree(tx, data.barcode, data.code, v.id ?? null)
         if (v.id) {
           const before = await tx.productVariant.findUnique({ where: { id: v.id } })
           // نشست ۱۴۶ — بستن race: اگر بین سنجش بیرون تراکنش و اینجا (مثلاً با یک

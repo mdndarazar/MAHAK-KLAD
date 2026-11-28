@@ -35,6 +35,9 @@ const { DEFAULT_MANAGER_PASSWORD: PW } = await import(join(root, 'src/shared/rec
 const GATE = { managerPassword: PW, overrideReason: 'اصلاح تست ۱۴۲ب چک' }
 registerIpcHandlers()
 const ipc = (ch, payload) => handlers.get(ch)({ sender }, payload)
+// دفتر آزمون ۴-۶۴: پنجرهٔ «پرداختی‌ها» قفل «نسیه» را دارد؛ مثل صفحه، اول همان قفل برای این پنجره باز می‌شود
+const { notePanelUnlocked } = await import(join(root, 'src/main/services/panelSession.ts'))
+notePanelUnlocked((await import(join(root, 'src/shared/panels.ts'))).PANEL_KEYS.salesCredit, 'PANEL', sender.id)
 const safe = async (fn) => { try { return await fn() } catch (e) { return { __error: String(e?.message ?? e) } } }
 const errOf = (r) => (r && r.__error) || (r && r.ok === false ? String(r.error) : null)
 const TARGET = /چک فقط از فرم «ثبت چک»/

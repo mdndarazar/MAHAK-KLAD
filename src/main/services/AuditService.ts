@@ -7,6 +7,7 @@ import '@shared/bigintJson'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../db/client'
 import { BusinessError } from '../errors'
+import { withGateMethodNote } from './locks/callContext'
 
 /**
  * کلاینتی که لاگ با آن نوشته می‌شود: یا کلاینت تراکنش جاری (`tx`) یا کلاینت
@@ -64,7 +65,8 @@ export async function auditMany(client: AuditClient, rows: AuditInput[]): Promis
           userId: input.userId ?? null,
           before: input.before ?? null,
           after: input.after ?? null,
-          note: input.note ?? null
+          // طرح ۱۴۰۵ §۳-۹: خط «روش تأیید» فقط اگر دروازه در همین فراخوانی با روشی تازه باز شده باشد
+          note: withGateMethodNote(input.action, input.note)
         }))
       })
     }
@@ -90,7 +92,7 @@ async function writeAudit(client: AuditClient, input: AuditInput): Promise<void>
       userId: input.userId ?? null,
       before: input.before ?? null,
       after: input.after ?? null,
-      note: input.note ?? null
+      note: withGateMethodNote(input.action, input.note)
     }
   })
 }

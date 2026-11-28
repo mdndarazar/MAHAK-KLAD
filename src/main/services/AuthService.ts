@@ -14,6 +14,8 @@ import {
   type ShiftConfig
 } from '@shared/receipt'
 import { openSecret, sealSecret, vaultReady } from './PanelVault'
+import { emptyPanelPasswordScope, gateAction, gatePasses } from './locks/gate'
+import { noteAccessEvent } from './locks/accessEvents'
 import { toLatinDigits, faDigits, toJalaliDate, toClock } from '@shared/jalali'
 import {
   ALWAYS_LOCKED_PANELS,
@@ -78,9 +80,9 @@ interface StoredAuth {
   changedAt?: string
 }
 
-/** رمز ورودی کاربر → شکل استاندارد (ارقام لاتین، بدون فاصله‌ی اضافه). */
+/** رمز ورودی کاربر → شکل استاندارد (ارقام لاتین، بدون فاصله‌ی اضافه). طرح ۱۴۰۵ §۳-۶: نشانگر U+2063 حذف می‌شود. */
 function normalize(raw: unknown): string {
-  return toLatinDigits(String(raw ?? '')).trim()
+  return toLatinDigits(String(raw ?? '')).replace(/\u2063/g, '').trim()
 }
 
 function derive(password: string, salt: string): string {
@@ -579,6 +581,7 @@ async function noteSuccess(gate: string): Promise<void> {
  * ===========================================================================
  */
 export async function assertManagerPassword(password: string | null | undefined, action: string): Promise<void> {
+  if (await gatePasses(normalize(password))) return // طرح ۱۴۰۵ §۳-۴ (فقط کار پوشانده‌شده، درون IPC)
   // RE-AUDIT-HIGH-02: این باید دقیقاً همان گیت authService.verify باشد؛ نام
   // قدیمیِ 'manager' یک شمارنده‌ی جدا می‌ساخت و قفل __manager__ را دور می‌زد.
   const gate = MANAGER_GATE
@@ -749,6 +752,8 @@ export async function assertPanelPassword(
     // قفل خاموش ⇒ همان مسیر `verifyPanel` بدون رمز (سیاست قفل ماژول‌ها)
     if (!isPanelLockEnabled(await readPanelLocks(), normalizePanelKey(panel) ?? panel))
       return 'OPEN'
+    const via = emptyPanelPasswordScope(panel) // طرح ۱۴۰۵ §۳-۵: نشست مدیر یا قسمتِ بازشده با مجوز، فقط درون IPC
+    if (via) return via
     throw new BusinessError(
       `«${action}» تأیید مدیر لازم دارد. رمز مدیر (یا رمز دوم همین پنل) را وارد کنید.`
     )
@@ -787,15 +792,47 @@ export async function assertPanelPasswordStrict(
   action: string
 ): Promise<'MANAGER' | 'PANEL'> {
   const pass = normalize(password)
+  const gated = await gatePasses(pass) // طرح ۱۴۰۵ §۳-۴ (فقط کار پوشانده‌شده، درون IPC)
+  if (gated) return gated
   if (!pass)
     throw new BusinessError(
-      `«${action}» همیشه رمز می‌خواهد، حتی اگر قفل این ماژول خاموش باشد. ` +
-        'رمز مدیر (یا رمز دوم/سوم همین پنل) را وارد کنید.'
+      `«${action}» قفل جدا دارد. ` +
+        'با رمز مدیر یا رمز دوم/سوم همین کار، کد یک‌بارمصرف یا مجوز از راه دور باز می‌شود.'
     )
   const res = await authService.verifyPanel({ panel, password: pass, force: true })
   if (res.scope === 'OPEN')
-    throw new BusinessError(`«${action}» همیشه رمز می‌خواهد. رمز واردشده پذیرفته نشد.`)
+    throw new BusinessError(`«${action}» قفل جدا دارد. رمز واردشده پذیرفته نشد.`)
   return res.scope
+}
+
+/** طرح ۱۴۰۵ §۳-۱۵: کد دست‌نویس برابر رمز مدیر یا هیچ رمز دوم و سومی نباشد (بی شمارش اشتباه و بی ثبت). */
+export async function secretEqualsAnyPassword(raw: string): Promise<boolean> {
+  const value = normalize(raw), stored = await read()
+  if (!value) return false
+  if (stored ? isPassword(stored, value) : value === DEFAULT_MANAGER_PASSWORD) return true
+  for (const record of Object.values(await readPanels())) {
+    const all = [record, ...Object.values(record?.shifts ?? {})]
+    if (all.some((rec) => rec && typeof rec.salt === 'string' && sameHash(rec.hash, derive(value, rec.salt)))) return true
+  }
+  return false
+}
+
+/**
+ * طرح ۱۴۰۵ §۳-۴ بند ۴ — رمز دوم/سوم جدای خود «قفل کار» (اگر مدیر برای همان کلید رمز گذاشته باشد).
+ * بی شمارش اشتباه: نابرابری یعنی «همان مسیر امروز» که خودش، مثل امروز، روی کلید خودش می‌شمارد.
+ */
+export async function actionKeyPasswordMatches(key: string, password: string): Promise<boolean> {
+  const record = (await readPanels())[key]
+  if (!record || !password) return false
+  let how = panelMatches(record, password) ? 'رمز دوم اختصاصی' : ''
+  if (!how) {
+    const cfg = await readShiftConfig(), shiftNo = await currentShiftNumber(cfg)
+    const rec = shiftNo && (cfg.templates ?? [])[shiftNo - 1] ? record.shifts?.[String(shiftNo)] : undefined
+    if (rec && rec.enabled !== false && sameHash(rec.hash, derive(password, rec.salt))) how = `رمز سوم شیفت ${faDigits(shiftNo ?? 0)}`
+  }
+  if (!how) return false
+  await audit(prisma, { action: 'SETTINGS_UPDATE', entity: 'Setting', note: `کار «${panelTitle(key)}» با ${how} (بدون نشست مدیر)` }).catch(() => undefined)
+  return true
 }
 
 /**
@@ -931,6 +968,23 @@ export const authService = {
   },
 
   /**
+   * دفتر آزمون ۴-۵۳: «باز کردن فوری قفل رمز اشتباه» (رمز تایپی مدیر). قفل و شمارندهٔ رمز اشتباهِ نقطه‌های ورود رمز همین
+   * سرویس (رمز مدیر، رمز دوم و سوم بخش‌ها، تأیید اصلاح) باز و در سابقه ثبت می‌شود. PIN صندوق (`custody-pin:*`) و قفل
+   * ۵ اشتباهِ کد یک‌بارمصرف جدا هستند و دست نمی‌خورند.
+   */
+  async clearPasswordLockouts(input: { managerPassword?: string; userId?: number | null } = {}): Promise<{ ok: true; cleared: number }> {
+    // مثل «تنظیمات امنیتی»: کلیدسازی (رمز تایپی مدیر)، درون دروازه تا شمارش فهرست فراخوانی‌ها درست بماند
+    await gateAction('keys.security-config', () => assertManagerPassword(normalize(input.managerPassword), 'باز کردن فوری قفل رمز اشتباه'))
+    const now = Date.now()
+    const rows = await prisma.authLockout.findMany()
+    const stuck = rows.filter((r: { gate: string; failCount: number | null; lockedUntil: Date | string | null }) =>
+      !r.gate.startsWith('custody-pin:') && ((r.failCount ?? 0) > 0 || (!!r.lockedUntil && new Date(r.lockedUntil).getTime() > now)))
+    for (const r of stuck) await writeLock(r.gate, { failCount: 0, lastFailAt: null, lockedUntil: null })
+    noteAccessEvent('PASSWORD_LOCKS_CLEARED', { count: stuck.length }, input.userId ?? null)
+    return { ok: true as const, cleared: stuck.length }
+  },
+
+  /**
    * -------------------------------------------------------------------------
    * بند ۱ — خواندن سیاست «قفل ماژول‌ها».
    * بدون رمز، چون هر گیت در لحظه‌ی رندر لازمش دارد. هیچ اطلاعات حساسی هم
@@ -1044,8 +1098,9 @@ export const authService = {
       await assertGateOpen(panel)
 
       const password = normalize(input.password)
-      // هاب راه دور — فقط gt- : قبل از شمارش قفل، اگر مجوز فعال باشد بپذیر
-      if (password.startsWith('gt-')) {
+      // Remote approval is deliberately disabled until the complete grant path is secured.
+      // Do not reserve a password prefix: existing manager/panel passwords may start with gt-.
+      if (false && password.startsWith('gt-')) {
         const { consumeOneShot } = await import('./RemoteGrantRegistry')
         // owner از panelSession — اگر 0 بود LEGACY_OWNER است
         let owner: number | null = null
@@ -1053,13 +1108,13 @@ export const authService = {
           const ps: any = await import('./panelSession')
           owner = ps.currentPanelOwner?.() ?? null
         } catch {}
-        if (owner != null && consumeOneShot(owner, panel, password.slice(3))) {
+        if (owner != null && consumeOneShot(owner, panel!, password.slice(3))) {
           // Audit ردیف جدا برای حسابرسی (تصمیم ۸ با شرط)
           try {
             const { audit } = await import('./AuditService')
             await audit(prisma as any, { action: 'REMOTE_GRANT_CONSUMED', entity: 'RemoteGrant', note: JSON.stringify({ panel, owner }) } as any)
           } catch {}
-          return { ok: true, scope: 'PANEL' as const, panel, isDefault: false }
+          return { ok: true, scope: 'PANEL' as const, panel: panel!, isDefault: false }
         }
         throw new BusinessError('مجوز راه دور نامعتبر یا منقضی شده است.')
       }

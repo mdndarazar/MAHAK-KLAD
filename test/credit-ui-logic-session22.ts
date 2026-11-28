@@ -108,8 +108,8 @@ t('همان درخواست با «افزایش خودکار طول» قبول و
 })
 
 // ---- عملیات مدیریتی ----
-t('عملیات بدون رمز مدیر رد می‌شود', () =>
-  buildOpPayload({ ...emptyOpDraft(CreditOp.VOID, 7), reason: 'سند اشتباه' }, {}).ok === false)
+t('عملیات بدون رمز هم ساخته می‌شود؛ دروازهٔ سرور پنجرهٔ قفل را می‌آورد (۴-۴۶)', () =>
+  buildOpPayload({ ...emptyOpDraft(CreditOp.VOID, 7), reason: 'سند اشتباه' }, {}).payload?.managerPassword === '')
 t('عملیات بدون دلیل رد می‌شود', () =>
   buildOpPayload({ ...emptyOpDraft(CreditOp.VOID, 7), managerPassword: '1111' }, {}).ok === false)
 t('ابطال با رمز و دلیل، payload کامل می‌دهد', () => {

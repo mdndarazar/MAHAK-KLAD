@@ -1,0 +1,2055 @@
+{
+ "meta": {
+  "tool": "docs/audit/year-scenarios.mjs",
+  "programCommit": "a70dc0d4df5e747cc04a1de58b7a575bf858ecc4",
+  "summary": {
+   "stories": 11,
+   "steps": 141,
+   "refusals": 8,
+   "observations": 64,
+   "findings": 5,
+   "findingTypes": {
+    "SYSTEM_CALENDAR_DIFF": 1,
+    "PREVIOUS_MONTH_PENDING_HIDDEN": 1,
+    "CLOCK_BEHIND_REFUSAL": 2,
+    "CLOCK_GUARD_STUCK": 1
+   },
+   "findingPlans": {
+    "نمایش (۴-۱۳۴)": 1,
+    "۴-۱۳۳": 1,
+    "4-111 (ثبت‌شده: «سند همین لحظه ⇐ بی ایست» و «ساعت نادرست»)": 1,
+    "4-111 (ثبت‌شده) / بند ۱۴": 1,
+    "۴-۱۳۲": 1
+   },
+   "invoices": 29,
+   "consolidations": 16
+  }
+ },
+ "stories": [
+  {
+   "id": "A1",
+   "title": "نوروز ۱۴۰۴ تا ۱۵۰۶: محاسبهٔ نجومی (اعتدال بهاری پیش یا پس از ظهر تهران) در برابر تقویم برنامه",
+   "steps": [],
+   "findings": [],
+   "obs": [
+    {
+     "k": "calibration (minutes vs published equinox times)",
+     "v": [
+      [
+       2024,
+       1
+      ],
+      [
+       2025,
+       1
+      ],
+      [
+       2026,
+       0
+      ],
+      [
+       2028,
+       0
+      ],
+      [
+       2030,
+       0
+      ]
+     ]
+    },
+    {
+     "k": "years compared",
+     "v": 103
+    },
+    {
+     "k": "mismatches",
+     "v": []
+    },
+    {
+     "k": "close calls (equinox within 25 minutes of noon)",
+     "v": [
+      [
+       1441,
+       "تحویل سال 11:37 به وقت تهران",
+       "نوروز برنامه 2062-03-20"
+      ],
+      [
+       1470,
+       "تحویل سال 12:11 به وقت تهران",
+       "نوروز برنامه 2091-03-21"
+      ],
+      [
+       1474,
+       "تحویل سال 11:44 به وقت تهران",
+       "نوروز برنامه 2095-03-20"
+      ],
+      [
+       1503,
+       "تحویل سال 12:04 به وقت تهران",
+       "نوروز برنامه 2124-03-21"
+      ]
+     ]
+    },
+    {
+     "k": "leap years 1404–1506 (program)",
+     "v": [
+      1408,
+      1412,
+      1416,
+      1420,
+      1424,
+      1428,
+      1432,
+      1436,
+      1441,
+      1445,
+      1449,
+      1453,
+      1457,
+      1461,
+      1465,
+      1469,
+      1474,
+      1478,
+      1482,
+      1486,
+      1490,
+      1494,
+      1498,
+      1502
+     ]
+    }
+   ]
+  },
+  {
+   "id": "A2",
+   "title": "تقویم سیستم (ICU؛ چند نمایش با toLocaleString) در برابر تقویم برنامه، هر روز ۲۰۲۶ تا ۲۱۲۷",
+   "steps": [],
+   "findings": [
+    "SYSTEM_CALENDAR_DIFF | از 2124-03-20 تا 2125-03-20 (366 روز): برنامه 1502/12/30 ولی تقویم سیستم 1503/1/1 | نمایش (۴-۱۳۴)"
+   ],
+   "obs": [
+    {
+     "k": "days compared",
+     "v": 37254
+    },
+    {
+     "k": "system calendar (ICU) version",
+     "v": "78.2"
+    },
+    {
+     "k": "differing ranges",
+     "v": [
+      {
+       "from": "2124-03-20",
+       "to": "2125-03-20",
+       "days": 366,
+       "program": "1502/12/30",
+       "system": "1503/1/1"
+      }
+     ]
+    },
+    {
+     "k": "display spots that use the system calendar",
+     "v": [
+      [
+       "BridgeDiagnosticsModal.tsx",
+       2
+      ],
+      [
+       "CustodyAdminChip.tsx",
+       5
+      ],
+      [
+       "CashClose.tsx",
+       3
+      ],
+      [
+       "CreditManagement.tsx",
+       1
+      ],
+      [
+       "Settings.tsx",
+       1
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "A3",
+   "title": "تابع‌های تاریخ برنامه، هر روز از ۲۰۲۶ تا ۲۱۲۷ (به وقت تهران)",
+   "steps": [],
+   "findings": [],
+   "obs": [
+    {
+     "k": "days checked",
+     "v": 37254
+    },
+    {
+     "k": "day lengths (hours → days)",
+     "v": [
+      [
+       24,
+       37254
+      ]
+     ]
+    },
+    {
+     "k": "leap years (program functions)",
+     "v": [
+      1408,
+      1412,
+      1416,
+      1420,
+      1424,
+      1428,
+      1432,
+      1436,
+      1441,
+      1445,
+      1449,
+      1453,
+      1457,
+      1461,
+      1465,
+      1469,
+      1474,
+      1478,
+      1482,
+      1486,
+      1490,
+      1494,
+      1498,
+      1502
+     ]
+    },
+    {
+     "k": "failures",
+     "v": []
+    }
+   ]
+  },
+  {
+   "id": "S0",
+   "title": "راه‌اندازی: رمز شخصی مالک و فروشنده، روشن کردن حضانت صندوق (مثل فروشگاه مالک)",
+   "steps": [
+    [
+     "1405/12/25 07:50 owner sets personal custody PIN",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1405/12/25 07:50 enable custody (single shift)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1405/12/25 07:50 owner issues a temporary PIN for the seller",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1405/12/25 07:50 seller sets personal PIN",
+     "OK",
+     "ok",
+     null,
+     ""
+    ]
+   ],
+   "findings": [],
+   "obs": []
+  },
+  {
+   "id": "Y1",
+   "title": "شب آخر ۱۴۰۵ و روز اول ۱۴۰۶ (۲۰ و ۲۱ مارس ۲۰۲۷): حراج نوروزی، چک سال بعد، فروش ۲۳:۵۰، تجمیع، برگشت و گزارش‌ها",
+   "steps": [
+    [
+     "1405/12/25 09:00 seller opens the drawer (PIN + count 2,000,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1405/12/25 09:05 schedule Nowruz sale −20% on N from 1405/12/25 09:30 to 1406/01/13 23:59",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1405/12/25 09:40 POS sale N at the Nowruz price 1,600,000 (cash)",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 1,
+      "day": "1405/12/25",
+      "grandTotal": 1600000
+     },
+     "زمان‌بندی"
+    ],
+    [
+     "1405/12/25 10:00 POS sale C نسیه 500,000",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 2,
+      "day": "1405/12/25",
+      "grandTotal": 500000
+     },
+     ""
+    ],
+    [
+     "1405/12/25 10:05 cheque 500,000 for sale C, due 1406/01/15 (next year)",
+     "OK",
+     "ok",
+     {
+      "status": "PENDING"
+     },
+     "چک"
+    ],
+    [
+     "1405/12/25 21:00 «بستن نهایی» (count 3,600,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1405/12/29 08:30 program opens on the last day of the year: automatic consolidation",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "1405/12/29 08:31 seller opens the drawer (PIN + count 3,600,000)",
+     "OK",
+     "ok",
+     null,
+     "بند ۱۴"
+    ],
+    [
+     "1405/12/29 10:00 POS sale A cash 700,000",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 3,
+      "day": "1405/12/29",
+      "grandTotal": 700000
+     },
+     ""
+    ],
+    [
+     "1405/12/29 12:00 POS sale B card 300,000",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 4,
+      "day": "1405/12/29",
+      "grandTotal": 300000
+     },
+     ""
+    ],
+    [
+     "1405/12/29 18:00 wholesale W 1,000,000 dated 1405/12/29",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 5,
+      "day": "1405/12/29",
+      "grandTotal": 1000000
+     },
+     ""
+    ],
+    [
+     "1405/12/29 19:00 purchase W×5@600,000 on the last day of 1405",
+     "OK",
+     "ok",
+     {
+      "invoiceNo": 365
+     },
+     "خرید"
+    ],
+    [
+     "1405/12/29 23:50 POS sale E cash 300,000 at 23:50 on the last night",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 6,
+      "day": "1405/12/29",
+      "grandTotal": 300000
+     },
+     ""
+    ],
+    [
+     "1405/12/29 23:58 «بستن نهایی» of the last night of 1405 (count 5,900,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1406/01/01 10:00 program opens on 1 Farvardin 1406: automatic consolidation of 1405/12/29",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "1406/01/01 10:01 seller opens the drawer on 1 Farvardin (PIN + count 5,900,000)",
+     "OK",
+     "ok",
+     null,
+     "بند ۱۴"
+    ],
+    [
+     "1406/01/01 10:05 POS sale N at the Nowruz price 1,600,000 (card)",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 7,
+      "day": "1406/01/01",
+      "grandTotal": 1600000
+     },
+     "زمان‌بندی"
+    ],
+    [
+     "1406/01/01 10:10 full return of the 1405/12/29 sale A (last year, consolidated)",
+     "OK",
+     "ok",
+     {
+      "refund": 700000
+     },
+     "بند ۱۴"
+    ],
+    [
+     "1406/01/01 10:15 exchange of the 1405/12/29 sale B → E (same price) (diff 0)",
+     "OK",
+     "ok",
+     {
+      "diff": 0
+     },
+     "بند ۱۴"
+    ],
+    [
+     "1406/01/01 10:18 purchase W×5@650,000 on 1 Farvardin 1406",
+     "OK",
+     "ok",
+     {
+      "invoiceNo": 366
+     },
+     "خرید"
+    ],
+    [
+     "1406/01/01 10:20 wholesale W dated 1406/01/01",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 9,
+      "day": "1406/01/01",
+      "grandTotal": 1000000
+     },
+     "بند ۱۴"
+    ],
+    [
+     "1406/01/01 10:20 wholesale page left open since last night (date still 1405/12/29)",
+     "REFUSED",
+     "either",
+     "ثبت فاکتور فروش در تاریخ # ممکن نیست، چون این دوره بسته شده است:",
+     "4-111 ب"
+    ],
+    [
+     "1406/01/01 10:30 sales report day 1405/12/25 (1405/12/25 … 1405/12/25)",
+     "OK",
+     "ok",
+     {
+      "count": 2,
+      "grandTotal": 2100000,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1406/01/01 10:30 sales report day 1405/12/29 (1405/12/29 … 1405/12/29)",
+     "OK",
+     "ok",
+     {
+      "count": 4,
+      "grandTotal": 2300000,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1406/01/01 10:30 sales report day 1406/01/01 (1406/01/01 … 1406/01/01)",
+     "OK",
+     "ok",
+     {
+      "count": 3,
+      "grandTotal": 2900000,
+      "returned": 700000,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1406/01/01 10:30 sales report Esfand 1405 (1405/12/01 … 1405/12/29)",
+     "OK",
+     "ok",
+     {
+      "count": 6,
+      "grandTotal": 4400000,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1406/01/01 10:30 sales report year 1405 (1405/01/01 … 1405/12/29)",
+     "OK",
+     "ok",
+     {
+      "count": 6,
+      "grandTotal": 4400000,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1406/01/01 10:30 sales report across the years (1405/12/20 … 1406/01/01)",
+     "OK",
+     "ok",
+     {
+      "count": 9,
+      "grandTotal": 7300000,
+      "returned": 700000,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1406/01/01 10:30 management report across the years (1405/12/20 … 1406/01/01)",
+     "OK",
+     "ok",
+     {
+      "invoiceCount": 9,
+      "netAccrualSales": 6300000
+     },
+     "گزارش"
+    ],
+    [
+     "1406/01/01 10:30 management report Esfand 1405 (1405/12/01 … 1405/12/29)",
+     "OK",
+     "ok",
+     {
+      "invoiceCount": 6,
+      "netAccrualSales": 4400000
+     },
+     "گزارش"
+    ],
+    [
+     "1406/01/01 10:30 management report year 1405 (1405/01/01 … 1405/12/29)",
+     "OK",
+     "ok",
+     {
+      "invoiceCount": 6,
+      "netAccrualSales": 4400000
+     },
+     "گزارش"
+    ],
+    [
+     "1406/01/01 10:30 management report day 1406/01/01 (1406/01/01 … 1406/01/01)",
+     "OK",
+     "ok",
+     {
+      "invoiceCount": 3,
+      "netAccrualSales": 1900000
+     },
+     "گزارش"
+    ],
+    [
+     "1406/01/01 10:30 sales report range ending 1405/12/30 (API only; the page checks the date first: SalesReports.tsx) (1405/12/01 … 1405/12/30)",
+     "OK",
+     "either",
+     {
+      "count": 9,
+      "grandTotal": 7300000,
+      "returned": 700000,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1406/01/01 10:30 management trend by month 1405/12 … 1406/01",
+     "OK",
+     "ok",
+     [
+      [
+       "1405/12",
+       6,
+       4400000,
+       "1404/12/01 تا 1404/12/29"
+      ],
+      [
+       "1406/01",
+       3,
+       1900000,
+       "1405/01/01 تا 1405/01/01"
+      ]
+     ],
+     "گزارش"
+    ],
+    [
+     "1406/01/01 21:00 «بستن نهایی» 1 Farvardin (count 7,800,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1406/01/15 10:00 program opens on 1406/01/15",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "1406/01/15 10:01 seller opens the drawer (PIN + count 7,800,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1406/01/15 10:01 cheque list due 1406/01/15",
+     "OK",
+     "ok",
+     {
+      "rows": 1
+     },
+     "چک"
+    ],
+    [
+     "1406/01/15 10:01 cheque list due in Esfand 1405 (should be empty)",
+     "OK",
+     "ok",
+     {
+      "rows": 0
+     },
+     "چک"
+    ],
+    [
+     "1406/01/15 10:01 cheque 500,000 CLEARED → manager account",
+     "OK",
+     "ok",
+     null,
+     "چک"
+    ],
+    [
+     "1406/01/15 21:00 «بستن نهایی» (count 7,800,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "N price after the sale starts (1405/12/25 09:31)",
+     "v": 1600000
+    },
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "1405/12/29 08:30",
+      "days": [
+       "1405/12/25"
+      ],
+      "invoices": 2,
+      "movements": 2
+     }
+    },
+    {
+     "k": "the 23:50 sale is dated",
+     "v": "1405/12/29"
+    },
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "1406/01/01 10:00",
+      "days": [
+       "1405/12/29"
+      ],
+      "invoices": 4,
+      "movements": 4
+     }
+    },
+    {
+     "k": "N price on 1 Farvardin (sale runs until 1406/01/13)",
+     "v": 1600000
+    },
+    {
+     "k": "return deadline of the 1405/12/29 sale (returnCodeDays = 1)",
+     "v": "1406/01/01"
+    },
+    {
+     "k": "purchase numbers across the year",
+     "v": [
+      365,
+      366
+     ]
+    },
+    {
+     "k": "old-date wholesale after consolidation",
+     "v": " ثبت فاکتور فروش در تاریخ ۱۴۰۵/۱۲/۲۹ ممکن نیست، چون این دوره بسته شده است:"
+    },
+    {
+     "k": "sales report vs management on 1 Farvardin (returns of last year’s sales are subtracted on the return day)",
+     "v": {
+      "salesReport": {
+       "count": 3,
+       "grandTotal": 2900000
+      },
+      "management": {
+       "count": 3,
+       "grandTotal": 1900000
+      }
+     }
+    },
+    {
+     "k": "sales report API with 1405/12/30 (that day does not exist)",
+     "v": {
+      "count": 9,
+      "grandTotal": 7300000,
+      "sameAsUpTo1406_01_01": true
+     }
+    },
+    {
+     "k": "monthly buckets",
+     "v": [
+      [
+       "1405/12",
+       "1405/12/01",
+       "1405/12/29"
+      ],
+      [
+       "1406/01",
+       "1406/01/01",
+       "1406/01/01"
+      ]
+     ]
+    },
+    {
+     "k": "N price after the sale ends (1406/01/14 00:05)",
+     "v": 2000000
+    },
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "1406/01/15 10:00",
+      "days": [
+       "1406/01/01"
+      ],
+      "invoices": 3,
+      "movements": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": "Y2",
+   "title": "تعطیلات نوروز ۱۴۰۷: صندوق ۱۴۰۶/۱۲/۲۷ باز ماند و برنامه ۱۶ روز بعد (۱۴۰۷/۰۱/۱۴) باز شد",
+   "steps": [
+    [
+     "1406/12/27 08:55 program opens on 1406/12/27",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "1406/12/27 09:00 seller opens the drawer (PIN + count 7,800,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1406/12/27 11:00 POS sale A cash 700,000",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 10,
+      "day": "1406/12/27",
+      "grandTotal": 700000
+     },
+     ""
+    ],
+    [
+     "1406/12/27 12:00 POS sale B card 300,000 (nobody closes the drawer; the shop closes for Nowruz)",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 11,
+      "day": "1406/12/27",
+      "grandTotal": 300000
+     },
+     ""
+    ],
+    [
+     "1407/01/14 09:00 consolidation page with its default range (start of this month … today)",
+     "OK",
+     "ok",
+     {
+      "pendingDays": []
+     },
+     "۴-۱۱۱"
+    ],
+    [
+     "1407/01/14 09:00 consolidation page with the range moved back to Esfand",
+     "OK",
+     "ok",
+     {
+      "pendingDays": [
+       "1406/12/27"
+      ]
+     },
+     "۴-۱۱۱"
+    ],
+    [
+     "1407/01/14 09:00 program opens 16 days later: custody status (automatic close of the forgotten drawer)",
+     "OK",
+     "ok",
+     {
+      "state": "NO_SESSION",
+      "unresolved": 1
+     },
+     "4-17، ۴-۱۸"
+    ],
+    [
+     "1407/01/14 09:00 automatic consolidation after the automatic close",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "1407/01/14 09:00 witness count of the old drawer (seller PIN, exact count)",
+     "REFUSED",
+     "either",
+     "مغایرت صندوق # ریال است (اضافه) و از آستانه‌ی # ریال گذشته.",
+     "4-104"
+    ],
+    [
+     "1407/01/14 09:00 witness count again with a note",
+     "OK",
+     "ok",
+     null,
+     "4-104"
+    ],
+    [
+     "1407/01/14 09:10 first shift opens the drawer after the holidays (PIN + count 8,800,000)",
+     "OK",
+     "ok",
+     null,
+     "بند ۱۴"
+    ],
+    [
+     "1407/01/14 09:15 POS sale E cash 300,000",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 12,
+      "day": "1407/01/14",
+      "grandTotal": 300000
+     },
+     "بند ۱۴"
+    ],
+    [
+     "1407/01/14 09:20 full return of the 1406/12/27 sale A after 17 days (return window = 1 day)",
+     "REFUSED",
+     "either",
+     "مهلت برگشت فاکتور به پایان رسیده است (تا پایان روز # به وقت تهران). هیچ تغییری ثبت نشد.",
+     "مهلت برگشت"
+    ],
+    [
+     "1407/01/14 09:20 sales report Nowruz holidays 1406/12/28 … 1407/01/13 (closed) (1406/12/28 … 1407/01/13)",
+     "OK",
+     "ok",
+     {
+      "count": 0,
+      "grandTotal": 0,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1407/01/14 09:20 sales report 1406/12/20 … 1407/01/14 (1406/12/20 … 1407/01/14)",
+     "OK",
+     "ok",
+     {
+      "count": 3,
+      "grandTotal": 1300000,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1407/01/14 09:20 sales report 1406/12/27 (1406/12/27 … 1406/12/27)",
+     "OK",
+     "ok",
+     {
+      "count": 2,
+      "grandTotal": 1000000,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1407/01/14 09:20 sales report 1407/01/14 (1407/01/14 … 1407/01/14)",
+     "OK",
+     "ok",
+     {
+      "count": 1,
+      "grandTotal": 300000,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1407/01/14 09:20 management report 1406/12/20 … 1407/01/14 (1406/12/20 … 1407/01/14)",
+     "OK",
+     "ok",
+     {
+      "invoiceCount": 3,
+      "netAccrualSales": 1300000
+     },
+     "گزارش"
+    ],
+    [
+     "1407/01/14 21:00 «بستن نهایی» (count 9,100,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ]
+   ],
+   "findings": [
+    "PREVIOUS_MONTH_PENDING_HIDDEN | صفحهٔ «تجمیع و انتقال» با بازهٔ پیش‌فرض (1407/01/01 تا امروز) روز تجمیع‌نشدهٔ 1406/12/27 را نشان نمی‌دهد | ۴-۱۳۳"
+   ],
+   "obs": [
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "1406/12/27 08:55",
+      "days": [],
+      "invoices": 0,
+      "movements": 0
+     }
+    },
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "1407/01/14 09:00",
+      "days": [
+       "1406/12/27"
+      ],
+      "invoices": 2,
+      "movements": 2
+     }
+    },
+    {
+     "k": "return after the window",
+     "v": "مهلت برگشت فاکتور به پایان رسیده است (تا پایان روز ۱۴۰۶/۱۲/۲۸ به وقت تهران). هیچ تغییری ثبت نشد."
+    }
+   ]
+  },
+  {
+   "id": "Y3",
+   "title": "سال کبیسهٔ ۱۴۰۸: ۳۰ اسفند ۱۴۰۸ (۲۰ مارس ۲۰۳۰) و روز اول ۱۴۰۹",
+   "steps": [
+    [
+     "1408/12/30 08:55 program opens on 1408/12/30",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "1408/12/30 09:00 seller opens the drawer on 30 Esfand (PIN + count 9,100,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1408/12/30 10:00 POS sale A cash 700,000 on 30 Esfand",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 13,
+      "day": "1408/12/30",
+      "grandTotal": 700000
+     },
+     ""
+    ],
+    [
+     "1408/12/30 11:00 wholesale W dated 1408/12/30",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 14,
+      "day": "1408/12/30",
+      "grandTotal": 1000000
+     },
+     ""
+    ],
+    [
+     "1408/12/30 11:05 wholesale W dated 1407/12/30 (that day does not exist)",
+     "REFUSED",
+     "refuse",
+     "تاریخ فاکتور معتبر نیست (قالب صحیح: #)",
+     "تاریخ"
+    ],
+    [
+     "1408/12/30 11:10 sales report Esfand 1408 (30 days) (1408/12/01 … 1408/12/30)",
+     "OK",
+     "ok",
+     {
+      "count": 2,
+      "grandTotal": 1700000,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1408/12/30 11:10 sales report day 1408/12/30 (1408/12/30 … 1408/12/30)",
+     "OK",
+     "ok",
+     {
+      "count": 2,
+      "grandTotal": 1700000,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1408/12/30 21:00 «بستن نهایی» of 30 Esfand (count 10,800,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1409/01/01 09:00 program opens on 1 Farvardin 1409: consolidation of 30 Esfand",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "1409/01/01 09:01 seller opens the drawer (PIN + count 10,800,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1409/01/01 09:10 POS sale B card 300,000",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 15,
+      "day": "1409/01/01",
+      "grandTotal": 300000
+     },
+     ""
+    ],
+    [
+     "1409/01/01 09:15 full return of the 30 Esfand sale A",
+     "OK",
+     "ok",
+     {
+      "refund": 700000
+     },
+     "بند ۱۴"
+    ],
+    [
+     "1409/01/01 09:15 sales report year 1408 (1408/01/01 … 1408/12/30)",
+     "OK",
+     "ok",
+     {
+      "count": 2,
+      "grandTotal": 1700000,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1409/01/01 09:15 management trend by month 1408/11 … 1409/01 (with “same month last year”)",
+     "OK",
+     "ok",
+     [
+      [
+       "1408/11",
+       0,
+       "1407/11/01 تا 1407/11/30"
+      ],
+      [
+       "1408/12",
+       2,
+       "1407/12/01 تا 1407/12/29 (29 روز در مقابل 30 روز)"
+      ],
+      [
+       "1409/01",
+       1,
+       "1408/01/01 تا 1408/01/01"
+      ]
+     ],
+     "گزارش"
+    ],
+    [
+     "1409/01/01 21:00 «بستن نهایی» (count 10,400,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "1408/12/30 08:55",
+      "days": [
+       "1407/01/14"
+      ],
+      "invoices": 1,
+      "movements": 1
+     }
+    },
+    {
+     "k": "sale on 30 Esfand is dated",
+     "v": "1408/12/30"
+    },
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "1409/01/01 09:00",
+      "days": [
+       "1408/12/30"
+      ],
+      "invoices": 2,
+      "movements": 2
+     }
+    },
+    {
+     "k": "monthly buckets with last-year labels",
+     "v": [
+      [
+       "1408/11",
+       "1408/11/30",
+       "1407/11/01 تا 1407/11/30"
+      ],
+      [
+       "1408/12",
+       "1408/12/30",
+       "1407/12/01 تا 1407/12/29 (29 روز در مقابل 30 روز)"
+      ],
+      [
+       "1409/01",
+       "1409/01/01",
+       "1408/01/01 تا 1408/01/01"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "Y4",
+   "title": "سال ۲۱۰۰ میلادی (کبیسه نیست؛ ۲۹ فوریه ندارد): 1478/12/10 (۲۸ فوریه) و 1478/12/11 (۱ مارس) — ۶۹ سال پس از آخرین فروش",
+   "steps": [
+    [
+     "1478/12/10 08:55 program opens after 69 years",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "1478/12/10 09:00 seller opens the drawer on 2100-02-28 (PIN + count 10,400,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1478/12/10 10:00 POS sale A cash 700,000 on 2100-02-28",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 16,
+      "day": "1478/12/10",
+      "grandTotal": 700000
+     },
+     ""
+    ],
+    [
+     "1478/12/10 21:00 «بستن نهایی» (count 11,100,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1478/12/11 09:00 program opens on 2100-03-01",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "1478/12/11 09:01 seller opens the drawer on 2100-03-01 (PIN + count 11,100,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1478/12/11 10:00 POS sale B card 300,000 on 2100-03-01",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 17,
+      "day": "1478/12/11",
+      "grandTotal": 300000
+     },
+     ""
+    ],
+    [
+     "1478/12/11 10:00 sales report 1478/12/10 … 1478/12/11 (1478/12/10 … 1478/12/11)",
+     "OK",
+     "ok",
+     {
+      "count": 2,
+      "grandTotal": 1000000,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1478/12/11 10:00 sales report 1478/12/10 (1478/12/10 … 1478/12/10)",
+     "OK",
+     "ok",
+     {
+      "count": 1,
+      "grandTotal": 700000,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1478/12/11 10:00 sales report 1478/12/11 (1478/12/11 … 1478/12/11)",
+     "OK",
+     "ok",
+     {
+      "count": 1,
+      "grandTotal": 300000,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1478/12/11 10:00 management report 1478/12/10 … 1478/12/11 (1478/12/10 … 1478/12/11)",
+     "OK",
+     "ok",
+     {
+      "invoiceCount": 2,
+      "netAccrualSales": 1000000
+     },
+     "گزارش"
+    ],
+    [
+     "1478/12/11 21:00 «بستن نهایی» (count 11,400,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "2100-02-28 and 2100-03-01 in the program calendar",
+     "v": [
+      "1478/12/10",
+      "1478/12/11",
+      true
+     ]
+    },
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "1478/12/10 08:55",
+      "days": [
+       "1409/01/01"
+      ],
+      "invoices": 1,
+      "movements": 1
+     }
+    },
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "1478/12/11 09:00",
+      "days": [
+       "1478/12/10"
+      ],
+      "invoices": 1,
+      "movements": 1
+     }
+    },
+    {
+     "k": "Gregorian (Tehran) / Jalali of the two sales",
+     "v": [
+      [
+       "2100-02-28",
+       "1478/12/10"
+      ],
+      [
+       "2100-03-01",
+       "1478/12/11"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "Y5",
+   "title": "سال ۱۴۹۹ به ۱۵۰۰ (۲۰ و ۲۱ مارس ۲۱۲۱): فروش، تجمیع، گزارش، بکاپ و شمارهٔ فاکتور",
+   "steps": [
+    [
+     "1499/12/29 08:55 program opens on 1499/12/29",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "1499/12/29 09:00 seller opens the drawer (PIN + count 11,400,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1499/12/29 10:00 POS sale A cash 700,000",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 18,
+      "day": "1499/12/29",
+      "grandTotal": 700000
+     },
+     ""
+    ],
+    [
+     "1499/12/29 11:00 wholesale W dated 1499/12/29",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 19,
+      "day": "1499/12/29",
+      "grandTotal": 1000000
+     },
+     ""
+    ],
+    [
+     "1499/12/29 23:50 POS sale E cash 300,000 at 23:50 on the last night of 1499",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 20,
+      "day": "1499/12/29",
+      "grandTotal": 300000
+     },
+     ""
+    ],
+    [
+     "1499/12/29 23:58 «بستن نهایی» (count 13,400,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1500/01/01 10:00 program opens on 1 Farvardin 1500",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "1500/01/01 10:01 seller opens the drawer on 1 Farvardin 1500 (PIN + count 13,400,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1500/01/01 10:05 POS sale B card 300,000 on 1 Farvardin 1500",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 21,
+      "day": "1500/01/01",
+      "grandTotal": 300000
+     },
+     ""
+    ],
+    [
+     "1500/01/01 10:10 full return of the 1499/12/29 sale A",
+     "OK",
+     "ok",
+     {
+      "refund": 700000
+     },
+     "بند ۱۴"
+    ],
+    [
+     "1500/01/01 10:10 sales report year 1499 (1499/01/01 … 1499/12/29)",
+     "OK",
+     "ok",
+     {
+      "count": 3,
+      "grandTotal": 2000000,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1500/01/01 10:10 sales report day 1500/01/01 (1500/01/01 … 1500/01/01)",
+     "OK",
+     "ok",
+     {
+      "count": 1,
+      "grandTotal": 300000,
+      "returned": 700000,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1500/01/01 10:10 sales report 1499/12/25 … 1500/01/01 (1499/12/25 … 1500/01/01)",
+     "OK",
+     "ok",
+     {
+      "count": 4,
+      "grandTotal": 2300000,
+      "returned": 700000,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1500/01/01 10:10 management report year 1499 (1499/01/01 … 1499/12/29)",
+     "OK",
+     "ok",
+     {
+      "invoiceCount": 3,
+      "netAccrualSales": 2000000
+     },
+     "گزارش"
+    ],
+    [
+     "1500/01/01 10:10 management report day 1500/01/01 (1500/01/01 … 1500/01/01)",
+     "OK",
+     "ok",
+     {
+      "invoiceCount": 1,
+      "netAccrualSales": -400000
+     },
+     "گزارش"
+    ],
+    [
+     "1500/01/01 10:10 management report 1499/12/25 … 1500/01/01 (1499/12/25 … 1500/01/01)",
+     "OK",
+     "ok",
+     {
+      "invoiceCount": 4,
+      "netAccrualSales": 1600000
+     },
+     "گزارش"
+    ],
+    [
+     "1500/01/01 10:10 management trend by month 1499/11 … 1500/01",
+     "OK",
+     "ok",
+     [
+      [
+       "1499/11",
+       0,
+       "1498/11/01 تا 1498/11/30"
+      ],
+      [
+       "1499/12",
+       3,
+       "1498/12/01 تا 1498/12/29 (30 روز در مقابل 29 روز)"
+      ],
+      [
+       "1500/01",
+       1,
+       "1499/01/01 تا 1499/01/01"
+      ]
+     ],
+     "گزارش"
+    ],
+    [
+     "1500/01/01 10:10 backup now (manager password) on 1500/01/01",
+     "OK",
+     "ok",
+     null,
+     "بکاپ"
+    ],
+    [
+     "1500/01/01 21:00 «بستن نهایی» (count 13,000,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "1499/12/29 08:55",
+      "days": [
+       "1478/12/11"
+      ],
+      "invoices": 1,
+      "movements": 1
+     }
+    },
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "1500/01/01 10:00",
+      "days": [
+       "1499/12/29"
+      ],
+      "invoices": 3,
+      "movements": 3
+     }
+    },
+    {
+     "k": "sale dated",
+     "v": "1500/01/01"
+    },
+    {
+     "k": "backup file names (digits → 0)",
+     "v": [
+      "shop-0000-00-00-00-00-00.db"
+     ]
+    },
+    {
+     "k": "backup file year",
+     "v": [
+      "2121"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "Y6",
+   "title": "۱۵۰۲/۱۲/۳۰ (تقویم سیستم این روز را ۱۵۰۳/۰۱/۰۱ می‌داند) و ۱۵۰۵/۰۶/۱۵ (صد سال پس از امروز)",
+   "steps": [
+    [
+     "1502/12/30 08:55 program opens on 1502/12/30",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "1502/12/30 09:00 seller opens the drawer (PIN + count 13,000,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1502/12/30 10:00 POS sale A cash 700,000 on 1502/12/30",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 22,
+      "day": "1502/12/30",
+      "grandTotal": 700000
+     },
+     ""
+    ],
+    [
+     "1502/12/30 10:00 sales report day 1502/12/30 (1502/12/30 … 1502/12/30)",
+     "OK",
+     "ok",
+     {
+      "count": 1,
+      "grandTotal": 700000,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1502/12/30 21:00 «بستن نهایی» (count 13,700,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1505/06/15 08:55 program opens on 1505/06/15",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "1505/06/15 09:00 seller opens the drawer (PIN + count 13,700,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1505/06/15 10:00 POS sale B card 300,000",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 23,
+      "day": "1505/06/15",
+      "grandTotal": 300000
+     },
+     ""
+    ],
+    [
+     "1505/06/15 10:05 wholesale W dated 1505/06/15",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 24,
+      "day": "1505/06/15",
+      "grandTotal": 1000000
+     },
+     ""
+    ],
+    [
+     "1505/06/15 10:05 sales report day 1505/06/15 (1505/06/15 … 1505/06/15)",
+     "OK",
+     "ok",
+     {
+      "count": 2,
+      "grandTotal": 1300000,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1505/06/15 10:05 management report day 1505/06/15 (1505/06/15 … 1505/06/15)",
+     "OK",
+     "ok",
+     {
+      "invoiceCount": 2,
+      "netAccrualSales": 1300000
+     },
+     "گزارش"
+    ],
+    [
+     "1505/06/15 21:00 «بستن نهایی» (count 15,000,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "1502/12/30 08:55",
+      "days": [
+       "1500/01/01"
+      ],
+      "invoices": 1,
+      "movements": 1
+     }
+    },
+    {
+     "k": "sale dated (program calendar)",
+     "v": "1502/12/30"
+    },
+    {
+     "k": "the same instant in the system calendar (ICU)",
+     "v": "01/01/1503 AP"
+    },
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "1505/06/15 08:55",
+      "days": [
+       "1502/12/30"
+      ],
+      "invoices": 1,
+      "movements": 1
+     }
+    },
+    {
+     "k": "invoice numbers 1405 … 1505",
+     "v": {
+      "count": 24,
+      "first": 1,
+      "last": 24,
+      "gaps": 0
+     }
+    },
+    {
+     "k": "invoices per Jalali year",
+     "v": {
+      "1405": 6,
+      "1406": 5,
+      "1407": 1,
+      "1408": 2,
+      "1409": 1,
+      "1478": 2,
+      "1499": 3,
+      "1500": 1,
+      "1502": 1,
+      "1505": 2
+     }
+    }
+   ]
+  },
+  {
+   "id": "Y7",
+   "title": "ساعت نادرست رایانه: عقب رفتن به دیروزِ بسته و به روزی بی فروش، ریست به ۲۰۰۸ و درست شدن؛ سپس جلو رفتن اشتباهی یک‌ساله و برگشت",
+   "steps": [
+    [
+     "1505/06/16 08:55 program opens on 1505/06/16 (1505/06/15 consolidated)",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "1505/06/16 09:00 seller opens the drawer (PIN + count 15,000,000)",
+     "OK",
+     "ok",
+     null,
+     ""
+    ],
+    [
+     "1505/06/16 09:05 POS sale A cash 700,000 (clock correct)",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 25,
+      "day": "1505/06/16",
+      "grandTotal": 700000
+     },
+     ""
+    ],
+    [
+     "1505/06/15 15:00 the clock fell back to yesterday 15:00 (consolidated, drawer closed): POS sale E cash 300,000",
+     "REFUSED",
+     "either",
+     "ثبت فاکتور فروش در تاریخ # ممکن نیست، چون این دوره بسته شده است:",
+     "4-111"
+    ],
+    [
+     "1505/06/10 09:10 the clock fell back 6 days (a day without sales): POS sale E cash 300,000",
+     "OK",
+     "either",
+     {
+      "receiptNo": 26,
+      "day": "1505/06/10",
+      "grandTotal": 300000
+     },
+     "4-111"
+    ],
+    [
+     "2008-01-01 09:30 (CMOS reset) the clock reset to 2008 (CMOS battery): POS sale E cash 300,000",
+     "OK",
+     "either",
+     {
+      "receiptNo": 27,
+      "day": "1386/10/11",
+      "grandTotal": 300000
+     },
+     "4-111"
+    ],
+    [
+     "1505/06/16 09:30 the clock is set right again: POS sale B card 300,000",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 28,
+      "day": "1505/06/16",
+      "grandTotal": 300000
+     },
+     "ساعت"
+    ],
+    [
+     "1506/06/16 09:40 the clock was set one year ahead by mistake: POS sale E cash 300,000",
+     "REFUSED",
+     "either",
+     "[CUSTODY_AUTH_REQUIRED] برای ثبت فروش، ابتدا مسئول حاضر صندوق باید با رمز شخصی و شمارش فیزیکی صندوق را تحویل بگیرد.",
+     "ساعت"
+    ],
+    [
+     "1506/06/16 09:40 the program thinks a year has passed: custody status (automatic close of the forgotten drawer)",
+     "OK",
+     "ok",
+     {
+      "state": "NO_SESSION",
+      "unresolved": 1
+     },
+     "4-17، ۴-۱۸"
+    ],
+    [
+     "1506/06/16 09:40 automatic consolidation after the automatic close",
+     "OK",
+     "ok",
+     null,
+     "4-111 الف"
+    ],
+    [
+     "1506/06/16 09:40 witness count of the old drawer (seller PIN, exact count)",
+     "REFUSED",
+     "either",
+     "مغایرت صندوق # ریال است (اضافه) و از آستانه‌ی # ریال گذشته.",
+     "4-104"
+    ],
+    [
+     "1506/06/16 09:40 witness count again with a note",
+     "OK",
+     "ok",
+     null,
+     "4-104"
+    ],
+    [
+     "1506/06/16 09:40 the seller takes over the drawer (clock still wrong) (PIN + count 16,600,000)",
+     "OK",
+     "ok",
+     null,
+     "تحویل صندوق"
+    ],
+    [
+     "1506/06/16 09:40 POS sale E cash 300,000 with the wrong clock",
+     "OK",
+     "ok",
+     {
+      "receiptNo": 29,
+      "day": "1506/06/16",
+      "grandTotal": 300000
+     },
+     "ساعت"
+    ],
+    [
+     "1505/06/16 09:50 the clock is corrected back to today: POS sale B card 300,000",
+     "REFUSED",
+     "either",
+     "ثبت فاکتور فروش در تاریخ # ممکن نیست، چون این دوره بسته شده است:",
+     "ساعت"
+    ],
+    [
+     "1505/06/16 09:50 sales report today after the clock troubles (1505/06/16 … 1505/06/16)",
+     "OK",
+     "ok",
+     {
+      "count": 2,
+      "grandTotal": 1000000,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1505/06/16 09:50 sales report the mistaken future day 1506/06/16 (1506/06/16 … 1506/06/16)",
+     "OK",
+     "ok",
+     {
+      "count": 1,
+      "grandTotal": 300000,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1505/06/16 09:50 sales report the 2008 day 1386/10/11 (1386/10/11 … 1386/10/11)",
+     "OK",
+     "ok",
+     {
+      "count": 1,
+      "grandTotal": 300000,
+      "returned": 0,
+      "exchangeReturned": 0
+     },
+     "گزارش"
+    ],
+    [
+     "1505/06/16 21:00 «بستن نهایی» (count 16,900,000)",
+     "OK",
+     "either",
+     null,
+     ""
+    ]
+   ],
+   "findings": [
+    "CLOCK_BEHIND_REFUSAL | 1505/06/15 15:00 ساعت رایانه یک روز عقب رفت ⇒ فروش رد شد: «ثبت فاکتور فروش در تاریخ ۱۵۰۵/۰۶/۱۵ ممکن نیست، چون این دوره بسته شده است:» | 4-111 (ثبت‌شده: «سند همین لحظه ⇐ بی ایست» و «ساعت نادرست»)",
+    "CLOCK_BEHIND_REFUSAL | 1505/06/16 09:50 پس از برگرداندن ساعت فروش رد شد: «ثبت فاکتور فروش در تاریخ ۱۵۰۵/۰۶/۱۶ ممکن نیست، چون این دوره بسته شده است:» | 4-111 (ثبت‌شده) / بند ۱۴",
+    "CLOCK_GUARD_STUCK | پس از برگرداندن ساعت، یک فاکتور با تاریخ 1506/06/16 (آینده) مانده؛ قاعدهٔ ثبت‌شدهٔ ۴-۱۱۱ («ساعت از آخرین فاکتور عقب‌تر ⇒ تجمیع خودکار نه، خط زرد») تا 1506/06/16 تجمیع خودکار و خط زرد را نگه می‌دارد | ۴-۱۳۲"
+   ],
+   "obs": [
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "1505/06/16 08:55",
+      "days": [
+       "1505/06/15"
+      ],
+      "invoices": 2,
+      "movements": 2
+     }
+    },
+    {
+     "k": "sale with the clock one day behind (yesterday is consolidated)",
+     "v": "ثبت فاکتور فروش در تاریخ ۱۵۰۵/۰۶/۱۵ ممکن نیست، چون این دوره بسته شده است:"
+    },
+    {
+     "k": "sale with the clock 6 days behind",
+     "v": "ثبت شد با تاریخ 1505/06/10"
+    },
+    {
+     "k": "4-111 clock guard with the clock 6 days behind",
+     "v": {
+      "now": "1505/06/10",
+      "lastInvoice": "1505/06/16",
+      "autoConsolidationHeld": true
+     }
+    },
+    {
+     "k": "sale with the clock reset to 2008",
+     "v": "ثبت شد با تاریخ 1386/10/11"
+    },
+    {
+     "k": "4-111 clock guard with the clock in 2008",
+     "v": {
+      "now": "1386/10/11",
+      "lastInvoice": "1505/06/16",
+      "autoConsolidationHeld": true
+     }
+    },
+    {
+     "k": "4-111 clock guard after setting the clock right",
+     "v": {
+      "now": "1505/06/16",
+      "lastInvoice": "1505/06/16",
+      "autoConsolidationHeld": false
+     }
+    },
+    {
+     "k": "sale with the clock one year ahead",
+     "v": "CUSTODY_AUTH_REQUIRED برای ثبت فروش، ابتدا مسئول حاضر صندوق باید با رمز شخصی و شمارش فیزیکی صندوق را تحویل بگیرد."
+    },
+    {
+     "k": "autoConsolidation",
+     "v": {
+      "at": "1506/06/16 09:40",
+      "days": [
+       "1386/10/11",
+       "1505/06/10",
+       "1505/06/16"
+      ],
+      "invoices": 4,
+      "movements": 4
+     }
+    },
+    {
+     "k": "sale with the wrong clock after the takeover",
+     "v": "ثبت شد با تاریخ 1506/06/16"
+    },
+    {
+     "k": "sale right after correcting the clock",
+     "v": "ثبت فاکتور فروش در تاریخ ۱۵۰۵/۰۶/۱۶ ممکن نیست، چون این دوره بسته شده است:"
+    },
+    {
+     "k": "4-111 clock guard after correcting a forward mistake",
+     "v": {
+      "now": "1505/06/16",
+      "lastInvoice": "1506/06/16",
+      "autoConsolidationHeld": true
+     }
+    },
+    {
+     "k": "consolidated days after the year-ahead mistake",
+     "v": [
+      "1386/10/11",
+      "1505/06/10",
+      "1505/06/15",
+      "1505/06/16"
+     ]
+    },
+    {
+     "k": "report: today 1505/06/16",
+     "v": {
+      "count": 2,
+      "grandTotal": 1000000
+     }
+    },
+    {
+     "k": "report: the mistaken future day 1506/06/16",
+     "v": {
+      "count": 1,
+      "grandTotal": 300000
+     }
+    },
+    {
+     "k": "report: the 2008 day 1386/10/11",
+     "v": {
+      "count": 1,
+      "grandTotal": 300000
+     }
+    }
+   ]
+  }
+ ]
+}

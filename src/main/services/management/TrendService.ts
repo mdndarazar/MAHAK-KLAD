@@ -10,6 +10,7 @@ import { allocateLineNet, goodsPayableOf } from '@shared/returnValue'
 import { toNumberRial } from '@shared/money'
 import { BusinessError } from '../../errors'
 import { jalaliToday } from '@shared/jalali'
+import { isRowsPagingWarning } from '@shared/reportExtraOutput'
 import {
   enumerateBuckets,
   previousEqualLength,
@@ -81,7 +82,8 @@ async function accountingOf(filter: SaleReportFilter) {
   const res = await salesService.reportRows(filter)
   return {
     accounting: slimAccounting(res.accounting),
-    warnings: Array.isArray(res.warnings) ? res.warnings.map(String) : [],
+    // دفتر آزمون ۴-۱۱۹ — هشدار صفحه‌بندی ردیف‌ها این‌جا بی‌ربط است (این گزارش ردیف فروش نشان نمی‌دهد)
+    warnings: Array.isArray(res.warnings) ? res.warnings.map(String).filter((w) => !isRowsPagingWarning(w)) : [],
     invoiceCount: Number(res.accounting?.invoice?.invoiceCount ?? res.page?.totalCount ?? 0)
   }
 }

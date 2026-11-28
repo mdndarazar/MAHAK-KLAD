@@ -10,6 +10,7 @@ import { useManagerSession } from '../hooks/useManagerSession'
 import Modal from '../components/Modal'
 import JalaliDateInput from '../components/JalaliDateInput'
 import PasswordField from '../components/PasswordField'
+import { SAVED_TEXT, UnsavedBadge, saveReportText, saveSections, useLeaveGuard } from '../components/UnsavedChanges'
 import { CustodyChip } from '../components/CustodyChip'
 import { CustodyAdminChip } from '../components/CustodyAdminChip'
 import { exportTable } from '../lib/exportCsv'
@@ -24,7 +25,8 @@ import {
   jalaliAddDays,
   jalaliMonthStart,
   isValidJalaliDate,
-  parseGroupedInteger
+  parseGroupedInteger,
+  jalaliDateTimeText
 } from '@shared/jalali'
 import type {
   CustomerDeleteResult,
@@ -85,9 +87,28 @@ interface BackupConfigView {
   fallback: boolean
 }
 import { CHARGE_KINDS, CHARGE_SCOPES, CHARGE_KIND_LABELS, CHARGE_SCOPE_LABELS } from '@shared/charges'
-import { LOCKED_PANELS } from '@shared/panels'
+import { LOCKED_PANELS, PANEL_KEYS, type PanelDef } from '@shared/panels'
+import { GATE_CATALOG } from '@shared/gateCatalog'
+
+/** طرح ۱۴۰۵ §۳-۳ — ۸۰ کلید، گروه‌بندی‌شده زیر نام ماژول (ترتیب نخستین دیده‌شدن هر گروه)، با نشان «پولی» و «یک بار». */
+const GROUPED_PANELS: readonly PanelDef[] = [...new Set(LOCKED_PANELS.map((p) => p.group))].flatMap((g) => LOCKED_PANELS.filter((p) => p.group === g))
+/** سه کلید «سیاست حسابداری»: روشن/خاموششان همان‌جاست، نه در «قفل ماژول‌ها» */
+const POLICY_LOCK_KEYS = new Set(Object.values(GATE_CATALOG).filter((e) => e.lockKind === 'policy').map((e) => e.lockKey))
+const groupHeader = (panel: PanelDef, i: number, span: number) =>
+  i === 0 || GROUPED_PANELS[i - 1].group !== panel.group ? (
+    <tr><td colSpan={span} className="bg-slate-100 font-bold">{panel.group}</td></tr>
+  ) : null
+const panelBadges = (panel: PanelDef) => (
+  <>
+    {panel.tier === 'money' ? <span className="ms-1 text-[11px] px-1 rounded bg-amber-200 text-amber-900">پولی</span> : null}
+    {panel.kind === 'action' ? <span className="ms-1 text-[11px] px-1 rounded bg-sky-100 text-sky-900">قفل کار · کد و مجوز یک بار</span> : null}
+  </>
+)
+import ManagerGate from '../components/ManagerGate'
 import { STAFF_ROLES, STAFF_ROLE_LABELS } from '@shared/enums'
 import { broadcastPanelLocksChanged } from '../hooks/usePanelLocks'
+import OneTimeCodesSettings from '../components/OneTimeCodesSettings'
+import FactoryResetSection from '../components/FactoryResetSection'
 import { broadcastSettingsChanged } from '../hooks/useSettings'
 import { DEFAULT_DISCOUNT_TRANSFER_SETTINGS, type DiscountTransferSettings } from '@shared/discountTransfer'
 import {
@@ -161,6 +182,8 @@ type Tab =
   | 'custody'
   /** جلسه ۱۹ · بند ۹ — «تاریخ و ساعت رسمی» (افست دستی + بررسی ساعت سیستم) */
   | 'time'
+  /** طرح ۱۴۰۵ · مورد ۸ — «صفر کردن برنامه» (§۴-۲) */
+  | 'reset'
 
 /**
  * ===========================================================================
@@ -469,6 +492,10 @@ export default function Settings() {
   const [policy, setPolicy] = useState<AccountingPolicy>(DEFAULT_ACCOUNTING_POLICY)
   const [policyDirty, setPolicyDirty] = useState(false)
   const [policyBusy, setPolicyBusy] = useState(false)
+  /** دفتر آزمون ۴-۳۸: آخرین مقدار ذخیره‌شدهٔ بخش‌هایی که پرچم «تغییر» جدا نداشتند (برای یک نشان و «ذخیرهٔ همه») */
+  const [lastSaved, setLastSaved] = useState(() => ({ security, discount, preventExtraRefund: discountTransfer.preventExtraRefund }))
+  const [savingAll, setSavingAll] = useState(false)
+  const [byTimeSaved, setByTimeSaved] = useState(false)
   /** نشست ۱۵۴ (S151-b، بند ۴-۲۹) — رمز مدیر همیشه لازم؛ بعد از هر تلاش پاک می‌شود */
   const [policyPw, setPolicyPw] = useState('')
 
@@ -547,6 +574,7 @@ export default function Settings() {
       const t = parseOfficialTimeConfig(b.time)
       setTime(t)
       setTimeOffset(String(t.offsetHours))
+      setLastSaved({ security: parseSecurityConfig(b.security), discount: parseDiscountPolicy(b.discount), preventExtraRefund: (b.discountTransfer ?? DEFAULT_DISCOUNT_TRANSFER_SETTINGS).preventExtraRefund })
       setDirty(false)
     } catch (e: any) {
       setErr(e.message)
@@ -928,6 +956,8 @@ export default function Settings() {
     setShift((p) => ({ ...p, byTime })) // نمایش فوری
     try {
       await call(CH.settingsShiftByTime, { byTime, managerPassword: byTimePw })
+      setByTimeSaved(true)
+      window.setTimeout(() => setByTimeSaved(false), 5000)
       flash(
         byTime
           ? 'ذخیره شد · از همین حالا شیفت هر فاکتور از ساعت لحظه‌ی فروش تعیین می‌شود.'
@@ -949,18 +979,23 @@ export default function Settings() {
   const saveOvertimeMax = async () => {
     const mins = Math.trunc(Number(toLatinDigits(overtimeCap).replace(/[^0-9-]/g, '')))
     if (!Number.isFinite(mins) || mins < 0 || mins > 240) {
-      return setErr('سقف اضافه‌کاری باید عددی صحیح بین ۰ تا ۲۴۰ دقیقه باشد (۰ یعنی خاموش).')
+      const message = 'سقف اضافه‌کاری باید عددی صحیح بین ۰ تا ۲۴۰ دقیقه باشد (۰ یعنی خاموش).'
+      setErr(message)
+      return message
     }
     try {
       const next = await call<ShiftConfig>(CH.settingsShiftOvertimeMax, { minutes: mins, managerPassword: byTimePw })
-      setShift(next)
+      // دفتر آزمون ۴-۳۸: فقط همین سقف؛ تغییرهای ذخیره‌نشدهٔ دیگر شیفت روی فرم می‌مانند
+      setShift((p) => ({ ...p, overtimeMaxMinutes: next.overtimeMaxMinutes }))
       flash(
         mins > 0
           ? `ذخیره شد · اضافه‌کاری شیفت شب تا ${faDigits(mins)} دقیقه بعد از پایان بازه فعال است.`
           : 'ذخیره شد · اضافه‌کاری خاموش است؛ نشستِ بازِ دیروز بیرون از بازه همیشه باید بسته شود.'
       )
+      return null
     } catch (e: any) {
       setErr(`ذخیره‌ی سقف اضافه‌کاری انجام نشد: ${e.message}`)
+      return String(e?.message ?? 'انجام نشد')
     } finally {
       setByTimePw('')
     }
@@ -1207,6 +1242,9 @@ export default function Settings() {
         label.printerName !== labelPrinterAtLoad.current
           ? label
           : mergeFreshPrinter(label, { ...DEFAULT_LABEL_TEMPLATE, ...fresh.label })
+      // دفتر آزمون ۴-۳۸: «تنظیمات امنیتی» بخش و رمز تایپی خودش را دارد؛ این‌جا همان مقدار ذخیره‌شده‌اش می‌رود تا تغییر
+      // ذخیره‌نشدهٔ آن نه بی اجازهٔ خودش نوشته شود و نه ذخیرهٔ بقیهٔ این بخش را گیر بیندازد (اصل «ج»)
+      const security = lastSaved.security
       /**
        * ⚠️ این خط عمداً یک‌خطی و با همین کلیدها/ترتیب می‌ماند: تست
        * `fix-s168-settings-stale-pos-toggles` این payload را به‌صورت متن دقیق
@@ -1226,8 +1264,10 @@ export default function Settings() {
        */
       broadcastSettingsChanged()
       flash('تنظیمات ذخیره شد و از همین حالا روی رسیدها و پنل فروش اعمال می‌شود.')
+      return null
     } catch (e: any) {
       setErr(e.message)
+      return String(e?.message ?? 'انجام نشد')
     } finally {
       setBundlePw('')
       setBusy(false)
@@ -1247,6 +1287,7 @@ export default function Settings() {
       const next = parseSecurityConfig(security)
       await call(CH.settingsSaveBundle, { security: next, managerPassword: securityPw })
       setSecurity(next)
+      setLastSaved((s) => ({ ...s, security: next }))
       broadcastSettingsChanged()
       flash(
         `قفل خودکار بی‌کاری: ${faDigits(next.idleLockMinutes)} دقیقه. ` +
@@ -1256,6 +1297,23 @@ export default function Settings() {
               )} دقیقه قفل می‌شود.`
             : 'قفل موقت رمز اشتباه خاموش است.')
       )
+      return null
+    } catch (e: any) {
+      setErr(e.message)
+      return String(e?.message ?? 'انجام نشد')
+    } finally {
+      setSecurityPw('')
+      setSecurityBusy(false)
+    }
+  }
+
+  /** دفتر آزمون ۴-۵۳: «باز کردن فوری قفل رمز اشتباه» با همان رمز تایپی مدیرِ بخش امنیت */
+  const clearPasswordLocks = async () => {
+    setSecurityBusy(true)
+    setErr(null)
+    try {
+      const r = await call<{ cleared: number }>(CH.managerPasswordLocksClear, { managerPassword: securityPw })
+      flash(r.cleared ? `قفل رمز اشتباهِ ${faDigits(r.cleared)} نقطهٔ ورود رمز باز شد.` : 'هیچ نقطهٔ ورود رمزی قفل نبود.')
     } catch (e: any) {
       setErr(e.message)
     } finally {
@@ -1283,13 +1341,16 @@ export default function Settings() {
       const next = await call<DiscountPolicy>(CH.discountPolicySave, { policy: discount, panelPassword: discountPw })
       const clean = parseDiscountPolicy(next ?? discount)
       setDiscount(clean)
+      setLastSaved((s) => ({ ...s, discount: clean }))
       // پنل‌های باز (پنل فروش) همین لحظه سقف جدید را می‌خوانند
       broadcastSettingsChanged()
       flash('سیاست تخفیف ذخیره شد · ' + describeDiscountPolicy(clean))
+      return null
     } catch (e: any) {
       setErr(e.message)
-      // ذخیره نشد ⇒ مقدار واقعی سرور برگردد تا فرم دروغ نگوید
-      await load()
+      // دفتر آزمون ۴-۳۸: فرم دست نمی‌خورد (بازخوانی، تغییرهای ذخیره‌نشدهٔ بخش‌های دیگر را هم پاک می‌کرد)؛
+      // نشان «تغییرات ذخیره نشده» می‌گوید که این بخش ذخیره نشده است
+      return String(e?.message ?? 'انجام نشد')
     } finally {
       setDiscountBusy(false)
       setDiscountPw('') // بند ۴-۴۰ — رمز هر عملیات حساس دوباره پرسیده شود
@@ -1305,12 +1366,14 @@ export default function Settings() {
         managerPassword: discountTransferPw
       })
       setDiscountTransfer(saved)
+      setLastSaved((s) => ({ ...s, preventExtraRefund: saved.preventExtraRefund }))
       flash(saved.preventExtraRefund
         ? 'جلوگیری از بازپرداخت بیشتر ناشی از انتقال تخفیف روشن شد.'
         : 'مدیر، جلوگیری از بازپرداخت بیشتر ناشی از انتقال تخفیف را خاموش کرد.')
+      return null
     } catch (e: any) {
       setErr(e.message)
-      await load()
+      return String(e?.message ?? 'انجام نشد')
     } finally {
       setDiscountTransferBusy(false)
       setDiscountTransferPw('')
@@ -1749,8 +1812,10 @@ export default function Settings() {
         'سیاست حسابداری ذخیره شد · آستانه‌ی تخفیف غیرعادی: ' +
           (saved.abnormalDiscountPercent > 0 ? `${faDigits(saved.abnormalDiscountPercent)}٪` : 'خاموش')
       )
+      return null
     } catch (e: any) {
       setErr(e.message)
+      return String(e?.message ?? 'انجام نشد')
     } finally {
       setPolicyBusy(false)
       setPolicyPw('') // بند ۴-۴۰ — رمز هر عملیات حساس دوباره پرسیده شود
@@ -1788,13 +1853,52 @@ export default function Settings() {
           ? 'افست دستی صفر شد: همه‌ی محاسبات ساعتی دقیقاً با ساعت خودِ کامپیوتر انجام می‌شود.'
           : `افست دستی ${next.offsetHours} ساعت ذخیره شد و از همین حالا روی تشخیص شیفت و گزارش‌های زمانی اعمال می‌شود.`
       )
+      return null
     } catch (e: any) {
       setErr(e.message)
+      return String(e?.message ?? 'انجام نشد')
     } finally {
       setTimePw('')
       setTimeBusy(false)
     }
   }
+
+  /**
+   * ---------------- دفتر آزمون ۴-۳۸ — یک رفتار برای همهٔ دکمه‌های ذخیرهٔ این صفحه ----------------
+   * هر دکمهٔ ذخیره (بالای صفحه و دکمهٔ هر بخش) همهٔ بخش‌های تغییرکرده را ذخیره می‌کند، هر کدام با همان تابع، مسیر سرور
+   * و اجازهٔ امروزِ خودش (در نشست مدیر بی رمز). ترتیب عمدی است: «تنظیمات رسید، چاپ، فروش، شیفت و لیبل» نخست، چون
+   * شیفت و افستِ ذخیره‌شده را هم می‌فرستد و پس از ذخیرهٔ سقف اضافه‌کاری یا افست تازه، آن‌ها را برمی‌گرداند.
+   */
+  const timeDirty = (Number(toLatinDigits(timeOffset).replace(/[^0-9.+-]/g, '')) || 0) !== time.offsetHours
+  const overtimeDirty = Math.trunc(Number(toLatinDigits(overtimeCap).replace(/[^0-9-]/g, ''))) !== (shift.overtimeMaxMinutes ?? 0)
+  const sections = [
+    { name: 'تنظیمات رسید، چاپ، فروش، شیفت و لیبل', dirty, save },
+    { name: 'تنظیمات امنیتی', dirty: JSON.stringify(security) !== JSON.stringify(lastSaved.security), save: saveSecurity },
+    { name: 'افست ساعت رسمی', dirty: timeDirty, save: saveOfficialTime },
+    { name: 'سقف اضافه‌کاری', dirty: overtimeDirty, save: saveOvertimeMax },
+    { name: 'سیاست حسابداری', dirty: policyDirty, save: savePolicy },
+    { name: 'سیاست تخفیف', dirty: JSON.stringify(discount) !== JSON.stringify(lastSaved.discount), save: saveDiscount },
+    { name: 'قاعدهٔ بازپرداخت', dirty: discountTransfer.preventExtraRefund !== lastSaved.preventExtraRefund, save: saveDiscountTransfer }
+  ]
+  const unsavedNames = sections.filter((s) => s.dirty).map((s) => s.name)
+  const unsaved = unsavedNames.length > 0
+  const saveAll = async (): Promise<boolean> => {
+    if (savingAll) return false
+    setSavingAll(true)
+    try {
+      const report = await saveSections(sections)
+      const text = saveReportText(report)
+      if (text.error) {
+        setMsg(text.ok)
+        setErr(text.error)
+      } else flash(text.ok ?? SAVED_TEXT)
+      return !report.failed.length
+    } finally {
+      setSavingAll(false)
+    }
+  }
+  // بیرون رفتن از صفحه یا تب با تغییر ذخیره‌نشده می‌پرسد؛ «بیرون رفتن بی ذخیره» از تب، فرم را از پایگاه داده بازمی‌خواند
+  const leave = useLeaveGuard(unsaved, saveAll, async () => { await load(); await loadPolicy() })
 
   // ---------------- جلسه ۱۸ · بند ۲ — کارمندان ----------------
   const loadStaff = useCallback(async () => {
@@ -1910,10 +2014,6 @@ export default function Settings() {
       setStaffCorrectionApprovalPw('')
       setStaffError(null)
       setLegacyShiftPlanReview(null)
-    }
-    if (!isManager && (tab === 'staff' || tab === 'custody')) {
-      setTab('receipt')
-      return
     }
     if (tab === 'backup') {
       void loadBackups()
@@ -2046,21 +2146,22 @@ export default function Settings() {
     /* بند ۵ — `page` به‌جای `h-full`: پنل تنظیمات هم مثل بقیه‌ی ماژول‌ها به قدِ
        محتوایش باز می‌شود و با چرخ ماوس اسکرول می‌شود (نه اسکرول تودرتو). */
     <div className="page">
+      {leave.dialog}
       {/* نوار تب‌ها و دکمه‌ی «ذخیره‌ی تنظیمات» چسبان است تا در جدول‌های بلند هم
           همیشه در دید بماند (وگرنه با اسکرول صفحه بالا می‌رفت). */}
       <div className="bg-white rounded shadow p-2 flex items-center gap-2 flex-wrap sticky top-0 z-30">
         <h1 className="text-lg font-bold">تنظیمات</h1>
         <div className="flex gap-1 flex-wrap">
-          <button className={`btn ${tab === 'receipt' ? 'btn-primary' : ''}`} onClick={() => setTab('receipt')}>
+          <button className={`btn ${tab === 'receipt' ? 'btn-primary' : ''}`} onClick={() => leave.guard(() => setTab('receipt'))}>
             قالب فاکتور چاپی
           </button>
-          <button className={`btn ${tab === 'print' ? 'btn-primary' : ''}`} onClick={() => setTab('print')}>
+          <button className={`btn ${tab === 'print' ? 'btn-primary' : ''}`} onClick={() => leave.guard(() => setTab('print'))}>
             چاپ و چاپگر
           </button>
-          <button className={`btn ${tab === 'sale' ? 'btn-primary' : ''}`} onClick={() => setTab('sale')}>
+          <button className={`btn ${tab === 'sale' ? 'btn-primary' : ''}`} onClick={() => leave.guard(() => setTab('sale'))}>
             فروش و کد فاکتور
           </button>
-          <button className={`btn ${tab === 'shift' ? 'btn-primary' : ''}`} onClick={() => setTab('shift')}>
+          <button className={`btn ${tab === 'shift' ? 'btn-primary' : ''}`} onClick={() => leave.guard(() => setTab('shift'))}>
             شیفت‌ها
           </button>
           <button
@@ -2073,13 +2174,13 @@ export default function Settings() {
           >
             مشتریان
           </button>
-          <button className={`btn ${tab === 'manager' ? 'btn-primary' : ''}`} onClick={() => setTab('manager')}>
+          <button className={`btn ${tab === 'manager' ? 'btn-primary' : ''}`} onClick={() => leave.guard(() => setTab('manager'))}>
             رمز مدیر و خروج
           </button>
           {/* بند ۳ — سیاست تخفیف پنل فروش (سقف اختیار فروشنده) */}
           <button
             className={`btn ${tab === 'discount' ? 'btn-primary' : ''}`}
-            onClick={() => setTab('discount')}
+            onClick={() => leave.guard(() => setTab('discount'))}
             title="آزاد / فقط تخفیف ثابت مدیر / غیرفعال — سقف اختیار فروشنده در پنل فروش"
           >
             تخفیف
@@ -2087,29 +2188,28 @@ export default function Settings() {
           {/* ---------------- جلسه ۱۸ · بندهای ۲ و ۳ ---------------- */}
           <button
             className={`btn ${tab === 'accounting' ? 'btn-primary' : ''}`}
-            onClick={() => setTab('accounting')}
+            onClick={() => leave.guard(() => setTab('accounting'))}
             title="آستانه‌ی مغایرت صندوق، سقف اعتبار خرید، گیت قیمت دستی، قفل دوره‌ی بسته و آستانه‌ی تخفیف غیرعادی"
           >
             سیاست حسابداری
           </button>
-          {isManager ? (
-            <>
+          {/* طرح ۱۴۰۵ §۳-۱۰ دستهٔ ۲: دو تب همیشه هستند؛ محتوا با قسمت خودشان (`staff`، `custody-settings`) باز می‌شود */}
+          <>
               <button
                 className={`btn ${tab === 'staff' ? 'btn-primary' : ''}`}
-                onClick={() => setTab('staff')}
+                onClick={() => leave.guard(() => setTab('staff'))}
                 title="ثبت، ویرایش و غیرفعال‌سازی کارمندان فروشگاه — مبنای تب عملکرد کارمندان"
               >
                 کارمندان
               </button>
               <button
                 className={`btn ${tab === 'custody' ? 'btn-primary' : ''}`}
-                onClick={() => setTab('custody')}
+                onClick={() => leave.guard(() => setTab('custody'))}
                 title="پیکربندی کارکنانِ حضانت، برنامه‌ها و تنظیمات ساختاری صندوق"
               >
                 حضانت صندوق
               </button>
-            </>
-          ) : null}
+          </>
           {/* ---------------- جلسه ۱۹ · بند ۹ ---------------- */}
           <button
             className={`btn ${tab === 'time' ? 'btn-primary' : ''}`}
@@ -2121,18 +2221,21 @@ export default function Settings() {
           >
             تاریخ و ساعت رسمی
           </button>
-          <button className={`btn ${tab === 'backup' ? 'btn-primary' : ''}`} onClick={() => setTab('backup')}>
+          <button className={`btn ${tab === 'backup' ? 'btn-primary' : ''}`} onClick={() => leave.guard(() => setTab('backup'))}>
             بکاپ و بازگردانی
           </button>
-          <button className={`btn ${tab === 'slim' ? 'btn-primary' : ''}`} onClick={() => setTab('slim')}>
+          <button className={`btn ${tab === 'slim' ? 'btn-primary' : ''}`} onClick={() => leave.guard(() => setTab('slim'))}>
             سبک‌سازی
           </button>
-          <button className={`btn ${tab === 'purge' ? 'btn-primary' : ''}`} onClick={() => setTab('purge')}>
+          <button className={`btn ${tab === 'purge' ? 'btn-primary' : ''}`} onClick={() => leave.guard(() => setTab('purge'))}>
             حذف گزارشات فروش
+          </button>
+          <button className={`btn ${tab === 'reset' ? 'btn-primary' : ''}`} onClick={() => leave.guard(() => setTab('reset'))}>
+            صفر کردن برنامه
           </button>
         </div>
         <div className="ms-auto flex gap-1">
-          {dirty && <span className="kbd text-amber-700 self-center font-bold">تغییرات ذخیره نشده</span>}
+          <UnsavedBadge show={unsaved} sections={unsavedNames} />
           <button className="btn" onClick={() => void load()} disabled={busy}>
             بازگردانی از دیتابیس
           </button>
@@ -2140,8 +2243,8 @@ export default function Settings() {
           <div className="w-44" title="رمز مدیر — فقط اگر تنظیمات فروش، شیفت یا ساعت رسمی را تغییر داده‌اید">
             <PasswordField value={bundlePw} placeholder="رمز مدیر (بخش حساس)" onChange={(e) => setBundlePw(e.target.value)} />
           </div>
-          <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>
-            {busy ? 'در حال ذخیره…' : 'ذخیره‌ی تنظیمات'}
+          <button className="btn btn-primary" onClick={() => void saveAll()} disabled={busy || savingAll || !unsaved}>
+            {busy || savingAll ? 'در حال ذخیره…' : 'ذخیره‌ی تنظیمات'}
           </button>
           <button className="btn btn-danger" onClick={exitManager} title="بازگشت به وضعیت کارمند و قفل شدن پنل‌های موجودی">
             خروج مدیر
@@ -2792,7 +2895,7 @@ export default function Settings() {
                   (با ارث‌بری از دسته‌ی بالاتر) تعیین می‌شود و خودکار روی هر ردیف فاکتور اعمال می‌گردد — و تنظیمات
                   «پنل فروش خرد» و «فاکتور فروش عمده» کاملاً از هم مستقل‌اند. مقدار قدیمی شما به‌صورت «مقدار پیش‌فرض
                   همه‌ی کالاها» به همین سیستم منتقل شد. در خودِ فاکتور هم با دکمه‌ی «دستی» می‌توانید مبلغ را برای همان
-                  یک فاکتور override کنید.
+                  یک فاکتور دستی تغییر دهید.
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {CHARGE_SCOPES.map((sc) =>
@@ -2845,7 +2948,7 @@ export default function Settings() {
                   </Field>
                 </div>
                 <div className="kbd">
-                  «مشتری راه دور» یک مهلت مستقل و بلندتر است (پیش‌فرض ۱۴ روز): کارمند در پنل فروش چک‌باکس «مشتری راه
+                  «مشتری راه دور» یک مهلت مستقل و بلندتر است (پیش‌فرض ۷ روز): کارمند در پنل فروش چک‌باکس «مشتری راه
                   دور» را می‌زند و مهلت برگشت همان فاکتور از این عدد حساب می‌شود، نه از مهلت عادی. با چک‌باکس «نمایش
                   مهلت برگشت روی فاکتور» در تب «قالب فاکتور چاپی» هم می‌توانید کل بلوک برگشت (کد، بارکد و مهلت) را از
                   رسید بردارید — برای فروشگاهی که مرجوعی قبول نمی‌کند. کد همچنان داخل سیستم ساخته می‌شود، پس اگر بعداً
@@ -2899,7 +3002,7 @@ export default function Settings() {
                         disabled={!sale.wholesaleReturnCode}
                         value={sale.wholesaleReturnCodeDaysRemote}
                         onChange={(e) =>
-                          setS({ wholesaleReturnCodeDaysRemote: Math.min(365, Math.max(1, +e.target.value || 14)) })
+                          setS({ wholesaleReturnCodeDaysRemote: Math.min(365, Math.max(1, +e.target.value || 7)) })
                         }
                       />
                     </Field>
@@ -2916,7 +3019,7 @@ export default function Settings() {
                 <div className="kbd">
                   هر فاکتور فروش تکی یک کد رندوم (حروف + عدد) می‌گیرد که روی رسید به‌صورت متن و بارکد چاپ می‌شود.
                   یکتایی کد فقط در بازه‌ی اعتبار تضمین می‌شود؛ بعد از انقضا همان کد می‌تواند برای فاکتور جدیدی تولید
-                  شود. پیش‌فرض ۷ روز است.
+                  شود. پیش‌فرض ۱ روز است (تا پایان روزِ بعد از خرید).
                 </div>
               </section>
             </>
@@ -2928,13 +3031,13 @@ export default function Settings() {
                 <h2 className="font-bold border-b pb-1">تغییر رمز مدیریتی</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                   <Field label="رمز فعلی">
-                    <PasswordField value={curPw} onChange={(e) => setCurPw(e.target.value)} />
+                    <PasswordField typedOnly value={curPw} onChange={(e) => setCurPw(e.target.value)} />
                   </Field>
                   <Field label="رمز جدید">
-                    <PasswordField value={newPw} onChange={(e) => setNewPw(e.target.value)} />
+                    <PasswordField typedOnly value={newPw} onChange={(e) => setNewPw(e.target.value)} />
                   </Field>
                   <Field label="تکرار رمز جدید">
-                    <PasswordField value={newPw2} onChange={(e) => setNewPw2(e.target.value)} />
+                    <PasswordField typedOnly value={newPw2} onChange={(e) => setNewPw2(e.target.value)} />
                   </Field>
                 </div>
                 <button className="btn btn-primary" onClick={() => void changePassword()} disabled={pwBusy}>
@@ -2950,7 +3053,7 @@ export default function Settings() {
               <section className="space-y-2">
                 <h2 className="font-bold border-b pb-1">رمز و امنیت — قفل موقت بعد از رمز اشتباه</h2>
                 <div className="kbd leading-6">
-                  <b>قفل خودکار بی‌کاری (بند ۴-۴۰):</b> اگر مدیر یا فروشنده‌ی دارای رمز دوم، به مدت تعیین‌شده
+                  <b>قفل خودکار بی‌کاری:</b> اگر مدیر یا فروشنده‌ی دارای رمز دوم، به مدت تعیین‌شده
                   (پیش‌فرض ۵ دقیقه) با سیستم کار نکند، نشست قفل‌دار بسته می‌شود تا صفحه برای نفر بعدی باز نماند.
                   همین عدد سمت سرور هم برای کانال‌های خواندنی اعمال می‌شود.
                   <br />
@@ -3011,17 +3114,26 @@ export default function Settings() {
                     />
                   </Field>
                   <Field label="رمز مدیر (تغییر تنظیمات امنیتی)">
-                    <PasswordField value={securityPw} onChange={(e) => setSecurityPw(e.target.value)} />
+                    <PasswordField typedOnly value={securityPw} onChange={(e) => setSecurityPw(e.target.value)} />
                   </Field>
-                  <div className="flex items-end">
+                  <div className="flex flex-col justify-end gap-1">
                     <button
                       className="btn btn-primary w-full"
-                      onClick={() => void saveSecurity()}
-                      disabled={securityBusy || !securityPw.trim()}
+                      onClick={() => void saveAll()}
+                      disabled={savingAll || !unsaved}
                     >
-                      {securityBusy ? 'در حال ذخیره…' : 'ذخیره‌ی تنظیمات امنیتی'}
+                      {savingAll ? 'در حال ذخیره…' : 'ذخیره‌ی تنظیمات امنیتی'}
                     </button>
+                    <UnsavedBadge show={unsaved} sections={unsavedNames} />
                   </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button className="btn" onClick={() => void clearPasswordLocks()} disabled={securityBusy || !securityPw.trim()}>
+                    باز کردن فوری قفل رمز اشتباه
+                  </button>
+                  <span className="kbd leading-6">
+                    با همان «رمز مدیر» بالا، قفل رمز اشتباهِ همهٔ نقطه‌های ورود رمز همین حالا باز و در سابقه ثبت می‌شود. قفل کدهای یک‌بارمصرف و PIN صندوق جدا هستند.
+                  </span>
                 </div>
                 <div className="kbd leading-6">
                   وضعیت فعلی: قفل بی‌کاری <b>{faDigits(security.idleLockMinutes)} دقیقه</b>
@@ -3039,6 +3151,9 @@ export default function Settings() {
                 </div>
               </section>
 
+              {/* ============ طرح ۱۴۰۵ §۳-۱۵ — کدهای یک‌بارمصرف دوقسمتی و دو مدت کد ============ */}
+              <OneTimeCodesSettings />
+
               {/* ============ بند ۱ — قفل رمز دوم به‌صورت ماژولار ============ */}
               <section className="space-y-2">
                 <h2 className="font-bold border-b pb-1">رمز — قفل ماژول‌ها (روشن / خاموش کردن قفل هر بخش)</h2>
@@ -3051,12 +3166,12 @@ export default function Settings() {
                   نمی‌شود و اگر قفل را دوباره روشن کنید، همان رمز قبلی کار می‌کند.
                   <br />
                   <b>تغییر این بخش «رمز مدیر» می‌خواهد</b> (نه رمز دوم پنل تنظیمات) و هر تغییر همان لحظه ذخیره می‌شود.
-                  پنل «تنظیمات» عمداً در فهرست نیست: بازگردانی بکاپ، حذف گزارشات و سبک‌سازی دیتابیس داخل همین پنل است،
-                  پس قفلش قابل برداشتن نیست.
+                  طرح ۱۴۰۵: همهٔ قفل‌ها خاموش‌شدنی‌اند، از جمله «تنظیمات»؛ ولی کارهای خطرناک داخل هر ماژول (مثل بازگردانی
+                  بکاپ، پاک‌سازی و ابطال) «قفل کار» جدای خودشان را دارند و با خاموش شدن قفل ماژول خاموش نمی‌شوند.
                 </div>
                 <div className="md:w-1/3">
-                  <Field label="رمز مدیر (برای تایید تغییر قفل‌ها)">
-                    <PasswordField value={panelManagerPw} onChange={(e) => setPanelManagerPw(e.target.value)} />
+                  <Field label="رمز مدیر (برای تأیید تغییر قفل‌ها)">
+                    <PasswordField typedOnly value={panelManagerPw} onChange={(e) => setPanelManagerPw(e.target.value)} />
                   </Field>
                 </div>
                 {/* مورد ۵ — هشدار زرد جای «شکست بی‌صدا» */}
@@ -3084,22 +3199,25 @@ export default function Settings() {
                       </tr>
                     </thead>
                     <tbody>
-                      {LOCKED_PANELS.map((panel) => {
+                      {GROUPED_PANELS.map((panel, i) => {
                         const always = panelLocks.alwaysLocked.includes(panel.key)
-                        const on = always || panelLocks.locks[panel.key] !== false
+                        const policy = POLICY_LOCK_KEYS.has(panel.key)
+                        const on = always || policy || panelLocks.locks[panel.key] !== false
                         return (
-                          <tr key={`lock-${panel.key}`} className={!on ? 'bg-amber-50' : ''}>
+                          <Fragment key={`lock-${panel.key}`}>
+                          {groupHeader(panel, i, 3)}
+                          <tr className={!on ? 'bg-amber-50' : ''}>
                             <td>
-                              <div className="font-bold">{panel.title}</div>
+                              <div className="font-bold">{panel.title}{panelBadges(panel)}</div>
                               <div className="kbd">{panel.hint}</div>
                             </td>
                             <td className={on ? 'font-bold' : 'text-amber-700 font-bold'}>
                               {on ? '🔒 قفل روشن' : '🔓 قفل خاموش — بدون رمز باز می‌شود'}
                             </td>
                             <td>
-                              {always ? (
+                              {always || policy ? (
                                 <span className="kbd">
-                                  قفلش قابل برداشتن نیست (بکاپ و حذف گزارشات داخل همین پنل است)
+                                  {policy ? 'روشن/خاموش در «سیاست حسابداری»' : 'قفلش قابل برداشتن نیست'}
                                 </span>
                               ) : (
                                 <label className="flex items-center gap-2 cursor-pointer">
@@ -3117,6 +3235,7 @@ export default function Settings() {
                               )}
                             </td>
                           </tr>
+                          </Fragment>
                         )
                       })}
                     </tbody>
@@ -3136,8 +3255,8 @@ export default function Settings() {
                   نشده باشد. تا وقتی برای پنلی رمز دوم تعریف نشده، رفتار همان قبل است: فقط رمز مدیر بازش می‌کند.
                 </div>
                 <div className="md:w-1/3">
-                  <Field label="رمز مدیر (برای تایید همین بخش)">
-                    <PasswordField value={panelManagerPw} onChange={(e) => setPanelManagerPw(e.target.value)} />
+                  <Field label="رمز مدیر (برای تأیید همین بخش)">
+                    <PasswordField typedOnly value={panelManagerPw} onChange={(e) => setPanelManagerPw(e.target.value)} />
                   </Field>
                 </div>
                 {/* مورد ۵ — هشدار زرد جای «شکست بی‌صدا» */}
@@ -3182,7 +3301,7 @@ export default function Settings() {
                       </tr>
                     </thead>
                     <tbody>
-                      {LOCKED_PANELS.map((panel) => {
+                      {GROUPED_PANELS.map((panel, i) => {
                         const state = panelAuth.find((x) => x.key === panel.key)
                         const enabled = !!state?.enabled
                         const shifts = state?.shifts ?? []
@@ -3191,6 +3310,7 @@ export default function Settings() {
                         const shown = revealed[panel.key]
                         return (
                           <Fragment key={panel.key}>
+                            {groupHeader(panel, i, 5)}
                             <tr>
                               {/* ---- مورد ۷: آکاردئون رمزهای سوم؛ پیش‌فرض بسته ---- */}
                               <td className="text-center">
@@ -3207,7 +3327,7 @@ export default function Settings() {
                                 </button>
                               </td>
                               <td>
-                                <div className="font-bold">{panel.title}</div>
+                                <div className="font-bold">{panel.title}{panelBadges(panel)}</div>
                                 <div className="kbd">{panel.hint}</div>
                               </td>
                               <td className={enabled ? 'text-emerald-700 font-bold' : ''}>
@@ -3226,6 +3346,7 @@ export default function Settings() {
                               </td>
                               <td>
                                 <PasswordField
+                                  typedOnly
                                   placeholder="حداقل ۴ رقم"
                                   value={panelPw[panel.key] ?? ''}
                                   onChange={(e) => setPanelPw((prev) => ({ ...prev, [panel.key]: e.target.value }))}
@@ -3324,6 +3445,7 @@ export default function Settings() {
                                                 </td>
                                                 <td>
                                                   <PasswordField
+                                                    typedOnly
                                                     placeholder="حداقل ۴ رقم"
                                                     value={shiftPw[id] ?? ''}
                                                     onChange={(e) =>
@@ -3621,11 +3743,12 @@ export default function Settings() {
                   </label>
                   <button
                     className="btn btn-primary"
-                    onClick={() => void saveDiscount()}
-                    disabled={discountBusy || !discountPw.trim()}
+                    onClick={() => void saveAll()}
+                    disabled={savingAll || !unsaved}
                   >
-                    {discountBusy ? 'در حال ذخیره…' : 'ذخیره‌ی سیاست تخفیف'}
+                    {savingAll ? 'در حال ذخیره…' : 'ذخیره‌ی سیاست تخفیف'}
                   </button>
+                  <UnsavedBadge show={unsaved} sections={unsavedNames} />
                   <button
                     className="btn"
                     onClick={() => setDiscount({ ...DEFAULT_DISCOUNT_POLICY })}
@@ -3637,10 +3760,7 @@ export default function Settings() {
                   <button className="btn" onClick={() => void load()} disabled={discountBusy}>
                     بازخوانی از دیتابیس
                   </button>
-                  <span className="kbd">
-                    این بخش دکمه‌ی ذخیره‌ی <b>فوری</b> خودش را دارد (مثل «قفل موقت»): سیاست تخفیف یک مجوز مالی است و
-                    نباید منتظر دکمه‌ی کلی «ذخیره‌ی تنظیمات» بماند. پنل‌های باز همان لحظه تازه می‌شوند.
-                  </span>
+                  <span className="kbd">پس از ذخیره، پنل‌های باز همان لحظه سیاست تازه را می‌خوانند.</span>
                 </div>
               </section>
 
@@ -3673,11 +3793,12 @@ export default function Settings() {
                   </label>
                   <button
                     className="btn btn-primary"
-                    onClick={() => void saveDiscountTransfer()}
-                    disabled={discountTransferBusy || !discountTransferPw.trim()}
+                    onClick={() => void saveAll()}
+                    disabled={savingAll || !unsaved}
                   >
-                    {discountTransferBusy ? 'در حال ذخیره…' : 'ذخیرهٔ قاعدهٔ بازپرداخت'}
+                    {savingAll ? 'در حال ذخیره…' : 'ذخیرهٔ قاعدهٔ بازپرداخت'}
                   </button>
+                  <UnsavedBadge show={unsaved} sections={unsavedNames} />
                   <button className="btn" onClick={() => void load()} disabled={discountTransferBusy}>
                     بازخوانی از دیتابیس
                   </button>
@@ -3690,11 +3811,11 @@ export default function Settings() {
                 <div className="kbd leading-6">
                   سیاست بالا فقط درباره‌ی <b>تخفیف لحظه‌ی فروش</b> است و به قیمت ثبت‌شده‌ی کالاها دست نمی‌زند. اگر
                   می‌خواهید قیمت فروش گروهی از کالاها را واقعاً کم یا زیاد کنید (حراج پایان فصل، گران‌کردن یک دسته)، از
-                  ماژول «تخفیف و افزایش/کاهش قیمت» استفاده کنید: پیش‌نمایش دارد، قیمت قبلی هر کالا را ذخیره می‌کند و
+                  ماژول «تغییر قیمت گروهی (تخفیف، افزایش و کاهش قیمت)» استفاده کنید: پیش‌نمایش دارد، قیمت قبلی هر کالا را ذخیره می‌کند و
                   با یک کلیک قابل بازگردانی است.
                 </div>
                 <button className="btn btn-primary" onClick={() => nav('/price-adjust')}>
-                  رفتن به ماژول تخفیف و افزایش/کاهش قیمت
+                  رفتن به ماژول تغییر قیمت گروهی
                 </button>
               </section>
             </>
@@ -3774,9 +3895,9 @@ export default function Settings() {
                   <button className="btn btn-primary" onClick={() => void saveCustodySchedulingWorkflow()} disabled={!isManager || custodySchedulingBusy}>
                     {custodySchedulingBusy ? 'در حال حفظ امن مسئولیت…' : 'ثبت گردش‌کار حضانت'}
                   </button>
-                  <span className="kbd">این دکمه هر دو تنظیم قدیمی/جدید را با هم ذخیره می‌کند؛ اگر صندوق باز باشد، مسئولیت همان شخص در یک تراکنش freeze و سپس با epoch تازه حفظ می‌شود.</span>
+                  <span className="kbd">این دکمه هر دو تنظیم قدیمی/جدید را با هم ذخیره می‌کند؛ اگر صندوق باز باشد، مسئولیت همان شخص در یک مرحله نگه داشته و سپس با دورهٔ تازه حفظ می‌شود.</span>
                 </div>
-                <p className="kbd leading-6">برنامهٔ legacy حضانت از اینجا نوشته، تبدیل یا حذف نمی‌شود و تا تصمیم انتقال مدیر دست‌نخورده می‌ماند.</p>
+                <p className="kbd leading-6">برنامهٔ قدیمی حضانت از اینجا نوشته، تبدیل یا حذف نمی‌شود و تا تصمیم انتقال مدیر دست‌نخورده می‌ماند.</p>
               </div>
 
               {/* ---------- سوییچ حالت ---------- */}
@@ -3794,10 +3915,10 @@ export default function Settings() {
                     onChange={(e) => void setByTime(e.target.checked)}
                   />
                   تعیین شیفت بر اساس ساعت
-                  <span className="kbd">(همین لحظه ذخیره می‌شود — نیازی به دکمه‌ی ذخیره‌ی تنظیمات نیست)</span>
+                  {byTimeSaved && <span className="kbd text-emerald-700">{SAVED_TEXT}</span>}
                 </label>
                 <label className="flex items-center gap-2">
-                  <span className="kbd">رمز مدیر (برای تغییر این سوییچ):</span>
+                  <span className="kbd">رمز مدیر (این سوییچ و سقف اضافه‌کاری):</span>
                   <PasswordField value={byTimePw} onChange={(e) => setByTimePw(e.target.value)} />
                 </label>
                 <div className="kbd leading-6">
@@ -3834,9 +3955,10 @@ export default function Settings() {
                       onChange={(e) => setOvertimeCap(e.target.value)}
                     />
                   </label>
-                  <button className="btn" disabled={!byTimePw.trim()} onClick={() => void saveOvertimeMax()}>
-                    ذخیره‌ی فوری (با رمز مدیر بالا)
+                  <button className="btn" disabled={savingAll || !unsaved} onClick={() => void saveAll()}>
+                    ذخیره‌ی سقف اضافه‌کاری
                   </button>
+                  <UnsavedBadge show={unsaved} sections={unsavedNames} />
                 </div>
                 <div className="kbd leading-6">
                   خاموش (پیش‌فرض ۰): نشستِ بازِ دیروز که از بازه‌اش گذشته باشد، همیشه باید با دلیل و رمز مدیر بسته
@@ -3970,7 +4092,7 @@ export default function Settings() {
               {shift.custodyMode === 'MULTI_SHIFT' ? (
               <div className="space-y-2">
                 <div className="font-bold">برنامهٔ چندشیفت: کارکنان و مجوز تحویل میان‌روز هر شیفت</div>
-                <p className="kbd leading-6">این بخش منبع canonical برنامه‌های جدید است. کارمند برنامه‌ریزی‌شده فقط «واجد انتخاب» می‌شود؛ تا PIN خودش را وارد و صندوق را باز نکند، هیچ مسئولیت مالی ندارد.</p>
+                <p className="kbd leading-6">این بخش منبع اصلی برنامه‌های جدید است. کارمند برنامه‌ریزی‌شده فقط «واجد انتخاب» می‌شود؛ تا PIN خودش را وارد و صندوق را باز نکند، هیچ مسئولیت مالی ندارد.</p>
                 {shift.templates.map((template, index) => (
                   <details key={`schedule-${template.id}`} className="rounded border bg-slate-50 p-3" open={shift.templates.length === 1}>
                     <summary className="cursor-pointer font-bold">{template.name || `شیفت ${faDigits(index + 1)}`} · {faDigits(index + 1)}</summary>
@@ -4024,8 +4146,8 @@ export default function Settings() {
                 کار)، یک <b>نشست تازه</b> ثبت می‌شود و نشست قبلی با کارمند خودش بسته می‌ماند — هیچ‌کدام رونویسی یا حذف
                 نمی‌شوند. اگر «شیفت شب» در یک روز دو بار باز شود، در گزارش‌ها «شیفت شب — نشست ۱» و «شیفت شب — نشست ۲»
                 دیده می‌شوند و سرجمع «شیفت شب» مجموع هر دو است. نام شیفتِ هر نشست را سیستم بر اساس ساعت <b>پیشنهاد</b>
-                می‌دهد و اگر کاربر نام دیگری انتخاب کند، نوشتن دلیل اجباری است و در گزارش «نشست‌های با نام
-                override‌شده» (گزارشات فروش) دیده می‌شود.
+                می‌دهد و اگر کاربر نام دیگری انتخاب کند، نوشتن دلیل اجباری است و در گزارش «نشست‌هایی که نامشان
+                دستی عوض شد» (گزارشات فروش) دیده می‌شود.
               </div>
 
               <div className="kbd leading-6">
@@ -4433,10 +4555,10 @@ export default function Settings() {
                 </label>
                 <button
                   className="btn btn-primary"
-                  onClick={() => void savePolicy()}
-                  disabled={policyBusy || !policyPw.trim()}
+                  onClick={() => void saveAll()}
+                  disabled={savingAll || !unsaved}
                 >
-                  {policyBusy ? 'در حال ذخیره…' : 'ذخیره‌ی سیاست حسابداری'}
+                  {savingAll ? 'در حال ذخیره…' : 'ذخیره‌ی سیاست حسابداری'}
                 </button>
                 <button className="btn" onClick={() => void loadPolicy()} disabled={policyBusy}>
                   بازگردانی از دیتابیس
@@ -4450,21 +4572,19 @@ export default function Settings() {
                 >
                   بازگشت به پیش‌فرض‌ها
                 </button>
-                {policyDirty && <span className="kbd text-amber-700 font-bold">تغییرات ذخیره نشده</span>}
-                <span className="kbd">
-                  این بخش دکمه‌ی ذخیره‌ی خودش را دارد و با «ذخیره‌ی تنظیمات» بالای صفحه ذخیره نمی‌شود.
-                </span>
+                <UnsavedBadge show={unsaved} sections={unsavedNames} />
               </div>
             </>
           )}
 
           {/* ==================== جلسه ۱۸ · بند ۲ — کارمندان ==================== */}
-          {isManager && tab === 'staff' && (
-            <>
+          {tab === 'staff' && (
+            <ManagerGate panel={PANEL_KEYS.staff} inline title="کارمندان فروشگاه"
+              reason="ثبت و ویرایش کارمندان با قسمت «کارمندان» باز می‌شود: نشست مدیر، رمز دوم/سوم همین قسمت، کد یک‌بارمصرف یا مجوز راه دور. نقش «مدیر» و رمز شخصی تأیید اصلاح فقط با نشست خود مدیر.">
               <h2 className="font-bold text-lg">کارمندان فروشگاه</h2>
               <div className="rounded border-2 border-sky-300 bg-sky-50 p-3 leading-7">
-                این بخش <b>سیستم ورود کاربر نیست</b>. ثبت کارمند و پروندهٔ او فقط با نشست اصلی مدیر انجام می‌شود؛ رمز دوم
-                پنل تنظیمات به این بخش دسترسی نمی‌دهد. اطلاعات هویتی و بانکی از فهرست عمومی کارکنان و تب
+                این بخش <b>سیستم ورود کاربر نیست</b>. ثبت کارمند با قسمت «کارمندان» و پروندهٔ حساس او با قسمت «پروندهٔ حساس
+                پرسنلی» باز می‌شود؛ رمز دوم پنل تنظیمات به این بخش دسترسی نمی‌دهد. اطلاعات هویتی و بانکی از فهرست عمومی کارکنان و تب
                 <b>عملکرد کارمندان</b> جدا هستند.
               </div>
 
@@ -4530,6 +4650,7 @@ export default function Settings() {
                     <label title="فقط هنگام اصلاح/ابطال دیرهنگام یا دوره‌بسته استفاده می‌شود؛ خالی گذاشتن آن رمز قبلی مدیر را تغییر نمی‌دهد.">
                       <div className="mb-1 font-bold">رمز شخصی تأیید اصلاح دیرهنگام</div>
                       <PasswordField
+                        typedOnly
                         value={staffCorrectionApprovalPw}
                         onChange={(e) => setStaffCorrectionApprovalPw(e.target.value)}
                         placeholder={staffDraft.id ? 'خالی = بدون تغییر' : 'حداقل ۴ نویسه'}
@@ -4553,7 +4674,7 @@ export default function Settings() {
                     <label><div className="mb-1">پایان همکاری</div><input className="inp w-full" value={staffDraft.employmentEndJalali} onChange={(e) => setStaffDraft({ ...staffDraft, employmentEndJalali: e.target.value })} /></label>
                     <label><div className="mb-1">وضعیت استخدام</div><select className="inp w-full" value={staffDraft.employmentStatus} onChange={(e) => setStaffDraft({ ...staffDraft, employmentStatus: e.target.value as StaffDraft['employmentStatus'] })}><option value="ACTIVE">فعال</option><option value="LEAVE">مرخصی / غیبت</option><option value="SUSPENDED">تعلیق</option><option value="TERMINATED">پایان همکاری</option></select></label>
                   </div>
-                  {(staffDraft.id && (!staffDraft.isActive || staffDraft.employmentStatus === 'TERMINATED')) ? <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm space-y-2"><b>آرشیو / پایان همکاری</b><p className="leading-6">اگر این شخص همین حالا مسئول صندوق باشد، ذخیره ابتدا فروش را کوتاه‌مدت freeze می‌کند، نشست او را با مبلغ مورد انتظار محفوظ می‌بندد و یک پروندهٔ شمارش بازیابی می‌سازد؛ سپس آرشیو انجام می‌شود. PIN قبلی او نیز باطل می‌شود.</p><label className="block"><span className="mb-1 block">دلیل آرشیو مسئول فعال صندوق (در صورت مسئول‌بودن، حداقل ۱۰ حرف)</span><textarea className="inp w-full" value={staffDraft.custodyArchiveReason} onChange={(e) => setStaffDraft({ ...staffDraft, custodyArchiveReason: e.target.value })} /></label></div> : null}
+                  {(staffDraft.id && (!staffDraft.isActive || staffDraft.employmentStatus === 'TERMINATED')) ? <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm space-y-2"><b>آرشیو / پایان همکاری</b><p className="leading-6">اگر این شخص همین حالا مسئول صندوق باشد، ذخیره ابتدا فروش را کوتاه‌مدت متوقف می‌کند، نشست او را با مبلغ مورد انتظار محفوظ می‌بندد و یک پروندهٔ شمارش بازیابی می‌سازد؛ سپس آرشیو انجام می‌شود. PIN قبلی او نیز باطل می‌شود.</p><label className="block"><span className="mb-1 block">دلیل آرشیو مسئول فعال صندوق (در صورت مسئول‌بودن، حداقل ۱۰ حرف)</span><textarea className="inp w-full" value={staffDraft.custodyArchiveReason} onChange={(e) => setStaffDraft({ ...staffDraft, custodyArchiveReason: e.target.value })} /></label></div> : null}
                   <div className="grid md:grid-cols-2 gap-3 border-t border-rose-200 pt-3">
                     <label><div className="mb-1">نام بانک</div><input className="inp w-full" value={staffDraft.bankName} onChange={(e) => setStaffDraft({ ...staffDraft, bankName: e.target.value })} /></label>
                     <label><div className="mb-1">نام صاحب حساب</div><input className="inp w-full" value={staffDraft.bankAccountHolder} onChange={(e) => setStaffDraft({ ...staffDraft, bankAccountHolder: e.target.value })} /></label>
@@ -4577,7 +4698,7 @@ export default function Settings() {
                   <span className="kbd">پس از ذخیره، اطلاعات عمومی و پروندهٔ محرمانه با هم ثبت می‌شوند.</span>
                 </div>
                 <div className="kbd leading-6">
-                  ثبت ساختاری کارمند و این پرونده فقط با <b>نشست اصلی مدیر</b> انجام می‌شود؛ رمز دوم Settings کافی نیست. کارمند هیچ‌وقت <b>حذف</b> نمی‌شود، فقط «غیرفعال» می‌شود؛ وگرنه سابقه‌ی فروش و برگشتِ گذشته‌اش بی‌صاحب می‌ماند.
+                  ثبت ساختاری کارمند و این پرونده فقط با <b>نشست اصلی مدیر</b> انجام می‌شود؛ رمز دوم «تنظیمات» کافی نیست. کارمند هیچ‌وقت <b>حذف</b> نمی‌شود، فقط «غیرفعال» می‌شود؛ وگرنه سابقه‌ی فروش و برگشتِ گذشته‌اش بی‌صاحب می‌ماند.
                 </div>
               </div>
 
@@ -4622,11 +4743,13 @@ export default function Settings() {
                   )}
                 </tbody>
               </table>
-            </>
+            </ManagerGate>
           )}
 
           {/* ==================== حضانت صندوق — فقط پیکربندی ساختاری ==================== */}
-          {isManager && tab === 'custody' && (
+          {tab === 'custody' && (
+            <ManagerGate panel={PANEL_KEYS.custodySettings} inline title="تنظیمات حضانت صندوق"
+              reason="تنظیمات ساختاری حضانت با قسمت «تنظیمات حضانت صندوق» باز می‌شود: نشست مدیر، رمز دوم/سوم همین قسمت، کد یک‌بارمصرف یا مجوز راه دور.">
             <section className="space-y-4" dir="rtl">
               <div>
                 <h2 className="font-bold text-lg">تنظیمات حضانت صندوق</h2>
@@ -4649,11 +4772,12 @@ export default function Settings() {
               <div className="rounded border p-4 space-y-3 bg-white">
                 <div className="font-bold">رمزهای موقت و بازبینی دادهٔ قدیمی</div>
                 <p className="text-sm text-slate-600">
-                  پس از فعال‌سازی، رمز موقت شخصی صادر یا بازنشانی می‌شود و برنامه‌های Legacy فقط قابل بازبینی‌اند؛ هیچ رمز خام قبلی نمایش داده نمی‌شود. برای ساخت یا ویرایش برنامهٔ جدید به تب «شیفت‌ها» بروید.
+                  پس از فعال‌سازی، رمز موقت شخصی صادر یا بازنشانی می‌شود و برنامه‌های قدیمی فقط قابل بازبینی‌اند؛ هیچ رمز خام قبلی نمایش داده نمی‌شود. برای ساخت یا ویرایش برنامهٔ جدید به تب «شیفت‌ها» بروید.
                 </p>
                 <CustodyAdminChip />
               </div>
             </section>
+            </ManagerGate>
           )}
 
           {/* ==================== جلسه ۱۹ · بند ۹ — تاریخ و ساعت رسمی ==================== */}
@@ -4708,11 +4832,12 @@ export default function Settings() {
                   </label>
                   <button
                     className="btn btn-primary"
-                    onClick={() => void saveOfficialTime()}
-                    disabled={timeBusy || !timePw.trim()}
+                    onClick={() => void saveAll()}
+                    disabled={savingAll || !unsaved}
                   >
-                    {timeBusy ? 'در حال ذخیره…' : 'ذخیره‌ی افست'}
+                    {savingAll ? 'در حال ذخیره…' : 'ذخیره‌ی افست'}
                   </button>
+                  <UnsavedBadge show={unsaved} sections={unsavedNames} />
                   <button className="btn" onClick={() => void runTimeCheck()} disabled={timeBusy}>
                     بررسی ساعت سیستم
                   </button>
@@ -4829,7 +4954,7 @@ export default function Settings() {
                         )} نسخه‌ی آخر نگه داشته می‌شود.`
                       : 'بکاپ خودکار خاموش است؛ فقط بکاپ دستی گرفته می‌شود.'}
                     {backupCfg?.lastAutoAt
-                      ? ` آخرین بکاپ خودکار: ${faDigits(new Date(backupCfg.lastAutoAt).toLocaleString('fa-IR'))}`
+                      ? ` آخرین بکاپ خودکار: ${jalaliDateTimeText(backupCfg.lastAutoAt)}`
                       : ''}
                     {backupCfg?.fallback
                       ? ' ⚠️ مسیر انتخابی در دسترس نیست (مثلاً فلش جدا شده)، پس موقتاً پوشه‌ی داخلی برنامه استفاده می‌شود.'
@@ -5122,6 +5247,8 @@ export default function Settings() {
               </div>
             </section>
           )}
+
+          {tab === 'reset' && <FactoryResetSection />}
 
           {tab === 'purge' && (
             <section className="space-y-3">

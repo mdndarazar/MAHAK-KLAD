@@ -142,7 +142,7 @@ export function IssueForm({
         )}
       </Section>
 
-      <Section title="اعتبار زمانی و دفعات مصرف" hint="خروج از پیش‌فرضِ نوع، «دلیل استثنا» می‌خواهد و روی همان رکورد ثبت می‌شود (§۳).">
+      <Section title="اعتبار زمانی و دفعات مصرف" hint="خروج از پیش‌فرضِ نوع، «دلیل استثنا» می‌خواهد و روی همان رکورد ثبت می‌شود.">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           <SelectField
             label="مدت اعتبار"
@@ -164,7 +164,7 @@ export function IssueForm({
         )}
       </Section>
 
-      <Section title="دامنه‌ی مصرف و محدودیت‌ها (§۱۸)">
+      <Section title="دامنه‌ی مصرف و محدودیت‌ها">
         <ScopePicker
           scope={value.restrictScope}
           categoryIds={value.restrictCategoryIds}
@@ -241,7 +241,7 @@ export function OpForm({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <label className="block">
-          <span>رمز مدیر</span>
+          <span>رمز مدیر یا رمز دوم/سوم «ابطال و تغییر اعتبار» (اگر دارید)</span>
           <PasswordField className="inp" value={value.managerPassword} onChange={(e: any) => set({ managerPassword: e.target.value })} />
         </label>
         <TextField label="دلیل (اجباری، در تاریخچه ثبت می‌شود)" value={value.reason} onChange={(v) => set({ reason: v })} />
@@ -296,7 +296,7 @@ export function OpForm({
       {fields.includes('holder') && <HolderFields value={value} onChange={set} party={party} setParty={setParty} />}
 
       {fields.includes('restriction') && (
-        <Section title="محدودیت مصرف جدید (§۱۸)" hint="این عملیات مقدار فعلی را *جایگزین* می‌کند، پس فرم با مقدار فعلی همین اعتبار پر شده است.">
+        <Section title="محدودیت مصرف جدید" hint="این عملیات مقدار فعلی را *جایگزین* می‌کند، پس فرم با مقدار فعلی همین اعتبار پر شده است.">
           <ScopePicker
             scope={value.restrictScope}
             categoryIds={value.restrictCategoryIds}
@@ -343,7 +343,7 @@ export function SettingsForm({
 
   return (
     <div className="bg-white rounded shadow p-4 space-y-3">
-      <Section title="کد اعتبار (§۶)">
+      <Section title="کد اعتبار">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
           <NumberField label="طول کد" value={settings.codeLength} onChange={(v) => set({ codeLength: v })} min={6} max={20} />
           <SelectField
@@ -369,7 +369,7 @@ export function SettingsForm({
         />
       </Section>
 
-      <Section title="تولید گروهی (§۵)">
+      <Section title="تولید گروهی">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           <NumberField label="سقف تعداد در هر تولید گروهی" value={settings.bulkMaxCount} onChange={(v) => set({ bulkMaxCount: v })} min={1} />
           <NumberField
@@ -382,7 +382,7 @@ export function SettingsForm({
         </div>
       </Section>
 
-      <Section title="قواعد پیش‌فرض هر نوع اعتبار (§۳)" hint="تغییر این قواعد فقط روی اعتبارهای آینده اثر دارد؛ snapshot تاریخ/مدت اعتبارهای قبلی دست‌نخورده می‌ماند.">
+      <Section title="قواعد پیش‌فرض هر نوع اعتبار" hint="تغییر این قواعد فقط روی اعتبارهای آینده اثر دارد؛ تاریخ و مدت ثبت‌شدهٔ اعتبارهای قبلی دست‌نخورده می‌ماند.">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {Object.keys(settings.types).map((k) => (
             <div key={k} className="border rounded p-2 space-y-1">
@@ -432,7 +432,7 @@ export function SettingsForm({
         </div>
       </Section>
 
-      <Section title="بارکد و سند چاپی (§۷ و §۱۳)">
+      <Section title="بارکد و سند چاپی">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
           <NumberField label="ارتفاع بارکد (میلی‌متر)" value={settings.barcodeHeightMm} onChange={(v) => set({ barcodeHeightMm: v })} min={5} max={60} />
           <SelectField label="اندازه‌ی کاغذ" value={settings.paper} onChange={(v) => set({ paper: v as any })} options={CREDIT_PAPER_OPTIONS} />
@@ -468,7 +468,7 @@ export function SettingsForm({
       {/* نشست ۳۱۷ — کارت چاپ سند اعتبار (فونت/حاشیه/پیش‌نمایش/چاپ آزمایشی) */}
       <CreditPrintCard settings={settings} set={set} />
 
-      <Section title="یادآوری (§۱۴)" hint="هیچ ارسال واقعی‌ای انجام نمی‌شود؛ پیام آماده و در لاگ ثبت می‌شود.">
+      <Section title="یادآوری" hint="هیچ ارسال واقعی‌ای انجام نمی‌شود؛ پیام آماده و در لاگ ثبت می‌شود.">
         <CheckField label="یادآوری فعال باشد" checked={settings.reminder.enabled} onChange={(v) => setReminder({ enabled: v })} />
         <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
           <NumberField label="حداقل روز از صدور" value={settings.reminder.minDaysSinceIssue} onChange={(v) => setReminder({ minDaysSinceIssue: v })} />
@@ -483,7 +483,7 @@ export function SettingsForm({
         </label>
       </Section>
 
-      <Section title="گزارش مالی (§۱۵)">
+      <Section title="گزارش مالی">
         <CheckField
           label="اعتبار صادرشده‌ی مصرف‌نشده به‌عنوان «تعهد فروشگاه» گزارش شود"
           checked={settings.reportLiability}
@@ -499,14 +499,14 @@ export function SettingsForm({
       ))}
       {password !== undefined && (
         <label className="flex flex-col gap-1">
-          <span className="kbd">رمز مدیر یا رمز دوم «تنظیمات اعتبار خرید» (سمت سرور هم بررسی می‌شود)</span>
+          <span className="kbd">رمز مدیر یا رمز دوم/سوم «تنظیمات اعتبار خرید» (اگر دارید)</span>
           <PasswordField value={password} onChange={(e) => setPassword?.(e.target.value)} />
         </label>
       )}
       <button
         className="btn btn-primary"
         onClick={onSave}
-        disabled={busy || (password !== undefined && !password.trim())}
+        disabled={busy}
       >
         {busy ? 'در حال ذخیره…' : 'ذخیره تنظیمات'}
       </button>

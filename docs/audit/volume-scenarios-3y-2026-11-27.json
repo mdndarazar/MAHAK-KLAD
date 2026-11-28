@@ -1,0 +1,1024 @@
+{
+ "meta": {
+  "tool": "docs/audit/volume-scenarios.mjs",
+  "programCommit": "7e047056871e370b4820ce720f65c8c0e41ca77e",
+  "summary": {
+   "days": 1095,
+   "perDay": 150,
+   "variants": 3000,
+   "extraSkus": 20000,
+   "costEvery": 30,
+   "start": "1402/08/15",
+   "invoices": 164253,
+   "findings": 4,
+   "findingTypes": {
+    "WORDING": 1,
+    "SLOW_OPERATION": 2,
+    "BACKUP_TORN": 1
+   },
+   "ipcErrors": 0
+  }
+ },
+ "stories": [
+  {
+   "id": "V0",
+   "title": "راه‌اندازی: حضانت صندوق، 3,000 کالای فروشی با خرید آغازین و 20,000 کالای دیگر برای جست‌وجو",
+   "findings": [
+    "WORDING | ثبت خرید با صندوقِ تحویل‌نشده پیام «برای ثبت فروش، ابتدا مسئول حاضر صندوق باید با رمز شخصی و شما…» می‌دهد (سخن از «فروش» است، نه خرید) | ۴-۱۳۷"
+   ],
+   "obs": [
+    {
+     "k": "purchase with no drawer taken over",
+     "v": "CUSTODY_AUTH_REQUIRED برای ثبت فروش، ابتدا مسئول حاضر صندوق باید با رمز شخصی و شمارش فیزیکی صندوق را تحویل بگیرد."
+    }
+   ],
+   "timings": [
+    {
+     "k": "catalog insert (SQL)",
+     "v": {
+      "variants": 23000,
+      "ms": 1624.8
+     }
+    }
+   ]
+  },
+  {
+   "id": "V1",
+   "title": "1,095 روز کار پیوسته از 1402/08/15 (روزی 150 فاکتور)، بی بستن برنامه",
+   "findings": [],
+   "obs": [
+    {
+     "k": "step results during the days (label → count)",
+     "v": {
+      "POS sale card|OK": 49213,
+      "POS sale cash|OK": 98625,
+      "POS sale نسیه|OK": 8268,
+      "automatic consolidation of earlier days (#-# simulation)|OK": 1094,
+      "cheque for a نسیه sale (due +# days)|OK": 109,
+      "enable custody (single shift)|OK": 1,
+      "full return of an earlier sale today (cash refund)|OK": 1530,
+      "monthly restock purchase (# lines × #)|OK": 36,
+      "opening purchase (# lines × #)|OK": 15,
+      "owner issues a temporary PIN for the seller|OK": 1,
+      "owner sets personal custody PIN|OK": 1,
+      "periodic management profit report (runs the cost ledger)|OK": 36,
+      "purchase before anyone has taken over the drawer|REFUSED": 1,
+      "seller opens the drawer|OK": 1095,
+      "seller sets personal PIN|OK": 1,
+      "wholesale invoice (cash)|OK": 8144,
+      "«بستن نهایی»|OK": 1095
+     }
+    }
+   ],
+   "timings": [
+    {
+     "k": "opening purchases",
+     "v": {
+      "purchases": 15,
+      "ms": 3717.8
+     }
+    },
+    {
+     "k": "generation",
+     "v": {
+      "days": 1095,
+      "invoices": 164250,
+      "minutes": 69.7
+     }
+    },
+    {
+     "k": "30-day windows",
+     "v": [
+      {
+       "from": "1402/08/15",
+       "to": "1402/09/14",
+       "sales": 4500,
+       "msPerSale": 11.9,
+       "consolidationMsPerDay": 12.3,
+       "closeMsPerDay": 136.2,
+       "costMsPerRun": 66104.8,
+       "heapMB": 23,
+       "rssMB": 381,
+       "invoices": 4500
+      },
+      {
+       "from": "1402/09/15",
+       "to": "1402/10/14",
+       "sales": 4500,
+       "msPerSale": 13,
+       "consolidationMsPerDay": 16,
+       "closeMsPerDay": 158,
+       "costMsPerRun": 54729.9,
+       "heapMB": 23,
+       "rssMB": 407,
+       "invoices": 9000
+      },
+      {
+       "from": "1402/10/15",
+       "to": "1402/11/14",
+       "sales": 4500,
+       "msPerSale": 12.8,
+       "consolidationMsPerDay": 17.3,
+       "closeMsPerDay": 157.3,
+       "costMsPerRun": 56373.7,
+       "heapMB": 24,
+       "rssMB": 417,
+       "invoices": 13500
+      },
+      {
+       "from": "1402/11/15",
+       "to": "1402/12/14",
+       "sales": 4500,
+       "msPerSale": 13.1,
+       "consolidationMsPerDay": 17.6,
+       "closeMsPerDay": 164.5,
+       "costMsPerRun": 52246.8,
+       "heapMB": 24,
+       "rssMB": 419,
+       "invoices": 18000
+      },
+      {
+       "from": "1402/12/15",
+       "to": "1403/01/15",
+       "sales": 4500,
+       "msPerSale": 11.2,
+       "consolidationMsPerDay": 18.4,
+       "closeMsPerDay": 147.3,
+       "costMsPerRun": 52383.5,
+       "heapMB": 24,
+       "rssMB": 417,
+       "invoices": 22500
+      },
+      {
+       "from": "1403/01/16",
+       "to": "1403/02/14",
+       "sales": 4500,
+       "msPerSale": 12.4,
+       "consolidationMsPerDay": 20.7,
+       "closeMsPerDay": 158.9,
+       "costMsPerRun": 50100.3,
+       "heapMB": 24,
+       "rssMB": 425,
+       "invoices": 27000
+      },
+      {
+       "from": "1403/02/15",
+       "to": "1403/03/13",
+       "sales": 4500,
+       "msPerSale": 11.4,
+       "consolidationMsPerDay": 21.3,
+       "closeMsPerDay": 162.5,
+       "costMsPerRun": 52760.2,
+       "heapMB": 24,
+       "rssMB": 425,
+       "invoices": 31500
+      },
+      {
+       "from": "1403/03/14",
+       "to": "1403/04/12",
+       "sales": 4500,
+       "msPerSale": 12.2,
+       "consolidationMsPerDay": 26.3,
+       "closeMsPerDay": 165.3,
+       "costMsPerRun": 52550.2,
+       "heapMB": 24,
+       "rssMB": 425,
+       "invoices": 36000
+      },
+      {
+       "from": "1403/04/13",
+       "to": "1403/05/11",
+       "sales": 4500,
+       "msPerSale": 12,
+       "consolidationMsPerDay": 23.6,
+       "closeMsPerDay": 171.1,
+       "costMsPerRun": 57624.3,
+       "heapMB": 24,
+       "rssMB": 435,
+       "invoices": 40500
+      },
+      {
+       "from": "1403/05/12",
+       "to": "1403/06/10",
+       "sales": 4500,
+       "msPerSale": 13.2,
+       "consolidationMsPerDay": 25.9,
+       "closeMsPerDay": 196.2,
+       "costMsPerRun": 56253.7,
+       "heapMB": 24,
+       "rssMB": 436,
+       "invoices": 45000
+      },
+      {
+       "from": "1403/06/11",
+       "to": "1403/07/09",
+       "sales": 4500,
+       "msPerSale": 12.3,
+       "consolidationMsPerDay": 27.8,
+       "closeMsPerDay": 193.5,
+       "costMsPerRun": 57098.4,
+       "heapMB": 24,
+       "rssMB": 436,
+       "invoices": 49500
+      },
+      {
+       "from": "1403/07/10",
+       "to": "1403/08/09",
+       "sales": 4500,
+       "msPerSale": 12.3,
+       "consolidationMsPerDay": 30.4,
+       "closeMsPerDay": 181.1,
+       "costMsPerRun": 53829.1,
+       "heapMB": 24,
+       "rssMB": 436,
+       "invoices": 54000
+      },
+      {
+       "from": "1403/08/10",
+       "to": "1403/09/09",
+       "sales": 4500,
+       "msPerSale": 12.2,
+       "consolidationMsPerDay": 31.5,
+       "closeMsPerDay": 190.8,
+       "costMsPerRun": 55778.9,
+       "heapMB": 24,
+       "rssMB": 436,
+       "invoices": 58500
+      },
+      {
+       "from": "1403/09/10",
+       "to": "1403/10/09",
+       "sales": 4500,
+       "msPerSale": 12.3,
+       "consolidationMsPerDay": 30.2,
+       "closeMsPerDay": 189.1,
+       "costMsPerRun": 54120.3,
+       "heapMB": 24,
+       "rssMB": 436,
+       "invoices": 63000
+      },
+      {
+       "from": "1403/10/10",
+       "to": "1403/11/09",
+       "sales": 4500,
+       "msPerSale": 13.3,
+       "consolidationMsPerDay": 33.8,
+       "closeMsPerDay": 200.3,
+       "costMsPerRun": 57466.4,
+       "heapMB": 24,
+       "rssMB": 436,
+       "invoices": 67500
+      },
+      {
+       "from": "1403/11/10",
+       "to": "1403/12/09",
+       "sales": 4500,
+       "msPerSale": 12.2,
+       "consolidationMsPerDay": 34,
+       "closeMsPerDay": 202.2,
+       "costMsPerRun": 54543.9,
+       "heapMB": 24,
+       "rssMB": 436,
+       "invoices": 72000
+      },
+      {
+       "from": "1403/12/10",
+       "to": "1404/01/09",
+       "sales": 4500,
+       "msPerSale": 13.3,
+       "consolidationMsPerDay": 42.4,
+       "closeMsPerDay": 225.3,
+       "costMsPerRun": 55702.6,
+       "heapMB": 24,
+       "rssMB": 437,
+       "invoices": 76500
+      },
+      {
+       "from": "1404/01/10",
+       "to": "1404/02/08",
+       "sales": 4500,
+       "msPerSale": 12.7,
+       "consolidationMsPerDay": 40.1,
+       "closeMsPerDay": 217.5,
+       "costMsPerRun": 56481.4,
+       "heapMB": 24,
+       "rssMB": 438,
+       "invoices": 81000
+      },
+      {
+       "from": "1404/02/09",
+       "to": "1404/03/07",
+       "sales": 4500,
+       "msPerSale": 13.4,
+       "consolidationMsPerDay": 40,
+       "closeMsPerDay": 209.2,
+       "costMsPerRun": 53798.9,
+       "heapMB": 24,
+       "rssMB": 438,
+       "invoices": 85500
+      },
+      {
+       "from": "1404/03/08",
+       "to": "1404/04/06",
+       "sales": 4500,
+       "msPerSale": 12.2,
+       "consolidationMsPerDay": 37.6,
+       "closeMsPerDay": 212.2,
+       "costMsPerRun": 56442.2,
+       "heapMB": 24,
+       "rssMB": 438,
+       "invoices": 90000
+      },
+      {
+       "from": "1404/04/07",
+       "to": "1404/05/05",
+       "sales": 4500,
+       "msPerSale": 13.3,
+       "consolidationMsPerDay": 44.4,
+       "closeMsPerDay": 226.4,
+       "costMsPerRun": 54919.1,
+       "heapMB": 24,
+       "rssMB": 438,
+       "invoices": 94500
+      },
+      {
+       "from": "1404/05/06",
+       "to": "1404/06/04",
+       "sales": 4500,
+       "msPerSale": 12.6,
+       "consolidationMsPerDay": 44.5,
+       "closeMsPerDay": 230.6,
+       "costMsPerRun": 58373,
+       "heapMB": 24,
+       "rssMB": 438,
+       "invoices": 99000
+      },
+      {
+       "from": "1404/06/05",
+       "to": "1404/07/03",
+       "sales": 4500,
+       "msPerSale": 12.7,
+       "consolidationMsPerDay": 44,
+       "closeMsPerDay": 231.1,
+       "costMsPerRun": 45953.3,
+       "heapMB": 24,
+       "rssMB": 438,
+       "invoices": 103500
+      },
+      {
+       "from": "1404/07/04",
+       "to": "1404/08/03",
+       "sales": 4500,
+       "msPerSale": 11.2,
+       "consolidationMsPerDay": 43.9,
+       "closeMsPerDay": 218,
+       "costMsPerRun": 47806.4,
+       "heapMB": 24,
+       "rssMB": 438,
+       "invoices": 108000
+      },
+      {
+       "from": "1404/08/04",
+       "to": "1404/09/03",
+       "sales": 4500,
+       "msPerSale": 11.6,
+       "consolidationMsPerDay": 41.9,
+       "closeMsPerDay": 225.6,
+       "costMsPerRun": 47425.3,
+       "heapMB": 24,
+       "rssMB": 438,
+       "invoices": 112500
+      },
+      {
+       "from": "1404/09/04",
+       "to": "1404/10/03",
+       "sales": 4500,
+       "msPerSale": 11.7,
+       "consolidationMsPerDay": 44.8,
+       "closeMsPerDay": 222.8,
+       "costMsPerRun": 47589.6,
+       "heapMB": 24,
+       "rssMB": 439,
+       "invoices": 117000
+      },
+      {
+       "from": "1404/10/04",
+       "to": "1404/11/03",
+       "sales": 4500,
+       "msPerSale": 10.4,
+       "consolidationMsPerDay": 43.3,
+       "closeMsPerDay": 225.4,
+       "costMsPerRun": 46722.6,
+       "heapMB": 24,
+       "rssMB": 439,
+       "invoices": 121500
+      },
+      {
+       "from": "1404/11/04",
+       "to": "1404/12/03",
+       "sales": 4500,
+       "msPerSale": 10.9,
+       "consolidationMsPerDay": 45.8,
+       "closeMsPerDay": 222.4,
+       "costMsPerRun": 47244.4,
+       "heapMB": 24,
+       "rssMB": 438,
+       "invoices": 126000
+      },
+      {
+       "from": "1404/12/04",
+       "to": "1405/01/04",
+       "sales": 4500,
+       "msPerSale": 11.5,
+       "consolidationMsPerDay": 47.2,
+       "closeMsPerDay": 233.7,
+       "costMsPerRun": 46952.5,
+       "heapMB": 24,
+       "rssMB": 438,
+       "invoices": 130500
+      },
+      {
+       "from": "1405/01/05",
+       "to": "1405/02/03",
+       "sales": 4500,
+       "msPerSale": 10.8,
+       "consolidationMsPerDay": 46.4,
+       "closeMsPerDay": 233.8,
+       "costMsPerRun": 46443.1,
+       "heapMB": 24,
+       "rssMB": 438,
+       "invoices": 135000
+      },
+      {
+       "from": "1405/02/04",
+       "to": "1405/03/02",
+       "sales": 4500,
+       "msPerSale": 9.9,
+       "consolidationMsPerDay": 50,
+       "closeMsPerDay": 229.1,
+       "costMsPerRun": 45347.8,
+       "heapMB": 24,
+       "rssMB": 438,
+       "invoices": 139500
+      },
+      {
+       "from": "1405/03/03",
+       "to": "1405/04/01",
+       "sales": 4500,
+       "msPerSale": 10.8,
+       "consolidationMsPerDay": 50.6,
+       "closeMsPerDay": 237.6,
+       "costMsPerRun": 44453,
+       "heapMB": 24,
+       "rssMB": 439,
+       "invoices": 144000
+      },
+      {
+       "from": "1405/04/02",
+       "to": "1405/04/31",
+       "sales": 4500,
+       "msPerSale": 10.8,
+       "consolidationMsPerDay": 49.7,
+       "closeMsPerDay": 242.3,
+       "costMsPerRun": 47444.2,
+       "heapMB": 24,
+       "rssMB": 439,
+       "invoices": 148500
+      },
+      {
+       "from": "1405/05/01",
+       "to": "1405/05/30",
+       "sales": 4500,
+       "msPerSale": 10.6,
+       "consolidationMsPerDay": 51.8,
+       "closeMsPerDay": 247,
+       "costMsPerRun": 47066.7,
+       "heapMB": 24,
+       "rssMB": 439,
+       "invoices": 153000
+      },
+      {
+       "from": "1405/05/31",
+       "to": "1405/06/29",
+       "sales": 4500,
+       "msPerSale": 10.4,
+       "consolidationMsPerDay": 52,
+       "closeMsPerDay": 251.6,
+       "costMsPerRun": 43079,
+       "heapMB": 24,
+       "rssMB": 439,
+       "invoices": 157500
+      },
+      {
+       "from": "1405/06/30",
+       "to": "1405/07/28",
+       "sales": 4500,
+       "msPerSale": 10.1,
+       "consolidationMsPerDay": 55.5,
+       "closeMsPerDay": 246.4,
+       "costMsPerRun": 45730.1,
+       "heapMB": 24,
+       "rssMB": 440,
+       "invoices": 162000
+      },
+      {
+       "from": "1405/07/29",
+       "to": "1405/08/13",
+       "sales": 2250,
+       "msPerSale": 10.9,
+       "consolidationMsPerDay": 28.8,
+       "closeMsPerDay": 128.7,
+       "costMsPerRun": 0,
+       "heapMB": 24,
+       "rssMB": 440,
+       "invoices": 164250
+      }
+     ]
+    },
+    {
+     "k": "first and last window (ms per sale, heap MB)",
+     "v": {
+      "first": [
+       13,
+       23
+      ],
+      "last": [
+       10.9,
+       24
+      ]
+     }
+    },
+    {
+     "k": "heap after GC: median of the first third vs the last third (MB)",
+     "v": [
+      24,
+      24
+     ]
+    }
+   ]
+  },
+  {
+   "id": "V2",
+   "title": "پس از 1,095 روز: زمان کارهای روزانه و گزارش‌ها، و خواندن سراسری جدول‌های بزرگ",
+   "findings": [
+    "SLOW_OPERATION | management trend: 12 months by month: 25916.6 میلی‌ثانیه (سقف 15000) | حجم",
+    "SLOW_OPERATION | sales report: whole history (summary): 22141.6 میلی‌ثانیه (سقف 15000) | حجم"
+   ],
+   "obs": [
+    {
+     "k": "operations: kind, ok and full scans of big tables",
+     "v": [
+      [
+       "automatic consolidation of yesterday (4-111 simulation)",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "seller opens the drawer",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "POS sale (cash, 2 lines)",
+       "daily",
+       "OK",
+       [
+        "SaleInvoice (index scan)"
+       ]
+      ],
+      [
+       "barcode scan (variant by barcode)",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "product search by name (30 results)",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "product list (first page)",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "sales report: today (summary)",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "sales report: today (rows)",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "sales report: yesterday (summary)",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "sales report: this month (summary)",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "sales report: last 365 days (summary)",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "sales report: whole history (summary)",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "نسیه list (debtors)",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "cheque list (due this year)",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "receipt-number gaps report",
+       "report",
+       "OK",
+       [
+        "SaleInvoice (index scan)",
+        "SaleInvoice"
+       ]
+      ],
+      [
+       "management report: today",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "management report: last 30 days",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "management report: last 365 days",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "management trend: 12 months by month",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "management profit: last 30 days",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "management stock (slow movers)",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "consolidation page: this month",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "custody status",
+       "daily",
+       "OK",
+       []
+      ],
+      [
+       "database statistics (settings → maintenance)",
+       "report",
+       "OK",
+       [
+        "SaleInvoice (index scan)",
+        "SaleInvoiceItem (index scan)",
+        "Payment (index scan)",
+        "SaleReturn (index scan)",
+        "SaleReturnItem (index scan)",
+        "StockMovement (index scan)",
+        "AuditLog (index scan)",
+        "Product (index scan)",
+        "ProductVariant (index scan)"
+       ]
+      ],
+      [
+       "archive preview: older than 730 days",
+       "report",
+       "OK",
+       [
+        "StockMovement",
+        "SaleReturn",
+        "Payment"
+       ]
+      ],
+      [
+       "backup now",
+       "report",
+       "OK",
+       []
+      ],
+      [
+       "«بستن نهایی» (today)",
+       "daily",
+       "OK",
+       []
+      ]
+     ]
+    }
+   ],
+   "timings": [
+    {
+     "k": "backup",
+     "v": {
+      "ms": 1139.5,
+      "sizeMB": 395
+     }
+    },
+    {
+     "k": "operations (median ms)",
+     "v": [
+      [
+       "automatic consolidation of yesterday (4-111 simulation)",
+       75.1
+      ],
+      [
+       "seller opens the drawer",
+       48.2
+      ],
+      [
+       "POS sale (cash, 2 lines)",
+       10.8
+      ],
+      [
+       "barcode scan (variant by barcode)",
+       0.7
+      ],
+      [
+       "product search by name (30 results)",
+       12.1
+      ],
+      [
+       "product list (first page)",
+       3.1
+      ],
+      [
+       "sales report: today (summary)",
+       193
+      ],
+      [
+       "sales report: today (rows)",
+       203.7
+      ],
+      [
+       "sales report: yesterday (summary)",
+       273.8
+      ],
+      [
+       "sales report: this month (summary)",
+       640
+      ],
+      [
+       "sales report: last 365 days (summary)",
+       7083.7
+      ],
+      [
+       "sales report: whole history (summary)",
+       22141.6
+      ],
+      [
+       "نسیه list (debtors)",
+       42.7
+      ],
+      [
+       "cheque list (due this year)",
+       8.1
+      ],
+      [
+       "receipt-number gaps report",
+       4430.3
+      ],
+      [
+       "management report: today",
+       186.5
+      ],
+      [
+       "management report: last 30 days",
+       713.8
+      ],
+      [
+       "management report: last 365 days",
+       6809.4
+      ],
+      [
+       "management trend: 12 months by month",
+       25916.6
+      ],
+      [
+       "management profit: last 30 days",
+       6360.2
+      ],
+      [
+       "management stock (slow movers)",
+       6563.6
+      ],
+      [
+       "consolidation page: this month",
+       55.6
+      ],
+      [
+       "custody status",
+       3.3
+      ],
+      [
+       "database statistics (settings → maintenance)",
+       87.5
+      ],
+      [
+       "archive preview: older than 730 days",
+       706.1
+      ],
+      [
+       "backup now",
+       1139.5
+      ],
+      [
+       "«بستن نهایی» (today)",
+       170.5
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "V3",
+   "title": "درستی در حجم بالا: جمع ماه‌ها = ۳۶۵ روز، شماره‌ها پیوسته، کالا = دفتر کالا، روزهای گذشته تجمیع‌شده",
+   "findings": [],
+   "obs": [
+    {
+     "k": "last 365 days vs the sum of its months",
+     "v": {
+      "months": 13,
+      "year": [
+       54750,
+       423875200000
+      ],
+      "sumOfMonths": [
+       54750,
+       423875200000
+      ]
+     }
+    },
+    {
+     "k": "receipt numbers",
+     "v": {
+      "count": 164253,
+      "first": 1,
+      "last": 164253
+     }
+    },
+    {
+     "k": "variants whose stock ≠ the stock ledger",
+     "v": 0
+    },
+    {
+     "k": "unconsolidated invoices of past days",
+     "v": 0
+    },
+    {
+     "k": "consolidations",
+     "v": 1095
+    }
+   ],
+   "timings": []
+  },
+  {
+   "id": "V4",
+   "title": "سقف‌ها و برآورد با همین آهنگ فروش",
+   "findings": [],
+   "obs": [
+    {
+     "k": "rows per table",
+     "v": {
+      "SaleInvoice": 164253,
+      "SaleInvoiceItem": 410939,
+      "Payment": 156094,
+      "StockMovement": 418868,
+      "AuditLog": 172300,
+      "SaleReturn": 1530,
+      "CashMovement": 1530,
+      "Consolidation": 1095,
+      "Shift": 1096,
+      "CashSession": 0,
+      "ProductVariant": 23000
+     }
+    },
+    {
+     "k": "years until the 32-bit id limit at this rate (per table)",
+     "v": {
+      "SaleInvoice": 39222,
+      "SaleInvoiceItem": 15677,
+      "Payment": 41272,
+      "StockMovement": 15380,
+      "AuditLog": 37390,
+      "CashMovement": 4210752
+     }
+    },
+    {
+     "k": "money: biggest invoice and the last 365 days total vs the exact-number limit (9,007,199,254,740,991 rial)",
+     "v": {
+      "maxInvoice": 30400000,
+      "yearTotal": 423885500000,
+      "timesUnderLimitForAYear": 21249
+     }
+    }
+   ],
+   "timings": [
+    {
+     "k": "database size",
+     "v": {
+      "fileMB": 395,
+      "pagesMB": 395,
+      "invoices": 164253,
+      "bytesPerInvoice": 2522
+     }
+    },
+    {
+     "k": "projection at this rate (no archive cleanup)",
+     "v": {
+      "perYearInvoices": 54750,
+      "gbPerYear": 0.1,
+      "gb10y": 1.3,
+      "gb100y": 12.9,
+      "backups30xAt10yGB": 38.6
+     }
+    }
+   ]
+  },
+  {
+   "id": "V5",
+   "title": "بکاپ هم‌زمان با نوشتن سند: کپی فایل پایگاه وسط ثبت، سالم درمی‌آید؟ (۵ بار، با همان «بکاپ الان»)",
+   "findings": [
+    "BACKUP_TORN | 5 بکاپ از ۵ بکاپی که هم‌زمان با نوشتن سند گرفته شد سالم نیست (بکاپ خودکار پس از کپی سنجیده نمی‌شود) | ۴-۱۳۵"
+   ],
+   "obs": [],
+   "timings": [
+    {
+     "k": "backups taken while documents were being written",
+     "v": [
+      [
+       "OK",
+       true,
+       "broken: database disk image is malformed"
+      ],
+      [
+       "OK",
+       true,
+       "broken: *** in database main ***\nTree # page # cell #: invalid page number #"
+      ],
+      [
+       "OK",
+       true,
+       "broken: database disk image is malformed"
+      ],
+      [
+       "OK",
+       true,
+       "broken: database disk image is malformed"
+      ],
+      [
+       "OK",
+       true,
+       "broken: database disk image is malformed"
+      ]
+     ]
+    }
+   ]
+  }
+ ]
+}

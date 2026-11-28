@@ -54,13 +54,13 @@ const { backupService } = await import('../../src/main/services/BackupService.ts
 
 console.log('\n۱) حذف بدون رمز / رمز غلط')
 const noPass = await msgOf(() => backupService.forget({ id: 'dummy-s206.db' }))
-truthy(`بدون رمز رد می‌شود (${noPass.split('\n')[0]})`, /همیشه رمز می‌خواهد/.test(noPass) && /حذف فایل بکاپ/.test(noPass))
+truthy(`بدون رمز رد می‌شود (${noPass.split('\n')[0]})`, /قفل جدا دارد/.test(noPass) && /حذف فایل بکاپ/.test(noPass))
 const wrong = await msgOf(() => backupService.forget({ id: 'dummy-s206.db', managerPassword: 'غلط' }))
 truthy('رمز غلط رد می‌شود', wrong !== 'NO_ERROR' && !/پیدا نشد/.test(wrong))
 
 console.log('\n۲) تنظیمات بدون رمز')
 const cfgNo = await msgOf(() => backupService.saveConfig({ keep: 1 }))
-truthy(`saveConfig بدون رمز رد می‌شود (${cfgNo.split('\n')[0]})`, /همیشه رمز می‌خواهد/.test(cfgNo) && /تنظیمات بکاپ/.test(cfgNo))
+truthy(`saveConfig بدون رمز رد می‌شود (${cfgNo.split('\n')[0]})`, /قفل جدا دارد/.test(cfgNo) && /تنظیمات بکاپ/.test(cfgNo))
 
 console.log('\n۳) با رمز مدیر')
 const cfgOk = await backupService.saveConfig({ keep: 7, everyDays: 1, managerPassword: PW })

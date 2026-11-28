@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { PANEL_KEYS, lockName } from '@shared/panels'
 import Modal from './Modal'
 import PasswordField from './PasswordField'
 import { call, CH } from '../lib/api'
-import { faDigits, money } from '@shared/jalali'
+import { faDigits, money, jalaliDateTimeText } from '@shared/jalali'
 import type {
   BridgeDiagView,
   BridgeDiagRow,
@@ -198,14 +199,14 @@ export default function BridgeDiagnosticsModal({
           <p className="text-sm leading-6 text-slate-700">
             این نما فقط <b>می‌خواند</b>: همان ۱۸ ردیف پل تطبیقِ گزارش را با نشان‌های راهنما (هم‌مبلغ، بزرگ‌ترین‌ها،
             تاریخِ بیرون‌بازه) نشان می‌دهد و هیچ عددی را عوض نمی‌کند. باز کردنش همیشه رمز می‌خواهد — رمز مدیر یا
-            رمز دوم همین بخش.
+            رمز دوم/سوم «{lockName(PANEL_KEYS.bridgeDiagnostics)}».
           </p>
           {!!err && <div className="rounded border border-rose-400 bg-rose-50 p-2 text-sm text-rose-800">{err}</div>}
           <div className="flex items-center gap-2">
             <div className="w-64">
               <PasswordField
                 autoFocus
-                placeholder="رمز مدیر / رمز دوم این بخش"
+                placeholder={`رمز مدیر / رمز دوم یا سوم «${lockName(PANEL_KEYS.bridgeDiagnostics)}»`}
                 value={password}
                 disabled={busy}
                 onChange={(e) => setPassword(e.target.value)}
@@ -247,7 +248,7 @@ export default function BridgeDiagnosticsModal({
               {view.bridge.balanced ? 'پل بسته است' : 'پل بسته نیست'}
             </span>
             <span className="mr-auto text-xs kbd text-slate-500">
-              محاسبه‌شده: {faDigits(new Date(view.computedAtIso).toLocaleString('fa-IR'))}
+              محاسبه‌شده: {jalaliDateTimeText(view.computedAtIso)}
             </span>
           </div>
 
@@ -379,7 +380,7 @@ export default function BridgeDiagnosticsModal({
                 {view.notes.map((n) => (
                   <div key={n.id} className="text-sm leading-6 border-r-2 border-slate-300 pr-2">
                     <span className="text-xs text-slate-500 kbd">
-                      {faDigits(new Date(n.createdAtIso).toLocaleString('fa-IR'))} · {n.actorLabel}
+                      {jalaliDateTimeText(n.createdAtIso)} · {n.actorLabel}
                     </span>
                     <div className="whitespace-pre-wrap">{n.text /* متن خالص — بدون dangerouslySetInnerHTML */}</div>
                   </div>
@@ -402,7 +403,7 @@ export default function BridgeDiagnosticsModal({
                 <span className="text-xs kbd text-slate-500">{faDigits(noteDraft.length)}/۳۰۰</span>
               </div>
             </div>
-            <div className="text-xs kbd text-slate-500">یادداشت‌ها حذف و ویرایش نمی‌شوند و در سابقه (AuditLog) می‌نشینند.</div>
+            <div className="text-xs kbd text-slate-500">یادداشت‌ها حذف و ویرایش نمی‌شوند و در سابقهٔ برنامه می‌مانند.</div>
           </div>
         </div>
       )}

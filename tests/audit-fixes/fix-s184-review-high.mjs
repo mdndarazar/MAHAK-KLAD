@@ -55,7 +55,7 @@ ok('بازپرداخت کامل هم همین‌طور', /assertPanelPasswordStr
   const { assertPanelPasswordStrict } = await import('../../src/main/services/AuthService.ts')
   let msg = null
   try { await assertPanelPasswordStrict('credit-management', '', 'صدور اعتبار') } catch (e) { msg = e.message }
-  ok(`بدون رمز رد می‌شود (${String(msg).slice(0, 44)}…)`, msg && /همیشه رمز می‌خواهد/.test(msg))
+  ok(`بدون رمز رد می‌شود (${String(msg).slice(0, 44)}…)`, msg && /قفل جدا دارد/.test(msg))
 }
 
 // ---------------------------------------------------------------------------

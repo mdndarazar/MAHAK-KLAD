@@ -61,10 +61,10 @@ await backupService.saveConfig({ autoDir: targetDir, everyDays: 0, keep: 1, mana
 const protectedOldBackup = join(targetDir, 'shop-before-gate.db')
 writeFileSync(protectedOldBackup, 'audit-evidence')
 const nowNoPass = await messageOf(() => backupService.runNow())
-check('backupNow بی‌رمز رد شد', /همیشه رمز می‌خواهد/.test(nowNoPass) && /بکاپ فوری/.test(nowNoPass))
+check('backupNow بی‌رمز رد شد', /قفل جدا دارد/.test(nowNoPass) && /بکاپ فوری/.test(nowNoPass))
 check('رد backupNow بی‌رمز هیچ cleanupی روی نسخه‌ی قدیمی انجام نداد', existsSync(protectedOldBackup))
 const manualNoPass = await messageOf(() => backupService.createManual())
-check('خروجی کامل در مسیر دلخواه نیز بی‌رمز رد شد', /همیشه رمز می‌خواهد/.test(manualNoPass) && /فایل بکاپ کامل/.test(manualNoPass))
+check('خروجی کامل در مسیر دلخواه نیز بی‌رمز رد شد', /قفل جدا دارد/.test(manualNoPass) && /فایل بکاپ کامل/.test(manualNoPass))
 
 console.log('\n۳) مسیر رسمیِ رمزدار همچنان تنظیمات را می‌پذیرد')
 const official = await backupService.saveConfig({ autoDir: targetDir, everyDays: 2, keep: 7, managerPassword: PW })

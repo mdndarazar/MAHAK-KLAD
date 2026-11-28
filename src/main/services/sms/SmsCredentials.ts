@@ -19,6 +19,7 @@ import { AuditAction } from '@shared/enums'
 import { toJalaliDate } from '@shared/jalali'
 import { sealSecret, openSecret, vaultReady } from '../PanelVault'
 import { assertManagerPassword } from '../AuthService'
+import { gateAction } from '../locks/gate'
 import {
   normalizeSmsProviderKey,
   smsProviderNeedsCredentials,
@@ -218,7 +219,7 @@ export const smsCredentialService = {
     // تغییر کلید API ⇒ تأیید صریح رمز مدیر (همان الگوی «بازسازی دفتر هزینه»)
     const secretPatch = filterSecretKeys(input?.secrets)
     const hasSecretPatch = Object.keys(secretPatch).length > 0
-    if (hasSecretPatch) await assertManagerPassword(input?.managerPassword, 'ثبت کلید API سرویس‌دهنده پیامک')
+    if (hasSecretPatch) await gateAction('sms.api-key-set', () => assertManagerPassword(input?.managerPassword, 'ثبت کلید API سرویس‌دهنده پیامک'))
 
     /**
      * 🔐 تغییر **مقصد** کلید هم رمز مدیر می‌خواهد.
@@ -234,7 +235,7 @@ export const smsCredentialService = {
       ((nextBaseUrl !== undefined && String(nextBaseUrl ?? '') !== String(existing.baseUrl ?? '').trim()) ||
         normalizeSmsProviderKey(existing.providerKey) !== providerKey)
     if (routeChanged && !hasSecretPatch)
-      await assertManagerPassword(input?.managerPassword, 'تغییر مقصد/نوع اتصال کلید API پیامک')
+      await gateAction('sms.api-key-target', () => assertManagerPassword(input?.managerPassword, 'تغییر مقصد/نوع اتصال کلید API پیامک'))
 
     if (smsProviderNeedsCredentials(providerKey) && !vaultReady() && hasSecretPatch) {
       throw new BusinessError(

@@ -351,7 +351,9 @@ export const CREDIT_REDEMPTION_HEADERS = [
   'کلید Idempotency',
   'برگشت‌خورده',
   'دلیل برگشت',
-  'توضیح'
+  'توضیح',
+  /** طرح ۱۴۰۵ · مورد ۱۲ — فقط نمایشی، آخرِ ردیف تا جای ستون‌های قبلی (و جمع در خانه‌ی ۳) نلغزد */
+  'شیفت'
 ]
 
 export function redemptionRow(r: any): (string | number | null)[] {
@@ -366,7 +368,54 @@ export function redemptionRow(r: any): (string | number | null)[] {
     String(r.idempotencyKey ?? ''),
     r.reversed ? 'بله' : '',
     String(r.reversedReason ?? ''),
-    String(r.note ?? '')
+    String(r.note ?? ''),
+    String(r.shiftName ?? '')
+  ]
+}
+
+/**
+ * طرح ۱۴۰۵ · مورد ۱۲ (معماری §۴-۳ بند ۴) — تب «چاپ دوباره»: ستون‌ها و سلول‌ها همین‌جا تعریف می‌شوند (نه در JSX).
+ * «مشکوک» یعنی اعتبار پس از چاپ دوباره مصرف شده است؛ تصمیمش در main گرفته می‌شود و این‌جا فقط نشان داده می‌شود.
+ */
+export const CREDIT_SELLER_REPRINT_HEADERS = [
+  'تاریخ',
+  'ساعت',
+  'فروشنده',
+  'شیفت',
+  'دلیل',
+  'شماره چاپ',
+  'مبلغ',
+  'برگشت/تعویض',
+  'مصرف شده؟ (چه کسی، کدام شیفت)',
+  'تحویل به مشتری ثبت شد؟',
+  'وضعیت'
+]
+
+/** ستون‌های عددی تب «چاپ دوباره» (`creditCellText` قالبشان را می‌گذارد). */
+export function sellerReprintCellFormat(col: unknown): 'money' | 'count' | 'text' {
+  const i = Math.round(Number(col))
+  return i === 6 ? 'money' : i === 5 ? 'count' : 'text'
+}
+
+export function sellerReprintRow(r: any): (string | number)[] {
+  const used = Array.isArray(r?.used) ? r.used : []
+  const usedText = used.length
+    ? used.map((u: any) => `${String(u?.byName ?? '')}${u?.shiftName ? ` · ${String(u.shiftName)}` : ''} · ${String(u?.atJalali ?? '')} ${String(u?.atTime ?? '')}`.trim()).join('؛ ')
+    : 'خیر'
+  const reason = `${String(r?.reasonLabel ?? '')}${r?.explanation ? `: ${String(r.explanation)}` : ''}`
+  const status = r?.released ? 'چاپ نشد (آزاد شد)' : r?.suspicious ? (r?.sameSeller ? '⚠️ مشکوک · مصرف به دست همان فروشنده' : '⚠️ مشکوک') : 'عادی'
+  return [
+    String(r?.atJalali ?? ''),
+    String(r?.atTime ?? ''),
+    String(r?.sellerName ?? ''),
+    String(r?.shiftName ?? '—'),
+    reason,
+    intOf(r?.printNo),
+    intOf(r?.amount),
+    String(r?.docLabel ?? ''),
+    usedText,
+    r?.deliveryRecorded == null ? '—' : r.deliveryRecorded ? 'بله' : 'خیر',
+    status
   ]
 }
 
@@ -757,7 +806,7 @@ export function buildBulkPayload(draft: BulkDraft, settings: CreditSettings): Bu
 }
 
 // ---------------------------------------------------------------------------
-// ۵) عملیات مدیریتی (§۸ و §۱۰) — رمز مدیر + دلیل، هر دو اجباری
+// ۵) عملیات مدیریتی (§۸ و §۱۰) — دلیل اجباری؛ رمز اختیاری (دفتر آزمون ۴-۴۶: دروازهٔ سرور تصمیم می‌گیرد)
 // ---------------------------------------------------------------------------
 
 export const CreditOp = {
@@ -793,12 +842,12 @@ export const CREDIT_OP_HELP: Record<CreditOp, string> = {
     'فعال‌سازی از «معلق» یا «منقضی». اگر اعتبار منقضی شده باشد، تمدید تاریخ اجباری است — وگرنه یک ثانیه بعد دوباره منقضی است.',
   EXPIRY: 'تاریخ انقضای جدید (خالی = بدون انقضا). مقدار قبل و بعد در تاریخچه ثبت می‌شود.',
   AMOUNT:
-    'تغییر مبلغ فقط روی اعتباری که **هیچ مصرفی نداشته** مجاز است. روی اعتبار مصرف‌شده ممنوع است، چون سند حسابداری و دفتر مصرفش را خراب می‌کند؛ راه درست ابطال + صدور اعتبار جدید است.',
+    'تغییر مبلغ فقط روی اعتباری که هیچ مصرفی نداشته مجاز است. روی اعتبار مصرف‌شده ممنوع است، چون سند حسابداری و دفتر مصرفش را خراب می‌کند؛ راه درست ابطال + صدور اعتبار جدید است.',
   USES: 'دفعات مجاز، حالت چندباره و سقف هر تراکنش. سقف دفعات هیچ‌وقت نمی‌تواند کمتر از دفعاتی باشد که تا حالا مصرف شده است.',
   HOLDER: 'اطلاعات گیرنده (شخص/شرکت/سازمان). هیچ فیلدی اجباری نیست، ولی دلیل تغییر اجباری است.',
-  RESTRICTION: 'محدودیت کالا/دسته‌بندی، حداقل مبلغ خرید و سقف هر تراکنش. هر سه در Backend اعمال می‌شوند، نه فقط UI.',
+  RESTRICTION: 'محدودیت کالا/دسته‌بندی، حداقل مبلغ خرید و سقف هر تراکنش. هر سه در خود برنامه سنجیده می‌شوند.',
   DELETE:
-    'حذف اعتبار هیچ‌وقت پاک‌کردن واقعی نیست (بند ۴-۲۲): اعتبار **ابطال و آرشیو** می‌شود (Soft Delete)، از فهرست‌ها و از مسیر مصرف بیرون می‌رود، ولی رکورد، کد، مبلغ، پرداختی و دفتر مصرفش به‌عنوان مدرک می‌مانند.'
+    'حذف اعتبار هیچ‌وقت پاک‌کردن واقعی نیست: اعتبار ابطال و آرشیو می‌شود، از فهرست‌ها و از مسیر مصرف بیرون می‌رود، ولی رکورد، کد، مبلغ، پرداختی و دفتر مصرفش به‌عنوان مدرک می‌مانند.'
 }
 
 /** کانال هر عملیات — یک نقشه، تا هیچ‌جای UI اسم کانال را دوباره ننویسد. */
@@ -874,7 +923,8 @@ export function emptyOpDraft(op: CreditOp, id: number): OpDraft {
 /**
  * فرم عملیات مدیریتی ⇒ Payload کانالش.
  *
- * ⚠️ **رمز مدیر و دلیل، هر دو اجباری‌اند** — نه به‌خاطر سلیقه‌ی UI، بلکه چون
+ * دفتر آزمون ۴-۴۶: رمز دیگر در صفحه اجباری نیست؛ کادر خالی و قفل روشن ⇐ دروازهٔ سرور پنجرهٔ «باز کردن قفل» (رمز،
+ * کد یک‌بارمصرف یا مجوز راه دور) را می‌آورد و قفل خاموش ⇐ بی رمز. ⚠️ **دلیل اجباری است** — نه به‌خاطر سلیقه‌ی UI، بلکه چون
  * سرویس main بدون این دو درخواست را رد می‌کند (`assertManagerPassword` +
  * `requireReason`). پس فرم بدون آن‌ها حتی درخواست هم نمی‌فرستد: کاربر پیام
  * فارسی را همان‌جا می‌بیند، نه بعد از یک رفت‌و‌برگشت.
@@ -887,8 +937,6 @@ export function buildOpPayload(draft: OpDraft, credit: any): BuildResult<Record<
   const title = CREDIT_OP_TITLES[draft.op] ?? 'این عملیات'
 
   if (!draft.id) return fail('اول یک اعتبار را از فهرست انتخاب کنید.')
-  if (!managerPassword)
-    return fail(`برای «${title}» رمز مدیر لازم است؛ سرویس بدون رمز این درخواست را رد می‌کند.`)
   if (reason.length < 3) return fail(`برای «${title}» نوشتن دلیل اجباری است (حداقل ۳ کاراکتر) و در تاریخچه ثبت می‌شود.`)
 
   const base: Record<string, unknown> = { id: draft.id, reason, managerPassword }
@@ -996,8 +1044,8 @@ export function buildOpPayload(draft: OpDraft, credit: any): BuildResult<Record<
       const hasUse = intOf(credit?.usedAmount) > 0 || intOf(credit?.usedCount) > 0
       warnings.push(
         hasUse
-          ? 'این اعتبار مصرف داشته است، پس **حذف واقعی نمی‌شود**: آرشیو می‌گردد تا پرداختی و سابقه‌ی حسابداری‌اش نشکند.'
-          : 'این اعتبار هیچ مصرفی نداشته است؛ **ابطال و آرشیو می‌شود** و دیگر قابل مصرف نیست، ولی رکوردش به‌عنوان مدرک می‌ماند.'
+          ? 'این اعتبار مصرف داشته است، پس حذف واقعی نمی‌شود: آرشیو می‌گردد تا پرداختی و سابقه‌ی حسابداری‌اش نشکند.'
+          : 'این اعتبار هیچ مصرفی نداشته است؛ ابطال و آرشیو می‌شود و دیگر قابل مصرف نیست، ولی رکوردش به‌عنوان مدرک می‌ماند.'
       )
       return { ok: true, error: null, warnings, payload: base, override: false }
     }
@@ -1668,7 +1716,7 @@ export function creditExport(kind: CreditExportKind, data: any): CreditExportShe
         sheetName: 'دفتر مصرف',
         headers: CREDIT_REDEMPTION_HEADERS,
         rows: body,
-        totals: ['جمع', '', '', sum(body, 3), '', '', '', '', '', '', '']
+        totals: ['جمع', '', '', sum(body, 3), '', '', '', '', '', '', '', '']
       }
     }
     case 'timeline': {
@@ -2047,7 +2095,7 @@ export function creditBreakdownCellFormat(col: unknown): CreditCellFormat {
 // ---------------------------------------------------------------------------
 
 /** نماهای صفحه‌ی «مدیریت اعتبار خرید». `detail` تب ندارد (از فهرست باز می‌شود). */
-export type CreditView = 'dashboard' | 'list' | 'detail' | 'reminders' | 'reminderLogs' | 'batches' | 'settings'
+export type CreditView = 'dashboard' | 'list' | 'detail' | 'reminders' | 'reminderLogs' | 'batches' | 'reprints' | 'settings'
 
 /** تب‌های بالای صفحه، به همین ترتیب. تنها منبع نوار تب‌ها. */
 export const CREDIT_VIEW_TABS: readonly { view: CreditView; label: string }[] = [
@@ -2056,6 +2104,8 @@ export const CREDIT_VIEW_TABS: readonly { view: CreditView; label: string }[] = 
   { view: 'reminders', label: 'یادآوری' },
   { view: 'reminderLogs', label: 'لاگ یادآوری' },
   { view: 'batches', label: 'دسته‌ها' },
+  /** طرح ۱۴۰۵ · مورد ۱۲ — چاپ‌های دوباره‌ی فروشنده برای بازبینی روزانه‌ی مدیر */
+  { view: 'reprints', label: 'چاپ دوباره' },
   { view: 'settings', label: 'تنظیمات' }
 ]
 
@@ -2070,6 +2120,7 @@ export const CREDIT_VIEW_CHANNELS: Record<CreditView, string> = {
   reminders: 'creditReminderCandidates',
   reminderLogs: 'creditReminderLogs',
   batches: 'creditBatchList',
+  reprints: 'creditSellerReprints',
   settings: 'creditSettingsGet'
 }
 
@@ -2169,6 +2220,8 @@ export function creditViewRequest(view: CreditView, filter: CreditViewFilterLike
         },
         envelope: 'array'
       }
+    case 'reprints':
+      return { channel, payload: { take: Math.min(take, 2000) }, envelope: 'object' }
     default:
       return null
   }

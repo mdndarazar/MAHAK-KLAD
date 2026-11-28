@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { call, CH } from '../lib/api'
 import PasswordField from '../components/PasswordField'
+import { SAVED_TEXT, UnsavedBadge, useLeaveGuard } from '../components/UnsavedChanges'
 import { faDigits, money } from '@shared/jalali'
 import {
   CHARGE_KINDS,
@@ -160,14 +161,18 @@ export default function CategoryCharges({ kind, scope }: { kind: ChargeKind; sco
       setEnabled(clean.enabled)
       setFallback(clean.fallback)
       setDirty(false)
-      flash(`«${label}» ذخیره شد و از همین حالا روی فاکتورهای جدید همین پنل اعمال می‌شود.`)
+      flash(`${SAVED_TEXT} · «${label}» از همین حالا روی فاکتورهای جدید همین پنل اعمال می‌شود.`)
+      return true
     } catch (e: any) {
       setErr(e.message)
+      return false
     } finally {
       setChargePw('')
       setBusy(false)
     }
   }
+  // دفتر آزمون ۴-۳۸: بیرون رفتن از صفحه با تغییر ذخیره‌نشده می‌پرسد
+  const leave = useLeaveGuard(dirty, save)
 
   /** مقدار مؤثر یک دسته (خودش، ارث‌برده از والد، یا مقدار پیش‌فرض) + مبلغ نمونه. */
   const effectiveOf = (categoryId: number) => {
@@ -184,9 +189,10 @@ export default function CategoryCharges({ kind, scope }: { kind: ChargeKind; sco
 
   return (
     <div className="page">
+      {leave.dialog}
       <div className="bg-white rounded shadow p-2 flex items-center gap-2 flex-wrap">
         <h1 className="text-lg font-bold">{label}</h1>
-        {dirty && <span className="kbd text-amber-700 font-bold">تغییرات ذخیره نشده</span>}
+        <UnsavedBadge show={dirty} />
         <div className="ms-auto flex gap-1 flex-wrap">
           <button className="btn" onClick={() => void load()} disabled={busy}>
             بازگردانی از دیتابیس
@@ -194,7 +200,7 @@ export default function CategoryCharges({ kind, scope }: { kind: ChargeKind; sco
           <button className="btn" onClick={clearAll} disabled={busy || (!activeCount && !fallback)}>
             صفر کردن همه
           </button>
-          <div className="w-44" title="رمز مدیر یا رمز دوم همین پنل">
+          <div className="w-44" title={`رمز مدیر یا رمز دوم/سوم «${label}»`}>
             <PasswordField value={chargePw} placeholder="رمز ذخیره" onChange={(e) => setChargePw(e.target.value)} />
           </div>
           <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>

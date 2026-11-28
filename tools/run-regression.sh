@@ -57,6 +57,8 @@ suite() {
   suite "tests/management/*.mjs" "tests/management/*.mjs" mgmt
   # ماژول پیامکی: منطق خالص + اجرای واقعی صف روی دیتابیس هارنس.
   suite "tests/sms/*.mjs" "tests/sms/*.mjs" sms
+  # دفتر آزمون (معماری نهایی، بخش ۸-۲): آزمون‌های تازهٔ بندها.
+  suite "tests/test-log/*.mjs" "tests/test-log/*.mjs" tl
   suite "test/*.mjs" "test/*.mjs" legacy
   echo "## esbuild"
   node tools/esbuild-check.mjs $(find src -name "*.ts" -o -name "*.tsx") | tail -1

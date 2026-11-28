@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'; import { startRemoteSessionMonitor } from '../components/RemoteRequestBox'
 import { call, CH } from '../lib/api'
 import type { PanelUnlockResult } from '@shared/types'
 import { SETTINGS_CHANGED_EVENT } from './useSettings'
@@ -23,6 +23,9 @@ export interface ManagerSession {
   unlockPanel: (panel: string, password: string) => Promise<'MANAGER' | 'PANEL'>
   /** Main-first: پس از revoke موفق Main، UI پاک می‌شود. */
   logout: () => Promise<void>
+  /** طرح ۱۴۰۵ §۴-۹: کل زمان قفل بی‌کاری و زمان باقی‌مانده (بی رندر دوباره؛ Shell خودش هر ثانیه می‌خواند) */
+  idleMs: number
+  idleLeftMs: () => number
 }
 
 type MainSessionStatus = {
@@ -47,7 +50,9 @@ const FALLBACK: ManagerSession = {
   },
   logout: async () => {
     throw new Error('وضعیت مدیر در دسترس نیست؛ برنامه را یک بار ببندید و باز کنید.')
-  }
+  },
+  idleMs: 0,
+  idleLeftMs: () => 0
 }
 
 const ManagerContext = createContext<ManagerSession>(FALLBACK)
@@ -198,6 +203,20 @@ export function ManagerSessionProvider({ children }: { children: ReactNode }) {
     }
   }, [isLoggingOut, syncFromMain])
 
+  /**
+   * دفتر آزمون ۴-۵۴ و ۴-۵۳: بی‌کاری فقط نشست مدیر و رمزهای دوم و سوم را می‌بندد؛ بخش بازشده با کد یا مجوز و «پنل فروش»
+   * با قاعدهٔ خودشان می‌مانند (حقیقت از Main). اگر نشد، همان خروج کامل (fail-closed).
+   */
+  const idleLogout = useCallback(async () => {
+    lastActivity.current = Date.now()
+    try {
+      await call(CH.managerLogout, { idle: true })
+      await syncFromMain()
+    } catch {
+      await logout().catch(() => undefined)
+    }
+  }, [syncFromMain, logout])
+
   useEffect(() => {
     const load = () => {
       if (!CH?.settingsBundle) return
@@ -210,6 +229,7 @@ export function ManagerSessionProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(SETTINGS_CHANGED_EVENT, load)
   }, [])
 
+  useEffect(() => startRemoteSessionMonitor(!isManager && !securityError && panels.length > 0, (valid) => setPanels((old) => { const next = old.filter((panel) => valid.includes(panel)); return next.length === old.length ? old : next }), () => { setPanels([]); setSecurityError('وضعیت مجوز قابل بررسی نیست؛ پنل‌ها قفل شدند.') }), [isManager, securityError, panels])
   const sessionOpen = !securityError && (isManager || panels.length > 0)
   useEffect(() => {
     if (!sessionOpen) return
@@ -221,22 +241,23 @@ export function ManagerSessionProvider({ children }: { children: ReactNode }) {
     const evts: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'click', 'touchstart']
     for (const event of evts) window.addEventListener(event, bump, { passive: true })
     const id = window.setInterval(() => {
-      if (Date.now() - lastActivity.current >= idleMs) void logout().catch(() => undefined)
+      if (Date.now() - lastActivity.current >= idleMs) void idleLogout()
     }, 1000)
     return () => {
       for (const event of evts) window.removeEventListener(event, bump)
       window.clearInterval(id)
     }
-  }, [sessionOpen, idleMs, logout, touchManagerSession])
+  }, [sessionOpen, idleMs, idleLogout, touchManagerSession])
 
   const canOpen = useCallback(
     (panel: string) => ready && !securityError && (isManager || panels.includes(panel)),
     [ready, securityError, isManager, panels]
   )
 
+  const idleLeftMs = useCallback(() => Math.max(0, idleMs - (Date.now() - lastActivity.current)), [idleMs])
   const value = useMemo<ManagerSession>(
-    () => ({ isManager, since, panels, ready, securityError, isLoggingOut, canOpen, login, unlockPanel, logout }),
-    [isManager, since, panels, ready, securityError, isLoggingOut, canOpen, login, unlockPanel, logout]
+    () => ({ isManager, since, panels, ready, securityError, isLoggingOut, canOpen, login, unlockPanel, logout, idleMs, idleLeftMs }),
+    [isManager, since, panels, ready, securityError, isLoggingOut, canOpen, login, unlockPanel, logout, idleMs, idleLeftMs]
   )
 
   return <ManagerContext.Provider value={value}>{children}</ManagerContext.Provider>

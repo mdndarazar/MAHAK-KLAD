@@ -23,6 +23,7 @@ import type { DbStats, MaintenancePreview, MaintenanceResult } from '@shared/typ
  */
 import { auditProtectedSql, auditPurgeableSql } from '@shared/credit'
 import { assertManagerPassword } from './AuthService'
+import { gateAction } from './locks/gate'
 
 /**
  * ===========================================================================
@@ -297,7 +298,7 @@ export const maintenanceService = {
     userId?: number | null
   }): Promise<MaintenanceResult> {
     const beforeJalali = enforceMaintenanceCutoff(input?.beforeJalali)
-    await assertManagerPassword(input?.managerPassword, 'آرشیو و پاک‌سازی داده‌های قدیمی')
+    await gateAction('maintenance.archive-purge', async () => await assertManagerPassword(input?.managerPassword, 'آرشیو و پاک‌سازی داده‌های قدیمی'))
     const before = await this.preview({ beforeJalali })
     const file = databaseFile()
     const sizeBefore = await stat(file)

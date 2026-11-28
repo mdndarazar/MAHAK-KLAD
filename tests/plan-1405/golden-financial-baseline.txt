@@ -1,0 +1,393 @@
+# plan1405 golden financial scenario v1
+## A) فروش خرد
+  a1 نقد: OK
+  a2 کارت‌خوان: OK
+  a3 ترکیبی: OK
+  a4 نسیه: OK
+  a5 چندقلم: OK
+  a6 سه عدد: OK
+  a7 تخفیف ردیف: OK
+  a8 قیمت کمتر از مرجع بی رمز: REJECT «قیمت کمتر از قیمت مرجع (کد V26sm6m: واردشده ۸۰۰٬۰۰۰ ریال، مرجع ۱٬۰۰۰٬۰۰۰ ریال)» تایید مدی
+  a8 قیمت کمتر از مرجع با رمز مدیر: OK
+  a9 کیف نقد: OK
+[A] expectedCash=6500000 stock=A=95,B=98,C=96,D=98 invoices=9/8200000 returns=0/0
+[A] payments=CASH/CARD:1300000#2 CASH/CASH:6500000#7
+[A] credits=- cashMovements=-
+## B) پرداخت بعدی و چک
+  f1 نسیه: OK
+  f1 وصول نقد: OK
+  f1 اضافه‌دریافت: REJECT مبلغ واردشده (۱۰۰٬۰۰۰ ریال) از باقی‌ماندهٔ بدهی این فاکتور (۰ ریال) ۱۰۰٬۰۰۰ ریال بیشتر است
+  f2 نسیه برای چک: OK
+  f2 ثبت چک: OK
+  چک: پاس به مدیر بی رمز: REJECT «تغییر وضعیت چک» قفل جدا دارد. با رمز مدیر یا رمز دوم/سوم همین کار، کد یک‌بارمصرف یا مجوز
+  چک: پاس به مدیر با رمز: OK
+  چک پاس‌شده: ابطال بی رمز: REJECT «ابطال چک پاس‌شده» قفل جدا دارد. با رمز مدیر یا رمز دوم/سوم همین کار، کد یک‌بارمصرف یا مجو
+  f4 نسیه برای جایگزینی چک: OK
+  f4 ثبت چک: OK
+  f4 جایگزینی چک بی رمز: REJECT «جایگزینی چک» قفل جدا دارد. با رمز مدیر یا رمز دوم/سوم همین کار، کد یک‌بارمصرف یا مجوز از
+  f4 جایگزینی چک با رمز: OK
+  چک پاس‌شده: ویرایش مبلغ بی رمز: REJECT «ویرایش چک پاس‌شده» قفل جدا دارد. با رمز مدیر یا رمز دوم/سوم همین کار، کد یک‌بارمصرف یا مج
+  چک پاس‌شده: ویرایش توضیح با رمز: OK
+  f3 نقد برای ابطال: OK
+  f3 ابطال نقد بی رمز: REJECT «ابطال پرداخت» قفل جدا دارد. با رمز مدیر یا رمز دوم/سوم همین کار، کد یک‌بارمصرف یا مجوز از
+  f3 ابطال نقد با رمز: OK
+[B] expectedCash=6900000 stock=A=95,B=98,C=92,D=98 invoices=13/9800000 returns=0/0
+[B] payments=CASH/CARD:1300000#2 CASH/CASH:6900000#8 CHEQUE/null:400000#1 CHEQUE/MANAGER:400000#1
+[B] credits=- cashMovements=-
+## C) برگشت
+  c1 فروش: OK
+  c1 برگشت کامل نقد: OK
+  c2 فروش دوقلم: OK
+  c2 برگشت یک قلم: OK
+  c3 نسیه: OK
+  c3 برگشت نسیه: OK
+  c4 تخفیف‌دار: OK
+  c4 برگشت تخفیف‌دار: OK
+  c5 فروش کارتی: OK
+  c5 بازپرداخت کارت‌خوان بی رمز: REJECT «بازپرداخت کارتی (کارت‌خوان) برگشت» تایید مدیر لازم دارد. رمز مدیر را وارد کنید.
+  c5 بازپرداخت کارت‌خوان با رمز و دلیل: OK
+  c6 فروش برای کارت‌به‌کارت: OK
+  c6 برگشت کارت‌به‌کارت: OK
+  c6 پرداخت کارت‌به‌کارت با رمز: OK
+  c7 فروش تخفیف فاکتور: OK
+[C] expectedCash=9400000 stock=A=94,B=97,C=91,D=98 invoices=20/16000000 returns=6/3700000
+[C] payments=CASH/CARD:2000000#3 CASH/CASH:12000000#13 CHEQUE/null:400000#1 CHEQUE/MANAGER:400000#1
+[C] credits=- cashMovements=RETURN_REFUND:2600000#3
+## D) تعویض
+  d1 فروش: OK
+  d1 تعویض گران‌تر با نقد: OK
+  d2 فروش: OK
+  d2 تعویض ارزان‌تر بازپرداخت نقد: OK
+  d3 فروش: OK
+  d3 تعویض هم‌قیمت: OK
+  d4 فروش کارتی: OK
+  d4 تعویض ارزان‌تر بازپرداخت کارت‌خوان بی رمز: REJECT «بازپرداخت کارتی (کارت‌خوان) تعویض» تایید مدیر لازم دارد. رمز مدیر را وارد کنید.
+  d4 تعویض ارزان‌تر بازپرداخت کارت‌خوان با رمز: OK
+  d5 تعویض زنجیره‌ای (فاکتور دوم): OK
+  d6 برگشت در فاکتور سوم: OK
+  chain: second=yes third=yes
+[D] expectedCash=11800000 stock=A=94,B=95,C=89,D=98 invoices=29/24350000 returns=12/5200000
+[D] payments=CASH/null:4050000#5 CASH/CARD:3000000#4 CASH/CASH:15300000#17 CHEQUE/null:400000#1 CHEQUE/MANAGER:400000#1
+[D] credits=- cashMovements=EXCHANGE_REFUND:650000#2 RETURN_REFUND:2850000#4
+## E) اعتبار خرید
+  e1 فروش: OK
+  e1 برگشت به اعتبار: OK
+  e2 فروش با اعتبار (مصرف یک‌باره): OK
+  e3 صدور دستی بی رمز: REJECT «صدور دستی اعتبار خرید» قفل جدا دارد. با رمز مدیر یا رمز دوم/سوم همین کار، کد یک‌بارمصرف ی
+  e3 صدور دستی چندبارمصرف با رمز: OK
+  e4 مصرف اول چندبارمصرف: OK
+  e5 مصرف دوم چندبارمصرف: OK
+  e6 صدور دستی یک‌روزه: OK
+  e7 صدور دستی برای ابطال: OK
+  e7 ابطال بی رمز: REJECT «ابطال اعتبار خرید» قفل جدا دارد. با رمز مدیر یا رمز دوم/سوم همین کار، کد یک‌بارمصرف یا مج
+  e7 ابطال با رمز: OK
+  e8 صدور دستی برای حذف: OK
+  e8 حذف با رمز: OK
+  e9 تولید گروهی بی رمز: REJECT «تولید گروهی اعتبار خرید» قفل جدا دارد. با رمز مدیر یا رمز دوم/سوم همین کار، کد یک‌بارمصرف
+  e9 تولید گروهی با رمز: OK
+  e10 مصرف اعتبار منقضی: OK
+[E] expectedCash=12500000 stock=A=94,B=95,C=88,D=95 invoices=34/26200000 returns=13/5900000
+[E] payments=CASH/null:4950000#8 CASH/CARD:3000000#4 CASH/CASH:16000000#18 CHEQUE/null:400000#1 CHEQUE/MANAGER:400000#1
+[E] credits=ACTIVE:4/650000/0 CANCELED:1/200000/0 PARTIALLY_USED:2/1300000/900000 cashMovements=EXCHANGE_REFUND:650000#2 RETURN_REFUND:2850000#4
+## F) اعتبار اضافه‌دریافت و سقف
+  f سقف اعتبار ۲۰۰٬۰۰۰ و قفل دورهٔ بسته با رمز مدیر: OK
+  f فروش نیمه‌پرداخت: OK
+  f برگشت با اضافه‌دریافت بالاتر از سقف بی رمز: REJECT «صدور اعتبار ۳۰۰٬۰۰۰ ریالی از اضافه‌دریافت (بالاتر از سقف ۲۰۰٬۰۰۰ ریال)» تایید مدیر لازم د
+  f برگشت با اضافه‌دریافت بالاتر از سقف با رمز: OK
+[F] expectedCash=12800000 stock=A=94,B=95,C=88,D=95 invoices=35/27200000 returns=14/5900000
+[F] payments=CASH/null:4950000#8 CASH/CARD:3000000#4 CASH/CASH:16300000#19 CHEQUE/null:400000#1 CHEQUE/MANAGER:400000#1
+[F] credits=ACTIVE:5/950000/0 CANCELED:1/200000/0 PARTIALLY_USED:2/1300000/900000 cashMovements=EXCHANGE_REFUND:650000#2 RETURN_REFUND:2850000#4
+## G) اصلاح برگشت
+  g1 فروش: OK
+  g1 برگشت نقد: OK
+  g1 حذف برگشت بی رمز: REJECT «ابطال برگشت از فروش» تأیید مدیر لازم دارد. رمز مدیر (یا رمز دوم همین پنل) را وارد کنید.
+  g1 اصلاح جبرانی با رمز: OK
+  g2 فروش نسیه: OK
+  g2 برگشت نسیه‌ای بی بازپرداخت: OK
+  g2 حذف برگشت با رمز: OK
+[G] expectedCash=13500000 stock=A=94,B=94,C=87,D=95 invoices=37/28300000 returns=15/6600000
+[G] payments=CASH/null:4950000#8 CASH/CARD:3000000#4 CASH/CASH:17000000#20 CHEQUE/null:400000#1 CHEQUE/MANAGER:400000#1
+[G] credits=ACTIVE:5/950000/0 CANCELED:1/200000/0 PARTIALLY_USED:2/1300000/900000 cashMovements=CASH_IN:700000#1 EXCHANGE_REFUND:650000#2 RETURN_REFUND:3550000#5
+## H) انبار مرکزی، تغییر قیمت گروهی، فاکتور خرید
+  h انبار مرکزی: ثبت کالا: OK
+  h تغییر قیمت گروهی: پیش‌نمایش: OK
+  h تغییر قیمت گروهی: اعمال: OK
+  price D=225000
+  h فروش کیف پس از تغییر قیمت: OK
+  h فاکتور خرید نقدی: OK
+[H] expectedCash=13725000 stock=A=94,B=94,C=87,D=99 invoices=38/28525000 returns=15/6600000
+[H] payments=CASH/null:4950000#8 CASH/CARD:3000000#4 CASH/CASH:17225000#21 CHEQUE/null:400000#1 CHEQUE/MANAGER:400000#1
+[H] credits=ACTIVE:5/950000/0 CANCELED:1/200000/0 PARTIALLY_USED:2/1300000/900000 cashMovements=CASH_IN:700000#1 EXCHANGE_REFUND:650000#2 RETURN_REFUND:3550000#5
+## K) بستن صندوق
+  k بستن صندوق وسط روز: OK
+  k بستن دوباره: REJECT این نشست قبلاً در ۱۴۰۵/۰۷/۲۲ بسته/تجمیع شده است. اگر مطمئن هستید، بستن دوباره را تأیید کنی
+  k بستن دوباره با تأیید: OK
+  k برگشت پس از بستن بی رمز دوره: OK
+  k بستن پایانی شیفت: OK
+  k ابطال پرداخت دورهٔ بسته بی رمز: REJECT ابطال پرداختیِ دوره‌ی بسته در تاریخ ۱۴۰۵/۰۷/۲۲ ممکن نیست، چون این دوره بسته شده است:
+  k ابطال پرداخت دورهٔ بسته با رمز: OK
+[K] expectedCash=12225000 stock=A=95,B=94,C=87,D=99 invoices=38/28525000 returns=16/7600000
+[K] payments=CASH/null:4950000#8 CASH/CARD:3000000#4 CASH/CASH:16725000#20 CHEQUE/null:400000#1 CHEQUE/MANAGER:400000#1
+[K] credits=ACTIVE:5/950000/0 CANCELED:1/200000/0 PARTIALLY_USED:2/1300000/900000 cashMovements=CASH_IN:700000#1 EXCHANGE_REFUND:650000#2 RETURN_REFUND:4550000#6
+## Z) ردیف‌ها
+SaleInvoice (38) cols=id,receiptNo,customerId,userId,shiftId,consolidationId,issuedAtJalali,status,orderType,deductInventory,wholesaleDiscountPercent,returnCode,tableNo,goodsTotal,taxTotal,serviceCharge,discountTotal,deliveryFee,grandTotal,paidTotal,settledAtJalali,exchangeReturnId,sourceInvoiceId,voidedByUserId,voidReason,saleRequestFingerprint,debtorFirstName,debtorLastName,debtorPhone,debtorNationalId
+  1|1||1|1||1405/07/22|SETTLED|INTERNAL|1||QVPV52||1000000|0|0|0|0|1000000|1000000|1405/07/22|||||||||
+  2|2||1|1||1405/07/22|SETTLED|INTERNAL|1||725ZLD||700000|0|0|0|0|700000|700000|1405/07/22|||||||||
+  3|3||1|1||1405/07/22|SETTLED|INTERNAL|1||WLGZ57||1000000|0|0|0|0|1000000|1000000|1405/07/22|||||||||
+  4|4||1|1||1405/07/22|SETTLED|INTERNAL|1||X67HXT||400000|0|0|0|0|400000|0|||||||مشتری|طلایی|09120000001|
+  5|5||1|1||1405/07/22|PARTIALLY_RETURNED|INTERNAL|1||FLH2ZH||1700000|0|0|0|0|1700000|1700000|1405/07/22|||||||||
+  6|6||1|1||1405/07/22|SETTLED|INTERNAL|1||T2JNQ3||1200000|0|0|0|0|1200000|1200000|1405/07/22|||||||||
+  7|7||1|1||1405/07/22|SETTLED|INTERNAL|1||N3KLW8||1000000|0|0|100000|0|900000|900000|1405/07/22|||||||||
+  8|8||1|1||1405/07/22|SETTLED|INTERNAL|1||T89DBB||800000|0|0|0|0|800000|800000|1405/07/22|||||||||
+  9|9||1|1||1405/07/22|SETTLED|INTERNAL|1||UDFG6C||500000|0|0|0|0|500000|0||||||||||
+  10|10||1|1||1405/07/22|SETTLED|INTERNAL|1||Y5A5BH||400000|0|0|0|0|400000|400000|1405/07/22||||||مشتری|طلایی|09120000001|
+  11|11||1|1||1405/07/22|SETTLED|INTERNAL|1||SYHZNA||400000|0|0|0|0|400000|400000|1405/07/22||||||مشتری|طلایی|09120000001|
+  12|12||1|1||1405/07/22|SETTLED|INTERNAL|1||MFC7WC||400000|0|0|0|0|400000|0|||||||مشتری|طلایی|09120000001|
+  13|13||1|1||1405/07/22|SETTLED|INTERNAL|1||ZX8PK3||400000|0|0|0|0|400000|0||||||||||
+  14|14||1|1||1405/07/22|RETURNED|INTERNAL|1||X6NJM2||700000|0|0|0|0|700000|700000|1405/07/22|||||||||
+  15|15||1|1||1405/07/22|PARTIALLY_RETURNED|INTERNAL|1||7ZLRVZ||1400000|0|0|0|0|1400000|1400000|1405/07/22|||||||||
+  16|16||1|1||1405/07/22|RETURNED|INTERNAL|1||PNGJYN||400000|0|0|0|0|400000|0|1405/07/22||||||مشتری|طلایی|09120000001|
+  17|17||1|1||1405/07/22|RETURNED|INTERNAL|1||TWBRBS||1000000|0|0|100000|0|900000|900000|1405/07/22|||||||||
+  18|18||1|1||1405/07/22|RETURNED|INTERNAL|1||DTFSKY||700000|0|0|0|0|700000|700000|1405/07/22|||||||||
+  19|19||1|1||1405/07/22|RETURNED|INTERNAL|1||6VYHVR||400000|0|0|0|0|400000|400000|1405/07/22|||||||||
+  20|20||1|1||1405/07/22|SETTLED|INTERNAL|1||JZ7QCA||1700000|0|0|0|0|1700000|1700000|1405/07/22|||||||||
+  21|21||1|1||1405/07/22|RETURNED|INTERNAL|1||6A36ZG||1000000|0|0|0|0|1000000|1000000|1405/07/22|||||||||
+  22|22||1|1||1405/07/22|RETURNED|EXCHANGE|1||3FGNCW||1300000|0|0|0|0|1300000|1300000|1405/07/22|7|21|||||||
+  23|23||1|1||1405/07/22|RETURNED|INTERNAL|1||QMEU8T||1000000|0|0|0|0|1000000|1000000|1405/07/22|||||||||
+  24|24||1|1||1405/07/22|SETTLED|EXCHANGE|1||C76FME||700000|0|0|0|0|700000|700000|1405/07/22|8|23|||||||
+  25|25||1|1||1405/07/22|RETURNED|INTERNAL|1||3LW93T||1000000|0|0|0|0|1000000|1000000|1405/07/22|||||||||
+  26|26||1|1||1405/07/22|SETTLED|EXCHANGE|1||YRCQGQ||1000000|0|0|0|0|1000000|1000000|1405/07/22|9|25|||||||
+  27|27||1|1||1405/07/22|RETURNED|INTERNAL|1||XJ5CLV||1000000|0|0|0|0|1000000|1000000|1405/07/22|||||||||
+  28|28||1|1||1405/07/22|SETTLED|EXCHANGE|1||RRGEFY||400000|0|0|0|0|400000|400000|1405/07/22|10|27|||||||
+  29|29||1|1||1405/07/22|PARTIALLY_RETURNED|EXCHANGE|1||TJLBYH||950000|0|0|0|0|950000|950000|1405/07/22|11|22|||||||
+  30|30||1|1||1405/07/22|RETURNED|INTERNAL|1||LPPKZD||700000|0|0|0|0|700000|700000|1405/07/22|||||||||
+  31|31||1|1||1405/07/22|SETTLED|INTERNAL|1||X6FDNR||400000|0|0|0|0|400000|400000|1405/07/22|||||||||
+  32|32||1|1||1405/07/22|SETTLED|INTERNAL|1||JNKQTH||250000|0|0|0|0|250000|250000|1405/07/22|||||||||
+  33|33||1|1||1405/07/22|SETTLED|INTERNAL|1||5SUP3R||250000|0|0|0|0|250000|250000|1405/07/22|||||||||
+  34|34||1|1||1405/07/22|SETTLED|INTERNAL|1||WR523E||250000|0|0|0|0|250000|0|||||||مشتری|طلایی|09120000001|
+  35|35||1|1||1405/07/22|RETURNED|INTERNAL|1||BW36EB||1000000|0|0|0|0|1000000|300000|1405/07/22||||||مشتری|طلایی|09120000001|
+  36|36||1|1||1405/07/22|SETTLED|INTERNAL|1||LQ5YUE||700000|0|0|0|0|700000|700000|1405/07/22|||||||||
+  37|37||1|1||1405/07/22|SETTLED|INTERNAL|1||X79L6B||400000|0|0|0|0|400000|0|||||||مشتری|طلایی|09120000001|
+  38|38||1|1||1405/07/22|SETTLED|INTERNAL|1||3Y94CT||225000|0|0|0|0|225000|225000|1405/07/22|||||||||
+SaleInvoiceItem (42) cols=id,invoiceId,variantId,variantName,variantCode,qty,unitPrice,discount,tax,lineTotal
+  1|1|1|کت سایز کت|V26sm6m|1|1000000|0|0|1000000
+  2|2|2|شلوار سایز شلوار|V4hkjpo|1|700000|0|0|700000
+  3|3|1|کت سایز کت|V26sm6m|1|1000000|0|0|1000000
+  4|4|3|پیراهن سایز پیراهن|V6hxhkc|1|400000|0|0|400000
+  5|5|1|کت سایز کت|V26sm6m|1|1000000|0|0|1000000
+  6|5|2|شلوار سایز شلوار|V4hkjpo|1|700000|0|0|700000
+  7|6|3|پیراهن سایز پیراهن|V6hxhkc|3|400000|0|0|1200000
+  8|7|1|کت سایز کت|V26sm6m|1|1000000|100000|0|900000
+  9|8|1|کت سایز کت|V26sm6m|1|800000|0|0|800000
+  10|9|4|کیف دستی سایز کیف دستی|V8rmt09|2|250000|0|0|500000
+  11|10|3|پیراهن سایز پیراهن|V6hxhkc|1|400000|0|0|400000
+  12|11|3|پیراهن سایز پیراهن|V6hxhkc|1|400000|0|0|400000
+  13|12|3|پیراهن سایز پیراهن|V6hxhkc|1|400000|0|0|400000
+  14|13|3|پیراهن سایز پیراهن|V6hxhkc|1|400000|0|0|400000
+  15|14|2|شلوار سایز شلوار|V4hkjpo|1|700000|0|0|700000
+  16|15|1|کت سایز کت|V26sm6m|1|1000000|0|0|1000000
+  17|15|3|پیراهن سایز پیراهن|V6hxhkc|1|400000|0|0|400000
+  18|16|3|پیراهن سایز پیراهن|V6hxhkc|1|400000|0|0|400000
+  19|17|1|کت سایز کت|V26sm6m|1|1000000|100000|0|900000
+  20|18|2|شلوار سایز شلوار|V4hkjpo|1|700000|0|0|700000
+  21|19|3|پیراهن سایز پیراهن|V6hxhkc|1|400000|0|0|400000
+  22|20|1|کت سایز کت|V26sm6m|1|1000000|0|0|1000000
+  23|20|2|شلوار سایز شلوار|V4hkjpo|1|700000|0|0|700000
+  24|21|1|کت سایز کت|V26sm6m|1|1000000|0|0|1000000
+  25|22|2|شلوار سایز شلوار|V4hkjpo|1|1300000|0|0|1300000
+  26|23|1|کت سایز کت|V26sm6m|1|1000000|0|0|1000000
+  27|24|2|شلوار سایز شلوار|V4hkjpo|1|700000|0|0|700000
+  28|25|1|کت سایز کت|V26sm6m|1|1000000|0|0|1000000
+  29|26|3|پیراهن سایز پیراهن|V6hxhkc|1|1000000|0|0|1000000
+  30|27|1|کت سایز کت|V26sm6m|1|1000000|0|0|1000000
+  31|28|3|پیراهن سایز پیراهن|V6hxhkc|1|400000|0|0|400000
+  32|29|4|کیف دستی سایز کیف دستی|V8rmt09|1|250000|0|0|250000
+  33|29|2|شلوار سایز شلوار|V4hkjpo|1|700000|0|0|700000
+  34|30|2|شلوار سایز شلوار|V4hkjpo|1|700000|0|0|700000
+  35|31|3|پیراهن سایز پیراهن|V6hxhkc|1|400000|0|0|400000
+  36|32|4|کیف دستی سایز کیف دستی|V8rmt09|1|250000|0|0|250000
+  37|33|4|کیف دستی سایز کیف دستی|V8rmt09|1|250000|0|0|250000
+  38|34|4|کیف دستی سایز کیف دستی|V8rmt09|1|250000|0|0|250000
+  39|35|1|کت سایز کت|V26sm6m|1|1000000|0|0|1000000
+  40|36|2|شلوار سایز شلوار|V4hkjpo|1|700000|0|0|700000
+  41|37|3|پیراهن سایز پیراهن|V6hxhkc|1|400000|0|0|400000
+  42|38|4|کیف دستی سایز کیف دستی|V8rmt09|1|225000|0|0|225000
+Payment (37) cols=id,invoiceId,methodId,amount,createdByUserId,createdShiftId,clearedShiftId,clearedByUserId,kind,seq,paidAtJalali,chequeNo,bankName,dueDateJalali,chequeStatus,clearedAtJalali,overpayAmount,storeCreditId,destination,voidedByUserId,voidReason,idempotencyFingerprint,replacedChequeId
+  1|1|1|1000000|1|1|||CASH|1|1405/07/22||||||0||CASH||||
+  2|2|2|700000|1|1|||CASH|1|1405/07/22||||||0||CARD||||
+  3|3|1|400000|1|1|||CASH|1|1405/07/22||||||0||CASH||||
+  4|3|2|600000|1|1|||CASH|2|1405/07/22||||||0||CARD||||
+  5|5|1|1700000|1|1|||CASH|1|1405/07/22||||||0||CASH||||
+  6|6|1|1200000|1|1|||CASH|1|1405/07/22||||||0||CASH||||
+  7|7|1|900000|1|1|||CASH|1|1405/07/22||||||0||CASH||||
+  8|8|1|800000|1|1|||CASH|1|1405/07/22||||||0||CASH||||
+  9|9|1|500000|1|1|||CASH|1|1405/07/22||||||0||CASH|1|ثبت اشتباه||
+  10|10|1|400000|1|1|||CASH|1|1405/07/22||||||0||CASH||||
+  11|11|3|400000|1|1|1|1|CHEQUE|1|1405/07/22|G1405|ملت|1405/07/22|CLEARED|1405/07/22|0||MANAGER||||
+  12|12|3|400000|1|1|||CHEQUE|1|1405/07/22|G1405-2|ملی|1405/07/22|PENDING||0|||1|چک شماره G1405-2 به مبلغ ۴۰۰٬۰۰۰ ریال با چک شماره G1405-3 به مبلغ ۴۰۰٬۰۰۰ ریال جایگزین شد · دلیل: چک مشتری پاره شد||
+  13|12|3|400000|1|1|||CHEQUE|2|1405/07/22|G1405-3|ملی||PENDING||0||||||12
+  14|13|1|400000|1|1|||CASH|1|1405/07/22||||||0||CASH|1|ثبت اشتباه||
+  15|14|1|700000|1|1|||CASH|1|1405/07/22||||||0||CASH||||
+  16|15|1|1400000|1|1|||CASH|1|1405/07/22||||||0||CASH||||
+  17|17|1|900000|1|1|||CASH|1|1405/07/22||||||0||CASH||||
+  18|18|2|700000|1|1|||CASH|1|1405/07/22||||||0||CARD||||
+  19|19|1|400000|1|1|||CASH|1|1405/07/22||||||0||CASH||||
+  20|20|1|1700000|1|1|||CASH|1|1405/07/22||||||0||CASH||||
+  21|21|1|1000000|1|1|||CASH|1|1405/07/22||||||0||CASH||||
+  22|22|4|1000000|1|1|||CASH|1|1405/07/22||||||0||||||
+  23|22|1|300000|1|1|||CASH|2|1405/07/22||||||0||CASH||||
+  24|23|1|1000000|1|1|||CASH|1|1405/07/22||||||0||CASH||||
+  25|24|4|700000|1|1|||CASH|1|1405/07/22||||||0||||||
+  26|25|1|1000000|1|1|||CASH|1|1405/07/22||||||0||CASH||||
+  27|26|4|1000000|1|1|||CASH|1|1405/07/22||||||0||||||
+  28|27|2|1000000|1|1|||CASH|1|1405/07/22||||||0||CARD||||
+  29|28|4|400000|1|1|||CASH|1|1405/07/22||||||0||||||
+  30|29|4|950000|1|1|||CASH|1|1405/07/22||||||0||||||
+  31|30|1|700000|1|1|||CASH|1|1405/07/22||||||0||CASH||||
+  32|31|5|400000|1|1|||CASH|1|1405/07/22||||||0|1|||||
+  33|32|5|250000|1|1|||CASH|1|1405/07/22||||||0|2|||||
+  34|33|5|250000|1|1|||CASH|1|1405/07/22||||||0|2|||||
+  35|35|1|300000|1|1|||CASH|1|1405/07/22||||||300000||CASH||||
+  36|36|1|700000|1|1|||CASH|1|1405/07/22||||||0||CASH||||
+  37|38|1|225000|1|1|||CASH|1|1405/07/22||||||0||CASH||||
+SaleReturn (17) cols=id,invoiceId,isFull,total,returnedAtJalali,kind,exchangeInvoiceId,exchangeReceiptNo,exchangeTotal,exchangeDiff,exchangeSettlement,storeCreditId,storeCreditCode,userId,shiftId,hasRemovedItems,refundMethod,refundAmount,refundPaymentId,debtReduction,voidedByUserId,voidReason,refundedAtJalali,refundReference,refundNote,legacyAssumption,restockPending,restockReleasedAtJalali,exchangeCreditReversed,refundStoreCreditAmount,exchangeRequestFingerprint,discountTransferOption,discountTransferAmount,discountTransferRefundValue
+  1|14|1|700000|1405/07/22|RETURN|||0|0||||1|1|0|CASH|700000||0|||1405/07/22||۷۰۰٬۰۰۰ ریال نقد از صندوق پرداخت شد.||0|||0|||0|0
+  2|15|0|1000000|1405/07/22|RETURN|||0|0||||1|1|0|CASH|1000000||0|||1405/07/22||۱٬۰۰۰٬۰۰۰ ریال نقد از صندوق پرداخت شد.||0|||0|||0|0
+  3|16|1|400000|1405/07/22|RETURN|||0|0||||1|1|0|NONE|0||0|||1405/07/22||روش بازپرداخت به «بدون بازپرداخت» تبدیل شد: مبلغ برگشت با بدهی تسویه شد و پولی برای خروج از صندوق نماند.||0|||0|||0|0
+  4|17|1|900000|1405/07/22|RETURN|||0|0||||1|1|0|CASH|900000||0|||1405/07/22||۹۰۰٬۰۰۰ ریال نقد از صندوق پرداخت شد.||0|||0|||0|0
+  5|18|1|700000|1405/07/22|RETURN|||0|0||||1|1|0|CARD|700000||0|||1405/07/22||۷۰۰٬۰۰۰ ریال به کارت مشتری برگشت.||0|||0|||0|0
+  6|19|1|400000|1405/07/22|RETURN|||0|0||||1|1|0|CARD_TO_CARD|400000||0|||1405/07/22||۴۰۰٬۰۰۰ ریال «کارت‌به‌کارت توسط مدیر» — پرداخت فوری انجام نشد و یک درخواست پرداخت با وضعیت «در انتظار پرداخت» ثبت گردید.||0|1405/07/22||0|||0|0
+  7|21|0|1000000|1405/07/22|EXCHANGE|22|22|1300000|300000|CASH|||1|1|0|NONE|0||0|||||||0|||0|||0|0
+  8|23|0|1000000|1405/07/22|EXCHANGE|24|24|700000|-300000|CASH_REFUND|||1|1|0|CASH|300000||0|||1405/07/22||بازپرداخت مابه‌التفاوت تعویض||0|||0|||0|300000
+  9|25|0|1000000|1405/07/22|EXCHANGE|26|26|1000000|0|NONE|||1|1|0|NONE|0||0|||||||0|||0|||0|0
+  10|27|0|1000000|1405/07/22|EXCHANGE|28|28|400000|-600000|CARD_REFUND|||1|1|0|CARD|600000||0|||1405/07/22||بازپرداخت مابه‌التفاوت تعویض||0|||0|||0|600000
+  11|22|0|1300000|1405/07/22|EXCHANGE|29|29|950000|-350000|CASH_REFUND|||1|1|0|CASH|350000||0|||1405/07/22||بازپرداخت مابه‌التفاوت تعویض||0|||0|||0|350000
+  12|29|0|250000|1405/07/22|RETURN|||0|0||||1|1|0|CASH|250000||0|||1405/07/22||۲۵۰٬۰۰۰ ریال نقد از صندوق پرداخت شد.||0||0|0|||0|0
+  13|30|1|700000|1405/07/22|RETURN|||0|0||1|E9EBMU|1|1|0|STORE_CREDIT|700000||0|||1405/07/22||۷۰۰٬۰۰۰ ریال بارکد اعتبار خرید بعدی صادر شد.||0|||0|||0|0
+  14|35|1|1000000|1405/07/22|RETURN|||0|0||||1|1|0|NONE|0||0|||1405/07/22||بدون بازپرداخت؛ فقط بدهی مشتری کم شد.||0|||0|||0|0
+  15|36|1|700000|1405/07/22|RETURN|||0|0||||1|1|0|CASH|700000||0|||1405/07/22||۷۰۰٬۰۰۰ ریال نقد از صندوق پرداخت شد.||0|||0|||0|0
+  16|37|1|400000|1405/07/22|RETURN|||0|0||||1|1|0|NONE|0||0|1|آزمون حذف برگشت|1405/07/22||روش بازپرداخت به «بدون بازپرداخت» تبدیل شد: مبلغ برگشت با بدهی تسویه شد و پولی برای خروج از صندوق نماند.||0|||0|||0|0
+  17|5|0|1000000|1405/07/22|RETURN|||0|0||||1|1|0|CASH|1000000||0|||1405/07/22||۱٬۰۰۰٬۰۰۰ ریال نقد از صندوق پرداخت شد.||0|||0|||0|0
+SaleReturnItem (17) cols=id,returnId,saleItemId,variantId,variantName,variantCode,qty,unitPrice,lineTotal,removedFromStock,restockedQty
+  1|1|15|2|||1|700000|700000|0|1
+  2|2|16|1|||1|1000000|1000000|0|1
+  3|3|18|3|||1|400000|400000|0|1
+  4|4|19|1|||1|1000000|900000|0|1
+  5|5|20|2|||1|700000|700000|0|1
+  6|6|21|3|||1|400000|400000|0|1
+  7|7|24|1|||1|1000000|1000000|0|1
+  8|8|26|1|||1|1000000|1000000|0|1
+  9|9|28|1|||1|1000000|1000000|0|1
+  10|10|30|1|||1|1000000|1000000|0|1
+  11|11|25|2|||1|1300000|1300000|0|1
+  12|12|32|4|||1|250000|250000|0|1
+  13|13|34|2|||1|700000|700000|0|1
+  14|14|39|1|||1|1000000|1000000|0|1
+  15|15|40|2|||1|700000|700000|0|1
+  16|16|41|3|||1|400000|400000|0|1
+  17|17|5|1|||1|1000000|1000000|0|1
+StoreCredit (8) cols=id,legacyCode,amount,source,usedAmount,usedCount,maxUses,multiUse,settingsOverride,issuedDays,restrictScope,minPurchase,maxPerTransaction,customerLocked,holderCompany,holderNationalId,holderPhone,holderAddress,holderAgent,holderNote,batchId,prefix,printCount,reminderOptOut,reminderCount,lastReminderKind,issuedAtJalali,expiresAtJalali,status,returnId,exchangeInvoiceId,sourceInvoiceId,customerId,customerName,usedAtJalali,usedInvoiceId,usedReceiptNo,usedPaymentId,remainderCreditId,userId,carryRemainder,lineageId
+  1||700000|EXCHANGE|400000|1|1|0|0||ALL|0|0|0||||||||E|0|0|0||1405/07/22||PARTIALLY_USED|13||30|||1405/07/22|31|31|32||1|1|1
+  2||600000|MANUAL|500000|2|3|1|1|30|ALL|0|0|0||||||||CR|0|0|0||1405/07/22|1405/08/22|PARTIALLY_USED||||||1405/07/22|33|33|34||1|1|2
+  3||300000|MANUAL|0|0|1|0|1|1|ALL|0|0|0||||||||CR|0|0|0||1405/07/22|1405/07/23|ACTIVE|||||||||||1|1|3
+  4||200000|MANUAL|0|0|1|0|0|30|ALL|0|0|0||||||||CR|0|0|0||1405/07/22|1405/08/22|CANCELED|||||||||||1|1|4
+  5||150000|MANUAL|0|0|1|0|0|30|ALL|0|0|0||||||||CR|0|0|0||1405/07/22|1405/08/22|ACTIVE|||||||||||1|1|5
+  6||100000|MANUAL|0|0|1|0|0|30|ALL|0|0|0|||||||1|CR|0|0|0||1405/07/22|1405/08/22|ACTIVE|||||||||||1|1|
+  7||100000|MANUAL|0|0|1|0|0|30|ALL|0|0|0|||||||1|CR|0|0|0||1405/07/22|1405/08/22|ACTIVE|||||||||||1|1|
+  8||300000|OVERPAY|0|0|1|0|0||ALL|0|0|0||||||||E|0|0|0||1405/07/22||ACTIVE|14||35||||||||1|1|8
+StoreCreditRedemption (3) cols=id,creditId,amount,remainderAfter,seq,invoiceId,receiptNo,paymentId,atJalali,userId,shiftId,reversedReason,lineageId
+  1|1|400000|300000|1|31|31|32|1405/07/22|1|1||1
+  2|2|250000|350000|1|32|32|33|1405/07/22|1|1||2
+  3|2|250000|100000|2|33|33|34|1405/07/22|1|1||2
+CashMovement (9) cols=id,amount,type,occurredAtJalali,shiftId,userId,description,refType,refId,auditLogId
+  1|700000|RETURN_REFUND|1405/07/22|1|1|بازپرداخت نقدی برگشت سند 1 · فاکتور ۱۴|SaleReturn|1|
+  2|1000000|RETURN_REFUND|1405/07/22|1|1|بازپرداخت نقدی برگشت سند 2 · فاکتور ۱۵|SaleReturn|2|
+  3|900000|RETURN_REFUND|1405/07/22|1|1|بازپرداخت نقدی برگشت سند 4 · فاکتور ۱۷|SaleReturn|4|
+  4|300000|EXCHANGE_REFUND|1405/07/22|1|1|بازپرداخت نقدی مابه‌التفاوت تعویض · سند ۲۴|SaleReturn|8|
+  5|350000|EXCHANGE_REFUND|1405/07/22|1|1|بازپرداخت نقدی مابه‌التفاوت تعویض · سند ۲۹|SaleReturn|11|
+  6|250000|RETURN_REFUND|1405/07/22|1|1|بازپرداخت نقدی برگشت سند 12 · فاکتور ۲۹|SaleReturn|12|
+  7|700000|RETURN_REFUND|1405/07/22|1|1|بازپرداخت نقدی برگشت سند 15 · فاکتور ۳۶|SaleReturn|15|
+  8|700000|CASH_IN|1405/07/22|1|1|بازیافت نقدِ اصلاح برگشت ۱۵ · اصلاح ۱ · اصلاح جبرانی سناریوی طلایی؛ وجه برگشت|ReturnCorrection|1|
+  9|1000000|RETURN_REFUND|1405/07/22|1|1|بازپرداخت نقدی برگشت سند 17 · فاکتور ۵|SaleReturn|17|
+CardTransferRequest (1) cols=id,kind,status,operationKind,returnId,sourceInvoiceId,sourceReceiptNo,exchangeInvoiceId,exchangeReceiptNo,invoiceTotal,returnTotal,amount,stockNote,userId,userName,shiftId,shiftName,createdAtJalali,paidAmount,paidAtJalali,paidMethod,paidByUserId,paidByUserName,paidShiftId,paidShiftName,cancelReason,stockReleasedQty,adjustsRequestId,adjustReason
+  1|REQUEST|PAID|RETURN|6|19|19|||400000|400000|400000|۱ عدد کالای برگشتی با تأیید پرداخت مدیر به موجودی قابل‌فروش برگشت|1|صندوق‌دار سناریوی طلایی|1|صبح|1405/07/22|400000|1405/07/22|MANAGER_CARD_TO_CARD|1|||||1||
+StockMovement (62) cols=id,variantId,warehouseId,delta,state,refType,refId,consolidationId,lossKind
+  1|1||-1|PENDING|SaleInvoice|1||
+  2|2||-1|PENDING|SaleInvoice|2||
+  3|1||-1|PENDING|SaleInvoice|3||
+  4|3||-1|PENDING|SaleInvoice|4||
+  5|1||-1|PENDING|SaleInvoice|5||
+  6|2||-1|PENDING|SaleInvoice|5||
+  7|3||-3|PENDING|SaleInvoice|6||
+  8|1||-1|PENDING|SaleInvoice|7||
+  9|1||-1|PENDING|SaleInvoice|8||
+  10|4||-2|PENDING|SaleInvoice|9||
+  11|3||-1|PENDING|SaleInvoice|10||
+  12|3||-1|PENDING|SaleInvoice|11||
+  13|3||-1|PENDING|SaleInvoice|12||
+  14|3||-1|PENDING|SaleInvoice|13||
+  15|2||-1|PENDING|SaleInvoice|14||
+  16|2||1|FINAL|SaleReturn|1||
+  17|1||-1|PENDING|SaleInvoice|15||
+  18|3||-1|PENDING|SaleInvoice|15||
+  19|1||1|FINAL|SaleReturn|2||
+  20|3||-1|PENDING|SaleInvoice|16||
+  21|3||1|FINAL|SaleReturn|3||
+  22|1||-1|PENDING|SaleInvoice|17||
+  23|1||1|FINAL|SaleReturn|4||
+  24|2||-1|PENDING|SaleInvoice|18||
+  25|2||1|FINAL|SaleReturn|5||
+  26|3||-1|PENDING|SaleInvoice|19||
+  27|3||1|FINAL|SaleReturn|6||
+  28|1||-1|PENDING|SaleInvoice|20||
+  29|2||-1|PENDING|SaleInvoice|20||
+  30|1||-1|PENDING|SaleInvoice|21||
+  31|1||1|FINAL|SaleReturn|7||
+  32|2||-1|PENDING|SaleInvoice|22||
+  33|1||-1|PENDING|SaleInvoice|23||
+  34|1||1|FINAL|SaleReturn|8||
+  35|2||-1|PENDING|SaleInvoice|24||
+  36|1||-1|PENDING|SaleInvoice|25||
+  37|1||1|FINAL|SaleReturn|9||
+  38|3||-1|PENDING|SaleInvoice|26||
+  39|1||-1|PENDING|SaleInvoice|27||
+  40|1||1|FINAL|SaleReturn|10||
+  41|3||-1|PENDING|SaleInvoice|28||
+  42|2||1|FINAL|SaleReturn|11||
+  43|4||-1|PENDING|SaleInvoice|29||
+  44|2||-1|PENDING|SaleInvoice|29||
+  45|4||1|FINAL|SaleReturn|12||
+  46|2||-1|PENDING|SaleInvoice|30||
+  47|2||1|FINAL|SaleReturn|13||
+  48|3||-1|PENDING|SaleInvoice|31||
+  49|4||-1|PENDING|SaleInvoice|32||
+  50|4||-1|PENDING|SaleInvoice|33||
+  51|4||-1|PENDING|SaleInvoice|34||
+  52|1||-1|PENDING|SaleInvoice|35||
+  53|1||1|FINAL|SaleReturn|14||
+  54|2||-1|PENDING|SaleInvoice|36||
+  55|2||1|FINAL|SaleReturn|15||
+  56|2||-1|FINAL|ReturnCorrection|1||
+  57|3||-1|PENDING|SaleInvoice|37||
+  58|3||1|FINAL|SaleReturn|16||
+  59|3||-1|FINAL|SaleReturn|16||
+  60|4||-1|PENDING|SaleInvoice|38||
+  61|4||5|FINAL|PurchaseInvoice|1||
+  62|1||1|FINAL|SaleReturn|17||
+ProductVariant (4) cols=id,productId,size,color,salePrice,purchasePrice,stock,minStock,ledgerAccountCode,isActive,externalSku,woocommerceProductId
+  1|1|کت||1000000|0|95|0||1||
+  2|2|شلوار||700000|0|94|0||1||
+  3|3|پیراهن||400000|0|87|0||1||
+  4|4|کیف دستی||225000|150000|99|0||1||
+CashSession (3) cols=id,shiftId,dayJalali,cashTotal,cardTotal,creditTotal,otherTotal,grandTotal,invoiceCount,countedTotal,openingFloat,cashSales,cardSales,otherSales,clearedChequeSales,priorCreditSettlements,cashReturnRefunds,cardReturnRefunds,cashExchangeRefunds,storeCreditIssued,storeCreditUsed,pendingCheques,bouncedCheques,withdrawals,deposits,expectedCash,cashDifference,managerAccountReceived,destinationUnknownReceived,reportVersion,closedBy
+  1|1|1405/07/22|17225000|3000000|0|0|28525000|38|13725000|0|17225000|3000000|0|400000|0|3550000|700000|650000|2450000|900000|400000|0|0|700000|13725000|0|400000|0|session14|1
+  2|1|1405/07/22|17225000|3000000|0|0|28525000|38|13725000|0|17225000|3000000|0|400000|0|3550000|700000|650000|2450000|900000|400000|0|0|700000|13725000|0|400000|0|session14|1
+  3|1|1405/07/22|17225000|3000000|0|0|28525000|38|13725000|0|17225000|3000000|0|400000|0|4550000|700000|650000|2450000|900000|400000|0|0|700000|12725000|1000000|400000|0|session14|1
+PurchaseInvoice (1) cols=id,invoiceNo,supplierId,issuedAtJalali,goodsTotal,discountTotal,grandTotal,paidTotal,settlementType,status
+  1|365||1405/07/22|750000|0|750000|0|CASH|CONFIRMED
+PurchaseInvoiceItem (1) cols=id,invoiceId,variantId,variantName,variantCode,warehouseId,qty,unitPrice,lineTotal
+  1|1|4||||5|150000|750000
+SecondaryStockItem (1) cols=id,name,qty,warehouseId,minQty
+  1|شلوار مرکزی طلایی|10||2
+Shift (1) cols=id,name,userId,number,dayJalali,sessionSeq,suggestedName,suggestedSlot,slotNumber,nameOverridden,staffConfirmed,openedVia,openIdempotencyFingerprint,overtimeReason
+  1|صبح|1|1|1405/07/22|1||||0|1|AUTO||

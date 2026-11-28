@@ -1,3 +1,4 @@
-SHA=8216a266fd5aca74931d4be3d515752f2f5a7fff
-branch=arena/76a92283-mahak-klad
-date=2026-11-14T17:34:47Z
+SHA=b31964a1141afd50da7251323e0161bb6a111d14
+branch=arena/e478473a-mahak-klad
+date=2026-11-23T13:27:04Z
+note=final delivery of plan 1405 (manager password and remote permission changes, stages 0-8); code identical to 85b3302 (only docs after it); CI green on c78afba with the same code: installer 45181023771, remote 45181011852 (all 128 steps); full local test run on 85b3302 equals the stage-0 baseline (816 files, 676 pass, 140 known failures, no regression); remote is OFF by default; not yet installed or tested on the owner PC or phone

@@ -214,8 +214,8 @@ const printedExchange = exchangeReceiptHtml({
     { code: 'MONEY-CHOICE-5M', amount: 5_000_000, label: 'اعتبار سهم وجه واقعی' }
   ]
 })
-assert.ok(printedExchange.includes('SOURCE-SUCCESSOR-5M'))
-assert.ok(printedExchange.includes('MONEY-CHOICE-5M'))
+assert.ok(!printedExchange.includes('SOURCE-SUCCESSOR-5M') && !printedExchange.includes('MONEY-CHOICE-5M'), 'no credit codes on the exchange document (plan 1405 item 12)')
+assert.ok(printedExchange.includes('را از فروشنده بگیرید'), 'the customer is told to take each certificate')
 assert.ok(printedExchange.includes('اعتبار منشأدار غیرنقدی'))
 assert.ok(printedExchange.includes('اعتبار سهم وجه واقعی'))
 

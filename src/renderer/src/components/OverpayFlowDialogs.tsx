@@ -1,3 +1,4 @@
+import PasswordField from './PasswordField'
 import { useEffect, useState } from 'react'
 import Modal from './Modal'
 import ConfirmDialog from './ConfirmDialog'
@@ -201,8 +202,7 @@ export default function OverpayFlowDialogs({
       >
         <div className="leading-7 space-y-2">
           <div className="whitespace-pre-line">{flow?.message}</div>
-          <input
-            type="password"
+          <PasswordField
             className="inp"
             autoFocus
             value={pw}
@@ -285,8 +285,7 @@ export default function OverpayFlowDialogs({
                 رمز مدیر، یا رمز دوم/رمز سومِ همین ماژول (مدیریت اعتبار خرید) — سمت سرور سنجیده می‌شود و ذخیره نمی‌ماند.
                 اگر چاپِ نخست ناموفق بوده، به مدیر خبر دهید تا خودش از «مدیریت اعتبار خرید» صادر/چاپ کند.
               </div>
-              <input
-                type="password"
+              <PasswordField
                 className="inp w-full text-left dir-ltr"
                 autoFocus
                 value={reprintPw}

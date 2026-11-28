@@ -171,7 +171,7 @@ export function outputLastPageNotes(page: OutputPageLike | null | undefined, _sh
   if (!page || typeof page !== 'object' || page.truncated === true || pageSkipOf(page) <= 0) return []
   return [
     'هشدار خروجی: این چاپ/فایل فقط صفحه‌ی آخر است، نه کل گزارش؛ ردیف‌های صفحه‌های قبل در آن نیست.',
-    'جمع مبلغ ردیف‌های این فایل فقط همین صفحه است؛ جمع کل بازه را فقط از جمع مستقل endpoint بخوانید.'
+    'جمع مبلغ ردیف‌های این فایل فقط همین صفحه است؛ جمع کل بازه را از جمع‌های خود صفحهٔ گزارش بخوانید.'
   ]
 }
 
@@ -179,4 +179,104 @@ export function outputLastPageNotes(page: OutputPageLike | null | undefined, _sh
 export function shownInvoiceUnits(rows: Array<{ invoiceId?: unknown }> | null | undefined): number {
   if (!Array.isArray(rows)) return 0
   return new Set(rows.map((r) => r?.invoiceId).filter((id) => id != null)).size
+}
+
+// ---------------------------------------------------------------------------
+// دفتر آزمون ۴-۶۰ — ستون‌های ثابت تب «چک‌ها» (صفحه)؛ فقط نمایش، هیچ عددی حساب نمی‌شود.
+// ---------------------------------------------------------------------------
+
+/** ستون ثابت یک جدول گزارش: برچسب فارسی و متن خانه. */
+export type ReportColumn = { key: string; label: string; text: (r: any) => string }
+
+/** متن یک خانه: خالی ⇒ «—»، رقم‌ها فارسی. */
+export function cellText(v: unknown): string {
+  if (v === null || v === undefined || v === '') return '—'
+  if (typeof v === 'boolean') return v ? 'بله' : 'خیر'
+  return faDigits(String(v))
+}
+
+/** روز تأخیر یا روز مانده‌ی چک در جریان، از `dueInDays` سرور (منفی = سررسید گذشته). */
+export function chequeDaysText(r: any): string {
+  const st = String(r?.chequeStatus ?? '').toUpperCase()
+  const d = typeof r?.dueInDays === 'number' ? r.dueInDays : null
+  if ((st !== 'PENDING' && st !== '') || d === null) return '—'
+  if (d < 0) return `${faDigits(-d)} روز تأخیر`
+  return d === 0 ? 'سررسید امروز' : `${faDigits(d)} روز مانده`
+}
+
+/** چک در جریانِ سررسیدگذشته؟ (`daysLate` هرگز از سرور نمی‌آمد؛ از `dueInDays` خوانده می‌شود.) */
+export function chequeIsLate(r: any): boolean {
+  return Number(r?.daysLate ?? 0) > 0 || (typeof r?.dueInDays === 'number' && r.dueInDays < 0)
+}
+
+/** ستون‌های تب «چک‌ها» به همین ترتیب؛ نام بدهکار اگر روی فاکتور ثبت شده، وگرنه خریدار. */
+export const CHEQUE_COLUMNS: ReportColumn[] = [
+  { key: 'receiptNo', label: 'شماره فاکتور', text: (r) => cellText(r?.receiptNo) },
+  { key: 'debtorName', label: 'نام بدهکار (یا خریدار)', text: (r) => cellText(r?.debtorName || r?.customerName) },
+  { key: 'amount', label: 'مبلغ', text: (r) => money(Number(r?.amount ?? r?.total ?? 0)) },
+  { key: 'chequeNo', label: 'شماره چک', text: (r) => cellText(r?.chequeNo) },
+  { key: 'bankName', label: 'بانک', text: (r) => cellText(r?.bankName) },
+  { key: 'dueDateJalali', label: 'سررسید', text: (r) => cellText(r?.dueDateJalali) },
+  {
+    key: 'chequeStatusLabel',
+    label: 'وضعیت چک',
+    text: (r) => cellText(r?.chequeStatusLabel ?? r?.chequeStatus) + (r?.chequeNeedsReview ? ' · ⚠️ نیاز به بازبینی' : '')
+  },
+  { key: 'dateJalali', label: 'تاریخ ثبت', text: (r) => cellText(r?.dateJalali) },
+  { key: 'clearedAtJalali', label: 'تاریخ پاس‌شدن', text: (r) => cellText(r?.clearedAtJalali) },
+  { key: 'dueInDays', label: 'روز تأخیر یا روز مانده', text: chequeDaysText }
+]
+
+// ---------------------------------------------------------------------------
+// دفتر آزمون ۴-۶۲ — ستون‌های ثابت سه تب «دفتر رویداد»، «اعتبار خرید» و «بازبینی ضدتقلب» روی صفحه،
+// همان ستون‌ها و همان نگاشت چاپ A4 و اکسل (`SalesReports.tsx`)؛ فقط نمایش.
+// ---------------------------------------------------------------------------
+
+/** «دفتر رویداد»: تاریخ، ساعت، رویداد، شماره فیش، مبلغ، اثر نقدی، اثر انبار، توضیح. */
+export const LEDGER_COLUMNS: ReportColumn[] = [
+  { key: 'dateJalali', label: 'تاریخ', text: (r) => cellText(r?.dateJalali) },
+  { key: 'time', label: 'ساعت', text: (r) => cellText(r?.time) },
+  { key: 'eventLabel', label: 'رویداد', text: (r) => cellText(r?.eventLabel ?? r?.eventType) },
+  { key: 'receiptNo', label: 'شماره فیش', text: (r) => cellText(r?.receiptNo) },
+  { key: 'amount', label: 'مبلغ', text: (r) => money(Number(r?.amount ?? 0)) },
+  { key: 'cashEffect', label: 'اثر نقدی', text: (r) => money(Number(r?.cashEffect ?? 0)) },
+  { key: 'stockEffect', label: 'اثر انبار', text: (r) => cellText(r?.stockEffect ?? 0) },
+  { key: 'cashNote', label: 'توضیح', text: (r) => cellText(r?.cashNote ?? r?.note) }
+]
+
+/** «اعتبار خرید»: همان ده ستون چاپ و اکسل (ماندهٔ قابل مصرف از `creditOutstandingOf`). */
+export const STORE_CREDIT_COLUMNS: ReportColumn[] = [
+  { key: 'publicReference', label: 'شناسهٔ امن اعتبار', text: (r) => r?.publicReference ?? `اعتبار #${cellText(r?.id)}` },
+  { key: 'sourceReceiptNo', label: 'شماره فیش مبدأ', text: (r) => cellText(r?.sourceReceiptNo ?? r?.receiptNo) },
+  { key: 'issuedAtJalali', label: 'تاریخ صدور', text: (r) => cellText(r?.issuedAtJalali ?? r?.dateJalali) },
+  { key: 'expiresAtJalali', label: 'تاریخ انقضا', text: (r) => cellText(r?.expiresAtJalali) },
+  { key: 'statusLabel', label: 'وضعیت', text: (r) => cellText(r?.statusLabel ?? r?.status) },
+  { key: 'amount', label: 'مبلغ', text: (r) => money(Number(r?.amount ?? r?.total ?? 0)) },
+  { key: 'usedAmount', label: 'مصرف‌شده', text: (r) => money(Number(r?.usedAmount ?? r?.redeemedAmount ?? 0)) },
+  { key: 'outstanding', label: 'مانده‌ی قابل مصرف', text: (r) => money(creditOutstandingOf(r)) },
+  { key: 'usedAtJalali', label: 'تاریخ مصرف', text: (r) => cellText(r?.usedAtJalali) },
+  { key: 'sourceLabel', label: 'منبع', text: (r) => cellText(r?.sourceLabel ?? r?.source) }
+]
+
+/** «بازبینی ضدتقلب» (ردیف‌های هر گروه): همان نگاشت `fraudOutputRows` برای سند منبع. */
+export const FRAUD_COLUMNS: ReportColumn[] = [
+  { key: 'dateJalali', label: 'تاریخ', text: (r) => cellText(r?.dateJalali ?? r?.atJalali) },
+  { key: 'time', label: 'ساعت', text: (r) => cellText(r?.time) },
+  { key: 'receiptNo', label: 'شماره فیش', text: (r) => cellText(r?.receiptNo) },
+  { key: 'userName', label: 'کاربر', text: (r) => cellText(r?.userName ?? r?.cashierName) },
+  { key: 'amount', label: 'مبلغ', text: (r) => money(num(r?.amount ?? r?.total ?? r?.value ?? 0)) },
+  {
+    key: 'note',
+    label: 'توضیح',
+    text: (r) => cellText([r?.label, r?.note ?? r?.hint].filter((t) => t != null && String(t).trim() !== '').join(' · '))
+  }
+]
+
+/**
+ * دفتر آزمون ۴-۱۱۹ — هشدار صفحه‌بندی ردیف‌های «سرجمع فروش» که سرور می‌فرستد («نمایش n از m ردیف — جمع‌های پایین
+ * صفحه روی کل …»، رقم انگلیسی). گزارش مدیریت ردیفی از این جدول نشان نمی‌دهد، و صفحهٔ «گزارشات فروش» نسخهٔ فارسی
+ * خودش را دارد؛ پس هر دو این یکی را کنار می‌گذارند. فقط نمایش: متن سرور و هر عدد همان.
+ */
+export function isRowsPagingWarning(w: unknown): boolean {
+  return /^نمایش [0-9۰-۹]+ از [0-9۰-۹]+ ردیف — جمع‌های پایین صفحه روی کل /.test(String(w ?? ''))
 }

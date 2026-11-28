@@ -1,3 +1,4 @@
+import PasswordField from '../components/PasswordField'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLatestGate } from '@shared/latestRequest'
 import { call, CH } from '../lib/api'
@@ -46,7 +47,7 @@ const TAB_GROUPS: { title: string; tabs: { id: Tab; label: string }[] }[] = [
     title: 'کالا',
     tabs: [
       { id: 'stock', label: 'مانده و کم‌فروش' },
-      { id: 'abc', label: 'ABC کالا' },
+      { id: 'abc', label: 'ردهٔ کالاها (الف، ب، ج)' },
       { id: 'size', label: 'منحنی سایز' },
       { id: 'buy', label: 'خرید و فروش' }
     ]
@@ -56,6 +57,10 @@ const TAB_GROUPS: { title: string; tabs: { id: Tab; label: string }[] }[] = [
     tabs: [{ id: 'profit', label: 'سود و تورم' }]
   }
 ]
+
+/** دفتر آزمون ۴-۱۲۱ — ردهٔ کالاها روی صفحه و اکسل با حرف فارسی (الف، ب، ج)؛ مقدار سرور همان A/B/C می‌ماند. */
+const CLASS_FA: Record<string, string> = { A: 'الف', B: 'ب', C: 'ج' }
+const clsFa = (c: unknown): string => CLASS_FA[String(c ?? '')] ?? String(c ?? '')
 
 /**
  * تب‌هایی که `categoryId` را در سرویسشان **نمی‌خوانند** (بازبینی یازدهم — B11).
@@ -345,15 +350,15 @@ export default function ManagementReports() {
         const rows: (string | number | null)[][] = (data?.rows ?? []).map((r: any) => {
           const pr = hasProfit ? byProduct.get(r.productId) : undefined
           if (pr) byProduct.delete(r.productId)
-          if (!hasProfit) return [r.cls, r.name, r.amount, r.share]
-          const flag = String(r.cls) === 'A' && String(pr?.cls ?? '') === 'C' ? 'A فروش / C سود' : ''
-          return [r.cls, r.name, r.amount, r.share, pr?.cls ?? '', pr?.realProfit ?? '', pr?.share ?? '', flag]
+          if (!hasProfit) return [clsFa(r.cls), r.name, r.amount, r.share]
+          const flag = String(r.cls) === 'A' && String(pr?.cls ?? '') === 'C' ? 'الف فروش / ج سود' : ''
+          return [clsFa(r.cls), r.name, r.amount, r.share, clsFa(pr?.cls), pr?.realProfit ?? '', pr?.share ?? '', flag]
         })
-        if (hasProfit) for (const pr of byProduct.values()) rows.push(['', pr.name, '', '', pr.cls, pr.realProfit, pr.share, ''])
+        if (hasProfit) for (const pr of byProduct.values()) rows.push(['', pr.name, '', '', clsFa(pr.cls), pr.realProfit, pr.share, ''])
         await exportTable({
           fileName: 'گزارش-مدیریت-abc',
-          sheetName: 'ABC',
-          title: `ABC فروش و سود — ${rangeMeta}`,
+          sheetName: 'ردهٔ کالاها',
+          title: `ردهٔ کالاها (الف، ب، ج) بر اساس فروش و سود — ${rangeMeta}`,
           headers: hasProfit
             ? ['کلاس فروش', 'کالا', 'ارزش ۹۰روز', 'سهم فروش', 'کلاس سود', 'سود واقعی', 'سهم سود', 'هشدار']
             : ['کلاس', 'کالا', 'ارزش ۹۰روز', 'سهم'],
@@ -391,7 +396,7 @@ export default function ManagementReports() {
             ['خرید تأییدشده', data?.purchaseTotal ?? 0],
             ...(data?.fifoSoldCost != null
               ? [
-                  ['بهای تمام‌شده FIFO فروخته‌شده', data.fifoSoldCost],
+                  ['بهای تمام‌شدهٔ فروخته‌شده (به ترتیب ورود)', data.fifoSoldCost],
                   ['انباشت در کالا', data?.accumulation ?? 0]
                 ]
               : []),
@@ -399,7 +404,7 @@ export default function ManagementReports() {
           ]
         })
       } else {
-        setErr('برای این تب خروجی جدولی نیست؛ تب روند، ترکیب پول، مقایسه، فروشنده، دسته، مانده، ABC، سایز، ساعت یا خرید را باز کنید.')
+        setErr('برای این تب خروجی جدولی نیست؛ تب روند، ترکیب پول، مقایسه، فروشنده، دسته، مانده، ردهٔ کالاها، سایز، ساعت یا خرید را باز کنید.')
       }
     } catch (e: any) {
       setErr(String(e?.message ?? e))
@@ -438,7 +443,7 @@ export default function ManagementReports() {
             عدد فروش همین صفحه از «گزارشات فروش» خوانده می‌شود. اگر با سرجمع آنجا یکی نبود، این صفحه را باور نکنید.
           </p>
           <p>
-            <b>سود دو نگاه دارد:</b> سود واقعی = پولی که از جیب رفته (لات FIFO). سود جایگزینی = همان فروش با فی آخرین
+            <b>سود دو نگاه دارد:</b> سود واقعی = پولی که از جیب رفته (لات‌های خرید، به ترتیب ورود). سود جایگزینی = همان فروش با فی آخرین
             فاکتور خریدِ <b>لحظه‌ای که قلم قفل شده</b> (نه فی همین لحظهٔ باز کردن صفحه، و نه قیمتی که روی کارت کالا
             می‌نویسی). ارزش ماندهٔ انبار است که «امروز» حساب می‌شود.
           </p>
@@ -645,7 +650,7 @@ export default function ManagementReports() {
           </span>
         ) : (
           <span className="text-[11px] text-slate-500">
-            فیلتر دسته روی مانده، ABC، سایز، دسته و درآمد تب سود اثر دارد. ماندهٔ انبار و ثروت کاغذی همیشه کل مغازه‌اند.
+            فیلتر دسته روی مانده، ردهٔ کالاها، سایز، دسته و درآمد تب سود اثر دارد. ماندهٔ انبار و ثروت کاغذی همیشه کل مغازه‌اند.
           </span>
         )}
       </div>
@@ -957,7 +962,7 @@ export default function ManagementReports() {
             <p className="text-[11px] text-slate-600 mb-2">{data?.note}</p>
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <h3 className="font-bold text-sm mb-1">ABC فروش</h3>
+                <h3 className="font-bold text-sm mb-1">رده بر اساس فروش</h3>
                 <table className="tbl text-xs">
                   <thead>
                     <tr>
@@ -970,7 +975,7 @@ export default function ManagementReports() {
                   <tbody>
                     {(data?.rows ?? []).map((r: any) => (
                       <tr key={r.productId}>
-                        <td>{r.cls}</td>
+                        <td>{clsFa(r.cls)}</td>
                         <td>{r.name}</td>
                         <td className="tabular-nums">{money(r.amount)}</td>
                         <td>{Math.round((r.share || 0) * 1000) / 10}٪</td>
@@ -981,10 +986,10 @@ export default function ManagementReports() {
               </div>
               {data?.profitRows ? (
                 <div>
-                  <h3 className="font-bold text-sm mb-1">ABC سود واقعی</h3>
+                  <h3 className="font-bold text-sm mb-1">رده بر اساس سود واقعی</h3>
                   <ManagerGate
                     panel={PANEL_KEYS.managementProfit}
-                    title="سود ABC"
+                    title="ردهٔ کالاها بر اساس سود"
                     reason="سود واقعی حاشیه را نشان می‌دهد؛ قفل جدا از گزارش مدیریت است."
                     inline
                   >
@@ -1002,11 +1007,11 @@ export default function ManagementReports() {
                           const saleCls = (data.rows ?? []).find((x: any) => x.productId === r.productId)?.cls
                           return (
                             <tr key={`p${r.productId}`} className={saleCls === 'A' && r.cls === 'C' ? 'bg-amber-50' : ''}>
-                              <td>{r.cls}</td>
+                              <td>{clsFa(r.cls)}</td>
                               <td>
                                 {r.name}
                                 {saleCls === 'A' && r.cls === 'C' ? (
-                                  <span className="mr-1 text-[10px] text-amber-800">A فروش / C سود</span>
+                                  <span className="mr-1 text-[10px] text-amber-800">الف فروش / ج سود</span>
                                 ) : null}
                               </td>
                               <td className="tabular-nums">{money(r.realProfit)}</td>
@@ -1019,7 +1024,7 @@ export default function ManagementReports() {
                   </ManagerGate>
                 </div>
               ) : data?.profitBusy ? null : (
-                <p className="text-[11px] text-slate-500">جدول سود واقعی پشت قفل سود است؛ ABC فروش بدون فی خرید دیده می‌شود.</p>
+                <p className="text-[11px] text-slate-500">جدول سود واقعی پشت قفل سود است؛ ردهٔ فروش بدون فی خرید دیده می‌شود.</p>
               )}
             </div>
           </>
@@ -1068,7 +1073,7 @@ export default function ManagementReports() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               <Stat title="خرید تأییدشده" value={money(data.purchaseTotal)} />
               {data.fifoSoldCost != null ? (
-                <Stat title="بهای تمام‌شده FIFO فروخته‌شده" value={money(data.fifoSoldCost)} />
+                <Stat title="بهای تمام‌شدهٔ فروخته‌شده (به ترتیب ورود)" value={money(data.fifoSoldCost)} />
               ) : null}
               {data.accumulation != null ? (
                 <Stat title="انباشت در کالا" value={money(data.accumulation)} warn={data.accumulation > 0} />
@@ -1149,7 +1154,7 @@ function ProfitPane({ filter }: { filter: any }) {
         // نشست ۲۱۶ (سؤال ۳): تا اینجا فقط جدول ماه‌ها خارج می‌شد و «سود دسته» و
         // «سود تامین‌کننده» — که همان چیزی است که حسابدار/شریک می‌خواهد — در فایل
         // نمی‌آمد. یک برگه با ستون «بخش»؛ بدون دست‌زدن به لایه‌ی xlsx.
-        headers: ['بخش', 'ردیف', 'درآمد', 'هزینه FIFO', 'سود واقعی', 'هزینه جایگزینی', 'سود جایگزینی', 'تورم (جایگزینی − FIFO)'],
+        headers: ['بخش', 'ردیف', 'درآمد', 'هزینه (به ترتیب ورود)', 'سود واقعی', 'هزینه جایگزینی', 'سود جایگزینی', 'تورم (جایگزینی − هزینه)'],
         rows: [
           ...(data.months ?? []).map((m: any) => [
             'ماه', m.month, m.revenue, m.fifoCost, m.realProfit, m.replacementCost, m.replacementProfit, m.inflationOnSold
@@ -1159,7 +1164,7 @@ function ProfitPane({ filter }: { filter: any }) {
             Number(c.replacementCost || 0) - Number(c.fifoCost || 0)
           ]),
           ...(data.bySupplier ?? []).map((sp: any) => [
-            'تامین‌کننده', sp.name, sp.revenue, sp.fifoCost, sp.realProfit, sp.replacementCost, sp.replacementProfit,
+            'تأمین‌کننده', sp.name, sp.revenue, sp.fifoCost, sp.realProfit, sp.replacementCost, sp.replacementProfit,
             Number(sp.replacementCost || 0) - Number(sp.fifoCost || 0)
           ])
         ]
@@ -1173,8 +1178,7 @@ function ProfitPane({ filter }: { filter: any }) {
     <div className={`space-y-3 text-sm ${faint ? 'bg-amber-50/40 -m-3 p-3 rounded' : ''}`}>
       {err ? <div className="bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded p-2">{err}</div> : null}
       <div className="flex flex-wrap justify-end gap-2 items-center">
-        <input
-          type="password"
+        <PasswordField
           className="border rounded px-2 py-1 text-xs"
           placeholder="رمز مدیر برای بازسازی"
           value={mgrPass}
@@ -1188,17 +1192,17 @@ function ProfitPane({ filter }: { filter: any }) {
           {rebuilding ? 'در حال بازسازی…' : 'بازسازی دفتر هزینه'}
         </button>
         <button className="border rounded px-3 py-1 text-xs" onClick={() => void exportProfit()} disabled={exporting}>
-          {exporting ? 'در حال ساخت…' : 'اکسل سود (ماه + دسته + تامین‌کننده)'}
+          {exporting ? 'در حال ساخت…' : 'اکسل سود (ماه + دسته + تأمین‌کننده)'}
         </button>
       </div>
       <div className="bg-amber-50 border border-amber-200 rounded p-3 text-xs leading-6">
         <p>جنس را با فاکتور خرید وارد کنید. دستکاری موجودی پنل کالا سود را تقریبی می‌کند.</p>
-        <p>نام تامین‌کننده روی فاکتور خرید اجباری نیست؛ بدون نام، سود آن سطر «فاقد نام تامین‌کننده» می‌شود.</p>
+        <p>نام تأمین‌کننده روی فاکتور خرید اجباری نیست؛ بدون نام، سود آن سطر «فاقد نام تامین‌کننده» می‌شود.</p>
         <p>
           <b>تورم ایران روی سود.</b> سود واقعی از فی همان خرید است. سود جایگزینی همان فروش را با فی آخرین فاکتور خریدِ
           لحظهٔ قفل شدن می‌سنجد (فی «امروز» نیست؛ ارزش ماندهٔ انبار است که امروز حساب می‌شود). عوض کردن فی کارت، سود
           قفل‌شده را عوض نمی‌کند مگر «بازسازی دفتر» بزنید. اصلاح فی روی فاکتور خرید، فروش‌های قفل‌شده‌ی همان فاکتور را
-          خودش هم در FIFO و هم در جایگزینی درست می‌کند.
+          خودش هم در هزینهٔ به ترتیب ورود و هم در جایگزینی درست می‌کند.
         </p>
       </div>
       <ConfirmDialog
@@ -1303,9 +1307,9 @@ function ProfitPane({ filter }: { filter: any }) {
         {data.exactPctRial != null
           ? ` · ${Math.round((data.exactPctRial || 0) * 1000) / 10}٪ از درآمد (به ریال)`
           : ''}
-        {data.excludedFromPct > 0 ? ` (${data.excludedFromPct} قلم بدون فی/بیرون فروشگاه در مخرج نیست)` : ''}
+        {data.excludedFromPct > 0 ? ` (${money(data.excludedFromPct)} قلم بدون فی/بیرون فروشگاه در مخرج نیست)` : ''}
         {data.unnamedSupplierShare > 0
-          ? ` · ${Math.round(data.unnamedSupplierShare * 1000) / 10}٪ درآمد از فاکتور بدون نام تامین‌کننده`
+          ? ` · ${Math.round(data.unnamedSupplierShare * 1000) / 10}٪ درآمد از فاکتور بدون نام تأمین‌کننده`
           : ''}
         {/* B1 (بازبینی یازدهم) — قراردادِ فی جایگزینی روی صفحه نوشته می‌شود تا «کِی تب را
             باز کردی» هیچ‌وقت معنای عدد را عوض نکند. */}
@@ -1314,7 +1318,7 @@ function ProfitPane({ filter }: { filter: any }) {
       </p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         <Stat title="درآمد اقلام" value={money(data.revenue)} />
-        <Stat title="هزینه واقعی (FIFO)" value={money(data.fifoCost)} />
+        <Stat title="هزینه واقعی (به ترتیب ورود)" value={money(data.fifoCost)} />
         <Stat title="هزینه جایگزینی" value={money(data.replacementCost)} />
         <Stat title="فروش خالص گزارش فروش" value={money(data.netAccrualSales)} />
       </div>
@@ -1393,9 +1397,9 @@ function ProfitPane({ filter }: { filter: any }) {
         <>
           <p className="text-xs font-bold mt-2">کسری، ضایعات و خروج‌های بدون فروش این بازه</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-            <Stat title="تعداد حرکت کسری/ضایعات" value={String(data.losses.moves ?? 0)} warn={(data.losses.moves ?? 0) > 0} />
-            <Stat title="تعداد کسرشده" value={String(data.losses.qty ?? 0)} />
-            <Stat title="بهای تمام‌شدهٔ آن (از لات FIFO)" value={money(data.losses.cost ?? 0)} warn={(data.losses.cost ?? 0) > 0} />
+            <Stat title="تعداد حرکت کسری/ضایعات" value={money(data.losses.moves ?? 0)} warn={(data.losses.moves ?? 0) > 0} />
+            <Stat title="تعداد کسرشده" value={money(data.losses.qty ?? 0)} />
+            <Stat title="بهای تمام‌شدهٔ آن (از لات‌های خرید، به ترتیب ورود)" value={money(data.losses.cost ?? 0)} warn={(data.losses.cost ?? 0) > 0} />
             <Stat
               title="خالص پس از اصلاح مثبتِ همین بازه"
               value={String(data.losses.netQty ?? data.losses.qty ?? 0)}
@@ -1439,11 +1443,11 @@ function ProfitPane({ filter }: { filter: any }) {
       ) : null}
       {(data.bySupplier ?? []).length > 0 && (
         <>
-          <p className="text-xs font-bold mt-2">سود به تفکیک تامین‌کننده (از فاکتور خرید، نه فروشندهٔ مغازه)</p>
+          <p className="text-xs font-bold mt-2">سود به تفکیک تأمین‌کننده (از فاکتور خرید، نه فروشندهٔ مغازه)</p>
           <table className="tbl text-xs">
             <thead>
               <tr>
-                <th>تامین‌کننده</th>
+                <th>تأمین‌کننده</th>
                 <th>کد</th>
                 <th>درآمد</th>
                 <th>سود واقعی</th>
@@ -1456,7 +1460,7 @@ function ProfitPane({ filter }: { filter: any }) {
                   <td>
                     {s.name}
                     {Number(s.partyCount) > 1 ? (
-                      <span className="text-amber-700" title={`نام یکی است ولی ${s.partyCount} رکورد جدا در فهرست تامین‌کننده‌ها هست — برای ادغام، از خودِ فهرست تامین‌کننده‌ها اقدام کنید.`}>
+                      <span className="text-amber-700" title={`نام یکی است ولی ${s.partyCount} رکورد جدا در فهرست تأمین‌کننده‌ها هست — برای ادغام، از خودِ فهرست تامین‌کننده‌ها اقدام کنید.`}>
                         {' '}
                         ({Number(s.partyCount)} رکورد)
                       </span>

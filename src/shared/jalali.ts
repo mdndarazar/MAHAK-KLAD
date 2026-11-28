@@ -187,3 +187,14 @@ export function parseGroupedInteger(raw: unknown): number | null {
   const n = Number(s)
   return Number.isSafeInteger(n) ? n : null
 }
+
+/**
+ * دفتر آزمون ۴-۱۳۴ — «تاریخ و ساعت» نمایشی با تقویم و قالب خود برنامه: «۱۴۰۵/۰۹/۰۶ ساعت ۱۴:۳۰».
+ * جای `new Date(…).toLocaleString('fa-IR')` (تقویم و قالب سیستم) در نمایش‌ها؛ خالی یا نامعتبر ⇒ «—».
+ */
+export function jalaliDateTimeText(value: Date | string | number | null | undefined): string {
+  if (value == null || value === '') return '—'
+  const d = value instanceof Date ? value : new Date(value)
+  if (!Number.isFinite(d.getTime())) return '—'
+  return faDigits(`${toJalaliDate(d)} ساعت ${toClock(d, false)}`)
+}

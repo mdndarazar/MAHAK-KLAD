@@ -541,6 +541,8 @@ export interface ExchangeReceiptData {
   shiftName?: string | null
   /** کد فاکتورِ خودِ سند تعویض (برای برگشت خوردنِ همین سند) */
   exchangeReturnCode?: string | null
+  /** طرح ۱۴۰۵ · مورد ۱۲ (تصمیم مالک ۱۴۰۵/۰۹/۰۱) — بارکد همان کد فاکتور تعویض، برای تعویض و برگشت زنجیره‌ای (اعتبار نیست) */
+  exchangeReturnBarcodeDataUrl?: string | null
   returnedItems: ReceiptItem[]
   returnTotal: number
   replacementItems: ReceiptItem[]
@@ -559,9 +561,12 @@ export interface ExchangeReceiptData {
   storeCreditStatusLabel?: string | null
   storeCreditExpiresJalali?: string | null
   storeCreditBarcodeDataUrl?: string | null
-  /** همه‌ی اعتبارهای این تعویض: جانشینِ منشأدار و بارکدِ سهم وجه واقعی جدا چاپ می‌شوند. */
+  /**
+   * همه‌ی اعتبارهای این تعویض: جانشینِ منشأدار و سهم وجه واقعی جدا.
+   * طرح ۱۴۰۵ · مورد ۱۲ — فقط مبلغ چاپ می‌شود؛ `code` و `barcodeDataUrl` (اگر صداکننده‌ای بفرستد) نادیده‌اند.
+   */
   storeCredits?: Array<{
-    code: string
+    code?: string | null
     amount: number
     expiresJalali?: string | null
     statusLabel?: string | null
@@ -657,33 +662,39 @@ export function exchangeReceiptHtml(d: ExchangeReceiptData, template?: Partial<R
   if (hasCardRefund) sums.push(sumRow('بازپرداخت به کارت مشتری', d.cardRefunded ?? 0))
   sums.push(`<div class="c kbd">${escapeHtml(d.settlementLabel)}</div>`)
 
-  const creditRows = d.storeCredits?.length
-    ? d.storeCredits
+  /**
+   * طرح ۱۴۰۵ · مورد ۱۲ (معماری §۴-۳) — سند تعویض بی کد و بی بارکد، مثل رسید برگشت (نشست ۳۱۶): فقط سطرهای
+   * مبلغ و جمله‌ی خطاب به مشتری. گواهی هر اعتبار جداگانه، یک بار و با چاپگر گواهی چاپ می‌شود. حتی اگر
+   * صداکننده کد یا تصویر بارکد بفرستد، این‌جا چاپ نمی‌شود (دفاع دولایه؛ `PrintService` هم نمی‌فرستد).
+   */
+  const creditRows = (d.storeCredits?.length
+    ? d.storeCredits.map((credit) => ({ amount: credit.amount, expiresJalali: credit.expiresJalali, statusLabel: credit.statusLabel, label: credit.label }))
     : d.storeCreditCode && (d.storeCreditAmount ?? 0) > 0
-      ? [{
-          code: d.storeCreditCode,
-          amount: d.storeCreditAmount ?? 0,
-          expiresJalali: d.storeCreditExpiresJalali,
-          statusLabel: d.storeCreditStatusLabel,
-          barcodeDataUrl: d.storeCreditBarcodeDataUrl
-        }]
+      ? [{ amount: d.storeCreditAmount ?? 0, expiresJalali: d.storeCreditExpiresJalali, statusLabel: d.storeCreditStatusLabel, label: null }]
       : []
-  const creditBlock = creditRows.map((credit) =>
-    `<div class="line"></div>
-     <div class="c sec">${escapeHtml(credit.label ?? 'بارکد اعتبار خرید بعدی')}</div>
-     <div class="c code"><b>${escapeHtml(credit.code)}</b></div>
-     ${credit.barcodeDataUrl
-       ? `<div class="c"><img class="bc" src="${credit.barcodeDataUrl}" alt="${escapeHtml(credit.code)}" /></div>`
-       : ''}
+  ).filter((credit) => (credit.amount ?? 0) > 0)
+  const creditBlock = creditRows.length
+    ? creditRows.map((credit) =>
+      `<div class="line"></div>
+     <div class="c sec">${escapeHtml(credit.label ?? 'اعتبار خرید بعدی')}</div>
      <div class="row"><span>مبلغ اعتبار</span><span>${money(credit.amount)}</span></div>
      ${credit.expiresJalali ? `<div class="c kbd">اعتبار تا ${faDigits(credit.expiresJalali)}</div>` : ''}
      ${credit.statusLabel ? `<div class="c kbd">${escapeHtml(credit.statusLabel)}</div>` : ''}
+     <div class="msg">گواهی بارکد اعتبار به مبلغ ${money(credit.amount)} ریال را از فروشنده بگیرید.</div>
      <div class="c kbd">این اعتبار از لحظه‌ی صدور قابل استفاده است؛ چاپ و تحویل فقط سابقه‌ی تحویل به مشتری را ثبت می‌کنند.</div>`
-  ).join('')
+    ).join('') + '<div class="c kbd">کد/بارکد اعتبار روی این سند چاپ نمی‌شود؛ گواهی اعتبار جداگانه چاپ می‌شود.</div>'
+    : ''
 
+  /**
+   * کد خودِ سند تعویض (کد فاکتور تعویض) برای تعویض و برگشت زنجیره‌ای؛ طرح ۱۴۰۵ · مورد ۱۲ (تصمیم مالک ۱۴۰۵/۰۹/۰۱):
+   * مثل رسید فروش، بارکدش هم چاپ می‌شود. این کد اعتبار نیست؛ کد و بارکد اعتبار فقط روی برگهٔ گواهی اعتبار است.
+   */
   const codeBlock =
     t.showReturnCode && d.exchangeReturnCode
-      ? `<div class="c code">${escapeHtml(t.returnCodeLabel)}: <b>${escapeHtml(d.exchangeReturnCode)}</b></div>`
+      ? `<div class="c code">${escapeHtml(t.returnCodeLabel)}: <b>${escapeHtml(d.exchangeReturnCode)}</b></div>` +
+        (t.showReturnBarcode && d.exchangeReturnBarcodeDataUrl
+          ? `<div class="c"><img class="bc" src="${d.exchangeReturnBarcodeDataUrl}" alt="${escapeHtml(d.exchangeReturnCode)}" /></div>`
+          : '')
       : ''
 
   const footers: string[] = []
@@ -776,6 +787,12 @@ export interface ReturnReceiptData {
   storeCredits?: { label: string; amount: number; expiresJalali?: string | null; status?: string | null }[]
   /** Closed expired source-credit shares: amount and original expiry only, never the barcode. */
   closedExpiredSourceCredits?: { amount: number; expiresJalali?: string | null }[]
+  /**
+   * طرح ۱۴۰۵ · مورد ۱۲ (تصمیم مالک ۱۴۰۵/۰۹/۰۱) — کد خودِ فاکتور اصلی (همان کد برگشتِ رسید فروش) و بارکدش، برای برگشت
+   * زنجیره‌ای از همان فاکتور. این کد اعتبار نیست؛ کد و بارکد اعتبار همچنان فقط روی برگهٔ گواهی اعتبار چاپ می‌شوند.
+   */
+  sourceReturnCode?: string | null
+  sourceReturnBarcodeDataUrl?: string | null
   note?: string
   footer?: string
 }
@@ -888,6 +905,16 @@ export function returnReceiptHtml(d: ReturnReceiptData, template?: Partial<Recei
     )
     .join('')
 
+  /** کد فاکتور اصلی و بارکدش برای برگشت زنجیره‌ای (همان تنظیم‌های «کد/بارکد برگشت» رسید فروش؛ اعتبار نیست). */
+  const docCodeBlock =
+    t.showReturnCode && d.sourceReturnCode
+      ? '<div class="line"></div>' +
+        `<div class="c code">${escapeHtml(t.returnCodeLabel)}: <b>${escapeHtml(d.sourceReturnCode)}</b></div>` +
+        (t.showReturnBarcode && d.sourceReturnBarcodeDataUrl
+          ? `<div class="c"><img class="bc" src="${d.sourceReturnBarcodeDataUrl}" alt="${escapeHtml(d.sourceReturnCode)}" /></div>`
+          : '')
+      : ''
+
   const footers: string[] = []
   if (d.note) footers.push(`<div class="c kbd">${escapeHtml(d.note)}</div>`)
   for (const line of [t.footerLine1, t.footerLine2, t.footerLine3]) {
@@ -919,6 +946,7 @@ export function returnReceiptHtml(d: ReturnReceiptData, template?: Partial<Recei
       sums.join('') +
       creditBlock +
       closedExpiredSourceCreditBlock +
+      docCodeBlock +
       '<div class="line"></div>' +
       footers.join(''),
     spec

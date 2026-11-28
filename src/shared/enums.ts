@@ -1,3 +1,6 @@
+import { LOCKED_PANELS } from './panels'
+import { GATE_ACTION_IDS } from './gateCatalog'
+import { money } from './jalali'
 export const StockReason = {
   SALE: 'SALE',
   /** موجودی اولیه‌ی واریانت در لحظه‌ی تعریف کالا (ورود از فرم کالا) */
@@ -42,6 +45,32 @@ export const SALE_STATUS_LABELS: Record<string, string> = {
 export function saleStatusLabel(status: string, consolidated = false): string {
   if (consolidated && (status === 'SETTLED' || status === 'DRAFT')) return 'انتقال یافته'
   return SALE_STATUS_LABELS[status] ?? status
+}
+
+/**
+ * دفتر آزمون ۴-۶۱ — ستون «وضعیت» سرجمع فروش (صفحه، چاپ A4، اکسل و تفکیک شیفت) از پرداخت
+ * واقعی همان فاکتور: کامل ⇒ «تسویه‌شده»، بخشی ⇒ «نسیه، مانده … ریال»، بی دریافت ⇒
+ * «پرداخت‌نشده، مانده … ریال»؛ «برگشت کامل/جزئی» و «انتقال یافته» مثل امروز کنارش.
+ * فقط نمایش: عددها همان `remaining`، `paidTotal` و `settled` سرور است؛ `saleStatusLabel` همان.
+ */
+export function salePaymentStatusLabel(r: {
+  status: string
+  consolidated?: boolean
+  settled?: boolean
+  remaining?: number
+  paidTotal?: number
+}): string {
+  if (r.status === 'CANCELED' || (r.status === 'DRAFT' && !r.consolidated)) return saleStatusLabel(r.status, !!r.consolidated)
+  const remaining = Math.max(0, Number(r.remaining ?? 0))
+  const pay =
+    r.settled || remaining <= 0
+      ? 'تسویه‌شده'
+      : Number(r.paidTotal ?? 0) > 0
+        ? `نسیه، مانده ${money(remaining)} ریال`
+        : `پرداخت‌نشده، مانده ${money(remaining)} ریال`
+  const side =
+    r.status === 'RETURNED' || r.status === 'PARTIALLY_RETURNED' ? SALE_STATUS_LABELS[r.status] : r.consolidated ? 'انتقال یافته' : ''
+  return side ? `${side} · ${pay}` : pay
 }
 
 export const ORDER_TYPE_LABELS: Record<string, string> = {
@@ -766,7 +795,9 @@ export const AuditAction = {
   /** حذف یک شماره از فهرست لغو */
   SMS_OPT_OUT_REMOVE: 'SMS_OPT_OUT_REMOVE',
   /** اجرای زمان‌بند خودکار یادآوری اعتبار */
-  SMS_AUTO_RUN: 'SMS_AUTO_RUN'
+  SMS_AUTO_RUN: 'SMS_AUTO_RUN',
+  ACCESS_EVENT: 'ACCESS_EVENT', // طرح ۱۴۰۵ §۳-۹ — رویدادهای خود دسترسی (کد، مجوز راه دور، مدت‌ها)
+  FACTORY_RESET: 'FACTORY_RESET' // طرح ۱۴۰۵ §۴-۲ — صفر کردن برنامه
 } as const
 
 /** وضعیت یک روز در پنل «تجمیع و انتقال». */
@@ -868,3 +899,5 @@ export function normalizeStaffRole(raw: unknown): StaffRole {
 export const REMOTE_GRANT_TIER = ['NORMAL', 'SENSITIVE_MONEY'] as const
 export const REMOTE_GRANT_STATE = ['PENDING', 'ACTIVE', 'CONSUMED', 'EXPIRED', 'REVOKED'] as const
 export const REMOTE_AUTH_MODE = ['SELLER_REQUESTED', 'OWNER_PUSHED'] as const
+// طرح ۱۴۰۵ §۳-۳ — مجوز گوشی برای همهٔ قفل‌ها: همهٔ کلیدهای «قسمت» (مجوز با مدت) و همهٔ شناسه‌های کار (یک بار)
+export const REMOTE_PANELS: readonly string[] = Object.freeze([...LOCKED_PANELS.filter((p) => p.kind === 'part').map((p) => p.key as string), ...GATE_ACTION_IDS])

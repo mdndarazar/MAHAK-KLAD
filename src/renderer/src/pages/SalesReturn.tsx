@@ -34,7 +34,10 @@ import CardPosOverrideDialog from '../components/returns/CardPosOverrideDialog'
 import { useReturnGuidance } from '../hooks/useReturnGuidance'
 import { usePanelLock, usePanelOpen } from '../hooks/usePanelLocks'
 import { useManagerSession } from '../hooks/useManagerSession'
-import { PANEL_KEYS } from '@shared/panels'
+import { PANEL_KEYS, lockName } from '@shared/panels'
+import OneTimeCodeBox from '../components/OneTimeCodeBox'
+import { RemoteRequestBox } from '../components/RemoteRequestBox'
+import { remoteImplementationReady } from '@shared/remoteAuthChannels'
 
 /**
  * ===================== برگشت از فروش و تعویض کالا =====================
@@ -176,7 +179,7 @@ const EXCHANGE_REFUND_CHOICES: { value: 'CASH' | 'CARD' | 'STORE_CREDIT' | 'CARD
   { value: 'CASH', title: 'بازپرداخت نقدی', hint: 'پول از کشوی صندوق بیرون می‌رود (یک بازپرداخت واقعی ثبت می‌شود).' },
   { value: 'CARD', title: 'بازپرداخت کارتی', hint: 'به کارت مشتری برگشت؛ از کشو پولی بیرون نمی‌رود.' },
   { value: 'STORE_CREDIT', title: 'صدور اعتبار خرید', hint: 'بارکد یک‌بارمصرف صادر می‌شود؛ اثر نقدی صفر.' },
-  { value: 'CARD_TO_CARD', title: 'کارت‌به‌کارت توسط مدیر', hint: 'پرداخت فوری انجام نمی‌شود؛ درخواست پرداخت برای تایید مدیر ثبت می‌شود.' }
+  { value: 'CARD_TO_CARD', title: 'کارت‌به‌کارت توسط مدیر', hint: 'پرداخت فوری انجام نمی‌شود؛ درخواست پرداخت برای تأیید مدیر ثبت می‌شود.' }
 ]
 
 /** نشست ۲ · C1 — ارزش برگشت هر قلم، دقیقاً همان فرمول main (سهم واقعی پرداختی مشتری) */
@@ -422,7 +425,9 @@ export default function SalesReturn() {
     const password = correctionUnlockPassword.trim()
     if (!request) return
     if (!password) {
-      setCorrectionUnlockError('برای باز کردن قفل این عملیات، رمز مدیر یا رمز دوم/سوم همین بخش را وارد کنید.')
+      setCorrectionUnlockError(
+        `برای باز کردن قفل این عملیات، رمز مدیر یا رمز دوم/سوم «${lockName(PANEL_KEYS.salesReturnCorrection)}» را وارد کنید (یا کد یک‌بارمصرف یا مجوز راه دور).`
+      )
       return
     }
     setCorrectionUnlockBusy(true)
@@ -439,6 +444,19 @@ export default function SalesReturn() {
       setCorrectionUnlockBusy(false)
     }
   }
+  /**
+   * دفتر آزمون ۴-۸۱: اگر قفل «اصلاح و ابطال برگشت / تعویض» با «کد یک‌بارمصرف» یا «درخواست مجوز از مدیر» همین پنجره باز شد،
+   * همان عملیات انتخاب‌شده ادامه می‌یابد؛ راه رمز مثل پیش خودش ادامه می‌دهد.
+   */
+  useEffect(() => {
+    if (!correctionOpen || !correctionUnlockRequest || correctionUnlockBusy) return
+    const request = correctionUnlockRequest
+    setCorrectionUnlockRequest(null)
+    setCorrectionUnlockPassword('')
+    setCorrectionUnlockError(null)
+    launchReturnCorrectionAction(request)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [correctionOpen])
 
   const printIssuedOverpayCredit = async (credit: any | null, opts?: { reprintPassword?: string }) => {
     if (overpayCreditPrinting) return
@@ -638,7 +656,7 @@ export default function SalesReturn() {
           qty: l.qty
         }))
       ),
-    [exChargeHook, reps]
+    [exChargeHook.compute, reps]
   )
   const exTotals = useMemo(() => {
     const goods = reps.reduce((s, l) => s + l.unitPrice * l.qty, 0)
@@ -1485,7 +1503,7 @@ export default function SalesReturn() {
           <div className="flex flex-wrap gap-2 items-end">
             <label>
               <div className="kbd">رمز مدیر</div>
-              <input type="password" className="inp w-40" dir="ltr" value={lockPw} onChange={(e) => setLockPw(e.target.value)} />
+              <PasswordField className="inp w-40" dir="ltr" value={lockPw} onChange={(e) => setLockPw(e.target.value)} />
             </label>
             <label className="flex-1 min-w-[240px]">
               <div className="kbd">دلیل ثبت در دوره‌ی بسته (اجباری)</div>
@@ -1505,7 +1523,7 @@ export default function SalesReturn() {
           <div className="flex flex-wrap gap-2 items-end">
             <label>
               <div className="kbd">رمز مدیر برای سقف اعتبار</div>
-              <input type="password" className="inp w-40" dir="ltr" value={creditLimitPw} onChange={(e) => setCreditLimitPw(e.target.value)} />
+              <PasswordField className="inp w-40" dir="ltr" value={creditLimitPw} onChange={(e) => setCreditLimitPw(e.target.value)} />
             </label>
             <button className="btn" onClick={() => { setCreditLimitNeeded(false); setCreditLimitPw('') }}>انصراف</button>
           </div>
@@ -1862,8 +1880,7 @@ export default function SalesReturn() {
                   <>
                     <label>
                       <div className="kbd">رمز مدیر</div>
-                      <input
-                        type="password"
+                      <PasswordField
                         className="inp w-40"
                         dir="ltr"
                         value={managerPw}
@@ -1933,7 +1950,7 @@ export default function SalesReturn() {
                             title={
                               priceOverrideOn
                                 ? `قیمت واقعی این کالا ${money(l.realPrice)} ریال است؛ تغییرش با رمز مدیر ثبت و در سابقه ضبط می‌شود`
-                                : 'قیمت از خودِ کالا خوانده می‌شود (بند ۱۸). برای تغییر دستی، قفل بالای همین بخش را با رمز مدیر باز کنید.'
+                                : 'قیمت از خودِ کالا خوانده می‌شود. برای تغییر دستی، قفل بالای همین بخش را با رمز مدیر باز کنید.'
                             }
                           />
                           {l.unitPrice !== l.realPrice && (
@@ -2485,12 +2502,11 @@ export default function SalesReturn() {
                   onChange={(e) => setManagerFullRefund(e.target.checked)}
                 />
                 <span className="flex-1">
-                  <b className="text-rose-800">بازپرداخت مبلغ کامل، بدون کسر تخفیف، با تایید مدیر</b>
-                  <span className="kbd block">فقط مدیر با رمز و دلیل می‌تواند تخفیف را نادیده بگیرد؛ این رویداد در Audit ثبت می‌شود.</span>
+                  <b className="text-rose-800">بازپرداخت مبلغ کامل، بدون کسر تخفیف، با تأیید مدیر</b>
+                  <span className="kbd block">فقط مدیر با رمز و دلیل می‌تواند تخفیف را نادیده بگیرد؛ این رویداد در دفتر رویداد ثبت می‌شود.</span>
                   {managerFullRefund && (
                     <span className="flex flex-wrap gap-2 mt-2">
-                      <input
-                        type="password"
+                      <PasswordField
                         className="inp w-40"
                         dir="ltr"
                         placeholder="رمز مدیر"
@@ -2611,7 +2627,7 @@ export default function SalesReturn() {
               مبلغ {money(history.reduce((s, r) => s + (r.cashRefundAmount ?? 0), 0))} ریال نقد از کشوی صندوق خارج شده است ·
               هر ردیف قابل ویرایش و حذف است (موجودی انبار خودکار اصلاح می‌شود)
               <div>
-                این فهرست فقط «برگشت ساده» را نشان می‌دهد؛ تعویض‌ها در تب «تعویض کالا»ی گزارشات فروش دیده می‌شوند (بند ۱۰).
+                این فهرست فقط «برگشت ساده» را نشان می‌دهد؛ تعویض‌ها در تب «تعویض کالا»ی گزارشات فروش دیده می‌شوند.
               </div>
             </div>
           </div>
@@ -2675,7 +2691,7 @@ export default function SalesReturn() {
                       className="text-brand"
                       onClick={() => void printReturn(r.id)}
                       disabled={rowBusy || printing}
-                      title="چاپ رسید مستقل همین برگشت (بند ۱۳)"
+                      title="چاپ رسید مستقل همین برگشت"
                     >
                       چاپ
                     </button>
@@ -2768,10 +2784,13 @@ export default function SalesReturn() {
                 }}
                 autoComplete="off"
                 autoFocus
-                placeholder="رمز مدیر یا رمز دوم/سوم این عملیات"
+                placeholder={`رمز مدیر یا رمز دوم/سوم «${lockName(PANEL_KEYS.salesReturnCorrection)}»`}
               />
             </label>
             {correctionUnlockError && <p className="text-red-600 whitespace-pre-line">{correctionUnlockError}</p>}
+            {/* دفتر آزمون ۴-۸۱: راه بی رمز همین قفل، مثل کادر قفل ماژول‌ها */}
+            <OneTimeCodeBox target={PANEL_KEYS.salesReturnCorrection} />
+            {remoteImplementationReady() && <RemoteRequestBox panel={PANEL_KEYS.salesReturnCorrection} />}
             <p className="kbd leading-6">
               پس از باز شدن قفل، فقط فرمِ عملیات انتخاب‌شده باز می‌شود. هنگام ثبت نهایی نیز کنترل‌های مالی و ثبت سابقهٔ سمت سرور برقرار می‌مانند.
             </p>
@@ -2844,7 +2863,7 @@ export default function SalesReturn() {
             </label>
             <label className="block">
               <span>رمز اصلاح جبرانی (در نصب تازه اجباری)</span>
-              <input type="password" dir="ltr" className="inp w-full" value={correctionAuthPassword} onChange={(e) => { setCorrectionAuthPassword(e.target.value); setCorrectionErr(null) }} placeholder="رمز مدیر یا رمز اختصاصی اصلاح/ابطال" />
+              <PasswordField dir="ltr" className="inp w-full" value={correctionAuthPassword} onChange={(e) => { setCorrectionAuthPassword(e.target.value); setCorrectionErr(null) }} placeholder="رمز مدیر یا رمز اختصاصی اصلاح/ابطال" />
             </label>
             <div className="rounded border border-amber-300 bg-amber-50 p-2 space-y-2">
               <p className="font-bold">تأیید شخصی مدیر — فقط روز بعد یا دوره‌ی بسته</p>
@@ -2888,8 +2907,7 @@ export default function SalesReturn() {
             </label>
             <label className="block">
               <span className="font-bold">رمز تأیید ابطال (در نصب تازه اجباری)</span>
-              <input
-                type="password"
+              <PasswordField
                 dir="ltr"
                 className="inp w-full"
                 value={voidAuthPassword}

@@ -5,7 +5,7 @@ import { exportTable } from '../lib/exportCsv'
 import Modal from './Modal'
 import ManagerGate from './ManagerGate'
 import PasswordField from './PasswordField'
-import { PANEL_KEYS } from '@shared/panels'
+import { PANEL_KEYS, lockName } from '@shared/panels'
 import { canAdjustCardTransfer } from '@shared/cardTransferUi'
 import { faDigits, money } from '@shared/jalali'
 import {
@@ -735,7 +735,7 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
                 <div className="flex flex-wrap gap-2 items-end">
                   <label className="min-w-[240px]">
                     <div className="mb-1">
-                      رمز مدیر یا رمز دوم همین پنل <span className="text-rose-700 font-bold">(تأیید سمت سرور)</span>
+                      رمز مدیر یا رمز دوم/سوم «{lockName(PANEL_KEYS.cardTransfers)}» <span className="text-rose-700 font-bold">(تأیید سمت سرور)</span>
                     </div>
                     <PasswordField
                       className="inp text-center"
@@ -793,7 +793,7 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
                     </span>
                   </label>
                   <label className="block max-w-[320px]">
-                    <div className="mb-1">رمز مدیر یا رمز دوم همین پنل</div>
+                    <div className="mb-1">رمز مدیر یا رمز دوم/سوم «{lockName(PANEL_KEYS.cardTransfers)}»</div>
                     <PasswordField
                       className="inp text-center"
                       value={cancelPassword}
@@ -801,8 +801,8 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
                     />
                   </label>
                   <div className="kbd leading-6">
-                    رکورد <b>حذف یا بازنویسی نمی‌شود</b>: فقط وضعیتش «رد/لغو‌شده» می‌شود و دلیل شما در سابقه و AuditLog
-                    می‌نشیند. درخواستِ پرداخت‌شده هیچ‌وقت لغو نمی‌شود (برای برگشت مبلغ از «رویداد اصلاحی» با مبلغ منفی
+                    رکورد <b>حذف یا بازنویسی نمی‌شود</b>: فقط وضعیتش «رد/لغو‌شده» می‌شود و دلیل شما در سابقهٔ برنامه
+                    می‌ماند. درخواستِ پرداخت‌شده هیچ‌وقت لغو نمی‌شود (برای برگشت مبلغ از «رویداد اصلاحی» با مبلغ منفی
                     استفاده کنید).
                   </div>
                   <div className="flex gap-2">
@@ -889,7 +889,7 @@ function Body({ fromJalali, toJalali }: { fromJalali: string; toJalali: string }
                       </label>
                       <label className="min-w-[240px]">
                         <div className="mb-1">
-                          رمز مدیر یا رمز دوم همین پنل <span className="text-rose-700 font-bold">(تأیید سمت سرور)</span>
+                          رمز مدیر یا رمز دوم/سوم «{lockName(PANEL_KEYS.cardTransfers)}» <span className="text-rose-700 font-bold">(تأیید سمت سرور)</span>
                         </div>
                         <PasswordField
                           className="inp text-center"

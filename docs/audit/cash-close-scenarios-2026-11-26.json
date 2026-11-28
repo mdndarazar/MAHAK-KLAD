@@ -1,0 +1,2857 @@
+{
+ "meta": {
+  "tool": "docs/audit/cash-close-scenarios.mjs",
+  "programCommit": "3a89d80139acf121f300303e65a68861e640dc85",
+  "summary": {
+   "scenarios": 12,
+   "steps": 169,
+   "refusals": 40,
+   "observations": 110,
+   "scenariosWithFindings": 2,
+   "findingTypes": {
+    "UNEXPECTED_REFUSAL": 2
+   }
+  }
+ },
+ "scenarios": [
+  {
+   "id": "A",
+   "steps": [
+    [
+     "open session (owner, first of the day)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "MANUAL",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "opening float 0",
+     "OK",
+     "ok",
+     {
+      "amount": 2000000
+     }
+    ],
+    [
+     "sale 0 cash 0 (0 items)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 1200000,
+      "paidTotal": 1200000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "sale 0 card 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 800000,
+      "paidTotal": 800000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "sale 0 cash 0 + card 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 800000,
+      "paidTotal": 800000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "sale 0 نسیه 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 1000000,
+      "paidTotal": 0,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "sale 0 manager account 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 400000,
+      "paidTotal": 400000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "deposit 0",
+     "OK",
+     "ok",
+     {
+      "amount": 100000
+     }
+    ],
+    [
+     "withdrawal 0 with reason",
+     "OK",
+     "ok",
+     {
+      "amount": 50000
+     }
+    ],
+    [
+     "withdrawal 0 without reason",
+     "REFUSED",
+     "refuse",
+     "برای برداشت از صندوق باید دلیل بنویسید (حداقل # نویسه) تا در سابقه بماند."
+    ],
+    [
+     "return shirt 0 cash refund",
+     "OK",
+     "ok",
+     {
+      "total": 500000,
+      "refundMethod": "CASH",
+      "refundAmount": 500000,
+      "status": "PARTIALLY_RETURNED"
+     }
+    ],
+    [
+     "F0 page preview",
+     "OK",
+     "ok",
+     {
+      "state": "SHORTAGE"
+     }
+    ],
+    [
+     "F0 close counted 0",
+     "OK",
+     "ok",
+     {
+      "shiftClosed": true,
+      "cash": {
+       "state": "MATCHED",
+       "expected": 3050000,
+       "counted": 3050000,
+       "diff": 0,
+       "requiresNote": false
+      },
+      "invoices": 5
+     }
+    ],
+    [
+     "page reload right after close (shift:current)",
+     "OK",
+     "either",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "AUTO",
+      "staffPending": true,
+      "closed": false
+     }
+    ],
+    [
+     "F0 right after F0 (new session has no staff yet)",
+     "REFUSED",
+     "either",
+     "[SESSION_REQUIRED] نشست باز است ولی هنوز معلوم نیست پشت صندوق کیست؛ چون هر فاکتور باید به یک نفر نسبت داده شود، برای نهایی کردن تجمیع چند روز اول از روی «نشست صندوق» کارمند را انتخاب و تأیید کنید."
+    ],
+    [
+     "confirm staff of the new session (owner)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "AUTO",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "F0 after confirming staff",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 4200000,
+      "invoiceCount": 5,
+      "finalizedMovements": 6,
+      "daysDone": 1,
+      "daysSkipped": 0
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "openedSession",
+     "v": {
+      "openedVia": "MANUAL",
+      "staffPending": false
+     }
+    },
+    {
+     "k": "preview",
+     "v": {
+      "expectedCash": 3050000,
+      "components": {
+       "openingFloat": 2000000,
+       "cashReceived": 1500000,
+       "deposits": 100000,
+       "withdrawals": 50000,
+       "cashReturnRefunds": 500000,
+       "cashExchangeRefunds": 0,
+       "priorCreditSettlements": 0,
+       "priorCreditSettlementsCard": 0,
+       "clearedCashCheques": 0,
+       "clearedManagerCheques": 0,
+       "managerAccountReceived": 400000,
+       "cardExpected": 1300000
+      }
+     }
+    },
+    {
+     "k": "close",
+     "v": {
+      "state": "MATCHED",
+      "expected": 3050000,
+      "counted": 3050000,
+      "recordedDiff": 0,
+      "recordedCounted": 3050000,
+      "requiresNote": false,
+      "shiftClosed": true,
+      "invoices": 5,
+      "cardTotal": 1300000,
+      "creditTotal": 0,
+      "managerAccountTotal": 400000,
+      "components": {
+       "openingFloat": 2000000,
+       "cashReceived": 1500000,
+       "deposits": 100000,
+       "withdrawals": 50000,
+       "cashReturnRefunds": 500000,
+       "cashExchangeRefunds": 0,
+       "priorCreditSettlements": 0,
+       "priorCreditSettlementsCard": 0,
+       "clearedCashCheques": 0,
+       "clearedManagerCheques": 0,
+       "managerAccountReceived": 400000,
+       "cardExpected": 1300000
+      },
+      "warnings": []
+     }
+    },
+    {
+     "k": "shiftReport",
+     "v": {
+      "count": 5,
+      "grandTotal": 4200000,
+      "cashTotal": 1500000,
+      "cardTotal": 1300000,
+      "managerAccountTotal": 400000,
+      "creditTotal": 0,
+      "creditRemainingTotal": 1000000,
+      "refundCashTotal": 500000,
+      "returnedTotal": 500000
+     }
+    },
+    {
+     "k": "afterCloseNewSession",
+     "v": {
+      "created": [
+       {
+        "openedVia": "AUTO",
+        "staffKnown": false,
+        "sameDay": true
+       }
+      ]
+     }
+    },
+    {
+     "k": "afterCloseStatus",
+     "v": {
+      "state": "STAFF_PENDING",
+      "staleUser": null,
+      "overtime": null
+     }
+    },
+    {
+     "k": "f0AfterF0",
+     "v": {
+      "ok": false,
+      "code": "SESSION_REQUIRED",
+      "msg": "نشست باز است ولی هنوز معلوم نیست پشت صندوق کیست؛ چون هر فاکتور باید به یک نفر نسبت داده شود، برای نهایی کردن تجمیع چند روز اول از روی «نشست صندوق» کارمند را انتخاب و تأیید کنید."
+     }
+    },
+    {
+     "k": "confirmStaff",
+     "v": {
+      "ok": true,
+      "staffPending": false
+     }
+    },
+    {
+     "k": "f0",
+     "v": {
+      "daysDone": 1,
+      "daysSkipped": 0,
+      "invoices": 5,
+      "movements": 6,
+      "pendingDelta": -6
+     }
+    },
+    {
+     "k": "stockAfterDay",
+     "v": [
+      {
+       "v": "شلوار",
+       "shelfOut": 1
+      },
+      {
+       "v": "پیراهن",
+       "shelfOut": 0
+      },
+      {
+       "v": "کفش",
+       "shelfOut": 1
+      },
+      {
+       "v": "کاپشن",
+       "shelfOut": 1
+      },
+      {
+       "v": "کت",
+       "shelfOut": 1
+      },
+      {
+       "v": "کیف",
+       "shelfOut": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "H",
+   "steps": [
+    [
+     "first sale of the morning",
+     "REFUSED",
+     "either",
+     "[SESSION_REQUIRED] نشست «شیفت دوم — نشست #» از روز # (کارمند: مالک فروشگاه) هنوز باز و پولش شمرده نشده است. برای اینکه پول آن روز با فروش امروز قاطی نشود، باید همان نشست بسته و نشست تازه باز شود؛ روی «نشست صندوق» (یا دکمه‌ی همین پیام) بزنید، سپس ثبت فاکتور فر"
+    ],
+    [
+     "open today session without reason/password",
+     "REFUSED",
+     "refuse",
+     "نشست «شیفت دوم — نشست #» از # هنوز باز است و بسته نشده. برای باز کردن نشست تازه باید دلیل بنویسید تا معلوم باشد پول آن نشست چه شد."
+    ],
+    [
+     "open today session with reason, no password",
+     "REFUSED",
+     "refuse",
+     "[GATE_REQUIRED:shift.close-stale-session] «بستن نشست جامانده‌ی # و باز کردن نشست تازه» همیشه رمز می‌خواهد، حتی اگر قفل این ماژول خاموش باشد. رمز مدیر (یا رمز دوم/سوم همین پنل) را وارد کنید."
+    ],
+    [
+     "open today session with reason + manager password",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "MANUAL",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "first sale again",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 150000,
+      "paidTotal": 150000,
+      "status": "SETTLED"
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "leftoverSession",
+     "v": {
+      "exists": true,
+      "invoices": 0,
+      "payments": 0,
+      "cashMovements": 0
+     }
+    },
+    {
+     "k": "morningStatus",
+     "v": {
+      "state": "STALE",
+      "staleUser": "مالک فروشگاه",
+      "overtime": null
+     }
+    },
+    {
+     "k": "morningFirstSale",
+     "v": {
+      "ok": false,
+      "code": "SESSION_REQUIRED",
+      "msg": "نشست «شیفت دوم — نشست #» از روز # (کارمند: مالک فروشگاه) هنوز باز و پولش شمرده نشده است. برای اینکه پول آن روز با فروش امروز قاطی نشود، باید همان نشست بسته و نشست تازه باز شود؛ روی «نشست صندوق» (یا دکمه‌ی همین پیام) بزنید، سپس ثبت فاکتور فر"
+     }
+    },
+    {
+     "k": "morningForm",
+     "v": {
+      "blockReason": "STALE_OPEN",
+      "stale": true
+     }
+    },
+    {
+     "k": "openWithoutPassword",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "نشست «شیفت دوم — نشست #» از # هنوز باز است و بسته نشده. برای باز کردن نشست تازه باید دلیل بنویسید تا معلوم باشد پول آن نشست چه شد."
+     }
+    },
+    {
+     "k": "openReasonNoPassword",
+     "v": {
+      "ok": false,
+      "code": "GATE_REQUIRED:shift.close-stale-session",
+      "msg": "«بستن نشست جامانده‌ی # و باز کردن نشست تازه» همیشه رمز می‌خواهد، حتی اگر قفل این ماژول خاموش باشد. رمز مدیر (یا رمز دوم/سوم همین پنل) را وارد کنید."
+     }
+    },
+    {
+     "k": "openWithPassword",
+     "v": {
+      "ok": true,
+      "leftoverClosed": true,
+      "leftoverCashSessions": 0
+     }
+    },
+    {
+     "k": "morningSaleAfter",
+     "v": {
+      "ok": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "B",
+   "steps": [
+    [
+     "open session for «shortage 0 without note»",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "MANUAL",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "opening float 0",
+     "OK",
+     "ok",
+     {
+      "amount": 1000000
+     }
+    ],
+    [
+     "sale cash 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 500000,
+      "paidTotal": 500000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "F0 close: shortage 0 without note",
+     "OK",
+     "ok",
+     {
+      "shiftClosed": true,
+      "cash": {
+       "state": "SHORTAGE",
+       "expected": 1500000,
+       "counted": 1450000,
+       "diff": -50000,
+       "requiresNote": false
+      },
+      "invoices": 1
+     }
+    ],
+    [
+     "open session for «shortage exactly 0 without note»",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "MANUAL",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "opening float 0",
+     "OK",
+     "ok",
+     {
+      "amount": 1000000
+     }
+    ],
+    [
+     "sale cash 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 500000,
+      "paidTotal": 500000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "F0 close: shortage exactly 0 without note",
+     "OK",
+     "ok",
+     {
+      "shiftClosed": true,
+      "cash": {
+       "state": "SHORTAGE",
+       "expected": 1500000,
+       "counted": 1400000,
+       "diff": -100000,
+       "requiresNote": false
+      },
+      "invoices": 1
+     }
+    ],
+    [
+     "open session for «shortage 0 without note»",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "MANUAL",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "opening float 0",
+     "OK",
+     "ok",
+     {
+      "amount": 1000000
+     }
+    ],
+    [
+     "sale cash 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 500000,
+      "paidTotal": 500000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "F0 close: shortage 0 without note",
+     "REFUSED",
+     "refuse",
+     "مغایرت صندوق # ریال است (کسری) و از آستانه‌ی # ریال گذشته."
+    ],
+    [
+     "F0 close: shortage 0 with note",
+     "OK",
+     "ok",
+     {
+      "shiftClosed": true,
+      "cash": {
+       "state": "SHORTAGE",
+       "expected": 1500000,
+       "counted": 1350000,
+       "diff": -150000,
+       "requiresNote": true
+      },
+      "invoices": 1
+     }
+    ],
+    [
+     "open session for «overage 0 without note»",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "MANUAL",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "opening float 0",
+     "OK",
+     "ok",
+     {
+      "amount": 1000000
+     }
+    ],
+    [
+     "sale cash 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 500000,
+      "paidTotal": 500000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "F0 close: overage 0 without note",
+     "REFUSED",
+     "refuse",
+     "مغایرت صندوق # ریال است (اضافه) و از آستانه‌ی # ریال گذشته."
+    ],
+    [
+     "F0 close: overage 0 with note",
+     "OK",
+     "ok",
+     {
+      "shiftClosed": true,
+      "cash": {
+       "state": "OVERAGE",
+       "expected": 1500000,
+       "counted": 1700000,
+       "diff": 200000,
+       "requiresNote": true
+      },
+      "invoices": 1
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "shortage 0 without note",
+     "v": {
+      "state": "SHORTAGE",
+      "diff": -50000,
+      "requiresNote": false
+     }
+    },
+    {
+     "k": "shortage exactly 0 without note",
+     "v": {
+      "state": "SHORTAGE",
+      "diff": -100000,
+      "requiresNote": false
+     }
+    },
+    {
+     "k": "shortage 0 without note",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "مغایرت صندوق # ریال است (کسری) و از آستانه‌ی # ریال گذشته."
+     }
+    },
+    {
+     "k": "shortage 0 with note",
+     "v": {
+      "state": "SHORTAGE",
+      "diff": -150000,
+      "requiresNote": true
+     }
+    },
+    {
+     "k": "overage 0 without note",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "مغایرت صندوق # ریال است (اضافه) و از آستانه‌ی # ریال گذشته."
+     }
+    },
+    {
+     "k": "overage 0 with note",
+     "v": {
+      "state": "OVERAGE",
+      "diff": 200000,
+      "requiresNote": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "C",
+   "steps": [
+    [
+     "open session",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "MANUAL",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "sale cash 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 300000,
+      "paidTotal": 300000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "F0 close without counting",
+     "OK",
+     "ok",
+     {
+      "shiftClosed": true,
+      "cash": {
+       "state": "SHORTAGE",
+       "expected": 300000,
+       "counted": null,
+       "diff": -300000,
+       "requiresNote": true
+      },
+      "invoices": 1
+     }
+    ],
+    [
+     "open next session (same staff, same day)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "MANUAL",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "F0 close the same session again (no confirmation)",
+     "REFUSED",
+     "refuse",
+     "این نشست قبلاً در 0 بسته/تجمیع شده است. اگر مطمئن هستید، بستن دوباره را تأیید کنید؛ اثر خالص نقد و انبار دوباره اعمال نمی‌شود."
+    ],
+    [
+     "F0 close the same session again (confirmed)",
+     "OK",
+     "ok",
+     {
+      "shiftClosed": false,
+      "cash": {
+       "state": "MATCHED",
+       "expected": 300000,
+       "counted": 300000,
+       "diff": 0,
+       "requiresNote": false
+      },
+      "invoices": 1
+     }
+    ],
+    [
+     "F0 close a session without any sale, no note",
+     "REFUSED",
+     "refuse",
+     "در این بازه هیچ فاکتور فروشی ثبت نشده است، پس صندوقی برای بستن وجود ندارد. اگر آگاهانه می‌خواهید یک بستن صندوق خالی ثبت شود، در فیلد یادداشت دلیلش را بنویسید."
+    ],
+    [
+     "F0 close a session without any sale, with note",
+     "OK",
+     "ok",
+     {
+      "shiftClosed": true,
+      "cash": {
+       "state": "MATCHED",
+       "expected": 0,
+       "counted": null,
+       "diff": 0,
+       "requiresNote": false
+      },
+      "invoices": 0
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "notCounted",
+     "v": {
+      "state": "NOT_COUNTED",
+      "recordedDiff": 0,
+      "recordedCounted": null,
+      "expected": 300000
+     }
+    },
+    {
+     "k": "repeatWithoutConfirm",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "این نشست قبلاً در 0 بسته/تجمیع شده است. اگر مطمئن هستید، بستن دوباره را تأیید کنید؛ اثر خالص نقد و انبار دوباره اعمال نمی‌شود."
+     }
+    },
+    {
+     "k": "repeatConfirmed",
+     "v": {
+      "state": "MATCHED",
+      "shiftClosedNow": false,
+      "sessionsForShift": 2,
+      "effects": {
+       "payments": 0,
+       "cashMovements": 0,
+       "stockMovements": 0,
+       "pending": 0,
+       "stock": 0,
+       "invoices": 0,
+       "returns": 0
+      }
+     }
+    },
+    {
+     "k": "emptyWithoutNote",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "در این بازه هیچ فاکتور فروشی ثبت نشده است، پس صندوقی برای بستن وجود ندارد. اگر آگاهانه می‌خواهید یک بستن صندوق خالی ثبت شود، در فیلد یادداشت دلیلش را بنویسید."
+     }
+    },
+    {
+     "k": "emptyWithNote",
+     "v": {
+      "state": "NOT_COUNTED",
+      "invoices": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": "W",
+   "steps": [
+    [
+     "open session (day 0)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "MANUAL",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "opening float 0",
+     "OK",
+     "ok",
+     {
+      "amount": 500000
+     }
+    ],
+    [
+     "sale cash 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 1000000,
+      "paidTotal": 1000000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "end of day: withdraw 0 (to the bank)",
+     "OK",
+     "ok",
+     {
+      "amount": 1000000
+     }
+    ],
+    [
+     "F0 close counted 0 (only the change float left)",
+     "OK",
+     "ok",
+     {
+      "shiftClosed": true,
+      "cash": {
+       "state": "MATCHED",
+       "expected": 500000,
+       "counted": 500000,
+       "diff": 0,
+       "requiresNote": false
+      },
+      "invoices": 1
+     }
+    ],
+    [
+     "open session (day 0)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "MANUAL",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "opening float 0 (same as last count)",
+     "OK",
+     "ok",
+     {
+      "amount": 500000
+     }
+    ],
+    [
+     "sale cash 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 1000000,
+      "paidTotal": 1000000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "F0 close counted 0",
+     "OK",
+     "ok",
+     {
+      "shiftClosed": true,
+      "cash": {
+       "state": "MATCHED",
+       "expected": 1500000,
+       "counted": 1500000,
+       "diff": 0,
+       "requiresNote": false
+      },
+      "invoices": 1
+     }
+    ],
+    [
+     "open session (day 0) without entering an opening float",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "MANUAL",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "sale cash 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 1000000,
+      "paidTotal": 1000000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "F0 close counted 0 (last night's money stayed, no opening float entered)",
+     "OK",
+     "ok",
+     {
+      "shiftClosed": true,
+      "cash": {
+       "state": "OVERAGE",
+       "expected": 1000000,
+       "counted": 2500000,
+       "diff": 1500000,
+       "requiresNote": true
+      },
+      "invoices": 1
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "day0",
+     "v": {
+      "state": "MATCHED",
+      "expected": 500000
+     }
+    },
+    {
+     "k": "day0",
+     "v": {
+      "state": "MATCHED",
+      "expected": 1500000,
+      "warnings": []
+     }
+    },
+    {
+     "k": "day0",
+     "v": {
+      "state": "OVERAGE",
+      "expected": 1000000,
+      "diff": 1500000,
+      "warnings": [
+       "⚠ اختلاف شمارش نقد تحویل: نشست قبلی # ریال شمرده شده، اما موجودی اول این نشست # ریال ثبت شده است؛ علت را در یادداشت بستن صندوق ثبت کنید."
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "D",
+   "steps": [
+    [
+     "open session 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "MANUAL",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "sale A 0 cash 0 + نسیه 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 2000000,
+      "paidTotal": 500000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "sale B 0 نسیه",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 1000000,
+      "paidTotal": 0,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "cheque 0 for sale B (payments window)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 1000000,
+      "paidTotal": 0,
+      "payment": {
+       "kind": "CHEQUE",
+       "amount": 1000000,
+       "chequeStatus": "PENDING"
+      }
+     }
+    ],
+    [
+     "F0 close session 0 counted 0",
+     "OK",
+     "ok",
+     {
+      "shiftClosed": true,
+      "cash": {
+       "state": "MATCHED",
+       "expected": 500000,
+       "counted": 500000,
+       "diff": 0,
+       "requiresNote": false
+      },
+      "invoices": 2
+     }
+    ],
+    [
+     "open session 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "MANUAL",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "collect 0 cash on sale A (prior نسیه)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 2000000,
+      "paidTotal": 1100000,
+      "payment": {
+       "kind": "CASH",
+       "amount": 600000,
+       "chequeStatus": null
+      }
+     }
+    ],
+    [
+     "collect 0 card on sale A (prior نسیه)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 2000000,
+      "paidTotal": 1500000,
+      "payment": {
+       "kind": "CASH",
+       "amount": 400000,
+       "chequeStatus": null
+      }
+     }
+    ],
+    [
+     "cheque 0 CLEARED → manager account",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 1000000,
+      "paidTotal": 1000000
+     }
+    ],
+    [
+     "F0 close session 0 (only collections, no new invoice) counted 0",
+     "REFUSED",
+     "ok",
+     "در این بازه هیچ فاکتور فروشی ثبت نشده است، پس صندوقی برای بستن وجود ندارد. اگر آگاهانه می‌خواهید یک بستن صندوق خالی ثبت شود، در فیلد یادداشت دلیلش را بنویسید."
+    ],
+    [
+     "F0 close session 0 with a note",
+     "OK",
+     "ok",
+     {
+      "shiftClosed": true,
+      "cash": {
+       "state": "MATCHED",
+       "expected": 600000,
+       "counted": 600000,
+       "diff": 0,
+       "requiresNote": false
+      },
+      "invoices": 0
+     }
+    ]
+   ],
+   "findings": [
+    "UNEXPECTED_REFUSAL | F0 close session 0 (only collections, no new invoice) counted 0"
+   ],
+   "obs": [
+    {
+     "k": "session0",
+     "v": {
+      "state": "MATCHED",
+      "expected": 500000,
+      "creditTotal": 0,
+      "components": {
+       "openingFloat": 0,
+       "cashReceived": 500000,
+       "deposits": 0,
+       "withdrawals": 0,
+       "cashReturnRefunds": 0,
+       "cashExchangeRefunds": 0,
+       "priorCreditSettlements": 0,
+       "priorCreditSettlementsCard": 0,
+       "clearedCashCheques": 0,
+       "clearedManagerCheques": 0,
+       "managerAccountReceived": 0,
+       "cardExpected": 0
+      }
+     }
+    },
+    {
+     "k": "session0WithoutNote",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "در این بازه هیچ فاکتور فروشی ثبت نشده است، پس صندوقی برای بستن وجود ندارد. اگر آگاهانه می‌خواهید یک بستن صندوق خالی ثبت شود، در فیلد یادداشت دلیلش را بنویسید."
+     }
+    },
+    {
+     "k": "session0",
+     "v": {
+      "state": "MATCHED",
+      "expected": 600000,
+      "invoices": 0,
+      "components": {
+       "openingFloat": 0,
+       "cashReceived": 600000,
+       "deposits": 0,
+       "withdrawals": 0,
+       "cashReturnRefunds": 0,
+       "cashExchangeRefunds": 0,
+       "priorCreditSettlements": 600000,
+       "priorCreditSettlementsCard": 400000,
+       "clearedCashCheques": 0,
+       "clearedManagerCheques": 1000000,
+       "managerAccountReceived": 1000000,
+       "cardExpected": 400000
+      }
+     }
+    },
+    {
+     "k": "saleARemaining",
+     "v": {
+      "paid": 1500000
+     }
+    }
+   ]
+  },
+  {
+   "id": "E",
+   "steps": [
+    [
+     "open session",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "MANUAL",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "sale cash 0 (X 0k, Y 0k, Z 0k)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 2000000,
+      "paidTotal": 2000000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "preview before card-to-card",
+     "OK",
+     "ok",
+     {
+      "state": "SHORTAGE"
+     }
+    ],
+    [
+     "return Y 0 → card-to-card",
+     "OK",
+     "ok",
+     {
+      "total": 400000,
+      "refundMethod": "CARD_TO_CARD",
+      "refundAmount": 400000,
+      "status": "PARTIALLY_RETURNED",
+      "cardTransfer": 400000
+     }
+    ],
+    [
+     "preview after card-to-card request",
+     "OK",
+     "ok",
+     {
+      "state": "SHORTAGE"
+     }
+    ],
+    [
+     "pay with wrong password",
+     "REFUSED",
+     "refuse",
+     "رمز درست نیست؛ دوباره تلاش کنید."
+    ],
+    [
+     "pay 0 (more than requested)",
+     "REFUSED",
+     "refuse",
+     "مبلغ پرداخت‌شده (# ریال) بیشتر از مبلغ درخواست (# ریال) است و ثبت نمی‌شود. اگر اصلاح لازم است از «ثبت رویداد اصلاحی» استفاده کنید تا سابقه از بین نرود."
+    ],
+    [
+     "pay 0 (less than requested)",
+     "OK",
+     "ok",
+     {
+      "status": "PAID",
+      "amount": 400000,
+      "paidAmount": 300000,
+      "releasedQty": 1
+     }
+    ],
+    [
+     "pay the same request again",
+     "REFUSED",
+     "refuse",
+     "این درخواست قبلاً پرداخت شده است. رکورد پرداخت‌شده ویرایش نمی‌شود؛ اگر اصلاحی لازم است از «ثبت رویداد اصلاحی» استفاده کنید تا سابقه از بین نرود."
+    ],
+    [
+     "adjust +0 (net would be 0 > 0)",
+     "REFUSED",
+     "refuse",
+     "خالص پرداخت‌شده‌ی این درخواست تا الان # ریال است؛ اصلاح +# ریالی آن را به # ریال می‌رساند که از مبلغ درخواست (# ریال) بیشتر است. بیشترین مبلغ قابل افزودن # ریال است؛ هیچ ردیفی ثبت نشد."
+    ],
+    [
+     "adjust +0 (net 0)",
+     "OK",
+     "ok",
+     {
+      "status": "PAID",
+      "amount": 100000,
+      "paidAmount": 100000
+     }
+    ],
+    [
+     "adjust -0 (net would be negative)",
+     "REFUSED",
+     "refuse",
+     "خالص پرداخت‌شده‌ی این درخواست کارت‌به‌کارت تا الان # ریال است؛ اصلاح #- ریالی آن را به #- ریال (منفی) می‌رساند. بیشترین مبلغ قابل پس‌گرفتن # ریال است؛ هیچ ردیفی ثبت نشد."
+    ],
+    [
+     "cancel after payment",
+     "REFUSED",
+     "refuse",
+     "این درخواست پرداخت شده است و لغو نمی‌شود. رکورد پرداخت‌شده ویرایش نمی‌شود؛ برای برگشت مبلغ از «ثبت رویداد اصلاحی» با مبلغ منفی استفاده کنید."
+    ],
+    [
+     "return X 0 → card-to-card",
+     "OK",
+     "ok",
+     {
+      "total": 600000,
+      "refundMethod": "CARD_TO_CARD",
+      "refundAmount": 600000,
+      "status": "PARTIALLY_RETURNED",
+      "cardTransfer": 600000
+     }
+    ],
+    [
+     "cancel without releasing the goods",
+     "OK",
+     "ok",
+     {
+      "status": "CANCELED",
+      "amount": 600000,
+      "releasedQty": 0,
+      "stillPending": true
+     }
+    ],
+    [
+     "cancel again with releasing the goods",
+     "OK",
+     "ok",
+     {
+      "status": "CANCELED",
+      "amount": 600000,
+      "releasedQty": 1,
+      "stillPending": false
+     }
+    ],
+    [
+     "exchange Z 0 → W 0 (diff -0 CARD_TO_CARD)",
+     "OK",
+     "ok",
+     {
+      "paidTotal": 700000,
+      "cardTransfer": 300000
+     }
+    ],
+    [
+     "pay the exchange difference 0",
+     "OK",
+     "ok",
+     {
+      "status": "PAID",
+      "amount": 300000,
+      "paidAmount": 300000,
+      "releasedQty": 1
+     }
+    ],
+    [
+     "out-of-sales report (today)",
+     "OK",
+     "either",
+     {}
+    ],
+    [
+     "sale W cash 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 700000,
+      "paidTotal": 700000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "return W 0 → card-to-card (left pending)",
+     "OK",
+     "ok",
+     {
+      "total": 700000,
+      "refundMethod": "CARD_TO_CARD",
+      "refundAmount": 700000,
+      "status": "RETURNED",
+      "cardTransfer": 700000
+     }
+    ],
+    [
+     "F0 close counted 0 with a pending card-to-card",
+     "OK",
+     "ok",
+     {
+      "shiftClosed": true,
+      "cash": {
+       "state": "MATCHED",
+       "expected": 2700000,
+       "counted": 2700000,
+       "diff": 0,
+       "requiresNote": false
+      },
+      "invoices": 3
+     }
+    ],
+    [
+     "page reload after close",
+     "OK",
+     "either",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "AUTO",
+      "staffPending": true,
+      "closed": false
+     }
+    ],
+    [
+     "manager pays the pending card-to-card after F0",
+     "REFUSED",
+     "either",
+     "[SESSION_REQUIRED] نشست باز است ولی هنوز معلوم نیست پشت صندوق کیست؛ چون هر فاکتور باید به یک نفر نسبت داده شود، برای ثبت پرداخت کارت‌به‌کارت اول از روی «نشست صندوق» کارمند را انتخاب و تأیید کنید."
+    ],
+    [
+     "confirm staff of the new session",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "AUTO",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "pay again after confirming staff",
+     "OK",
+     "ok",
+     {
+      "status": "PAID",
+      "amount": 700000,
+      "paidAmount": 700000,
+      "releasedQty": 1
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "afterReturnY",
+     "v": {
+      "request": {
+       "status": "PENDING",
+       "amount": 400000,
+       "paid": null,
+       "released": null
+      },
+      "yShelfBack": 0,
+      "restockPending": 1
+     }
+    },
+    {
+     "k": "pendingRestockWarning",
+     "v": {
+      "returns": 1,
+      "qty": 1,
+      "amount": 400000
+     }
+    },
+    {
+     "k": "expectedUnchangedByRequest",
+     "v": {
+      "before": 2000000,
+      "after": 2000000
+     }
+    },
+    {
+     "k": "payWrongPassword",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "رمز درست نیست؛ دوباره تلاش کنید."
+     }
+    },
+    {
+     "k": "payMore",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "مبلغ پرداخت‌شده (# ریال) بیشتر از مبلغ درخواست (# ریال) است و ثبت نمی‌شود. اگر اصلاح لازم است از «ثبت رویداد اصلاحی» استفاده کنید تا سابقه از بین نرود."
+     }
+    },
+    {
+     "k": "payLess",
+     "v": {
+      "ok": true,
+      "request": {
+       "status": "PAID",
+       "amount": 400000,
+       "paid": 300000,
+       "released": 1
+      },
+      "yShelfBack": 1
+     }
+    },
+    {
+     "k": "payAgain",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "این درخواست قبلاً پرداخت شده است. رکورد پرداخت‌شده ویرایش نمی‌شود؛ اگر اصلاحی لازم است از «ثبت رویداد اصلاحی» استفاده کنید تا سابقه از بین نرود."
+     }
+    },
+    {
+     "k": "adjustAboveRequest",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "خالص پرداخت‌شده‌ی این درخواست تا الان # ریال است؛ اصلاح +# ریالی آن را به # ریال می‌رساند که از مبلغ درخواست (# ریال) بیشتر است. بیشترین مبلغ قابل افزودن # ریال است؛ هیچ ردیفی ثبت نشد."
+     }
+    },
+    {
+     "k": "adjustRest",
+     "v": {
+      "ok": true,
+      "request": {
+       "status": "ADJUSTED",
+       "amount": 400000,
+       "paid": 300000,
+       "released": 1
+      }
+     }
+    },
+    {
+     "k": "adjustNegativeTooMuch",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "خالص پرداخت‌شده‌ی این درخواست کارت‌به‌کارت تا الان # ریال است؛ اصلاح #- ریالی آن را به #- ریال (منفی) می‌رساند. بیشترین مبلغ قابل پس‌گرفتن # ریال است؛ هیچ ردیفی ثبت نشد."
+     }
+    },
+    {
+     "k": "cancelAfterPay",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "این درخواست پرداخت شده است و لغو نمی‌شود. رکورد پرداخت‌شده ویرایش نمی‌شود؛ برای برگشت مبلغ از «ثبت رویداد اصلاحی» با مبلغ منفی استفاده کنید."
+     }
+    },
+    {
+     "k": "cancelKeepPending",
+     "v": {
+      "ok": true,
+      "stillPending": true,
+      "xShelfBack": 0,
+      "request": {
+       "status": "CANCELED",
+       "amount": 600000,
+       "paid": null,
+       "released": null
+      }
+     }
+    },
+    {
+     "k": "cancelRelease",
+     "v": {
+      "ok": true,
+      "releasedQty": 1,
+      "xShelfBack": 1,
+      "request": {
+       "status": "CANCELED",
+       "amount": 600000,
+       "paid": null,
+       "released": 1
+      }
+     }
+    },
+    {
+     "k": "afterExchange",
+     "v": {
+      "request": {
+       "status": "PENDING",
+       "amount": 300000,
+       "paid": null,
+       "released": null
+      },
+      "zShelfBack": 0,
+      "wShelfOut": 1
+     }
+    },
+    {
+     "k": "payExchange",
+     "v": {
+      "ok": true,
+      "zShelfBack": 1,
+      "request": {
+       "status": "PAID",
+       "amount": 300000,
+       "paid": 300000,
+       "released": 1
+      }
+     }
+    },
+    {
+     "k": "outOfSalesTotals",
+     "v": {
+      "pendingAmount": 0,
+      "pendingCount": 0,
+      "paidAmount": 600000,
+      "paidCount": 2,
+      "adjustmentAmount": 100000,
+      "adjustmentCount": 1,
+      "netOutOfSalesFlow": 700000
+     }
+    },
+    {
+     "k": "close",
+     "v": {
+      "state": "MATCHED",
+      "expected": 2700000,
+      "warnings": [
+       "⚠ اختلاف شمارش نقد تحویل: نشست قبلی # ریال شمرده شده، اما موجودی اول این نشست # ریال ثبت شده است؛ علت را در یادداشت بستن صندوق ثبت کنید."
+      ]
+     }
+    },
+    {
+     "k": "afterCloseNewSession",
+     "v": {
+      "created": [
+       {
+        "openedVia": "AUTO",
+        "staffKnown": false,
+        "sameDay": true
+       }
+      ]
+     }
+    },
+    {
+     "k": "payAfterClose",
+     "v": {
+      "ok": false,
+      "code": "SESSION_REQUIRED",
+      "msg": "نشست باز است ولی هنوز معلوم نیست پشت صندوق کیست؛ چون هر فاکتور باید به یک نفر نسبت داده شود، برای ثبت پرداخت کارت‌به‌کارت اول از روی «نشست صندوق» کارمند را انتخاب و تأیید کنید."
+     }
+    },
+    {
+     "k": "payAfterConfirm",
+     "v": {
+      "ok": true,
+      "wShelf": -1,
+      "request": {
+       "status": "PAID",
+       "amount": 700000,
+       "paid": 700000,
+       "released": 1
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "F",
+   "steps": [
+    [
+     "open session",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "MANUAL",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "sale cash 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 500000,
+      "paidTotal": 500000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "F0 while the session is open (all of today so far)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 12350000,
+      "invoiceCount": 15,
+      "finalizedMovements": 17,
+      "daysDone": 1,
+      "daysSkipped": 0
+     }
+    ],
+    [
+     "sale cash 0 after F0 (POS page)",
+     "REFUSED",
+     "either",
+     "ثبت فاکتور فروش در تاریخ # ممکن نیست، چون این دوره بسته شده است:"
+    ],
+    [
+     "return of the morning sale after F0 (no password)",
+     "REFUSED",
+     "either",
+     "ثبت برگشت از فروش در تاریخ # ممکن نیست، چون این دوره بسته شده است:"
+    ],
+    [
+     "sale cash 0 after F0 with manager password + reason in the request (the POS page has no such field)",
+     "OK",
+     "either",
+     {
+      "grandTotal": 300000,
+      "paidTotal": 300000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "F0 again the same day",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 300000,
+      "invoiceCount": 1,
+      "finalizedMovements": 1,
+      "daysDone": 1,
+      "daysSkipped": 0
+     }
+    ],
+    [
+     "F0 a third time with nothing new",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "finalizedMovements": 0,
+      "daysDone": 1,
+      "daysSkipped": 0
+     }
+    ],
+    [
+     "F0 close after F0 counted 0",
+     "OK",
+     "ok",
+     {
+      "shiftClosed": true,
+      "cash": {
+       "state": "MATCHED",
+       "expected": 800000,
+       "counted": 800000,
+       "diff": 0,
+       "requiresNote": false
+      },
+      "invoices": 2
+     }
+    ],
+    [
+     "page reload after close",
+     "OK",
+     "either",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "AUTO",
+      "staffPending": true,
+      "closed": false
+     }
+    ],
+    [
+     "one more customer after F0 and F0",
+     "REFUSED",
+     "either",
+     "[SESSION_REQUIRED] نشست باز است ولی هنوز معلوم نیست پشت صندوق کیست؛ چون هر فاکتور باید به یک نفر نسبت داده شود، برای ثبت فاکتور فروش اول از روی «نشست صندوق» کارمند را انتخاب و تأیید کنید."
+    ],
+    [
+     "confirm staff of the new session",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "AUTO",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "the same customer after confirming staff",
+     "REFUSED",
+     "either",
+     "ثبت فاکتور فروش در تاریخ # ممکن نیست، چون این دوره بسته شده است:"
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "beforeF0",
+     "v": {
+      "saleStockOut": 1,
+      "pendingMovements": 1
+     }
+    },
+    {
+     "k": "f0First",
+     "v": {
+      "daysDone": 1,
+      "ownSalePending": 0,
+      "ownSaleStockOut": 1
+     }
+    },
+    {
+     "k": "saleAfterF0",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "ثبت فاکتور فروش در تاریخ # ممکن نیست، چون این دوره بسته شده است:"
+     }
+    },
+    {
+     "k": "returnAfterF0",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "ثبت برگشت از فروش در تاریخ # ممکن نیست، چون این دوره بسته شده است:"
+     }
+    },
+    {
+     "k": "saleAfterF0WithPassword",
+     "v": {
+      "ok": true
+     }
+    },
+    {
+     "k": "dayStateAfterNewSale",
+     "v": {
+      "state": "PARTIAL",
+      "pendingInvoices": 1,
+      "consolidations": 1
+     }
+    },
+    {
+     "k": "f0Second",
+     "v": {
+      "invoices": 1,
+      "movements": 1,
+      "newSalePending": 0,
+      "consolidationsToday": 2
+     }
+    },
+    {
+     "k": "f0Third",
+     "v": {
+      "daysDone": 1,
+      "daysSkipped": 0,
+      "consoleWarnings": 0
+     }
+    },
+    {
+     "k": "closeAfterF0",
+     "v": {
+      "state": "MATCHED",
+      "expected": 800000,
+      "invoices": 2
+     }
+    },
+    {
+     "k": "afterCloseNewSession",
+     "v": {
+      "created": [
+       {
+        "openedVia": "AUTO",
+        "staffKnown": false,
+        "sameDay": true
+       }
+      ]
+     }
+    },
+    {
+     "k": "saleAfterF0AndF0",
+     "v": {
+      "ok": false,
+      "code": "SESSION_REQUIRED",
+      "msg": "نشست باز است ولی هنوز معلوم نیست پشت صندوق کیست؛ چون هر فاکتور باید به یک نفر نسبت داده شود، برای ثبت فاکتور فروش اول از روی «نشست صندوق» کارمند را انتخاب و تأیید کنید."
+     }
+    },
+    {
+     "k": "saleAfterConfirm",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "ثبت فاکتور فروش در تاریخ # ممکن نیست، چون این دوره بسته شده است:"
+     }
+    }
+   ]
+  },
+  {
+   "id": "G",
+   "steps": [
+    [
+     "open session (owner)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "MANUAL",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "opening float 0",
+     "OK",
+     "ok",
+     {
+      "amount": 1000000
+     }
+    ],
+    [
+     "sale cash 0 — then the shop closes without F0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 800000,
+      "paidTotal": 800000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "page reload in the morning (shift:current)",
+     "REFUSED",
+     "either",
+     "نشست «شیفت 0 — نشست #» از # هنوز باز است و بسته نشده. قبل از شروع کار امروز باید آن نشست را ببندید (شمارش صندوق) تا دو نشست هم‌زمان باز نماند."
+    ],
+    [
+     "first sale of the morning",
+     "REFUSED",
+     "either",
+     "[SESSION_REQUIRED] نشست «شیفت 0 — نشست #» از روز # (کارمند: مالک فروشگاه) هنوز باز و پولش شمرده نشده است. برای اینکه پول آن روز با فروش امروز قاطی نشود، باید همان نشست بسته و نشست تازه باز شود؛ روی «نشست صندوق» (یا دکمه‌ی همین پیام) بزنید، سپس ثبت فاکتور فروش"
+    ],
+    [
+     "F0 in the morning for yesterday's open session",
+     "REFUSED",
+     "either",
+     "[SESSION_REQUIRED] نشست «شیفت 0 — نشست #» از روز # (کارمند: مالک فروشگاه) هنوز باز و پولش شمرده نشده است. برای اینکه پول آن روز با فروش امروز قاطی نشود، باید همان نشست بسته و نشست تازه باز شود؛ روی «نشست صندوق» (یا دکمه‌ی همین پیام) بزنید، سپس بستن صندوق را د"
+    ],
+    [
+     "F0 in the morning",
+     "REFUSED",
+     "either",
+     "[SESSION_REQUIRED] نشست «شیفت 0 — نشست #» از روز # (کارمند: مالک فروشگاه) هنوز باز و پولش شمرده نشده است. برای اینکه پول آن روز با فروش امروز قاطی نشود، باید همان نشست بسته و نشست تازه باز شود؛ روی «نشست صندوق» (یا دکمه‌ی همین پیام) بزنید، سپس نهایی کردن تجمی"
+    ],
+    [
+     "F0 page preview of yesterday's session (read only)",
+     "OK",
+     "either",
+     {
+      "state": "SHORTAGE"
+     }
+    ],
+    [
+     "open today without password",
+     "REFUSED",
+     "refuse",
+     "[GATE_REQUIRED:shift.close-stale-session] «بستن نشست جامانده‌ی # و باز کردن نشست تازه» همیشه رمز می‌خواهد، حتی اگر قفل این ماژول خاموش باشد. رمز مدیر (یا رمز دوم/سوم همین پنل) را وارد کنید."
+    ],
+    [
+     "open today with wrong password",
+     "REFUSED",
+     "refuse",
+     "رمز درست نیست؛ دوباره تلاش کنید."
+    ],
+    [
+     "open today with reason + manager password",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "MANUAL",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "F0 for yesterday's session after that (same staff), counted 0",
+     "OK",
+     "ok",
+     {
+      "shiftClosed": false,
+      "cash": {
+       "state": "MATCHED",
+       "expected": 1800000,
+       "counted": 1800000,
+       "diff": 0,
+       "requiresNote": false
+      },
+      "invoices": 1
+     }
+    ],
+    [
+     "seller opens a session (owner's session still open)",
+     "REFUSED",
+     "refuse",
+     "بستن نشستِ کارمند دیگر نیازمند دلیل اجباری است؛ دلیل کوتاه و روشن را وارد کنید."
+    ],
+    [
+     "seller opens with reason + manager password",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "HANDOVER_FORCED",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "seller sale cash 0 — not closed",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 500000,
+      "paidTotal": 500000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "owner opens next morning with reason + password",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "HANDOVER_FORCED",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "owner counts the seller's session",
+     "REFUSED",
+     "either",
+     "[SHIFT_OWNERSHIP_REQUIRED] برای بستن صندوق فقط کارمندِ ثبت‌شده برای همان نشست مجاز است. نشست انتخاب‌شده متعلق به کاربر جاری نیست؛ از نشست خودتان یا روند رسمی تحویل صندوق استفاده کنید."
+    ],
+    [
+     "seller opens (owner's session open) with reason + password",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "HANDOVER_FORCED",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "seller counts own session from last night",
+     "OK",
+     "either",
+     {
+      "shiftClosed": false,
+      "cash": {
+       "state": "MATCHED",
+       "expected": 500000,
+       "counted": 500000,
+       "diff": 0,
+       "requiresNote": false
+      },
+      "invoices": 1
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "morningStatus",
+     "v": {
+      "state": "STALE",
+      "staleUser": "مالک فروشگاه",
+      "overtime": null
+     }
+    },
+    {
+     "k": "morningShiftCurrent",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "نشست «شیفت 0 — نشست #» از # هنوز باز است و بسته نشده. قبل از شروع کار امروز باید آن نشست را ببندید (شمارش صندوق) تا دو نشست هم‌زمان باز نماند."
+     }
+    },
+    {
+     "k": "morningSale",
+     "v": {
+      "ok": false,
+      "code": "SESSION_REQUIRED",
+      "msg": "نشست «شیفت 0 — نشست #» از روز # (کارمند: مالک فروشگاه) هنوز باز و پولش شمرده نشده است. برای اینکه پول آن روز با فروش امروز قاطی نشود، باید همان نشست بسته و نشست تازه باز شود؛ روی «نشست صندوق» (یا دکمه‌ی همین پیام) بزنید، سپس ثبت فاکتور فروش"
+     }
+    },
+    {
+     "k": "morningF0",
+     "v": {
+      "ok": false,
+      "code": "SESSION_REQUIRED",
+      "msg": "نشست «شیفت 0 — نشست #» از روز # (کارمند: مالک فروشگاه) هنوز باز و پولش شمرده نشده است. برای اینکه پول آن روز با فروش امروز قاطی نشود، باید همان نشست بسته و نشست تازه باز شود؛ روی «نشست صندوق» (یا دکمه‌ی همین پیام) بزنید، سپس بستن صندوق را د"
+     }
+    },
+    {
+     "k": "morningF0",
+     "v": {
+      "ok": false,
+      "code": "SESSION_REQUIRED",
+      "msg": "نشست «شیفت 0 — نشست #» از روز # (کارمند: مالک فروشگاه) هنوز باز و پولش شمرده نشده است. برای اینکه پول آن روز با فروش امروز قاطی نشود، باید همان نشست بسته و نشست تازه باز شود؛ روی «نشست صندوق» (یا دکمه‌ی همین پیام) بزنید، سپس نهایی کردن تجمی"
+     }
+    },
+    {
+     "k": "morningPreview",
+     "v": {
+      "expectedCash": 1800000
+     }
+    },
+    {
+     "k": "openWithoutPassword",
+     "v": {
+      "ok": false,
+      "code": "GATE_REQUIRED:shift.close-stale-session",
+      "msg": "«بستن نشست جامانده‌ی # و باز کردن نشست تازه» همیشه رمز می‌خواهد، حتی اگر قفل این ماژول خاموش باشد. رمز مدیر (یا رمز دوم/سوم همین پنل) را وارد کنید."
+     }
+    },
+    {
+     "k": "openWrongPassword",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "رمز درست نیست؛ دوباره تلاش کنید."
+     }
+    },
+    {
+     "k": "staleClosedWithoutCount",
+     "v": {
+      "ok": true,
+      "yesterdayClosed": true,
+      "yesterdayCashSessions": 0
+     }
+    },
+    {
+     "k": "yesterdayCountedLater",
+     "v": {
+      "state": "MATCHED",
+      "expected": 1800000,
+      "shiftClosedNow": false,
+      "sessions": 1
+     }
+    },
+    {
+     "k": "sellerOpenWithoutPassword",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "بستن نشستِ کارمند دیگر نیازمند دلیل اجباری است؛ دلیل کوتاه و روشن را وارد کنید."
+     }
+    },
+    {
+     "k": "ownerOpensNextMorning",
+     "v": {
+      "ok": true
+     }
+    },
+    {
+     "k": "ownerCountsSellerSession",
+     "v": {
+      "ok": false,
+      "code": "SHIFT_OWNERSHIP_REQUIRED",
+      "msg": "برای بستن صندوق فقط کارمندِ ثبت‌شده برای همان نشست مجاز است. نشست انتخاب‌شده متعلق به کاربر جاری نیست؛ از نشست خودتان یا روند رسمی تحویل صندوق استفاده کنید."
+     }
+    },
+    {
+     "k": "sellerCountsOwnSession",
+     "v": {
+      "state": "MATCHED",
+      "expected": 500000
+     }
+    },
+    {
+     "k": "managerPasswordsUsed",
+     "v": {
+      "count": 4
+     }
+    }
+   ]
+  },
+  {
+   "id": "P",
+   "steps": [
+    [
+     "open session",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 0,
+      "invoiceCount": 0,
+      "openedVia": "MANUAL",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "opening float 0",
+     "OK",
+     "ok",
+     {
+      "amount": 500000
+     }
+    ],
+    [
+     "sale cash 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 1000000,
+      "paidTotal": 1000000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "backup now with wrong password",
+     "REFUSED",
+     "refuse",
+     "رمز درست نیست؛ دوباره تلاش کنید."
+    ],
+    [
+     "backup now (manager password)",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "sale cash 0 after the backup",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 200000,
+      "paidTotal": 200000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "preview before merge",
+     "OK",
+     "ok",
+     {
+      "state": "SHORTAGE"
+     }
+    ],
+    [
+     "merge the same-day backup into current data",
+     "OK",
+     "either",
+     {
+      "mode": "merge",
+      "inserted": {
+       "Consolidation": 3,
+       "CashSession": 17,
+       "saleInvoice": 24,
+       "saleInvoiceItem": 27,
+       "payment": 26,
+       "paymentChequeStatusHistory": 1,
+       "saleReturn": 5,
+       "saleReturnItem": 5,
+       "CardTransferRequest": 5,
+       "stockMovement": 32,
+       "cashMovement": 13,
+       "auditLog": 134
+      }
+     }
+    ],
+    [
+     "preview after merge",
+     "OK",
+     "ok",
+     {
+      "state": "SHORTAGE"
+     }
+    ],
+    [
+     "merge the same backup a second time",
+     "OK",
+     "either",
+     {
+      "mode": "merge",
+      "inserted": {
+       "Consolidation": 3,
+       "CashSession": 17,
+       "saleInvoice": 24,
+       "saleInvoiceItem": 27,
+       "payment": 26,
+       "paymentChequeStatusHistory": 1,
+       "saleReturn": 5,
+       "saleReturnItem": 5,
+       "CardTransferRequest": 5,
+       "stockMovement": 32,
+       "cashMovement": 13,
+       "auditLog": 134
+      }
+     }
+    ],
+    [
+     "F0 close after the merges, real count 0",
+     "OK",
+     "either",
+     {
+      "shiftClosed": true,
+      "cash": {
+       "state": "SHORTAGE",
+       "expected": 4700000,
+       "counted": 1700000,
+       "diff": -3000000,
+       "requiresNote": true
+      },
+      "invoices": 4
+     }
+    ],
+    [
+     "issue a manual store credit 0",
+     "OK",
+     "ok",
+     {
+      "status": "ACTIVE",
+      "amount": 300000
+     }
+    ],
+    [
+     "backup now (contains a store credit)",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "merge a backup that has a store credit",
+     "REFUSED",
+     "refuse",
+     "ادغام این بکاپ انجام نشد چون سند اعتبار خرید دارد و ورود ناقص‌شان عدد مالی را خراب می‌کند:\\n• 0 اعتبار خرید (جدول اعتبار در ادغام منتقل نمی‌شود)\\nتا تکمیل ادغام اعتبار، از «جایگزینی کامل» استفاده کنید. داده‌ی فعلی دست‌نخورده ماند."
+    ],
+    [
+     "add a backup file from disk",
+     "OK",
+     "ok",
+     {
+      "canceled": false
+     }
+    ],
+    [
+     "replace with wrong password",
+     "REFUSED",
+     "refuse",
+     "رمز درست نیست؛ دوباره تلاش کنید."
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "backupWrongPassword",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "رمز درست نیست؛ دوباره تلاش کنید."
+     }
+    },
+    {
+     "k": "backupCreated",
+     "v": {
+      "ok": true,
+      "namePattern": "shop-0-0-0-0-0-0db",
+      "listed": 1,
+      "sizePositive": true
+     }
+    },
+    {
+     "k": "mergeSameDay",
+     "v": {
+      "ok": true,
+      "before": {
+       "invoices": 25,
+       "todayTotal": 14350000,
+       "expected": 1700000,
+       "openingFloats": 1,
+       "cashSessions": 17
+      },
+      "after": {
+       "invoices": 49,
+       "todayTotal": 28500000,
+       "expected": 3200000,
+       "openingFloats": 2,
+       "cashSessions": 34
+      },
+      "inserted": {
+       "SaleInvoice": 24,
+       "Payment": 26,
+       "CashSession": 17,
+       "CashMovement": 13,
+       "Consolidation": 3,
+       "StockMovement": 32
+      },
+      "matchedShifts": 24,
+      "warnings": 0
+     }
+    },
+    {
+     "k": "listAfterMerge",
+     "v": [
+      {
+       "source": "auto",
+       "appliedMode": null
+      }
+     ]
+    },
+    {
+     "k": "mergeAgain",
+     "v": {
+      "ok": true,
+      "invoices": 73,
+      "todayTotal": 42650000
+     }
+    },
+    {
+     "k": "stockVsLedgerAfterMerges",
+     "v": {
+      "stock": 19,
+      "ledgerSum": 17
+     }
+    },
+    {
+     "k": "closeAfterMerges",
+     "v": {
+      "state": "SHORTAGE",
+      "expected": 4700000,
+      "diff": -3000000
+     }
+    },
+    {
+     "k": "mergeWithCredit",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "ادغام این بکاپ انجام نشد چون سند اعتبار خرید دارد و ورود ناقص‌شان عدد مالی را خراب می‌کند:\\n• 0 اعتبار خرید (جدول اعتبار در ادغام منتقل نمی‌شود)\\nتا تکمیل ادغام اعتبار، از «جایگزینی کامل» استفاده کنید. داده‌ی فعلی دست‌نخورده ماند."
+     }
+    },
+    {
+     "k": "imported",
+     "v": {
+      "source": "imported",
+      "invoiceCount": 24,
+      "sameAsBackup1": true
+     }
+    },
+    {
+     "k": "replaceWrongPassword",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "رمز درست نیست؛ دوباره تلاش کنید."
+     }
+    }
+   ]
+  },
+  {
+   "id": "K",
+   "steps": [
+    [
+     "owner sets personal custody PIN",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "enable custody (single shift)",
+     "OK",
+     "ok",
+     {
+      "mode": "SINGLE_SHIFT"
+     }
+    ],
+    [
+     "owner issues a temporary PIN for the seller",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "seller sets personal PIN",
+     "OK",
+     "ok",
+     {}
+    ],
+    [
+     "seller opens the drawer: PIN + count 0",
+     "OK",
+     "ok",
+     {
+      "countStatus": "COUNTED"
+     }
+    ],
+    [
+     "sale cash 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 700000,
+      "paidTotal": 700000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "sale card 0",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 300000,
+      "paidTotal": 300000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "old F0 close in custody mode",
+     "REFUSED",
+     "refuse",
+     "[CUSTODY_LEGACY_PATH] در حالت حضانت صندوق، ثبت یا تعویض نشست قدیمی مجاز نیست؛ فقط از مسیر رسمی حضانت با رمز شخصی استفاده کنید."
+    ],
+    [
+     "old F0 preview in custody mode",
+     "REFUSED",
+     "refuse",
+     "[CUSTODY_EXPECTED_HIDDEN] در حالت حضانت، مبلغ انتظار به کارمند نمایش داده نمی‌شود. کنترل مبلغ نظری فقط در گزارش محافظت‌شدهٔ مدیر انجام می‌شود."
+    ],
+    [
+     "old session form in custody mode",
+     "REFUSED",
+     "refuse",
+     "[CUSTODY_LEGACY_PATH] در حالت حضانت صندوق، ثبت یا تعویض نشست قدیمی مجاز نیست؛ فقط از مسیر رسمی حضانت با رمز شخصی استفاده کنید."
+    ],
+    [
+     "page reload (shift:current)",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 1000000,
+      "invoiceCount": 2,
+      "openedVia": "MANUAL",
+      "staffPending": false,
+      "closed": false
+     }
+    ],
+    [
+     "«بستن نهایی»: PIN + blind count 0 (0 short)",
+     "OK",
+     "ok",
+     {
+      "state": "NO_SESSION"
+     }
+    ],
+    [
+     "page reload after «بستن نهایی»",
+     "OK",
+     "either",
+     null
+    ],
+    [
+     "sale after «بستن نهایی»",
+     "REFUSED",
+     "refuse",
+     "[CUSTODY_AUTH_REQUIRED] برای ثبت فروش، ابتدا مسئول حاضر صندوق باید با رمز شخصی و شمارش فیزیکی صندوق را تحویل بگیرد."
+    ],
+    [
+     "F0 after «بستن نهایی»",
+     "REFUSED",
+     "either",
+     "[CUSTODY_AUTH_REQUIRED] برای ثبت فروش، ابتدا مسئول حاضر صندوق باید با رمز شخصی و شمارش فیزیکی صندوق را تحویل بگیرد."
+    ],
+    [
+     "next morning: seller opens with PIN + count 0 (no manager password)",
+     "OK",
+     "ok",
+     {
+      "countStatus": "COUNTED"
+     }
+    ],
+    [
+     "sale cash 0 — then nobody presses «بستن نهایی»",
+     "OK",
+     "ok",
+     {
+      "grandTotal": 700000,
+      "paidTotal": 700000,
+      "status": "SETTLED"
+     }
+    ],
+    [
+     "first sale after the automatic close",
+     "REFUSED",
+     "refuse",
+     "[CUSTODY_AUTH_REQUIRED] برای ثبت فروش، ابتدا مسئول حاضر صندوق باید با رمز شخصی و شمارش فیزیکی صندوق را تحویل بگیرد."
+    ],
+    [
+     "morning witness: seller PIN + real count 0 of the old drawer",
+     "REFUSED",
+     "ok",
+     "مغایرت صندوق # ریال است (اضافه) و از آستانه‌ی # ریال گذشته."
+    ],
+    [
+     "morning witness again with a note",
+     "OK",
+     "ok",
+     {
+      "shiftClosed": false,
+      "cash": {
+       "state": "OVERAGE",
+       "expected": 700000,
+       "counted": 3600000,
+       "diff": 2900000,
+       "requiresNote": true
+      },
+      "invoices": 1
+     }
+    ],
+    [
+     "then a new drawer: seller PIN + count 0",
+     "OK",
+     "ok",
+     {
+      "countStatus": "COUNTED"
+     }
+    ],
+    [
+     "F0 while the drawer is open",
+     "OK",
+     "either",
+     {
+      "grandTotal": 8800000,
+      "invoiceCount": 13,
+      "finalizedMovements": 13,
+      "daysDone": 1,
+      "daysSkipped": 0
+     }
+    ],
+    [
+     "a customer after F0 (custody mode, 0-0 not yet done)",
+     "REFUSED",
+     "either",
+     "ثبت فاکتور فروش در تاریخ # ممکن نیست، چون این دوره بسته شده است:"
+    ]
+   ],
+   "findings": [
+    "UNEXPECTED_REFUSAL | morning witness: seller PIN + real count 0 of the old drawer"
+   ],
+   "obs": [
+    {
+     "k": "legacyF0",
+     "v": {
+      "ok": false,
+      "code": "CUSTODY_LEGACY_PATH",
+      "msg": "در حالت حضانت صندوق، ثبت یا تعویض نشست قدیمی مجاز نیست؛ فقط از مسیر رسمی حضانت با رمز شخصی استفاده کنید."
+     }
+    },
+    {
+     "k": "legacyPreview",
+     "v": {
+      "ok": false,
+      "code": "CUSTODY_EXPECTED_HIDDEN",
+      "msg": "در حالت حضانت، مبلغ انتظار به کارمند نمایش داده نمی‌شود. کنترل مبلغ نظری فقط در گزارش محافظت‌شدهٔ مدیر انجام می‌شود."
+     }
+    },
+    {
+     "k": "legacySessionOpen",
+     "v": {
+      "ok": false,
+      "code": "CUSTODY_LEGACY_PATH",
+      "msg": "در حالت حضانت صندوق، ثبت یا تعویض نشست قدیمی مجاز نیست؛ فقط از مسیر رسمی حضانت با رمز شخصی استفاده کنید."
+     }
+    },
+    {
+     "k": "shiftCurrentInCustody",
+     "v": {
+      "isCustodyShift": true,
+      "newSessions": 0
+     }
+    },
+    {
+     "k": "finalClose",
+     "v": {
+      "ok": true,
+      "state": "NO_SESSION",
+      "boundary": "FINAL_CLOSE",
+      "difference": -100000,
+      "cases": 1,
+      "newCashSessions": 0,
+      "shiftClosed": true
+     }
+    },
+    {
+     "k": "afterFinalCloseNewSessions",
+     "v": {
+      "created": 0
+     }
+    },
+    {
+     "k": "saleAfterFinalClose",
+     "v": {
+      "ok": false,
+      "code": "CUSTODY_AUTH_REQUIRED",
+      "msg": "برای ثبت فروش، ابتدا مسئول حاضر صندوق باید با رمز شخصی و شمارش فیزیکی صندوق را تحویل بگیرد."
+     }
+    },
+    {
+     "k": "f0AfterFinalClose",
+     "v": {
+      "ok": false,
+      "code": "CUSTODY_AUTH_REQUIRED",
+      "msg": "برای ثبت فروش، ابتدا مسئول حاضر صندوق باید با رمز شخصی و شمارش فیزیکی صندوق را تحویل بگیرد."
+     }
+    },
+    {
+     "k": "morningOpen",
+     "v": {
+      "ok": true,
+      "countStatus": "COUNTED",
+      "newCases": 1
+     }
+    },
+    {
+     "k": "afterAutoClose",
+     "v": {
+      "state": "NO_SESSION",
+      "unresolved": 1,
+      "nightExpectedKnown": true,
+      "shiftClosed": true
+     }
+    },
+    {
+     "k": "saleAfterAutoClose",
+     "v": {
+      "ok": false,
+      "code": "CUSTODY_AUTH_REQUIRED",
+      "msg": "برای ثبت فروش، ابتدا مسئول حاضر صندوق باید با رمز شخصی و شمارش فیزیکی صندوق را تحویل بگیرد."
+     }
+    },
+    {
+     "k": "morningWitnessWithoutNote",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "مغایرت صندوق # ریال است (اضافه) و از آستانه‌ی # ریال گذشته."
+     }
+    },
+    {
+     "k": "morningWitness",
+     "v": {
+      "ok": true,
+      "newCashSessions": 1,
+      "expected": 700000,
+      "counted": 3600000,
+      "diff": 2900000
+     }
+    },
+    {
+     "k": "openAfterWitness",
+     "v": {
+      "ok": true
+     }
+    },
+    {
+     "k": "f0WhileOpen",
+     "v": {
+      "ok": true,
+      "daysDone": 1
+     }
+    },
+    {
+     "k": "saleAfterF0InCustody",
+     "v": {
+      "ok": false,
+      "code": null,
+      "msg": "ثبت فاکتور فروش در تاریخ # ممکن نیست، چون این دوره بسته شده است:"
+     }
+    }
+   ]
+  },
+  {
+   "id": "R",
+   "steps": [
+    [
+     "replace current data with the morning backup",
+     "OK",
+     "ok",
+     {
+      "mode": "replace",
+      "willRestart": true
+     }
+    ]
+   ],
+   "findings": [],
+   "obs": [
+    {
+     "k": "replace",
+     "v": {
+      "ok": true,
+      "willRestart": true,
+      "relaunched": 1,
+      "liveEqualsBackup": true,
+      "liveHasCustody": false,
+      "custodyBefore": true,
+      "safetyBackupMade": true,
+      "safetyHasEverything": true,
+      "lastRestoreNote": true,
+      "safetyInRestoreList": false,
+      "restoreListSources": [
+       "auto"
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -7,7 +7,9 @@ import { call, CH } from '../lib/api'
 import { faDigits, toLatinDigits } from '@shared/jalali'
 import { panelTitle, type PanelKey } from '@shared/panels'
 import type { PanelAuthState, PanelGateStatus } from '@shared/types'
-import { RemoteRequestBox } from './RemoteRequestBox'
+import { RemoteGrantBanner, RemoteRequestBox } from './RemoteRequestBox'
+import OneTimeCodeBox from './OneTimeCodeBox'
+import { remoteImplementationReady } from '@shared/remoteAuthChannels'
 
 /** ثانیه ⇒ «۲:۳۵» (یا «۱:۰۵:۰۰» برای قفل‌های بلند). */
 function countdownLabel(total: number): string {
@@ -61,6 +63,9 @@ export default function ManagerGate({
   const { lockEnabled, loaded: locksLoaded } = usePanelLock(panel)
   const lockOff = locksLoaded && !lockEnabled
   const open = canOpen(panel) || lockOff
+  const [accessEnded, setAccessEnded] = useState(false)
+  const wasOpen = useRef(open)
+  useEffect(() => { if (remoteImplementationReady() && wasOpen.current && !open) setAccessEnded(true); if (open) setAccessEnded(false); wasOpen.current = open }, [open])
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -121,7 +126,7 @@ export default function ManagerGate({
     return () => window.clearInterval(id)
   }, [open, refreshGate])
 
-  if (open) return <>{children}</>
+  if (open) return <>{remoteImplementationReady() && <RemoteGrantBanner panel={panel} />}{remoteImplementationReady() && panel === 'settings' && !window.location.hash.startsWith('#/remote-link') && <div className="mb-3"><a className="btn" href="#/remote-link">کنترل از راه دور با گوشی</a></div>}{children}</>
 
   const locked = !!gate?.locked && gate.remainingSeconds > 0
   /** چند تلاش ناموفق دیگر تا قفل شدن (فقط وقتی قفل موقت روشن است) */
@@ -156,10 +161,12 @@ export default function ManagerGate({
       </div>
       <div className="p-4 space-y-3">
         <p className="leading-7">{reason}</p>
+        {accessEnded && <div role="status" className="rounded border border-amber-300 bg-amber-50 px-3 py-2">دسترسی این پنل پایان یافت یا لغو شد.</div>}
         <label className="block">
           <div className="mb-1 font-bold">رمز مدیر{hasSecond ? ` یا رمز اختصاصی «${panelTitle(panel)}»` : ''}</div>
           {/* مورد ۲ — همین اینپوت با آیکون چشم: کاربر می‌تواند رمز تایپ‌شده را ببیند */}
           <PasswordField
+            typedOnly
             ref={inputRef}
             className="inp text-center text-lg tracking-widest"
             value={password}
@@ -211,8 +218,9 @@ export default function ManagerGate({
             </button>
           )}
         </div>
-        {/* راه دور — فقط افزودنی */}
-        <RemoteRequestBox panel={panel} />
+        {/* طرح ۱۴۰۵ §۳-۷ و §۳-۱۵: «کد یک‌بارمصرف» کنار درخواست مجوز؛ بی هاب و اینترنت هم کار می‌کند */}
+        <OneTimeCodeBox target={panel} />
+        {remoteImplementationReady() && <RemoteRequestBox panel={panel} />}
 
         <div className="kbd leading-6">
           پیش‌فرض برنامه این است که «کارمند پشت سیستم است»، پس پنل‌های حساس قفل‌اند. با <b>رمز مدیر</b> همه‌ی این پنل‌ها

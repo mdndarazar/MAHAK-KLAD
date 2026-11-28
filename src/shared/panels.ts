@@ -42,6 +42,8 @@
  * ===========================================================================
  */
 
+import { GATE_ACTION_LOCK_KEYS, GATE_CATALOG, GATE_GROUPS, GATE_PART_KEYS, gateEntry, type GateCatalogEntry } from './gateCatalog'
+
 /** کلید هر پنل قفل‌دار — همین رشته، کلید ذخیره‌سازی رمز دومش هم هست. */
 export const PANEL_KEYS = {
   settings: 'settings',
@@ -205,7 +207,59 @@ export const PANEL_KEYS = {
    * لغو یک پیامِ زمان‌بندی‌شده برگشت‌پذیر است، ولی لغو گروهی می‌تواند
    * ده‌ها پیام را با یک کلیک بخواباند؛ پس قفل جدا دارد.
    */
-  smsDanger: 'sms-danger'
+  smsDanger: 'sms-danger',
+
+  // ------------------------------------------------------------------------
+  // طرح ۱۴۰۵ (معماری §۳-۳ و §۳-۱۰) — هفت «قسمت» تازه که امروز «فقط نشست مدیر» بودند،
+  // و ۳۶ «قفل کار» (`act-*`). عنوان، گروه و رده از `gateCatalog.ts` می‌آیند.
+  // ------------------------------------------------------------------------
+  creditPrint: 'credit-print',
+  staff: 'staff',
+  staffSensitiveFile: 'staff-sensitive-file',
+  custodySettings: 'custody-settings',
+  custodyControlReport: 'custody-control-report',
+  custodyDiscrepancyCases: 'custody-discrepancy-cases',
+  custodyWorkPlans: 'custody-work-plans',
+  actBackupExport: 'act-backup-export',
+  actBackupSettings: 'act-backup-settings',
+  actBackupNow: 'act-backup-now',
+  actBackupForget: 'act-backup-forget',
+  actBackupRestore: 'act-backup-restore',
+  actBackupMerge: 'act-backup-merge',
+  actFactoryReset: 'act-factory-reset',
+  actCreditReprint: 'act-credit-reprint',
+  actCreditThirdPrint: 'act-credit-third-print',
+  actCreditIssueManual: 'act-credit-issue-manual',
+  actCreditCodeReveal: 'act-credit-code-reveal',
+  actCreditInvoiceLookup: 'act-credit-invoice-lookup',
+  actPaymentsEditOpenShift: 'act-payments-edit-open-shift',
+  actChequeEditCleared: 'act-cheque-edit-cleared',
+  actChequeVoidCleared: 'act-cheque-void-cleared',
+  actChequeVoidPending: 'act-cheque-void-pending',
+  actChequeStatus: 'act-cheque-status',
+  actChequeReplace: 'act-cheque-replace',
+  actRefundFull: 'act-refund-full',
+  actRefundCardReturn: 'act-refund-card-return',
+  actRefundCardExchange: 'act-refund-card-exchange',
+  actReturnAfterDeadline: 'act-return-after-deadline',
+  actChargesBelowAuto: 'act-charges-below-auto',
+  actPriceBelowReference: 'act-price-below-reference',
+  actOverpayCreditAboveCap: 'act-overpay-credit-above-cap',
+  actClosedPeriodEntry: 'act-closed-period-entry',
+  actCloseStaleSession: 'act-close-stale-session',
+  actForceStaffChange: 'act-force-staff-change',
+  actMasterOverride: 'act-master-override',
+  actCustodyOpenOutsideShift: 'act-custody-open-outside-shift',
+  actAccountingPolicy: 'act-accounting-policy',
+  actExchangeOverpayGuard: 'act-exchange-overpay-guard',
+  actClockOffset: 'act-clock-offset',
+  actShiftByClock: 'act-shift-by-clock',
+  actOvertimeCap: 'act-overtime-cap',
+  actSettingsManagerSections: 'act-settings-manager-sections',
+  actRawSensitiveSetting: 'act-raw-sensitive-setting',
+  actSalesReportsPurge: 'act-sales-reports-purge',
+  actDataArchivePurge: 'act-data-archive-purge',
+  actCostLedgerRebuild: 'act-cost-ledger-rebuild'
 } as const
 
 export type PanelKey = (typeof PANEL_KEYS)[keyof typeof PANEL_KEYS]
@@ -216,7 +270,17 @@ export interface PanelDef {
   title: string
   /** یک خط توضیح این‌که این رمز دوم به چه کسی داده می‌شود */
   hint: string
+  /** طرح ۱۴۰۵ §۳-۳ — «قسمت» (مجوز با مدت) یا «قفل کار» (کد و مجوز یک بار) */
+  kind: PanelKind
+  /** نام ماژولی که در «قفل ماژول‌ها» و گوشی زیرش می‌آید */
+  group: string
+  /** ردهٔ کد: عادی (۲۵ کلید)، پولی (۱۲ کلید)، حساس (۷ قسمت تازه و همهٔ قفل‌های کار) */
+  tier: PanelTier
 }
+
+export type PanelKind = 'part' | 'action'
+export type PanelTier = 'normal' | 'money' | 'sensitive'
+type PanelBase = Omit<PanelDef, 'kind' | 'group' | 'tier'>
 
 /**
  * فهرست کامل پنل‌های قفل‌دار، به ترتیبی که در «تنظیمات رمز» نشان داده می‌شوند.
@@ -224,7 +288,7 @@ export interface PanelDef {
  * ⚠️ افزودن یک پنل قفل‌دار جدید = یک ردیف اینجا + یک `ManagerGate` با همان کلید.
  * این کار **اجباری** است، نه اختیاری (قانون پروژه را در بالای همین فایل ببینید).
  */
-export const LOCKED_PANELS: readonly PanelDef[] = [
+const BASE_PANELS: readonly PanelBase[] = [
   {
     key: PANEL_KEYS.wholesaleInvoices,
     title: 'فاکتورهای فروش عمده (فهرست)',
@@ -246,10 +310,9 @@ export const LOCKED_PANELS: readonly PanelDef[] = [
     title: 'پرداخت‌های مدیر — کارت‌به‌کارت (تب گزارشات فروش)',
     hint:
       'بررسی و ثبت «پرداخت شد» برای بازپرداخت‌های کارت‌به‌کارت — فقط مدیر. ' +
-      '⚠️ جلسه ۴۱: **بازگرداندن کالای برگشتی به موجودی قابل‌فروش هم با همین قفل انجام می‌شود**؛ ' +
+      '⚠️ بازگرداندن کالای برگشتی به موجودی قابل‌فروش هم با همین قفل انجام می‌شود؛ ' +
       'کالای یک برگشت/تعویضِ کارت‌به‌کارت تا زدن «پرداخت شد» (یا رد/لغو با تأیید صریح) در همین ' +
-      'پنل، معلق می‌ماند و در هیچ صفحه‌ی دیگری دکمه‌ی آزادسازی ندارد. این قفل هم در رندرر ' +
-      '(ManagerGate) و هم سمت سرور (cardTransfer:pay و cardTransfer:cancel) بررسی می‌شود.'
+      'پنل، معلق می‌ماند و در هیچ صفحه‌ی دیگری دکمه‌ی آزادسازی ندارد. این قفل هم در صفحه و هم در خود برنامه سنجیده می‌شود.'
   },
   {
     key: PANEL_KEYS.staffPerformance,
@@ -278,7 +341,7 @@ export const LOCKED_PANELS: readonly PanelDef[] = [
     key: PANEL_KEYS.wooSync,
     title: 'همگام‌سازی موجودی سایت',
     hint:
-      'اتصال WooCommerce فقط برای stock_quantity. این قفل اجازه‌ی اتصال/قطع و اعمال موجودی سایت را می‌دهد؛ قیمت، سفارش، مشتری و گزارش فروش سایت وارد برنامه نمی‌شود.'
+      'اتصال WooCommerce فقط برای تعداد موجودی. این قفل اجازه‌ی اتصال/قطع و اعمال موجودی سایت را می‌دهد؛ قیمت، سفارش، مشتری و گزارش فروش سایت وارد برنامه نمی‌شود.'
   },
   {
     key: PANEL_KEYS.managementProfit,
@@ -308,16 +371,16 @@ export const LOCKED_PANELS: readonly PanelDef[] = [
   {
     key: PANEL_KEYS.posDiscount,
     title: 'تخفیف پنل فروش (کالا + کل فاکتور)',
-    hint: 'قفل ریز بند ۳: تا باز نشود فروشنده نمی‌تواند تخفیف بزند. مقدار مجاز تخفیف را مدیر در ماژول «تخفیف و افزایش/کاهش قیمت» تعیین می‌کند.'
+    hint: 'قفل ریز: تا باز نشود فروشنده نمی‌تواند تخفیف بزند. مقدار مجاز تخفیف را مدیر در ماژول «تغییر قیمت گروهی (تخفیف، افزایش و کاهش قیمت)» تعیین می‌کند.'
   },
   {
     key: PANEL_KEYS.posCentralWithdrawToggle,
     title: 'چک‌باکس «برداشت خودکار از انبار مرکزی»',
-    hint: 'قفل ریز مورد ۴ — دو اختیار با یک رمز: ۱) روشن/خاموش کردن تیک «برداشت خودکار از انبار مرکزی» (در پنل فروش، فاکتور عمده و تنظیمات انبار مرکزی)، ۲) انتخاب انبار مبدأ کسر هنگام کمبود موجودی در پنل فروش تکی (وقتی تیک خاموش است). همین رمز دوم هر دو را باز می‌کند؛ رمز دومش را به سرشیفت یا انباردار بدهید، بدون دادن رمز مدیر.'
+    hint: 'قفل ریز — دو اختیار با یک رمز: ۱) روشن/خاموش کردن تیک «برداشت خودکار از انبار مرکزی» (در پنل فروش، فاکتور عمده و تنظیمات انبار مرکزی)، ۲) انتخاب انبار مبدأ کسر هنگام کمبود موجودی در پنل فروش تکی (وقتی تیک خاموش است). همین رمز دوم هر دو را باز می‌کند؛ رمز دومش را به سرشیفت یا انباردار بدهید، بدون دادن رمز مدیر.'
   },
   {
     key: PANEL_KEYS.priceAdjust,
-    title: 'ماژول تخفیف و افزایش/کاهش قیمت',
+    title: 'تغییر قیمت گروهی (تخفیف، افزایش و کاهش قیمت)',
     hint: 'تغییر گروهی قیمت کالاها (همه / یک دسته / کالاهای انتخابی) و سیاست تخفیف پنل فروش — حساس‌ترین ماژول، معمولاً فقط مدیر.'
   },
   {
@@ -325,17 +388,17 @@ export const LOCKED_PANELS: readonly PanelDef[] = [
     title: 'انتقال از انبار مرکزی به انبار فروشگاه',
     hint:
       'تنها مسیری که انبار مرکزی موجودی واقعی کالاهای فروشگاه را زیاد می‌کند؛ قفل جدا از خود ماژول انبار مرکزی. ' +
-      'این رمز فقط انتقال به کالایی که **از قبل در فروشگاه هست** را باز می‌کند و اجازه‌ی ساختن کالای تازه نمی‌دهد؛ ' +
+      'این رمز فقط انتقال به کالایی که از قبل در فروشگاه هست را باز می‌کند و اجازه‌ی ساختن کالای تازه نمی‌دهد؛ ' +
       'برای آن، ردیف بعدی («ساخت کالای جدید هنگام انتقال از انبار مرکزی») رمز جدا دارد.'
   },
   {
     key: PANEL_KEYS.secondaryToStoreNewProduct,
     title: 'ساخت کالای جدید هنگام انتقال از انبار مرکزی',
     hint:
-      'همین رمز فقط اجازه‌ی **ساختن کالا/واریانت تازه هنگام انتقال از انبار مرکزی** را می‌دهد و پنل «کالاها» را ' +
+      'همین رمز فقط اجازه‌ی ساختن کالا/واریانت تازه هنگام انتقال از انبار مرکزی را می‌دهد و پنل «کالاها» را ' +
       'باز نمی‌کند (پس حذف کالا، تغییر قیمت و ورود موجودی همچنان بسته می‌ماند). رمز دومش را به انباردار بدهید ' +
-      'بی آن‌که رمز پنل کالاها را به او بدهید. تفاوتش با ردیف بالا: آن یکی انتقال به کالای *موجود* است، این یکی ' +
-      'ساخت کالای *جدید* هنگام همان انتقال. هر دو قفل با هم سنجیده می‌شوند و رمز مدیر هر دو را باز می‌کند.'
+      'بی آن‌که رمز پنل کالاها را به او بدهید. تفاوتش با ردیف بالا: آن یکی انتقال به کالای موجود است، این یکی ' +
+      'ساخت کالای جدید هنگام همان انتقال. هر دو قفل با هم سنجیده می‌شوند و رمز مدیر هر دو را باز می‌کند.'
   },
   { key: PANEL_KEYS.chargesTaxPos, title: 'عوارض و مالیات · پنل فروش', hint: 'درصد عوارض و مالیات فروش خرده.' },
   { key: PANEL_KEYS.chargesServicePos, title: 'حق سرویس · پنل فروش', hint: 'حق سرویس فروش خرده.' },
@@ -401,6 +464,66 @@ export const LOCKED_PANELS: readonly PanelDef[] = [
 ]
 
 /**
+ * طرح ۱۴۰۵ §۳-۳ — رده‌بندی ۳۷ کلید امروز: [گروه، رده]. همه «قسمت»اند؛ پنج کلید استثنا
+ * (credit-void، credit-bulk-issue، credit-settings، sms-provider، woo-sync) هم قسمت‌اند و هم کلید
+ * روشن/خاموش و رمز دوم/سوم کارهای خودشان (۲۵-۱۱). کلید بی‌رده در آزمون کاتالوگ رد می‌شود.
+ */
+const PG = Object.freeze({
+  wholesale: 'فاکتور فروش عمده', sales: GATE_GROUPS.sales, reports: GATE_GROUPS.reports, stock: 'کالا و انبار',
+  management: GATE_GROUPS.management, woo: GATE_GROUPS.woo, salesCredit: GATE_GROUPS.salesCredit,
+  returns: GATE_GROUPS.returns, cashClose: GATE_GROUPS.cashClose, consolidation: 'تجمیع و انتقال',
+  settings: GATE_GROUPS.settings, purchase: 'فاکتور خرید', price: 'تخفیف و تغییر قیمت',
+  charges: GATE_GROUPS.charges, credit: GATE_GROUPS.credit, sms: GATE_GROUPS.sms
+} as const)
+const BASE_CLASS: Readonly<Record<string, readonly [string, PanelTier]>> = Object.freeze({
+  'wholesale-invoices': [PG.wholesale, 'normal'], 'wholesale-invoice-module': [PG.wholesale, 'normal'],
+  pos: [PG.sales, 'normal'], 'pos-print-toggle': [PG.sales, 'normal'], 'card-transfers': [PG.reports, 'money'],
+  'staff-performance': [PG.reports, 'normal'], stocktake: [PG.stock, 'normal'], 'sales-reports': [PG.reports, 'normal'],
+  'bridge-diagnostics': [PG.reports, 'normal'], 'management-reports': [PG.management, 'normal'],
+  'woo-sync': [PG.woo, 'normal'], 'management-profit': [PG.management, 'normal'],
+  'sales-credit': [PG.salesCredit, 'money'], 'sales-return': [PG.returns, 'money'],
+  'sales-return-correction': [PG.returns, 'money'], 'cash-close': [PG.cashClose, 'money'],
+  consolidation: [PG.consolidation, 'money'], settings: [PG.settings, 'normal'], products: [PG.stock, 'normal'],
+  purchase: [PG.purchase, 'normal'], 'secondary-stock': [PG.stock, 'normal'], 'pos-discount': [PG.sales, 'money'],
+  'pos-central-withdraw-toggle': [PG.sales, 'normal'], 'price-adjust': [PG.price, 'money'],
+  'secondary-to-store': [PG.stock, 'normal'], 'secondary-to-store-new-product': [PG.stock, 'normal'],
+  'charges-tax-pos': [PG.charges, 'normal'], 'charges-service-pos': [PG.charges, 'normal'],
+  'charges-tax-wholesale': [PG.charges, 'normal'], 'charges-service-wholesale': [PG.charges, 'normal'],
+  'credit-management': [PG.credit, 'money'], 'credit-bulk-issue': [PG.credit, 'money'],
+  'credit-void': [PG.credit, 'money'], 'credit-settings': [PG.credit, 'money'],
+  'sms-panel': [PG.sms, 'normal'], 'sms-provider': [PG.sms, 'normal'], 'sms-danger': [PG.sms, 'normal']
+})
+
+/** ۴۷ ردیف تازه (۷ قسمت + ۴۰ قفل کار؛ چهار قفل کار از دفتر آزمون، دستهٔ ۳)، همه «حساس»؛ عنوان و گروه از همان کاتالوگ. */
+const PLAN1405_ROWS: readonly PanelDef[] = [
+  ...GATE_PART_KEYS.map((key): PanelDef => ({
+    key: key as PanelKey, title: GATE_CATALOG[key].titleFa, kind: 'part', group: GATE_CATALOG[key].group, tier: 'sensitive',
+    hint: `رمز دوم این قسمت را فقط به کسی بدهید که باید «${GATE_CATALOG[key].titleFa}» را ببیند یا تغییر دهد.`
+  })),
+  ...GATE_ACTION_LOCK_KEYS.map((key): PanelDef => {
+    const row = Object.values(GATE_CATALOG).find((e) => e.lockKey === key) as GateCatalogEntry
+    return {
+      key: key as PanelKey, title: row.titleFa, kind: 'action', group: row.group, tier: 'sensitive',
+      hint: row.lockKind === 'policy'
+        ? 'قفل یک کار؛ روشن/خاموش در «سیاست حسابداری». رمز دوم/سوم هر بار تایپ می‌شود؛ کد حساس یا مجوز راه دور یک بار.'
+        : 'قفل یک کار: رمز دوم/سوم آن هر بار تایپ می‌شود؛ کد حساس یا مجوز راه دور فقط یک بار آن را باز می‌کند.'
+    }
+  })
+]
+
+/**
+ * فهرست کامل کلیدهای قفل (۸۴ کلید)، به ترتیبی که در «تنظیمات رمز» نشان داده می‌شوند.
+ * هر ردیف `kind`، `group` و `tier` دارد (طرح ۱۴۰۵ §۳-۳).
+ */
+export const LOCKED_PANELS: readonly PanelDef[] = Object.freeze([
+  ...BASE_PANELS.map((p): PanelDef => {
+    const [group, tier] = BASE_CLASS[p.key] ?? ['', 'normal']
+    return { ...p, kind: 'part', group, tier }
+  }),
+  ...PLAN1405_ROWS
+])
+
+/**
  * مورد ۴ — متن گیت چک‌باکس «برداشت خودکار از انبار مرکزی».
  * یک تنظیم واحد در سه محل (پنل فروش، فاکتور فروش عمده، تنظیمات انبار مرکزی) ⇒
  * یک قفل و یک متن، در یک جا نوشته می‌شود تا هر سه‌جا یکسان بماند.
@@ -425,6 +548,91 @@ export function panelTitle(key: string): string {
 }
 
 /**
+ * دفتر آزمون ۴-۸۱ — «با رمز کدام بخش»: نام کوتاه یک قفل، همان عنوان «قفل ماژول‌ها» (جایی که مدیر رمز دوم یا سومش را
+ * می‌گذارد) بی توضیح پرانتزی پایانش؛ مثلاً «نسیه (تب گزارشات فروش)» ⇐ «نسیه».
+ */
+export function lockName(key: string): string {
+  return panelTitle(key).replace(/\s*\([^()]*\)\s*$/, '') || key
+}
+
+/** دفتر آزمون ۴-۸۱: نوشتهٔ قفلی که فقط رمز مدیر بازش می‌کند */
+export const MANAGER_ONLY_PASSWORD_HINT = 'فقط رمز مدیر (یا کد یک‌بارمصرف یا مجوز راه دور)'
+
+/**
+ * دفتر آزمون ۴-۸۱ — نوشتهٔ یک‌شکل «دقیقاً با کدام رمز باز می‌شود» برای پنجرهٔ «باز کردن قفل»، از روی کاتالوگ و یک پرسش
+ * فقط‌خواندنی (`hasOwn(key)`: برای این کلید رمز دوم یا سوم گذاشته شده؟). همان قاعدهٔ main:
+ *  - «قفل کار» (`unlockActionWithPassword`): رمز جدای همان کار، وگرنه برای کار strict رمز دوم یا سوم ماژول مادر
+ *    (`verifyPanel`)، وگرنه فقط رمز مدیر؛
+ *  - «قسمت»: رمز دوم یا سوم همان قسمت، وگرنه فقط رمز مدیر.
+ * فقط نمایش است؛ تصمیم دروازه و شمارش رمز اشتباه همان است. «کلیدسازی» این پنجره را ندارد.
+ */
+export function gatePasswordHint(id: string, hasOwn: (key: string) => boolean): string {
+  const entry = gateEntry(id)
+  if (!entry || entry.category === 1) return 'فقط خود مدیر، با رمز تایپی مدیر'
+  if (entry.category === 2) {
+    return hasOwn(entry.lockKey) ? `رمز مدیر، یا رمز دوم یا سوم «${lockName(entry.lockKey)}»` : MANAGER_ONLY_PASSWORD_HINT
+  }
+  const parent = entry.origin === 'STRICT' && entry.parentPanel ? entry.parentPanel : null
+  // کلید خود کار همان کلید مادر است (مثل «ابطال و تغییر اعتبار»): رمز دوم یا سوم همان کلید، رمز مخصوص همین کار است
+  const own = hasOwn(entry.lockKey) && (entry.lockKey !== entry.parentPanel || parent === entry.lockKey)
+  const ownText = `رمز دوم یا سوم مخصوص «${lockName(entry.lockKey)}»`
+  if (parent && parent !== entry.lockKey) {
+    const p = lockName(parent)
+    return own
+      ? `رمز مدیر، یا ${ownText}، یا رمز دوم یا سوم بخش «${p}»`
+      : `این کار با رمز بخش «${p}» باز می‌شود: رمز مدیر، یا رمز دوم یا سوم «${p}»`
+  }
+  return own ? `رمز مدیر، یا ${ownText}` : MANAGER_ONLY_PASSWORD_HINT
+}
+
+/**
+ * طرح ۱۴۰۵ §۳-۱۵ (۲۵-۱۰) — قسمت کد یک‌بارمصرف هر کلید قفل: فقط «قسمت»های عادی با کد «سایر ماژول‌ها»؛
+ * قسمت‌های پولی، قسمت‌های تازه و همهٔ قفل‌های کار با کد «حساس». کلید ناشناس ⇒ null («پیش‌فرض رد»).
+ * متن پرانتزهای دو قسمت در تب «رمز مدیر و خروج» هم از همین ساخته می‌شود تا متن و رفتار جدا نشوند.
+ */
+export type OneTimeCodeSection = 'sensitive' | 'other'
+export function codeSectionOfPanel(key: string): OneTimeCodeSection | null {
+  const p = LOCKED_PANELS.find((x) => x.key === key)
+  if (!p) return null
+  return p.kind === 'part' && p.tier === 'normal' ? 'other' : 'sensitive'
+}
+
+/**
+ * دفتر آزمون ۴-۳۰ — نوع قفل در پیام‌ها، از همان مرز کدها و مدت‌ها (۴-۲۸): شناسهٔ کار کاتالوگ یا کلید «قفل کار» ⇒ «کار
+ * یک‌باره»؛ قسمتی که کدش «سایر ماژول‌ها»ست ⇒ «ماژول معمولی»؛ هر قسمت دیگر (پولی، تازه یا ناشناس) ⇒ «ماژول پولی و حساس».
+ * نشانهٔ رنگی هر نوع جداست.
+ */
+export type LockKind = 'action' | 'normal' | 'sensitive'
+export const LOCK_KIND_TITLES: Readonly<Record<LockKind, string>> = Object.freeze({ action: 'کار یک‌باره', normal: 'ماژول معمولی', sensitive: 'ماژول پولی و حساس' })
+export const LOCK_KIND_SIGNS: Readonly<Record<LockKind, string>> = Object.freeze({ action: '🔴', normal: '🟢', sensitive: '🟠' })
+export function lockKindOf(key: string): LockKind {
+  if (gateEntry(key)?.category === 3 || LOCKED_PANELS.some((p) => p.key === key && p.kind === 'action')) return 'action'
+  return codeSectionOfPanel(key) === 'other' ? 'normal' : 'sensitive'
+}
+
+/** دفتر آزمون ۴-۳۲: جملهٔ کوتاه بالای فهرست‌های راهنمای مدت‌ها، دفعات و کدها */
+export const LOCK_KIND_HELP = 'ماژول یعنی یک بخش کامل که برای مدتی باز می‌ماند؛ کار یک‌باره یعنی یک کار حساس داخل یک بخش که هر مجوزش فقط برای همان کار است.'
+export interface LockKindItem { id: string; title: string }
+/**
+ * دفتر آزمون ۴-۳۲ — سه فهرست راهنما زیر هر تنظیم، از همان طبقه‌بندی‌ای که برنامه با آن کار می‌کند (`lockKindOf`): قسمت‌های
+ * «ماژول معمولی»، قسمت‌های «ماژول پولی و حساس» و «کارهای یک‌باره» به تفکیک بخش؛ هر قسمت و هر کار دقیقاً در یکی است.
+ */
+export function lockKindLists(): { normal: LockKindItem[]; sensitive: LockKindItem[]; actions: Array<{ group: string; items: LockKindItem[] }> } {
+  const parts = LOCKED_PANELS.filter((p) => p.kind === 'part' && lockKindOf(p.key) !== 'action')
+  const groups = new Map<string, LockKindItem[]>()
+  for (const entry of Object.values(GATE_CATALOG)) {
+    if (entry.category !== 3) continue
+    if (!groups.has(entry.group)) groups.set(entry.group, [])
+    groups.get(entry.group)!.push({ id: entry.id, title: entry.titleFa })
+  }
+  return {
+    normal: parts.filter((p) => lockKindOf(p.key) === 'normal').map((p) => ({ id: p.key, title: p.title })),
+    sensitive: parts.filter((p) => lockKindOf(p.key) === 'sensitive').map((p) => ({ id: p.key, title: p.title })),
+    actions: [...groups].map(([group, items]) => ({ group, items }))
+  }
+}
+
+/**
  * ===========================================================================
  * بند ۱ — «مدیریت قفل رمز دوم به‌صورت ماژولار» (تنظیمات → رمز → قفل ماژول‌ها)
  *
@@ -437,6 +645,9 @@ export function panelTitle(key: string): string {
  *   ۱) **پیش‌فرض همه‌چیز قفل است.** نبودن کلید در تنظیمات = قفل. مقدار خراب یا
  *      نصفه‌نیمه هم = قفل. هیچ مسیری وجود ندارد که «سکوت تنظیمات» به معنی
  *      «قفل باز» تفسیر شود؛ پس یک فایل تنظیمات پاک‌شده، برنامه را باز نمی‌کند.
+ *      تنها استثنا (دفتر آزمون ۴-۵۳): «پنل فروش» در نصب تازه قفل ندارد (`parsePanelLocks`)؛ ذخیره همیشه
+ *      همهٔ کلیدها را می‌نویسد، پس جایی که مدیر قفل‌ها را ذخیره کرده همان می‌ماند. `allLockedConfig`
+ *      (جایگزین پیش از خواندن یا هنگام خطا) همچنان همه را قفل می‌داند.
  *   ۲) تغییر این تنظیم **رمز مدیر** می‌خواهد، نه رمز دوم پنل تنظیمات. وگرنه
  *      کارمندی که رمز دوم «تنظیمات» را دارد می‌توانست قفل همه‌ی پنل‌ها را
  *      بردارد و کل برنامه را باز کند.
@@ -457,9 +668,11 @@ export function panelTitle(key: string): string {
  */
 /**
  * پنل‌هایی که قفلشان *قابل برداشتن نیست* (قاعده‌ی ۴ بالا).
- * عمداً یک فهرست کوتاه و ثابت است، نه یک گزینه‌ی تنظیمات.
+ * طرح ۱۴۰۵ (۲۵-۱۱، اصل «د»): همهٔ قفل‌ها خاموش‌شدنی‌اند، از جمله «تنظیمات»؛ پس فهرست خالی است.
+ * کارهای خطرناک داخل تنظیمات (بازگردانی، ادغام، پاک‌سازی، صفر کردن) هر کدام «قفل کار» جدای خودشان را
+ * دارند و با خاموش شدن قفل «تنظیمات» خاموش نمی‌شوند (§۳-۱، «جدا بودن»).
  */
-export const ALWAYS_LOCKED_PANELS: readonly string[] = [PANEL_KEYS.settings]
+export const ALWAYS_LOCKED_PANELS: readonly string[] = []
 
 /**
  * ===========================================================================
@@ -515,10 +728,11 @@ export function allLockedConfig(): PanelLockConfig {
  * خواندن ایمن سیاست قفل.
  * ورودی خراب، رشته‌ی بی‌ربط، کلید ناشناس یا مقدار غیر‌بولین ⇒ نادیده گرفته
  * می‌شود و همان پیش‌فرض «قفل» می‌ماند. فقط و فقط مقدار *دقیقاً* `false` روی یک
- * کلید معتبر، قفل را خاموش می‌کند.
+ * کلید معتبر، قفل را خاموش می‌کند. دفتر آزمون ۴-۵۳: پیش‌فرض «پنل فروش» باز است.
  */
 export function parsePanelLocks(raw: unknown): PanelLockConfig {
   const out = allLockedConfig()
+  out[PANEL_KEYS.pos] = false
   let obj: any = raw
   if (typeof obj === 'string') {
     try {
