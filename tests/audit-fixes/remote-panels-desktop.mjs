@@ -14,7 +14,7 @@ import { LOCKED_PANELS } from '../../src/shared/panels.ts'
 // lock-screen button. Real IPC handlers and registry in an isolated bundle
 // (simulated Electron window); the renderer check is structural only.
 test('the phone-unlockable panels are real locked panels with titles', () => {
-  assert.deepEqual([...REMOTE_PANELS].slice(0, 44), LOCKED_PANELS.filter(item => item.kind === 'part').map(item => item.key)); assert.equal(REMOTE_PANELS.length, 92)
+  assert.deepEqual([...REMOTE_PANELS].slice(0, 44), LOCKED_PANELS.filter(item => item.kind === 'part').map(item => item.key)); assert.equal(REMOTE_PANELS.length, 97)
   return import('../../src/shared/gateCatalog.ts').then(({ GATE_CATALOG }) => { for (const key of REMOTE_PANELS) {
     const panel = LOCKED_PANELS.find(item => item.key === key) ?? LOCKED_PANELS.find(item => GATE_CATALOG[key]?.category === 3 && item.key === GATE_CATALOG[key].lockKey)
     assert.ok(panel && typeof panel.title === 'string' && panel.title.length > 0, key)

@@ -3,7 +3,7 @@
  *
  * هر کلید قفل `kind`، `group` و `tier` دارد؛ هر شناسهٔ کار کلید معتبر دارد؛ هر کلید در دقیقاً یکی از دو ردهٔ کد
  * («سایر ماژول‌ها» برای عادی، «حساس» برای پولی، قسمت‌های تازه و قفل‌های کار) است؛ کلید بی‌رده رد می‌شود؛ تابع‌های
- * فهرست‌ساز فقط شناسهٔ کاتالوگ می‌دهند؛ REMOTE_PANELS = ۴۴ قسمت + ۴۸ کار = ۹۲ سیاست؛ و هیچ سقفی (فرزند هاب،
+ * فهرست‌ساز فقط شناسهٔ کاتالوگ می‌دهند؛ REMOTE_PANELS = ۴۴ قسمت + ۵۳ کار = ۹۷ سیاست؛ و هیچ سقفی (فرزند هاب،
  * ناظر هاب، approvalPanels، صفحهٔ گوشی) کمتر از شمار سیاست‌ها نیست.
  *
  *   node --import ./test/harness/register.mjs tests/audit-fixes/plan1405-gate-catalog.mjs
@@ -24,11 +24,11 @@ const read = (p) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8')
 
 console.log('\n— ۱) کلیدها: ۸۰ ردیف، سه فیلد، رده‌ها')
 const keys = LOCKED_PANELS.map((p) => p.key)
-ok('۸۰ کلید یکتا، برابر PANEL_KEYS', keys.length === 80 && new Set(keys).size === 80 && Object.values(PANEL_KEYS).length === 80)
+ok('۸۴ کلید یکتا، برابر PANEL_KEYS', keys.length === 84 && new Set(keys).size === 84 && Object.values(PANEL_KEYS).length === 84)
 ok('هر ردیف kind، group و tier دارد', LOCKED_PANELS.every((p) => ['part', 'action'].includes(p.kind) && typeof p.group === 'string' && p.group && ['normal', 'money', 'sensitive'].includes(p.tier) && p.title && p.hint))
 const count = (f, v) => LOCKED_PANELS.filter((p) => p[f] === v).length
-ok('۲۵ عادی، ۱۲ پولی، ۴۳ حساس', count('tier', 'normal') === 25 && count('tier', 'money') === 12 && count('tier', 'sensitive') === 43)
-ok('۴۴ قسمت، ۳۶ قفل کار', count('kind', 'part') === 44 && count('kind', 'action') === 36)
+ok('۲۵ عادی، ۱۲ پولی، ۴۷ حساس', count('tier', 'normal') === 25 && count('tier', 'money') === 12 && count('tier', 'sensitive') === 47)
+ok('۴۴ قسمت، ۴۰ قفل کار', count('kind', 'part') === 44 && count('kind', 'action') === 40)
 const MONEY = ['cash-close', 'consolidation', 'sales-credit', 'sales-return', 'sales-return-correction', 'card-transfers', 'pos-discount', 'price-adjust', 'credit-management', 'credit-bulk-issue', 'credit-void', 'credit-settings']
 ok('۱۲ کلید پولی همان فهرست طرح‌اند', MONEY.every((k) => LOCKED_PANELS.find((p) => p.key === k)?.tier === 'money') && count('tier', 'money') === MONEY.length)
 ok('هفت قسمت تازه «حساس»اند', GATE_PART_KEYS.length === 7 && GATE_PART_KEYS.every((k) => LOCKED_PANELS.find((p) => p.key === k)?.tier === 'sensitive'))
@@ -38,14 +38,14 @@ ok('هر کلید در دقیقاً یکی از دو ردهٔ کد است', LOCK
 ok('کلید بی‌رده رد می‌شود (نه قفل تازه، نه کلید گوشی)', panels.normalizePanelKey('act-no-such') === null && !REMOTE_PANELS.includes('act-no-such') && panels.parsePanelLocks({ 'act-no-such': false })['act-no-such'] === undefined)
 ok('«تنظیمات» خاموش‌شدنی است و هیچ قفلی «همیشه روشن» نیست', panels.ALWAYS_LOCKED_PANELS.length === 0 && panels.parsePanelLocks({ settings: false }).settings === false)
 
-console.log('\n— ۲) کاتالوگ: ۴۸ شناسهٔ کار روی ۳۶ کلید تازه و ۵ کلید استثنا')
+console.log('\n— ۲) کاتالوگ: ۵۳ شناسهٔ کار روی ۴۰ کلید تازه و ۵ کلید استثنا')
 const actions = Object.values(GATE_CATALOG).filter((e) => e.category === 3)
-ok('۴۸ شناسهٔ کار؛ همان GATE_ACTION_IDS', actions.length === 48 && GATE_ACTION_IDS.length === 48 && actions.every((e) => GATE_ACTION_IDS.includes(e.id)))
+ok('۵۳ شناسهٔ کار؛ همان GATE_ACTION_IDS', actions.length === 53 && GATE_ACTION_IDS.length === 53 && actions.every((e) => GATE_ACTION_IDS.includes(e.id)))
 ok('هر شناسهٔ کار کلید معتبر در panels.ts دارد', actions.every((e) => keys.includes(e.lockKey)))
-ok('۳۶ کلید act-* یکتا، هر کدام یک ردیف «قفل کار»', GATE_ACTION_LOCK_KEYS.length === 36 && GATE_ACTION_LOCK_KEYS.every((k) => LOCKED_PANELS.find((p) => p.key === k)?.kind === 'action'))
+ok('۴۰ کلید act-* یکتا، هر کدام یک ردیف «قفل کار»', GATE_ACTION_LOCK_KEYS.length === 40 && GATE_ACTION_LOCK_KEYS.every((k) => LOCKED_PANELS.find((p) => p.key === k)?.kind === 'action'))
 const EXC = ['credit-void', 'credit-bulk-issue', 'credit-settings', 'sms-provider', 'woo-sync']
 ok('پنج کلید استثنا «قسمت» می‌مانند و ۱۲ کار رویشان است', EXC.every((k) => LOCKED_PANELS.find((p) => p.key === k)?.kind === 'part') && actions.filter((e) => EXC.includes(e.lockKey)).length === 12)
-ok('strictها ماژول مادر معتبر دارند (۱۶ «مادر» + ۴ استثنای strict)', actions.filter((e) => e.origin === 'STRICT').every((e) => keys.includes(e.parentPanel)) && actions.filter((e) => e.origin === 'STRICT' && e.parentPanel !== e.lockKey).length === 16)
+ok('strictها ماژول مادر معتبر دارند (۱۸ «مادر» + ۴ استثنای strict)', actions.filter((e) => e.origin === 'STRICT').every((e) => keys.includes(e.parentPanel)) && actions.filter((e) => e.origin === 'STRICT' && e.parentPanel !== e.lockKey).length === 18)
 ok('سه کلید policy همان سه ردیف «سیاست حسابداری»اند', actions.filter((e) => e.lockKind === 'policy').map((e) => e.id).sort().join() === ['period.closed-entry', 'sales.overpay-credit-above-cap', 'sales.price-below-reference'].join())
 ok('هفت قسمت تازه دستهٔ ۲ و «فقط نشست» امروزند', GATE_PART_KEYS.every((k) => GATE_CATALOG[k]?.category === 2 && GATE_CATALOG[k].origin === 'SESSION' && GATE_CATALOG[k].lockKey === k))
 ok('نشانه‌های دستهٔ ۱ کلید قفل ندارند', Object.values(GATE_CATALOG).filter((e) => e.category === 1).every((e) => e.lockKey === '' && e.id.startsWith('keys.')))
@@ -68,9 +68,9 @@ ok('سه کلید قفل «سیاست حسابداری» دستهٔ ۱، بقی�
 ok('ذخیرهٔ خام اعتبار هرگز آسان‌تر از مسیر رسمی نیست', catalog.rawSettingGateIds('credit.settings').includes('credit.settings-save'))
 ok('نقش «مدیر» و رمز شخصی تأیید دستهٔ ۱', GATE_CATALOG[catalog.staffSaveGateIds(true)[0]].category === 1)
 
-console.log('\n— ۴) راه دور: ۹۲ سیاست و هیچ سقفی کمتر از آن')
+console.log('\n— ۴) راه دور: ۹۷ سیاست و هیچ سقفی کمتر از آن')
 const policies = REMOTE_PANELS.length
-ok('REMOTE_PANELS = ۴۴ کلید قسمت + ۴۸ شناسهٔ کار = ۹۲', policies === 92 && REMOTE_PANELS.filter((k) => keys.includes(k)).length === 44 && GATE_ACTION_IDS.every((id) => REMOTE_PANELS.includes(id)))
+ok('REMOTE_PANELS = ۴۴ کلید قسمت + ۵۳ شناسهٔ کار = ۹۷', policies === 97 && REMOTE_PANELS.filter((k) => keys.includes(k)).length === 44 && GATE_ACTION_IDS.every((id) => REMOTE_PANELS.includes(id)))
 ok('قسمت‌های REMOTE_PANELS همه kind=part‌اند و کلیدهای act-* در آن نیستند', REMOTE_PANELS.filter((k) => keys.includes(k)).every((k) => LOCKED_PANELS.find((p) => p.key === k).kind === 'part'))
 const child = read('src/main/services/cloud/experimentalHubChild.ts')
 const supervisor = read('src/main/services/cloud/experimentalHubSupervisor.ts')

@@ -5,7 +5,7 @@
  * ۱۰ دقیقه»؛ مدت واقعی = کمترینِ سقف سیاست و پروندهٔ مدت‌ها؛ مجوز یک‌بار فقط برای شناسهٔ کار و نتیجه‌اش یک بلیت
  * (پیش از پاک کردن مجوز؛ شکست ساخت بلیت ⇒ مجوز مصرف نمی‌شود)؛ نشست نگهبان‌دار از بی‌کاری عمومی پنل پیروی
  * نمی‌کند و سقف سخت ۶۰ دقیقه دارد.
- * یکپارچه (loopback، فرزند واقعی هاب): هاب با ۹۲ سیاست کاتالوگ و با ۱۲۸ بالا می‌آید و ۱۲۹ را رد می‌کند؛ تأیید
+ * یکپارچه (loopback، فرزند واقعی هاب): هاب با ۹۷ سیاست کاتالوگ و با ۱۲۸ بالا می‌آید و ۱۲۹ را رد می‌کند؛ تأیید
  * مالک روی یک شناسهٔ کار پس از فعال‌سازی یک بار دروازه را باز می‌کند و بار دوم نه. همه روی پوشهٔ موقت.
  *
  *   node --import ./test/harness/register.mjs tests/audit-fixes/plan1405-remote-grants.mjs
@@ -136,12 +136,12 @@ test('unit: caps, pending, idle, real duration, one-shot ticket, guarded-session
   }
 })
 
-test('loopback: hub starts with the 92 catalog policies and 128, refuses 129; owner approval of an action = one gate ticket', async () => {
+test('loopback: hub starts with the 97 catalog policies and 128, refuses 129; owner approval of an action = one gate ticket', async () => {
   const childFile = join(dir, 'hub.cjs')
   await build({ entryPoints: [fileURLToPath(new URL('../../src/main/services/cloud/experimentalHubChild.ts', import.meta.url))], outfile: childFile, bundle: true, platform: 'node', format: 'cjs', target: 'node22', logLevel: 'silent' })
   const catalogPolicies = Object.fromEntries(REMOTE_PANELS.map((panel) => [panel, GATE_ACTION_IDS.includes(panel)
     ? { tier: 'SENSITIVE_MONEY', mode: 'ONE_SHOT', ttlMs: 3_600_000 } : { tier: 'NORMAL', mode: 'PANEL', ttlMs: 3_600_000 }]))
-  assert.equal(Object.keys(catalogPolicies).length, 92)
+  assert.equal(Object.keys(catalogPolicies).length, 97)
   const start = async (policies, label) => {
     const hubDir = join(dir, `hub-${label}`), stateDir = join(dir, `state-${label}`); mkdirSync(hubDir)
     const state = openCloudStateStore(stateDir)
@@ -162,12 +162,12 @@ test('loopback: hub starts with the 92 catalog policies and 128, refuses 129; ow
   })
   let running = null
   try {
-    running = await start(catalogPolicies, '92')
+    running = await start(catalogPolicies, '97')
     const { hub } = running
     const login = await send(hub, 'POST', '/api/login', { username: 'owner', password: 'owner-test-password' })
     assert.equal(login.status, 200)
     const caps = await send(hub, 'GET', '/api/capabilities', undefined, login.cookie)
-    assert.equal(caps.body.approvalPanels.length, 92, 'owner sees all 92 approval names')
+    assert.equal(caps.body.approvalPanels.length, 97, 'owner sees all 97 approval names')
     const p = reg.requestCode('credit.void', 42)
     let seen = false
     for (let i = 0; i < 40 && !seen; i++) {
@@ -185,7 +185,7 @@ test('loopback: hub starts with the 92 catalog policies and 128, refuses 129; ow
     assert.equal(await voidOnce(), true, 'gate opens once with the ticket')
     assert.equal(await voidOnce(), false, 'and not twice')
     await hub.stop(); running.state.close(); running = null
-    const extra = Object.fromEntries(Array.from({ length: 36 }, (_, i) => [`extra-panel-${i}`, { tier: 'NORMAL', mode: 'PANEL', ttlMs: 600_000 }]))
+    const extra = Object.fromEntries(Array.from({ length: 31 }, (_, i) => [`extra-panel-${i}`, { tier: 'NORMAL', mode: 'PANEL', ttlMs: 600_000 }]))
     running = await start({ ...catalogPolicies, ...extra }, '128')
     await running.hub.stop(); running.state.close(); running = null
     await assert.rejects(() => start({ ...catalogPolicies, ...extra, 'extra-panel-x': { tier: 'NORMAL', mode: 'PANEL', ttlMs: 600_000 } }, '129'))

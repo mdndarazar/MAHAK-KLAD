@@ -207,7 +207,9 @@
     "tests/audit-fixes/plan1405-scheduled-grants.mjs": null,
     "tests/audit/audit-s142-credit-method-gate.mjs": null,
     "tests/audit/audit-s142b-cheque-method-gate.mjs": null,
-    "tests/audit/audit-s172-stale-observations-verify.mjs": null
+    "tests/audit/audit-s172-stale-observations-verify.mjs": null,
+    "tests/audit-fixes/plan1405-remote-grants.mjs": 12,
+    "tests/audit-fixes/remote-panels-desktop.mjs": 2
    }
   },
   "4": {
@@ -368,6 +370,7 @@
   "golden-financial-baseline.txt, bridge-baseline-s318.json (batch 1)": "Owner permission 2026-11-28 (TL-D5): line 123 of the golden baseline (4-108, date digits only) and the two text hashes of the bridge baseline regenerated with the documented _regen-bridge-golden-s318.mjs (4-67; equation hash and bridge numbers unchanged).",
   "plan1405-messenger-units.mjs line 46 (batch 2)": "Owner permission 2026-11-28 (TL-D5): line 46 accepts the second fixed-start reader of the audit note added by 4-142; the file was already listed for 4-35.",
   "messengerIpc.ts, messengerAdapters.ts (batch 2)": "Owner permission 2026-11-28 (TL-D7): 4-33 sets the new per-recipient «can view reports» tick through the existing recipient-settings channel (a new messenger channel would change the channel count at line 172 of plan1405-messenger-units.mjs), and registers the «/» list with one new setMyCommands method (the bot interface had no general call).",
-  "messengerVault.ts (batch 2)": "Owner permission 2026-11-28 (TL-D8): 4-26 keeps its once-only marker for the 15- and 30-minute shift-end reminders in messenger-cursor.json, as arch section 2-1 says; the cursor type and its field-by-field parser live in this file (listed for batch 8), which would otherwise drop the new list on every start."
+  "messengerVault.ts (batch 2)": "Owner permission 2026-11-28 (TL-D8): 4-26 keeps its once-only marker for the 15- and 30-minute shift-end reminders in messenger-cursor.json, as arch section 2-1 says; the cursor type and its field-by-field parser live in this file (listed for batch 8), which would otherwise drop the new list on every start.",
+  "plan1405-remote-grants.mjs, remote-panels-desktop.mjs (batch 3)": "Owner permission 2026-11-28 (TL-D9): the five test-log catalog entries of batch-3 step 1 (4-25, 4-48, 4-73, 4-79, 4-80) raise REMOTE_PANELS from 92 to 97 policies; only the counts change: remote-grants lines 8, 139, 144, 165 and 170 (92 => 97) and line 188 (36 => 31 extra policies, so the hub still takes exactly 128 and refuses 129), remote-panels-desktop line 17 (92 => 97). The same permission covers plan1405-gate-catalog.mjs lines 6, 41, 48, 71 and 73 and plan1405-gate-decision.mjs lines 4, 65 and 69, both already listed for batch 3."
  }
 }

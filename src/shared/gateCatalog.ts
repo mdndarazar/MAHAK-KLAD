@@ -5,7 +5,7 @@
  * نوع کلید روشن/خاموش و عنوان فارسی. متن رابط، فهرست گوشی و رفتار دروازه همه از
  * همین‌جا و `panels.ts` ساخته می‌شوند تا هرگز از هم جدا نشوند.
  *
- * مرحلهٔ ۵: ۴۸ شناسهٔ کار، ۷ قسمت تازه و چهار نشانهٔ «کلیدسازی» برای فهرست‌های چندبخشی. آزمون اسکن جاهای
+ * مرحلهٔ ۵: ۴۸ شناسهٔ کار (دفتر آزمون دستهٔ ۳: ۵۳)، ۷ قسمت تازه و چهار نشانهٔ «کلیدسازی» برای فهرست‌های چندبخشی. آزمون اسکن جاهای
  * فراخوانی (`tests/audit-fixes/plan1405-gate-callsite-scan.mjs`) هر شناسهٔ پوشانده را با همین می‌سنجد.
  */
 
@@ -40,7 +40,11 @@ export const GATE_GROUPS = G
 
 type Row = [id: string, lockKey: string, origin: GateOrigin, parentPanel: string | null, lockKind: GateLockKind, group: string, titleFa: string]
 
-/** دستهٔ ۳: ۴۸ قفل کار (جدول ۳-۱۰). ترتیب همان شمارهٔ ردیف‌های جدول است. */
+/**
+ * دستهٔ ۳: ۵۳ قفل کار — ۴۸ ردیف جدول ۳-۱۰ (به همان ترتیب) و پنج ردیف دفتر آزمون (۴-۲۵، ۴-۴۸، ۴-۷۳، ۴-۷۹ و ۴-۸۰)
+ * کنار کارهای هم‌خانواده‌شان. هر پنج یک‌جا در دستهٔ ۳ آمدند تا آزمون‌های شمار یک بار عوض شوند (معماری §۳-۲)؛ هر کدام
+ * تا دستهٔ خودش جایی صدا زده نمی‌شود و کاری نمی‌کند.
+ */
 const ACTIONS: readonly Row[] = [
   ['backup.export-file', 'act-backup-export', 'STRICT', 'settings', 'panel', G.settings, 'فایل بکاپ کامل در مسیر دلخواه'],
   ['backup.auto-settings', 'act-backup-settings', 'STRICT', 'settings', 'panel', G.settings, 'تنظیمات بکاپ خودکار'],
@@ -50,6 +54,8 @@ const ACTIONS: readonly Row[] = [
   ['backup.merge', 'act-backup-merge', 'STRICT', 'settings', 'panel', G.settings, 'ادغام بکاپ'],
   ['system.factory-reset', 'act-factory-reset', 'MANAGER_PASSWORD', null, 'panel', G.settings, 'صفر کردن برنامه'],
   ['credit.reprint-manager', 'act-credit-reprint', 'STRICT', 'credit-management', 'panel', G.credit, 'چاپ دوبارهٔ گواهی اعتبار به دست مدیر'],
+  // دفتر آزمون (دستهٔ ۳، یک‌جا؛ مصرف در دستهٔ ۸): ۴-۷۳
+  ['credit.third-print-seller', 'act-credit-third-print', 'MANAGER_PASSWORD', null, 'panel', G.credit, 'چاپ بار سوم گواهی اعتبار به دست فروشنده'],
   ['credit.issue-manual', 'act-credit-issue-manual', 'STRICT', 'credit-management', 'panel', G.credit, 'صدور دستی اعتبار'],
   ['credit.void', 'credit-void', 'STRICT', 'credit-void', 'panel', G.credit, 'ابطال اعتبار'],
   ['credit.delete', 'credit-void', 'STRICT', 'credit-void', 'panel', G.credit, 'حذف اعتبار'],
@@ -60,11 +66,17 @@ const ACTIONS: readonly Row[] = [
   ['sales.payments-edit-open-shift', 'act-payments-edit-open-shift', 'STRICT', 'sales-credit', 'panel', G.salesCredit, 'تغییر پرداخت‌ها در شیفت باز'],
   ['cheque.edit-cleared', 'act-cheque-edit-cleared', 'STRICT', 'sales-credit', 'panel', G.salesCredit, 'ویرایش چک پاس‌شده'],
   ['cheque.void-cleared', 'act-cheque-void-cleared', 'STRICT', 'sales-credit', 'panel', G.salesCredit, 'ابطال چک پاس‌شده'],
+  // دفتر آزمون (دستهٔ ۳، یک‌جا؛ مصرف در دستهٔ ۵): ۴-۷۹
+  ['cheque.void-pending', 'act-cheque-void-pending', 'STRICT', 'sales-credit', 'panel', G.salesCredit, 'ابطال چک در جریان یا برگشتی'],
   ['cheque.status-change', 'act-cheque-status', 'STRICT', 'sales-credit', 'panel', G.salesCredit, 'تغییر وضعیت چک'],
   ['cheque.replace', 'act-cheque-replace', 'STRICT', 'sales-credit', 'panel', G.salesCredit, 'جایگزینی چک'],
+  // دفتر آزمون (دستهٔ ۳، یک‌جا؛ مصرف در دستهٔ ۵): ۴-۸۰ — کار جدا روی همان کلید و همان رمز «جایگزینی چک» (قاعدهٔ «ج»)
+  ['cheque.settle', 'act-cheque-replace', 'STRICT', 'sales-credit', 'panel', G.salesCredit, 'تسویهٔ چک'],
   ['return.full-refund-no-discount-deduction', 'act-refund-full', 'STRICT', 'sales-return', 'panel', G.returns, 'بازپرداخت کامل بی کسر تخفیف'],
   ['return.refund-card', 'act-refund-card-return', 'MANAGER_PASSWORD', null, 'panel', G.returns, 'بازپرداخت کارتی در برگشت'],
   ['exchange.refund-card', 'act-refund-card-exchange', 'MANAGER_PASSWORD', null, 'panel', G.returns, 'بازپرداخت کارتی در تعویض'],
+  // دفتر آزمون (دستهٔ ۳، یک‌جا؛ مصرف در دستهٔ ۵): ۴-۴۸ — رمز دوم و سوم جدای خودش
+  ['return.after-deadline', 'act-return-after-deadline', 'MANAGER_PASSWORD', null, 'panel', G.returns, 'برگشت و تعویض پس از مهلت'],
   ['sales.charges-below-auto', 'act-charges-below-auto', 'MANAGER_PASSWORD', null, 'panel', G.charges, 'عوارض یا حق سرویس کمتر از مبلغ خودکار'],
   ['sales.price-below-reference', 'act-price-below-reference', 'MANAGER_PASSWORD', null, 'policy', G.sales, 'قیمت کمتر از قیمت مرجع'],
   ['sales.overpay-credit-above-cap', 'act-overpay-credit-above-cap', 'MANAGER_PASSWORD', null, 'policy', G.sales, 'اعتبار اضافه‌دریافت بالاتر از سقف'],
@@ -72,6 +84,8 @@ const ACTIONS: readonly Row[] = [
   ['shift.close-stale-session', 'act-close-stale-session', 'STRICT', 'cash-close', 'panel', G.cashClose, 'بستن نشست جامانده و باز کردن نشست تازه'],
   ['shift.force-staff-change', 'act-force-staff-change', 'STRICT', 'cash-close', 'panel', G.cashClose, 'تعویض اجباری کارمند نشست'],
   ['custody.master-override', 'act-master-override', 'MANAGER_PASSWORD', null, 'panel', G.cashClose, 'Master Override صندوق'],
+  // دفتر آزمون (دستهٔ ۳، یک‌جا؛ مصرف در دستهٔ ۶): ۴-۲۵
+  ['custody.open-outside-shift', 'act-custody-open-outside-shift', 'MANAGER_PASSWORD', null, 'panel', G.cashClose, 'باز کردن صندوق بیرون از شیفت'],
   ['settings.accounting-policy', 'act-accounting-policy', 'MANAGER_PASSWORD', null, 'panel', G.settings, 'سیاست حسابداری'],
   ['settings.exchange-overpay-guard', 'act-exchange-overpay-guard', 'MANAGER_PASSWORD', null, 'panel', G.settings, 'جلوگیری از بازپرداخت اضافه در تعویض'],
   ['settings.clock-offset', 'act-clock-offset', 'MANAGER_PASSWORD', null, 'panel', G.settings, 'افست ساعت رسمی'],
@@ -125,11 +139,11 @@ export const GATE_CATALOG: Readonly<Record<string, GateCatalogEntry>> = Object.f
   ...entries(ACTIONS, 3), ...entries(PARTS, 2), ...entries(KEYMAKING, 1)
 ]))
 
-/** فقط شناسه‌های کار (۴۸)؛ برای مجوز یک‌بار راه دور و فهرست گوشی. */
+/** فقط شناسه‌های کار (۵۳)؛ برای مجوز یک‌بار راه دور و فهرست گوشی. */
 export const GATE_ACTION_IDS: readonly string[] = Object.freeze(ACTIONS.map((r) => r[0]))
 /** کلیدهای هفت قسمت تازه. */
 export const GATE_PART_KEYS: readonly string[] = Object.freeze(PARTS.map((r) => r[0]))
-/** کلیدهای تازهٔ `act-*` (۳۶)؛ پنج کلید استثنا از قبل در `panels.ts` هستند. */
+/** کلیدهای تازهٔ `act-*` (۴۰؛ «تسویهٔ چک» کلید «جایگزینی چک» را دارد)؛ پنج کلید استثنا از قبل در `panels.ts` هستند. */
 export const GATE_ACTION_LOCK_KEYS: readonly string[] = Object.freeze([...new Set(ACTIONS.map((r) => r[1]).filter((k) => k.startsWith('act-')))])
 
 export function gateEntry(id: unknown): GateCatalogEntry | null {

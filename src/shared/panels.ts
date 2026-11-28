@@ -228,17 +228,20 @@ export const PANEL_KEYS = {
   actBackupMerge: 'act-backup-merge',
   actFactoryReset: 'act-factory-reset',
   actCreditReprint: 'act-credit-reprint',
+  actCreditThirdPrint: 'act-credit-third-print',
   actCreditIssueManual: 'act-credit-issue-manual',
   actCreditCodeReveal: 'act-credit-code-reveal',
   actCreditInvoiceLookup: 'act-credit-invoice-lookup',
   actPaymentsEditOpenShift: 'act-payments-edit-open-shift',
   actChequeEditCleared: 'act-cheque-edit-cleared',
   actChequeVoidCleared: 'act-cheque-void-cleared',
+  actChequeVoidPending: 'act-cheque-void-pending',
   actChequeStatus: 'act-cheque-status',
   actChequeReplace: 'act-cheque-replace',
   actRefundFull: 'act-refund-full',
   actRefundCardReturn: 'act-refund-card-return',
   actRefundCardExchange: 'act-refund-card-exchange',
+  actReturnAfterDeadline: 'act-return-after-deadline',
   actChargesBelowAuto: 'act-charges-below-auto',
   actPriceBelowReference: 'act-price-below-reference',
   actOverpayCreditAboveCap: 'act-overpay-credit-above-cap',
@@ -246,6 +249,7 @@ export const PANEL_KEYS = {
   actCloseStaleSession: 'act-close-stale-session',
   actForceStaffChange: 'act-force-staff-change',
   actMasterOverride: 'act-master-override',
+  actCustodyOpenOutsideShift: 'act-custody-open-outside-shift',
   actAccountingPolicy: 'act-accounting-policy',
   actExchangeOverpayGuard: 'act-exchange-overpay-guard',
   actClockOffset: 'act-clock-offset',
@@ -490,7 +494,7 @@ const BASE_CLASS: Readonly<Record<string, readonly [string, PanelTier]>> = Objec
   'sms-panel': [PG.sms, 'normal'], 'sms-provider': [PG.sms, 'normal'], 'sms-danger': [PG.sms, 'normal']
 })
 
-/** ۴۳ ردیف تازه (۷ قسمت + ۳۶ قفل کار)، همه «حساس»؛ عنوان و گروه از همان کاتالوگ. */
+/** ۴۷ ردیف تازه (۷ قسمت + ۴۰ قفل کار؛ چهار قفل کار از دفتر آزمون، دستهٔ ۳)، همه «حساس»؛ عنوان و گروه از همان کاتالوگ. */
 const PLAN1405_ROWS: readonly PanelDef[] = [
   ...GATE_PART_KEYS.map((key): PanelDef => ({
     key: key as PanelKey, title: GATE_CATALOG[key].titleFa, kind: 'part', group: GATE_CATALOG[key].group, tier: 'sensitive',
@@ -508,7 +512,7 @@ const PLAN1405_ROWS: readonly PanelDef[] = [
 ]
 
 /**
- * فهرست کامل کلیدهای قفل (۸۰ کلید)، به ترتیبی که در «تنظیمات رمز» نشان داده می‌شوند.
+ * فهرست کامل کلیدهای قفل (۸۴ کلید)، به ترتیبی که در «تنظیمات رمز» نشان داده می‌شوند.
  * هر ردیف `kind`، `group` و `tier` دارد (طرح ۱۴۰۵ §۳-۳).
  */
 export const LOCKED_PANELS: readonly PanelDef[] = Object.freeze([

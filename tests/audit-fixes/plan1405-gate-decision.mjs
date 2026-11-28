@@ -1,7 +1,7 @@
 /**
  * طرح ۱۴۰۵ — دروازهٔ مرکزی قفل‌ها (معماری §۳-۴ تا §۳-۹؛ §۸-۲ بندهای ۳، ۴، ۵ و ۶).
  *
- * برای هر ۴۸ شناسهٔ کار، با همان تابع‌های واقعی AuthService و panelSession و پایگاه دادهٔ موقت:
+ * برای هر ۵۳ شناسهٔ کار، با همان تابع‌های واقعی AuthService و panelSession و پایگاه دادهٔ موقت:
  *   قفل خاموش بی رمز؛ نشست مدیر بی رمز و بی شمارش اشتباه؛ رمز مدیر؛ رمز دوم همان کار (و ماژول مادر برای strictها)؛
  *   بلیت فقط یک بار و فقط در همان پنجره؛ نشست پنجرهٔ دیگر بی اثر؛ دستهٔ ۱ با هیچ راهی جز خود مدیر؛ خاموش شدن
  *   قفل ماژول قفل کار را خاموش نمی‌کند؛ پیش‌فرض نصب «همه روشن»؛ بیرون از IPC رفتار امروز.
@@ -62,11 +62,11 @@ const gate = (id, password = '', owner = W1) => outcome(() => inCall(owner, () =
 const required = (r, id) => !r.ok && r.err?.code === `GATE_REQUIRED:${id}`
 
 try {
-  console.log('\n— ۰) پیش‌فرض نصب: همهٔ ۸۰ کلید روشن؛ هیچ کاری بی‌رمزتر از امروز نیست')
-  ok('۸۰ کلید، همه در نصب تازه روشن', LOCKED_PANELS.length === 80 && Object.values(allLockedConfig()).every((v) => v === true))
+  console.log('\n— ۰) پیش‌فرض نصب: همهٔ ۸۴ کلید روشن؛ هیچ کاری بی‌رمزتر از امروز نیست')
+  ok('۸۴ کلید، همه در نصب تازه روشن', LOCKED_PANELS.length === 84 && Object.values(allLockedConfig()).every((v) => v === true))
   ok('پیکربندی خالی یعنی همه روشن', Object.values(parsePanelLocks({})).every((v) => v === true))
 
-  console.log('\n— ۱) هر ۴۸ شناسهٔ کار، از هر راه')
+  console.log('\n— ۱) هر ۵۳ شناسهٔ کار، از هر راه')
   let ownPwSet = 0
   for (const id of GATE_ACTION_IDS) {
     const e = GATE_CATALOG[id]
