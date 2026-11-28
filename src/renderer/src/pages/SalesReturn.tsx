@@ -34,7 +34,10 @@ import CardPosOverrideDialog from '../components/returns/CardPosOverrideDialog'
 import { useReturnGuidance } from '../hooks/useReturnGuidance'
 import { usePanelLock, usePanelOpen } from '../hooks/usePanelLocks'
 import { useManagerSession } from '../hooks/useManagerSession'
-import { PANEL_KEYS } from '@shared/panels'
+import { PANEL_KEYS, lockName } from '@shared/panels'
+import OneTimeCodeBox from '../components/OneTimeCodeBox'
+import { RemoteRequestBox } from '../components/RemoteRequestBox'
+import { remoteImplementationReady } from '@shared/remoteAuthChannels'
 
 /**
  * ===================== برگشت از فروش و تعویض کالا =====================
@@ -422,7 +425,9 @@ export default function SalesReturn() {
     const password = correctionUnlockPassword.trim()
     if (!request) return
     if (!password) {
-      setCorrectionUnlockError('برای باز کردن قفل این عملیات، رمز مدیر یا رمز دوم/سوم همین بخش را وارد کنید.')
+      setCorrectionUnlockError(
+        `برای باز کردن قفل این عملیات، رمز مدیر یا رمز دوم/سوم «${lockName(PANEL_KEYS.salesReturnCorrection)}» را وارد کنید (یا کد یک‌بارمصرف یا مجوز راه دور).`
+      )
       return
     }
     setCorrectionUnlockBusy(true)
@@ -439,6 +444,19 @@ export default function SalesReturn() {
       setCorrectionUnlockBusy(false)
     }
   }
+  /**
+   * دفتر آزمون ۴-۸۱: اگر قفل «اصلاح و ابطال برگشت / تعویض» با «کد یک‌بارمصرف» یا «درخواست مجوز از مدیر» همین پنجره باز شد،
+   * همان عملیات انتخاب‌شده ادامه می‌یابد؛ راه رمز مثل پیش خودش ادامه می‌دهد.
+   */
+  useEffect(() => {
+    if (!correctionOpen || !correctionUnlockRequest || correctionUnlockBusy) return
+    const request = correctionUnlockRequest
+    setCorrectionUnlockRequest(null)
+    setCorrectionUnlockPassword('')
+    setCorrectionUnlockError(null)
+    launchReturnCorrectionAction(request)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [correctionOpen])
 
   const printIssuedOverpayCredit = async (credit: any | null, opts?: { reprintPassword?: string }) => {
     if (overpayCreditPrinting) return
@@ -2766,10 +2784,13 @@ export default function SalesReturn() {
                 }}
                 autoComplete="off"
                 autoFocus
-                placeholder="رمز مدیر یا رمز دوم/سوم این عملیات"
+                placeholder={`رمز مدیر یا رمز دوم/سوم «${lockName(PANEL_KEYS.salesReturnCorrection)}»`}
               />
             </label>
             {correctionUnlockError && <p className="text-red-600 whitespace-pre-line">{correctionUnlockError}</p>}
+            {/* دفتر آزمون ۴-۸۱: راه بی رمز همین قفل، مثل کادر قفل ماژول‌ها */}
+            <OneTimeCodeBox target={PANEL_KEYS.salesReturnCorrection} />
+            {remoteImplementationReady() && <RemoteRequestBox panel={PANEL_KEYS.salesReturnCorrection} />}
             <p className="kbd leading-6">
               پس از باز شدن قفل، فقط فرمِ عملیات انتخاب‌شده باز می‌شود. هنگام ثبت نهایی نیز کنترل‌های مالی و ثبت سابقهٔ سمت سرور برقرار می‌مانند.
             </p>

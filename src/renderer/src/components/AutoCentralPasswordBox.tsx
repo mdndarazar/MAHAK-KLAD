@@ -1,4 +1,5 @@
 import PasswordField from './PasswordField'
+import { PANEL_KEYS, lockName } from '@shared/panels'
 import type { AutoCentralWithdraw } from '../hooks/useAutoCentralWithdraw'
 
 /**
@@ -10,7 +11,7 @@ import type { AutoCentralWithdraw } from '../hooks/useAutoCentralWithdraw'
 export default function AutoCentralPasswordBox({ box }: { box: AutoCentralWithdraw }) {
   if (!box.needPassword || box.locked) return null
   return (
-    <div className="mt-1 max-w-xs" title="رمز مدیر یا رمز دوم همین گزینه؛ بعد از هر تلاش پاک می‌شود">
+    <div className="mt-1 max-w-xs" title={`رمز مدیر یا رمز دوم/سوم «${lockName(PANEL_KEYS.posCentralWithdrawToggle)}»؛ بعد از هر تلاش پاک می‌شود`}>
       <PasswordField
         value={box.password}
         placeholder="رمز تغییر برداشت خودکار"

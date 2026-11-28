@@ -1,4 +1,5 @@
 import PasswordField from './PasswordField'
+import { PANEL_KEYS, lockName } from '@shared/panels'
 import { useEffect, useMemo, useState } from 'react'
 import Modal from './Modal'
 import { faDigits } from '@shared/jalali'
@@ -53,7 +54,7 @@ export default function StockSourceModal({
   busy = false,
   confirmLabel = 'تأیید و ثبت فاکتور',
   passwordRequired = false,
-  passwordLabel = 'رمز مدیر (یا رمز دوم اختصاصی همین گزینه)',
+  passwordLabel = `رمز مدیر (یا رمز دوم/سوم «${lockName(PANEL_KEYS.posCentralWithdrawToggle)}»)`,
   passwordHint,
   onCancel,
   onConfirm
@@ -160,7 +161,7 @@ export default function StockSourceModal({
               !chain.complete
                 ? 'اول به سؤال همه‌ی قلم‌های کسری‌دار جواب بدهید'
                 : passwordRequired && hasForeignSource && !password.trim()
-                  ? 'برای کسر از انبار دیگر، رمز مدیر یا رمز دوم همین گزینه لازم است'
+                  ? `برای کسر از انبار دیگر، رمز مدیر یا رمز دوم/سوم «${lockName(PANEL_KEYS.posCentralWithdrawToggle)}» لازم است`
                   : 'فاکتور با همین مبدأها ثبت می‌شود'
             }
           >

@@ -22,7 +22,7 @@ import { withFreshSale, type SaleDefaults } from '@shared/receipt'
 import { describeChargeRule } from '@shared/charges'
 import { describeDiscountPolicy, discountCeilingFor, fixedDiscountFor, scaleLineDiscounts } from '@shared/priceAdjust'
 import ManagerGate from '../components/ManagerGate'
-import { CENTRAL_WITHDRAW_GATE, PANEL_KEYS } from '@shared/panels'
+import { CENTRAL_WITHDRAW_GATE, PANEL_KEYS, lockName } from '@shared/panels'
 import type { ActiveDiscountInfo, CartLine, ShiftInfo, StoreCreditSafeRow } from '@shared/types'
 import {
   creditCartCoverage,
@@ -412,7 +412,7 @@ export default function Pos() {
   const togglePrintEnabled = useCallback(
     async (next: boolean) => {
       if (printNeedPw && !printPw.trim()) {
-        setErr('برای روشن/خاموش کردن چاپ فاکتور، رمز مدیر (یا رمز دوم همین گزینه) را در کادر کنار آن وارد کنید.')
+        setErr(`برای روشن/خاموش کردن چاپ فاکتور، رمز مدیر (یا رمز دوم/سوم «${lockName(PANEL_KEYS.posPrintToggle)}») را در کادر کنار آن وارد کنید.`)
         return
       }
       setPrintEnabled(next) // نمایش فوری
@@ -2368,7 +2368,7 @@ export default function Pos() {
             </span>
           </label>
           {printNeedPw && (
-            <div className="mt-1 max-w-xs" title="رمز مدیر یا رمز دوم همین گزینه؛ بعد از هر تلاش پاک می‌شود">
+            <div className="mt-1 max-w-xs" title={`رمز مدیر یا رمز دوم/سوم «${lockName(PANEL_KEYS.posPrintToggle)}»؛ بعد از هر تلاش پاک می‌شود`}>
               <PasswordField
                 value={printPw}
                 placeholder="رمز تغییر چاپ فاکتور"

@@ -61,7 +61,10 @@ import {
 } from '../lib/destinationCells'
 import { usePanelLock, usePanelOpen } from '../hooks/usePanelLocks'
 import { useManagerSession } from '../hooks/useManagerSession'
-import { PANEL_KEYS } from '@shared/panels'
+import { PANEL_KEYS, lockName } from '@shared/panels'
+import OneTimeCodeBox from '../components/OneTimeCodeBox'
+import { RemoteRequestBox } from '../components/RemoteRequestBox'
+import { remoteImplementationReady } from '@shared/remoteAuthChannels'
 import {
   ColGroup,
   ResizableHeaderCells,
@@ -2008,7 +2011,9 @@ export default function SalesReports() {
     const password = exCorrectionUnlockPassword.trim()
     if (!request) return
     if (!password) {
-      setExCorrectionUnlockError('برای باز کردن قفل این عملیات، رمز مدیر یا رمز دوم/سوم همین بخش را وارد کنید.')
+      setExCorrectionUnlockError(
+        `برای باز کردن قفل این عملیات، رمز مدیر یا رمز دوم/سوم «${lockName(PANEL_KEYS.salesReturnCorrection)}» را وارد کنید (یا کد یک‌بارمصرف یا مجوز راه دور).`
+      )
       return
     }
     setExCorrectionUnlockBusy(true)
@@ -2025,6 +2030,19 @@ export default function SalesReports() {
       setExCorrectionUnlockBusy(false)
     }
   }
+  /**
+   * دفتر آزمون ۴-۸۱: اگر قفل «اصلاح و ابطال برگشت / تعویض» با «کد یک‌بارمصرف» یا «درخواست مجوز از مدیر» همین پنجره باز شد،
+   * همان عملیات انتخاب‌شده ادامه می‌یابد؛ راه رمز مثل پیش خودش ادامه می‌دهد.
+   */
+  useEffect(() => {
+    if (!correctionOpen || !exCorrectionUnlockRequest || exCorrectionUnlockBusy) return
+    const request = exCorrectionUnlockRequest
+    setExCorrectionUnlockRequest(null)
+    setExCorrectionUnlockPassword('')
+    setExCorrectionUnlockError(null)
+    launchExchangeCorrectionAction(request)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [correctionOpen])
 
   const doExchangeVoid = async () => {
     const target = exVoidTarget
@@ -2675,10 +2693,13 @@ export default function SalesReports() {
                 }}
                 autoComplete="off"
                 autoFocus
-                placeholder="رمز مدیر یا رمز دوم/سوم این عملیات"
+                placeholder={`رمز مدیر یا رمز دوم/سوم «${lockName(PANEL_KEYS.salesReturnCorrection)}»`}
               />
             </label>
             {exCorrectionUnlockError && <p className="text-red-600 whitespace-pre-line">{exCorrectionUnlockError}</p>}
+            {/* دفتر آزمون ۴-۸۱: راه بی رمز همین قفل، مثل کادر قفل ماژول‌ها */}
+            <OneTimeCodeBox target={PANEL_KEYS.salesReturnCorrection} />
+            {remoteImplementationReady() && <RemoteRequestBox panel={PANEL_KEYS.salesReturnCorrection} />}
             <p className="kbd leading-6">پس از باز شدن قفل، فقط فرمِ عملیاتی که انتخاب کرده‌اید باز می‌شود.</p>
           </div>
         }
@@ -2730,7 +2751,7 @@ export default function SalesReports() {
                 }}
                 placeholder="رمز مدیر یا رمز اختصاصی اصلاح/ابطال"
               />
-              <span className="kbd block mt-1">قفل عملیات روز جاری در نصب تازه روشن است و رمز مدیر یا رمز دوم همین عمل را می‌پذیرد. برای روزهای بعد یا دوره‌ی بسته، هویت شخصی مدیر در فیلدهای پایین لازم است.</span>
+              <span className="kbd block mt-1">قفل عملیات روز جاری در نصب تازه روشن است و رمز مدیر یا رمز دوم/سوم «{lockName(PANEL_KEYS.salesReturnCorrection)}» را می‌پذیرد. برای روزهای بعد یا دوره‌ی بسته، هویت شخصی مدیر در فیلدهای پایین لازم است.</span>
             </label>
             <div className="rounded border border-amber-300 bg-amber-50 p-2 space-y-2">
               <p className="text-sm font-bold text-amber-900">تأیید شخصی مدیر — فقط اصلاح دیرهنگام یا دوره‌ی بسته</p>

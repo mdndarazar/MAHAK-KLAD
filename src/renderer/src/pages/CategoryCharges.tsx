@@ -200,7 +200,7 @@ export default function CategoryCharges({ kind, scope }: { kind: ChargeKind; sco
           <button className="btn" onClick={clearAll} disabled={busy || (!activeCount && !fallback)}>
             صفر کردن همه
           </button>
-          <div className="w-44" title="رمز مدیر یا رمز دوم همین پنل">
+          <div className="w-44" title={`رمز مدیر یا رمز دوم/سوم «${label}»`}>
             <PasswordField value={chargePw} placeholder="رمز ذخیره" onChange={(e) => setChargePw(e.target.value)} />
           </div>
           <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>

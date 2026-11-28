@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { PANEL_KEYS, lockName } from '@shared/panels'
 import Modal from './Modal'
 import PasswordField from './PasswordField'
 import { call, CH } from '../lib/api'
@@ -198,14 +199,14 @@ export default function BridgeDiagnosticsModal({
           <p className="text-sm leading-6 text-slate-700">
             این نما فقط <b>می‌خواند</b>: همان ۱۸ ردیف پل تطبیقِ گزارش را با نشان‌های راهنما (هم‌مبلغ، بزرگ‌ترین‌ها،
             تاریخِ بیرون‌بازه) نشان می‌دهد و هیچ عددی را عوض نمی‌کند. باز کردنش همیشه رمز می‌خواهد — رمز مدیر یا
-            رمز دوم همین بخش.
+            رمز دوم/سوم «{lockName(PANEL_KEYS.bridgeDiagnostics)}».
           </p>
           {!!err && <div className="rounded border border-rose-400 bg-rose-50 p-2 text-sm text-rose-800">{err}</div>}
           <div className="flex items-center gap-2">
             <div className="w-64">
               <PasswordField
                 autoFocus
-                placeholder="رمز مدیر / رمز دوم این بخش"
+                placeholder={`رمز مدیر / رمز دوم یا سوم «${lockName(PANEL_KEYS.bridgeDiagnostics)}»`}
                 value={password}
                 disabled={busy}
                 onChange={(e) => setPassword(e.target.value)}

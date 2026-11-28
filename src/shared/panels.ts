@@ -548,6 +548,44 @@ export function panelTitle(key: string): string {
 }
 
 /**
+ * دفتر آزمون ۴-۸۱ — «با رمز کدام بخش»: نام کوتاه یک قفل، همان عنوان «قفل ماژول‌ها» (جایی که مدیر رمز دوم یا سومش را
+ * می‌گذارد) بی توضیح پرانتزی پایانش؛ مثلاً «نسیه (تب گزارشات فروش)» ⇐ «نسیه».
+ */
+export function lockName(key: string): string {
+  return panelTitle(key).replace(/\s*\([^()]*\)\s*$/, '') || key
+}
+
+/** دفتر آزمون ۴-۸۱: نوشتهٔ قفلی که فقط رمز مدیر بازش می‌کند */
+export const MANAGER_ONLY_PASSWORD_HINT = 'فقط رمز مدیر (یا کد یک‌بارمصرف یا مجوز راه دور)'
+
+/**
+ * دفتر آزمون ۴-۸۱ — نوشتهٔ یک‌شکل «دقیقاً با کدام رمز باز می‌شود» برای پنجرهٔ «باز کردن قفل»، از روی کاتالوگ و یک پرسش
+ * فقط‌خواندنی (`hasOwn(key)`: برای این کلید رمز دوم یا سوم گذاشته شده؟). همان قاعدهٔ main:
+ *  - «قفل کار» (`unlockActionWithPassword`): رمز جدای همان کار، وگرنه برای کار strict رمز دوم یا سوم ماژول مادر
+ *    (`verifyPanel`)، وگرنه فقط رمز مدیر؛
+ *  - «قسمت»: رمز دوم یا سوم همان قسمت، وگرنه فقط رمز مدیر.
+ * فقط نمایش است؛ تصمیم دروازه و شمارش رمز اشتباه همان است. «کلیدسازی» این پنجره را ندارد.
+ */
+export function gatePasswordHint(id: string, hasOwn: (key: string) => boolean): string {
+  const entry = gateEntry(id)
+  if (!entry || entry.category === 1) return 'فقط خود مدیر، با رمز تایپی مدیر'
+  if (entry.category === 2) {
+    return hasOwn(entry.lockKey) ? `رمز مدیر، یا رمز دوم یا سوم «${lockName(entry.lockKey)}»` : MANAGER_ONLY_PASSWORD_HINT
+  }
+  const parent = entry.origin === 'STRICT' && entry.parentPanel ? entry.parentPanel : null
+  // کلید خود کار همان کلید مادر است (مثل «ابطال و تغییر اعتبار»): رمز دوم یا سوم همان کلید، رمز مخصوص همین کار است
+  const own = hasOwn(entry.lockKey) && (entry.lockKey !== entry.parentPanel || parent === entry.lockKey)
+  const ownText = `رمز دوم یا سوم مخصوص «${lockName(entry.lockKey)}»`
+  if (parent && parent !== entry.lockKey) {
+    const p = lockName(parent)
+    return own
+      ? `رمز مدیر، یا ${ownText}، یا رمز دوم یا سوم بخش «${p}»`
+      : `این کار با رمز بخش «${p}» باز می‌شود: رمز مدیر، یا رمز دوم یا سوم «${p}»`
+  }
+  return own ? `رمز مدیر، یا ${ownText}` : MANAGER_ONLY_PASSWORD_HINT
+}
+
+/**
  * طرح ۱۴۰۵ §۳-۱۵ (۲۵-۱۰) — قسمت کد یک‌بارمصرف هر کلید قفل: فقط «قسمت»های عادی با کد «سایر ماژول‌ها»؛
  * قسمت‌های پولی، قسمت‌های تازه و همهٔ قفل‌های کار با کد «حساس». کلید ناشناس ⇒ null («پیش‌فرض رد»).
  * متن پرانتزهای دو قسمت در تب «رمز مدیر و خروج» هم از همین ساخته می‌شود تا متن و رفتار جدا نشوند.

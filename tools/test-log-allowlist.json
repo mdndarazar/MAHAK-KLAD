@@ -237,7 +237,13 @@
     "docs/audit/volume-scenarios.mjs": 2,
     "docs/audit/year-scenarios.mjs": 4,
     "tests/plan-1405/gate-callsite-inventory.json": 2,
-    "tests/audit-fixes/fix-s179-fraud-actor-duplicate-cheque.mjs": 1
+    "tests/audit-fixes/fix-s179-fraud-actor-duplicate-cheque.mjs": 1,
+    "src/renderer/src/pages/SalesReturn.tsx": 27,
+    "src/renderer/src/components/CardTransferPanel.tsx": 8,
+    "src/renderer/src/components/BridgeDiagnosticsModal.tsx": 5,
+    "src/renderer/src/pages/Pos.tsx": 6,
+    "src/renderer/src/components/AutoCentralPasswordBox.tsx": 3,
+    "src/renderer/src/components/StockSourceModal.tsx": 5
    }
   },
   "4": {
@@ -409,6 +415,7 @@
   "plan1405-bot-buttons-loopback.mjs (batch 3)": "Owner permission 2026-11-28 (TL-D17): 4-46 renames the credit.void lock to \"ابطال و تغییر اعتبار\" in the unlock dialog, the lists and the bot request message, so line 212 of this bot test now expects the new title (one regex). The six backup-test lines that measured the old core message (fix-s181 lines 111 and 115, fix-s206 lines 57 and 63, fix-re-audit-high-backup-gates lines 64 and 67) were approved in the same answer; fix-s184-review-high line 58 and fix-s186-review-high2 line 51 (the same old-message regex, in two tests that already fail for other reasons) in a second answer; in a third answer the golden financial baseline (tests/plan-1405/golden-financial-baseline.txt lines 22, 24, 27, 29, 32, 76, 82 and 86: the same refusal text, every number unchanged; rewritten by the scenario itself and checked by diff).",
   "scenario tools: bot, cash-close, day-boundary, volume, year (batch 3)": "Owner permission 2026-11-28 (TL-D18): 4-64 puts the payments window, adding a payment and the cheque list behind the «نسیه» lock at the IPC boundary (decision ت-۹), so on screen the window now asks for that lock first. The five scenario tools that add payments or read the cheque list open «نسیه» right before those steps, like the user (nine lines: bot 330, 416, 419; cash-close 578, 586; day-boundary 252; volume 344; year 486, 557). With them all five tools give exactly the results they gave before 4-64.",
   "gate-callsite-inventory.json (batch 3)": "Owner permission 2026-11-28 (tl-b3-4-65-inventory; TL-D18 follow-up, TL-D19): plan1405-gate-callsite-scan compares the gate calls in src with this inventory. 4-64 added one read gate in src/main/ipc/index.ts (the wholesale page lock as the second way into the payments window) and 4-65 another (the «عملکرد کارمندان» lock for the fraud review); the scan itself puts read gates in the «known» category. So assertPanelUnlocked known goes 52 ⇒ 53 in the 4-64 follow-up commit and 53 ⇒ 54 with 4-65; one line, and the scan still catches any unclassified call.",
-  "fix-s179-fraud-actor-duplicate-cheque.mjs (batch 3)": "Owner permission 2026-11-28 (TL-D19): 4-65 puts the fraud review behind the «عملکرد کارمندان» lock at the IPC boundary as well as the «گزارشات فروش» lock. The test opened only sales reports for its window (line 50), so one line after it opens «عملکرد کارمندان» the same way, like the real user. The test keeps its earlier ending (the known base failure, identical after masking)."
+  "fix-s179-fraud-actor-duplicate-cheque.mjs (batch 3)": "Owner permission 2026-11-28 (TL-D19): 4-65 puts the fraud review behind the «عملکرد کارمندان» lock at the IPC boundary as well as the «گزارشات فروش» lock. The test opened only sales reports for its window (line 50), so one line after it opens «عملکرد کارمندان» the same way, like the real user. The test keeps its earlier ending (the known base failure, identical after masking).",
+  "4-81 lock texts (batch 3)": "Owner permission 2026-11-28 (TL-D20): tl-b3-4-81-files ⇒ yes-three (SalesReturn.tsx: the «اصلاح و ابطال برگشت / تعویض» window gets the code and remote boxes and names its lock; CardTransferPanel.tsx: three labels; BridgeDiagnosticsModal.tsx: two texts) and tl-b3-4-81-files-2 ⇒ yes-three-more (Pos.tsx: the «چاپ فاکتور» box and its message; AutoCentralPasswordBox.tsx and StockSourceModal.tsx: the «برداشت خودکار» lock name). Text and the unlock path only; the gate decision, wrong-password counting and money are unchanged; budgets are the exact 4-81 changed lines."
  }
 }
