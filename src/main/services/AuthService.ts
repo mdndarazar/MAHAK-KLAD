@@ -15,6 +15,7 @@ import {
 } from '@shared/receipt'
 import { openSecret, sealSecret, vaultReady } from './PanelVault'
 import { emptyPanelPasswordScope, gatePasses } from './locks/gate'
+import { noteAccessEvent } from './locks/accessEvents'
 import { toLatinDigits, faDigits, toJalaliDate, toClock } from '@shared/jalali'
 import {
   ALWAYS_LOCKED_PANELS,
@@ -964,6 +965,22 @@ export const authService = {
         shifts
       }
     })
+  },
+
+  /**
+   * دفتر آزمون ۴-۵۳: «باز کردن فوری قفل رمز اشتباه» (رمز تایپی مدیر). قفل و شمارندهٔ رمز اشتباهِ نقطه‌های ورود رمز همین
+   * سرویس (رمز مدیر، رمز دوم و سوم بخش‌ها، تأیید اصلاح) باز و در سابقه ثبت می‌شود. PIN صندوق (`custody-pin:*`) و قفل
+   * ۵ اشتباهِ کد یک‌بارمصرف جدا هستند و دست نمی‌خورند.
+   */
+  async clearPasswordLockouts(input: { managerPassword?: string; userId?: number | null } = {}): Promise<{ ok: true; cleared: number }> {
+    await assertManagerPassword(normalize(input.managerPassword), 'باز کردن فوری قفل رمز اشتباه')
+    const now = Date.now()
+    const rows = await prisma.authLockout.findMany()
+    const stuck = rows.filter((r: { gate: string; failCount: number | null; lockedUntil: Date | string | null }) =>
+      !r.gate.startsWith('custody-pin:') && ((r.failCount ?? 0) > 0 || (!!r.lockedUntil && new Date(r.lockedUntil).getTime() > now)))
+    for (const r of stuck) await writeLock(r.gate, { failCount: 0, lastFailAt: null, lockedUntil: null })
+    noteAccessEvent('PASSWORD_LOCKS_CLEARED', { count: stuck.length }, input.userId ?? null)
+    return { ok: true as const, cleared: stuck.length }
   },
 
   /**

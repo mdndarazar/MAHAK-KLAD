@@ -37,7 +37,8 @@ export function panelSessionTtlMs(): number {
 }
 
 type Scope = 'MANAGER' | 'PANEL'
-type Entry = { expiresAt: number; scope: Scope; openedAt: number; generation: number; remoteAllowed?: (touch: boolean) => boolean; hardEnd?: number }
+/** `sticky`: دفتر آزمون ۴-۵۳، نشست «پنل فروش» با بی‌کاری بسته نمی‌شود؛ فقط «خروج مدیر» یا بستن برنامه */
+type Entry = { expiresAt: number; scope: Scope; openedAt: number; generation: number; remoteAllowed?: (touch: boolean) => boolean; hardEnd?: number; sticky?: true }
 /** طرح ۱۴۰۵ §۳-۱۴ — سقف سخت هر نشست نگهبان‌دار (مجوز راه دور، کد، زمان‌بندی‌شده) با ساعت یکنواخت. */
 const GUARDED_MAX_MS = 60 * 60_000
 
@@ -107,7 +108,7 @@ function alive(key: string, owner: number, touch: boolean): Entry | null {
     try { permitted = entry.remoteAllowed(touch) === true } catch { permitted = false }
   }
   // طرح ۱۴۰۵ §۳-۱۴: نشست نگهبان‌دار فقط از نگهبان خودش (و سقف سخت) پیروی می‌کند، نه از بی‌کاری عمومی پنل.
-  if (!permitted || (entry.remoteAllowed ? (entry.hardEnd ?? 0) <= performance.now() : entry.expiresAt <= Date.now())) {
+  if (!permitted || (entry.remoteAllowed ? (entry.hardEnd ?? 0) <= performance.now() : !entry.sticky && entry.expiresAt <= Date.now())) {
     // The check may revoke synchronously; never delete a replacement session.
     if (bucket(owner) === entries && entries?.get(key) === entry) {
       entries.delete(key)
@@ -134,6 +135,23 @@ export function notePanelUnlocked(panel: string, scope: Scope | 'OPEN', explicit
     openedAt: now,
     generation: generationOf(owner)
   })
+  // دفتر آزمون ۴-۵۳: «پنل فروش» بازشده با رمز خودش یا با رمز مدیر روی همان صفحه، با بی‌کاری بسته نمی‌شود
+  if ((normalizePanelKey(panel) ?? panel) === PANEL_KEYS.pos)
+    bucket(owner, true)?.set(PANEL_KEYS.pos, { expiresAt: now + ttlMs, scope: 'PANEL', openedAt: now, generation: generationOf(owner), sticky: true })
+}
+
+/**
+ * دفتر آزمون ۴-۵۴ و ۴-۵۳: قفل بی‌کاری فقط نشست‌های رمزی را می‌بندد (نشست مدیر و رمز دوم و سوم بخش‌ها). بخش بازشده با
+ * کد، مجوز راه دور یا مجوز زمان‌بندی‌شده (نگهبان‌دار) با قاعدهٔ خودش بسته می‌شود و «پنل فروش» تا «خروج مدیر» می‌ماند.
+ */
+export function clearIdleSessions(explicitOwner?: number): void {
+  const owner = ownerOf(explicitOwner)
+  const entries = bucket(owner)
+  if (entries) {
+    for (const [key, entry] of [...entries]) if (!entry.remoteAllowed && !entry.sticky) entries.delete(key)
+    if (entries.size === 0) sessionsByOwner.delete(owner)
+  }
+  bumpGeneration(owner)
 }
 
 /**

@@ -1286,6 +1286,21 @@ export default function Settings() {
     }
   }
 
+  /** دفتر آزمون ۴-۵۳: «باز کردن فوری قفل رمز اشتباه» با همان رمز تایپی مدیرِ بخش امنیت */
+  const clearPasswordLocks = async () => {
+    setSecurityBusy(true)
+    setErr(null)
+    try {
+      const r = await call<{ cleared: number }>(CH.managerPasswordLocksClear, { managerPassword: securityPw })
+      flash(r.cleared ? `قفل رمز اشتباهِ ${faDigits(r.cleared)} نقطهٔ ورود رمز باز شد.` : 'هیچ نقطهٔ ورود رمزی قفل نبود.')
+    } catch (e: any) {
+      setErr(e.message)
+    } finally {
+      setSecurityPw('')
+      setSecurityBusy(false)
+    }
+  }
+
   /**
    * ---------------------------------------------------------------------------
    * بند ۳ — ذخیره‌ی *فوری* سیاست تخفیف، دقیقاً به همان دلیل تنظیمات امنیتی:
@@ -3042,6 +3057,14 @@ export default function Settings() {
                       {securityBusy ? 'در حال ذخیره…' : 'ذخیره‌ی تنظیمات امنیتی'}
                     </button>
                   </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button className="btn" onClick={() => void clearPasswordLocks()} disabled={securityBusy || !securityPw.trim()}>
+                    باز کردن فوری قفل رمز اشتباه
+                  </button>
+                  <span className="kbd leading-6">
+                    با همان «رمز مدیر» بالا، قفل رمز اشتباهِ همهٔ نقطه‌های ورود رمز همین حالا باز و در سابقه ثبت می‌شود. قفل کدهای یک‌بارمصرف و PIN صندوق جدا هستند.
+                  </span>
                 </div>
                 <div className="kbd leading-6">
                   وضعیت فعلی: قفل بی‌کاری <b>{faDigits(security.idleLockMinutes)} دقیقه</b>

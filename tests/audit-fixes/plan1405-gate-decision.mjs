@@ -62,9 +62,9 @@ const gate = (id, password = '', owner = W1) => outcome(() => inCall(owner, () =
 const required = (r, id) => !r.ok && r.err?.code === `GATE_REQUIRED:${id}`
 
 try {
-  console.log('\n— ۰) پیش‌فرض نصب: همهٔ ۸۴ کلید روشن؛ هیچ کاری بی‌رمزتر از امروز نیست')
-  ok('۸۴ کلید، همه در نصب تازه روشن', LOCKED_PANELS.length === 84 && Object.values(allLockedConfig()).every((v) => v === true))
-  ok('پیکربندی خالی یعنی همه روشن', Object.values(parsePanelLocks({})).every((v) => v === true))
+  console.log('\n— ۰) پیش‌فرض نصب: همهٔ ۸۴ کلید روشن، جز «پنل فروش» (دفتر آزمون ۴-۵۳)؛ جایگزینِ پیش از خواندن همه را قفل می‌داند')
+  ok('۸۴ کلید؛ جایگزینِ پیش از خواندن یا هنگام خطا همه روشن', LOCKED_PANELS.length === 84 && Object.values(allLockedConfig()).every((v) => v === true))
+  ok('پیکربندی خالی یعنی همه روشن، جز «پنل فروش»', Object.entries(parsePanelLocks({})).every(([key, v]) => v === (key !== PANEL_KEYS.pos)))
 
   console.log('\n— ۱) هر ۵۳ شناسهٔ کار، از هر راه')
   let ownPwSet = 0

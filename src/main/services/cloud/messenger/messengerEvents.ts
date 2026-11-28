@@ -790,6 +790,7 @@ function accessEvent(row: AuditRowLite, f: Record<string, unknown>, h: ReturnTyp
     case K.CODE_WRONG: return [h.event(row, '🔑 کد یک‌بارمصرف اشتباه وارد شد', [where], { important: true })]
     case K.CODES_CREATED: return [h.event(row, '🔑 کدهای یک‌بارمصرف تازه ساخته شد', [n(f.count) !== null ? `تعداد: ${num(f.count)}` : '', lock ? `بخش: ${lock}` : '', by], { important: true })]
     case K.CODES_REVOKED: return [h.event(row, '🔑 کدهای یک‌بارمصرف باطل شد', [lock ? `بخش: ${lock}` : '', by])]
+    case K.PASSWORD_LOCKS_CLEARED: return [h.event(row, '🔓 قفل رمز اشتباه به دست مدیر باز شد', [n(f.count) !== null ? `نقطه‌های ورود رمز: ${num(f.count)}` : '', by], { important: true })]
     case K.CODES_UNLOCKED: return [h.event(row, '🔓 قفل ورود کدهای یک‌بارمصرف به دست مدیر برداشته شد', [by])]
     case K.CODES_FILE_BROKEN: return [h.event(row, '⚠️ پروندهٔ کدهای یک‌بارمصرف خراب بود؛ همهٔ کدها باطل است. کد تازه بسازید.', [], { important: true })]
     case K.RECOVERY_CODES_CREATED: return [h.event(row, '🆘 کدهای بازیابی توقف اضطراری تازه ساخته شد', [n(f.count) !== null ? `تعداد: ${num(f.count)}` : '', 'کدهای قبلی باطل شد.'], { important: true })]

@@ -73,6 +73,7 @@ import {
   notePanelUnlocked,
   clearPanelSessions,
   clearPanelSessionsForOwner,
+  clearIdleSessions,
   panelSessionStatus,
   touchManagerSession,
   runWithPanelSessionOwner,
@@ -1587,8 +1588,10 @@ export function registerIpcHandlers(): void {
    * endpoint idempotent است تا قفل بی‌کاری یا پاسخ گم‌شده نتواند دسترسی باقی
    * بگذارد؛ حضانت صندوق عمداً این‌جا لمس نمی‌شود.
    */
-  handle(IPC.managerLogout, () => {
-    clearPanelSessions()
+  handle(IPC.managerLogout, (p) => {
+    // دفتر آزمون ۴-۵۴: قفل بی‌کاری (`idle`) فقط نشست‌های رمزی را می‌بندد؛ «خروج مدیر» دستی همه را
+    if (p?.idle === true) clearIdleSessions()
+    else clearPanelSessions()
     return { ok: true as const, session: panelSessionStatus() }
   })
   /** Renderer بعد از startup یا پاسخ گم‌شده، فقط حقیقت Main را می‌خواند. */
@@ -1631,6 +1634,8 @@ export function registerIpcHandlers(): void {
    */
   handle(IPC.managerPanelLocks, () => authService.panelLocks())
   handle(IPC.managerPanelLocksSet, async (p) => authService.setPanelLocks(await withOptionalSessionActor(p ?? {})))
+  // دفتر آزمون ۴-۵۳: «باز کردن فوری قفل رمز اشتباه» (رمز تایپی مدیر)
+  handle(IPC.managerPasswordLocksClear, async (p) => authService.clearPasswordLockouts(await withOptionalSessionActor(p ?? {})))
 
   // ---- بند ۴: ماژول «تخفیف و افزایش/کاهش قیمت» ----
   // نشست ۱۵۰ · بند ۴-۳۹ — mutationهای تغییر گروهی قیمت: گیت در سرویس، actor فقط از نشست main

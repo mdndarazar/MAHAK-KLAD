@@ -489,6 +489,8 @@ export const IPC = {
    */
   managerPanelLocks: 'manager:panel:locks',
   managerPanelLocksSet: 'manager:panel:locks:set',
+  /** دفتر آزمون ۴-۵۳: باز کردن فوری قفل رمز اشتباه (رمز تایپی مدیر) */
+  managerPasswordLocksClear: 'manager:password:locks:clear',
 
   // عوارض و مالیات / حق سرویس بر اساس دسته‌بندی کالا (اسکوپ‌دار: pos | wholesale)
   chargesGet: 'charges:get',

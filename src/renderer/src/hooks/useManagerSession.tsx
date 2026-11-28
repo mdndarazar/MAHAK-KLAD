@@ -203,6 +203,20 @@ export function ManagerSessionProvider({ children }: { children: ReactNode }) {
     }
   }, [isLoggingOut, syncFromMain])
 
+  /**
+   * دفتر آزمون ۴-۵۴ و ۴-۵۳: بی‌کاری فقط نشست مدیر و رمزهای دوم و سوم را می‌بندد؛ بخش بازشده با کد یا مجوز و «پنل فروش»
+   * با قاعدهٔ خودشان می‌مانند (حقیقت از Main). اگر نشد، همان خروج کامل (fail-closed).
+   */
+  const idleLogout = useCallback(async () => {
+    lastActivity.current = Date.now()
+    try {
+      await call(CH.managerLogout, { idle: true })
+      await syncFromMain()
+    } catch {
+      await logout().catch(() => undefined)
+    }
+  }, [syncFromMain, logout])
+
   useEffect(() => {
     const load = () => {
       if (!CH?.settingsBundle) return
@@ -227,13 +241,13 @@ export function ManagerSessionProvider({ children }: { children: ReactNode }) {
     const evts: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'click', 'touchstart']
     for (const event of evts) window.addEventListener(event, bump, { passive: true })
     const id = window.setInterval(() => {
-      if (Date.now() - lastActivity.current >= idleMs) void logout().catch(() => undefined)
+      if (Date.now() - lastActivity.current >= idleMs) void idleLogout()
     }, 1000)
     return () => {
       for (const event of evts) window.removeEventListener(event, bump)
       window.clearInterval(id)
     }
-  }, [sessionOpen, idleMs, logout, touchManagerSession])
+  }, [sessionOpen, idleMs, idleLogout, touchManagerSession])
 
   const canOpen = useCallback(
     (panel: string) => ready && !securityError && (isManager || panels.includes(panel)),

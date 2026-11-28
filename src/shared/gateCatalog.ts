@@ -289,6 +289,8 @@ export const ACCESS_EVENT_KINDS = Object.freeze({
   REPEAT_SETTINGS_CHANGED: 'REPEAT_SETTINGS_CHANGED',
   /** مرحلهٔ ۶: برداشتن قفل کدها به دست مدیر؛ پروندهٔ خراب کدها (همه باطل)؛ کدهای بازیابی توقف اضطراری */
   CODES_UNLOCKED: 'CODES_UNLOCKED',
+  /** دفتر آزمون ۴-۵۳: «باز کردن فوری قفل رمز اشتباه» به دست مدیر (`count` = شمار نقطه‌های ورود رمز) */
+  PASSWORD_LOCKS_CLEARED: 'PASSWORD_LOCKS_CLEARED',
   CODES_FILE_BROKEN: 'CODES_FILE_BROKEN',
   RECOVERY_CODES_CREATED: 'RECOVERY_CODES_CREATED',
   RECOVERY_CODES_REVOKED: 'RECOVERY_CODES_REVOKED',
