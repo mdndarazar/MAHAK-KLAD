@@ -15,6 +15,7 @@ import { CREDIT_SOURCE_LABELS } from '@shared/credit'
 import { faDigits } from '@shared/jalali'
 import { ACCESS_EVENT_KINDS, GATE_METHOD_LABELS, GATE_METHOD_NOTE_PREFIX, type GateMethodKey } from '@shared/gateCatalog'
 import { CHARGE_KINDS, CHARGE_SCOPES, chargeTitle } from '@shared/charges'
+import { invoiceDiscountPercent } from '@shared/accounting'
 import { fmtAt, fmtDuration, num, officialDay, rial, rialOrMissing } from './messengerFormat'
 import type { MessengerEvent } from './messengerTypes'
 
@@ -46,6 +47,8 @@ export const EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = Object.
   DATA_ARCHIVE_PURGE: [],
   SALE_PRICE_OVERRIDE: [],
   EXCHANGE_PRICE_OVERRIDE: [],
+  /** دفتر آزمون ۴-۳۶: عوارض و حق سرویس دستی پنل فروش عمده (فقط دو عدد واردشده) */
+  SALE_CHARGE_OVERRIDE: ['tax', 'service'],
   CLOSED_PERIOD_OVERRIDE: ['what', 'dayJalali'],
   PRICE_EDIT: [],
   PRICE_BULK_ADJUST: ['itemCount'],
@@ -96,6 +99,32 @@ export interface LookupData {
   boundaries: Map<number, AggregateBoundaryLite>
   /** دفتر آزمون ۴-۲۷: پایان برنامهٔ ذخیره‌شدهٔ هر بخش حضانت (`CustodyShiftMeta.scheduledEndAt`، ms)؛ کلید = شناسهٔ نشست. */
   segments: Map<number, { scheduledEndAt: number | null }>
+  /** دفتر آزمون ۴-۹: بدنهٔ فاکتور فروش (کلید = شناسهٔ فاکتور)؛ فقط برای ردیف‌های «ثبت فروش» همان صفحه. */
+  saleDocs: Map<number, SaleDocLite>
+  /** دفتر آزمون ۴-۹: قلم‌های برگشت و تعویض (کلید = شناسهٔ سند برگشت). */
+  returnDocs: Map<number, ReturnDocLite>
+  /** دفتر آزمون ۴-۳۶: «آستانهٔ تخفیف غیرعادی» سیاست حسابداری (درصد؛ ۰ = خاموش)؛ فقط وقتی صفحه فروش دارد خوانده می‌شود. */
+  abnormalDiscountPercent: number
+}
+/**
+ * دفتر آزمون ۴-۹ — یک قلم سند، همان‌طور که هنگام ثبت در خود سند نوشته شد: نام روز فروش (`variantName`)، تعداد،
+ * قیمت هر عدد، تخفیف همان ردیف و جمع ردیف. کد کالا و بارکد هرگز خوانده نمی‌شوند.
+ */
+export interface DocLineLite { name: string; qty: number; unitPrice: number; discount: number; lineTotal: number }
+/** دفتر آزمون ۴-۹ — بدنهٔ فاکتور فروش؛ عددها همان ستون‌های ذخیره‌شدهٔ خود فاکتورند. */
+export interface SaleDocLite {
+  goodsTotal: number; discountTotal: number; taxTotal: number; serviceCharge: number; deliveryFee: number; grandTotal: number
+  lines: DocLineLite[]
+  /** پرداخت‌های همان لحظهٔ ثبت، به ترتیب ثبت: نام روش، یا «حساب مدیر»، «اعتبار خرید» (بی کد) و «چک» (با سررسید). */
+  payments: Array<{ label: string; amount: number }>
+}
+/** دفتر آزمون ۴-۹ — قلم‌های یک سند برگشت؛ تعویض با قلم‌های سند جایگزین و زنجیره. */
+export interface ReturnDocLite {
+  lines: DocLineLite[]
+  /** تعویض: قلم‌های سند جایگزین؛ برگشت ساده: null */
+  replacement: DocLineLite[] | null
+  /** تعویض: شماره‌های زنجیره، از نخستین فاکتور تا سند همین تعویض */
+  chain: number[]
 }
 /** فقط ستون‌های عددی و نوع مرز؛ هیچ متن آزاد. */
 export interface AggregateBoundaryLite {
@@ -109,7 +138,7 @@ export interface AggregateBoundaryLite {
 export const emptyLookups = (): LookupData => ({
   users: new Map(), shifts: new Map(), invoices: new Map(), customers: new Map(), payments: new Map(),
   credits: new Map(), redemptions: new Map(), reprinted: new Set(), sellerPapers: new Map(), handovers: new Map(), boundaries: new Map(),
-  segments: new Map()
+  segments: new Map(), saleDocs: new Map(), returnDocs: new Map(), abnormalDiscountPercent: 0
 })
 
 /**
@@ -134,6 +163,10 @@ export function shiftEndGap(at: number, scheduledEndAt: number | null | undefine
 export interface IdsNeeded {
   users: Set<number>; shifts: Set<number>; invoices: Set<number>; customers: Set<number>; payments: Set<number>
   credits: Set<number>; redemptions: Array<{ creditId: number; paymentId: number }>; handovers: Set<number>
+  /** دفتر آزمون ۴-۹: فاکتور هر ردیف «ثبت فروش» ⇐ زمان همان ردیف (ms)، مرز «پرداخت همان لحظه» */
+  saleDocs?: Map<number, number>
+  /** دفتر آزمون ۴-۹: سندهای برگشت و تعویض */
+  returnDocs?: Set<number>
 }
 
 export interface EventContext {
@@ -233,7 +266,7 @@ const PAYMENT_KIND_LABELS: Readonly<Record<string, string>> = Object.freeze({
 
 /** شناسه‌هایی که برای ساختن پیام‌های یک صفحه لازم‌اند (یک بار، دسته‌ای، خوانده می‌شوند). */
 export function collectAuditIds(rows: readonly AuditRowLite[], includeCustomerName: boolean): IdsNeeded {
-  const ids: IdsNeeded = { users: new Set(), shifts: new Set(), invoices: new Set(), customers: new Set(), payments: new Set(), credits: new Set(), redemptions: [], handovers: new Set() }
+  const ids: IdsNeeded = { users: new Set(), shifts: new Set(), invoices: new Set(), customers: new Set(), payments: new Set(), credits: new Set(), redemptions: [], handovers: new Set(), saleDocs: new Map(), returnDocs: new Set() }
   for (const row of rows) {
     if (row.userId) ids.users.add(row.userId)
     const f = pick(row)
@@ -249,6 +282,9 @@ export function collectAuditIds(rows: readonly AuditRowLite[], includeCustomerNa
       const paymentId = intId(f.paymentId)
       if (paymentId) ids.redemptions.push({ creditId: row.entityId, paymentId })
     }
+    // دفتر آزمون ۴-۹: قالب کامل فاکتور فروش، برگشت و تعویض
+    if ((row.action === 'SALE_CREATE' || row.action === 'WHOLESALE_SALE_CREATE') && row.entity === 'SaleInvoice' && row.entityId) ids.saleDocs!.set(row.entityId, toMs(row.at))
+    if (row.entity === 'SaleReturn' && row.entityId && ['RETURN_REFUND', 'SALE_RETURN', 'SALE_EXCHANGE'].includes(row.action)) ids.returnDocs!.add(row.entityId)
   }
   return ids
 }
@@ -278,6 +314,56 @@ function differenceText(diff: number | null, state?: unknown): string {
   if (diff === 0) return 'تطبیق کامل (۰)'
   const label = state === 'SHORTAGE' || diff < 0 ? 'کسری' : 'اضافه'
   return `${rial(Math.abs(diff))} ${label}`
+}
+
+/** دفتر آزمون ۴-۳۶ — درصد با یک رقم اعشار، همان نمایش جدول «تخفیف‌های غیرعادی» (`StaffPerformancePanel.tsx`). */
+const pct = (v: number): string => `${faDigits(v.toFixed(1))}٪`
+/** دفتر آزمون ۴-۳۶ — درصد تخفیف یک ردیف از قیمت ناخالص همان ردیف (گرد کردن مثل `invoiceDiscountPercent`). */
+function lineDiscountPercent(l: DocLineLite): number {
+  const gross = l.qty * l.unitPrice
+  return gross > 0 ? Math.round((l.discount / gross) * 1000) / 10 : 0
+}
+/**
+ * دفتر آزمون ۴-۹ — «• ۲ عدد شلوار بگ سایز ۳۱ - ذغالی · هر عدد ۳۶٬۰۰۰٬۰۰۰ ریال · جمع ۷۲٬۰۰۰٬۰۰۰ ریال»؛ تخفیف ردیف اگر بود،
+ * با درصدش (۴-۳۶).
+ */
+function docLineText(l: DocLineLite): string {
+  return `• ${num(l.qty)} عدد ${faDigits(l.name || 'کالای بی‌نام')} · هر عدد ${rial(l.unitPrice)}${l.discount ? ` · تخفیف ${rial(l.discount)} (${pct(lineDiscountPercent(l))})` : ''} · جمع ${rial(l.lineTotal)}`
+}
+/**
+ * دفتر آزمون ۴-۳۶ — درصد تخفیف فاکتور با همان تابع گزارش «تخفیف‌های غیرعادی» (`invoiceDiscountPercent`)، و غیرعادی بودنش
+ * با همان قاعده (بیشتر از آستانه؛ آستانهٔ صفر = خاموش).
+ */
+function saleDiscount(doc: SaleDocLite, threshold: number): { percent: number; abnormal: boolean } {
+  const percent = invoiceDiscountPercent({ goodsTotal: doc.goodsTotal, discountTotal: doc.discountTotal, taxTotal: doc.taxTotal, serviceCharge: doc.serviceCharge, deliveryFee: doc.deliveryFee })
+  return { percent, abnormal: threshold > 0 && doc.discountTotal > 0 && percent > threshold }
+}
+/**
+ * دفتر آزمون ۴-۹ — بدنهٔ فاکتور فروش: همهٔ قلم‌ها؛ جمع کالاها، تخفیف، عوارض و مالیات، هزینهٔ خدمات و هزینهٔ پیک هر کدام
+ * فقط اگر صفر نباشد؛ «مبلغ فاکتور» همیشه؛ پرداخت‌های همان لحظه به تفکیک روش و مانده (نسیه). عددها همان ثبت‌شده‌اند.
+ */
+function saleDocLines(doc: SaleDocLite, threshold: number): string[] {
+  const byLabel = new Map<string, number>()
+  for (const p of doc.payments) byLabel.set(p.label, (byLabel.get(p.label) ?? 0) + p.amount)
+  const remaining = doc.grandTotal - doc.payments.reduce((s, p) => s + p.amount, 0)
+  const discount = saleDiscount(doc, threshold)
+  return [
+    ...doc.lines.map(docLineText),
+    doc.goodsTotal ? `جمع کالاها: ${rial(doc.goodsTotal)}` : '',
+    // دفتر آزمون ۴-۳۶: جمع تخفیف با درصدش از جمع کالاها، و خط «تخفیف غیرعادی» همان لحظه
+    doc.discountTotal ? `تخفیف: ${rial(doc.discountTotal)} (${pct(discount.percent)} از جمع کالاها)` : '',
+    discount.abnormal ? `تخفیف غیرعادی (بیش از ${faDigits(threshold)}٪)` : '',
+    doc.taxTotal ? `عوارض و مالیات: ${rial(doc.taxTotal)}` : '',
+    doc.serviceCharge ? `هزینهٔ خدمات: ${rial(doc.serviceCharge)}` : '',
+    doc.deliveryFee ? `هزینهٔ پیک: ${rial(doc.deliveryFee)}` : '',
+    `مبلغ فاکتور: ${rial(doc.grandTotal)}`,
+    byLabel.size ? `پرداخت: ${[...byLabel].map(([label, amount]) => `${label} ${rial(amount)}`).join(' · ')}` : '',
+    remaining > 0 ? `مانده (نسیه): ${rial(remaining)}` : ''
+  ]
+}
+/** دفتر آزمون ۴-۹ — «زنجیره: فاکتور ۱ ← سند ۲ ← سند ۳»؛ فقط وقتی فاکتور مبدأ خودش سند تعویض است. */
+function chainLine(chain: readonly number[]): string {
+  return chain.length >= 3 ? `زنجیره: ${chain.map((receipt, i) => `${i ? 'سند' : 'فاکتور'} ${num(receipt)}`).join(' ← ')}` : ''
 }
 
 /**
@@ -343,9 +429,14 @@ function returnGroupEvent(g: { refund?: AuditRowLite; ret?: AuditRowLite; exchan
     : ''
   if (g.exchange) {
     const f = pick(g.exchange)
+    // دفتر آزمون ۴-۹: جمع‌ها زیر سرخط؛ خط زنجیره؛ دو فهرست «کالای برگشتی» و «کالای جایگزین» از خود سندها.
+    const doc = g.exchange.entityId ? ctx.data.returnDocs.get(g.exchange.entityId) : undefined
     return [h.event(g.exchange, `🔄 تعویض کالا · فاکتور ${num(f.sourceReceiptNo)}${n(f.exchangeReceiptNo) !== null ? ` ← سند ${num(f.exchangeReceiptNo)}` : ''}`, [
-      `کالای برگشتی: ${rialOrMissing(f.returnTotal)} · کالای جایگزین: ${rialOrMissing(f.exchangeTotal)}`,
+      `جمع کالای برگشتی: ${rialOrMissing(f.returnTotal)} · جمع کالای جایگزین: ${rialOrMissing(f.exchangeTotal)}`,
       `مابه‌التفاوت: ${rialOrMissing(f.diff)} · ${EXCHANGE_SETTLEMENT_LABELS[String(f.settlement)] ?? 'تسویهٔ ثبت‌نشده'}`,
+      doc ? chainLine(doc.chain) : '',
+      ...(doc ? ['کالای برگشتی:', ...doc.lines.map(docLineText)] : []),
+      ...(doc?.replacement ? ['کالای جایگزین:', ...doc.replacement.map(docLineText)] : []),
       refundLine,
       `فروشنده: ${h.who(g.exchange.userId)}`
     ], { important: true })]
@@ -353,8 +444,10 @@ function returnGroupEvent(g: { refund?: AuditRowLite; ret?: AuditRowLite; exchan
   const main = g.ret ?? g.refund!
   const f = g.ret ? pick(g.ret) : {}
   const receipt = n(f.receiptNo) ?? n(refund?.receiptNo)
+  const doc = main.entityId ? ctx.data.returnDocs.get(main.entityId) : undefined // دفتر آزمون ۴-۹: همهٔ قلم‌های برگشتی
   return [h.event(main, `↩️ برگشت از فروش${receipt !== null ? ` · فاکتور ${num(receipt)}` : ''}`, [
-    `مبلغ برگشت: ${g.ret ? rialOrMissing(f.total) : rialOrMissing(refund?.returnTotal)}${f.fullyReturned === true ? ' (کل فاکتور)' : ''}`,
+    `جمع برگشت: ${g.ret ? rialOrMissing(f.total) : rialOrMissing(refund?.returnTotal)}${f.fullyReturned === true ? ' (کل فاکتور)' : ''}`,
+    ...(doc ? doc.lines.map(docLineText) : []),
     refundLine,
     `فروشنده: ${h.who(main.userId)}`
   ], { important: true })]
@@ -368,14 +461,20 @@ function mapRow(row: AuditRowLite, ctx: EventContext, h: ReturnType<typeof makeH
       const grand = n(f.grandTotal), paid = n(f.paidTotal)
       const customerId = intId(f.customerId)
       const customer = ctx.includeCustomerName && customerId ? ctx.data.customers.get(customerId) : null
+      // دفتر آزمون ۴-۹: قالب کامل فاکتور از خود سند؛ سندِ خوانده‌نشده ⇐ همان خط‌های پیش از آن.
+      const doc = row.entityId ? ctx.data.saleDocs.get(row.entityId) : undefined
+      // دفتر آزمون ۴-۳۶: تخفیف غیرعادی ⇐ پیام مهم (نشان ⚠️؛ به گیرندهٔ «فقط موارد مهم» هم می‌رسد)
+      const abnormal = doc ? saleDiscount(doc, ctx.data.abnormalDiscountPercent).abnormal : false
       return [h.event(row, `🧾 فروش${row.action === 'WHOLESALE_SALE_CREATE' ? ' عمده' : ''} · فاکتور ${num(f.receiptNo)}`, [
         `جمع: ${rialOrMissing(grand)}${n(f.lines) !== null ? ` · ${num(f.lines)} قلم` : ''}`,
-        n(f.discountTotal) ? `تخفیف: ${rial(f.discountTotal)}` : '',
-        // `paidTotal` هنگام ثبت فقط پرداخت‌های همان لحظه است؛ اعتبار خرید جدا (پیام «اعتبار مصرف شد») می‌آید.
-        grand !== null && paid !== null && paid < grand ? `پرداخت هنگام ثبت: ${rial(paid)} از ${rial(grand)} (بقیه با اعتبار خرید یا نسیه)` : '',
+        ...(doc ? saleDocLines(doc, ctx.data.abnormalDiscountPercent) : [
+          n(f.discountTotal) ? `تخفیف: ${rial(f.discountTotal)}` : '',
+          // `paidTotal` هنگام ثبت فقط پرداخت‌های همان لحظه است؛ اعتبار خرید جدا (پیام «اعتبار مصرف شد») می‌آید.
+          grand !== null && paid !== null && paid < grand ? `پرداخت هنگام ثبت: ${rial(paid)} از ${rial(grand)} (بقیه با اعتبار خرید یا نسیه)` : ''
+        ]),
         `فروشنده: ${h.who(row.userId)}${h.shiftLabel(intId(f.shiftId)) ? ` · شیفت ${h.shiftLabel(intId(f.shiftId))}` : ''}`,
         customer ? `مشتری: ${customer}` : ''
-      ], { sale: true })]
+      ], { sale: true, important: abnormal })]
     }
     case 'SALE_UPDATE': {
       const receipt = h.receiptOf(row, f)
@@ -506,6 +605,15 @@ function mapRow(row: AuditRowLite, ctx: EventContext, h: ReturnType<typeof makeH
       return [h.event(row, `🗑️ حذف ${entityLabel(row.entity)}${row.entityId ? ` ${num(row.entityId)}` : ''}`, [`کاربر: ${h.who(row.userId)}`], { important: true })]
     case 'DATA_ARCHIVE_PURGE':
       return [h.event(row, '🗑️ پاک‌سازی و بایگانی داده‌های قدیمی', [`کاربر: ${h.who(row.userId)}`], { important: true })]
+    case 'SALE_CHARGE_OVERRIDE': {
+      // دفتر آزمون ۴-۳۶: تنها کار پنل فروش که پیام نداشت؛ عوارض یا حق سرویس دستی فاکتور عمده (عدد واردشده، همان ثبت‌شده)
+      const receipt = h.receiptOf(row, f)
+      return [h.event(row, `✍️ عوارض یا حق سرویس دستی${receipt !== null ? ` · فاکتور ${num(receipt)}` : ''}`, [
+        n(f.tax) !== null ? `عوارض و مالیات: ${rial(f.tax)}` : '',
+        n(f.service) !== null ? `حق سرویس: ${rial(f.service)}` : '',
+        `کاربر: ${h.who(row.userId)}`
+      ], { important: true })]
+    }
     case 'SALE_PRICE_OVERRIDE':
     case 'EXCHANGE_PRICE_OVERRIDE': {
       const receipt = h.receiptOf(row, f)

@@ -7,7 +7,8 @@
 import { createHash } from 'node:crypto'
 import { prisma as defaultPrisma } from '../../../db/client'
 import { SETTING_KEYS, parseAccountingPolicy, parseOfficialTimeConfig } from '@shared/receipt'
-import { custodyBoundaryId, custodyTargetUserId, minutesAfterShiftEnd, type AuditRowLite, type CustodyCountLite, type CustodyEventLite, type IdsNeeded, type LookupData } from './messengerEvents'
+import { faDigits } from '@shared/jalali'
+import { custodyBoundaryId, custodyTargetUserId, minutesAfterShiftEnd, type AuditRowLite, type CustodyCountLite, type CustodyEventLite, type DocLineLite, type IdsNeeded, type LookupData } from './messengerEvents'
 import { emptyLookups } from './messengerEvents'
 
 type Client = typeof defaultPrisma
@@ -169,7 +170,114 @@ export function createMessengerDb(client: Client = defaultPrisma) {
       const rows = await db.user.findMany({ where: { id: { in: part } }, select: { id: true, displayName: true, username: true } })
       for (const u of rows) data.users.set(u.id, String(u.displayName || u.username || '').slice(0, 60))
     }
+    await fetchDocs(ids, data)
     return data
+  }
+
+  /**
+   * دفتر آزمون ۴-۹ — قالب کامل فاکتور (فقط خواندن): بدنه و قلم‌های خود سند، با نامی که هنگام فروش در سند نوشته شد،
+   * و پرداخت‌های همان لحظهٔ ثبت. فقط ستون‌های عددی، نام کالا و نام روش پرداخت؛ کد کالا، بارکد، کد برگشت، کد اعتبار،
+   * تلفن و یادداشت هرگز انتخاب نمی‌شوند.
+   */
+  async function fetchDocs(ids: IdsNeeded, data: LookupData): Promise<void> {
+    const saleAt = ids.saleDocs ?? new Map<number, number>()
+    // دفتر آزمون ۴-۳۶: آستانهٔ «تخفیف غیرعادی»، فقط وقتی همین صفحه فروش دارد
+    if (saleAt.size) data.abnormalDiscountPercent = parseAccountingPolicy(await settingValue(SETTING_KEYS.accountingPolicy)).abnormalDiscountPercent
+    for (const part of chunks([...saleAt.keys()])) {
+      const invoices = await db.saleInvoice.findMany({
+        where: { id: { in: part } },
+        select: { id: true, goodsTotal: true, discountTotal: true, taxTotal: true, serviceCharge: true, deliveryFee: true, grandTotal: true }
+      })
+      const lines = await docLines(db.saleInvoiceItem, 'invoiceId', part, true)
+      const payments = await db.payment.findMany({
+        where: { invoiceId: { in: part }, voidedAt: null }, orderBy: { id: 'asc' },
+        select: { id: true, invoiceId: true, amount: true, seq: true, createdAt: true, methodId: true, destination: true, storeCreditId: true, kind: true, dueDateJalali: true }
+      })
+      const methodIds = [...new Set<number>(payments.map((p: any) => p.methodId))]
+      const methods = methodIds.length ? await db.paymentMethod.findMany({ where: { id: { in: methodIds } }, select: { id: true, label: true } }) : []
+      const methodLabel = new Map<number, string>(methods.map((m: any) => [m.id, String(m.label ?? '').slice(0, 30)]))
+      for (const i of invoices) {
+        const at = saleAt.get(i.id) ?? 0
+        // «همان لحظه» = ردیف‌هایی که پیش از ردیف «ثبت فروش» ساخته شدند، و اعتبار خرید (که فقط هنگام فروش یا تعویض
+        // مصرف می‌شود). پرداختِ بعدی پیام «💰 پرداخت» خودش را دارد.
+        const own = payments
+          .filter((p: any) => p.invoiceId === i.id && (p.storeCreditId != null || ms(p.createdAt) <= at))
+          .sort((a: any, b: any) => (a.seq - b.seq) || (a.id - b.id))
+        data.saleDocs.set(i.id, {
+          goodsTotal: toNum(i.goodsTotal), discountTotal: toNum(i.discountTotal), taxTotal: toNum(i.taxTotal),
+          serviceCharge: toNum(i.serviceCharge), deliveryFee: toNum(i.deliveryFee), grandTotal: toNum(i.grandTotal),
+          lines: lines.get(i.id) ?? [],
+          payments: own.map((p: any) => ({
+            label: p.storeCreditId != null ? 'اعتبار خرید'
+              : p.kind === 'CHEQUE' ? `چک${typeof p.dueDateJalali === 'string' && p.dueDateJalali ? ` (سررسید ${faDigits(p.dueDateJalali)})` : ''}`
+                : p.destination === 'MANAGER' ? 'حساب مدیر' : methodLabel.get(p.methodId) || 'روش ثبت‌نشده',
+            amount: toNum(p.amount)
+          }))
+        })
+      }
+    }
+    for (const part of chunks([...(ids.returnDocs ?? [])])) {
+      const returns = await db.saleReturn.findMany({ where: { id: { in: part } }, select: { id: true, kind: true, exchangeInvoiceId: true } })
+      const lines = await docLines(db.saleReturnItem, 'returnId', part, false)
+      const exchangeIds = returns.filter((r: any) => r.kind === 'EXCHANGE' && r.exchangeInvoiceId).map((r: any) => r.exchangeInvoiceId as number)
+      const replacement = await docLines(db.saleInvoiceItem, 'invoiceId', exchangeIds, true)
+      for (const r of returns) {
+        const exchange = r.kind === 'EXCHANGE' && !!r.exchangeInvoiceId
+        data.returnDocs.set(r.id, {
+          lines: lines.get(r.id) ?? [],
+          replacement: exchange ? replacement.get(r.exchangeInvoiceId) ?? [] : null,
+          chain: exchange ? await exchangeChain(r.exchangeInvoiceId) : []
+        })
+      }
+    }
+  }
+  /**
+   * دفتر آزمون ۴-۹ — قلم‌های چند سند، به ترتیب ثبت (کلید = شناسهٔ سند). نام قلم همان نامی است که روز فروش در سند
+   * نوشته شد؛ قلم برگشتی نام قلم فروش خودش را می‌گیرد؛ سند قدیمی بی نام ⇐ نام کنونی کالا (همان قاعدهٔ `saleLineTitle`).
+   */
+  async function docLines(model: any, key: 'invoiceId' | 'returnId', docIds: number[], isSale: boolean): Promise<Map<number, DocLineLite[]>> {
+    const out = new Map<number, DocLineLite[]>()
+    if (!docIds.length) return out
+    const rows: any[] = []
+    for (const part of chunks(docIds)) {
+      rows.push(...await model.findMany({
+        where: { [key]: { in: part } }, orderBy: { id: 'asc' },
+        select: { [key]: true, variantId: true, variantName: true, qty: true, unitPrice: true, lineTotal: true, ...(isSale ? { discount: true } : { saleItemId: true }) }
+      }))
+    }
+    const nameOf = (r: any): string => String(r.variantName ?? '').trim()
+    const saleNames = new Map<number, string>()
+    const saleItemIds = isSale ? [] : [...new Set<number>(rows.filter((r) => !nameOf(r) && r.saleItemId).map((r) => r.saleItemId))]
+    for (const part of chunks(saleItemIds)) {
+      for (const i of await db.saleInvoiceItem.findMany({ where: { id: { in: part } }, select: { id: true, variantName: true } })) saleNames.set(i.id, nameOf(i))
+    }
+    const liveNames = new Map<number, string>()
+    const variantIds = [...new Set<number>(rows.filter((r) => !nameOf(r) && !saleNames.get(r.saleItemId)).map((r) => r.variantId))]
+    for (const part of chunks(variantIds)) {
+      const variants = await db.productVariant.findMany({ where: { id: { in: part } }, select: { id: true, size: true, color: true, product: { select: { name: true } } } })
+      for (const v of variants) liveNames.set(v.id, `${v.product?.name ?? ''}${v.size ? ' سایز ' + v.size : ''}${v.color ? ' - ' + v.color : ''}`.trim())
+    }
+    for (const r of rows) {
+      const list = out.get(r[key]) ?? []
+      const name = nameOf(r) || saleNames.get(r.saleItemId) || liveNames.get(r.variantId) || ''
+      list.push({ name: name.slice(0, 80), qty: toNum(r.qty), unitPrice: toNum(r.unitPrice), discount: isSale ? toNum(r.discount) : 0, lineTotal: toNum(r.lineTotal) })
+      out.set(r[key], list)
+    }
+    return out
+  }
+  /** دفتر آزمون ۴-۹ — زنجیرهٔ تعویض با `sourceInvoiceId` سندهای تعویض: شماره‌ها از نخستین فاکتور تا همین سند. */
+  async function exchangeChain(exchangeInvoiceId: number): Promise<number[]> {
+    const out: number[] = []
+    const seen = new Set<number>()
+    let id: number | null = exchangeInvoiceId
+    while (id && !seen.has(id) && seen.size < 50) {
+      seen.add(id)
+      const inv: any = await db.saleInvoice.findUnique({ where: { id }, select: { receiptNo: true, orderType: true, sourceInvoiceId: true } })
+      if (!inv) break
+      out.unshift(inv.receiptNo)
+      id = inv.orderType === 'EXCHANGE' ? inv.sourceInvoiceId ?? null : null
+    }
+    return out
   }
 
   async function settingValue(key: string): Promise<string | null> {
