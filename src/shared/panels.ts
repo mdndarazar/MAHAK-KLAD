@@ -42,7 +42,7 @@
  * ===========================================================================
  */
 
-import { GATE_ACTION_LOCK_KEYS, GATE_CATALOG, GATE_GROUPS, GATE_PART_KEYS, type GateCatalogEntry } from './gateCatalog'
+import { GATE_ACTION_LOCK_KEYS, GATE_CATALOG, GATE_GROUPS, GATE_PART_KEYS, gateEntry, type GateCatalogEntry } from './gateCatalog'
 
 /** کلید هر پنل قفل‌دار — همین رشته، کلید ذخیره‌سازی رمز دومش هم هست. */
 export const PANEL_KEYS = {
@@ -557,6 +557,19 @@ export function codeSectionOfPanel(key: string): OneTimeCodeSection | null {
   const p = LOCKED_PANELS.find((x) => x.key === key)
   if (!p) return null
   return p.kind === 'part' && p.tier === 'normal' ? 'other' : 'sensitive'
+}
+
+/**
+ * دفتر آزمون ۴-۳۰ — نوع قفل در پیام‌ها، از همان مرز کدها و مدت‌ها (۴-۲۸): شناسهٔ کار کاتالوگ یا کلید «قفل کار» ⇒ «کار
+ * یک‌باره»؛ قسمتی که کدش «سایر ماژول‌ها»ست ⇒ «ماژول معمولی»؛ هر قسمت دیگر (پولی، تازه یا ناشناس) ⇒ «ماژول پولی و حساس».
+ * نشانهٔ رنگی هر نوع جداست.
+ */
+export type LockKind = 'action' | 'normal' | 'sensitive'
+export const LOCK_KIND_TITLES: Readonly<Record<LockKind, string>> = Object.freeze({ action: 'کار یک‌باره', normal: 'ماژول معمولی', sensitive: 'ماژول پولی و حساس' })
+export const LOCK_KIND_SIGNS: Readonly<Record<LockKind, string>> = Object.freeze({ action: '🔴', normal: '🟢', sensitive: '🟠' })
+export function lockKindOf(key: string): LockKind {
+  if (gateEntry(key)?.category === 3 || LOCKED_PANELS.some((p) => p.key === key && p.kind === 'action')) return 'action'
+  return codeSectionOfPanel(key) === 'other' ? 'normal' : 'sensitive'
 }
 
 /**

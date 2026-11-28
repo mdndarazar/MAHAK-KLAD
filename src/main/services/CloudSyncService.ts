@@ -12,7 +12,7 @@ import { prisma } from '../db/client'
 import { registerRemoteAuthHandlers } from '../ipc/remoteAuth'
 import { REMOTE_PANELS } from '../../shared/enums'
 import { GATE_ACTION_IDS, gateEntry } from '../../shared/gateCatalog'
-import { codeSectionOfPanel, panelTitle } from '../../shared/panels'
+import { LOCK_KIND_TITLES, codeSectionOfPanel, lockKindOf, panelTitle } from '../../shared/panels'
 import { noteAccessEvent } from './locks/accessEvents'
 import { addGateTicket, clearGateTickets } from './locks/tickets'
 import { lockDurationMs, partDurationMs, remoteDurationKey } from './locks/durations'
@@ -154,8 +154,8 @@ async function startConfigured(owner:RemoteOwner|null):Promise<void> {
     const keys=createRemoteTransportVault(root,snapshot.storeId,electron.safeStorage).load()
     const revocationKey=derivedKey(keys.commandKey,snapshot.storeId,snapshot.epoch,'revocation')
     const approvalKey=derivedKey(keys.commandKey,snapshot.storeId,snapshot.epoch,'approval')
-    initRemoteGrantRegistry({notePanelUnlocked:(panel,_scope,owner,allowed,ttlMs)=>{const done=openRenewingPanel(panel,owner,allowed,ttlMs);noteAccessEvent('REMOTE_GRANT_OPENED',{titleFa:panelTitle(panel),windowNo:owner});return done},clearPanelScope:sessions.clearPanelScope,clearPanelSessions:sessions.clearPanelSessions,
-      addOneShotTicket:(actionId,owner,ttlMs,memberId)=>{const made=addGateTicket(owner,actionId,ttlMs,'REMOTE_GRANT',{memberId});if(made)noteAccessEvent('REMOTE_GRANT_OPENED',{titleFa:gateEntry(actionId)?.titleFa,windowNo:owner,minutes:Math.round(ttlMs/60_000)});return made},
+    initRemoteGrantRegistry({notePanelUnlocked:(panel,_scope,owner,allowed,ttlMs)=>{const done=openRenewingPanel(panel,owner,allowed,ttlMs);noteAccessEvent('REMOTE_GRANT_OPENED',{titleFa:panelTitle(panel),windowNo:owner,decision:LOCK_KIND_TITLES[lockKindOf(panel)],...(typeof ttlMs==='number' ? {minutes:Math.round(ttlMs/60_000)} : {})});return done},clearPanelScope:sessions.clearPanelScope,clearPanelSessions:sessions.clearPanelSessions,
+      addOneShotTicket:(actionId,owner,ttlMs,memberId)=>{const made=addGateTicket(owner,actionId,ttlMs,'REMOTE_GRANT',{memberId});if(made)noteAccessEvent('REMOTE_GRANT_OPENED',{titleFa:gateEntry(actionId)?.titleFa,windowNo:owner,decision:LOCK_KIND_TITLES.action,minutes:Math.round(ttlMs/60_000)});return made},
       clearOneShotTickets:(memberId)=>clearGateTickets(memberId===undefined ? {} : {memberId}),grantDurationMs:(panel)=>GATE_ACTION_IDS.includes(panel) ? lockDurationMs('remoteSensitiveGrantMinutes') : partDurationMs(remoteDurationKey(codeSectionOfPanel(panel)))})
     const barrier=createExperimentalRestoreBarrier()
     hubStartAttempted=true

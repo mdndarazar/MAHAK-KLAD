@@ -13,6 +13,7 @@
 import { CASH_MOVEMENT_LABELS, CHEQUE_STATUS_LABELS, EXCHANGE_SETTLEMENT_LABELS, PAYMENT_DESTINATION_LABELS, REFUND_METHOD_LABELS } from '@shared/enums'
 import { CREDIT_SOURCE_LABELS } from '@shared/credit'
 import { faDigits } from '@shared/jalali'
+import { LOCK_KIND_SIGNS, LOCK_KIND_TITLES, type LockKind } from '@shared/panels'
 import { ACCESS_EVENT_KINDS, GATE_METHOD_LABELS, GATE_METHOD_NOTE_PREFIX, type GateMethodKey } from '@shared/gateCatalog'
 import { CHARGE_KINDS, CHARGE_SCOPES, chargeTitle } from '@shared/charges'
 import { invoiceDiscountPercent } from '@shared/accounting'
@@ -791,7 +792,12 @@ function accessEvent(row: AuditRowLite, f: Record<string, unknown>, h: ReturnTyp
     case K.RECOVERY_CODES_CREATED: return [h.event(row, '🆘 کدهای بازیابی توقف اضطراری تازه ساخته شد', [n(f.count) !== null ? `تعداد: ${num(f.count)}` : '', 'کدهای قبلی باطل شد.'], { important: true })]
     case K.RECOVERY_CODES_REVOKED: return [h.event(row, '🆘 کدهای بازیابی توقف اضطراری باطل شد', [], { important: true })]
     case K.RECOVERY_CODE_USED: return [h.event(row, `🆘 توقف اضطراری کامل با کد بازیابی${n(f.number) !== null ? ` شمارهٔ ${num(f.number)}` : ''} پشت رایانه برداشته شد`, ['اگر شما نبودید، همین حالا کدهای بازیابی را باطل کنید.'], { important: true })]
-    case K.REMOTE_GRANT_OPENED: return [h.event(row, '📱 مجوز راه دور باز شد', [where, by], { important: true })]
+    case K.REMOTE_GRANT_OPENED: {
+      // دفتر آزمون ۴-۳۰: نوع (برچسب ثابت `decision`) و زمان؛ ردیف قدیمی بی نوع همان دو خط قبلی را دارد.
+      const kind = (Object.keys(LOCK_KIND_TITLES) as LockKind[]).find((k) => LOCK_KIND_TITLES[k] === label) ?? null
+      const span = kind === 'action' ? 'یک بار' : kind && n(f.minutes) !== null ? `${num(f.minutes)} دقیقه` : ''
+      return [h.event(row, '📱 مجوز راه دور باز شد', [where, kind ? `${LOCK_KIND_SIGNS[kind]} نوع: ${label}` : '', span ? `⏱ زمان: ${span}` : '', by], { important: true })]
+    }
     case K.REMOTE_GRANT_CLOSED: return [h.event(row, '📱 مجوز راه دور بسته شد', [where, label ? `به دست: ${label}` : '', by])]
     case K.SCHEDULED_GRANT_CREATED: return [h.event(row, '🗓️ مجوز زمان‌بندی‌شده ساخته شد', [where, label ? `بازه: ${label}` : '', by], { important: true })]
     case K.SCHEDULED_GRANT_CANCELED:

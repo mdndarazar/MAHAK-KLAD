@@ -4,8 +4,9 @@
  * وقتی «پاسخ ربات به دکمه‌ها» روشن است (کلیدسازی، رمز تایپی مدیر):
  *   ۱) `getUpdates` پیوسته با long polling و تأیید `offset` خوانده می‌شود؛ فقط ارتباط بیرون‌رونده.
  *   ۲) هر درخواست تازهٔ فروشنده برای گیرنده‌های دارای اجازه («می‌تواند درخواست مجوز را تأیید کند») پیام می‌شود:
- *      نام فارسی قفل با نشان «پولی» یا «یک بار»، کد ۶ رقمی مقایسه، ساعت، شمارهٔ پنجره و دو دکمهٔ «✅ تأیید» و
- *      «❌ رد». `callback_data` یک نشانهٔ تصادفی یک‌بارمصرف است، نه شناسهٔ درخواست. مبلغ هرگز در این پیام نیست.
+ *      نام فارسی قفل با نشان «پولی» یا «یک بار»، خط «نوع» (دفتر آزمون ۴-۳۰: کار یک‌باره، ماژول معمولی یا ماژول پولی
+ *      و حساس، با نشانهٔ رنگی هر نوع) و برای ماژول «زمان رایانه برای این نوع»، کد ۶ رقمی مقایسه، ساعت، شمارهٔ پنجره و دو
+ *      دکمهٔ «✅ تأیید» و «❌ رد». `callback_data` یک نشانهٔ تصادفی یک‌بارمصرف است، نه شناسهٔ درخواست. مبلغ هرگز در این پیام نیست.
  *   ۳) تأیید: گفت‌وگو جفت‌شده و دارای اجازه، نشانه تازه، درخواست هنوز در انتظار، و کنترل از راه دور روشن و بی
  *      توقف اضطراری (P2). سپس همان `createGrant` با سیاست همان قفل؛ عضو `bot-<شناسهٔ گیرنده>`. اولین تصمیم برنده
  *      است و پیام بقیهٔ گیرنده‌ها با `editMessageText` نتیجه را نشان می‌دهد.
@@ -25,7 +26,7 @@ import { randomBytes } from 'node:crypto'
 import { CARD_TRANSFER_STATUS_LABELS } from '@shared/enums'
 import { gateEntry } from '@shared/gateCatalog'
 import { faDigits, jalaliAddDays, toJalaliDate } from '@shared/jalali'
-import { LOCKED_PANELS, panelTitle } from '@shared/panels'
+import { LOCKED_PANELS, LOCK_KIND_SIGNS, LOCK_KIND_TITLES, lockKindOf, panelTitle } from '@shared/panels'
 import { PHONE_REPORTS, parsePhoneReportRequest, type PhoneField, type PhoneReportValue, type PhoneValue } from '../phoneReportCatalog'
 import type { BotApi, BotCallbackQuery, BotMessage, BotUpdate, InlineKeyboard } from './messengerAdapters'
 import type { BotCardTransferPage, BotCustodyNow, BotReturnDoc } from './messengerDb'
@@ -46,6 +47,8 @@ export interface BotRemote {
   revokeMember(memberId: string): void
   /** ردیف `ACCESS_EVENT` نوع `BOT_DECISION` (فقط برچسب ثابت تصمیم، نام گیرنده، نام قفل و پنجره) */
   note(fields: { decision: string; recipientName: string; titleFa?: string; windowNo?: number }): void
+  /** دفتر آزمون ۴-۳۰: مدت رایانه برای نوع همین ماژول (دقیقه، ۴-۲۸)؛ قفل کار یا نامعلوم ⇒ null */
+  minutesFor?(panel: string): number | null
 }
 
 export interface BotContext {
@@ -192,6 +195,12 @@ interface Sent { recipientId: string; provider: MessengerProvider; chatId: numbe
 interface RequestState { req: BotRemoteRequest; text: string; sentTo: Set<string>; messages: Sent[]; decided: boolean; at: number }
 type TokenInfo = { kind: 'a' | 'r'; requestId: string; recipientId: string } | { kind: 'c'; recipientId: string; expiresAt: number }
 
+/** دفتر آزمون ۴-۳۰: خط «نوع» با نشانهٔ رنگی همان نوع (`lockKindOf`، همان مرز کدها و مدت‌ها). */
+export function botKindLine(panel: string): string {
+  const kind = lockKindOf(panel)
+  return `${LOCK_KIND_SIGNS[kind]} نوع: ${LOCK_KIND_TITLES[kind]}${kind === 'action' ? ' (فقط یک بار؛ زمان ندارد)' : ''}`
+}
+
 /** عنوان فارسی قفل با نشان «پولی» یا «یک بار» (از همان منبع حقیقت). */
 export function botLockTitle(panel: string): string {
   const entry = gateEntry(panel)
@@ -221,11 +230,25 @@ export function createBotController(ctx: BotContext) {
   const memberOf = (provider: MessengerProvider, chatId: unknown): MessengerRecipient | null =>
     members(provider).find((r) => r.chatId === chatId) ?? null
 
-  /** دفتر آزمون ۴-۳۵: همان قالب یکدست پیام‌ها؛ تاریخ و ساعت در سرتیتر */
+  /** دفتر آزمون ۴-۳۰: مدت رایانه برای نوع همین ماژول (دقیقه، ۱ تا ۱۰۰۰)؛ قفل کار، بی پل یا عدد نادرست ⇒ null. */
+  const computerMinutes = (panel: string): number | null => {
+    if (lockKindOf(panel) === 'action') return null
+    let m: unknown = null
+    try { m = ctx.remote?.minutesFor?.(panel) ?? null } catch { m = null }
+    return Number.isSafeInteger(m) && (m as number) >= 1 && (m as number) <= 1000 ? (m as number) : null
+  }
+  /** زمان مجوز برای پیام نتیجه: قفل کار «یک بار»، ماژول همان مدت رایانه. */
+  const grantSpan = (panel: string, minutes: number | null): string | null =>
+    lockKindOf(panel) === 'action' ? 'یک بار' : minutes !== null ? `${num(minutes)} دقیقه` : null
+
+  /** دفتر آزمون ۴-۳۵: همان قالب یکدست پیام‌ها؛ تاریخ و ساعت در سرتیتر. ۴-۳۰: خط «نوع» و زمان رایانهٔ همان نوع. */
   async function requestText(req: BotRemoteRequest): Promise<string> {
     const offset = await ctx.offsetHours()
+    const minutes = computerMinutes(req.panel)
     return formatMessage(`🔐 درخواست مجوز از رایانهٔ فروشگاه · ${fmtAt(ctx.now(), offset)}`, [
       `قفل: ${botLockTitle(req.panel)}`,
+      botKindLine(req.panel),
+      ...(minutes !== null ? [`⏱ زمان رایانه برای این نوع: ${num(minutes)} دقیقه`] : []),
       `کد مقایسه: ${req.code}`,
       `پنجرهٔ ${num(req.ownerWindowId)}`,
       ...(Number.isSafeInteger(req.recent) && (req.recent as number) > 3 ? [`⚠️ ${num(req.recent as number)} درخواست برای همین قفل در ۱۰ دقیقهٔ اخیر`] : []),
@@ -622,8 +645,12 @@ export function createBotController(ctx: BotContext) {
       if (outcome !== 'OK') { await expired(provider, cq); await editAll(state, '⌛ این درخواست دیگر در انتظار نیست.'); return }
       remote.note({ decision: 'تأیید', recipientName: r.name, titleFa: title, windowNo: state.req.ownerWindowId })
       await answer(provider, cq, 'تأیید شد')
-      await editAll(state, `✅ تأیید شد (${r.name}) · ${fmtAt(ctx.now(), await ctx.offsetHours())}`)
-      await ctx.notifyAll('🤖 درخواست مجوز با ربات تأیید شد', [`قفل: ${title}`, `پنجرهٔ ${num(state.req.ownerWindowId)}`, `گیرنده: ${r.name}`], true)
+      // دفتر آزمون ۴-۳۰: نتیجه برای بقیهٔ گیرنده‌ها و خبر همه، با نوع و زمان (همان تنظیمات رایانه)
+      const span = grantSpan(state.req.panel, computerMinutes(state.req.panel))
+      await editAll(state, `✅ تأیید شد (${r.name})${span ? ` · ${span}` : ''} · ${fmtAt(ctx.now(), await ctx.offsetHours())}`)
+      await ctx.notifyAll('🤖 درخواست مجوز با ربات تأیید شد', [`قفل: ${title}`, botKindLine(state.req.panel),
+        ...(span ? [`⏱ زمان: ${span}${lockKindOf(state.req.panel) === 'action' ? '' : ' (همان تنظیمات رایانه)'}`] : []),
+        `پنجرهٔ ${num(state.req.ownerWindowId)}`, `گیرنده: ${r.name}`], true)
       return
     }
     if (!remote.reject(state.req)) { state.decided = true; dropTokens(state.req.requestId); await expired(provider, cq); return }
@@ -631,7 +658,7 @@ export function createBotController(ctx: BotContext) {
     remote.note({ decision: 'رد', recipientName: r.name, titleFa: title, windowNo: state.req.ownerWindowId })
     await answer(provider, cq, 'رد شد')
     await editAll(state, `❌ رد شد (${r.name}) · ${fmtAt(ctx.now(), await ctx.offsetHours())}`)
-    await ctx.notifyAll('🤖 درخواست مجوز با ربات رد شد', [`قفل: ${title}`, `پنجرهٔ ${num(state.req.ownerWindowId)}`, `گیرنده: ${r.name}`], true)
+    await ctx.notifyAll('🤖 درخواست مجوز با ربات رد شد', [`قفل: ${title}`, botKindLine(state.req.panel), `پنجرهٔ ${num(state.req.ownerWindowId)}`, `گیرنده: ${r.name}`], true)
   }
 
   async function onMessage(provider: MessengerProvider, message: BotMessage): Promise<void> {
