@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { call, CH } from '../lib/api'
 import { faDigits, toLatinDigits } from '@shared/jalali'
-import { codeSectionOfPanel, LOCKED_PANELS, type OneTimeCodeSection } from '@shared/panels'
+import { LOCK_KIND_HELP, lockKindLists, type OneTimeCodeSection } from '@shared/panels'
+import { KindHelpList } from './RemoteGrantControls'
 
 /**
  * ===========================================================================
@@ -44,12 +45,8 @@ export default function OneTimeCodesSettings() {
   const [own, setOwn] = useState<string[]>(['', '', '', '', ''])
   const [minutes, setMinutes] = useState<{ sensitive: string; other: string }>({ sensitive: '', other: '' })
 
-  const lists = useMemo(() => {
-    const money = LOCKED_PANELS.filter((p) => p.kind === 'part' && p.tier === 'money').map((p) => p.title)
-    const fresh = LOCKED_PANELS.filter((p) => p.kind === 'part' && p.tier === 'sensitive').map((p) => p.title)
-    const other = LOCKED_PANELS.filter((p) => codeSectionOfPanel(p.key) === 'other').map((p) => p.title)
-    return { money, fresh, other }
-  }, [])
+  // دفتر آزمون ۴-۳۲: همان فهرست‌های راهنمای صفحهٔ «کنترل از راه دور» (`lockKindLists`؛ مرز همان `codeSectionOfPanel`)
+  const lists = useMemo(() => lockKindLists(), [])
 
   const load = useCallback(async () => {
     try {
@@ -106,10 +103,11 @@ export default function OneTimeCodesSettings() {
       <div className="rounded border p-3 space-y-2">
         <div className="font-bold">{TITLES[key]}</div>
         <div className="kbd leading-6">
-          {key === 'sensitive'
-            ? <>({lists.money.join('، ')}؛ و قسمت‌های تازهٔ {lists.fresh.join('، ')}؛ و همهٔ «قفل‌های کار»، هر کد برای یک بار)</>
-            : <>({lists.other.join('، ')})</>}
+          {LOCK_KIND_HELP}
         </div>
+        {key === 'sensitive'
+          ? <><KindHelpList label="ماژول‌های پولی و حساس" items={lists.sensitive} /><div className="kbd leading-6">و همهٔ «کارهای یک‌باره»، هر کد برای یک بار.</div></>
+          : <KindHelpList label="ماژول‌های معمولی" items={lists.normal} />}
         {key === 'sensitive' && (
           <div className="kbd leading-6 text-rose-800">
             این کدها ماژول‌های پولی را باز می‌کنند. فقط به کارمندی بدهید که به او اعتماد کامل دارید. هر مصرف همان لحظه با ⚠️ در تلگرام و بله می‌آید.

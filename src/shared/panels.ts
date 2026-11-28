@@ -572,6 +572,28 @@ export function lockKindOf(key: string): LockKind {
   return codeSectionOfPanel(key) === 'other' ? 'normal' : 'sensitive'
 }
 
+/** دفتر آزمون ۴-۳۲: جملهٔ کوتاه بالای فهرست‌های راهنمای مدت‌ها، دفعات و کدها */
+export const LOCK_KIND_HELP = 'ماژول یعنی یک بخش کامل که برای مدتی باز می‌ماند؛ کار یک‌باره یعنی یک کار حساس داخل یک بخش که هر مجوزش فقط برای همان کار است.'
+export interface LockKindItem { id: string; title: string }
+/**
+ * دفتر آزمون ۴-۳۲ — سه فهرست راهنما زیر هر تنظیم، از همان طبقه‌بندی‌ای که برنامه با آن کار می‌کند (`lockKindOf`): قسمت‌های
+ * «ماژول معمولی»، قسمت‌های «ماژول پولی و حساس» و «کارهای یک‌باره» به تفکیک بخش؛ هر قسمت و هر کار دقیقاً در یکی است.
+ */
+export function lockKindLists(): { normal: LockKindItem[]; sensitive: LockKindItem[]; actions: Array<{ group: string; items: LockKindItem[] }> } {
+  const parts = LOCKED_PANELS.filter((p) => p.kind === 'part' && lockKindOf(p.key) !== 'action')
+  const groups = new Map<string, LockKindItem[]>()
+  for (const entry of Object.values(GATE_CATALOG)) {
+    if (entry.category !== 3) continue
+    if (!groups.has(entry.group)) groups.set(entry.group, [])
+    groups.get(entry.group)!.push({ id: entry.id, title: entry.titleFa })
+  }
+  return {
+    normal: parts.filter((p) => lockKindOf(p.key) === 'normal').map((p) => ({ id: p.key, title: p.title })),
+    sensitive: parts.filter((p) => lockKindOf(p.key) === 'sensitive').map((p) => ({ id: p.key, title: p.title })),
+    actions: [...groups].map(([group, items]) => ({ group, items }))
+  }
+}
+
 /**
  * ===========================================================================
  * بند ۱ — «مدیریت قفل رمز دوم به‌صورت ماژولار» (تنظیمات → رمز → قفل ماژول‌ها)

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { call, CH } from '../lib/api'
 import { faDigits, toLatinDigits } from '@shared/jalali'
-import { GATE_ACTION_IDS, GATE_IRREVERSIBLE_ACTIONS, gateEntry } from '@shared/gateCatalog'
+import { GATE_IRREVERSIBLE_ACTIONS } from '@shared/gateCatalog'
+import { LOCK_KIND_HELP, lockKindLists, type LockKindItem } from '@shared/panels'
 
 /**
  * ===========================================================================
@@ -12,6 +13,8 @@ import { GATE_ACTION_IDS, GATE_IRREVERSIBLE_ACTIONS, gateEntry } from '@shared/g
  *     خبرش به پیام‌رسان می‌رود. مجوزی که همین حالا باز است با عدد قبلی بسته می‌شود. «قفل کار» همان یک بار است.
  *   - دفتر آزمون ۴-۳۱: «حداکثر دفعات هر مجوز» (۱ تا ۱۰۰۰، پیش‌فرض ۱) و فهرست کارهای یک‌باره به تفکیک بخش با تیک «قابل
  *     تکرار» (پیش‌فرض همه خاموش؛ کار برگشت‌ناپذیر هرگز)، با همان رمز تایپی مدیر؛ و مجوزهای چندبارهٔ باز با دفعات باقی.
+ *   - دفتر آزمون ۴-۳۲: زیر مدت‌ها فهرست ماژول‌های معمولی و پولی و حساس، و زیر دفعات فهرست کارهای یک‌باره به تفکیک بخش با
+ *     نشان «قابل تکرار» یا «برگشت‌ناپذیر؛ همیشه یک بار»، همه از همان طبقه‌بندی برنامه (`lockKindLists`)؛ فهرست بلند «نمایش همه».
  *   - §۳-۱۷: «بستن همهٔ مجوزها و قفل‌های باز» (مجوزهای راه دور، بلیت‌های یک‌بار، قسمت‌های بازشده با کد و مجوز
  *     زمان‌بندی‌شدهٔ باز)؛ رمز نمی‌خواهد، چون فقط می‌بندد. مجوزهای زمان‌بندی‌شدهٔ آینده و خود کدها باطل نمی‌شوند.
  * ===========================================================================
@@ -24,17 +27,23 @@ const BOXES: ReadonlyArray<{ key: RemoteKey; title: string }> = [
 ]
 type OpenRepeat = { id: string; titleFa: string; windowNo: number; left: number; uses: number; minutesLeft: number }
 type Settings = Durations & { repeatUsesMax?: number; repeatableActions?: string[]; openRepeats?: OpenRepeat[] }
+/** دفتر آزمون ۴-۳۲: سه فهرست راهنما از همان طبقه‌بندی برنامه (`lockKindOf`). */
+const KIND_LISTS = lockKindLists()
 /** دفتر آزمون ۴-۳۱: همهٔ «قفل‌های کار» کاتالوگ به تفکیک بخش؛ کار برگشت‌ناپذیر تیکش غیرفعال است. */
-const ACTION_GROUPS: ReadonlyArray<{ group: string; items: ReadonlyArray<{ id: string; title: string; never: boolean }> }> = (() => {
-  const groups = new Map<string, Array<{ id: string; title: string; never: boolean }>>()
-  for (const id of GATE_ACTION_IDS) {
-    const entry = gateEntry(id)
-    if (!entry || entry.category !== 3) continue
-    if (!groups.has(entry.group)) groups.set(entry.group, [])
-    groups.get(entry.group)!.push({ id, title: entry.titleFa, never: GATE_IRREVERSIBLE_ACTIONS.includes(id) })
-  }
-  return [...groups].map(([group, items]) => ({ group, items }))
-})()
+const ACTION_GROUPS: ReadonlyArray<{ group: string; items: ReadonlyArray<{ id: string; title: string; never: boolean }> }> =
+  KIND_LISTS.actions.map((g) => ({ group: g.group, items: g.items.map((i) => ({ ...i, never: GATE_IRREVERSIBLE_ACTIONS.includes(i.id) })) }))
+
+/** دفتر آزمون ۴-۳۲: فهرست راهنمای یک نوع زیر تنظیمش؛ فهرست بلند با «نمایش همه» باز می‌شود. */
+export function KindHelpList({ label, items, limit = 6 }: { label: string; items: ReadonlyArray<LockKindItem>; limit?: number }) {
+  const [all, setAll] = useState(false)
+  const shown = all ? items : items.slice(0, limit)
+  return (
+    <div className="kbd leading-6">
+      {label}: {shown.map((i) => i.title).join('، ')}{items.length > limit && !all ? '، …' : ''}
+      {items.length > limit ? <> <button type="button" className="btn btn-ghost" onClick={() => setAll((v) => !v)}>{all ? 'بستن' : `نمایش همه (${faDigits(items.length)})`}</button></> : null}
+    </div>
+  )
+}
 const remoteOf = (d: Durations): Record<RemoteKey, number> => ({ remoteGrantMinutes: d.remoteGrantMinutes, remoteSensitiveGrantMinutes: d.remoteSensitiveGrantMinutes })
 const texts = (c: Record<RemoteKey, number>): Record<RemoteKey, string> => ({ remoteGrantMinutes: String(c.remoteGrantMinutes), remoteSensitiveGrantMinutes: String(c.remoteSensitiveGrantMinutes) })
 
@@ -145,14 +154,20 @@ export default function RemoteGrantControls() {
         </button>
       </div>
       {BOXES.some((b) => !validOf(b.key) && minutes[b.key].trim()) ? <div className="kbd text-rose-700">هر مدت باید عددی صحیح و بین ۱ تا ۱۰۰۰ باشد.</div> : null}
+      <div className="space-y-1">
+        <div className="kbd leading-6">{LOCK_KIND_HELP}</div>
+        <KindHelpList label="مدت اول، ماژول‌های معمولی" items={KIND_LISTS.normal} />
+        <KindHelpList label="مدت دوم، ماژول‌های پولی و حساس" items={KIND_LISTS.sensitive} />
+      </div>
       {!usesValid && usesText.trim() ? <div className="kbd text-rose-700">حداکثر دفعات باید عددی صحیح و بین ۱ تا ۱۰۰۰ باشد.</div> : null}
       <div className="rounded border p-3 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-bold">کارهای یک‌بارهٔ قابل تکرار</span>
           <span className="kbd">({faDigits(repeatable.length)} کار تیک خورده)</span>
-          <button className="btn btn-ghost" onClick={() => setShowActions((v) => !v)}>{showActions ? 'بستن فهرست' : 'نمایش فهرست'}</button>
+          <button className="btn btn-ghost" onClick={() => setShowActions((v) => !v)}>{showActions ? 'بستن فهرست' : 'نمایش همه'}</button>
         </div>
         <div className="kbd leading-6">
+          زیر «حداکثر دفعات هر مجوز»: همهٔ کارهای یک‌باره ({faDigits(ACTION_GROUPS.reduce((n, g) => n + g.items.length, 0))} کار در {faDigits(ACTION_GROUPS.length)} بخش).
           پیش‌فرض هر کار «یک بار» است. کار تیک‌خورده با یک مجوز تا «حداکثر دفعات هر مجوز» انجام می‌شود و هر بار خبرش به تلگرام و بله می‌رود.
           کارهای برگشت‌ناپذیر هرگز قابل تکرار نمی‌شوند. تغییر با همان رمز مدیر و دکمهٔ ذخیره است.
         </div>
